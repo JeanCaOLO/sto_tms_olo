@@ -1,0 +1,8 @@
+# repo-orchestrator local/machine state - not shared, regenerated per developer
+.claude/orchestrator/roster.json
+.claude/orchestrator/dependency_state.json
+.claude/orchestrator/.comment_*.md
+
+# Python bytecode from running the skill's scripts locally
+__pycache__/
+*.pyc
