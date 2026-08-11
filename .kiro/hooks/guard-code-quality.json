@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Code quality ceiling guard",
+      "trigger": "PreToolUse",
+      "description": "Enforces project file-size ceilings before Kiro write tools change source files.",
+      "matcher": "fs_write|str_replace|fs_append",
+      "action": {
+        "type": "command",
+        "command": "node hooks/kiro-guard-code-quality.js",
+        "timeout": 10
+      }
+    }
+  ]
+}
