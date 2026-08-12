@@ -24,9 +24,11 @@ export interface PedidoSeleccionado extends Pedido {
 export interface Vehiculo {
   id: string;
   plate: string;
-  type: string;
-  capacity_kg: number;
-  capacity_m3: number;
+  brand: string;
+  model: string;
+  vehicle_type: string;
+  capacity_weight: number;
+  capacity_volume: number;
 }
 
 export interface Conductor {

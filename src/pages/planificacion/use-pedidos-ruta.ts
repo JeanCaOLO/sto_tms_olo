@@ -1,14 +1,16 @@
 import { useCallback, useState } from 'react';
 import type { AppUser } from '../../lib/mock-auth';
-import { optimizarParadas, withStopNumbers } from './optimize-stops';
+import { optimizarConCapacidad } from './capacity-fit';
+import { withStopNumbers } from './optimize-stops';
 import { fetchPedidosDeRuta } from './pedidos-api';
-import type { Pedido, PedidoSeleccionado } from './types';
+import type { Pedido, PedidoSeleccionado, Vehiculo } from './types';
 
 export function usePedidosRuta(appUser: AppUser | null) {
   const [rutaTypeId, setRutaTypeIdState] = useState('');
   const [pedidosRuta, setPedidosRuta] = useState<Pedido[]>([]);
   const [pedidosSeleccionados, setPedidosSeleccionados] = useState<PedidoSeleccionado[]>([]);
   const [cargandoPedidos, setCargandoPedidos] = useState(false);
+  const [excluidosPorCapacidad, setExcluidosPorCapacidad] = useState(0);
 
   const cargarPedidosDeRuta = useCallback(async (rtId: string) => {
     if (!rtId || !appUser) {
@@ -30,6 +32,7 @@ export function usePedidosRuta(appUser: AppUser | null) {
 
   const setRutaTypeId = (value: string) => {
     setRutaTypeIdState(value);
+    setExcluidosPorCapacidad(0);
     cargarPedidosDeRuta(value);
   };
 
@@ -52,19 +55,22 @@ export function usePedidosRuta(appUser: AppUser | null) {
     setPedidosSeleccionados(withStopNumbers(nuevos));
   };
 
-  const optimizarRuta = () => {
+  const optimizarRuta = (vehiculo?: Vehiculo) => {
     if (pedidosSeleccionados.length < 2) return;
-    setPedidosSeleccionados(withStopNumbers(optimizarParadas(pedidosSeleccionados)));
+    const { orden, excluidosCount } = optimizarConCapacidad(pedidosSeleccionados, vehiculo);
+    setPedidosSeleccionados(orden);
+    setExcluidosPorCapacidad(excluidosCount);
   };
 
   const resetPedidos = () => {
     setRutaTypeIdState('');
     setPedidosRuta([]);
     setPedidosSeleccionados([]);
+    setExcluidosPorCapacidad(0);
   };
 
   return {
-    rutaTypeId, pedidosRuta, pedidosSeleccionados, cargandoPedidos,
+    rutaTypeId, pedidosRuta, pedidosSeleccionados, cargandoPedidos, excluidosPorCapacidad,
     setRutaTypeId, togglePedido, quitarPedido, reordenarParadas, optimizarRuta, resetPedidos,
   };
 }

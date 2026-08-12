@@ -58,7 +58,7 @@ export default function RouteConfigForm({
         value={vehiculoId}
         onChange={(e) => setVehiculoId(e.target.value)}
         required
-        options={[{ value: '', label: 'Seleccionar vehículo' }, ...vehiculos.map((v) => ({ value: v.id, label: `${v.plate} - ${v.type}` }))]}
+        options={[{ value: '', label: 'Seleccionar vehículo' }, ...vehiculos.map((v) => ({ value: v.id, label: `${v.plate} - ${v.brand} ${v.model}` }))]}
       />
       <Input type="date" label="Fecha de Ruta" value={fechaRuta} onChange={(e) => setFechaRuta(e.target.value)} required />
     </div>

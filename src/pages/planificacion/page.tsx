@@ -16,7 +16,7 @@ export default function PlanificacionPage() {
   const [tab, setTab] = useState<Tab>('nueva');
   const { rutas, vehiculos, transportistas, conductores, loading } = useCatalogos(appUser);
   const {
-    rutaTypeId, pedidosRuta, pedidosSeleccionados, cargandoPedidos,
+    rutaTypeId, pedidosRuta, pedidosSeleccionados, cargandoPedidos, excluidosPorCapacidad,
     setRutaTypeId, togglePedido, quitarPedido, reordenarParadas, optimizarRuta, resetPedidos,
   } = usePedidosRuta(appUser);
   const { generarRuta, generando } = useGenerarRuta({ appUser, vehiculos, rutas });
@@ -109,6 +109,14 @@ export default function PlanificacionPage() {
         />
       ) : (
       <>
+      {excluidosPorCapacidad > 0 && (
+        <div className="flex items-center gap-2 text-sm bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded-lg">
+          <i className="ri-alert-line text-amber-600"></i>
+          <span>
+            {excluidosPorCapacidad} pedido(s) no cab{excluidosPorCapacidad === 1 ? 'e' : 'en'} en el vehículo (con margen de seguridad del 93%) y qued{excluidosPorCapacidad === 1 ? 'ó' : 'aron'} excluido{excluidosPorCapacidad === 1 ? '' : 's'} — reasígnalos a otro viaje.
+          </span>
+        </div>
+      )}
       <ConfiguracionRuta
         rutas={rutas}
         transportistas={transportistas}
@@ -129,7 +137,7 @@ export default function PlanificacionPage() {
         totalVolume={totalVolume}
         pedidosCount={pedidosSeleccionados.length}
         onGenerarRuta={handleGenerarRuta}
-        onOptimizarRuta={optimizarRuta}
+        onOptimizarRuta={() => optimizarRuta(vehiculoSeleccionado)}
         generando={generando}
       />
 

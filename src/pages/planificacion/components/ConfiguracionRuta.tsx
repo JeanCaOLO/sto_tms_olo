@@ -56,8 +56,8 @@ export default function ConfiguracionRuta(props: Props) {
         <div className="bg-slate-50 rounded-lg p-4 mt-4">
           <h3 className="text-sm font-semibold text-slate-700 mb-3">Capacidad del Vehículo</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <CapacityBar icon="ri-weight-line" label="Peso" value={totalWeight} max={vehiculoSeleccionado.capacity_kg} unit="kg" decimals={1} />
-            <CapacityBar icon="ri-box-3-line" label="Volumen" value={totalVolume} max={vehiculoSeleccionado.capacity_m3} unit="m³" decimals={2} />
+            <CapacityBar icon="ri-weight-line" label="Peso" value={totalWeight} max={vehiculoSeleccionado.capacity_weight} unit="kg" decimals={1} />
+            <CapacityBar icon="ri-box-3-line" label="Volumen" value={totalVolume} max={vehiculoSeleccionado.capacity_volume} unit="m³" decimals={2} />
           </div>
         </div>
       )}

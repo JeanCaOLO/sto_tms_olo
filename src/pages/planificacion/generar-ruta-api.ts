@@ -40,7 +40,7 @@ export async function generarRutaEnDb({
       completed_stops: 0,
       total_weight: totalWeight,
       total_volume: totalVolume,
-      capacity_percentage: Math.round((totalWeight / vehiculo.capacity_kg) * 100),
+      capacity_percentage: Math.round((totalWeight / vehiculo.capacity_weight) * 100),
       organization_id: appUser.organization_id,
     })
     .select()
