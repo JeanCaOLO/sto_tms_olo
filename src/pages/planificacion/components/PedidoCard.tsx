@@ -4,20 +4,27 @@ import type { Pedido } from '../types';
 interface Props {
   pedido: Pedido;
   incluido: boolean;
+  anclado: boolean;
   onToggle: (pedido: Pedido) => void;
+  onToggleAncla: (pedidoId: string) => void;
 }
 
-export default function PedidoCard({ pedido, incluido, onToggle }: Props) {
+export default function PedidoCard({ pedido, incluido, anclado, onToggle, onToggleAncla }: Props) {
   return (
     <div
       className={`border rounded-lg p-3 transition-all ${
-        incluido ? 'border-teal-300 bg-teal-50' : 'border-slate-200 bg-white hover:border-slate-300 opacity-60'
+        anclado
+          ? 'border-amber-300 bg-amber-50'
+          : incluido
+            ? 'border-teal-300 bg-teal-50'
+            : 'border-slate-200 bg-white hover:border-slate-300 opacity-60'
       }`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span className="font-semibold text-slate-800 text-sm">{pedido.order_number}</span>
+            {anclado && <Badge variant="warning" className="text-xs">Anclado</Badge>}
             {incluido ? (
               <Badge variant="success" className="text-xs">En ruta</Badge>
             ) : (
@@ -41,15 +48,26 @@ export default function PedidoCard({ pedido, incluido, onToggle }: Props) {
           </div>
         </div>
 
-        <button
-          onClick={() => onToggle(pedido)}
-          className={`flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
-            incluido ? 'bg-red-50 text-red-500 hover:bg-red-100' : 'bg-teal-600 text-white hover:bg-teal-700'
-          }`}
-          title={incluido ? 'Excluir de la ruta' : 'Incluir en la ruta'}
-        >
-          <i className={incluido ? 'ri-close-line' : 'ri-add-line'}></i>
-        </button>
+        <div className="flex-shrink-0 flex flex-col gap-1.5">
+          <button
+            onClick={() => onToggleAncla(pedido.id)}
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
+              anclado ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-slate-100 text-slate-400 hover:bg-amber-50 hover:text-amber-600'
+            }`}
+            title={anclado ? 'Quitar ancla — el optimizador podrá excluirlo si no cabe' : 'Anclar — este pedido siempre irá en el viaje al optimizar'}
+          >
+            <i className={anclado ? 'ri-pushpin-2-fill' : 'ri-pushpin-2-line'}></i>
+          </button>
+          <button
+            onClick={() => onToggle(pedido)}
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
+              incluido ? 'bg-red-50 text-red-500 hover:bg-red-100' : 'bg-teal-600 text-white hover:bg-teal-700'
+            }`}
+            title={incluido ? 'Excluir de la ruta' : 'Incluir en la ruta'}
+          >
+            <i className={incluido ? 'ri-close-line' : 'ri-add-line'}></i>
+          </button>
+        </div>
       </div>
     </div>
   );

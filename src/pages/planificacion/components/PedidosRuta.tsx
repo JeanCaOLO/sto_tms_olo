@@ -8,7 +8,9 @@ interface Props {
   rutaNombre: string;
   pedidos: Pedido[];
   pedidosIncluidos: string[];
+  pedidosAnclados: Set<string>;
   onTogglePedido: (pedido: Pedido) => void;
+  onToggleAncla: (pedidoId: string) => void;
   rutaSeleccionada: boolean;
   cargandoPedidos: boolean;
 }
@@ -24,7 +26,7 @@ const filtrarPedidos = (pedidos: Pedido[], busqueda: string): Pedido[] => {
   );
 };
 
-export default function PedidosRuta({ rutaNombre, pedidos, pedidosIncluidos, onTogglePedido, rutaSeleccionada, cargandoPedidos }: Props) {
+export default function PedidosRuta({ rutaNombre, pedidos, pedidosIncluidos, pedidosAnclados, onTogglePedido, onToggleAncla, rutaSeleccionada, cargandoPedidos }: Props) {
   const [busqueda, setBusqueda] = useState('');
   const pedidosFiltrados = useMemo(() => filtrarPedidos(pedidos, busqueda), [pedidos, busqueda]);
 
@@ -93,7 +95,14 @@ export default function PedidosRuta({ rutaNombre, pedidos, pedidosIncluidos, onT
               </div>
             ) : (
               pedidosFiltrados.map((pedido) => (
-                <PedidoCard key={pedido.id} pedido={pedido} incluido={pedidosIncluidos.includes(pedido.id)} onToggle={onTogglePedido} />
+                <PedidoCard
+                  key={pedido.id}
+                  pedido={pedido}
+                  incluido={pedidosIncluidos.includes(pedido.id)}
+                  anclado={pedidosAnclados.has(pedido.id)}
+                  onToggle={onTogglePedido}
+                  onToggleAncla={onToggleAncla}
+                />
               ))
             )}
           </div>

@@ -6,6 +6,7 @@ import ConfiguracionRuta from './components/ConfiguracionRuta';
 import RutasGeneradas from './components/RutasGeneradas';
 import { useCatalogos } from './use-catalogos';
 import { usePedidosRuta } from './use-pedidos-ruta';
+import { usePedidosAnclados } from './use-pedidos-anclados';
 import { useGenerarRuta } from './use-generar-ruta';
 import { useRutasGeneradas } from './use-rutas-generadas';
 
@@ -19,6 +20,7 @@ export default function PlanificacionPage() {
     rutaTypeId, pedidosRuta, pedidosSeleccionados, cargandoPedidos, excluidosPorCapacidad,
     setRutaTypeId, togglePedido, quitarPedido, reordenarParadas, optimizarRuta, resetPedidos,
   } = usePedidosRuta(appUser);
+  const { anclados, toggleAncla } = usePedidosAnclados();
   const { generarRuta, generando } = useGenerarRuta({ appUser, vehiculos, rutas });
   const { rutas: rutasGeneradas, refresh: refreshRutasGeneradas, eliminar: eliminarRutaGenerada } = useRutasGeneradas();
 
@@ -137,7 +139,7 @@ export default function PlanificacionPage() {
         totalVolume={totalVolume}
         pedidosCount={pedidosSeleccionados.length}
         onGenerarRuta={handleGenerarRuta}
-        onOptimizarRuta={() => optimizarRuta(vehiculoSeleccionado)}
+        onOptimizarRuta={() => optimizarRuta(vehiculoSeleccionado, anclados)}
         generando={generando}
       />
 
@@ -146,7 +148,9 @@ export default function PlanificacionPage() {
           rutaNombre={rutaNombre}
           pedidos={pedidosRuta}
           pedidosIncluidos={pedidosSeleccionados.map((p) => p.id)}
+          pedidosAnclados={anclados}
           onTogglePedido={togglePedido}
+          onToggleAncla={toggleAncla}
           rutaSeleccionada={!!rutaTypeId}
           cargandoPedidos={cargandoPedidos}
         />

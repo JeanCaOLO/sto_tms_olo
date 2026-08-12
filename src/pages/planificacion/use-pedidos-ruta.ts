@@ -55,9 +55,9 @@ export function usePedidosRuta(appUser: AppUser | null) {
     setPedidosSeleccionados(withStopNumbers(nuevos));
   };
 
-  const optimizarRuta = (vehiculo?: Vehiculo) => {
+  const optimizarRuta = (vehiculo?: Vehiculo, anclados?: Set<string>) => {
     if (pedidosSeleccionados.length < 2) return;
-    const { orden, excluidosCount } = optimizarConCapacidad(pedidosSeleccionados, vehiculo);
+    const { orden, excluidosCount } = optimizarConCapacidad(pedidosSeleccionados, vehiculo, anclados);
     setPedidosSeleccionados(orden);
     setExcluidosPorCapacidad(excluidosCount);
   };

@@ -14,21 +14,31 @@ function cargaRelativa(pedido: PedidoSeleccionado, vehiculo: Vehiculo): number {
 // solve (NP-hard). Good enough for route sizes here (≤50 stops per the
 // planning research doc). Ceiling: can leave capacity on the table for some
 // weight/volume combinations. Upgrade: real 2D knapsack DP or ILP if this
-// needs to be exact later. Caps at 93% of nominal capacity (safety margin),
-// not the raw max, per the operational request.
+// needs to be exact later. 93% safety margin is a placeholder pending real
+// industry-standard research (tracked in docs/decisions/ once available) —
+// not a validated operational figure.
+//
+// `anclados`: order IDs the user explicitly wants in this trip no matter
+// what — they're seated first (even if that alone blows the budget, so the
+// UI can warn), then the rest of the capacity is filled largest-first from
+// the remaining orders.
 export function seleccionarPorCapacidad(
   pedidos: PedidoSeleccionado[],
   vehiculo: Vehiculo,
+  anclados: Set<string> = new Set(),
 ): { incluidos: PedidoSeleccionado[]; excluidos: PedidoSeleccionado[] } {
   const maxWeight = vehiculo.capacity_weight * SAFETY_MARGIN;
   const maxVolume = vehiculo.capacity_volume * SAFETY_MARGIN;
 
-  const ordenados = [...pedidos].sort((a, b) => cargaRelativa(b, vehiculo) - cargaRelativa(a, vehiculo));
+  const fijos = pedidos.filter((p) => anclados.has(p.id));
+  const resto = pedidos.filter((p) => !anclados.has(p.id));
 
-  const incluidos: PedidoSeleccionado[] = [];
+  const incluidos: PedidoSeleccionado[] = [...fijos];
   const excluidos: PedidoSeleccionado[] = [];
-  let peso = 0;
-  let volumen = 0;
+  let peso = fijos.reduce((s, p) => s + (p.total_weight || 0), 0);
+  let volumen = fijos.reduce((s, p) => s + (p.total_volume || 0), 0);
+
+  const ordenados = [...resto].sort((a, b) => cargaRelativa(b, vehiculo) - cargaRelativa(a, vehiculo));
 
   for (const pedido of ordenados) {
     const pesoNuevo = peso + (pedido.total_weight || 0);
@@ -48,9 +58,10 @@ export function seleccionarPorCapacidad(
 export function optimizarConCapacidad(
   pedidos: PedidoSeleccionado[],
   vehiculo?: Vehiculo,
+  anclados?: Set<string>,
 ): { orden: PedidoSeleccionado[]; excluidosCount: number } {
   if (!vehiculo) return { orden: withStopNumbers(optimizarParadas(pedidos)), excluidosCount: 0 };
 
-  const { incluidos, excluidos } = seleccionarPorCapacidad(pedidos, vehiculo);
+  const { incluidos, excluidos } = seleccionarPorCapacidad(pedidos, vehiculo, anclados);
   return { orden: withStopNumbers(optimizarParadas(incluidos)), excluidosCount: excluidos.length };
 }
