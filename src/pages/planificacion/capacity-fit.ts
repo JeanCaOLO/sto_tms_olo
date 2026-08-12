@@ -1,7 +1,14 @@
 import { optimizarParadas, withStopNumbers } from './optimize-stops';
 import type { PedidoSeleccionado, Vehiculo } from './types';
 
-const SAFETY_MARGIN = 0.93;
+// Weight is a legal/safety constraint (Costa Rica: Decreto N.º 31363-MOPT sets
+// hard GVWR maximums; fleet-management guidance converges on 80-85% of rated
+// payload as the practical ceiling, to absorb uneven load distribution and
+// weight transfer under braking/cornering). Volume ("cube out") has no safety
+// dimension, just packing geometry, so it gets a tighter margin. See
+// docs/decisions/0001-route-planning-safety-margin-and-optimization.md.
+const WEIGHT_SAFETY_MARGIN = 0.85;
+const VOLUME_SAFETY_MARGIN = 0.95;
 
 function cargaRelativa(pedido: PedidoSeleccionado, vehiculo: Vehiculo): number {
   return Math.max(
@@ -14,9 +21,7 @@ function cargaRelativa(pedido: PedidoSeleccionado, vehiculo: Vehiculo): number {
 // solve (NP-hard). Good enough for route sizes here (≤50 stops per the
 // planning research doc). Ceiling: can leave capacity on the table for some
 // weight/volume combinations. Upgrade: real 2D knapsack DP or ILP if this
-// needs to be exact later. 93% safety margin is a placeholder pending real
-// industry-standard research (tracked in docs/decisions/ once available) —
-// not a validated operational figure.
+// needs to be exact later.
 //
 // `anclados`: order IDs the user explicitly wants in this trip no matter
 // what — they're seated first (even if that alone blows the budget, so the
@@ -27,8 +32,8 @@ export function seleccionarPorCapacidad(
   vehiculo: Vehiculo,
   anclados: Set<string> = new Set(),
 ): { incluidos: PedidoSeleccionado[]; excluidos: PedidoSeleccionado[] } {
-  const maxWeight = vehiculo.capacity_weight * SAFETY_MARGIN;
-  const maxVolume = vehiculo.capacity_volume * SAFETY_MARGIN;
+  const maxWeight = vehiculo.capacity_weight * WEIGHT_SAFETY_MARGIN;
+  const maxVolume = vehiculo.capacity_volume * VOLUME_SAFETY_MARGIN;
 
   const fijos = pedidos.filter((p) => anclados.has(p.id));
   const resto = pedidos.filter((p) => !anclados.has(p.id));

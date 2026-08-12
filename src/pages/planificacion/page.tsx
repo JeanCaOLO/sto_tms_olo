@@ -115,7 +115,7 @@ export default function PlanificacionPage() {
         <div className="flex items-center gap-2 text-sm bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded-lg">
           <i className="ri-alert-line text-amber-600"></i>
           <span>
-            {excluidosPorCapacidad} pedido(s) no cab{excluidosPorCapacidad === 1 ? 'e' : 'en'} en el vehículo (con margen de seguridad del 93%) y qued{excluidosPorCapacidad === 1 ? 'ó' : 'aron'} excluido{excluidosPorCapacidad === 1 ? '' : 's'} — reasígnalos a otro viaje.
+            {excluidosPorCapacidad} pedido(s) no cab{excluidosPorCapacidad === 1 ? 'e' : 'en'} en el vehículo (margen de seguridad: 85% peso / 95% volumen) y qued{excluidosPorCapacidad === 1 ? 'ó' : 'aron'} excluido{excluidosPorCapacidad === 1 ? '' : 's'} — reasígnalos a otro viaje.
           </span>
         </div>
       )}
