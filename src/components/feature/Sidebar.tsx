@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useSidebar } from '../../hooks/useSidebar';
 
 interface MenuItem {
   icon: string;
@@ -50,14 +51,25 @@ function isGroup(item: NavItem): item is MenuGroup {
 
 export default function Sidebar() {
   const location = useLocation();
-  const [collapsed, setCollapsed] = useState(false);
+  const { collapsed, toggleCollapsed, mobileOpen, setMobileOpen } = useSidebar();
 
   const catalogPaths = ['/paises', '/rutas', '/transportistas', '/vehiculos', '/conductores', '/clientes', '/tiendas'];
   const isCatalogActive = catalogPaths.includes(location.pathname);
   const [catalogOpen, setCatalogOpen] = useState(isCatalogActive);
 
   return (
-    <aside className={`fixed left-0 top-0 h-screen bg-slate-900 text-white transition-all duration-300 z-40 ${collapsed ? 'w-20' : 'w-64'}`}>
+    <>
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-30 lg:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+      <aside
+        className={`fixed left-0 top-0 h-screen bg-slate-900 text-white transition-all duration-300 z-40 ${
+          collapsed ? 'lg:w-20' : 'lg:w-64'
+        } w-64 ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
+      >
       <div className="flex items-center justify-between p-4 border-b border-slate-800">
         {!collapsed && (
           <div className="flex items-center gap-3">
@@ -71,10 +83,16 @@ export default function Sidebar() {
           </div>
         )}
         <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="w-8 h-8 flex items-center justify-center hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+          onClick={toggleCollapsed}
+          className="hidden lg:flex w-8 h-8 items-center justify-center hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
         >
           <i className={`ri-${collapsed ? 'menu-unfold' : 'menu-fold'}-line text-lg`}></i>
+        </button>
+        <button
+          onClick={() => setMobileOpen(false)}
+          className="lg:hidden w-8 h-8 flex items-center justify-center hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+        >
+          <i className="ri-close-line text-lg"></i>
         </button>
       </div>
 
@@ -175,6 +193,7 @@ export default function Sidebar() {
           );
         })}
       </nav>
-    </aside>
+      </aside>
+    </>
   );
 }

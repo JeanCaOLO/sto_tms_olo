@@ -1,25 +1,8 @@
 import { useMemo, useState } from 'react';
 import Card from '../../../components/base/Card';
 import Badge from '../../../components/base/Badge';
-
-interface Pedido {
-  id: string;
-  order_number: string;
-  customer_id: string;
-  store_id: string;
-  delivery_address: string;
-  delivery_city: string;
-  delivery_zone: string;
-  total_weight: number;
-  total_volume: number;
-  status: string;
-  order_date: string;
-  delivery_latitude?: number;
-  delivery_longitude?: number;
-  customer_name?: string;
-  store_name?: string;
-  route_type_id?: string;
-}
+import PedidoCard from './PedidoCard';
+import type { Pedido } from '../types';
 
 interface Props {
   rutaNombre: string;
@@ -30,26 +13,20 @@ interface Props {
   cargandoPedidos: boolean;
 }
 
-export default function PedidosRuta({
-  rutaNombre,
-  pedidos,
-  pedidosIncluidos,
-  onTogglePedido,
-  rutaSeleccionada,
-  cargandoPedidos,
-}: Props) {
-  const [busqueda, setBusqueda] = useState('');
+const filtrarPedidos = (pedidos: Pedido[], busqueda: string): Pedido[] => {
+  const q = busqueda.toLowerCase().trim();
+  if (!q) return pedidos;
+  return pedidos.filter((p) =>
+    p.order_number?.toLowerCase().includes(q) ||
+    p.customer_name?.toLowerCase().includes(q) ||
+    p.delivery_city?.toLowerCase().includes(q) ||
+    p.delivery_zone?.toLowerCase().includes(q)
+  );
+};
 
-  const pedidosFiltrados = useMemo(() => {
-    const q = busqueda.toLowerCase().trim();
-    if (!q) return pedidos;
-    return pedidos.filter((p) =>
-      p.order_number?.toLowerCase().includes(q) ||
-      p.customer_name?.toLowerCase().includes(q) ||
-      p.delivery_city?.toLowerCase().includes(q) ||
-      p.delivery_zone?.toLowerCase().includes(q)
-    );
-  }, [pedidos, busqueda]);
+export default function PedidosRuta({ rutaNombre, pedidos, pedidosIncluidos, onTogglePedido, rutaSeleccionada, cargandoPedidos }: Props) {
+  const [busqueda, setBusqueda] = useState('');
+  const pedidosFiltrados = useMemo(() => filtrarPedidos(pedidos, busqueda), [pedidos, busqueda]);
 
   if (!rutaSeleccionada) {
     return (
@@ -59,8 +36,8 @@ export default function PedidosRuta({
           Pedidos de la Ruta
         </h2>
         <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-          <div className="w-16 h-16 flex items-center justify-center">
-            <i className="ri-route-line text-5xl"></i>
+          <div className="w-16 h-16 flex items-center justify-center rounded-full bg-slate-50">
+            <i className="ri-route-line text-4xl"></i>
           </div>
           <p className="mt-4 font-medium text-slate-500">Selecciona una ruta</p>
           <p className="text-sm mt-1 text-center">Los pedidos asignados a esa ruta aparecerán aquí automáticamente</p>
@@ -70,8 +47,8 @@ export default function PedidosRuta({
   }
 
   return (
-    <Card className="h-full">
-      <div className="flex items-center justify-between mb-4">
+    <Card className="h-full flex flex-col">
+      <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div>
           <h2 className="text-lg font-semibold text-slate-800">
             <i className="ri-inbox-line mr-2 text-teal-600"></i>
@@ -89,7 +66,7 @@ export default function PedidosRuta({
         </div>
       ) : (
         <>
-          <div className="relative mb-4">
+          <div className="relative mb-4 flex-shrink-0">
             <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
               <i className="ri-search-line text-sm"></i>
             </div>
@@ -107,7 +84,7 @@ export default function PedidosRuta({
             )}
           </div>
 
-          <div className="space-y-2 max-h-[560px] overflow-y-auto">
+          <div className="space-y-2 overflow-y-auto flex-1 min-h-0">
             {pedidosFiltrados.length === 0 ? (
               <div className="text-center py-12 text-slate-400">
                 <i className="ri-inbox-2-line text-4xl mb-2"></i>
@@ -115,59 +92,9 @@ export default function PedidosRuta({
                 <p className="text-xs mt-1">No hay pedidos pendientes asignados a esta ruta</p>
               </div>
             ) : (
-              pedidosFiltrados.map((pedido) => {
-                const incluido = pedidosIncluidos.includes(pedido.id);
-                return (
-                  <div
-                    key={pedido.id}
-                    className={`border rounded-lg p-3 transition-all ${
-                      incluido
-                        ? 'border-teal-300 bg-teal-50'
-                        : 'border-slate-200 bg-white hover:border-slate-300 opacity-60'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold text-slate-800 text-sm">{pedido.order_number}</span>
-                          {incluido ? (
-                            <Badge variant="success" className="text-xs">En ruta</Badge>
-                          ) : (
-                            <Badge variant="default" className="text-xs">Excluido</Badge>
-                          )}
-                        </div>
-                        <p className="text-sm text-slate-600 flex items-center">
-                          <i className="ri-user-line mr-1 text-slate-400 text-xs"></i>
-                          {pedido.customer_name}
-                        </p>
-                        <div className="mt-1 space-y-0.5 text-xs text-slate-500">
-                          <div className="flex items-center">
-                            <i className="ri-map-pin-line mr-1"></i>
-                            {pedido.delivery_address}, {pedido.delivery_city}
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span><i className="ri-road-map-line mr-1"></i>{pedido.delivery_zone}</span>
-                            <span><i className="ri-weight-line mr-1"></i>{pedido.total_weight} kg</span>
-                            <span><i className="ri-box-3-line mr-1"></i>{pedido.total_volume} m³</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() => onTogglePedido(pedido)}
-                        className={`flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
-                          incluido
-                            ? 'bg-red-50 text-red-500 hover:bg-red-100'
-                            : 'bg-teal-600 text-white hover:bg-teal-700'
-                        }`}
-                        title={incluido ? 'Excluir de la ruta' : 'Incluir en la ruta'}
-                      >
-                        <i className={incluido ? 'ri-close-line' : 'ri-add-line'}></i>
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
+              pedidosFiltrados.map((pedido) => (
+                <PedidoCard key={pedido.id} pedido={pedido} incluido={pedidosIncluidos.includes(pedido.id)} onToggle={onTogglePedido} />
+              ))
             )}
           </div>
         </>

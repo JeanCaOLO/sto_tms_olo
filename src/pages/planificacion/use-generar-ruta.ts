@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import type { AppUser } from '../../lib/mock-auth';
+import { MOCK_AUTH_ENABLED, type AppUser } from '../../lib/mock-auth';
 import { generarRutaEnDb } from './generar-ruta-api';
+import { generarRutaMock } from './generar-ruta-mock';
 import type { PedidoSeleccionado, RutaTipo, Vehiculo } from './types';
 
 interface UseGenerarRutaArgs {
@@ -12,6 +13,7 @@ interface UseGenerarRutaArgs {
 interface GenerarRutaInput {
   pedidosSeleccionados: PedidoSeleccionado[];
   rutaTypeId: string;
+  transportistaId: string;
   conductorId: string;
   vehiculoId: string;
   fechaRuta: string;
@@ -33,7 +35,9 @@ export function useGenerarRuta({ appUser, vehiculos, rutas }: UseGenerarRutaArgs
     }
     try {
       setGenerando(true);
-      const { routeNumber } = await generarRutaEnDb({ appUser, vehiculo, ...input });
+      const { routeNumber } = MOCK_AUTH_ENABLED
+        ? generarRutaMock(input)
+        : await generarRutaEnDb({ appUser, vehiculo, ...input });
       const rutaNombre = rutas.find((r) => r.id === rutaTypeId)?.name || '';
       alert(`¡Ruta ${routeNumber} (${rutaNombre}) generada exitosamente con ${pedidosSeleccionados.length} paradas!`);
       onSuccess();

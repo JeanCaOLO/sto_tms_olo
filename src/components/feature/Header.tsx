@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { useSidebar } from '../../hooks/useSidebar';
 
 const roleColors: Record<string, string> = {
   SuperUsuario: 'bg-teal-100 text-teal-700',
@@ -19,6 +20,7 @@ function getInitials(name: string): string {
 
 export default function Header() {
   const { appUser, signOut } = useAuth();
+  const { collapsed, setMobileOpen } = useSidebar();
   const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
@@ -49,9 +51,17 @@ export default function Header() {
   const roleClass = roleColors[roleName] ?? 'bg-slate-100 text-slate-700';
 
   return (
-    <header className="fixed top-0 right-0 left-64 h-16 bg-white border-b border-slate-200 z-30 px-6 flex items-center justify-between">
-      <div className="flex items-center gap-4 flex-1">
-        <div className="relative flex-1 max-w-md">
+    <header
+      className={`fixed top-0 right-0 left-0 ${collapsed ? 'lg:left-20' : 'lg:left-64'} h-16 bg-white border-b border-slate-200 z-20 px-4 lg:px-6 flex items-center justify-between transition-all duration-300`}
+    >
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="lg:hidden w-9 h-9 flex-shrink-0 flex items-center justify-center text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+        >
+          <i className="ri-menu-line text-xl"></i>
+        </button>
+        <div className="relative flex-1 max-w-md hidden sm:block">
           <div className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center">
             <i className="ri-search-line text-slate-400 text-base"></i>
           </div>
