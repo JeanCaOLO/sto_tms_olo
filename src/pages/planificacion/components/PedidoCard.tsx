@@ -6,7 +6,7 @@ interface Props {
   incluido: boolean;
   anclado: boolean;
   onToggle: (pedido: Pedido) => void;
-  onToggleAncla: (pedidoId: string) => void;
+  onToggleAncla: (pedido: Pedido) => void;
 }
 
 export default function PedidoCard({ pedido, incluido, anclado, onToggle, onToggleAncla }: Props) {
@@ -50,7 +50,7 @@ export default function PedidoCard({ pedido, incluido, anclado, onToggle, onTogg
 
         <div className="flex-shrink-0 flex flex-col gap-1.5">
           <button
-            onClick={() => onToggleAncla(pedido.id)}
+            onClick={() => onToggleAncla(pedido)}
             className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer whitespace-nowrap ${
               anclado ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-slate-100 text-slate-400 hover:bg-amber-50 hover:text-amber-600'
             }`}

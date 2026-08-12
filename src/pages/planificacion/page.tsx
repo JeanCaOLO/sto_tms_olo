@@ -1,26 +1,29 @@
 import { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import PedidosRuta from './components/PedidosRuta';
-import RutaEnConstruccion from './components/RutaEnConstruccion';
-import ConfiguracionRuta from './components/ConfiguracionRuta';
+import { useToast } from '../../hooks/useToast';
+import NuevaRutaTab from './components/NuevaRutaTab';
+import FlotaSplitTab from './components/FlotaSplitTab';
 import RutasGeneradas from './components/RutasGeneradas';
 import { useCatalogos } from './use-catalogos';
 import { usePedidosRuta } from './use-pedidos-ruta';
 import { usePedidosAnclados } from './use-pedidos-anclados';
 import { useGenerarRuta } from './use-generar-ruta';
 import { useRutasGeneradas } from './use-rutas-generadas';
+import { excedeCapacidadAlAnclar } from './capacity-fit';
+import type { Pedido } from './types';
 
-type Tab = 'nueva' | 'generadas';
+type Tab = 'nueva' | 'flota' | 'generadas';
 
 export default function PlanificacionPage() {
   const { appUser } = useAuth();
+  const { showToast } = useToast();
   const [tab, setTab] = useState<Tab>('nueva');
   const { rutas, vehiculos, transportistas, conductores, loading } = useCatalogos(appUser);
   const {
     rutaTypeId, pedidosRuta, pedidosSeleccionados, cargandoPedidos, excluidosPorCapacidad,
     setRutaTypeId, togglePedido, quitarPedido, reordenarParadas, optimizarRuta, resetPedidos,
   } = usePedidosRuta(appUser);
-  const { anclados, toggleAncla } = usePedidosAnclados();
+  const { anclados, toggleAncla, limpiarAnclas } = usePedidosAnclados();
   const { generarRuta, generando } = useGenerarRuta({ appUser, vehiculos, rutas });
   const { rutas: rutasGeneradas, refresh: refreshRutasGeneradas, eliminar: eliminarRutaGenerada } = useRutasGeneradas();
 
@@ -28,15 +31,39 @@ export default function PlanificacionPage() {
   const [conductorId, setConductorId] = useState('');
   const [vehiculoId, setVehiculoId] = useState('');
   const [fechaRuta, setFechaRuta] = useState(new Date().toISOString().split('T')[0]);
+  const vehiculoSeleccionado = vehiculos.find((v) => v.id === vehiculoId);
+
+  const handleSetRutaTypeId = (value: string) => {
+    setRutaTypeId(value);
+    limpiarAnclas();
+  };
 
   const handleSetTransportistaId = (value: string) => {
     setTransportistaId(value);
     setConductorId('');
   };
 
+  const handleToggleAncla = (pedido: Pedido) => {
+    const yaAnclado = anclados.has(pedido.id);
+    if (!yaAnclado && vehiculoSeleccionado) {
+      const excede = excedeCapacidadAlAnclar(
+        { ...pedido, stop_number: 0 },
+        anclados,
+        pedidosSeleccionados,
+        vehiculoSeleccionado,
+      );
+      if (excede) {
+        showToast('No se puede anclar: ya hay pedidos anclados que superan la capacidad de seguridad del vehículo.', 'warning');
+        return;
+      }
+    }
+    toggleAncla(pedido.id);
+  };
+
   const handleGenerarRuta = () => {
     generarRuta({ pedidosSeleccionados, rutaTypeId, transportistaId, conductorId, vehiculoId, fechaRuta }, () => {
       resetPedidos();
+      limpiarAnclas();
       setTransportistaId('');
       setConductorId('');
       setVehiculoId('');
@@ -46,9 +73,6 @@ export default function PlanificacionPage() {
     });
   };
 
-  const vehiculoSeleccionado = vehiculos.find((v) => v.id === vehiculoId);
-  const totalWeight = pedidosSeleccionados.reduce((s, p) => s + (p.total_weight || 0), 0);
-  const totalVolume = pedidosSeleccionados.reduce((s, p) => s + (p.total_volume || 0), 0);
   const rutaNombre = rutas.find((r) => r.id === rutaTypeId)?.name || '';
 
   if (loading) {
@@ -86,6 +110,14 @@ export default function PlanificacionPage() {
           <i className="ri-add-circle-line mr-1.5"></i>Nueva Ruta
         </button>
         <button
+          onClick={() => setTab('flota')}
+          className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors cursor-pointer ${
+            tab === 'flota' ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <i className="ri-stack-line mr-1.5"></i>Reparto de Flota
+        </button>
+        <button
           onClick={() => setTab('generadas')}
           className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors cursor-pointer ${
             tab === 'generadas' ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -100,7 +132,7 @@ export default function PlanificacionPage() {
         </button>
       </div>
 
-      {tab === 'generadas' ? (
+      {tab === 'generadas' && (
         <RutasGeneradas
           rutas={rutasGeneradas}
           rutasTipo={rutas}
@@ -109,59 +141,51 @@ export default function PlanificacionPage() {
           vehiculos={vehiculos}
           onEliminar={eliminarRutaGenerada}
         />
-      ) : (
-      <>
-      {excluidosPorCapacidad > 0 && (
-        <div className="flex items-center gap-2 text-sm bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded-lg">
-          <i className="ri-alert-line text-amber-600"></i>
-          <span>
-            {excluidosPorCapacidad} pedido(s) no cab{excluidosPorCapacidad === 1 ? 'e' : 'en'} en el vehículo (margen de seguridad: 85% peso / 95% volumen) y qued{excluidosPorCapacidad === 1 ? 'ó' : 'aron'} excluido{excluidosPorCapacidad === 1 ? '' : 's'} — reasígnalos a otro viaje.
-          </span>
-        </div>
       )}
-      <ConfiguracionRuta
-        rutas={rutas}
-        transportistas={transportistas}
-        conductores={conductores}
-        vehiculos={vehiculos}
-        rutaTypeId={rutaTypeId}
-        transportistaId={transportistaId}
-        conductorId={conductorId}
-        vehiculoId={vehiculoId}
-        fechaRuta={fechaRuta}
-        setRutaTypeId={setRutaTypeId}
-        setTransportistaId={handleSetTransportistaId}
-        setConductorId={setConductorId}
-        setVehiculoId={setVehiculoId}
-        setFechaRuta={setFechaRuta}
-        vehiculoSeleccionado={vehiculoSeleccionado}
-        totalWeight={totalWeight}
-        totalVolume={totalVolume}
-        pedidosCount={pedidosSeleccionados.length}
-        onGenerarRuta={handleGenerarRuta}
-        onOptimizarRuta={() => optimizarRuta(vehiculoSeleccionado, anclados)}
-        generando={generando}
-      />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <PedidosRuta
-          rutaNombre={rutaNombre}
-          pedidos={pedidosRuta}
-          pedidosIncluidos={pedidosSeleccionados.map((p) => p.id)}
-          pedidosAnclados={anclados}
-          onTogglePedido={togglePedido}
-          onToggleAncla={toggleAncla}
-          rutaSeleccionada={!!rutaTypeId}
-          cargandoPedidos={cargandoPedidos}
+      {tab === 'flota' && (
+        <FlotaSplitTab
+          rutas={rutas}
+          vehiculos={vehiculos}
+          conductores={conductores}
+          onRutasGeneradas={() => {
+            refreshRutasGeneradas();
+            setTab('generadas');
+          }}
         />
+      )}
 
-        <RutaEnConstruccion
+      {tab === 'nueva' && (
+        <NuevaRutaTab
+          rutas={rutas}
+          vehiculos={vehiculos}
+          transportistas={transportistas}
+          conductores={conductores}
+          rutaTypeId={rutaTypeId}
+          transportistaId={transportistaId}
+          conductorId={conductorId}
+          vehiculoId={vehiculoId}
+          fechaRuta={fechaRuta}
+          setRutaTypeId={handleSetRutaTypeId}
+          setTransportistaId={handleSetTransportistaId}
+          setConductorId={setConductorId}
+          setVehiculoId={setVehiculoId}
+          setFechaRuta={setFechaRuta}
+          vehiculoSeleccionado={vehiculoSeleccionado}
+          pedidosRuta={pedidosRuta}
           pedidosSeleccionados={pedidosSeleccionados}
+          pedidosAnclados={anclados}
+          cargandoPedidos={cargandoPedidos}
+          excluidosPorCapacidad={excluidosPorCapacidad}
+          rutaNombre={rutaNombre}
+          generando={generando}
+          onTogglePedido={togglePedido}
+          onToggleAncla={handleToggleAncla}
           onQuitarPedido={quitarPedido}
           onReordenarParadas={reordenarParadas}
+          onGenerarRuta={handleGenerarRuta}
+          onOptimizarRuta={() => optimizarRuta(vehiculoSeleccionado, anclados)}
         />
-      </div>
-      </>
       )}
     </div>
   );

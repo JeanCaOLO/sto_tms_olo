@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { MOCK_AUTH_ENABLED, type AppUser } from '../../lib/mock-auth';
+import { useToast } from '../../hooks/useToast';
 import { generarRutaEnDb } from './generar-ruta-api';
 import { generarRutaMock } from './generar-ruta-mock';
 import type { PedidoSeleccionado, RutaTipo, Vehiculo } from './types';
@@ -21,16 +22,17 @@ interface GenerarRutaInput {
 
 export function useGenerarRuta({ appUser, vehiculos, rutas }: UseGenerarRutaArgs) {
   const [generando, setGenerando] = useState(false);
+  const { showToast } = useToast();
 
   const generarRuta = async (input: GenerarRutaInput, onSuccess: () => void) => {
     const { pedidosSeleccionados, rutaTypeId, conductorId, vehiculoId } = input;
     if (!conductorId || !vehiculoId || !rutaTypeId || pedidosSeleccionados.length === 0 || !appUser) {
-      alert('Por favor completa todos los campos y asegúrate de tener pedidos en la ruta');
+      showToast('Completa todos los campos y asegúrate de tener pedidos en la ruta.', 'warning');
       return;
     }
     const vehiculo = vehiculos.find((v) => v.id === vehiculoId);
     if (!vehiculo) {
-      alert('Vehículo no encontrado');
+      showToast('Vehículo no encontrado.', 'error');
       return;
     }
     try {
@@ -39,11 +41,11 @@ export function useGenerarRuta({ appUser, vehiculos, rutas }: UseGenerarRutaArgs
         ? generarRutaMock(input)
         : await generarRutaEnDb({ appUser, vehiculo, ...input });
       const rutaNombre = rutas.find((r) => r.id === rutaTypeId)?.name || '';
-      alert(`¡Ruta ${routeNumber} (${rutaNombre}) generada exitosamente con ${pedidosSeleccionados.length} paradas!`);
+      showToast(`Ruta ${routeNumber} (${rutaNombre}) generada con ${pedidosSeleccionados.length} paradas.`, 'success');
       onSuccess();
     } catch (error) {
       console.error('Error al generar ruta:', error);
-      alert('Error al generar la ruta. Por favor intenta nuevamente.');
+      showToast('Error al generar la ruta. Intenta nuevamente.', 'error');
     } finally {
       setGenerando(false);
     }

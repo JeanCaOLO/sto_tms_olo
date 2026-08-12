@@ -60,6 +60,23 @@ export function seleccionarPorCapacidad(
   return { incluidos, excluidos };
 }
 
+// Would anchoring `pedidoNuevo` push the already-anchored total (plus this
+// order) over the safety-margin capacity? Used to block the pin action
+// itself, before the user even hits "Optimizar paradas".
+export function excedeCapacidadAlAnclar(
+  pedidoNuevo: PedidoSeleccionado,
+  anclados: Set<string>,
+  pedidos: PedidoSeleccionado[],
+  vehiculo: Vehiculo,
+): boolean {
+  const maxWeight = vehiculo.capacity_weight * WEIGHT_SAFETY_MARGIN;
+  const maxVolume = vehiculo.capacity_volume * VOLUME_SAFETY_MARGIN;
+  const fijos = pedidos.filter((p) => anclados.has(p.id));
+  const peso = fijos.reduce((s, p) => s + (p.total_weight || 0), 0) + (pedidoNuevo.total_weight || 0);
+  const volumen = fijos.reduce((s, p) => s + (p.total_volume || 0), 0) + (pedidoNuevo.total_volume || 0);
+  return peso > maxWeight || volumen > maxVolume;
+}
+
 export function optimizarConCapacidad(
   pedidos: PedidoSeleccionado[],
   vehiculo?: Vehiculo,

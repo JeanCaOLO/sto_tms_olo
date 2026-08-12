@@ -10,7 +10,7 @@ interface Props {
   pedidosIncluidos: string[];
   pedidosAnclados: Set<string>;
   onTogglePedido: (pedido: Pedido) => void;
-  onToggleAncla: (pedidoId: string) => void;
+  onToggleAncla: (pedido: Pedido) => void;
   rutaSeleccionada: boolean;
   cargandoPedidos: boolean;
 }

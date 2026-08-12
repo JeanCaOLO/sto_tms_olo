@@ -3,6 +3,7 @@ import { Suspense } from 'react';
 import { AppRoutes } from './router';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { SidebarProvider, useSidebar } from './hooks/useSidebar';
+import { ToastProvider } from './hooks/useToast';
 import Sidebar from './components/feature/Sidebar';
 import Header from './components/feature/Header';
 
@@ -66,9 +67,11 @@ export default function App() {
   return (
     <BrowserRouter basename={__BASE_PATH__}>
       <AuthProvider>
-        <SidebarProvider>
-          <AppLayout />
-        </SidebarProvider>
+        <ToastProvider>
+          <SidebarProvider>
+            <AppLayout />
+          </SidebarProvider>
+        </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
   );
