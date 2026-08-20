@@ -25,6 +25,13 @@ export default function PedidoCard({ pedido, incluido, anclado, onToggle, onTogg
           <div className="flex items-center gap-2 mb-1">
             <span className="font-semibold text-slate-800 text-sm">{pedido.order_number}</span>
             {anclado && <Badge variant="warning" className="text-xs">Anclado</Badge>}
+            {pedido.is_exception && (
+              <span title="Dirección de excepción, sin coordenadas — fuera del cálculo de ruta óptima">
+                <Badge variant="default" className="text-xs">
+                  <i className="ri-map-pin-off-line mr-0.5"></i>Excepción
+                </Badge>
+              </span>
+            )}
             {incluido ? (
               <Badge variant="success" className="text-xs">En ruta</Badge>
             ) : (

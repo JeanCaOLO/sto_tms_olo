@@ -1,18 +1,18 @@
 import Select from '../../../components/base/Select';
 import Input from '../../../components/base/Input';
-import type { Conductor, RutaTipo, Transportista, Vehiculo } from '../types';
+import type { Conductor, Transportista, Vehiculo, Viaje } from '../types';
 
 interface Props {
-  rutas: RutaTipo[];
+  viajes: Viaje[];
   transportistas: Transportista[];
   conductores: Conductor[];
   vehiculos: Vehiculo[];
-  rutaTypeId: string;
+  viajeId: string;
   transportistaId: string;
   conductorId: string;
   vehiculoId: string;
   fechaRuta: string;
-  setRutaTypeId: (value: string) => void;
+  setViajeId: (value: string) => void;
   setTransportistaId: (value: string) => void;
   setConductorId: (value: string) => void;
   setVehiculoId: (value: string) => void;
@@ -20,9 +20,9 @@ interface Props {
 }
 
 export default function RouteConfigForm({
-  rutas, transportistas, conductores, vehiculos,
-  rutaTypeId, transportistaId, conductorId, vehiculoId, fechaRuta,
-  setRutaTypeId, setTransportistaId, setConductorId, setVehiculoId, setFechaRuta,
+  viajes, transportistas, conductores, vehiculos,
+  viajeId, transportistaId, conductorId, vehiculoId, fechaRuta,
+  setViajeId, setTransportistaId, setConductorId, setVehiculoId, setFechaRuta,
 }: Props) {
   const conductoresFiltrados = transportistaId
     ? conductores.filter((c) => c.carrier_id === transportistaId)
@@ -31,11 +31,14 @@ export default function RouteConfigForm({
   return (
     <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
       <Select
-        label="Ruta"
-        value={rutaTypeId}
-        onChange={(e) => setRutaTypeId(e.target.value)}
+        label="Viaje (WMS)"
+        value={viajeId}
+        onChange={(e) => setViajeId(e.target.value)}
         required
-        options={[{ value: '', label: 'Seleccionar ruta' }, ...rutas.map((r) => ({ value: r.id, label: r.name }))]}
+        options={[
+          { value: '', label: 'Seleccionar viaje despachado' },
+          ...viajes.map((v) => ({ value: v.id, label: `${v.trip_number} — ${v.route_type_name}` })),
+        ]}
       />
       <Select
         label="Transportista"

@@ -2,19 +2,19 @@ import Card from '../../../components/base/Card';
 import Button from '../../../components/base/Button';
 import RouteConfigForm from './RouteConfigForm';
 import CapacityBar from './CapacityBar';
-import type { Conductor, RutaTipo, Transportista, Vehiculo } from '../types';
+import type { Conductor, Transportista, Vehiculo, Viaje } from '../types';
 
 interface Props {
-  rutas: RutaTipo[];
+  viajes: Viaje[];
   transportistas: Transportista[];
   conductores: Conductor[];
   vehiculos: Vehiculo[];
-  rutaTypeId: string;
+  viajeId: string;
   transportistaId: string;
   conductorId: string;
   vehiculoId: string;
   fechaRuta: string;
-  setRutaTypeId: (value: string) => void;
+  setViajeId: (value: string) => void;
   setTransportistaId: (value: string) => void;
   setConductorId: (value: string) => void;
   setVehiculoId: (value: string) => void;
@@ -29,8 +29,8 @@ interface Props {
 }
 
 export default function ConfiguracionRuta(props: Props) {
-  const { vehiculoSeleccionado, totalWeight, totalVolume, pedidosCount, rutaTypeId, conductorId, vehiculoId, generando } = props;
-  const puedeGenerar = Boolean(rutaTypeId && conductorId && vehiculoId && pedidosCount > 0 && !generando);
+  const { vehiculoSeleccionado, totalWeight, totalVolume, pedidosCount, viajeId, conductorId, vehiculoId, generando } = props;
+  const puedeGenerar = Boolean(viajeId && conductorId && vehiculoId && pedidosCount > 0 && !generando);
 
   return (
     <Card>

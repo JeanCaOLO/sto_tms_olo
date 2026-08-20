@@ -1,4 +1,5 @@
 import { optimizarParadas, withStopNumbers } from './optimize-stops';
+import type { MatrizDistancias } from './distance-matrix';
 import type { PedidoSeleccionado, Vehiculo } from './types';
 
 // Weight is a legal/safety constraint (Costa Rica: Decreto N.º 31363-MOPT sets
@@ -81,9 +82,10 @@ export function optimizarConCapacidad(
   pedidos: PedidoSeleccionado[],
   vehiculo?: Vehiculo,
   anclados?: Set<string>,
+  matriz?: MatrizDistancias,
 ): { orden: PedidoSeleccionado[]; excluidosCount: number } {
-  if (!vehiculo) return { orden: withStopNumbers(optimizarParadas(pedidos)), excluidosCount: 0 };
+  if (!vehiculo) return { orden: withStopNumbers(optimizarParadas(pedidos, matriz)), excluidosCount: 0 };
 
   const { incluidos, excluidos } = seleccionarPorCapacidad(pedidos, vehiculo, anclados);
-  return { orden: withStopNumbers(optimizarParadas(incluidos)), excluidosCount: excluidos.length };
+  return { orden: withStopNumbers(optimizarParadas(incluidos, matriz)), excluidosCount: excluidos.length };
 }

@@ -5,11 +5,11 @@ import NuevaRutaTab from './components/NuevaRutaTab';
 import FlotaSplitTab from './components/FlotaSplitTab';
 import RutasGeneradas from './components/RutasGeneradas';
 import { useCatalogos } from './use-catalogos';
+import { useViajes } from './use-viajes';
 import { usePedidosRuta } from './use-pedidos-ruta';
 import { usePedidosAnclados } from './use-pedidos-anclados';
 import { useGenerarRuta } from './use-generar-ruta';
 import { useRutasGeneradas } from './use-rutas-generadas';
-import { excedeCapacidadAlAnclar } from './capacity-fit';
 import type { Pedido } from './types';
 
 type Tab = 'nueva' | 'flota' | 'generadas';
@@ -19,13 +19,15 @@ export default function PlanificacionPage() {
   const { showToast } = useToast();
   const [tab, setTab] = useState<Tab>('nueva');
   const { rutas, vehiculos, transportistas, conductores, loading } = useCatalogos(appUser);
+  const { viajes, cargandoViajes } = useViajes(appUser);
   const {
-    rutaTypeId, pedidosRuta, pedidosSeleccionados, cargandoPedidos, excluidosPorCapacidad,
-    setRutaTypeId, togglePedido, quitarPedido, reordenarParadas, optimizarRuta, resetPedidos,
-  } = usePedidosRuta(appUser);
-  const { anclados, toggleAncla, limpiarAnclas } = usePedidosAnclados();
+    viajeId, pedidosRuta, pedidosSeleccionados, excluidosPorCapacidad,
+    setViaje, togglePedido, quitarPedido, reordenarParadas, optimizarRuta, resetPedidos,
+  } = usePedidosRuta();
+  const { anclados, toggleAnclaConValidacion, limpiarAnclas } = usePedidosAnclados();
   const { generarRuta, generando } = useGenerarRuta({ appUser, vehiculos, rutas });
   const { rutas: rutasGeneradas, refresh: refreshRutasGeneradas, eliminar: eliminarRutaGenerada } = useRutasGeneradas();
+  const rutaTypeId = viajes.find((v) => v.id === viajeId)?.route_type_id || '';
 
   const [transportistaId, setTransportistaId] = useState('');
   const [conductorId, setConductorId] = useState('');
@@ -33,8 +35,8 @@ export default function PlanificacionPage() {
   const [fechaRuta, setFechaRuta] = useState(new Date().toISOString().split('T')[0]);
   const vehiculoSeleccionado = vehiculos.find((v) => v.id === vehiculoId);
 
-  const handleSetRutaTypeId = (value: string) => {
-    setRutaTypeId(value);
+  const handleSetViajeId = (value: string) => {
+    setViaje(viajes.find((v) => v.id === value));
     limpiarAnclas();
   };
 
@@ -43,21 +45,15 @@ export default function PlanificacionPage() {
     setConductorId('');
   };
 
-  const handleToggleAncla = (pedido: Pedido) => {
-    const yaAnclado = anclados.has(pedido.id);
-    if (!yaAnclado && vehiculoSeleccionado) {
-      const excede = excedeCapacidadAlAnclar(
-        { ...pedido, stop_number: 0 },
-        anclados,
-        pedidosSeleccionados,
-        vehiculoSeleccionado,
-      );
-      if (excede) {
-        showToast('No se puede anclar: ya hay pedidos anclados que superan la capacidad de seguridad del vehículo.', 'warning');
-        return;
-      }
+  const handleToggleAncla = (pedido: Pedido) =>
+    toggleAnclaConValidacion(pedido, vehiculoSeleccionado, pedidosSeleccionados);
+
+  const handleOptimizarRuta = () => {
+    const sinCoords = pedidosRuta.filter((p) => p.delivery_latitude == null || p.delivery_longitude == null).length;
+    if (sinCoords > 0) {
+      showToast(`${sinCoords} pedido(s) con dirección de excepción (sin coordenadas) quedan fuera del cálculo de ruta óptima.`, 'warning');
     }
-    toggleAncla(pedido.id);
+    optimizarRuta(vehiculoSeleccionado, anclados);
   };
 
   const handleGenerarRuta = () => {
@@ -89,7 +85,7 @@ export default function PlanificacionPage() {
         <div>
           <h1 className="text-xl lg:text-2xl font-bold text-slate-800">Planificación de Rutas</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Selecciona una ruta del catálogo, asigna transportista, conductor y vehículo, y genera la ruta óptima de entrega
+            Selecciona un viaje despachado, asigna transportista, conductor y vehículo, y genera la ruta óptima de entrega
           </p>
         </div>
         {tab === 'nueva' && pedidosSeleccionados.length > 0 && (
@@ -157,16 +153,16 @@ export default function PlanificacionPage() {
 
       {tab === 'nueva' && (
         <NuevaRutaTab
-          rutas={rutas}
+          viajes={viajes}
           vehiculos={vehiculos}
           transportistas={transportistas}
           conductores={conductores}
-          rutaTypeId={rutaTypeId}
+          viajeId={viajeId}
           transportistaId={transportistaId}
           conductorId={conductorId}
           vehiculoId={vehiculoId}
           fechaRuta={fechaRuta}
-          setRutaTypeId={handleSetRutaTypeId}
+          setViajeId={handleSetViajeId}
           setTransportistaId={handleSetTransportistaId}
           setConductorId={setConductorId}
           setVehiculoId={setVehiculoId}
@@ -175,7 +171,7 @@ export default function PlanificacionPage() {
           pedidosRuta={pedidosRuta}
           pedidosSeleccionados={pedidosSeleccionados}
           pedidosAnclados={anclados}
-          cargandoPedidos={cargandoPedidos}
+          cargandoPedidos={cargandoViajes}
           excluidosPorCapacidad={excluidosPorCapacidad}
           rutaNombre={rutaNombre}
           generando={generando}
@@ -184,7 +180,7 @@ export default function PlanificacionPage() {
           onQuitarPedido={quitarPedido}
           onReordenarParadas={reordenarParadas}
           onGenerarRuta={handleGenerarRuta}
-          onOptimizarRuta={() => optimizarRuta(vehiculoSeleccionado, anclados)}
+          onOptimizarRuta={handleOptimizarRuta}
         />
       )}
     </div>

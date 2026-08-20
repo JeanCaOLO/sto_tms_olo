@@ -1,39 +1,21 @@
-import { useCallback, useState } from 'react';
-import type { AppUser } from '../../lib/mock-auth';
+import { useState } from 'react';
 import { optimizarConCapacidad } from './capacity-fit';
+import { construirMatrizDistancias } from './distance-matrix';
 import { withStopNumbers } from './optimize-stops';
-import { fetchPedidosDeRuta } from './pedidos-api';
-import type { Pedido, PedidoSeleccionado, Vehiculo } from './types';
+import type { Pedido, PedidoSeleccionado, Vehiculo, Viaje } from './types';
 
-export function usePedidosRuta(appUser: AppUser | null) {
-  const [rutaTypeId, setRutaTypeIdState] = useState('');
+export function usePedidosRuta() {
+  const [viajeId, setViajeIdState] = useState('');
   const [pedidosRuta, setPedidosRuta] = useState<Pedido[]>([]);
   const [pedidosSeleccionados, setPedidosSeleccionados] = useState<PedidoSeleccionado[]>([]);
-  const [cargandoPedidos, setCargandoPedidos] = useState(false);
   const [excluidosPorCapacidad, setExcluidosPorCapacidad] = useState(0);
 
-  const cargarPedidosDeRuta = useCallback(async (rtId: string) => {
-    if (!rtId || !appUser) {
-      setPedidosRuta([]);
-      setPedidosSeleccionados([]);
-      return;
-    }
-    try {
-      setCargandoPedidos(true);
-      const pedidos = await fetchPedidosDeRuta(appUser, rtId);
-      setPedidosRuta(pedidos);
-      setPedidosSeleccionados(withStopNumbers(pedidos));
-    } catch (error) {
-      console.error('Error cargando pedidos de la ruta:', error);
-    } finally {
-      setCargandoPedidos(false);
-    }
-  }, [appUser]);
-
-  const setRutaTypeId = (value: string) => {
-    setRutaTypeIdState(value);
+  const setViaje = (viaje?: Viaje) => {
+    const pedidos = viaje?.pedidos || [];
+    setViajeIdState(viaje?.id || '');
+    setPedidosRuta(pedidos);
+    setPedidosSeleccionados(withStopNumbers(pedidos));
     setExcluidosPorCapacidad(0);
-    cargarPedidosDeRuta(value);
   };
 
   const togglePedido = (pedido: Pedido) => {
@@ -55,22 +37,23 @@ export function usePedidosRuta(appUser: AppUser | null) {
     setPedidosSeleccionados(withStopNumbers(nuevos));
   };
 
+  // Optimiza sobre el pool completo del viaje (`pedidosRuta`), no solo lo
+  // que haya quedado en `pedidosSeleccionados` — si el usuario ancló un
+  // pedido y quitó el resto, aún así debe rellenar hasta la capacidad del
+  // vehículo. La matriz N×N se calcula una vez por viaje y se descarta tras
+  // el optimize (viajes de este tamaño no ameritan cachearla entre clics).
   const optimizarRuta = (vehiculo?: Vehiculo, anclados?: Set<string>) => {
-    if (pedidosSeleccionados.length < 2) return;
-    const { orden, excluidosCount } = optimizarConCapacidad(pedidosSeleccionados, vehiculo, anclados);
+    if (pedidosRuta.length < 2) return;
+    const matriz = construirMatrizDistancias(pedidosRuta);
+    const { orden, excluidosCount } = optimizarConCapacidad(withStopNumbers(pedidosRuta), vehiculo, anclados, matriz);
     setPedidosSeleccionados(orden);
     setExcluidosPorCapacidad(excluidosCount);
   };
 
-  const resetPedidos = () => {
-    setRutaTypeIdState('');
-    setPedidosRuta([]);
-    setPedidosSeleccionados([]);
-    setExcluidosPorCapacidad(0);
-  };
+  const resetPedidos = () => setViaje(undefined);
 
   return {
-    rutaTypeId, pedidosRuta, pedidosSeleccionados, cargandoPedidos, excluidosPorCapacidad,
-    setRutaTypeId, togglePedido, quitarPedido, reordenarParadas, optimizarRuta, resetPedidos,
+    viajeId, pedidosRuta, pedidosSeleccionados, excluidosPorCapacidad,
+    setViaje, togglePedido, quitarPedido, reordenarParadas, optimizarRuta, resetPedidos,
   };
 }

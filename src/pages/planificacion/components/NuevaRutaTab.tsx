@@ -1,19 +1,19 @@
 import PedidosRuta from './PedidosRuta';
 import RutaEnConstruccion from './RutaEnConstruccion';
 import ConfiguracionRuta from './ConfiguracionRuta';
-import type { Conductor, Pedido, PedidoSeleccionado, RutaTipo, Transportista, Vehiculo } from '../types';
+import type { Conductor, Pedido, PedidoSeleccionado, Transportista, Vehiculo, Viaje } from '../types';
 
 interface Props {
-  rutas: RutaTipo[];
+  viajes: Viaje[];
   vehiculos: Vehiculo[];
   transportistas: Transportista[];
   conductores: Conductor[];
-  rutaTypeId: string;
+  viajeId: string;
   transportistaId: string;
   conductorId: string;
   vehiculoId: string;
   fechaRuta: string;
-  setRutaTypeId: (value: string) => void;
+  setViajeId: (value: string) => void;
   setTransportistaId: (value: string) => void;
   setConductorId: (value: string) => void;
   setVehiculoId: (value: string) => void;
@@ -51,16 +51,16 @@ export default function NuevaRutaTab(props: Props) {
       )}
 
       <ConfiguracionRuta
-        rutas={props.rutas}
+        viajes={props.viajes}
         transportistas={props.transportistas}
         conductores={props.conductores}
         vehiculos={props.vehiculos}
-        rutaTypeId={props.rutaTypeId}
+        viajeId={props.viajeId}
         transportistaId={props.transportistaId}
         conductorId={props.conductorId}
         vehiculoId={props.vehiculoId}
         fechaRuta={props.fechaRuta}
-        setRutaTypeId={props.setRutaTypeId}
+        setViajeId={props.setViajeId}
         setTransportistaId={props.setTransportistaId}
         setConductorId={props.setConductorId}
         setVehiculoId={props.setVehiculoId}
@@ -82,7 +82,7 @@ export default function NuevaRutaTab(props: Props) {
           pedidosAnclados={props.pedidosAnclados}
           onTogglePedido={props.onTogglePedido}
           onToggleAncla={props.onToggleAncla}
-          rutaSeleccionada={!!props.rutaTypeId}
+          rutaSeleccionada={!!props.viajeId}
           cargandoPedidos={props.cargandoPedidos}
         />
 

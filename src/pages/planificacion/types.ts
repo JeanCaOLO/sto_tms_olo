@@ -15,6 +15,25 @@ export interface Pedido {
   customer_name?: string;
   store_name?: string;
   route_type_id?: string;
+  // Dirección de entrega distinta a la registrada del cliente (hoy llega
+  // como comentario libre en Iflow, sin coordenadas — ver Reunión
+  // 2026-08-18). Sin lat/lng, queda fuera del cálculo de ruta óptima.
+  is_exception?: boolean;
+  exception_address_raw?: string;
+}
+
+// Agrupador de pedidos que llega ya resuelto desde el WMS (Iflow/torre de
+// control): n pedidos + n destinos, con la ruta ya asignada. El TMS consume
+// esa asignación viaje→ruta como fuente de verdad, no la recalcula (ver
+// Reunión 2026-08-18 — Planificación de Rutas con Ricardo).
+export interface Viaje {
+  id: string;
+  trip_number: string;
+  route_type_id: string;
+  route_type_name: string;
+  trip_date: string;
+  status: 'despachado' | 'planificado' | 'en_ruta' | 'completado' | 'anulado';
+  pedidos: Pedido[];
 }
 
 export interface PedidoSeleccionado extends Pedido {

@@ -6,7 +6,9 @@ type MockStop = Pick<
 >;
 
 // Real Gran Área Metropolitana (Costa Rica) addresses/coords, no live client data.
-const MOCK_STOPS: MockStop[] = [
+// Exported so fallback-viajes.ts can group these same stops into viajes
+// instead of duplicating the list.
+export const MOCK_STOPS: MockStop[] = [
   { customer_name: 'Supermercado Central', delivery_address: 'Calle Huérfanos 1178', delivery_city: 'San José', delivery_zone: 'GAM Centro', delivery_latitude: 9.9333, delivery_longitude: -84.0833, total_weight: 320, total_volume: 1.8 },
   { customer_name: 'Minimarket Las Condes', delivery_address: 'Av. Vitacura 2939', delivery_city: 'Escazú', delivery_zone: 'GAM Oriente', delivery_latitude: 9.9189, delivery_longitude: -84.1436, total_weight: 185.5, total_volume: 1.2 },
   { customer_name: 'Almacén Maipú', delivery_address: 'Calle Central 450', delivery_city: 'Alajuela', delivery_zone: 'GAM Norte', delivery_latitude: 10.0162, delivery_longitude: -84.2116, total_weight: 450, total_volume: 2.5 },
