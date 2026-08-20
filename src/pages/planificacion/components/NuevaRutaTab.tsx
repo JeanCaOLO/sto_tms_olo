@@ -9,6 +9,7 @@ interface Props {
   transportistas: Transportista[];
   conductores: Conductor[];
   viajeId: string;
+  rutaNombre: string;
   transportistaId: string;
   conductorId: string;
   vehiculoId: string;
@@ -24,7 +25,6 @@ interface Props {
   pedidosAnclados: Set<string>;
   cargandoPedidos: boolean;
   excluidosPorCapacidad: number;
-  rutaNombre: string;
   generando: boolean;
   onTogglePedido: (pedido: Pedido) => void;
   onToggleAncla: (pedido: Pedido) => void;
@@ -56,6 +56,7 @@ export default function NuevaRutaTab(props: Props) {
         conductores={props.conductores}
         vehiculos={props.vehiculos}
         viajeId={props.viajeId}
+        rutaNombre={props.rutaNombre}
         transportistaId={props.transportistaId}
         conductorId={props.conductorId}
         vehiculoId={props.vehiculoId}

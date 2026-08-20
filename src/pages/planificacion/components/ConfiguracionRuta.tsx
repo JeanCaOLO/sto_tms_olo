@@ -10,6 +10,7 @@ interface Props {
   conductores: Conductor[];
   vehiculos: Vehiculo[];
   viajeId: string;
+  rutaNombre: string;
   transportistaId: string;
   conductorId: string;
   vehiculoId: string;
