@@ -17,9 +17,12 @@ function pedidoDeStop(stopIndex: number, viajeId: string, ordenEnViaje: number):
   };
 }
 
+const pedidosDe = (indices: number[], viajeId: string): Pedido[] =>
+  indices.map((stopIndex, i) => pedidoDeStop(stopIndex, viajeId, i));
+
 const HOY = new Date().toISOString().split('T')[0];
 
-// ponytail: 3 viajes sintéticos agrupando los 8 stops mock por afinidad
+// ponytail: 4 viajes sintéticos agrupando los 20 stops mock por afinidad
 // geográfica, reflejando el concepto real de "viaje" del WMS (Reunión
 // 2026-08-18): n pedidos + n destinos, con la ruta ya asignada. El viaje 2
 // lleva un pedido de excepción (dirección distinta a la registrada, sin
@@ -28,14 +31,16 @@ export function getFallbackViajes(): Viaje[] {
   const rutaNorte = FALLBACK_RUTAS[0].id;
   const rutaSur = FALLBACK_RUTAS[1].id;
   const rutaCentro = FALLBACK_RUTAS[2].id;
+  const rutaOriente = FALLBACK_RUTAS[3].id;
 
-  const excepcion: Pedido = {
-    ...pedidoDeStop(6, 'VJ-MOCK-002', 2),
-    delivery_latitude: undefined,
-    delivery_longitude: undefined,
-    is_exception: true,
-    exception_address_raw: 'Entregar en sucursal de Tres Ríos, contactar al 8888-8888 (no es la dirección registrada del cliente)',
-  };
+  const pedidosViaje2 = pedidosDe([4, 5, 6, 12, 13], 'VJ-MOCK-002');
+  const excepcion = pedidosViaje2.find((p) => p.order_number === 'ORD-MOCK-007');
+  if (excepcion) {
+    excepcion.delivery_latitude = undefined;
+    excepcion.delivery_longitude = undefined;
+    excepcion.is_exception = true;
+    excepcion.exception_address_raw = 'Entregar en sucursal de Tres Ríos, contactar al 8888-8888 (no es la dirección registrada del cliente)';
+  }
 
   return [
     {
@@ -45,7 +50,7 @@ export function getFallbackViajes(): Viaje[] {
       route_type_name: nombreRuta(rutaNorte),
       trip_date: HOY,
       status: 'despachado',
-      pedidos: [pedidoDeStop(2, 'VJ-MOCK-001', 0), pedidoDeStop(3, 'VJ-MOCK-001', 1), pedidoDeStop(7, 'VJ-MOCK-001', 2)],
+      pedidos: pedidosDe([2, 3, 14, 15, 16], 'VJ-MOCK-001'),
     },
     {
       id: 'VJ-MOCK-002',
@@ -54,7 +59,7 @@ export function getFallbackViajes(): Viaje[] {
       route_type_name: nombreRuta(rutaSur),
       trip_date: HOY,
       status: 'despachado',
-      pedidos: [pedidoDeStop(4, 'VJ-MOCK-002', 0), pedidoDeStop(5, 'VJ-MOCK-002', 1), excepcion],
+      pedidos: pedidosViaje2,
     },
     {
       id: 'VJ-MOCK-003',
@@ -63,7 +68,16 @@ export function getFallbackViajes(): Viaje[] {
       route_type_name: nombreRuta(rutaCentro),
       trip_date: HOY,
       status: 'despachado',
-      pedidos: [pedidoDeStop(0, 'VJ-MOCK-003', 0), pedidoDeStop(1, 'VJ-MOCK-003', 1)],
+      pedidos: pedidosDe([0, 1, 8, 9, 19], 'VJ-MOCK-003'),
+    },
+    {
+      id: 'VJ-MOCK-004',
+      trip_number: 'Viaje 4',
+      route_type_id: rutaOriente,
+      route_type_name: nombreRuta(rutaOriente),
+      trip_date: HOY,
+      status: 'despachado',
+      pedidos: pedidosDe([10, 11, 17, 18, 7], 'VJ-MOCK-004'),
     },
   ];
 }

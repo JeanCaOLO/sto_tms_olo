@@ -10,9 +10,10 @@ interface Props {
   conductores: Conductor[];
   vehiculos: Vehiculo[];
   onEliminar: (id: string) => void;
+  onEditar: (ruta: RutaGenerada) => void;
 }
 
-export default function RutasGeneradas({ rutas, rutasTipo, transportistas, conductores, vehiculos, onEliminar }: Props) {
+export default function RutasGeneradas({ rutas, rutasTipo, transportistas, conductores, vehiculos, onEliminar, onEditar }: Props) {
   if (rutas.length === 0) {
     return (
       <Card>
@@ -38,6 +39,7 @@ export default function RutasGeneradas({ rutas, rutasTipo, transportistas, condu
           conductores={conductores}
           vehiculos={vehiculos}
           onEliminar={onEliminar}
+          onEditar={onEditar}
         />
       ))}
     </div>

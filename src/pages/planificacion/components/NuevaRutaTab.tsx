@@ -26,6 +26,7 @@ interface Props {
   cargandoPedidos: boolean;
   excluidosPorCapacidad: number;
   generando: boolean;
+  optimizando: boolean;
   onTogglePedido: (pedido: Pedido) => void;
   onToggleAncla: (pedido: Pedido) => void;
   onQuitarPedido: (pedidoId: string) => void;
@@ -73,6 +74,7 @@ export default function NuevaRutaTab(props: Props) {
         onGenerarRuta={props.onGenerarRuta}
         onOptimizarRuta={props.onOptimizarRuta}
         generando={props.generando}
+        optimizando={props.optimizando}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

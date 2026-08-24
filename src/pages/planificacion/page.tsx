@@ -4,6 +4,8 @@ import { useToast } from '../../hooks/useToast';
 import NuevaRutaTab from './components/NuevaRutaTab';
 import FlotaSplitTab from './components/FlotaSplitTab';
 import RutasGeneradas from './components/RutasGeneradas';
+import EditarRutaModal from './components/EditarRutaModal';
+import PlanificacionTabs from './components/PlanificacionTabs';
 import { useCatalogos } from './use-catalogos';
 import { useViajes } from './use-viajes';
 import { usePedidosRuta } from './use-pedidos-ruta';
@@ -11,6 +13,7 @@ import { usePedidosAnclados } from './use-pedidos-anclados';
 import { useGenerarRuta } from './use-generar-ruta';
 import { useRutasGeneradas } from './use-rutas-generadas';
 import type { Pedido } from './types';
+import type { RutaGenerada } from './generar-ruta-mock';
 
 type Tab = 'nueva' | 'flota' | 'generadas';
 
@@ -21,13 +24,14 @@ export default function PlanificacionPage() {
   const { rutas, vehiculos, transportistas, conductores, loading } = useCatalogos(appUser);
   const { viajes, cargandoViajes } = useViajes(appUser);
   const {
-    viajeId, pedidosRuta, pedidosSeleccionados, excluidosPorCapacidad,
+    viajeId, pedidosRuta, pedidosSeleccionados, excluidosPorCapacidad, optimizando,
     setViaje, togglePedido, quitarPedido, reordenarParadas, optimizarRuta, resetPedidos,
   } = usePedidosRuta();
   const { anclados, toggleAnclaConValidacion, limpiarAnclas } = usePedidosAnclados();
   const { generarRuta, generando } = useGenerarRuta({ appUser, vehiculos, rutas });
-  const { rutas: rutasGeneradas, refresh: refreshRutasGeneradas, eliminar: eliminarRutaGenerada } = useRutasGeneradas();
+  const { rutas: rutasGeneradas, refresh: refreshRutasGeneradas, eliminar: eliminarRutaGenerada, actualizar: actualizarRutaGenerada } = useRutasGeneradas();
   const rutaTypeId = viajes.find((v) => v.id === viajeId)?.route_type_id || '';
+  const [editandoRuta, setEditandoRuta] = useState<RutaGenerada | null>(null);
 
   const [transportistaId, setTransportistaId] = useState('');
   const [conductorId, setConductorId] = useState('');
@@ -48,12 +52,15 @@ export default function PlanificacionPage() {
   const handleToggleAncla = (pedido: Pedido) =>
     toggleAnclaConValidacion(pedido, vehiculoSeleccionado, pedidosSeleccionados);
 
-  const handleOptimizarRuta = () => {
+  const handleOptimizarRuta = async () => {
     const sinCoords = pedidosRuta.filter((p) => p.delivery_latitude == null || p.delivery_longitude == null).length;
     if (sinCoords > 0) {
       showToast(`${sinCoords} pedido(s) con dirección de excepción (sin coordenadas) quedan fuera del cálculo de ruta óptima.`, 'warning');
     }
-    optimizarRuta(vehiculoSeleccionado, anclados);
+    const matriz = await optimizarRuta(vehiculoSeleccionado, anclados);
+    if (matriz?.fuente === 'haversine') {
+      showToast('No se pudo contactar el servicio de rutas (OSRM); se usó una distancia estimada en línea recta.', 'warning');
+    }
   };
 
   const handleGenerarRuta = () => {
@@ -96,37 +103,7 @@ export default function PlanificacionPage() {
         )}
       </div>
 
-      <div className="flex gap-1 border-b border-slate-200 overflow-x-auto">
-        <button
-          onClick={() => setTab('nueva')}
-          className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors cursor-pointer ${
-            tab === 'nueva' ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <i className="ri-add-circle-line mr-1.5"></i>Nueva Ruta
-        </button>
-        <button
-          onClick={() => setTab('flota')}
-          className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors cursor-pointer ${
-            tab === 'flota' ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <i className="ri-stack-line mr-1.5"></i>Reparto de Flota
-        </button>
-        <button
-          onClick={() => setTab('generadas')}
-          className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors cursor-pointer ${
-            tab === 'generadas' ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <i className="ri-route-line mr-1.5"></i>Rutas Generadas
-          {rutasGeneradas.length > 0 && (
-            <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 text-xs bg-teal-100 text-teal-700 rounded-full">
-              {rutasGeneradas.length}
-            </span>
-          )}
-        </button>
-      </div>
+      <PlanificacionTabs tab={tab} setTab={setTab} rutasGeneradasCount={rutasGeneradas.length} />
 
       {tab === 'generadas' && (
         <RutasGeneradas
@@ -136,8 +113,18 @@ export default function PlanificacionPage() {
           conductores={conductores}
           vehiculos={vehiculos}
           onEliminar={eliminarRutaGenerada}
+          onEditar={setEditandoRuta}
         />
       )}
+
+      <EditarRutaModal
+        ruta={editandoRuta}
+        transportistas={transportistas}
+        conductores={conductores}
+        vehiculos={vehiculos}
+        onClose={() => setEditandoRuta(null)}
+        onGuardar={actualizarRutaGenerada}
+      />
 
       {tab === 'flota' && (
         <FlotaSplitTab
@@ -175,6 +162,7 @@ export default function PlanificacionPage() {
           excluidosPorCapacidad={excluidosPorCapacidad}
           rutaNombre={rutaNombre}
           generando={generando}
+          optimizando={optimizando}
           onTogglePedido={togglePedido}
           onToggleAncla={handleToggleAncla}
           onQuitarPedido={quitarPedido}

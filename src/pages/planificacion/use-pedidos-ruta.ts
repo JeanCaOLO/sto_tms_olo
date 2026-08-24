@@ -9,6 +9,7 @@ export function usePedidosRuta() {
   const [pedidosRuta, setPedidosRuta] = useState<Pedido[]>([]);
   const [pedidosSeleccionados, setPedidosSeleccionados] = useState<PedidoSeleccionado[]>([]);
   const [excluidosPorCapacidad, setExcluidosPorCapacidad] = useState(0);
+  const [optimizando, setOptimizando] = useState(false);
 
   const setViaje = (viaje?: Viaje) => {
     const pedidos = viaje?.pedidos || [];
@@ -40,20 +41,27 @@ export function usePedidosRuta() {
   // Optimiza sobre el pool completo del viaje (`pedidosRuta`), no solo lo
   // que haya quedado en `pedidosSeleccionados` — si el usuario ancló un
   // pedido y quitó el resto, aún así debe rellenar hasta la capacidad del
-  // vehículo. La matriz N×N se calcula una vez por viaje y se descarta tras
-  // el optimize (viajes de este tamaño no ameritan cachearla entre clics).
-  const optimizarRuta = (vehiculo?: Vehiculo, anclados?: Set<string>) => {
+  // vehículo. La matriz N×N (OSRM real, con fallback haversine) se pide una
+  // vez por click y se descarta después — viajes de este tamaño no
+  // ameritan cachearla entre optimizaciones.
+  const optimizarRuta = async (vehiculo?: Vehiculo, anclados?: Set<string>) => {
     if (pedidosRuta.length < 2) return;
-    const matriz = construirMatrizDistancias(pedidosRuta);
-    const { orden, excluidosCount } = optimizarConCapacidad(withStopNumbers(pedidosRuta), vehiculo, anclados, matriz);
-    setPedidosSeleccionados(orden);
-    setExcluidosPorCapacidad(excluidosCount);
+    setOptimizando(true);
+    try {
+      const matriz = await construirMatrizDistancias(pedidosRuta);
+      const { orden, excluidosCount } = optimizarConCapacidad(withStopNumbers(pedidosRuta), vehiculo, anclados, matriz);
+      setPedidosSeleccionados(orden);
+      setExcluidosPorCapacidad(excluidosCount);
+      return matriz;
+    } finally {
+      setOptimizando(false);
+    }
   };
 
   const resetPedidos = () => setViaje(undefined);
 
   return {
-    viajeId, pedidosRuta, pedidosSeleccionados, excluidosPorCapacidad,
+    viajeId, pedidosRuta, pedidosSeleccionados, excluidosPorCapacidad, optimizando,
     setViaje, togglePedido, quitarPedido, reordenarParadas, optimizarRuta, resetPedidos,
   };
 }

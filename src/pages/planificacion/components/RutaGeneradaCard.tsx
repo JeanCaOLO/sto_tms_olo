@@ -1,6 +1,7 @@
 import Card from '../../../components/base/Card';
 import Badge from '../../../components/base/Badge';
 import StopMiniPreview from './StopMiniPreview';
+import RutaMapaPreview from './RutaMapaPreview';
 import { estadoDeRuta } from '../route-status';
 import type { RutaGenerada } from '../generar-ruta-mock';
 import type { Conductor, RutaTipo, Transportista, Vehiculo } from '../types';
@@ -12,7 +13,18 @@ interface Props {
   conductores: Conductor[];
   vehiculos: Vehiculo[];
   onEliminar: (id: string) => void;
+  onEditar: (ruta: RutaGenerada) => void;
 }
+
+const creadaHace = (isoDate: string): string => {
+  const minutos = Math.round((Date.now() - new Date(isoDate).getTime()) / 60000);
+  if (minutos < 1) return 'recién';
+  if (minutos < 60) return `hace ${minutos} min`;
+  const horas = Math.round(minutos / 60);
+  if (horas < 24) return `hace ${horas} h`;
+  const dias = Math.round(horas / 24);
+  return `hace ${dias} d`;
+};
 
 const nombreDe = <T extends { id: string; name?: string; full_name?: string; plate?: string }>(
   lista: T[],
@@ -22,7 +34,7 @@ const nombreDe = <T extends { id: string; name?: string; full_name?: string; pla
   return item?.name || item?.full_name || item?.plate || 'Desconocido';
 };
 
-export default function RutaGeneradaCard({ ruta, rutasTipo, transportistas, conductores, vehiculos, onEliminar }: Props) {
+export default function RutaGeneradaCard({ ruta, rutasTipo, transportistas, conductores, vehiculos, onEliminar, onEditar }: Props) {
   const estado = estadoDeRuta(ruta.fechaRuta);
 
   return (
@@ -31,9 +43,19 @@ export default function RutaGeneradaCard({ ruta, rutasTipo, transportistas, cond
         <div>
           <p className="font-semibold text-slate-800">{ruta.routeNumber}</p>
           <p className="text-xs text-slate-500 mt-0.5">{nombreDe(rutasTipo, ruta.rutaTypeId)}</p>
+          <p className="text-xs text-slate-400 mt-0.5">
+            <i className="ri-time-line mr-1"></i>Creada {creadaHace(ruta.createdAt)}
+          </p>
         </div>
         <div className="flex items-center gap-1">
           <Badge variant={estado.variant} size="sm">{estado.label}</Badge>
+          <button
+            onClick={() => onEditar(ruta)}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer"
+            title="Editar ruta"
+          >
+            <i className="ri-pencil-line"></i>
+          </button>
           <button
             onClick={() => onEliminar(ruta.id)}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
@@ -49,6 +71,10 @@ export default function RutaGeneradaCard({ ruta, rutasTipo, transportistas, cond
         <div className="flex items-center gap-2"><i className="ri-user-line text-slate-400"></i>{nombreDe(conductores, ruta.conductorId)}</div>
         <div className="flex items-center gap-2"><i className="ri-truck-line text-slate-400"></i>{nombreDe(vehiculos, ruta.vehiculoId)}</div>
         <div className="flex items-center gap-2"><i className="ri-calendar-line text-slate-400"></i>{ruta.fechaRuta}</div>
+      </div>
+
+      <div className="border-t border-slate-100 mt-3 pt-3">
+        <RutaMapaPreview pedidos={ruta.pedidos} />
       </div>
 
       <div className="border-t border-slate-100 mt-3 pt-3 flex-1">

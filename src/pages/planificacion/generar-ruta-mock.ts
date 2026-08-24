@@ -1,4 +1,4 @@
-import { prependMockItem, readMockList, removeMockItem } from '../../lib/mock-store';
+import { prependMockItem, readMockList, removeMockItem, updateMockItem } from '../../lib/mock-store';
 import type { PedidoSeleccionado } from './types';
 
 export interface RutaGenerada {
@@ -23,6 +23,14 @@ export function listRutasGeneradas(): RutaGenerada[] {
 
 export function eliminarRutaGenerada(id: string): void {
   removeMockItem<RutaGenerada>(STORAGE_KEY, id);
+}
+
+export type CambiosRutaGenerada = Pick<RutaGenerada, 'transportistaId' | 'conductorId' | 'vehiculoId' | 'fechaRuta' | 'pedidos'>;
+
+export function actualizarRutaGenerada(id: string, cambios: CambiosRutaGenerada): void {
+  const totalWeight = cambios.pedidos.reduce((s, p) => s + (p.total_weight || 0), 0);
+  const totalVolume = cambios.pedidos.reduce((s, p) => s + (p.total_volume || 0), 0);
+  updateMockItem<RutaGenerada>(STORAGE_KEY, id, { ...cambios, totalWeight, totalVolume });
 }
 
 export interface GenerarRutaMockInput {

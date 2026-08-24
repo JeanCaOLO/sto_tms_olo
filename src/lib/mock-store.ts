@@ -23,6 +23,11 @@ export function removeMockItem<T extends { id: string }>(key: string, id: string
   localStorage.setItem(PREFIX + key, JSON.stringify(items));
 }
 
+export function updateMockItem<T extends { id: string }>(key: string, id: string, changes: Partial<T>): void {
+  const items = readMockList<T>(key).map((item) => (item.id === id ? { ...item, ...changes } : item));
+  localStorage.setItem(PREFIX + key, JSON.stringify(items));
+}
+
 export function clearMockList(key: string): void {
   localStorage.removeItem(PREFIX + key);
 }

@@ -27,10 +27,11 @@ interface Props {
   onGenerarRuta: () => void;
   onOptimizarRuta: () => void;
   generando: boolean;
+  optimizando: boolean;
 }
 
 export default function ConfiguracionRuta(props: Props) {
-  const { vehiculoSeleccionado, totalWeight, totalVolume, pedidosCount, viajeId, conductorId, vehiculoId, generando } = props;
+  const { vehiculoSeleccionado, totalWeight, totalVolume, pedidosCount, viajeId, conductorId, vehiculoId, generando, optimizando } = props;
   const puedeGenerar = Boolean(viajeId && conductorId && vehiculoId && pedidosCount > 0 && !generando);
 
   return (
@@ -43,10 +44,11 @@ export default function ConfiguracionRuta(props: Props) {
         {pedidosCount > 0 && (
           <button
             onClick={props.onOptimizarRuta}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-600 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+            disabled={optimizando}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-slate-100 hover:bg-teal-50 hover:text-teal-700 text-slate-600 rounded-lg transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60 disabled:cursor-wait"
           >
-            <i className="ri-magic-line"></i>
-            Optimizar paradas
+            <i className={optimizando ? 'ri-loader-4-line animate-spin' : 'ri-magic-line'}></i>
+            {optimizando ? 'Calculando distancias...' : 'Optimizar paradas'}
           </button>
         )}
       </div>
