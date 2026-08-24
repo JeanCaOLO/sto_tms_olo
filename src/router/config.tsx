@@ -1,10 +1,15 @@
 import { lazy } from 'react';
-import { RouteObject } from 'react-router-dom';
+import { RouteObject, Navigate } from 'react-router-dom';
 
 const HomePage = lazy(() => import('../pages/home/page'));
 const LoginPage = lazy(() => import('../pages/login/page'));
 const DashboardPage = lazy(() => import('../pages/dashboard/page'));
 const PedidosPage = lazy(() => import('../pages/pedidos/page'));
+const OmsPanelPage = lazy(() => import('../pages/oms/panel/page'));
+const OmsColaPage = lazy(() => import('../pages/oms/cola/page'));
+const OmsReglasPage = lazy(() => import('../pages/oms/reglas/page'));
+const OmsSimuladorPage = lazy(() => import('../pages/oms/simulador/page'));
+const OmsAuditoriaPage = lazy(() => import('../pages/oms/auditoria/page'));
 const RutasPage = lazy(() => import('../pages/rutas/page'));
 const PlanificacionPage = lazy(() => import('../pages/planificacion/page'));
 const VehiculosPage = lazy(() => import('../pages/vehiculos/page'));
@@ -38,6 +43,30 @@ const routes: RouteObject[] = [
   {
     path: '/pedidos',
     element: <PedidosPage />
+  },
+  {
+    path: '/oms',
+    element: <Navigate to="/oms/panel" replace />
+  },
+  {
+    path: '/oms/panel',
+    element: <OmsPanelPage />
+  },
+  {
+    path: '/oms/cola',
+    element: <OmsColaPage />
+  },
+  {
+    path: '/oms/reglas',
+    element: <OmsReglasPage />
+  },
+  {
+    path: '/oms/simulador',
+    element: <OmsSimuladorPage />
+  },
+  {
+    path: '/oms/auditoria',
+    element: <OmsAuditoriaPage />
   },
   {
     path: '/rutas',

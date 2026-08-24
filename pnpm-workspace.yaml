@@ -1,0 +1,10 @@
+allowBuilds:
+  '@firebase/util': true
+  '@swc/core': true
+  esbuild: true
+  protobufjs: true
+onlyBuiltDependencies:
+  - '@firebase/util'
+  - '@swc/core'
+  - esbuild
+  - protobufjs
