@@ -1,0 +1,18 @@
+version: "3.8"
+
+# OSRM (Open Source Routing Machine) auto-hospedado — reemplazo del demo
+# público (router.project-osrm.org) que no tiene SLA. Ver infra/osrm/README.md
+# para cómo generar ./data/*.osrm antes de levantar esto, y cómo apuntar la
+# app a este servidor via VITE_OSRM_URL.
+services:
+  osrm-backend:
+    image: osrm/osrm-backend:latest
+    container_name: osrm-costa-rica
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/data
+    # MLD (multi-level Dijkstra) — el algoritmo recomendado por el proyecto
+    # OSRM hoy, más rápido de preparar y de responder que el viejo CH.
+    command: osrm-routed --algorithm mld /data/costa-rica-latest.osrm
