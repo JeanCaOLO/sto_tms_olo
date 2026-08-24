@@ -4,3 +4,18 @@ dist/
 .env.local
 *.local
 .claude/settings.local.json
+
+# AI-DLC (awslabs/aidlc-workflows v2) — per-user/per-machine runtime state.
+# Everything else under aidlc/ (memory, codekb, intents.json, aidlc-state.md,
+# audit/*.md, stage artifacts) is committed shared work — do not ignore those.
+aidlc/active-space
+aidlc/spaces/*/intents/active-intent
+aidlc/.aidlc-clone-id
+aidlc/.aidlc-active-space-*.tmp
+aidlc/.aidlc-sessions/
+aidlc/spaces/*/intents/.aidlc-*
+aidlc/spaces/*/knowledge/documentkb/.journal/
+aidlc/spaces/*/knowledge/.sources.local.json
+aidlc/spaces/*/intents/*/runtime-graph.json
+aidlc/spaces/*/intents/*/.aidlc-*
+aidlc/diagnostics/
