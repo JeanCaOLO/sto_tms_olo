@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Card from '../../../components/base/Card';
 import Badge from '../../../components/base/Badge';
 import ParadaCard from './ParadaCard';
+import RutaMapaPreview from './RutaMapaPreview';
 import type { PedidoSeleccionado } from '../types';
 
 interface Props {
@@ -12,6 +13,7 @@ interface Props {
 
 export default function RutaEnConstruccion({ pedidosSeleccionados, onQuitarPedido, onReordenarParadas }: Props) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [paradaEnfocadaId, setParadaEnfocadaId] = useState<string>();
 
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
@@ -67,10 +69,17 @@ export default function RutaEnConstruccion({ pedidosSeleccionados, onQuitarPedid
               onDragStart={() => setDraggedIndex(index)}
               onDragOver={(e) => handleDragOver(e, index)}
               onDragEnd={() => setDraggedIndex(null)}
+              onEnfocar={setParadaEnfocadaId}
             />
           ))
         )}
       </div>
+
+      {pedidosSeleccionados.length > 0 && (
+        <div className="mt-4 flex-shrink-0">
+          <RutaMapaPreview pedidos={pedidosSeleccionados} paradaEnfocadaId={paradaEnfocadaId} />
+        </div>
+      )}
 
       {pedidosSeleccionados.length > 0 && (
         <div className="mt-4 p-3 bg-teal-50 border border-teal-200 rounded-lg flex-shrink-0">

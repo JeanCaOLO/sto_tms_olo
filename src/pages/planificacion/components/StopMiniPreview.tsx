@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import StopBadge from './StopBadge';
+import SecuenciaRutaModal from './SecuenciaRutaModal';
 import type { PedidoSeleccionado } from '../types';
 
 const VISIBLE_STOPS = 3;
@@ -8,6 +10,7 @@ interface Props {
 }
 
 export default function StopMiniPreview({ pedidos }: Props) {
+  const [mostrarSecuencia, setMostrarSecuencia] = useState(false);
   const visibles = pedidos.slice(0, VISIBLE_STOPS);
   const restantes = pedidos.length - visibles.length;
 
@@ -20,8 +23,14 @@ export default function StopMiniPreview({ pedidos }: Props) {
         </div>
       ))}
       {restantes > 0 && (
-        <p className="text-xs text-slate-400 pl-8">+{restantes} {restantes === 1 ? 'parada más' : 'paradas más'}</p>
+        <button
+          onClick={() => setMostrarSecuencia(true)}
+          className="text-xs text-teal-600 hover:text-teal-700 hover:underline pl-8 cursor-pointer"
+        >
+          +{restantes} {restantes === 1 ? 'parada más' : 'paradas más'}
+        </button>
       )}
+      {mostrarSecuencia && <SecuenciaRutaModal pedidos={pedidos} onClose={() => setMostrarSecuencia(false)} />}
     </div>
   );
 }

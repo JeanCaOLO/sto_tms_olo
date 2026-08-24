@@ -1,7 +1,8 @@
 # OSRM auto-hospedado (Docker)
 
 Reemplazo del demo público de OSRM (`router.project-osrm.org`) que usa el módulo de Planificación
-(`src/pages/planificacion/distance-matrix.ts`, `osrm-config.ts`) para distancias reales de manejo.
+(`src/pages/planificacion/distance-matrix.ts`, `route-geometry.ts`, `osrm-config.ts`) para distancias
+y trayectos reales de manejo.
 
 ## Por qué montar el propio
 
@@ -10,50 +11,30 @@ disponible, rápido, ni que siga funcionando mañana. Es gratis y funciona bien 
 tiene rate-limit y se puede caer sin aviso. Montar tu propio OSRM en Docker sigue siendo **gratis**
 (sin licencia, sin API key) y le quita esa incertidumbre — vos controlás el uptime.
 
-## 1. Descargar el mapa (extracto OSM)
+## Cómo funciona este compose
 
-OSRM necesita datos de OpenStreetMap ya recortados a la región que te interesa. Para Costa Rica:
+`docker-compose.yml` se auto-prepara al primer arranque: descarga el extracto OSM de Costa Rica
+(Geofabrik) y corre el preprocesamiento de OSRM (`osrm-extract` → `osrm-partition` → `osrm-customize`)
+dentro del propio contenedor, sin pasos manuales previos ni SSH. El resultado se guarda en el volumen
+Docker `osrm-data`, así que solo pasa una vez — los reinicios y redeploys posteriores arrancan al
+instante porque el volumen ya tiene los `.osrm` generados.
 
-```bash
-mkdir -p data
-curl -L -o data/costa-rica-latest.osm.pbf https://download.geofabrik.de/central-america/costa-rica-latest.osm.pbf
-```
+**Techo conocido:** el primer arranque tarda varios minutos (depende del tamaño del extracto y de la
+máquina) y necesita que el contenedor tenga salida a internet para bajar el `.osm.pbf` de Geofabrik.
+Si el panel de despliegue marca el servicio como "unhealthy" en ese primer minuto, es normal — todavía
+está preparando los datos, no revisar logs como si fuera un error.
 
-Para Venezuela (si el módulo se extiende allá):
+## Desplegar
 
-```bash
-curl -L -o data/venezuela-latest.osm.pbf https://download.geofabrik.de/south-america/venezuela-latest.osm.pbf
-```
-
-Ambos extractos se actualizan semanalmente en [Geofabrik](https://download.geofabrik.de/) — no hace
-falta re-bajar seguido, solo si el mapa real cambió mucho (calles nuevas, etc.).
-
-## 2. Preparar los datos (una sola vez por extracto)
-
-OSRM necesita 3 pasos de preprocesamiento antes de poder servir rutas. Se corren con el mismo
-contenedor, montando la misma carpeta `data/`:
-
-```bash
-docker run --rm -v "${PWD}/data:/data" osrm/osrm-backend osrm-extract -p /opt/car.lua /data/costa-rica-latest.osm.pbf
-docker run --rm -v "${PWD}/data:/data" osrm/osrm-backend osrm-partition /data/costa-rica-latest.osrm
-docker run --rm -v "${PWD}/data:/data" osrm/osrm-backend osrm-customize /data/costa-rica-latest.osrm
-```
-
-Esto tarda de un par de minutos a ~15-20 min dependiendo del tamaño del extracto y la máquina — para
-Costa Rica (país chico) es rápido. Genera varios archivos `.osrm.*` junto al `.osm.pbf` original.
-
-Si vas a servir Venezuela también, hay que repetir estos 3 pasos con ese `.osm.pbf` y correr un
-segundo contenedor en otro puerto (o levantar dos servicios en el `docker-compose.yml`, uno por país
-— el matcheo de ruta no cruza fronteras entre datasets separados de todas formas).
-
-## 3. Levantar el servidor
+### Localmente (Docker Compose directo)
 
 ```bash
 cd infra/osrm
 docker compose up -d
+docker compose logs -f   # ver el progreso del primer arranque
 ```
 
-Verificar que responde:
+Verificar que responde una vez listo:
 
 ```bash
 curl "http://localhost:5000/route/v1/driving/-84.0833,9.9333;-84.1436,9.9189?overview=false"
@@ -61,7 +42,27 @@ curl "http://localhost:5000/route/v1/driving/-84.0833,9.9333;-84.1436,9.9189?ove
 
 Debería devolver un JSON con `"code":"Ok"`.
 
-## 4. Apuntar la app a tu servidor
+### En un panel Dokploy (u otro orquestador de compose)
+
+Crear una aplicación tipo **Compose**, apuntarla a este `docker-compose.yml` (por Git o pegando el
+contenido), y desplegar — no requiere ningún paso previo en el servidor. El propio contenedor se
+prepara solo la primera vez.
+
+## Cambiar de región (Venezuela, otro país)
+
+Editar las variables de entorno del servicio en `docker-compose.yml`:
+
+```yaml
+environment:
+  OSRM_PBF_URL: "https://download.geofabrik.de/south-america/venezuela-latest.osm.pbf"
+  OSRM_DATASET_NAME: "venezuela-latest"
+```
+
+Si necesitás Costa Rica **y** Venezuela sirviendo al mismo tiempo, duplicá el servicio en el compose
+(otro nombre, otro puerto, otro volumen) — son dos datasets separados, OSRM no cruza fronteras entre
+extractos de todas formas.
+
+## Apuntar la app a tu servidor
 
 En tu `.env.local` (no versionado):
 
@@ -69,7 +70,7 @@ En tu `.env.local` (no versionado):
 VITE_OSRM_URL="http://localhost:5000"
 ```
 
-O, si el servidor está en otra máquina/tu servidor propio con dominio:
+O, con tu servidor propio:
 
 ```
 VITE_OSRM_URL="https://osrm.tu-dominio.com"
@@ -79,6 +80,6 @@ Sin esta variable, la app usa el demo público automáticamente (comportamiento 
 
 ## Actualizar el mapa más adelante
 
-Repetir los pasos 1 y 2 con un `.osm.pbf` nuevo, y reiniciar el contenedor (`docker compose restart`).
-No hay downtime evitable en este setup simple (un solo contenedor) — para eso hace falta blue/green,
-fuera de alcance de este prototipo.
+El volumen `osrm-data` persiste entre despliegues — para forzar un reproceso con un mapa más reciente,
+borrar el volumen (`docker compose down -v`) y volver a levantar; el contenedor vuelve a descargar y
+procesar desde cero.

@@ -1,18 +1,79 @@
 version: "3.8"
 
 # OSRM (Open Source Routing Machine) auto-hospedado — reemplazo del demo
-# público (router.project-osrm.org) que no tiene SLA. Ver infra/osrm/README.md
-# para cómo generar ./data/*.osrm antes de levantar esto, y cómo apuntar la
-# app a este servidor via VITE_OSRM_URL.
+# público (router.project-osrm.org) que no tiene SLA. Ver infra/osrm/README.md.
+#
+# ponytail: se auto-prepara al primer arranque (descarga el extracto OSM y
+# corre extract/partition/customize) en vez de exigir un paso manual previo
+# — así se puede desplegar en un panel remoto (Dokploy, etc.) sin SSH.
+#
+# La descarga va en un servicio separado (`osrm-fetch`, imagen curlimages/curl)
+# a propósito: `osrm/osrm-backend` está construida sobre Debian Stretch (EOL,
+# sus repos de apt ya no existen — `apt-get install curl` ahí falla con 404).
+# En vez de pelear con eso, se descarga con una imagen que sí trae curl, y
+# `osrm` solo espera a que el archivo aparezca en el volumen compartido.
+#
+# Techo: el primer arranque tarda varios minutos (descarga + procesamiento) y
+# necesita salida a internet a Geofabrik; arranques siguientes son
+# instantáneos porque `osrm-data` persiste los .osrm generados.
+# Upgrade: bakear los .osrm en una imagen propia si el primer-arranque lento
+# molesta, o fijar `osrm/osrm-backend` a un tag reciente si algún día
+# actualiza su base a una Debian soportada.
 services:
-  osrm-backend:
+  osrm-fetch:
+    image: curlimages/curl:latest
+    restart: "no"
+    # curlimages/curl corre como usuario no-root (UID 100) por defecto, sin
+    # permiso de escritura sobre el volumen `osrm-data` — forzar root evita
+    # el "curl: (23) Failure writing output" que salió en el primer intento.
+    user: "0:0"
+    volumes:
+      - osrm-data:/data
+    environment:
+      OSRM_PBF_URL: "https://download.geofabrik.de/central-america/costa-rica-latest.osm.pbf"
+      OSRM_DATASET_NAME: "costa-rica-latest"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        cd /data
+        if [ ! -f "$$OSRM_DATASET_NAME.osm.pbf" ] && [ ! -f "$$OSRM_DATASET_NAME.osrm" ]; then
+          echo "[osrm-fetch] Descargando $$OSRM_PBF_URL..."
+          curl -fL -o "$$OSRM_DATASET_NAME.osm.pbf" "$$OSRM_PBF_URL"
+          echo "[osrm-fetch] Listo."
+        else
+          echo "[osrm-fetch] Ya hay datos, no hace falta descargar de nuevo."
+        fi
+
+  osrm:
     image: osrm/osrm-backend:latest
-    container_name: osrm-costa-rica
+    depends_on:
+      - osrm-fetch
     restart: unless-stopped
     ports:
       - "5000:5000"
     volumes:
-      - ./data:/data
-    # MLD (multi-level Dijkstra) — el algoritmo recomendado por el proyecto
-    # OSRM hoy, más rápido de preparar y de responder que el viejo CH.
-    command: osrm-routed --algorithm mld /data/costa-rica-latest.osrm
+      - osrm-data:/data
+    environment:
+      OSRM_DATASET_NAME: "costa-rica-latest"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        cd /data
+        while [ ! -f "$$OSRM_DATASET_NAME.osm.pbf" ] && [ ! -f "$$OSRM_DATASET_NAME.osrm" ]; do
+          echo "[osrm] Esperando a que osrm-fetch termine de descargar el mapa..."
+          sleep 3
+        done
+        if [ ! -f "$$OSRM_DATASET_NAME.osrm" ]; then
+          echo "[osrm] Procesando mapa (extract/partition/customize, una sola vez)..."
+          osrm-extract -p /opt/car.lua "$$OSRM_DATASET_NAME.osm.pbf"
+          osrm-partition "$$OSRM_DATASET_NAME.osrm"
+          osrm-customize "$$OSRM_DATASET_NAME.osrm"
+          rm -f "$$OSRM_DATASET_NAME.osm.pbf"
+          echo "[osrm] Datos listos."
+        fi
+        exec osrm-routed --algorithm mld "$$OSRM_DATASET_NAME.osrm"
+
+volumes:
+  osrm-data:

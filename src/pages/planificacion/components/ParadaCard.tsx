@@ -9,9 +9,10 @@ interface Props {
   onDragStart: () => void;
   onDragOver: (e: React.DragEvent) => void;
   onDragEnd: () => void;
+  onEnfocar?: (pedidoId: string) => void;
 }
 
-export default function ParadaCard({ pedido, isLast, isDragging, onQuitar, onDragStart, onDragOver, onDragEnd }: Props) {
+export default function ParadaCard({ pedido, isLast, isDragging, onQuitar, onDragStart, onDragOver, onDragEnd, onEnfocar }: Props) {
   return (
     <div className="flex gap-3">
       <div className="flex flex-col items-center flex-shrink-0">
@@ -24,6 +25,8 @@ export default function ParadaCard({ pedido, isLast, isDragging, onQuitar, onDra
         onDragStart={onDragStart}
         onDragOver={onDragOver}
         onDragEnd={onDragEnd}
+        onDoubleClick={() => onEnfocar?.(pedido.id)}
+        title={onEnfocar ? 'Doble-click para enfocar en el mapa' : undefined}
         className={`flex-1 min-w-0 border rounded-lg p-3 bg-white transition-all cursor-move mb-2 ${
           isDragging ? 'border-teal-400 shadow-lg opacity-50' : 'border-slate-200 hover:border-teal-300 hover:shadow-sm'
         }`}
