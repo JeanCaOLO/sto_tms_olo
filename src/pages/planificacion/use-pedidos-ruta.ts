@@ -52,7 +52,8 @@ export function usePedidosRuta() {
       const { orden, excluidosCount } = optimizarConCapacidad(withStopNumbers(pedidosRuta), vehiculo, anclados, matriz);
       setPedidosSeleccionados(orden);
       setExcluidosPorCapacidad(excluidosCount);
-      return matriz;
+      const fueraDeVentana = orden.filter((p) => p.outside_window).length;
+      return { fuente: matriz.fuente, fueraDeVentana };
     } finally {
       setOptimizando(false);
     }

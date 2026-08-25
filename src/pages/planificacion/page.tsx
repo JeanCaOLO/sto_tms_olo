@@ -57,9 +57,12 @@ export default function PlanificacionPage() {
     if (sinCoords > 0) {
       showToast(`${sinCoords} pedido(s) con dirección de excepción (sin coordenadas) quedan fuera del cálculo de ruta óptima.`, 'warning');
     }
-    const matriz = await optimizarRuta(vehiculoSeleccionado, anclados);
-    if (matriz?.fuente === 'haversine') {
+    const result = await optimizarRuta(vehiculoSeleccionado, anclados);
+    if (result?.fuente === 'haversine') {
       showToast('No se pudo contactar el servicio de rutas (OSRM); se usó una distancia estimada en línea recta.', 'warning');
+    }
+    if (result?.fueraDeVentana && result.fueraDeVentana > 0) {
+      showToast(`${result.fueraDeVentana} parada(s) con hora estimada de llegada fuera de la ventana de entrega (8:00–19:00).`, 'warning');
     }
   };
 

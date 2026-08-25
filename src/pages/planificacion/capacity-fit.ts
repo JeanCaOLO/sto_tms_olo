@@ -1,4 +1,5 @@
 import { optimizarParadas, withStopNumbers } from './optimize-stops';
+import { calcularEtas } from './time-windows';
 import type { MatrizDistancias } from './distance-matrix';
 import type { PedidoSeleccionado, Vehiculo } from './types';
 
@@ -84,8 +85,12 @@ export function optimizarConCapacidad(
   anclados?: Set<string>,
   matriz?: MatrizDistancias,
 ): { orden: PedidoSeleccionado[]; excluidosCount: number } {
-  if (!vehiculo) return { orden: withStopNumbers(optimizarParadas(pedidos, matriz)), excluidosCount: 0 };
+  if (!vehiculo) {
+    const orden = withStopNumbers(optimizarParadas(pedidos, matriz));
+    return { orden: matriz ? calcularEtas(orden, matriz) : orden, excluidosCount: 0 };
+  }
 
   const { incluidos, excluidos } = seleccionarPorCapacidad(pedidos, vehiculo, anclados);
-  return { orden: withStopNumbers(optimizarParadas(incluidos, matriz)), excluidosCount: excluidos.length };
+  const orden = withStopNumbers(optimizarParadas(incluidos, matriz));
+  return { orden: matriz ? calcularEtas(orden, matriz) : orden, excluidosCount: excluidos.length };
 }
