@@ -275,6 +275,19 @@
 
 ---
 
+### FR-22 — Cálculo de ETA y Alerta de Ventana Horaria
+
+| Campo | Valor |
+|-------|-------|
+| **ID** | FR-22 |
+| **Nombre** | Hora Estimada de Llegada (ETA) por Parada y Aviso de Ventana Horaria |
+| **Descripción** | Al optimizar una ruta, el sistema calcula la hora estimada de llegada (ETA) de cada parada caminando el reloj desde las 8:00am usando la duración real de manejo entre paradas consecutivas (OSRM `/table` con anotación `duration`) más un tiempo de servicio fijo de 5 min por parada. Si una parada cae fuera de la ventana de entrega (8:00–19:00), se marca visualmente (badge rojo "Fuera de ventana", borde/fondo rojo en la card) y se muestra un toast de advertencia con el conteo de paradas afectadas. Fusionado desde el prototipo `src/lib/routePlanning/plan-route.ts` (ADR-0001, backlog ítem #2). |
+| **Criterio de aceptación** | 1. `calcularEtas()` retorna cada parada con `eta_min` (minutos desde medianoche) y `outside_window` (booleano). 2. Paradas sin coordenadas obtienen `eta_min = -1` y no cuentan como fuera de ventana. 3. `ParadaCard` muestra el ETA en formato HH:MM junto al número de pedido, con color teal si está dentro de ventana y rojo si no. 4. Al terminar de optimizar, si `fueraDeVentana > 0` se dispara un toast de advertencia. |
+| **Fuente** | `src/pages/planificacion/time-windows.ts`, `src/pages/planificacion/distance-matrix.ts` (`duracionMin`), `src/pages/planificacion/capacity-fit.ts`, `src/pages/planificacion/components/ParadaCard.tsx`, `docs/work/2026-08/2026-08-25-time-windows-eta.md`, ADR-0001 (backlog ítem #2, implementado 2026-08-25) |
+| **Estado** | Implementado |
+
+---
+
 ## Requerimientos No Funcionales
 
 ### NFR-1 — Rendimiento de Servicios Externos
@@ -374,7 +387,7 @@
 |----------------|---------------|----------------|
 | Selección de Viaje | FR-1, FR-16 | `use-viajes.ts`, `catalogos-api.ts`, `pedidos-api.ts` |
 | Capacidad / Bin-Packing | FR-2, FR-3, FR-14 | `capacity-fit.ts`, `CapacityBar.tsx` |
-| Optimización de Paradas | FR-4, FR-5 | `optimize-stops.ts`, `distance-matrix.ts` |
+| Optimización de Paradas | FR-4, FR-5, FR-22 | `optimize-stops.ts`, `distance-matrix.ts`, `time-windows.ts` |
 | Flota Multi-Vehículo | FR-6, FR-8, FR-21 | `fleet-split.ts`, `FlotaSplitTab.tsx`, `FlotaSlotPicker.tsx` |
 | Generación de Ruta | FR-7, FR-8, FR-10 | `generar-ruta-api.ts`, `generar-ruta-mock.ts`, `use-generar-ruta.ts` |
 | Edición de Ruta | FR-9, FR-10 | `EditarRutaModal.tsx`, `use-rutas-generadas.ts` |
