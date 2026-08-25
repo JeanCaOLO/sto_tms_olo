@@ -38,6 +38,10 @@ export interface Viaje {
 
 export interface PedidoSeleccionado extends Pedido {
   stop_number: number;
+  /** ETA in minutes from midnight (e.g. 510 = 8:30). -1 = sin coordenadas. */
+  eta_min?: number;
+  /** True if eta_min > ventana de entrega (19:00 default). */
+  outside_window?: boolean;
 }
 
 export interface Vehiculo {

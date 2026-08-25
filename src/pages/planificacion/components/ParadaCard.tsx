@@ -1,4 +1,6 @@
+import Badge from '../../../components/base/Badge';
 import StopBadge from './StopBadge';
+import { formatEta } from '../time-windows';
 import type { PedidoSeleccionado } from '../types';
 
 interface Props {
@@ -13,6 +15,8 @@ interface Props {
 }
 
 export default function ParadaCard({ pedido, isLast, isDragging, onQuitar, onDragStart, onDragOver, onDragEnd, onEnfocar }: Props) {
+  const etaLabel = pedido.eta_min != null && pedido.eta_min >= 0 ? formatEta(pedido.eta_min) : null;
+
   return (
     <div className="flex gap-3">
       <div className="flex flex-col items-center flex-shrink-0">
@@ -28,13 +32,27 @@ export default function ParadaCard({ pedido, isLast, isDragging, onQuitar, onDra
         onDoubleClick={() => onEnfocar?.(pedido.id)}
         title={onEnfocar ? 'Doble-click para enfocar en el mapa' : undefined}
         className={`flex-1 min-w-0 border rounded-lg p-3 bg-white transition-all cursor-move mb-2 ${
-          isDragging ? 'border-teal-400 shadow-lg opacity-50' : 'border-slate-200 hover:border-teal-300 hover:shadow-sm'
+          pedido.outside_window
+            ? 'border-red-300 bg-red-50'
+            : isDragging ? 'border-teal-400 shadow-lg opacity-50' : 'border-slate-200 hover:border-teal-300 hover:shadow-sm'
         }`}
       >
         <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-1">
-              <span className="font-semibold text-slate-800">{pedido.order_number}</span>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-slate-800">{pedido.order_number}</span>
+                {etaLabel && (
+                  <span className={`text-xs font-medium ${pedido.outside_window ? 'text-red-600' : 'text-teal-700'}`}>
+                    <i className="ri-time-line mr-0.5"></i>{etaLabel}
+                  </span>
+                )}
+                {pedido.outside_window && (
+                  <Badge variant="danger" className="text-xs">
+                    <i className="ri-alarm-warning-line mr-0.5"></i>Fuera de ventana
+                  </Badge>
+                )}
+              </div>
               <button
                 onClick={() => onQuitar(pedido.id)}
                 className="w-6 h-6 flex items-center justify-center rounded text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors whitespace-nowrap"

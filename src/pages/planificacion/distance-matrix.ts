@@ -9,26 +9,34 @@ const OSRM_TIMEOUT_MS = 5000;
 
 export interface MatrizDistancias {
   distanciaKm(idA: string, idB: string): number | undefined;
+  duracionMin(idA: string, idB: string): number | undefined;
   faltantes: number;
   fuente: 'osrm' | 'haversine';
 }
 
+// ponytail: haversine duration estimated at 30 km/h average urban speed.
+// Ceiling: ignores traffic, road type. Upgrade: always prefer OSRM durations.
+const ASSUMED_SPEED_KMH = 30;
+
 function matrizHaversine(pedidos: Pedido[], conCoords: Pedido[]): MatrizDistancias {
-  const tabla = new Map<string, number>();
+  const tablaKm = new Map<string, number>();
+  const tablaMin = new Map<string, number>();
   for (const a of conCoords) {
     for (const b of conCoords) {
       if (a.id === b.id) continue;
       const key = `${a.id}|${b.id}`;
-      if (tabla.has(key)) continue;
+      if (tablaKm.has(key)) continue;
       const km = haversineKm(
         { id: a.id, lat: a.delivery_latitude!, lng: a.delivery_longitude!, weightKg: 0, volumeM3: 0 },
         { id: b.id, lat: b.delivery_latitude!, lng: b.delivery_longitude!, weightKg: 0, volumeM3: 0 },
       ) * DETOUR_FACTOR;
-      tabla.set(key, km);
+      tablaKm.set(key, km);
+      tablaMin.set(key, (km / ASSUMED_SPEED_KMH) * 60);
     }
   }
   return {
-    distanciaKm: (idA, idB) => tabla.get(`${idA}|${idB}`),
+    distanciaKm: (idA, idB) => tablaKm.get(`${idA}|${idB}`),
+    duracionMin: (idA, idB) => tablaMin.get(`${idA}|${idB}`),
     faltantes: pedidos.length - conCoords.length,
     fuente: 'haversine',
   };
@@ -37,25 +45,28 @@ function matrizHaversine(pedidos: Pedido[], conCoords: Pedido[]): MatrizDistanci
 // Pide la matriz N×N completa en una sola llamada al servicio /table de
 // OSRM (distancia real por calle, no línea recta) en vez de una llamada por
 // par — así es viable para los ≤50 paradas por viaje que maneja el módulo.
-async function matrizOsrm(conCoords: Pedido[]): Promise<Map<string, number> | null> {
+async function matrizOsrm(conCoords: Pedido[]): Promise<{ km: Map<string, number>; min: Map<string, number> } | null> {
   const coords = conCoords.map((p) => `${p.delivery_longitude},${p.delivery_latitude}`).join(';');
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), OSRM_TIMEOUT_MS);
   try {
-    const res = await fetch(`${OSRM_BASE_URL}/table/v1/driving/${coords}?annotations=distance`, { signal: controller.signal });
+    const res = await fetch(`${OSRM_BASE_URL}/table/v1/driving/${coords}?annotations=distance,duration`, { signal: controller.signal });
     if (!res.ok) return null;
     const data = await res.json();
-    if (data.code !== 'Ok' || !Array.isArray(data.distances)) return null;
+    if (data.code !== 'Ok' || !Array.isArray(data.distances) || !Array.isArray(data.durations)) return null;
 
-    const tabla = new Map<string, number>();
+    const km = new Map<string, number>();
+    const min = new Map<string, number>();
     conCoords.forEach((a, i) => {
       conCoords.forEach((b, j) => {
         if (i === j) return;
         const metros = data.distances[i]?.[j];
-        if (typeof metros === 'number') tabla.set(`${a.id}|${b.id}`, metros / 1000);
+        const segundos = data.durations[i]?.[j];
+        if (typeof metros === 'number') km.set(`${a.id}|${b.id}`, metros / 1000);
+        if (typeof segundos === 'number') min.set(`${a.id}|${b.id}`, segundos / 60);
       });
     });
-    return tabla;
+    return { km, min };
   } catch {
     return null;
   } finally {
@@ -73,9 +84,14 @@ export async function construirMatrizDistancias(pedidos: Pedido[]): Promise<Matr
   const faltantes = pedidos.length - conCoords.length;
 
   if (conCoords.length >= 2) {
-    const tablaOsrm = await matrizOsrm(conCoords);
-    if (tablaOsrm) {
-      return { distanciaKm: (idA, idB) => tablaOsrm.get(`${idA}|${idB}`), faltantes, fuente: 'osrm' };
+    const osrm = await matrizOsrm(conCoords);
+    if (osrm) {
+      return {
+        distanciaKm: (idA, idB) => osrm.km.get(`${idA}|${idB}`),
+        duracionMin: (idA, idB) => osrm.min.get(`${idA}|${idB}`),
+        faltantes,
+        fuente: 'osrm',
+      };
     }
   }
 
