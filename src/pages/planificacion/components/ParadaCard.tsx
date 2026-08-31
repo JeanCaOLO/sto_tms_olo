@@ -66,6 +66,13 @@ export default function ParadaCard({ pedido, isLast, isDragging, onQuitar, onDra
               {pedido.customer_name}
             </p>
 
+            {pedido.is_exception && pedido.exception_address_raw && (
+              <p className="mb-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 flex items-start gap-1">
+                <i className="ri-map-pin-off-line mt-0.5 flex-shrink-0"></i>
+                <span>{pedido.exception_address_raw}</span>
+              </p>
+            )}
+
             <div className="space-y-1 text-xs text-slate-500">
               <div className="flex items-start">
                 <i className="ri-map-pin-line mr-1 mt-0.5 flex-shrink-0"></i>

@@ -1,4 +1,4 @@
-import { InputHTMLAttributes, forwardRef, ReactNode, isValidElement } from 'react';
+import { InputHTMLAttributes, forwardRef, ReactNode, isValidElement, useId } from 'react';
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -7,7 +7,9 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, icon, className = '', ...props }, ref) => {
+  ({ label, error, icon, className = '', id, ...props }, ref) => {
+    const generatedId = useId();
+    const inputId = id ?? generatedId;
     const renderIcon = () => {
       if (!icon) return null;
       if (typeof icon === 'string') {
@@ -22,7 +24,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-sm font-medium text-slate-700 mb-1.5">
+          <label htmlFor={inputId} className="block text-sm font-medium text-slate-700 mb-1.5">
             {label}
           </label>
         )}
@@ -33,6 +35,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             </div>
           )}
           <input
+            id={inputId}
             ref={ref}
             className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all ${
               iconNode ? 'pl-10' : ''

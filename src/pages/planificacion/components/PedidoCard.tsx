@@ -42,6 +42,12 @@ export default function PedidoCard({ pedido, incluido, anclado, onToggle, onTogg
             <i className="ri-user-line mr-1 text-slate-400 text-xs"></i>
             {pedido.customer_name}
           </p>
+          {pedido.is_exception && pedido.exception_address_raw && (
+            <p className="mt-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 flex items-start gap-1">
+              <i className="ri-map-pin-off-line mt-0.5 flex-shrink-0"></i>
+              <span>{pedido.exception_address_raw}</span>
+            </p>
+          )}
           <div className="mt-1 space-y-0.5 text-xs text-slate-500">
             <div className="flex items-center">
               <i className="ri-map-pin-line mr-1"></i>
