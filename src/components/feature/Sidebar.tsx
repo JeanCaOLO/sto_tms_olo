@@ -20,18 +20,6 @@ type NavItem = MenuItem | MenuGroup;
 const navItems: NavItem[] = [
   { icon: 'ri-dashboard-line', label: 'Dashboard', path: '/dashboard' },
   { icon: 'ri-file-list-line', label: 'Pedidos', path: '/pedidos' },
-  {
-    type: 'group',
-    icon: 'ri-node-tree',
-    label: 'OMS',
-    children: [
-      { icon: 'ri-dashboard-2-line', label: 'Panel', path: '/oms/panel' },
-      { icon: 'ri-list-ordered', label: 'Cola de Priorización', path: '/oms/cola' },
-      { icon: 'ri-git-branch-line', label: 'Motor de Reglas', path: '/oms/reglas' },
-      { icon: 'ri-flask-line', label: 'Simulador', path: '/oms/simulador' },
-      { icon: 'ri-history-line', label: 'Auditoría', path: '/oms/auditoria' },
-    ],
-  },
   { icon: 'ri-arrow-go-back-line', label: 'Devoluciones', path: '/devoluciones' },
   { icon: 'ri-file-text-line', label: 'Guías de Despacho', path: '/guias' },
   { icon: 'ri-map-pin-add-line', label: 'Planificación', path: '/planificacion' },
