@@ -25,7 +25,7 @@
   estados por pantalla.
 - X. Other (please specify)
 
-[Answer]:
+[Answer]: A
 
 ## Q2. Cobertura de pantallas
 
@@ -39,7 +39,7 @@
   auditoría se describen a nivel de esqueleto.
 - X. Other (please specify)
 
-[Answer]:
+[Answer]: A
 
 ## Q3. Nivel de accesibilidad objetivo
 
@@ -48,7 +48,7 @@
 - B. WCAG 2.1 A (mínimo legal), sin exigir AA.
 - X. Other (please specify)
 
-[Answer]:
+[Answer]: A
 
 ## Q4. Estrategia responsive
 
@@ -57,7 +57,7 @@
 - B. Mobile-first completo (móvil como ciudadano de primera clase).
 - X. Other (please specify)
 
-[Answer]:
+[Answer]: A
 
 ## Q5. Override manual (FR3.4) — patrón de interacción
 
@@ -67,4 +67,30 @@
 - B. Edición inline en la fila de la Cola, sin modal.
 - X. Other (please specify)
 
-[Answer]:
+[Answer]: A
+
+---
+
+## Consolidated Summary Confirmation
+
+Resumen de las decisiones de diseño de los mockups refinados del OMS:
+
+- **Fidelidad (Q1=A)**: media-alta textual, con los 5 estados por pantalla.
+- **Cobertura (Q2=A)**: las 6 pantallas (Panel, Cola, Motor de Reglas,
+  Simulador, Rutas y Días, Auditoría), trazadas a FR1–FR7; transversales FR8
+  (lago), FR9 (multipaís/selector de país) y FR10 (permisos) reflejados.
+- **Accesibilidad (Q3=A)**: WCAG 2.1 AA.
+- **Responsive (Q4=A)**: desktop-first con adaptación a tablet.
+- **Override (Q5=A)**: modal desde el panel lateral con nuevo tier + motivo
+  obligatorio (≥10) y registro en auditoría.
+
+Hecho de negocio respetado: flujo 100 % automático, sin pantalla ni paso de
+aprobación de lote; el override por pedido es la única intervención humana.
+Revisión advisory del product-lead: READY (5 mejoras menores aplicadas).
+
+Does this all look correct before I generate the requirements artifact?
+
+- Looks correct
+- Request changes
+
+[Answer]: Looks correct
