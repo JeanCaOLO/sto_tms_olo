@@ -5,6 +5,12 @@ dist/
 *.local
 .claude/settings.local.json
 
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
 # AI-DLC (awslabs/aidlc-workflows v2) — per-user/per-machine runtime state.
 # Everything else under aidlc/ (memory, codekb, intents.json, aidlc-state.md,
 # audit/*.md, stage artifacts) is committed shared work — do not ignore those.
