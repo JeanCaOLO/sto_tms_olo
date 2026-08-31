@@ -69,26 +69,26 @@
 
 [Answer]: A
 
+> Nota: la confirmación del resumen de la corrida principal (aprobada el
+> 2026-08-28) se conserva en el audit log; abajo va la confirmación de la
+> corrida aislada de corrección de datos.
+
 ---
 
 ## Consolidated Summary Confirmation
 
-Resumen de las decisiones de diseño de los mockups refinados del OMS:
+Corrida aislada (`--single`) — corrección de datos de la Pantalla 5:
 
-- **Fidelidad (Q1=A)**: media-alta textual, con los 5 estados por pantalla.
-- **Cobertura (Q2=A)**: las 6 pantallas (Panel, Cola, Motor de Reglas,
-  Simulador, Rutas y Días, Auditoría), trazadas a FR1–FR7; transversales FR8
-  (lago), FR9 (multipaís/selector de país) y FR10 (permisos) reflejados.
-- **Accesibilidad (Q3=A)**: WCAG 2.1 AA.
-- **Responsive (Q4=A)**: desktop-first con adaptación a tablet.
-- **Override (Q5=A)**: modal desde el panel lateral con nuevo tier + motivo
-  obligatorio (≥10) y registro en auditoría.
+- Se releyó el CSV corregido `Rutas cofersa - costa rica.csv`. Las 13 zonas GAM
+  del casco, que antes aparecían sin días por un error de conversión xlsx→csv,
+  ahora despachan **de lunes a viernes**.
+- Se eliminó el falso caso FR2.6 (esas zonas NO eran ruta-sin-días).
+- FR2.6 (ruta sin días → pedido "sin ruta configurada") queda ilustrado con la
+  zona `44 REY` "Cita previa" y, para una ruta totalmente sin días, con un
+  ejemplo hipotético.
+- Sin cambios en las decisiones de diseño Q1–Q5.
 
-Hecho de negocio respetado: flujo 100 % automático, sin pantalla ni paso de
-aprobación de lote; el override por pedido es la única intervención humana.
-Revisión advisory del product-lead: READY (5 mejoras menores aplicadas).
-
-Does this all look correct before I generate the requirements artifact?
+Does this all look correct before I finalize the mockups artifact?
 
 - Looks correct
 - Request changes

@@ -294,21 +294,22 @@ de Despacho, FR10.1). Patrón catálogo, como el resto de catálogos del TMS.
 │ │ 37   │ Curridabat Epa    │ GAM │ Jue                  │ Vie             ││
 │ │ 38   │ Belén Epa         │ GAM │ Mié                  │ Jue             ││
 │ │ 01   │ Casco             │ GAM │ Lun a Vie            │ —               ││
+│ │ 02   │ Desamparados      │ GAM │ Lun a Vie            │ —               ││
+│ │ …    │ (resto GAM casco) │ GAM │ Lun a Vie            │ —               ││
 │ │ 44   │ REY               │ GAM │ ⚠ Cita previa        │ —               ││
-│ │ 02   │ Desamparados      │ GAM │ ⚠ Sin días definidos │ —               ││
-│ │ …    │ (resto GAM casco) │ GAM │ ⚠ Sin días definidos │ —               ││
 │ └──────┴───────────────────┴─────┴──────────────────────┴─────────────────┘│
 │ [◀ 1 2 ▶]  34 zonas · Cofersa · Costa Rica  (muestra: 22 de 34)              │
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
-> Zonas GAM del casco sin días en el CSV (`2 Desamparados`, `3 Guadalupe`,
+> Las 13 zonas GAM del casco (`1 Casco`, `2 Desamparados`, `3 Guadalupe`,
 > `4 Alajuela`, `17 Grecia`, `5 Heredia`, `6 Cartago`, `7 Carretera`,
-> `21 Casco`, `22 Desampa`, `23 Guadalupe`, `25 Heredia`, `26 Cartago`) se
-> muestran con el marcador **"Sin días definidos"** — son el caso de borde real
-> que la Regla 1 trata como ruta sin días registrados (FR2.6: pedido "sin ruta
-> configurada" + alerta). La zona `44 REY` es **"Cita previa"** (sin calendario
-> fijo), otro caso de borde real a modelar.
+> `21 Casco`, `22 Desampa`, `23 Guadalupe`, `25 Heredia`, `26 Cartago`)
+> despachan **de lunes a viernes** según el CSV corregido. La única zona sin
+> calendario fijo es `44 REY` = **"Cita previa"**, que la Regla 1 trata como
+> ruta sin día de salida determinable (aproxima el caso FR2.6). Un caso de ruta
+> *totalmente* sin días registrados no aparece en estos datos reales; se modela
+> como ejemplo hipotético en el estado Parcial de abajo.
 
 ### Jerarquía
 
@@ -324,12 +325,14 @@ de Despacho, FR10.1). Patrón catálogo, como el resto de catálogos del TMS.
 - **Vacío**: país sin rutas → "No hay rutas registradas para este país. [+ Crear
   la primera ruta]".
 - **Carga**: skeleton de tabla.
-- **Éxito**: la tabla con las 34 zonas reales de Cofersa CR (paginada).
-- **Parcial**: **zonas GAM del casco sin días de salida** ("Sin días
-  definidos") y la zona `44 REY` "Cita previa" — datos reales que ilustran el
-  caso FR2.6 (ruta sin días → pedido sin ruta configurada); ruta inactiva
-  mostrada atenuada; desactivar ruta con excepciones futuras → confirma y alerta
-  cuántas se desactivan (FR1.7).
+- **Éxito**: la tabla con las 34 zonas reales de Cofersa CR (paginada); las
+  zonas GAM del casco muestran "Lun a Vie".
+- **Parcial**: la zona `44 REY` "Cita previa" (sin calendario fijo) es el caso
+  real más cercano a "ruta sin día determinable"; una ruta *totalmente* sin días
+  registrados —que la Regla 1 marca como pedido "sin ruta configurada" + alerta
+  (FR2.6)— se ilustra como **ejemplo hipotético**, ya que no existe en estos
+  datos reales; ruta inactiva mostrada atenuada; desactivar ruta con excepciones
+  futuras → confirma y alerta cuántas se desactivan (FR1.7).
 - **Error**: identificador duplicado en el país (FR1.5) o excepción duplicada
   cliente+fecha+ruta (FR1.8) → error inline, sin guardar.
 
@@ -424,9 +427,15 @@ Refinamientos aplicados tras la revisión advisory (5 hallazgos Menores):
 Revisión del usuario tras el gate (Request Changes, 2026-08-28): se sustituyeron
 los datos de relleno de la Pantalla 5 (Rutas y Días) por el calendario real de
 Cofersa Costa Rica (34 zonas) del CSV de la raíz del repo, mapeando `Zona #`,
-`Días de Carga` (→ días de salida) y `Días de entrega`. Los casos de borde
-reales (zonas GAM del casco sin días, zona `44 REY` "Cita previa") quedan
-ilustrados como el caso FR2.6. Sin cambios en las decisiones de diseño Q1–Q5.
+`Días de Carga` (→ días de salida) y `Días de entrega`. Sin cambios en las
+decisiones de diseño Q1–Q5.
+
+Corrección de datos posterior (corrida aislada `--single`, 2026-08-28): el CSV
+tenía un error de conversión xlsx→csv que dejó sin días a las zonas GAM del
+casco; corregido el CSV, esas 13 zonas despachan "Lun a Vie". Se eliminó el
+falso caso FR2.6 (esas zonas NO eran ruta-sin-días); FR2.6 queda ilustrado con
+la zona `44 REY` "Cita previa" y, para una ruta totalmente sin días, con un
+ejemplo hipotético. Sin cambios en Q1–Q5.
 
 ## Assumptions & Open Questions
 
