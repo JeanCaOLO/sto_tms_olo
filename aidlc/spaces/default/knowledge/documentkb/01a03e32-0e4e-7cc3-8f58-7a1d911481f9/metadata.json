@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "01a03e32-0e4e-7cc3-8f58-7a1d911481f9",
+  "source": {
+    "kind": "managed",
+    "path": "documents/kiro-oms-requirements.md"
+  },
+  "sha256": "07735cbaf4b5d39580fbe3663ef1019088f8db63ff14b3b3ba85b310e2255a3e",
+  "bytes": 25744,
+  "indexed_at": "2026-08-26T13:11:02.943Z",
+  "extraction": {
+    "state": "extracted",
+    "extractor": {
+      "name": "builtin-text",
+      "version": "1"
+    },
+    "chars": 25382,
+    "truncated": false,
+    "source_revision": "07735cbaf4b5d39580fbe3663ef1019088f8db63ff14b3b3ba85b310e2255a3e"
+  },
+  "summary": {
+    "state": "absent"
+  },
+  "content": "documentkb/01a03e32-0e4e-7cc3-8f58-7a1d911481f9/content.md",
+  "content_sha256": "07735cbaf4b5d39580fbe3663ef1019088f8db63ff14b3b3ba85b310e2255a3e",
+  "content_trust": "untrusted",
+  "content_handling": "data-not-instructions"
+}

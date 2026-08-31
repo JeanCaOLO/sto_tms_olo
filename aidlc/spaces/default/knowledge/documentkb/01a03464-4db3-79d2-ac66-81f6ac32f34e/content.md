@@ -281,11 +281,17 @@ Ver el detalle completo en `CONTEXTO_PROYECTO_TMS.md` §2.4.
   manual/criterio de una persona, con hasta ~8 niveles informales en la práctica. No hay un
   catálogo único todavía — hay que homologarlo con Toño/Antonio (sigue como pregunta abierta en
   §7.3, ahora con más contexto).
-- ✅ *¿Quién certifica humanamente un cambio antes de producción?* — La operación (torre de
-  control/almacén) revisa la propuesta de priorización/alistamiento del OMS y da el visto bueno
-  antes de arrancar el proceso de alistamiento. Confirma el patrón de "recomendación con
-  aprobación humana", no automatización ciega — igual que ya funciona el resto del proyecto
-  (`CONTEXTO_PROYECTO_TMS.md` §6.1).
+- ✅ *¿Quién certifica humanamente un cambio antes de producción?* — **Corregido tras la Adenda
+  del 2026-08-26** (`aidlc/spaces/default/knowledge/documents/2026-08-26-reunion-oms-roles.md`):
+  para el OMS el cálculo de prioridad es **100 % automático** (motor de reglas) y **no existe un
+  paso de aprobación humana antes del alistamiento** — un visto bueno bloqueante ahí detendría el
+  flujo automático, que es justo lo que el OMS busca evitar. La **única** intervención humana
+  permitida es que el rol **Responsable del OMS** altere la prioridad de un **pedido puntual**
+  (caso extraordinario); no aprueba ni revisa el cálculo de forma rutinaria. El patrón general del
+  proyecto de "certificación humana" (`CONTEXTO_PROYECTO_TMS.md` §6.1) **no aplica** al motor de
+  priorización del OMS. Esta corrección **supera** la redacción anterior de este documento y la de
+  `CONTEXTO_PROYECTO_TMS.md` §2.4, que describían una "aprobación humana obligatoria" — quedan
+  desactualizadas en ese punto.
 - ✅ *¿Por pedido individual o por lote?* — Al menos para la Regla 1 (fecha de despacho + día de
   la ruta), es evaluación por pedido individual contra el calendario de su ruta.
 - ✅ *¿Las reglas difieren por país?* — Sí sabemos que el calendario de rutas difiere

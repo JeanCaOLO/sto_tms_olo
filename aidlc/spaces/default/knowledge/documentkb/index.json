@@ -32,8 +32,8 @@
         "kind": "managed",
         "path": "documents/PLAN_MODULO_OMS.md"
       },
-      "sha256": "715030ff68229e0855e8a9d5f7c436f31bc7e20c4c80654a1d08c73b19897f7f",
-      "bytes": 31736,
+      "sha256": "fe947b0cfa860f3d0a93e7c8143bf16584e98d7dde360d5c1ec353b3a577bf28",
+      "bytes": 32341,
       "indexed_at": "2026-08-24T15:29:43.824Z",
       "extraction": {
         "state": "extracted",
@@ -41,15 +41,90 @@
           "name": "builtin-text",
           "version": "1"
         },
-        "chars": 30820,
+        "chars": 31413,
         "truncated": false,
-        "source_revision": "715030ff68229e0855e8a9d5f7c436f31bc7e20c4c80654a1d08c73b19897f7f"
+        "source_revision": "fe947b0cfa860f3d0a93e7c8143bf16584e98d7dde360d5c1ec353b3a577bf28"
       },
       "summary": {
         "state": "absent"
       },
       "content": "documentkb/01a03464-4db3-79d2-ac66-81f6ac32f34e/content.md",
-      "content_sha256": "715030ff68229e0855e8a9d5f7c436f31bc7e20c4c80654a1d08c73b19897f7f"
+      "content_sha256": "fe947b0cfa860f3d0a93e7c8143bf16584e98d7dde360d5c1ec353b3a577bf28"
+    },
+    {
+      "id": "01a03e32-0e3a-7f1f-83dc-16ab104c38ca",
+      "source": {
+        "kind": "managed",
+        "path": "documents/2026-08-26-reunion-oms-roles.md"
+      },
+      "sha256": "6ed085fcfb418670aadb013577a424f1bc8592d59fd04acd6d6153aa8db5f898",
+      "bytes": 11732,
+      "indexed_at": "2026-08-26T19:52:57.553Z",
+      "extraction": {
+        "state": "extracted",
+        "extractor": {
+          "name": "builtin-text",
+          "version": "1"
+        },
+        "chars": 11435,
+        "truncated": false,
+        "source_revision": "6ed085fcfb418670aadb013577a424f1bc8592d59fd04acd6d6153aa8db5f898"
+      },
+      "summary": {
+        "state": "absent"
+      },
+      "content": "documentkb/01a03e32-0e3a-7f1f-83dc-16ab104c38ca/content.md",
+      "content_sha256": "6ed085fcfb418670aadb013577a424f1bc8592d59fd04acd6d6153aa8db5f898"
+    },
+    {
+      "id": "01a03e32-0e4a-744a-a90b-7791755a3a4c",
+      "source": {
+        "kind": "managed",
+        "path": "documents/kiro-oms-design.md"
+      },
+      "sha256": "d1cdb91ef9bb2d8a268808217249a127bf26dc1a9a8678bc09f1e54d52bbb2ed",
+      "bytes": 42587,
+      "indexed_at": "2026-08-26T13:11:02.943Z",
+      "extraction": {
+        "state": "extracted",
+        "extractor": {
+          "name": "builtin-text",
+          "version": "1"
+        },
+        "chars": 41920,
+        "truncated": false,
+        "source_revision": "d1cdb91ef9bb2d8a268808217249a127bf26dc1a9a8678bc09f1e54d52bbb2ed"
+      },
+      "summary": {
+        "state": "absent"
+      },
+      "content": "documentkb/01a03e32-0e4a-744a-a90b-7791755a3a4c/content.md",
+      "content_sha256": "d1cdb91ef9bb2d8a268808217249a127bf26dc1a9a8678bc09f1e54d52bbb2ed"
+    },
+    {
+      "id": "01a03e32-0e4e-7cc3-8f58-7a1d911481f9",
+      "source": {
+        "kind": "managed",
+        "path": "documents/kiro-oms-requirements.md"
+      },
+      "sha256": "07735cbaf4b5d39580fbe3663ef1019088f8db63ff14b3b3ba85b310e2255a3e",
+      "bytes": 25744,
+      "indexed_at": "2026-08-26T13:11:02.943Z",
+      "extraction": {
+        "state": "extracted",
+        "extractor": {
+          "name": "builtin-text",
+          "version": "1"
+        },
+        "chars": 25382,
+        "truncated": false,
+        "source_revision": "07735cbaf4b5d39580fbe3663ef1019088f8db63ff14b3b3ba85b310e2255a3e"
+      },
+      "summary": {
+        "state": "absent"
+      },
+      "content": "documentkb/01a03e32-0e4e-7cc3-8f58-7a1d911481f9/content.md",
+      "content_sha256": "07735cbaf4b5d39580fbe3663ef1019088f8db63ff14b3b3ba85b310e2255a3e"
     }
   ]
 }

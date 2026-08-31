@@ -24,6 +24,7 @@
 ## Testing Posture
 
 <!-- Project-specific specialisation. -->
+- La lógica de negocio (en especial el cálculo de prioridad del OMS) debe extraerse a módulos `.ts` puros, fuera de los componentes `.tsx` de página, para que sea probable sin montar React (learned 2026-08-28)
 
 ## Deployment
 
@@ -32,6 +33,7 @@
 ## Code Style
 
 <!-- Project-specific specialisation. -->
+- ALWAYS endurecer el tipado en el subárbol del OMS antes de tocar el cálculo de prioridad: activar `strictNullChecks` localmente para ese código, aunque el `tsconfig.app.json` global tenga `strict: false` (learned 2026-08-28)
 
 ## Tech Stack
 
@@ -41,6 +43,7 @@
 
 <!-- Decisions made in earlier stages that should not be re-asked. -->
 <!-- Format: DECIDED: [decision] (Stage [slug], [date]) -->
+- DECIDED: El cálculo de prioridad del OMS es 100 % automático (motor de reglas). La única intervención humana permitida es que el rol Responsable del OMS altere la prioridad de un pedido puntual. NO existe ningún paso de aprobación humana (ni de Jefe de Almacén ni de ningún otro rol) antes del alistamiento, porque detendría el flujo automático. Fuente vigente: Adenda del 2026-08-26 (`knowledge/documents/2026-08-26-reunion-oms-roles.md`). (Stage reverse-engineering, 2026-08-28)
 
 ## Scope Overrides
 
@@ -62,3 +65,5 @@
 
 <!-- Project-specific corrections from human feedback. -->
 <!-- Format: NEVER/ALWAYS [behavior] (learned [date]) -->
+- NEVER tratar como vigente el paso de aprobación humana de la propuesta de priorización del OMS: `CONTEXTO_PROYECTO_TMS.md` §2.4 y `PLAN_MODULO_OMS.md` §7.0 están DESACTUALIZADOS en ese punto y quedan superados por la Adenda del 2026-08-26 (cálculo 100 % automático, sin aprobación). No reintroducir ese requisito ni preguntarlo de nuevo (learned 2026-08-28)
+- ALWAYS al reescribir requerimientos a partir de una matriz previa (p. ej. la generada con Kiro), tratarla como base a CORREGIR, no a repetir: verificar cada aparición del concepto eliminado o corregido en TODOS los FR/NFR/roles/glosario/triggers, no solo en el requerimiento más obvio (learned 2026-08-28)
