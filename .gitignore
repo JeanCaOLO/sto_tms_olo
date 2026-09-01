@@ -1,4 +1,4 @@
-node_modules/
+﻿node_modules/
 dist/
 out/
 BRIEF.md
@@ -6,16 +6,14 @@ BRIEF.md
 .env.local
 *.local
 .claude/settings.local.json
-
 # Playwright
 /test-results/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
-
-# AI-DLC (awslabs/aidlc-workflows v2) — per-user/per-machine runtime state.
+# AI-DLC (awslabs/aidlc-workflows v2) â€” per-user/per-machine runtime state.
 # Everything else under aidlc/ (memory, codekb, intents.json, aidlc-state.md,
-# audit/*.md, stage artifacts) is committed shared work — do not ignore those.
+# audit/*.md, stage artifacts) is committed shared work â€” do not ignore those.
 aidlc/active-space
 aidlc/spaces/*/intents/active-intent
 aidlc/.aidlc-clone-id
@@ -28,5 +26,4 @@ aidlc/spaces/*/intents/*/runtime-graph.json
 aidlc/spaces/*/intents/*/.aidlc-*
 aidlc/diagnostics/
 coverage/
-
 .orca-briefs/

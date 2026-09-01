@@ -11,7 +11,7 @@ export function useCatalogos(appUser: AppUser | null) {
   useEffect(() => {
     if (!appUser) return;
     setLoading(true);
-    fetchCatalogos(appUser)
+    fetchCatalogos()
       .then(setCatalogos)
       .catch((error) => console.error('Error cargando catálogos:', error))
       .finally(() => setLoading(false));
