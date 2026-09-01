@@ -40,7 +40,8 @@
     "typescript-eslint": "^8.35.1",
     "unplugin-auto-import": "^19.3.0",
     "vite": "^7.0.3",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "xlsx": "^0.18.5"
   },
   "name": "react",
   "private": true,
@@ -50,6 +51,7 @@
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "server": "node --env-file=.env.local server/index.mjs",
+    "data:build": "node --experimental-strip-types scripts/build-route-systems.ts",
     "type-check": "tsc --noEmit --project tsconfig.app.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",

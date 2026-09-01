@@ -6,6 +6,7 @@ import FlotaSplitTab from './components/FlotaSplitTab';
 import RutasGeneradas from './components/RutasGeneradas';
 import EditarRutaModal from './components/EditarRutaModal';
 import PlanificacionTabs from './components/PlanificacionTabs';
+import MatrizRutasTab from './components/MatrizRutasTab';
 import { useCatalogos } from './use-catalogos';
 import { useViajes } from './use-viajes';
 import { usePedidosRuta } from './use-pedidos-ruta';
@@ -15,7 +16,7 @@ import { useRutasGeneradas } from './use-rutas-generadas';
 import type { Pedido } from './types';
 import type { RutaGenerada } from './generar-ruta-mock';
 
-type Tab = 'nueva' | 'flota' | 'generadas';
+type Tab = 'nueva' | 'flota' | 'generadas' | 'matriz';
 
 export default function PlanificacionPage() {
   const { appUser } = useAuth();
@@ -130,6 +131,8 @@ export default function PlanificacionPage() {
         onClose={() => setEditandoRuta(null)}
         onGuardar={actualizarRutaGenerada}
       />
+
+      {tab === 'matriz' && <MatrizRutasTab />}
 
       {tab === 'flota' && (
         <FlotaSplitTab
