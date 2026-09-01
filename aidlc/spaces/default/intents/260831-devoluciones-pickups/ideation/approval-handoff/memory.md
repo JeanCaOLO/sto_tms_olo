@@ -13,4 +13,4 @@
 ## Open questions
 <!-- example: 2026-05-29T10:14:32Z — confirm the retention window with compliance before the next stage hardens the schema -->
 
-- 2026-09-01T13:22:55Z — feasibility corrida en modo "propone y confirmo"; respuestas Q1-Q6 derivadas del código del módulo (optimize-stops, capacity-fit, viajes-api) y del intent-statement, no del usuario (no conoce el detalle). Recomendación clave: desdoblar FR16.1-16.3 (viables ya) de FR16.4 (espera OQ-4).
+- 2026-09-01T13:43:29Z — approval-handoff modo propone-y-confirmo; cierre de Ideacion con GO condicionado. Phase-check Ideacion->Concepcion PASS. 2 riesgos abiertos cruzan: OQ-4 y metrica de exito.
