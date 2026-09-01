@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { optimizarConCapacidad } from './capacity-fit';
 import { construirMatrizDistancias } from './distance-matrix';
 import { withStopNumbers } from './optimize-stops';
+import { conAnclasEnVivo, crearDevolucionEnVivo, type DevolucionEnVivoInput } from './live-devolucion';
 import type { Pedido, PedidoSeleccionado, Vehiculo, Viaje } from './types';
 
 export function usePedidosRuta() {
@@ -29,6 +30,15 @@ export function usePedidosRuta() {
 
   const quitarPedido = (pedidoId: string) => {
     setPedidosSeleccionados(withStopNumbers(pedidosSeleccionados.filter((p) => p.id !== pedidoId)));
+    // Una devolución en vivo no vive en el pool del viaje: quitarla del
+    // secuenciador la elimina del todo.
+    setPedidosRuta((prev) => prev.filter((p) => p.id !== pedidoId));
+  };
+
+  const agregarDevolucionEnVivo = (input: DevolucionEnVivoInput) => {
+    const nueva = crearDevolucionEnVivo(input);
+    setPedidosRuta((prev) => [...prev, nueva]);
+    setPedidosSeleccionados((prev) => withStopNumbers([...prev, nueva]));
   };
 
   const reordenarParadas = (fromIndex: number, toIndex: number) => {
@@ -49,7 +59,8 @@ export function usePedidosRuta() {
     setOptimizando(true);
     try {
       const matriz = await construirMatrizDistancias(pedidosRuta);
-      const { orden, excluidos } = optimizarConCapacidad(withStopNumbers(pedidosRuta), vehiculo, anclados, matriz);
+      const anclasConLive = conAnclasEnVivo(pedidosRuta, anclados);
+      const { orden, excluidos } = optimizarConCapacidad(withStopNumbers(pedidosRuta), vehiculo, anclasConLive, matriz);
       setPedidosSeleccionados(orden);
       setExcluidosPorCapacidad(excluidos);
       const fueraDeVentana = orden.filter((p) => p.outside_window).length;
@@ -64,5 +75,6 @@ export function usePedidosRuta() {
   return {
     viajeId, pedidosRuta, pedidosSeleccionados, excluidosPorCapacidad, optimizando,
     setViaje, togglePedido, quitarPedido, reordenarParadas, optimizarRuta, resetPedidos,
+    agregarDevolucionEnVivo,
   };
 }

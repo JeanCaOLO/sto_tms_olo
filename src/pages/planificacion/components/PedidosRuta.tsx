@@ -15,6 +15,11 @@ interface Props {
   cargandoPedidos: boolean;
 }
 
+const GRUPOS = [
+  { titulo: 'Entregas', icono: 'ri-truck-line', tipo: 'entrega' as const },
+  { titulo: 'Devoluciones · recolección', icono: 'ri-arrow-go-back-line', tipo: 'devolucion' as const },
+];
+
 const filtrarPedidos = (pedidos: Pedido[], busqueda: string): Pedido[] => {
   const q = busqueda.toLowerCase().trim();
   if (!q) return pedidos;
@@ -86,7 +91,7 @@ export default function PedidosRuta({ rutaNombre, pedidos, pedidosIncluidos, ped
             )}
           </div>
 
-          <div className="space-y-2 overflow-y-auto flex-1 min-h-0">
+          <div className="space-y-4 overflow-y-auto flex-1 min-h-0">
             {pedidosFiltrados.length === 0 ? (
               <div className="text-center py-12 text-slate-400">
                 <i className="ri-inbox-2-line text-4xl mb-2"></i>
@@ -94,16 +99,35 @@ export default function PedidosRuta({ rutaNombre, pedidos, pedidosIncluidos, ped
                 <p className="text-xs mt-1">No hay pedidos pendientes asignados a esta ruta</p>
               </div>
             ) : (
-              pedidosFiltrados.map((pedido) => (
-                <PedidoCard
-                  key={pedido.id}
-                  pedido={pedido}
-                  incluido={pedidosIncluidos.includes(pedido.id)}
-                  anclado={pedidosAnclados.has(pedido.id)}
-                  onToggle={onTogglePedido}
-                  onToggleAncla={onToggleAncla}
-                />
-              ))
+              // Separación entrega vs devolución: secciones rotuladas, no
+              // tabs/filtros — el planificador necesita ver ambas clases a la
+              // vez para decidir concesiones de capacidad entre ellas.
+              GRUPOS.map(({ titulo, icono, tipo }) => {
+                const items = pedidosFiltrados.filter(
+                  (p) => !p.is_live && (tipo === 'devolucion' ? p.tipo === 'devolucion' : p.tipo !== 'devolucion'),
+                );
+                if (items.length === 0) return null;
+                return (
+                  <div key={titulo}>
+                    <h3 className={`text-xs font-semibold uppercase tracking-wide mb-2 flex items-center gap-1.5 ${tipo === 'devolucion' ? 'text-indigo-700' : 'text-slate-500'}`}>
+                      <i className={icono}></i>{titulo}
+                      <span className="font-normal normal-case">({items.length})</span>
+                    </h3>
+                    <div className="space-y-2">
+                      {items.map((pedido) => (
+                        <PedidoCard
+                          key={pedido.id}
+                          pedido={pedido}
+                          incluido={pedidosIncluidos.includes(pedido.id)}
+                          anclado={pedidosAnclados.has(pedido.id)}
+                          onToggle={onTogglePedido}
+                          onToggleAncla={onToggleAncla}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
         </>

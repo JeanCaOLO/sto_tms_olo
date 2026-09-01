@@ -1,6 +1,7 @@
 import PedidosRuta from './PedidosRuta';
 import RutaEnConstruccion from './RutaEnConstruccion';
 import ConfiguracionRuta from './ConfiguracionRuta';
+import type { DevolucionEnVivoInput } from '../live-devolucion';
 import type { Conductor, Pedido, PedidoSeleccionado, Transportista, Vehiculo, Viaje } from '../types';
 
 interface Props {
@@ -31,6 +32,7 @@ interface Props {
   onToggleAncla: (pedido: Pedido) => void;
   onQuitarPedido: (pedidoId: string) => void;
   onReordenarParadas: (fromIndex: number, toIndex: number) => void;
+  onAgregarDevolucionEnVivo: (input: DevolucionEnVivoInput) => void;
   onGenerarRuta: () => void;
   onOptimizarRuta: () => void;
 }
@@ -109,8 +111,13 @@ export default function NuevaRutaTab(props: Props) {
 
         <RutaEnConstruccion
           pedidosSeleccionados={pedidosSeleccionados}
+          pedidosAnclados={props.pedidosAnclados}
+          vehiculoSeleccionado={props.vehiculoSeleccionado}
+          optimizando={props.optimizando}
           onQuitarPedido={props.onQuitarPedido}
           onReordenarParadas={props.onReordenarParadas}
+          onAgregarDevolucionEnVivo={props.onAgregarDevolucionEnVivo}
+          onOptimizarRuta={props.onOptimizarRuta}
         />
       </div>
     </>

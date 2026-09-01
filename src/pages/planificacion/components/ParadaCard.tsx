@@ -33,7 +33,9 @@ export default function ParadaCard({ pedido, isLast, isDragging, onQuitar, onDra
         onDoubleClick={() => onEnfocar?.(pedido.id)}
         title={onEnfocar ? 'Doble-click para enfocar en el mapa' : undefined}
         className={`flex-1 min-w-0 border rounded-lg p-3 bg-white transition-all cursor-move mb-2 ${
-          pedido.tipo === 'devolucion' ? 'border-l-4 border-l-indigo-500 ' : ''
+          pedido.is_live
+            ? 'border-l-4 border-l-indigo-600 bg-indigo-50 '
+            : pedido.tipo === 'devolucion' ? 'border-l-4 border-l-indigo-400 ' : ''
         }${
           pedido.outside_window
             ? 'border-red-300 bg-red-50'
@@ -45,7 +47,7 @@ export default function ParadaCard({ pedido, isLast, isDragging, onQuitar, onDra
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-slate-800">{pedido.order_number}</span>
-                <TipoParadaBadge tipo={pedido.tipo} />
+                <TipoParadaBadge tipo={pedido.tipo} isLive={pedido.is_live} />
                 {etaLabel && (
                   <span className={`text-xs font-medium ${pedido.outside_window ? 'text-red-600' : 'text-teal-700'}`}>
                     <i className="ri-time-line mr-0.5"></i>{etaLabel}
@@ -80,12 +82,20 @@ export default function ParadaCard({ pedido, isLast, isDragging, onQuitar, onDra
             <div className="space-y-1 text-xs text-slate-500">
               <div className="flex items-start">
                 <i className="ri-map-pin-line mr-1 mt-0.5 flex-shrink-0"></i>
-                <span className="break-words">{pedido.delivery_address}, {pedido.delivery_city}</span>
+                <span className="break-words">{[pedido.delivery_address, pedido.delivery_city].filter(Boolean).join(', ')}</span>
               </div>
-              <div className="flex items-center">
-                <i className="ri-road-map-line mr-1"></i>
-                <span>Zona: {pedido.delivery_zone}</span>
-              </div>
+              {pedido.delivery_zone && (
+                <div className="flex items-center">
+                  <i className="ri-road-map-line mr-1"></i>
+                  <span>Zona: {pedido.delivery_zone}</span>
+                </div>
+              )}
+              {pedido.is_live && (
+                <div className="flex items-center text-indigo-700">
+                  <i className="ri-truck-line mr-1"></i>
+                  <span>Recolección al pie de camión · carga entrante</span>
+                </div>
+              )}
               <div className="flex items-center gap-3 mt-2">
                 <span className="flex items-center"><i className="ri-weight-line mr-1"></i>{pedido.total_weight} kg</span>
                 <span className="flex items-center"><i className="ri-box-3-line mr-1"></i>{pedido.total_volume} m³</span>

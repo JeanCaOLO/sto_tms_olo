@@ -9,6 +9,11 @@ describe('TipoParadaBadge (BR1.4: nunca sólo color)', () => {
     expect(screen.getByText('Devolución')).toBeTruthy();
   });
 
+  it('marca la devolución en vivo con texto "EN VIVO"', () => {
+    render(<TipoParadaBadge tipo="devolucion" isLive />);
+    expect(screen.getByText(/EN VIVO/)).toBeTruthy();
+  });
+
   it('no renderiza nada para tipo="entrega"', () => {
     const { container } = render(<TipoParadaBadge tipo="entrega" />);
     expect(container.firstChild).toBeNull();

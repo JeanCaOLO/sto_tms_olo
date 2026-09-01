@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { optimizarConCapacidad } from './capacity-fit';
+import { optimizarConCapacidad, entregasADescargarPara } from './capacity-fit';
 import type { PedidoSeleccionado, Vehiculo } from './types';
 
 // Coordenadas del GAM para que optimizarParadas use la rama con coordenadas.
@@ -73,6 +73,20 @@ describe('optimizarConCapacidad', () => {
     const { orden, excluidos } = optimizarConCapacidad(paradas);
     expect(excluidos).toEqual([]);
     expect(orden.length).toBe(5);
+  });
+
+  it('entregasADescargarPara: una devolución en vivo fuerza descargar entregas y solo lista entregas', () => {
+    const entregas = Array.from({ length: 8 }, () => parada({ total_weight: 100 })); // 800
+    const live = parada({ total_weight: 300, is_live: true, tipo: 'devolucion' }); // 800+300=1100 > 850
+    const descargar = entregasADescargarPara([...entregas, live], vehiculo);
+    expect(descargar.length).toBeGreaterThan(0);
+    expect(descargar.every((p) => p.tipo !== 'devolucion' && !p.is_live)).toBe(true);
+  });
+
+  it('entregasADescargarPara: si la carga entrante cabe, no descarga nada', () => {
+    const entregas = Array.from({ length: 5 }, () => parada({ total_weight: 100 })); // 500
+    const live = parada({ total_weight: 100, is_live: true, tipo: 'devolucion' }); // 600 < 850
+    expect(entregasADescargarPara([...entregas, live], vehiculo)).toEqual([]);
   });
 
   it('respeta un ancla: la devolución anclada nunca se excluye aunque no quepa el resto', () => {

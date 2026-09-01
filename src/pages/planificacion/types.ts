@@ -24,6 +24,13 @@ export interface Pedido {
   // 'devolucion' la semántica de delivery_address / total_weight /
   // total_volume se invierte (recogida / carga entrante) — ver ADR-1.
   tipo?: 'entrega' | 'devolucion';
+  // Devolución "al pie de camión": recolección no planificada que aparece
+  // durante el reparto. Se siembra directamente en la secuencia (no viene en
+  // el viaje del WMS), cuenta siempre en la carga y nunca la excluye el
+  // optimizador — fuerza descargar entregas antes. Sin coordenadas: se ubica
+  // al final de la secuencia y queda fuera del trazo del mapa.
+  is_live?: boolean;
+  live_ref?: string;
 }
 
 // Agrupador de pedidos que llega ya resuelto desde el WMS (Iflow/torre de

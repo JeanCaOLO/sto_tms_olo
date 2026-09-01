@@ -79,6 +79,24 @@ export function excedeCapacidadAlAnclar(
   return peso > maxWeight || volumen > maxVolume;
 }
 
+// Devoluciones en vivo + anclas son innegociables: se sientan primero (aunque
+// solas revienten el presupuesto). Esto devuelve qué paradas de ENTREGA deja
+// fuera el ajuste greedy para que quepa la carga entrante — la lista que el
+// planificador usa para decidir qué descargar antes de recoger (FR "live").
+export function entregasADescargarPara(
+  secuencia: PedidoSeleccionado[],
+  vehiculo: Vehiculo,
+  anclados: Set<string> = new Set(),
+): PedidoSeleccionado[] {
+  const forzados = new Set<string>([
+    ...anclados,
+    ...secuencia.filter((p) => p.is_live).map((p) => p.id),
+  ]);
+  return seleccionarPorCapacidad(secuencia, vehiculo, forzados).excluidos.filter(
+    (p) => p.tipo !== 'devolucion',
+  );
+}
+
 export function optimizarConCapacidad(
   pedidos: PedidoSeleccionado[],
   vehiculo?: Vehiculo,
