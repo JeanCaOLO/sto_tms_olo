@@ -1,74 +1,91 @@
-# Delegar tareas a Claude Code
+# Delegar tareas a Claude Code (vía Orca)
 
-Kiro puede pasarle una tarea suelta a Claude Code (headless) y recibir el
-resultado. Wrapper: `scripts/claude-run.mjs`.
+Kiro puede pasarle una tarea suelta a Claude Code y recibir el resultado,
+usando Orca para abrir y manejar la sesión de Claude. No hay script propio:
+todo es `orca` + su skill `orca-cli`.
 
 ## Cuándo usarlo
 
 - Tareas concretas y acotadas: "arregla este bug", "escribe este archivo",
   "investiga por qué falla X", "haz este refactor".
-- Cuando Claude ya tiene contexto/memoria útil de este repo que a Kiro le
-  costaría reconstruir.
+- Cuando Claude ya tiene contexto/memoria útil de este repo.
 
 ## Cuándo NO usarlo
 
-- **AI-DLC.** Ese flujo (`/aidlc`) tiene gates de aprobación interactivos por
-  diseño y lo conduce Claude con el humano directamente. No lo manejes por
-  aquí.
+- **AI-DLC** (`/aidlc`). Ese flujo tiene gates de aprobación interactivos y lo
+  conduce Claude con el humano directamente. No pasa por aquí.
 
-## Cómo llamarlo (PowerShell)
+## Antes de empezar
 
-El brief va en un archivo, nunca como argumento entre comillas.
+1. Carga la guía real de Orca: `orca skills get orca-cli` — trae los comandos
+   exactos de la versión instalada. No adivines flags de memoria.
+2. Confirma que Orca corre: `orca status --json` (si no, `orca open --json`).
+3. Si el shell de Kiro no encuentra `claude`, agrega `%APPDATA%\npm` al PATH
+   (Orca lanza el agente `claude` por su cuenta, así que suele no hacer falta).
 
-```powershell
-# tarea nueva
-node scripts/claude-run.mjs --brief-file .\brief.md
+## Delegar y esperar el resultado (supervisado)
 
-# continuar la misma conversación (usa el session_id que devolvió la anterior)
-node scripts/claude-run.mjs --brief-file .\respuesta.md --session <session_id>
+**Opción A — en el checkout actual, sin worktree nuevo:**
+
+```
+orca terminal create --worktree active --command "claude" --json
+orca terminal wait --terminal <handle> --for tui-idle --timeout-ms 60000 --json
+orca terminal send --terminal <handle> --text "<brief>" --enter --json
+orca terminal wait --terminal <handle> --for tui-idle --timeout-ms 600000 --json
+orca terminal read --terminal <handle> --json
 ```
 
-Si `claude` no está en el PATH de tu shell: agrega `%APPDATA%\npm` al PATH, o
-llama con la ruta completa a `claude.cmd`.
+- `<handle>`: `startupTerminal.handle` de la respuesta de create, o
+  `orca terminal list --worktree active --json`.
+- El `terminal read` final trae la respuesta de Claude. Para respuestas largas,
+  pagina con cursores (`nextCursor` mientras `limited` sea true).
+- Seguimiento: otro `terminal send` al mismo `<handle>` — Claude mantiene el
+  contexto de la conversación.
 
-Opciones útiles: `--model <id>` (default `claude-sonnet-5`),
-`--max-turns <n>` (tope de seguridad), `--cwd <dir>` (carpeta del proyecto),
-`--yolo` (sin pedir permisos — solo en un worktree desechable).
+**Opción B — en un worktree aislado** (mejor si la tarea toca muchos archivos):
 
-## Formato del brief (`brief.md`)
+```
+orca worktree create --name <tarea> --agent claude --prompt "<brief>" --json
+```
+
+Claude arranca en la primera terminal del worktree con el brief ya enviado.
+Usá el `startupTerminal.handle` de la respuesta para `wait` / `read`.
+
+## Handoff (Kiro NO espera el resultado)
+
+```
+orca worktree create --name <tarea> --no-parent --agent claude --prompt "<brief>" --json
+```
+
+Reportá el worktree creado y dejá de monitorear.
+
+## Formato del brief
 
 ```markdown
 ## Tarea
-<qué hay que hacer, en una o dos frases>
+<qué hay que hacer, 1-2 frases>
 
 ## Contexto
-- repo: <ruta>
 - archivos relevantes: <rutas>
-- antecedentes: <lo que ya se intentó, o "ninguno">
+- antecedentes: <lo intentado, o "ninguno">
 
 ## Listo cuando
-<cómo sé que quedó bien: tests verdes, archivo creado, etc.>
+<criterio de terminado: tests verdes, archivo creado, etc.>
 
 ## Salida
-Termina con un bloque RESULT: qué hiciste, archivos tocados, decisiones,
-qué queda pendiente. Si NO puedes avanzar sin una decisión humana, escribe
-una sola línea que empiece con `NEEDS_HUMAN:` y la pregunta, y detente. No
-adivines.
+Termina con un bloque RESULT: qué hiciste, archivos tocados, qué queda
+pendiente. Si NO podés avanzar sin una decisión humana, escribí una línea
+`NEEDS_HUMAN: <pregunta>` y detenete. No adivines.
 ```
 
-## Leer el resultado
+## Leer la respuesta
 
-El wrapper imprime una línea JSON:
+`terminal read` devuelve el texto crudo de la terminal. Buscá el bloque
+`RESULT` al final. Si aparece `NEEDS_HUMAN:`, pasale esa pregunta al usuario y
+con su respuesta hacé otro `terminal send` al mismo handle.
 
-```json
-{ "session_id": "...", "status": "done|needs_human|error",
-  "needs_human": false, "question": null, "result": "<texto de Claude>",
-  "cost_usd": 0.12, "num_turns": 8 }
-```
+## Coordinación estructurada
 
-- `status: "done"` → listo. Lee `result`.
-- `status: "needs_human"` → pásale `question` al usuario. Con su respuesta,
-  llama otra vez con `--session <session_id>` y un brief que sea la respuesta.
-- `status: "error"` → algo falló; `result` trae el detalle.
-
-Guarda el `session_id` mientras la tarea siga abierta.
+Si necesitás ask/reply con seguimiento, DAG de tareas o un loop de
+coordinador, usá la skill `orchestration` (`orca orchestration ...`) en vez de
+`terminal send` suelto.
