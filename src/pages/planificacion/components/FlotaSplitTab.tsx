@@ -77,7 +77,7 @@ export default function FlotaSplitTab({ rutas, vehiculos, conductores, onRutasGe
         </div>
       </Card>
 
-      {resultado && <FlotaResultadoPreview resultado={resultado} />}
+      {resultado && <FlotaResultadoPreview resultado={resultado} conductores={conductores} />}
     </div>
   );
 }

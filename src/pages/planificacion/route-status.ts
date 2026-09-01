@@ -38,3 +38,22 @@ export const ESTADOS_SECUENCIA: EstadoSecuenciaInfo[] = [
 export function infoEstadoSecuencia(estado?: EstadoSecuencia): EstadoSecuenciaInfo {
   return ESTADOS_SECUENCIA.find((e) => e.estado === estado) ?? ESTADOS_SECUENCIA[0];
 }
+
+// Filtro de lista por estado operativo. 'todas' = sin filtro.
+export type FiltroEstadoSecuencia = EstadoSecuencia | 'todas';
+
+export const FILTROS_ESTADO_SECUENCIA: { valor: FiltroEstadoSecuencia; label: string }[] = [
+  { valor: 'todas', label: 'Todas' },
+  { valor: 'activa', label: 'Activas' },
+  { valor: 'completada', label: 'Completadas' },
+  { valor: 'cancelada', label: 'Canceladas' },
+];
+
+// Un registro sin `estado` cuenta como 'activa' (misma regla que infoEstadoSecuencia).
+export function filtrarPorEstadoSecuencia<T extends { estado?: EstadoSecuencia }>(
+  items: T[],
+  filtro: FiltroEstadoSecuencia,
+): T[] {
+  if (filtro === 'todas') return items;
+  return items.filter((i) => infoEstadoSecuencia(i.estado).estado === filtro);
+}
