@@ -1,4 +1,5 @@
 import { prependMockItem, readMockList, removeMockItem, updateMockItem } from '../../lib/mock-store';
+import { ESTADO_SECUENCIA_DEFAULT, type EstadoSecuencia } from './route-status';
 import type { PedidoSeleccionado } from './types';
 
 export interface RutaGenerada {
@@ -13,6 +14,8 @@ export interface RutaGenerada {
   totalVolume: number;
   pedidos: PedidoSeleccionado[];
   createdAt: string;
+  // Ausente en registros viejos ⇒ 'activa' (ver infoEstadoSecuencia).
+  estado?: EstadoSecuencia;
 }
 
 const STORAGE_KEY = 'rutas_generadas';
@@ -31,6 +34,10 @@ export function actualizarRutaGenerada(id: string, cambios: CambiosRutaGenerada)
   const totalWeight = cambios.pedidos.reduce((s, p) => s + (p.total_weight || 0), 0);
   const totalVolume = cambios.pedidos.reduce((s, p) => s + (p.total_volume || 0), 0);
   updateMockItem<RutaGenerada>(STORAGE_KEY, id, { ...cambios, totalWeight, totalVolume });
+}
+
+export function cambiarEstadoRutaGenerada(id: string, estado: EstadoSecuencia): void {
+  updateMockItem<RutaGenerada>(STORAGE_KEY, id, { estado });
 }
 
 export interface GenerarRutaMockInput {
@@ -59,6 +66,7 @@ export function generarRutaMock(input: GenerarRutaMockInput): { routeNumber: str
     totalVolume,
     pedidos: input.pedidosSeleccionados,
     createdAt: new Date().toISOString(),
+    estado: ESTADO_SECUENCIA_DEFAULT,
   };
 
   prependMockItem(STORAGE_KEY, ruta);

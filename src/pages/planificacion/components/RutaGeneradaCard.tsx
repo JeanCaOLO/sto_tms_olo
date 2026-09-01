@@ -2,7 +2,7 @@ import Card from '../../../components/base/Card';
 import Badge from '../../../components/base/Badge';
 import StopMiniPreview from './StopMiniPreview';
 import RutaMapaPreview from './RutaMapaPreview';
-import { estadoDeRuta } from '../route-status';
+import { estadoDeRuta, ESTADOS_SECUENCIA, infoEstadoSecuencia, type EstadoSecuencia } from '../route-status';
 import type { RutaGenerada } from '../generar-ruta-mock';
 import type { Conductor, RutaTipo, Transportista, Vehiculo } from '../types';
 
@@ -14,6 +14,7 @@ interface Props {
   vehiculos: Vehiculo[];
   onEliminar: (id: string) => void;
   onEditar: (ruta: RutaGenerada) => void;
+  onCambiarEstado: (id: string, estado: EstadoSecuencia) => void;
 }
 
 const creadaHace = (isoDate: string): string => {
@@ -34,8 +35,9 @@ const nombreDe = <T extends { id: string; name?: string; full_name?: string; pla
   return item?.name || item?.full_name || item?.plate || 'Desconocido';
 };
 
-export default function RutaGeneradaCard({ ruta, rutasTipo, transportistas, conductores, vehiculos, onEliminar, onEditar }: Props) {
+export default function RutaGeneradaCard({ ruta, rutasTipo, transportistas, conductores, vehiculos, onEliminar, onEditar, onCambiarEstado }: Props) {
   const estado = estadoDeRuta(ruta.fechaRuta);
+  const estadoSeq = infoEstadoSecuencia(ruta.estado);
 
   return (
     <Card className="flex flex-col">
@@ -48,6 +50,9 @@ export default function RutaGeneradaCard({ ruta, rutasTipo, transportistas, cond
           </p>
         </div>
         <div className="flex items-center gap-1">
+          <Badge variant={estadoSeq.variant} size="sm">
+            <i className={`${estadoSeq.icon} mr-1`}></i>{estadoSeq.label}
+          </Badge>
           <Badge variant={estado.variant} size="sm">{estado.label}</Badge>
           <button
             onClick={() => onEditar(ruta)}
@@ -71,6 +76,30 @@ export default function RutaGeneradaCard({ ruta, rutasTipo, transportistas, cond
         <div className="flex items-center gap-2"><i className="ri-user-line text-slate-400"></i>{nombreDe(conductores, ruta.conductorId)}</div>
         <div className="flex items-center gap-2"><i className="ri-truck-line text-slate-400"></i>{nombreDe(vehiculos, ruta.vehiculoId)}</div>
         <div className="flex items-center gap-2"><i className="ri-calendar-line text-slate-400"></i>{ruta.fechaRuta}</div>
+      </div>
+
+      <div className="border-t border-slate-100 mt-3 pt-3">
+        <p className="text-xs font-semibold text-slate-500 mb-2" id={`estado-${ruta.id}`}>Estado de la secuencia</p>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-labelledby={`estado-${ruta.id}`}>
+          {ESTADOS_SECUENCIA.map((e) => {
+            const activo = e.estado === estadoSeq.estado;
+            return (
+              <button
+                key={e.estado}
+                type="button"
+                aria-pressed={activo}
+                onClick={() => onCambiarEstado(ruta.id, e.estado)}
+                className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg border transition-colors cursor-pointer ${
+                  activo
+                    ? 'bg-teal-600 border-teal-600 text-white'
+                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <i className={e.icon}></i>{e.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="border-t border-slate-100 mt-3 pt-3">

@@ -14,3 +14,27 @@ export function estadoDeRuta(fechaRuta: string): EstadoInfo {
   if (fechaRuta === hoy) return { estado: 'hoy', label: 'Hoy', variant: 'warning' };
   return { estado: 'programada', label: 'Programada', variant: 'info' };
 }
+
+// Estado operativo de una secuencia de paradas generada, distinto del badge
+// derivado de la fecha (arriba): éste lo fija la persona a mano y se persiste.
+// "secuencia" evita "ruta"/"viaje", que son conceptos de la BD.
+export type EstadoSecuencia = 'activa' | 'completada' | 'cancelada';
+
+export interface EstadoSecuenciaInfo {
+  estado: EstadoSecuencia;
+  label: string;
+  variant: 'info' | 'success' | 'danger';
+  icon: string;
+}
+
+export const ESTADO_SECUENCIA_DEFAULT: EstadoSecuencia = 'activa';
+
+export const ESTADOS_SECUENCIA: EstadoSecuenciaInfo[] = [
+  { estado: 'activa', label: 'Activa', variant: 'info', icon: 'ri-truck-line' },
+  { estado: 'completada', label: 'Completada', variant: 'success', icon: 'ri-checkbox-circle-line' },
+  { estado: 'cancelada', label: 'Cancelada', variant: 'danger', icon: 'ri-close-circle-line' },
+];
+
+export function infoEstadoSecuencia(estado?: EstadoSecuencia): EstadoSecuenciaInfo {
+  return ESTADOS_SECUENCIA.find((e) => e.estado === estado) ?? ESTADOS_SECUENCIA[0];
+}

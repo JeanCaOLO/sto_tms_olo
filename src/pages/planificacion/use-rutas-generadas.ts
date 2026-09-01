@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { actualizarRutaGenerada, eliminarRutaGenerada, listRutasGeneradas, type CambiosRutaGenerada, type RutaGenerada } from './generar-ruta-mock';
+import { actualizarRutaGenerada, cambiarEstadoRutaGenerada, eliminarRutaGenerada, listRutasGeneradas, type CambiosRutaGenerada, type RutaGenerada } from './generar-ruta-mock';
+import type { EstadoSecuencia } from './route-status';
 
 export function useRutasGeneradas() {
   const [rutas, setRutas] = useState<RutaGenerada[]>([]);
@@ -18,5 +19,10 @@ export function useRutasGeneradas() {
     refresh();
   };
 
-  return { rutas, refresh, eliminar, actualizar };
+  const cambiarEstado = (id: string, estado: EstadoSecuencia) => {
+    cambiarEstadoRutaGenerada(id, estado);
+    refresh();
+  };
+
+  return { rutas, refresh, eliminar, actualizar, cambiarEstado };
 }

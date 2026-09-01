@@ -1,6 +1,7 @@
 import Card from '../../../components/base/Card';
 import RutaGeneradaCard from './RutaGeneradaCard';
 import type { RutaGenerada } from '../generar-ruta-mock';
+import type { EstadoSecuencia } from '../route-status';
 import type { Conductor, RutaTipo, Transportista, Vehiculo } from '../types';
 
 interface Props {
@@ -11,9 +12,10 @@ interface Props {
   vehiculos: Vehiculo[];
   onEliminar: (id: string) => void;
   onEditar: (ruta: RutaGenerada) => void;
+  onCambiarEstado: (id: string, estado: EstadoSecuencia) => void;
 }
 
-export default function RutasGeneradas({ rutas, rutasTipo, transportistas, conductores, vehiculos, onEliminar, onEditar }: Props) {
+export default function RutasGeneradas({ rutas, rutasTipo, transportistas, conductores, vehiculos, onEliminar, onEditar, onCambiarEstado }: Props) {
   if (rutas.length === 0) {
     return (
       <Card>
@@ -40,6 +42,7 @@ export default function RutasGeneradas({ rutas, rutasTipo, transportistas, condu
           vehiculos={vehiculos}
           onEliminar={onEliminar}
           onEditar={onEditar}
+          onCambiarEstado={onCambiarEstado}
         />
       ))}
     </div>

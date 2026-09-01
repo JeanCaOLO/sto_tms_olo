@@ -1,5 +1,6 @@
 import Card from '../../../components/base/Card';
 import Badge from '../../../components/base/Badge';
+import RutaMapaPreview from './RutaMapaPreview';
 import type { ResultadoReparto } from '../fleet-split';
 
 interface Props {
@@ -22,6 +23,10 @@ export default function FlotaResultadoPreview({ resultado }: Props) {
               <Badge variant="info">{a.pedidos.length} paradas</Badge>
             </div>
             <p className="text-xs text-slate-500 mt-1">{peso.toFixed(1)} kg · {volumen.toFixed(1)} m³</p>
+            <div className="mt-2">
+              <p className="text-xs font-semibold text-slate-500 mb-1.5">Secuencia de paradas</p>
+              <RutaMapaPreview pedidos={a.pedidos} />
+            </div>
           </Card>
         );
       })}
