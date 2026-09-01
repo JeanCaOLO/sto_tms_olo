@@ -42,8 +42,8 @@ describe('catalog mappers', () => {
   });
 
   it('links conductor.carrier_id to transportista.id', () => {
-    const t = mapTransportista({ carrier_id: 3, company_name: 'Transosa de Alajuela S.A.' });
-    const c = mapConductor({ driver_id: 6, driver_name: 'DIEGO SOLORZANO', driver_document: '206590907', carrier_id: 3 });
+    const t = mapTransportista({ carrier_id: 3, company_name: 'Transportista A' });
+    const c = mapConductor({ driver_id: 6, driver_name: 'CONDUCTOR A', driver_document: '000000000', carrier_id: 3 });
     expect(c.carrier_id).toBe(t.id);
     expect(t.id).toBe('eflow-car-3');
   });
@@ -53,7 +53,7 @@ describe('catalog mappers', () => {
   });
 
   it('vehiculo keeps synthetic capacity (QA reports 0) and reads model from unit_description', () => {
-    const v = mapVehiculo({ vehicle_id: 14, license_plate: 'C132239', vehicle_brand: 'NISSAN UD', unit_description: 'NISSAN UD', carrier_id: 3 });
+    const v = mapVehiculo({ vehicle_id: 14, license_plate: 'PLACA-001', vehicle_brand: 'NISSAN UD', unit_description: 'NISSAN UD', carrier_id: 3 });
     expect(v.id).toBe('eflow-veh-14');
     expect(v.capacity_weight).toBe(8000);
     expect(v.capacity_volume).toBe(32);
@@ -95,3 +95,4 @@ describe('fetch + fallback', () => {
     expect(await fetchTransportistas(FALLBACK_TRANSPORTISTAS)).toBe(FALLBACK_TRANSPORTISTAS);
   });
 });
+
