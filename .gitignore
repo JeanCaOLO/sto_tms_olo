@@ -26,3 +26,5 @@ aidlc/spaces/*/intents/*/runtime-graph.json
 aidlc/spaces/*/intents/*/.aidlc-*
 aidlc/diagnostics/
 coverage/
+
+.orca-briefs/
