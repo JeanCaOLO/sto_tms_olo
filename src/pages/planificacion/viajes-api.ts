@@ -1,10 +1,15 @@
+import { fetchViajes } from './eflow-api';
 import { getFallbackViajes } from './fallback-viajes';
 import type { Viaje } from './types';
 
-// ponytail: la migración de `trips`/`trip_orders` (ver diseño acordado en
-// docs/work/2026-08/) todavía no está aplicada a Supabase — no hay tabla
-// real que consultar. Cuando exista, esto pasa a un fetch real con
-// getFallbackViajes() como respaldo de 0 filas, igual que pedidos-api.ts.
+// Real QA trips via the read-only EFLOW API (`server/`). Falls back to the
+// curated mock viajes if /api is unreachable so the tab still works offline.
 export async function fetchViajesDespachados(): Promise<Viaje[]> {
-  return getFallbackViajes().filter((v) => v.status === 'despachado');
+  try {
+    const viajes = await fetchViajes();
+    return viajes.filter((v) => v.status === 'despachado');
+  } catch (err) {
+    console.warn('[planificacion] /api/viajes no disponible, usando mock:', (err as Error).message);
+    return getFallbackViajes().filter((v) => v.status === 'despachado');
+  }
 }
