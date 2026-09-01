@@ -38,6 +38,7 @@ sensors:
 scopes:
   - enterprise
   - feature
+  - route-planning-docs
   - mvp
   - poc
   - bugfix

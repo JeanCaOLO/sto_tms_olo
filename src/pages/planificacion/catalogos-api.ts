@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase';
 import type { AppUser } from '../../lib/mock-auth';
 import { FALLBACK_RUTAS } from './fallback-rutas';
+import { FALLBACK_CONDUCTORES, FALLBACK_TRANSPORTISTAS, FALLBACK_VEHICULOS } from './fallback-catalogos';
 import type { Conductor, RutaTipo, Transportista, Vehiculo } from './types';
 
 export interface Catalogos {
@@ -20,8 +21,8 @@ export async function fetchCatalogos(appUser: AppUser): Promise<Catalogos> {
 
   return {
     rutas: rutasRes.data?.length ? rutasRes.data : FALLBACK_RUTAS,
-    vehiculos: vehiculosRes.data || [],
-    transportistas: transportistasRes.data || [],
-    conductores: conductoresRes.data || [],
+    vehiculos: vehiculosRes.data?.length ? vehiculosRes.data : FALLBACK_VEHICULOS,
+    transportistas: transportistasRes.data?.length ? transportistasRes.data : FALLBACK_TRANSPORTISTAS,
+    conductores: conductoresRes.data?.length ? conductoresRes.data : FALLBACK_CONDUCTORES,
   };
 }

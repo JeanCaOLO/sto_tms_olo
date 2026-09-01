@@ -55,9 +55,9 @@ test.describe('Planificación — flujo de generación de ruta', () => {
     // 6. Toast de éxito
     await expect(page.getByText(/ruta .* generada con \d+ paradas/i)).toBeVisible({ timeout: 10000 });
 
-    // 7. Aparece en "Rutas Generadas"
+    // 7. Aparece en "Rutas Generadas" (ruta del Viaje 1 = catálogo eflow real)
     await page.getByRole('button', { name: /rutas generadas/i }).click();
-    await expect(page.locator('body')).toContainText(/Ruta GAM Norte|Ruta/i);
+    await expect(page.locator('body')).toContainText(/RT-MOCK-\d+|Casco Central/i);
 
     expect(errors, errors.join('\n')).toEqual([]);
   });

@@ -24,14 +24,15 @@ const HOY = new Date().toISOString().split('T')[0];
 
 // ponytail: 4 viajes sintéticos agrupando los 20 stops mock por afinidad
 // geográfica, reflejando el concepto real de "viaje" del WMS (Reunión
-// 2026-08-18): n pedidos + n destinos, con la ruta ya asignada. El viaje 2
-// lleva un pedido de excepción (dirección distinta a la registrada, sin
-// coordenadas) para ejercitar ese caso de punta a punta.
+// 2026-08-18): n pedidos + n destinos, con la ruta ya asignada. Las rutas son
+// las reales del catálogo eflow (fallback-rutas.ts). El viaje 2 lleva un
+// pedido de excepción (dirección distinta a la registrada, sin coordenadas)
+// para ejercitar ese caso de punta a punta.
 export function getFallbackViajes(): Viaje[] {
-  const rutaNorte = FALLBACK_RUTAS[0].id;
-  const rutaSur = FALLBACK_RUTAS[1].id;
-  const rutaCentro = FALLBACK_RUTAS[2].id;
-  const rutaOriente = FALLBACK_RUTAS[3].id;
+  const rutaNorte = FALLBACK_RUTAS[0].id; // 01 Casco Central
+  const rutaSur = FALLBACK_RUTAS[1].id; // 02 Desamparados San José Sur-Oeste
+  const rutaCentro = FALLBACK_RUTAS[2].id; // 03 Guadalupe San José Norte-Oeste
+  const rutaOriente = FALLBACK_RUTAS[3].id; // 04 Alajuela
 
   const pedidosViaje2 = pedidosDe([4, 5, 6, 12, 13], 'VJ-MOCK-002');
   const excepcion = pedidosViaje2.find((p) => p.order_number === 'ORD-MOCK-007');

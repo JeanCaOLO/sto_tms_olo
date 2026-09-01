@@ -166,7 +166,8 @@
       "enterprise",
       "feature",
       "mvp",
-      "poc"
+      "poc",
+      "route-planning-docs"
     ],
     "reviewer": "aidlc-product-lead-agent",
     "reviewer_max_iterations": 2,
@@ -702,7 +703,8 @@
     ],
     "scopes": [
       "enterprise",
-      "feature"
+      "feature",
+      "route-planning-docs"
     ],
     "summary_confirmation": "required",
     "inputs": "All Ideation phase artifacts (intent, market research, feasibility, scope, team, mockups)",
@@ -785,6 +787,7 @@
       "security-patch",
       "classic",
       "workshop",
+      "route-planning-docs",
       "express"
     ],
     "inputs": "<record>/aidlc-state.md",
@@ -988,6 +991,7 @@
     "scopes": [
       "enterprise",
       "feature",
+      "route-planning-docs",
       "mvp",
       "poc",
       "bugfix",

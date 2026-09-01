@@ -62,3 +62,4 @@
 
 <!-- Project-specific corrections from human feedback. -->
 <!-- Format: NEVER/ALWAYS [behavior] (learned [date]) -->
+- Los hooks de AI-DLC están instalados pero NO conectados en .claude/settings.json (decisión de equipo, ver docs/work/2026-08/2026-08-24-install-aidlc-workflows.md). Consecuencia: HUMAN_TURN no se registra y los checkpoints/gates quedan irresolubles. Correr los comandos aidlc con AIDLC_SKIP_HUMAN_PRESENCE_GUARD=1 (ya en settings.local.json env), y compilar runtime-graph.json a mano con `bun .claude/tools/aidlc-runtime.ts compile` cuando un comando lo reclame. (learned 2026-08-31) <!-- cid:260831-devoluciones-pickups:intent-capture:f48547392b69b5ac03c094513d7a5a5b9fe9c2f889afb8e0cbd972993178f4c7 -->
