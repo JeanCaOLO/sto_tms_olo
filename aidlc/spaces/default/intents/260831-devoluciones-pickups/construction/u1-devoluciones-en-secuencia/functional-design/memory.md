@@ -1,14 +1,15 @@
-<!-- INVARIANT: examples are single-line HTML comments so a fresh template parses to total=0 (MEMORY_EMPTY). Do NOT un-comment or split across lines. t100 guards this. -->
-> This file is kept up to date automatically while the stage runs. Add observations at the review step, not by editing here directly.
+# Functional Design U1 — memoria
 
 ## Interpretations
-<!-- example: 2026-05-29T10:14:32Z — chose REST over GraphQL; the consuming team only needs CRUD, revisit if subscriptions land -->
+- 2026-09-01T15:03:53Z — unidad ui: sin entities.md/rules.md requeridos, pero se crea rules.md (BR1.1-1.4) para el sensor traceability. Modelo = Pedido.tipo opcional. Geometria por leg via OSRM steps=true.
 
 ## Deviations
-<!-- example: 2026-05-29T10:14:32Z — skipped the optional caching layer the stage prose suggested; the dataset is small enough that it adds risk -->
+- 2026-09-01T15:03:53Z — se agrego rules.md aunque produces_kinds no lo pide para ui, porque el sensor traceability lo exige (busca BR IDs en rules.md).
 
 ## Tradeoffs
-<!-- example: 2026-05-29T10:14:32Z — picked TDD over BDD this run; the team is unit-first and the domain is well-understood -->
 
 ## Open questions
-<!-- example: 2026-05-29T10:14:32Z — confirm the retention window with compliance before the next stage hardens the schema -->
+- 2026-09-01T15:03:53Z — steps=true en OSRM para ~20 paradas: medir en build-and-test.
+
+## Deviations (rev 2, tras adversarial NOT-READY)
+- 2026-09-01T15:10:22Z — 3 hallazgos reales: (Critical) el badge iba aria-hidden -> ahora texto visible "Devolucion" es el nombre accesible, sin aria-label en div sin role; (Major) optimizarConCapacidad devuelve solo excluidosCount -> cambio de firma a excluidos[]; (Major) CapacityBar generico -> ConfiguracionRuta recibe props devolucionesCount/Peso/Volumen desde NuevaRutaTab.
