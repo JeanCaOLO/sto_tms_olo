@@ -52,18 +52,87 @@ function colIndexer(header: unknown[]) {
 // COFERSA — hoja "Hoja1". Cabecera: "Zona #" | (categoría) | "Días de Carga" |
 // "Días de entrega". Una fila = una zona de reparto y su calendario semanal.
 // ---------------------------------------------------------------------------
+
+/** Los 6 días laborables, en orden, como claves de columna de la matriz. */
+export const DIAS_SEMANA = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'] as const;
+export type DiaSemana = (typeof DIAS_SEMANA)[number];
+
+// Normaliza un token de día a su clave canónica (sin acentos, singular).
+const DIA_ALIASES: Record<string, DiaSemana> = {
+  lunes: 'lunes',
+  martes: 'martes',
+  miercoles: 'miercoles',
+  jueves: 'jueves',
+  viernes: 'viernes',
+  sabado: 'sabado',
+};
+
+function quitarAcentos(s: string): string {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+/**
+ * Convierte un texto libre de días ("Lunes -Miercoles-Viernes",
+ * "Martes-Jueves-Sabado", "Lunes a Viernes", "jueves", "Cita Previa", null)
+ * en el conjunto de días que menciona. Soporta listas separadas por
+ * `-`, `,`, `/` o espacios, y el rango "X a Y". Texto no reconocido
+ * (p. ej. "Cita Previa") devuelve un set vacío.
+ */
+export function parseDias(texto: string | null): Set<DiaSemana> {
+  const out = new Set<DiaSemana>();
+  if (!texto) return out;
+  const limpio = quitarAcentos(texto.toLowerCase());
+
+  // Rango "lunes a viernes" -> todos los días entre ambos (inclusive).
+  const rango = limpio.match(/(lunes|martes|miercoles|jueves|viernes|sabado)\s+a\s+(lunes|martes|miercoles|jueves|viernes|sabado)/);
+  if (rango) {
+    const i = DIAS_SEMANA.indexOf(rango[1] as DiaSemana);
+    const j = DIAS_SEMANA.indexOf(rango[2] as DiaSemana);
+    if (i >= 0 && j >= 0) {
+      for (let k = Math.min(i, j); k <= Math.max(i, j); k++) out.add(DIAS_SEMANA[k]);
+      return out;
+    }
+  }
+
+  for (const token of limpio.split(/[-,/\s]+/).filter(Boolean)) {
+    const dia = DIA_ALIASES[token];
+    if (dia) out.add(dia);
+  }
+  return out;
+}
+
+/** Estado de un día para una zona: día de carga, de entrega, o ninguno. */
+export type DiaEstado = 'carga' | 'entrega' | null;
+
+/**
+ * Enriquece las filas COFERSA con una clave por día (lunes..sabado) cuyo valor
+ * es 'carga' | 'entrega' | null, derivada de diasCarga / diasEntrega. Si un día
+ * cae en ambos, gana 'carga' (raro; el negocio carga antes de entregar).
+ */
+export function expandirDiasCofersa(row: Row): Row {
+  const carga = parseDias(str(row.diasCarga));
+  const entrega = parseDias(str(row.diasEntrega));
+  const dias: Record<string, Cell> = {};
+  for (const d of DIAS_SEMANA) {
+    dias[d] = carga.has(d) ? 'carga' : entrega.has(d) ? 'entrega' : null;
+  }
+  return { ...row, ...dias };
+}
+
 export function parseCofersa(rows: unknown[][]): Row[] {
   const h = findRow(rows, (r) => str(r[0])?.toLowerCase() === 'zona #');
   if (h < 0) throw new Error('COFERSA: no se encontró la cabecera "Zona #"');
   return rows
     .slice(h + 1)
     .filter((r) => str(r[0]))
-    .map((r) => ({
-      zona: str(r[0]),
-      categoria: str(r[1]),
-      diasCarga: str(r[2]),
-      diasEntrega: str(r[3]),
-    }));
+    .map((r) =>
+      expandirDiasCofersa({
+        zona: str(r[0]),
+        categoria: str(r[1]),
+        diasCarga: str(r[2]),
+        diasEntrega: str(r[3]),
+      }),
+    );
 }
 
 // ---------------------------------------------------------------------------

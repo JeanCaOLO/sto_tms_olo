@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ColumnDef, Row } from '../route-systems/registry';
+import type { Align, ColumnDef, Row } from '../route-systems/registry';
 
 interface Props {
   caption: string;
@@ -13,6 +13,27 @@ interface Props {
 
 const cell = (v: Row[string]) =>
   v === null || v === undefined || v === '' ? <span className="text-slate-300">—</span> : String(v);
+
+// Celda de día COFERSA: X verde = carga, X roja = entrega, vacío = ninguno.
+function DiaCell({ estado }: { estado: Row[string] }) {
+  if (estado === 'carga') {
+    return (
+      <span className="text-green-600 font-bold" title="Día de carga" aria-label="Carga">
+        <span aria-hidden="true">✕</span>
+      </span>
+    );
+  }
+  if (estado === 'entrega') {
+    return (
+      <span className="text-red-600 font-bold" title="Día de entrega" aria-label="Entrega">
+        <span aria-hidden="true">✕</span>
+      </span>
+    );
+  }
+  return <span className="text-slate-200" aria-label="Sin actividad">·</span>;
+}
+
+const alignClass = (a?: Align) => (a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : 'text-left');
 
 export default function DataMatrix({ caption, columns, rows, pageSize, resetKey }: Props) {
   const [page, setPage] = useState(1);
@@ -48,9 +69,7 @@ export default function DataMatrix({ caption, columns, rows, pageSize, resetKey 
                 <th
                   key={c.key}
                   scope="col"
-                  className={`px-3 py-2 font-medium text-slate-500 whitespace-nowrap border-b border-slate-300 ${
-                    c.align === 'right' ? 'text-right' : 'text-left'
-                  }`}
+                  className={`px-3 py-2 font-medium text-slate-500 whitespace-nowrap border-b border-slate-300 ${alignClass(c.align)}`}
                 >
                   {c.label}
                 </th>
@@ -64,13 +83,11 @@ export default function DataMatrix({ caption, columns, rows, pageSize, resetKey 
                   <td
                     key={c.key}
                     title={c.grow ? String(row[c.key] ?? '') : undefined}
-                    className={`px-3 py-1.5 text-slate-700 align-top ${
-                      c.align === 'right' ? 'text-right' : 'text-left'
-                    } ${c.mono ? 'font-mono text-xs' : ''} ${
-                      c.grow ? 'max-w-[22rem] truncate' : 'whitespace-nowrap'
-                    }`}
+                    className={`px-3 py-1.5 text-slate-700 align-top ${alignClass(c.align)} ${
+                      c.mono ? 'font-mono text-xs' : ''
+                    } ${c.grow ? 'max-w-[22rem] truncate' : 'whitespace-nowrap'}`}
                   >
-                    {cell(row[c.key])}
+                    {c.kind === 'dia' ? <DiaCell estado={row[c.key]} /> : cell(row[c.key])}
                   </td>
                 ))}
               </tr>

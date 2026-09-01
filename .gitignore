@@ -32,5 +32,4 @@ coverage/
 # Sistemas de rutas: JSON generado por `pnpm run data:build`.
 # cofersa.json SÍ se commitea (3 KB, sin PII). El de programación de viajes
 # NO: ~6 MB y contiene nombres de conductores. Ver docs/work/2026-09/2026-09-01-matriz-rutas-multisistema.md
-/public/data/route-systems/programacion-viajes.json
 /public/data/route-systems/meta.json

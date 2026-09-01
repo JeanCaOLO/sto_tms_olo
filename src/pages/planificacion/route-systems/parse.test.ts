@@ -3,6 +3,7 @@ import {
   excelSerialToISO,
   maskName,
   parseCofersa,
+  parseDias,
   parseProgramacionViajes,
 } from './parse';
 
@@ -38,17 +39,43 @@ describe('parseCofersa', () => {
   it('mapea cada zona recortando espacios y descarta filas sin zona', () => {
     const out = parseCofersa(rows);
     expect(out).toHaveLength(2);
-    expect(out[0]).toEqual({
+    expect(out[0]).toMatchObject({
       zona: '08 San Carlos',
       categoria: 'Rural',
       diasCarga: 'Lunes -Miercoles-Viernes',
       diasEntrega: 'Martes-Jueves-Sabado',
+      // columnas por día derivadas: carga=verde, entrega=rojo
+      lunes: 'carga',
+      martes: 'entrega',
+      miercoles: 'carga',
+      jueves: 'entrega',
+      viernes: 'carga',
+      sabado: 'entrega',
     });
+    // "1 Casco": "Lunes a Viernes" (rango) carga, sin entrega
     expect(out[1].diasEntrega).toBeNull();
+    expect(out[1].lunes).toBe('carga');
+    expect(out[1].viernes).toBe('carga');
+    expect(out[1].sabado).toBeNull();
   });
 
   it('lanza si falta la cabecera', () => {
     expect(() => parseCofersa([['otra cosa']])).toThrow();
+  });
+});
+
+describe('parseDias', () => {
+  it('parsea listas separadas por guion, espacios y acentos', () => {
+    expect([...parseDias('Lunes -Miercoles-Viernes')]).toEqual(['lunes', 'miercoles', 'viernes']);
+    expect([...parseDias('Martes-Jueves-Sabado')]).toEqual(['martes', 'jueves', 'sabado']);
+    expect([...parseDias('jueves')]).toEqual(['jueves']);
+  });
+  it('expande el rango "X a Y"', () => {
+    expect([...parseDias('Lunes a Viernes')]).toEqual(['lunes', 'martes', 'miercoles', 'jueves', 'viernes']);
+  });
+  it('devuelve vacío para texto no reconocido o null', () => {
+    expect(parseDias('Cita Previa').size).toBe(0);
+    expect(parseDias(null).size).toBe(0);
   });
 });
 

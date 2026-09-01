@@ -6,7 +6,7 @@
 
 export type { Row, Cell } from './parse';
 
-export type Align = 'left' | 'right';
+export type Align = 'left' | 'right' | 'center';
 
 export interface ColumnDef {
   key: string;
@@ -14,6 +14,8 @@ export interface ColumnDef {
   align?: Align; // default 'left'
   mono?: boolean; // fuente monoespaciada (IDs largos)
   grow?: boolean; // puede envolver / ocupar el ancho sobrante
+  /** 'dia' = celda de carga/entrega (X verde/roja). Default: texto. */
+  kind?: 'dia';
 }
 
 export interface RouteSystem {
@@ -34,13 +36,17 @@ export const ROUTE_SYSTEMS: RouteSystem[] = [
     id: 'cofersa',
     label: 'COFERSA',
     file: 'cofersa.json',
-    description: 'Zonas de reparto COFERSA y su calendario semanal de carga / entrega.',
+    description: 'Zonas de reparto COFERSA y su calendario semanal: verde = día de carga, rojo = día de entrega.',
     pageSize: 0,
     columns: [
       { key: 'zona', label: 'Zona' },
       { key: 'categoria', label: 'Categoría' },
-      { key: 'diasCarga', label: 'Días de carga', grow: true },
-      { key: 'diasEntrega', label: 'Días de entrega', grow: true },
+      { key: 'lunes', label: 'Lunes', align: 'center', kind: 'dia' },
+      { key: 'martes', label: 'Martes', align: 'center', kind: 'dia' },
+      { key: 'miercoles', label: 'Miércoles', align: 'center', kind: 'dia' },
+      { key: 'jueves', label: 'Jueves', align: 'center', kind: 'dia' },
+      { key: 'viernes', label: 'Viernes', align: 'center', kind: 'dia' },
+      { key: 'sabado', label: 'Sábado', align: 'center', kind: 'dia' },
     ],
   },
   {
