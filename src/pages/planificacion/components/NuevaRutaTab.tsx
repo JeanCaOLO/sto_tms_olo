@@ -24,7 +24,7 @@ interface Props {
   pedidosSeleccionados: PedidoSeleccionado[];
   pedidosAnclados: Set<string>;
   cargandoPedidos: boolean;
-  excluidosPorCapacidad: number;
+  excluidosPorCapacidad: PedidoSeleccionado[];
   generando: boolean;
   optimizando: boolean;
   onTogglePedido: (pedido: Pedido) => void;
@@ -40,16 +40,31 @@ export default function NuevaRutaTab(props: Props) {
   const totalWeight = pedidosSeleccionados.reduce((s, p) => s + (p.total_weight || 0), 0);
   const totalVolume = pedidosSeleccionados.reduce((s, p) => s + (p.total_volume || 0), 0);
 
+  // Subtotales de las devoluciones incluidas en la secuencia (BR1.2: cuentan
+  // en la capacidad igual que una entrega). Se pasan a ConfiguracionRuta.
+  const devoluciones = pedidosSeleccionados.filter((p) => p.tipo === 'devolucion');
+  const devolucionesCount = devoluciones.length;
+  const devolucionesPeso = devoluciones.reduce((s, p) => s + (p.total_weight || 0), 0);
+  const devolucionesVolumen = devoluciones.reduce((s, p) => s + (p.total_volume || 0), 0);
+
+  const totalExcluidos = excluidosPorCapacidad.length;
+  const devsExcluidas = excluidosPorCapacidad.filter((p) => p.tipo === 'devolucion').length;
+  const entregasExcluidas = totalExcluidos - devsExcluidas;
+  const avisoExclusion =
+    devsExcluidas === 0
+      ? `${totalExcluidos} pedido(s) no cab${totalExcluidos === 1 ? 'e' : 'en'} en el vehículo (margen de seguridad: 85% peso / 95% volumen) y qued${totalExcluidos === 1 ? 'ó' : 'aron'} excluido${totalExcluidos === 1 ? '' : 's'} — reasígnalos a otro viaje.`
+      : `${entregasExcluidas} pedido(s) de entrega y ${devsExcluidas} devolución/es no caben en el vehículo (margen de seguridad: 85% peso / 95% volumen) y quedaron excluidos — reasígnalos a otro viaje.`;
+
   return (
     <>
-      {excluidosPorCapacidad > 0 && (
-        <div className="flex items-center gap-2 text-sm bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded-lg">
-          <i className="ri-alert-line text-amber-600"></i>
-          <span>
-            {excluidosPorCapacidad} pedido(s) no cab{excluidosPorCapacidad === 1 ? 'e' : 'en'} en el vehículo (margen de seguridad: 85% peso / 95% volumen) y qued{excluidosPorCapacidad === 1 ? 'ó' : 'aron'} excluido{excluidosPorCapacidad === 1 ? '' : 's'} — reasígnalos a otro viaje.
-          </span>
-        </div>
-      )}
+      <div role="status">
+        {totalExcluidos > 0 && (
+          <div className="flex items-center gap-2 text-sm bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded-lg">
+            <i className="ri-alert-line text-amber-600"></i>
+            <span>{avisoExclusion}</span>
+          </div>
+        )}
+      </div>
 
       <ConfiguracionRuta
         viajes={props.viajes}
@@ -71,6 +86,9 @@ export default function NuevaRutaTab(props: Props) {
         totalWeight={totalWeight}
         totalVolume={totalVolume}
         pedidosCount={pedidosSeleccionados.length}
+        devolucionesCount={devolucionesCount}
+        devolucionesPeso={devolucionesPeso}
+        devolucionesVolumen={devolucionesVolumen}
         onGenerarRuta={props.onGenerarRuta}
         onOptimizarRuta={props.onOptimizarRuta}
         generando={props.generando}

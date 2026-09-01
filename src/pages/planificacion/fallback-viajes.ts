@@ -34,6 +34,18 @@ export function getFallbackViajes(): Viaje[] {
   const rutaCentro = FALLBACK_RUTAS[2].id; // 03 Guadalupe San José Norte-Oeste
   const rutaOriente = FALLBACK_RUTAS[3].id; // 04 Alajuela
 
+  // Marcar algunas paradas como devolución (recolección) para ejercitar FR16
+  // de punta a punta en el demo: borde/badge indigo, línea discontinua en el
+  // mapa, subtotal de devoluciones y conteo en el aviso de exclusión.
+  const pedidosViaje1 = pedidosDe([2, 3, 14, 15, 16], 'VJ-MOCK-001');
+  const devViaje1 = pedidosViaje1.find((p) => p.order_number === 'ORD-MOCK-015');
+  if (devViaje1) devViaje1.tipo = 'devolucion';
+
+  const pedidosViaje3 = pedidosDe([0, 1, 8, 9, 19], 'VJ-MOCK-003');
+  pedidosViaje3.forEach((p) => {
+    if (p.order_number === 'ORD-MOCK-001' || p.order_number === 'ORD-MOCK-009') p.tipo = 'devolucion';
+  });
+
   const pedidosViaje2 = pedidosDe([4, 5, 6, 12, 13], 'VJ-MOCK-002');
   const excepcion = pedidosViaje2.find((p) => p.order_number === 'ORD-MOCK-007');
   if (excepcion) {
@@ -51,7 +63,7 @@ export function getFallbackViajes(): Viaje[] {
       route_type_name: nombreRuta(rutaNorte),
       trip_date: HOY,
       status: 'despachado',
-      pedidos: pedidosDe([2, 3, 14, 15, 16], 'VJ-MOCK-001'),
+      pedidos: pedidosViaje1,
     },
     {
       id: 'VJ-MOCK-002',
@@ -69,7 +81,7 @@ export function getFallbackViajes(): Viaje[] {
       route_type_name: nombreRuta(rutaCentro),
       trip_date: HOY,
       status: 'despachado',
-      pedidos: pedidosDe([0, 1, 8, 9, 19], 'VJ-MOCK-003'),
+      pedidos: pedidosViaje3,
     },
     {
       id: 'VJ-MOCK-004',

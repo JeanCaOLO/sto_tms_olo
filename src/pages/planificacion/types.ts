@@ -20,6 +20,10 @@ export interface Pedido {
   // 2026-08-18). Sin lat/lng, queda fuera del cálculo de ruta óptima.
   is_exception?: boolean;
   exception_address_raw?: string;
+  // Tipo de parada. Ausente ⇒ 'entrega' (retro-compatible, BR1.1). Para
+  // 'devolucion' la semántica de delivery_address / total_weight /
+  // total_volume se invierte (recogida / carga entrante) — ver ADR-1.
+  tipo?: 'entrega' | 'devolucion';
 }
 
 // Agrupador de pedidos que llega ya resuelto desde el WMS (Iflow/torre de

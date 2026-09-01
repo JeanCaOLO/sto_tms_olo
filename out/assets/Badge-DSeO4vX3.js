@@ -1,0 +1,2 @@
+import{j as m}from"./index-CYcEiPqf.js";function d({children:e,variant:t="default",size:s="md",className:a=""}){const n={default:"bg-slate-100 text-slate-700",success:"bg-emerald-100 text-emerald-700",warning:"bg-amber-100 text-amber-700",danger:"bg-red-100 text-red-700",info:"bg-teal-100 text-teal-700"},r={sm:"px-2 py-0.5 text-xs",md:"px-2.5 py-1 text-sm"};return m.jsx("span",{className:`inline-flex items-center whitespace-nowrap font-medium rounded-full ${n[t]} ${r[s]} ${a}`,children:e})}export{d as B};
+//# sourceMappingURL=Badge-DSeO4vX3.js.map

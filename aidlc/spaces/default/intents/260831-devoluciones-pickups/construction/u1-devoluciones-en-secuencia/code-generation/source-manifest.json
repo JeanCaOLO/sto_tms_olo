@@ -1,0 +1,70 @@
+{
+  "stage": "code-generation",
+  "unit": "u1-devoluciones-en-secuencia",
+  "version": 1,
+  "writes": [
+    {
+      "path": "src/pages/planificacion/types.ts"
+    },
+    {
+      "path": "src/pages/planificacion/capacity-fit.ts"
+    },
+    {
+      "path": "src/pages/planificacion/use-pedidos-ruta.ts"
+    },
+    {
+      "path": "src/pages/planificacion/route-geometry.ts"
+    },
+    {
+      "path": "src/pages/planificacion/fallback-viajes.ts"
+    },
+    {
+      "path": "src/pages/planificacion/fallback-pedidos.ts"
+    },
+    {
+      "path": "src/pages/planificacion/components/TipoParadaBadge.tsx"
+    },
+    {
+      "path": "src/pages/planificacion/components/PedidoCard.tsx"
+    },
+    {
+      "path": "src/pages/planificacion/components/ParadaCard.tsx"
+    },
+    {
+      "path": "src/pages/planificacion/components/NuevaRutaTab.tsx"
+    },
+    {
+      "path": "src/pages/planificacion/components/ConfiguracionRuta.tsx"
+    },
+    {
+      "path": "src/pages/planificacion/components/RutaMapaPreview.tsx"
+    },
+    {
+      "path": "src/pages/planificacion/capacity-fit.test.ts"
+    },
+    {
+      "path": "src/pages/planificacion/route-geometry.test.ts"
+    },
+    {
+      "path": "src/pages/planificacion/optimize-stops.test.ts"
+    },
+    {
+      "path": "src/pages/planificacion/components/TipoParadaBadge.test.tsx"
+    },
+    {
+      "path": "e2e/planificacion-flujo.spec.ts"
+    },
+    {
+      "path": "vitest.config.ts"
+    },
+    {
+      "path": "package.json"
+    },
+    {
+      "path": "pnpm-lock.yaml"
+    },
+    {
+      "path": ".gitignore"
+    }
+  ]
+}

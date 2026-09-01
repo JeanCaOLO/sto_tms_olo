@@ -4,7 +4,7 @@ import type { Map as LeafletMap } from 'leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import ParadaDetalleModal from './ParadaDetalleModal';
-import { obtenerGeometriaRuta } from '../route-geometry';
+import { obtenerGeometriaRutaPorLeg, type Leg } from '../route-geometry';
 import type { PedidoSeleccionado } from '../types';
 
 interface Props {
@@ -24,17 +24,43 @@ type ParadaUbicada = PedidoSeleccionado & { delivery_latitude: number; delivery_
 const tieneCoordenadas = (p: PedidoSeleccionado): p is ParadaUbicada =>
   typeof p.delivery_latitude === 'number' && typeof p.delivery_longitude === 'number';
 
-const iconoParada = (numero: number) =>
+const ENTREGA_COLOR = '#0d9488'; // teal
+const DEVOLUCION_COLOR = '#4f46e5'; // indigo
+
+const iconoParada = (numero: number, tipo?: 'entrega' | 'devolucion') =>
   L.divIcon({
     className: '',
     html: `<div style="
-      width:24px;height:24px;border-radius:9999px;background:#0d9488;color:#fff;
+      width:24px;height:24px;border-radius:9999px;background:${tipo === 'devolucion' ? DEVOLUCION_COLOR : ENTREGA_COLOR};color:#fff;
       display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;
       border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.4);
     ">${numero}</div>`,
     iconSize: [24, 24],
     iconAnchor: [12, 12],
   });
+
+// Leyenda (control Leaflet, bottomleft). BR1.4: el mapa distingue devolución
+// por color + patrón de línea + esta leyenda textual. Se oculta si no hay
+// ninguna devolución en la secuencia.
+function Leyenda({ visible }: { visible: boolean }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!visible) return;
+    const control = new L.Control({ position: 'bottomleft' });
+    control.onAdd = () => {
+      const div = L.DomUtil.create('div');
+      div.style.cssText =
+        'background:#fff;padding:4px 8px;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,0.3);font-size:11px;line-height:1.5;color:#334155';
+      div.innerHTML =
+        `<div><span style="display:inline-block;width:18px;border-top:3px solid ${ENTREGA_COLOR};vertical-align:middle;margin-right:4px"></span>entrega</div>` +
+        `<div><span style="display:inline-block;width:18px;border-top:3px dashed ${DEVOLUCION_COLOR};vertical-align:middle;margin-right:4px"></span>recolección</div>`;
+      return div;
+    };
+    control.addTo(map);
+    return () => { control.remove(); };
+  }, [map, visible]);
+  return null;
+}
 
 function AjustarBounds({ paradas }: { paradas: ParadaUbicada[] }) {
   const map = useMap();
@@ -63,16 +89,38 @@ export default function RutaMapaPreview({ pedidos, alturaClase = 'h-[240px]', pa
     () => pedidos.filter(tieneCoordenadas).sort((a, b) => a.stop_number - b.stop_number),
     [pedidos],
   );
-  const [linea, setLinea] = useState<[number, number][]>(() =>
-    paradas.map((p) => [p.delivery_latitude, p.delivery_longitude]),
+  const legsRectos = useMemo<Leg[]>(
+    () =>
+      paradas.slice(0, -1).map((p, i) => ({
+        coords: [
+          [p.delivery_latitude, p.delivery_longitude],
+          [paradas[i + 1].delivery_latitude, paradas[i + 1].delivery_longitude],
+        ],
+        fromStopNumber: p.stop_number,
+        toStopNumber: paradas[i + 1].stop_number,
+      })),
+    [paradas],
   );
+  const [legs, setLegs] = useState<Leg[]>(legsRectos);
   const [seleccionado, setSeleccionado] = useState<PedidoSeleccionado | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
+
+  // BR1.3: un leg es "de recolección" si su parada de origen o destino es
+  // devolución. Se mapea por stop_number contra la secuencia ordenada.
+  const tipoPorStop = useMemo(() => {
+    const m = new Map<number, PedidoSeleccionado['tipo']>();
+    paradas.forEach((p) => m.set(p.stop_number, p.tipo));
+    return m;
+  }, [paradas]);
+  const esLegRecoleccion = (leg: Leg) =>
+    tipoPorStop.get(leg.fromStopNumber) === 'devolucion' ||
+    tipoPorStop.get(leg.toStopNumber) === 'devolucion';
+  const hayDevolucion = paradas.some((p) => p.tipo === 'devolucion');
 
   useEffect(() => {
     let vigente = true;
     const timer = setTimeout(() => {
-      obtenerGeometriaRuta(paradas).then((geo) => { if (vigente) setLinea(geo); });
+      obtenerGeometriaRutaPorLeg(paradas).then((geo) => { if (vigente) setLegs(geo); });
     }, GEOMETRY_DEBOUNCE_MS);
     return () => { vigente = false; clearTimeout(timer); };
   }, [paradas]);
@@ -100,17 +148,24 @@ export default function RutaMapaPreview({ pedidos, alturaClase = 'h-[240px]', pa
         className="w-full h-full"
       >
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
-        <Polyline positions={linea} pathOptions={{ color: '#0d9488', weight: 3, opacity: 0.7 }} />
+        {legs.map((leg, i) =>
+          esLegRecoleccion(leg) ? (
+            <Polyline key={`${leg.fromStopNumber}-${leg.toStopNumber}-${i}`} positions={leg.coords} pathOptions={{ color: DEVOLUCION_COLOR, weight: 3, opacity: 0.8, dashArray: '6 6' }} />
+          ) : (
+            <Polyline key={`${leg.fromStopNumber}-${leg.toStopNumber}-${i}`} positions={leg.coords} pathOptions={{ color: ENTREGA_COLOR, weight: 3, opacity: 0.7 }} />
+          ),
+        )}
         {paradas.map((p) => (
           <Marker
             key={p.id}
             position={[p.delivery_latitude, p.delivery_longitude]}
-            icon={iconoParada(p.stop_number)}
+            icon={iconoParada(p.stop_number, p.tipo)}
             eventHandlers={{ click: () => setSeleccionado(p) }}
           />
         ))}
         <AjustarBounds paradas={paradas} />
         <EnfocarParada paradas={paradas} paradaId={paradaEnfocadaId} />
+        <Leyenda visible={hayDevolucion} />
       </MapContainer>
       {seleccionado && <ParadaDetalleModal pedido={seleccionado} onClose={() => setSeleccionado(null)} />}
     </div>

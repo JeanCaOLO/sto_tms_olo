@@ -78,6 +78,24 @@ test.describe('Planificación — flujo de generación de ruta', () => {
     expect(errors, errors.join('\n')).toEqual([]);
   });
 
+  test('FR16 — un viaje con devolución muestra el badge "Devolución" y el subtotal de capacidad', async ({ page }) => {
+    await page.goto('/planificacion', { waitUntil: 'networkidle' });
+
+    // Viaje 1 tiene una parada marcada como devolución (fallback-viajes.ts:
+    // ORD-MOCK-015). BR1.4: la distinción lleva texto visible, no sólo color.
+    await page.getByLabel('Viaje (WMS)').selectOption({ label: 'Viaje 1' });
+    await expect(page.getByText(/pedidos pendientes asignados/i)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Devolución', { exact: true }).first()).toBeVisible();
+
+    // Con vehículo seleccionado, ConfiguracionRuta muestra la línea de
+    // subtotales de devoluciones bajo las barras de capacidad.
+    const vehiculoSelect = page.getByLabel('Vehículo');
+    const vehiculoOptions = await vehiculoSelect.locator('option').allTextContents();
+    test.skip(vehiculoOptions.length <= 1, 'Catálogo de vehículos vacío para la organización mock.');
+    await vehiculoSelect.selectOption({ index: 1 });
+    await expect(page.getByText(/de \d+ devoluci/i)).toBeVisible({ timeout: 10000 });
+  });
+
   test('cambiar de viaje reemplaza las paradas del viaje anterior (no las acumula)', async ({ page }) => {
     await page.goto('/planificacion', { waitUntil: 'networkidle' });
     const viajeSelect = page.getByLabel('Viaje (WMS)');

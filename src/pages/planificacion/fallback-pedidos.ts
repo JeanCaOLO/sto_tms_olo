@@ -37,6 +37,10 @@ export const MOCK_STOPS: MockStop[] = [
 // currently happens for every route_type_id in the shared dev DB. Remove
 // once real data reliably has pending orders.
 export function getFallbackPedidos(routeTypeId: string): Pedido[] {
+  // ponytail: indices 8 y 14 marcados como devolución para que el flujo
+  // por ruta (no-viaje) también muestre el caso FR16. Los índices coinciden
+  // con las devoluciones que fallback-viajes.ts asigna a Viaje 1 / Viaje 3.
+  const DEVOLUCIONES = new Set([8, 14]);
   return MOCK_STOPS.map((stop, i) => ({
     id: `mock-pedido-${routeTypeId}-${i}`,
     order_number: `ORD-MOCK-${String(i + 1).padStart(3, '0')}`,
@@ -45,6 +49,7 @@ export function getFallbackPedidos(routeTypeId: string): Pedido[] {
     status: 'pending',
     order_date: new Date().toISOString(),
     route_type_id: routeTypeId,
+    tipo: DEVOLUCIONES.has(i) ? ('devolucion' as const) : undefined,
     ...stop,
   }));
 }

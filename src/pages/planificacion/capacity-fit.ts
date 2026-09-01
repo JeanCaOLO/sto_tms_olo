@@ -84,13 +84,17 @@ export function optimizarConCapacidad(
   vehiculo?: Vehiculo,
   anclados?: Set<string>,
   matriz?: MatrizDistancias,
-): { orden: PedidoSeleccionado[]; excluidosCount: number } {
+): { orden: PedidoSeleccionado[]; excluidos: PedidoSeleccionado[] } {
   if (!vehiculo) {
     const orden = withStopNumbers(optimizarParadas(pedidos, matriz));
-    return { orden: matriz ? calcularEtas(orden, matriz) : orden, excluidosCount: 0 };
+    return { orden: matriz ? calcularEtas(orden, matriz) : orden, excluidos: [] };
   }
 
+  // BR1.2: seleccionarPorCapacidad suma peso/volumen de toda parada incluida
+  // sin mirar `tipo`; una devolución puede quedar excluida o forzar la
+  // exclusión de otra parada. Aquí solo propagamos el array `excluidos` que
+  // el algoritmo ya calcula (antes se descartaba, devolviendo solo el conteo).
   const { incluidos, excluidos } = seleccionarPorCapacidad(pedidos, vehiculo, anclados);
   const orden = withStopNumbers(optimizarParadas(incluidos, matriz));
-  return { orden: matriz ? calcularEtas(orden, matriz) : orden, excluidosCount: excluidos.length };
+  return { orden: matriz ? calcularEtas(orden, matriz) : orden, excluidos };
 }

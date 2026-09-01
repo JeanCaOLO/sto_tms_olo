@@ -8,7 +8,7 @@ export function usePedidosRuta() {
   const [viajeId, setViajeIdState] = useState('');
   const [pedidosRuta, setPedidosRuta] = useState<Pedido[]>([]);
   const [pedidosSeleccionados, setPedidosSeleccionados] = useState<PedidoSeleccionado[]>([]);
-  const [excluidosPorCapacidad, setExcluidosPorCapacidad] = useState(0);
+  const [excluidosPorCapacidad, setExcluidosPorCapacidad] = useState<PedidoSeleccionado[]>([]);
   const [optimizando, setOptimizando] = useState(false);
 
   const setViaje = (viaje?: Viaje) => {
@@ -16,7 +16,7 @@ export function usePedidosRuta() {
     setViajeIdState(viaje?.id || '');
     setPedidosRuta(pedidos);
     setPedidosSeleccionados(withStopNumbers(pedidos));
-    setExcluidosPorCapacidad(0);
+    setExcluidosPorCapacidad([]);
   };
 
   const togglePedido = (pedido: Pedido) => {
@@ -49,9 +49,9 @@ export function usePedidosRuta() {
     setOptimizando(true);
     try {
       const matriz = await construirMatrizDistancias(pedidosRuta);
-      const { orden, excluidosCount } = optimizarConCapacidad(withStopNumbers(pedidosRuta), vehiculo, anclados, matriz);
+      const { orden, excluidos } = optimizarConCapacidad(withStopNumbers(pedidosRuta), vehiculo, anclados, matriz);
       setPedidosSeleccionados(orden);
-      setExcluidosPorCapacidad(excluidosCount);
+      setExcluidosPorCapacidad(excluidos);
       const fueraDeVentana = orden.filter((p) => p.outside_window).length;
       return { fuente: matriz.fuente, fueraDeVentana };
     } finally {

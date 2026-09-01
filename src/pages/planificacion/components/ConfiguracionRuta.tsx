@@ -24,6 +24,9 @@ interface Props {
   totalWeight: number;
   totalVolume: number;
   pedidosCount: number;
+  devolucionesCount: number;
+  devolucionesPeso: number;
+  devolucionesVolumen: number;
   onGenerarRuta: () => void;
   onOptimizarRuta: () => void;
   generando: boolean;
@@ -32,6 +35,7 @@ interface Props {
 
 export default function ConfiguracionRuta(props: Props) {
   const { vehiculoSeleccionado, totalWeight, totalVolume, pedidosCount, viajeId, conductorId, vehiculoId, generando, optimizando } = props;
+  const { devolucionesCount, devolucionesPeso, devolucionesVolumen } = props;
   const puedeGenerar = Boolean(viajeId && conductorId && vehiculoId && pedidosCount > 0 && !generando);
 
   return (
@@ -61,6 +65,14 @@ export default function ConfiguracionRuta(props: Props) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <CapacityBar icon="ri-weight-line" label="Peso" value={totalWeight} max={vehiculoSeleccionado.capacity_weight} unit="kg" decimals={1} />
             <CapacityBar icon="ri-box-3-line" label="Volumen" value={totalVolume} max={vehiculoSeleccionado.capacity_volume} unit="m³" decimals={2} />
+          </div>
+          <div aria-live="polite" className="mt-2 text-xs text-indigo-700">
+            {devolucionesCount > 0 && (
+              <span>
+                <i className="ri-arrow-go-back-line mr-1" aria-hidden="true"></i>
+                incluye {devolucionesPeso.toFixed(1)} kg · {devolucionesVolumen.toFixed(2)} m³ de {devolucionesCount} devolución/es
+              </span>
+            )}
           </div>
         </div>
       )}

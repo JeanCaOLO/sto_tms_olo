@@ -1,5 +1,6 @@
 import Badge from '../../../components/base/Badge';
 import StopBadge from './StopBadge';
+import TipoParadaBadge from './TipoParadaBadge';
 import { formatEta } from '../time-windows';
 import type { PedidoSeleccionado } from '../types';
 
@@ -32,6 +33,8 @@ export default function ParadaCard({ pedido, isLast, isDragging, onQuitar, onDra
         onDoubleClick={() => onEnfocar?.(pedido.id)}
         title={onEnfocar ? 'Doble-click para enfocar en el mapa' : undefined}
         className={`flex-1 min-w-0 border rounded-lg p-3 bg-white transition-all cursor-move mb-2 ${
+          pedido.tipo === 'devolucion' ? 'border-l-4 border-l-indigo-500 ' : ''
+        }${
           pedido.outside_window
             ? 'border-red-300 bg-red-50'
             : isDragging ? 'border-teal-400 shadow-lg opacity-50' : 'border-slate-200 hover:border-teal-300 hover:shadow-sm'
@@ -42,6 +45,7 @@ export default function ParadaCard({ pedido, isLast, isDragging, onQuitar, onDra
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-slate-800">{pedido.order_number}</span>
+                <TipoParadaBadge tipo={pedido.tipo} />
                 {etaLabel && (
                   <span className={`text-xs font-medium ${pedido.outside_window ? 'text-red-600' : 'text-teal-700'}`}>
                     <i className="ri-time-line mr-0.5"></i>{etaLabel}

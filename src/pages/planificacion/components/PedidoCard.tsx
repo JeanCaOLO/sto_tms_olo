@@ -1,4 +1,5 @@
 import Badge from '../../../components/base/Badge';
+import TipoParadaBadge from './TipoParadaBadge';
 import type { Pedido } from '../types';
 
 interface Props {
@@ -13,6 +14,8 @@ export default function PedidoCard({ pedido, incluido, anclado, onToggle, onTogg
   return (
     <div
       className={`border rounded-lg p-3 transition-all ${
+        pedido.tipo === 'devolucion' ? 'border-l-4 border-l-indigo-500 ' : ''
+      }${
         anclado
           ? 'border-amber-300 bg-amber-50'
           : incluido
@@ -24,6 +27,7 @@ export default function PedidoCard({ pedido, incluido, anclado, onToggle, onTogg
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span className="font-semibold text-slate-800 text-sm">{pedido.order_number}</span>
+            <TipoParadaBadge tipo={pedido.tipo} />
             {anclado && <Badge variant="warning" className="text-xs">Anclado</Badge>}
             {pedido.is_exception && (
               <span title="Dirección de excepción, sin coordenadas — fuera del cálculo de ruta óptima">
