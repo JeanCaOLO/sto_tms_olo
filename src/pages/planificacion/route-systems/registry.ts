@@ -36,7 +36,7 @@ export const ROUTE_SYSTEMS: RouteSystem[] = [
     id: 'cofersa',
     label: 'COFERSA',
     file: 'cofersa.json',
-    description: 'Zonas de reparto COFERSA y su calendario semanal: verde = día de carga, rojo = día de entrega.',
+    description: 'Zonas de reparto COFERSA y su calendario semanal.',
     pageSize: 0,
     columns: [
       { key: 'zona', label: 'Zona' },

@@ -5,6 +5,7 @@ import { useRouteSystem } from '../route-systems/use-route-system';
 import { useDebounced } from '../route-systems/use-debounced';
 import { filterRows } from '../route-systems/filter';
 import DataMatrix from './DataMatrix';
+import MatrizLeyenda from './MatrizLeyenda';
 
 const DEFAULT_ID = ROUTE_SYSTEMS[0]?.id ?? '';
 
@@ -79,6 +80,7 @@ export default function MatrizRutasTab() {
           </button>
         </Empty>
       )}
+      {status === 'ready' && filtered.length > 0 && system.id === 'cofersa' && <MatrizLeyenda />}
       {status === 'ready' && filtered.length > 0 && (
         <DataMatrix
           caption={system.label}

@@ -4,7 +4,7 @@
 // devuelve filas normalizadas. El script `scripts/build-route-systems.ts` lee
 // los .xlsx y llama a estas funciones; los tests las ejercen directamente.
 
-export type Cell = string | number | null;
+export type Cell = string | number | boolean | null;
 export type Row = Record<string, Cell>;
 
 /** Texto recortado, o null si queda vacío. */
@@ -101,20 +101,70 @@ export function parseDias(texto: string | null): Set<DiaSemana> {
   return out;
 }
 
-/** Estado de un día para una zona: día de carga, de entrega, o ninguno. */
-export type DiaEstado = 'carga' | 'entrega' | null;
+/**
+ * Estado de un día para una zona:
+ * - 'carga'   → día de carga.
+ * - 'entrega' → día de entrega.
+ * - 'ambos'   → carga y entrega el MISMO día (rutas GAM entre semana).
+ * - 'cita'    → cita previa; en la práctica aplica a nivel de FILA
+ *   (`citaPrevia`), no de día, por lo que los días de una fila cita quedan en
+ *   `null`. Se incluye en la unión por completitud del modelo.
+ * - `null`    → sin actividad.
+ */
+export type DiaEstado = 'carga' | 'entrega' | 'ambos' | 'cita' | null;
+
+/** ¿El texto de días indica "cita previa"? (case/acentos-insensible.) */
+function esCitaPrevia(texto: string | null): boolean {
+  if (!texto) return false;
+  return quitarAcentos(texto.toLowerCase()).includes('cita previa');
+}
 
 /**
- * Enriquece las filas COFERSA con una clave por día (lunes..sabado) cuyo valor
- * es 'carga' | 'entrega' | null, derivada de diasCarga / diasEntrega. Si un día
- * cae en ambos, gana 'carga' (raro; el negocio carga antes de entregar).
+ * Enriquece las filas COFERSA con una clave por día (lunes..sabado) y, cuando
+ * aplica, `citaPrevia: true`. Reglas (en orden):
+ *
+ * 1. Cita previa: si `diasCarga` contiene "cita previa" → los 6 días a `null`
+ *    y `citaPrevia: true`. No tiene días fijos (ej. "44 REY").
+ * 2. GAM sin split explícito: si `categoria === 'GAM'` y no hay un split real
+ *    (ambas listas vacías, o sólo `diasCarga === "Lunes a Viernes"` sin
+ *    entrega) → Lunes..Viernes = 'ambos', Sábado = null. Refleja el negocio:
+ *    las rutas GAM cargan y entregan el mismo día de lunes a viernes.
+ * 3. Resto (incluidas las GAM con split explícito, ej. EPA 33-38): 'carga' si
+ *    el día está en diasCarga, 'entrega' si está en diasEntrega, 'ambos' si
+ *    está en ambas listas explícitas, `null` si en ninguna.
  */
 export function expandirDiasCofersa(row: Row): Row {
-  const carga = parseDias(str(row.diasCarga));
-  const entrega = parseDias(str(row.diasEntrega));
+  const diasCarga = str(row.diasCarga);
+  const diasEntrega = str(row.diasEntrega);
+
+  // Regla 1: cita previa (nivel de fila).
+  if (esCitaPrevia(diasCarga)) {
+    const dias: Record<string, Cell> = {};
+    for (const d of DIAS_SEMANA) dias[d] = null;
+    return { ...row, ...dias, citaPrevia: true };
+  }
+
+  const carga = parseDias(diasCarga);
+  const entrega = parseDias(diasEntrega);
+
+  // Regla 2: GAM sin split explícito → lunes..viernes 'ambos'.
+  const categoria = str(row.categoria)?.toUpperCase();
+  const soloLunesAViernes =
+    entrega.size === 0 && diasEntrega == null && diasCarga != null &&
+    quitarAcentos(diasCarga.toLowerCase()).replace(/\s+/g, ' ').trim() === 'lunes a viernes';
+  const sinSplit = carga.size === 0 && entrega.size === 0;
+  if (categoria === 'GAM' && (sinSplit || soloLunesAViernes)) {
+    const dias: Record<string, Cell> = {};
+    for (const d of DIAS_SEMANA) dias[d] = d === 'sabado' ? null : 'ambos';
+    return { ...row, ...dias };
+  }
+
+  // Regla 3: split explícito. Día en ambas listas → 'ambos'.
   const dias: Record<string, Cell> = {};
   for (const d of DIAS_SEMANA) {
-    dias[d] = carga.has(d) ? 'carga' : entrega.has(d) ? 'entrega' : null;
+    const c = carga.has(d);
+    const e = entrega.has(d);
+    dias[d] = c && e ? 'ambos' : c ? 'carga' : e ? 'entrega' : null;
   }
   return { ...row, ...dias };
 }

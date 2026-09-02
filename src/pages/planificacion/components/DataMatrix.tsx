@@ -14,7 +14,22 @@ interface Props {
 const cell = (v: Row[string]) =>
   v === null || v === undefined || v === '' ? <span className="text-slate-300">—</span> : String(v);
 
-// Celda de día COFERSA: X verde = carga, X roja = entrega, vacío = ninguno.
+// Glifo diagonal mitad verde / mitad rojo para "carga y entrega el mismo día".
+// Se distingue por FORMA (cuadro) además de por color, para cumplir contraste.
+export function AmbosSwatch() {
+  return (
+    <span
+      className="inline-block w-3.5 h-3.5 rounded-sm align-middle"
+      style={{ background: 'linear-gradient(135deg,#16a34a 0 50%,#dc2626 50% 100%)' }}
+      title="Carga y entrega"
+      aria-label="Carga y entrega el mismo día"
+      role="img"
+    />
+  );
+}
+
+// Celda de día COFERSA: X verde = carga, X roja = entrega, cuadro diagonal =
+// ambos el mismo día, · gris = sin actividad (incluye filas de cita previa).
 function DiaCell({ estado }: { estado: Row[string] }) {
   if (estado === 'carga') {
     return (
@@ -30,7 +45,19 @@ function DiaCell({ estado }: { estado: Row[string] }) {
       </span>
     );
   }
+  if (estado === 'ambos') {
+    return <AmbosSwatch />;
+  }
   return <span className="text-slate-200" aria-label="Sin actividad">·</span>;
+}
+
+// Chip violeta de cita previa, mostrado en la celda "Zona" de esas filas.
+export function CitaPreviaChip() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 text-violet-700 text-xs font-medium px-2 py-0.5">
+      <i className="ri-calendar-schedule-line" aria-hidden="true"></i>Cita previa
+    </span>
+  );
 }
 
 const alignClass = (a?: Align) => (a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : 'text-left');
@@ -87,7 +114,16 @@ export default function DataMatrix({ caption, columns, rows, pageSize, resetKey 
                       c.mono ? 'font-mono text-xs' : ''
                     } ${c.grow ? 'max-w-[22rem] truncate' : 'whitespace-nowrap'}`}
                   >
-                    {c.kind === 'dia' ? <DiaCell estado={row[c.key]} /> : cell(row[c.key])}
+                    {c.kind === 'dia' ? (
+                      <DiaCell estado={row[c.key]} />
+                    ) : c.key === 'zona' && row.citaPrevia ? (
+                      <span className="inline-flex items-center gap-2">
+                        {cell(row[c.key])}
+                        <CitaPreviaChip />
+                      </span>
+                    ) : (
+                      cell(row[c.key])
+                    )}
                   </td>
                 ))}
               </tr>
