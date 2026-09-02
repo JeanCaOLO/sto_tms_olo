@@ -1,4 +1,4 @@
-import { AmbosSwatch } from './DataMatrix';
+import { AmbosSwatch, CitaPreviaChip } from './DataMatrix';
 
 // Leyenda visual de la matriz COFERSA. Cada swatch usa EXACTAMENTE el mismo
 // glifo/figura que la celda de la tabla + su etiqueta, para que el color no
@@ -23,11 +23,7 @@ export default function MatrizLeyenda() {
         <span>Carga y entrega mismo día</span>
       </li>
       <li role="listitem" className="inline-flex items-center gap-1.5">
-        <span
-          className="inline-block w-3.5 h-3.5 rounded-full bg-violet-500 align-middle"
-          aria-hidden="true"
-        />
-        <span>Cita previa</span>
+        <CitaPreviaChip />
       </li>
       <li role="listitem" className="inline-flex items-center gap-1.5">
         <span className="text-slate-300" aria-hidden="true">·</span>
