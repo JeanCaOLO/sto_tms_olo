@@ -82,3 +82,13 @@
 **Digest**: fe947b0cfa860f3d0a93e7c8143bf16584e98d7dde360d5c1ec353b3a577bf28
 
 ---
+
+## Document Indexed
+**Timestamp**: 2026-09-02T15:51:05Z
+**Event**: DOCUMENT_INDEXED
+**Space**: default
+**Document**: 01a062d1-16bb-7f1a-be81-2b10b75115fe
+**Source**: documents/2026-09-01-reunion-oms-revision-mockup.md
+**Digest**: c23634a11b361e73e2f85390f08b572f7f3c57fc30bc1f695a5dd56f8b53b585
+
+---

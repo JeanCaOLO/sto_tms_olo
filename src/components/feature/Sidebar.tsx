@@ -27,6 +27,19 @@ const navItems: NavItem[] = [
   { icon: 'ri-money-dollar-circle-line', label: 'Tarifas', path: '/liquidaciones' },
   {
     type: 'group',
+    icon: 'ri-scales-3-line',
+    label: 'OMS',
+    children: [
+      { icon: 'ri-dashboard-2-line', label: 'Panel OMS', path: '/oms/panel' },
+      { icon: 'ri-stack-line', label: 'Cola de Priorización', path: '/oms/cola' },
+      { icon: 'ri-settings-3-line', label: 'Motor de Reglas', path: '/oms/reglas' },
+      { icon: 'ri-flask-line', label: 'Simulador', path: '/oms/simulador' },
+      { icon: 'ri-calendar-schedule-line', label: 'Rutas y Días', path: '/oms/rutas-despacho' },
+      { icon: 'ri-history-line', label: 'Auditoría', path: '/oms/auditoria' },
+    ],
+  },
+  {
+    type: 'group',
     icon: 'ri-book-2-line',
     label: 'Catálogos',
     children: [
@@ -84,7 +97,7 @@ export default function Sidebar() {
         </button>
       </div>
 
-      <nav className="p-3 overflow-y-auto h-[calc(100vh-80px)]">
+      <nav className="p-3 overflow-y-auto scrollbar-hide h-[calc(100vh-80px)]">
         {navItems.map((item) => {
           if (isGroup(item)) {
             const isGroupActive = item.children.some((child) => child.path === location.pathname);

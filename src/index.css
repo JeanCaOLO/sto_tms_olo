@@ -1,3 +1,14 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer utilities {
+  /* Oculta la barra de desplazamiento manteniendo el scroll funcional. */
+  .scrollbar-hide {
+    -ms-overflow-style: none; /* IE y Edge antiguo */
+    scrollbar-width: none; /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Edge (WebKit) */
+  }
+}
