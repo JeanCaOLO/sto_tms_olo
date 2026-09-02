@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   mapViaje, mapRuta, mapTransportista, mapConductor, mapVehiculo, capacidadSintetica,
-  fetchViajes, fetchTransportistas,
+  mapPedido, fetchViajes, fetchTransportistas, fetchPedidosPorViaje,
 } from './eflow-api';
 import { FALLBACK_TRANSPORTISTAS } from './fallback-catalogos';
+import { getFallbackPedidos } from './fallback-pedidos';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -68,16 +69,23 @@ describe('catalog mappers', () => {
 });
 
 describe('fetch + fallback', () => {
-  it('fetchViajes maps the API payload', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => ({
-      ok: true,
-      json: async () => ([{
-        trip_id: 1, trip_status: 'COMPLETED', trip_created: '2026-01-01T00:00:00Z',
-        trip_dispatch: null, route_codes: '08', route_name: 'SAN CARLOS', route_alias: 'SAN CARLOS',
-      }]),
-    })));
+  it('fetchViajes maps the API payload and enriches pedidos per trip', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.includes('/pedidos')) {
+        return { ok: true, json: async () => ([]) }; // no real order lines for this trip in QA
+      }
+      return {
+        ok: true,
+        json: async () => ([{
+          trip_id: 1, trip_status: 'COMPLETED', trip_created: '2026-01-01T00:00:00Z',
+          trip_dispatch: null, route_codes: '08', route_name: 'SAN CARLOS', route_alias: 'SAN CARLOS',
+        }]),
+      };
+    }));
     const v = await fetchViajes();
     expect(v[0].route_type_id).toBe('eflow-rt-08');
+    // 0 real rows -> falls back to the mock stops seeded by mapViaje
+    expect(v[0].pedidos.length).toBeGreaterThan(0);
   });
 
   it('fetchTransportistas returns the fallback when the API errors', async () => {
@@ -93,6 +101,63 @@ describe('fetch + fallback', () => {
   it('fetchTransportistas returns the fallback when the API is empty', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ([]) })));
     expect(await fetchTransportistas(FALLBACK_TRANSPORTISTAS)).toBe(FALLBACK_TRANSPORTISTAS);
+  });
+
+  it('fetchPedidosPorViaje maps real order lines when present', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ([{
+        trip_id: 8007, order_number: 'EDI0112261', invoice_number: '00100001010000854213',
+        customer_id: 'A7074', customer_name: 'ALMACENES EL COLONO S.A.',
+        delivery_address: 'Prov:: PUNTARENAS\nCton:: GOLFITO', delivery_latitude: '8.53370870',
+        delivery_longitude: '-83.30615300', route_code: '32', total_units: 6, total_amount: 11043.48,
+      }]),
+    })));
+    const fallback = getFallbackPedidos('eflow-rt-32');
+    const pedidos = await fetchPedidosPorViaje('8007', 'eflow-rt-32', fallback);
+    expect(pedidos).not.toBe(fallback);
+    expect(pedidos[0].order_number).toBe('EDI0112261');
+    expect(pedidos[0].customer_name).toBe('ALMACENES EL COLONO S.A.');
+    expect(pedidos[0].delivery_latitude).toBeCloseTo(8.5337);
+    expect(pedidos[0].tipo).toBeUndefined(); // no real devolucion signal (doc #8)
+  });
+
+  it('fetchPedidosPorViaje falls back to the mock when the trip has 0 real rows', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ([]) })));
+    const fallback = getFallbackPedidos('eflow-rt-01');
+    expect(await fetchPedidosPorViaje('1', 'eflow-rt-01', fallback)).toBe(fallback);
+  });
+
+  it('fetchPedidosPorViaje falls back to the mock when /api is unreachable', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('network down'); }));
+    const fallback = getFallbackPedidos('eflow-rt-01');
+    expect(await fetchPedidosPorViaje('1', 'eflow-rt-01', fallback)).toBe(fallback);
+  });
+});
+
+describe('mapPedido', () => {
+  const row = {
+    trip_id: 8007, order_number: 'EDI0112261', invoice_number: '00100001010000854213',
+    customer_id: 'A7074', customer_name: 'ALMACENES EL COLONO S.A.',
+    delivery_address: 'Prov:: PUNTARENAS', delivery_latitude: '8.53370870',
+    delivery_longitude: '-83.30615300', route_code: '32', total_units: 6, total_amount: 11043.48,
+  };
+
+  it('maps a real order line to a Pedido', () => {
+    const p = mapPedido(row, 'eflow-rt-32');
+    expect(p.id).toBe('eflow-ped-8007-EDI0112261');
+    expect(p.order_number).toBe('EDI0112261');
+    expect(p.customer_name).toBe('ALMACENES EL COLONO S.A.');
+    expect(p.delivery_latitude).toBeCloseTo(8.5337);
+    expect(p.delivery_longitude).toBeCloseTo(-83.3062);
+    expect(p.route_type_id).toBe('eflow-rt-32');
+  });
+
+  it('keeps the stop with null coords instead of dropping it (~71% of clients have no lat/lng)', () => {
+    const p = mapPedido({ ...row, delivery_latitude: null, delivery_longitude: null }, 'eflow-rt-32');
+    expect(p.delivery_latitude).toBeUndefined();
+    expect(p.delivery_longitude).toBeUndefined();
+    expect(p.order_number).toBe('EDI0112261');
   });
 });
 

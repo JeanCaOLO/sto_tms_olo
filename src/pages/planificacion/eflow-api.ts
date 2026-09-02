@@ -1,4 +1,4 @@
-import type { Conductor, RutaTipo, Transportista, Vehiculo, Viaje } from './types';
+import type { Conductor, Pedido, RutaTipo, Transportista, Vehiculo, Viaje } from './types';
 import { getFallbackPedidos } from './fallback-pedidos';
 
 // Thin client for the read-only EFLOW QA API (`server/`). In dev, Vite proxies
@@ -36,6 +36,24 @@ interface RutaRow { route_code: string; route_name: string; route_alias: string 
 interface TransportistaRow { carrier_id: number; company_name: string; }
 interface ConductorRow { driver_id: number; driver_name: string; driver_document: string | null; carrier_id: number | null; }
 interface VehiculoRow { vehicle_id: number; license_plate: string; vehicle_brand: string | null; unit_description: string | null; carrier_id: number | null; }
+
+// Order line row for a trip (see docs/guides/eflow-qa-schema-planificacion.md #8).
+// Only ~27/959 QA trips have rows here — most trips return [] and the caller
+// falls back to the mock. delivery_latitude/longitude come back as strings
+// (SQL varchar) and are null for ~71% of clients.
+export interface PedidoRow {
+  trip_id: number;
+  order_number: string;
+  invoice_number: string | null;
+  customer_id: string | null;
+  customer_name: string | null;
+  delivery_address: string | null;
+  delivery_latitude: string | null;
+  delivery_longitude: string | null;
+  route_code: string | null;
+  total_units: number | null;
+  total_amount: number | null;
+}
 
 // --- Pure mappers: QA row -> view model the components already expect -------
 
@@ -98,11 +116,59 @@ export const mapVehiculo = (row: VehiculoRow): Vehiculo => ({
   ...capacidadSintetica(row.vehicle_brand),
 });
 
+// Real order line -> Pedido. No QA source distinguishes pickup/return lines
+// (see doc #8), so tipo stays undefined (= 'entrega', FR16 retro-compatible).
+// Missing lat/lng (~71% of clients) or weight/volume (QA has no per-line
+// data, same 0 pattern as vehicle capacity) stay null/undefined rather than
+// dropping the stop.
+const toCoord = (v: string | null): number | undefined => {
+  if (!v) return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) && n !== 0 ? n : undefined;
+};
+
+export function mapPedido(row: PedidoRow, routeTypeId: string): Pedido {
+  return {
+    id: `eflow-ped-${row.trip_id}-${row.order_number}`,
+    order_number: row.order_number,
+    customer_id: row.customer_id || '',
+    store_id: '',
+    delivery_address: row.delivery_address || '',
+    delivery_city: '',
+    delivery_zone: '',
+    total_weight: 0,
+    total_volume: 0,
+    status: 'pending',
+    order_date: new Date().toISOString(),
+    delivery_latitude: toCoord(row.delivery_latitude),
+    delivery_longitude: toCoord(row.delivery_longitude),
+    customer_name: row.customer_name || undefined,
+    route_type_id: routeTypeId,
+  };
+}
+
 // --- Fetchers with graceful mock fallback ----------------------------------
 
 export async function fetchViajes(): Promise<Viaje[]> {
   const rows = await getJson<ViajeRow[]>('/api/viajes?limit=100');
-  return rows.map(mapViaje);
+  const viajes = rows.map(mapViaje);
+  await Promise.all(viajes.map(async (viaje) => {
+    viaje.pedidos = await fetchPedidosPorViaje(viaje.id, viaje.route_type_id, viaje.pedidos);
+  }));
+  return viajes;
+}
+
+// Real order lines for one trip, mirroring the fetchRutas/fetchConductores
+// fallback pattern: independent fallback to the mock stops when /api is
+// unreachable OR returns 0 rows (most QA trips — see doc #8).
+export async function fetchPedidosPorViaje(viajeId: string, routeTypeId: string, fallback: Pedido[]): Promise<Pedido[]> {
+  try {
+    const rows = await getJson<PedidoRow[]>(`/api/viajes/${viajeId}/pedidos`);
+    return rows.length ? rows.map((r) => mapPedido(r, routeTypeId)) : fallback;
+  } catch (err) {
+    console.warn(`[planificacion] /api/viajes/${viajeId}/pedidos no disponible, usando mock:`, (err as Error).message);
+    return fallback;
+  }
 }
 
 export async function fetchRutas(fallback: RutaTipo[]): Promise<RutaTipo[]> {
