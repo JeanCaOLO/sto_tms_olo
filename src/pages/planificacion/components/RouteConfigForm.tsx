@@ -24,9 +24,15 @@ const NOMBRE_DIA: Record<DiaSemana, string> = {
 };
 const NOMBRE_DOMINGO = 'Domingo';
 
-/** Número de ruta desde `route_type_name` ("01 · Casco Central" → 1). */
+/**
+ * Número de ruta del viaje, para cruzar con el calendario COFERSA.
+ * - Datos reales de EFLOW: el id viene como `eflow-rt-11` → 11.
+ * - Catálogo mock: el id es un UUID, el número está en el nombre
+ *   (`"01 · Casco Central"` → 1).
+ */
 function numeroRuta(viaje: Viaje): number {
-  return parseInt(viaje.route_type_name ?? '', 10);
+  const deId = viaje.route_type_id?.match(/^eflow-rt-(\d+)/);
+  return parseInt(deId ? deId[1] : (viaje.route_type_name ?? ''), 10);
 }
 
 interface Props {
