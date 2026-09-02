@@ -33,18 +33,20 @@ describe('parseCofersa', () => {
     ['Zona #', null, 'Días de Carga ', 'Días de entrega '],
     ['08 San Carlos ', 'Rural ', 'Lunes -Miercoles-Viernes ', 'Martes-Jueves-Sabado'],
     ['1 Casco ', 'GAM ', 'Lunes a Viernes', null],
+    ['3 Guadalupe ', 'GAM ', null, null],
+    ['44 REY ', 'GAM ', 'Cita Previa', null],
     [null, null, null, null],
   ];
 
   it('mapea cada zona recortando espacios y descarta filas sin zona', () => {
     const out = parseCofersa(rows);
-    expect(out).toHaveLength(2);
+    expect(out).toHaveLength(4);
     expect(out[0]).toMatchObject({
       zona: '08 San Carlos',
       categoria: 'Rural',
       diasCarga: 'Lunes -Miercoles-Viernes',
       diasEntrega: 'Martes-Jueves-Sabado',
-      // columnas por día derivadas: carga=verde, entrega=rojo
+      // rural sin cambios: carga=verde, entrega=rojo
       lunes: 'carga',
       martes: 'entrega',
       miercoles: 'carga',
@@ -52,11 +54,55 @@ describe('parseCofersa', () => {
       viernes: 'carga',
       sabado: 'entrega',
     });
-    // "1 Casco": "Lunes a Viernes" (rango) carga, sin entrega
-    expect(out[1].diasEntrega).toBeNull();
-    expect(out[1].lunes).toBe('carga');
-    expect(out[1].viernes).toBe('carga');
-    expect(out[1].sabado).toBeNull();
+  });
+
+  it('GAM "1 Casco" (solo "Lunes a Viernes" de carga) → Lun-Vie ambos, Sáb null', () => {
+    const [, casco] = parseCofersa(rows);
+    expect(casco.zona).toBe('1 Casco');
+    expect(casco.lunes).toBe('ambos');
+    expect(casco.martes).toBe('ambos');
+    expect(casco.miercoles).toBe('ambos');
+    expect(casco.jueves).toBe('ambos');
+    expect(casco.viernes).toBe('ambos');
+    expect(casco.sabado).toBeNull();
+    expect(casco.citaPrevia).toBeUndefined();
+  });
+
+  it('GAM "3 Guadalupe" (días vacíos) → Lun-Vie ambos, Sáb null', () => {
+    const guada = parseCofersa(rows)[2];
+    expect(guada.zona).toBe('3 Guadalupe');
+    expect(guada.lunes).toBe('ambos');
+    expect(guada.viernes).toBe('ambos');
+    expect(guada.sabado).toBeNull();
+  });
+
+  it('"44 REY" (Cita Previa) → citaPrevia:true y los 6 días null', () => {
+    const rey = parseCofersa(rows)[3];
+    expect(rey.zona).toBe('44 REY');
+    expect(rey.citaPrevia).toBe(true);
+    for (const d of ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'] as const) {
+      expect(rey[d]).toBeNull();
+    }
+  });
+
+  it('GAM con split explícito (EPA) NO se convierte en ambos', () => {
+    // categoria GAM pero con carga/entrega reales → regla 3, no regla 2.
+    const [epa] = parseCofersa([
+      ['Zona #', null, 'Días de Carga', 'Días de entrega'],
+      ['33 Cartago Epa', 'GAM', 'Viernes', 'Lunes'],
+    ]);
+    expect(epa.viernes).toBe('carga');
+    expect(epa.lunes).toBe('entrega');
+    expect(epa.martes).toBeNull();
+  });
+
+  it('día presente en ambas listas explícitas → ambos', () => {
+    const [z] = parseCofersa([
+      ['Zona #', null, 'Días de Carga', 'Días de entrega'],
+      ['99 Test', 'Rural', 'Lunes', 'Lunes-Martes'],
+    ]);
+    expect(z.lunes).toBe('ambos');
+    expect(z.martes).toBe('entrega');
   });
 
   it('lanza si falta la cabecera', () => {
