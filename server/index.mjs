@@ -32,6 +32,13 @@ app.get("/api/viajes/:id", wrap(async (req, res) => {
   res.json(rows[0]);
 }));
 
+app.get("/api/viajes/:id/pedidos", wrap(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: "invalid_id" });
+  const rows = await query(q.listPedidosPorViaje, { viajeId: { type: sql.Int, value: id } });
+  res.json(rows);
+}));
+
 app.get("/api/catalogos/rutas", wrap(async (_req, res) => {
   res.json(await query(q.listRutas));
 }));
