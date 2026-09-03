@@ -10,15 +10,14 @@
 //   en algun equipo de la red, mantiene GitLab al dia.
 //
 // Como funciona: mantiene un clon --mirror bare en .mirror-gitlab/ (gitignored),
-// hace fetch de GitHub y push de refs/heads/* + refs/tags/* a GitLab con --prune
-// (rama borrada en GitHub -> borrada en GitLab). Cada rama va a la del mismo
-// nombre. No toca merge requests ni nada mas de GitLab.
+// hace fetch de GitHub y push de cada rama + tags a GitLab con --prune (rama
+// borrada en GitHub -> borrada en GitLab). GitHub `main` -> GitLab `master`
+// (ver BRANCH_MAP); el resto conserva su nombre. No toca merge requests.
 //
 // Token: --token=... > $GITLAB_TOKEN > linea GITLAB_TOKEN=... de .env.local.
 //
-// Setup una vez en GitLab: Settings -> Repository -> Default branch -> `main`
-// (para que `master`, la rama fantasma que crea GitLab al iniciar el repo, se
-// pueda podar en la primera corrida).
+// GitLab: el default branch debe ser `master` (el que GitLab crea solo — ya
+// esta). La rama `main` que haya quedado de pruebas anteriores se poda sola.
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -44,9 +43,12 @@ process.chdir(sh(['rev-parse', '--show-toplevel']));
 const token = tokenArg || process.env.GITLAB_TOKEN || envLocalToken();
 if (!token) die("Falta el token: 'GITLAB_TOKEN=glpat-...' en .env.local (o --token=... / $GITLAB_TOKEN).");
 
+// Renombre de ramas GitHub -> GitLab. GitLab usa `master` como default; GitHub
+// usa `main`. El resto de ramas conservan su nombre.
+const BRANCH_MAP = { main: 'master' };
+
 const githubUrl = sh(['remote', 'get-url', 'origin']);           // reusa la auth del colaborador
 const gitlabAuthUrl = GITLAB_REPO.replace('https://', `https://oauth2:${token}@`);
-const REFSPECS = ['+refs/heads/*:refs/heads/*', '+refs/tags/*:refs/tags/*'];
 
 if (!existsSync(MIRROR_DIR)) {
   console.log('\x1b[36mclonando mirror de GitHub…\x1b[0m');
@@ -55,21 +57,38 @@ if (!existsSync(MIRROR_DIR)) {
 }
 
 shIO(['-C', MIRROR_DIR, 'remote', 'set-url', 'origin', githubUrl]);
-shIO(['-C', MIRROR_DIR, 'fetch', '--prune', 'origin', ...REFSPECS]);
+shIO(['-C', MIRROR_DIR, 'fetch', '--prune', 'origin',
+  '+refs/heads/*:refs/heads/*', '+refs/tags/*:refs/tags/*']);
 
-const ramas = sh(['-C', MIRROR_DIR, 'for-each-ref', '--format=%(refname:short)', 'refs/heads']).split('\n');
-console.log(`\x1b[36mramas -> GitLab:\x1b[0m ${ramas.join(', ')}`);
+const heads = sh(['-C', MIRROR_DIR, 'for-each-ref', '--format=%(refname:short)', 'refs/heads'])
+  .split('\n').filter(Boolean);
+if (heads.includes('master') && BRANCH_MAP.main === 'master') {
+  die('GitHub tiene `main` y `master` a la vez — el renombre main->master colisiona. Ajusta BRANCH_MAP.');
+}
+
+// refspec explicito por rama (aplicando el renombre) + wildcard de tags.
+const headSpecs = heads.map((b) => `+refs/heads/${b}:refs/heads/${BRANCH_MAP[b] ?? b}`);
+console.log(`\x1b[36mGitHub -> GitLab:\x1b[0m ${heads.map((b) => (BRANCH_MAP[b] ? `${b}→${BRANCH_MAP[b]}` : b)).join(', ')}`);
 
 try {
-  shIO(['-C', MIRROR_DIR, 'push', '--prune', gitlabAuthUrl, ...REFSPECS]);
+  shIO(['-C', MIRROR_DIR, 'push', '--prune', gitlabAuthUrl, ...headSpecs, '+refs/tags/*:refs/tags/*']);
 } catch {
-  // El --prune falla si intenta borrar la rama default de GitLab (p.ej. `master`
-  // fantasma). Reintenta sin podar para no bloquear la sync.
-  console.warn('\x1b[33m! --prune fallo (¿rama default de GitLab sin migrar a `main`?). Reintento sin podar.\x1b[0m');
+  die('Push a GitLab fallo. ¿VPN conectada? ¿token valido? ' +
+      'Si dice "cannot delete the default branch", el default de GitLab debe ser `master` (o el destino del map).');
+}
+
+// Podar ramas de GitLab que ya no existen en GitHub. --prune no actua con
+// refspecs explicitos (necesita glob), asi que las borramos a mano.
+const wanted = new Set(heads.map((b) => BRANCH_MAP[b] ?? b));
+const gitlabHeads = sh(['ls-remote', '--heads', gitlabAuthUrl])
+  .split('\n').filter(Boolean).map((l) => l.split('refs/heads/')[1]);
+const stale = gitlabHeads.filter((b) => !wanted.has(b));
+if (stale.length) {
+  console.log(`\x1b[33mpodando en GitLab:\x1b[0m ${stale.join(', ')}`);
   try {
-    shIO(['-C', MIRROR_DIR, 'push', gitlabAuthUrl, ...REFSPECS]);
+    shIO(['-C', MIRROR_DIR, 'push', gitlabAuthUrl, ...stale.map((b) => `:refs/heads/${b}`)]);
   } catch {
-    die('Push a GitLab fallo. ¿VPN conectada? ¿token valido?');
+    console.warn('\x1b[33m! no se pudo borrar alguna rama (¿es la default de GitLab?)\x1b[0m');
   }
 }
 
