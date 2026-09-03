@@ -367,3 +367,26 @@ peso/volumen por línea, sin señal de devolución. Se integra
 vehículos: 0 filas reales para ese viaje ⇒ usar `getFallbackPedidos` (el mock
 sigue siendo necesario para la inmensa mayoría de viajes QA, no es un
 remanente a eliminar).
+
+## 9. Identificadores y modo dual (mock vs. EFLOW real)
+
+`/planificacion` funciona en dos modos según `server/` (:4000) esté arriba o no.
+Los identificadores difieren y hay consumidores que deben tolerar ambos:
+
+| Campo | Catálogo mock (Supabase/fallback) | Datos reales EFLOW (`server/`) |
+|---|---|---|
+| `RutaTipo.id` / `route_type_id` | UUID (`0444c597-…`) | `eflow-rt-<código>` (`eflow-rt-08`) |
+| `Viaje.route_type_name` | prefijo numérico: `"01 · Casco Central"` | solo nombre: `"SAN CARLOS"`, `"GUANACASTE BAJURA"` |
+| `Viaje.id` / `trip_number` | `VJ-MOCK-00N` / `"Viaje N"` | `<trip_id>` / `"Viaje 8213 · <ruta>"` |
+
+Reglas load-bearing:
+
+- **`orders.route_type_id` (Supabase) es UUID.** `fetchPedidosDeRuta`
+  (`pedidos-api.ts`) hace un guard `UUID_RE`: un id `eflow-rt-*` nunca casaría
+  y solo produce un 400 de Postgres → va directo a `getFallbackPedidos`.
+- **El "número de ruta" para cruces** (p. ej. el calendario COFERSA en
+  `RouteConfigForm`) se obtiene de `route_type_id` con `/^eflow-rt-(\d+)/`, y si
+  no matchea, de `parseInt(route_type_name)` (caso mock). Ver `numeroRuta()`.
+- **Los e2e no deben asumir un modo.** `e2e/planificacion-flujo.spec.ts`
+  selecciona por posición y afirma `> 0`; las pruebas atadas a un fixture mock
+  concreto usan `test.skip` cuando el selector no trae ids `VJ-MOCK-*`.
