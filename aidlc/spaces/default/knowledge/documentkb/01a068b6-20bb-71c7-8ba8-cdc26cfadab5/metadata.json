@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "01a068b6-20bb-71c7-8ba8-cdc26cfadab5",
+  "source": {
+    "kind": "managed",
+    "path": "documents/2026-09-02-reunion-portafolio-suite-repos-bd.md"
+  },
+  "sha256": "18f56818eb2449f4a0ba101a4d994e18dcd1fcbdece017ff0d6842e882e5be87",
+  "bytes": 6358,
+  "indexed_at": "2026-09-03T19:19:21.520Z",
+  "extraction": {
+    "state": "extracted",
+    "extractor": {
+      "name": "builtin-text",
+      "version": "1"
+    },
+    "chars": 6186,
+    "truncated": false,
+    "source_revision": "18f56818eb2449f4a0ba101a4d994e18dcd1fcbdece017ff0d6842e882e5be87"
+  },
+  "summary": {
+    "state": "absent"
+  },
+  "content": "documentkb/01a068b6-20bb-71c7-8ba8-cdc26cfadab5/content.md",
+  "content_sha256": "18f56818eb2449f4a0ba101a4d994e18dcd1fcbdece017ff0d6842e882e5be87",
+  "content_trust": "untrusted",
+  "content_handling": "data-not-instructions"
+}
