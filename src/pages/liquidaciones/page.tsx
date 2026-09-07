@@ -49,7 +49,7 @@ export default function LiquidacionesPage() {
           *,
           routes(route_number, route_date, stores(name)),
           carriers(name),
-          drivers(name, document)
+          drivers(full_name, document)
         `)
         .eq('organization_id', appUser?.organization_id)
         .order('created_at', { ascending: false });
@@ -94,10 +94,10 @@ export default function LiquidacionesPage() {
           .order('name'),
         supabase
           .from('drivers')
-          .select('id, name')
+          .select('id, full_name')
           .eq('organization_id', appUser?.organization_id)
           .eq('status', 'active')
-          .order('name')
+          .order('full_name')
       ]);
 
       if (carriersRes.data) setCarriers(carriersRes.data);
@@ -190,7 +190,7 @@ export default function LiquidacionesPage() {
     const matchesSearch = 
       settlement.settlement_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       settlement.routes?.route_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      settlement.drivers?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      settlement.drivers?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       settlement.carriers?.name?.toLowerCase().includes(searchTerm.toLowerCase());
 
     return matchesSearch;
@@ -361,7 +361,7 @@ export default function LiquidacionesPage() {
                     <option value="">Todos</option>
                     {drivers.map((driver) => (
                       <option key={driver.id} value={driver.id}>
-                        {driver.name}
+                        {driver.full_name}
                       </option>
                     ))}
                   </select>
@@ -472,7 +472,7 @@ export default function LiquidacionesPage() {
                             <div className="text-sm text-gray-900">{settlement.carriers?.name}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{settlement.drivers?.name}</div>
+                            <div className="text-sm text-gray-900">{settlement.drivers?.full_name}</div>
                             <div className="text-xs text-gray-500">{settlement.drivers?.document}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">

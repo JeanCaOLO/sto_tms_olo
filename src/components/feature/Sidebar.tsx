@@ -24,7 +24,15 @@ const navItems: NavItem[] = [
   { icon: 'ri-file-text-line', label: 'Guías de Despacho', path: '/guias' },
   { icon: 'ri-map-pin-add-line', label: 'Planificación', path: '/planificacion' },
   { icon: 'ri-map-pin-line', label: 'Tracking', path: '/tracking' },
-  { icon: 'ri-money-dollar-circle-line', label: 'Tarifas', path: '/liquidaciones' },
+  {
+    type: 'group',
+    icon: 'ri-money-dollar-circle-line',
+    label: 'Tarifas',
+    children: [
+      { icon: 'ri-money-dollar-circle-line', label: 'Liquidaciones', path: '/liquidaciones' },
+      { icon: 'ri-price-tag-3-line', label: 'Reglas de Tarifa', path: '/reglas-tarifa' },
+    ],
+  },
   {
     type: 'group',
     icon: 'ri-book-2-line',
@@ -48,13 +56,22 @@ function isGroup(item: NavItem): item is MenuGroup {
   return (item as MenuGroup).type === 'group';
 }
 
+function isGroupActiveForPath(item: MenuGroup, pathname: string): boolean {
+  return item.children.some((child) => child.path === pathname);
+}
+
 export default function Sidebar() {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
 
-  const catalogPaths = ['/paises', '/rutas', '/transportistas', '/vehiculos', '/conductores', '/clientes', '/tiendas'];
-  const isCatalogActive = catalogPaths.includes(location.pathname);
-  const [catalogOpen, setCatalogOpen] = useState(isCatalogActive);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    for (const item of navItems) {
+      if (isGroup(item)) initial[item.label] = isGroupActiveForPath(item, location.pathname);
+    }
+    return initial;
+  });
+  const toggleGroup = (label: string) => setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
 
   return (
     <aside className={`fixed left-0 top-0 h-screen bg-slate-900 text-white transition-all duration-300 z-40 ${collapsed ? 'w-20' : 'w-64'}`}>
@@ -81,12 +98,14 @@ export default function Sidebar() {
       <nav className="p-3 overflow-y-auto h-[calc(100vh-80px)]">
         {navItems.map((item) => {
           if (isGroup(item)) {
+            const isGroupActive = isGroupActiveForPath(item, location.pathname);
+            const isOpen = !!openGroups[item.label];
             return (
               <div key={item.label}>
                 <button
-                  onClick={() => { if (!collapsed) setCatalogOpen(!catalogOpen); }}
+                  onClick={() => { if (!collapsed) toggleGroup(item.label); }}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 mb-1 rounded-lg transition-all cursor-pointer group ${
-                    isCatalogActive
+                    isGroupActive
                       ? 'bg-teal-600/20 text-teal-400'
                       : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                   }`}
@@ -96,12 +115,12 @@ export default function Sidebar() {
                   {!collapsed && (
                     <>
                       <span className="text-sm font-medium flex-1 text-left">{item.label}</span>
-                      <i className={`ri-arrow-${catalogOpen ? 'up' : 'down'}-s-line text-sm transition-transform`}></i>
+                      <i className={`ri-arrow-${isOpen ? 'up' : 'down'}-s-line text-sm transition-transform`}></i>
                     </>
                   )}
                 </button>
 
-                {!collapsed && catalogOpen && (
+                {!collapsed && isOpen && (
                   <div className="ml-3 pl-3 border-l border-slate-700 mb-1">
                     {item.children.map((child) => {
                       const isActive = location.pathname === child.path;

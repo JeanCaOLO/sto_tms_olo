@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
+import { calculate, deriveContext } from '../../../lib/tarifas';
+import { toCalculateInput } from '../../../lib/tarifas/repository';
+import type { CalcResult } from '../../../lib/tarifas/types';
 
 interface SettlementModalProps {
   isOpen: boolean;
@@ -9,6 +12,28 @@ interface SettlementModalProps {
   settlement?: any;
 }
 
+interface RouteDetails {
+  id: string;
+  route_type_id: string | null;
+  store_id: string | null;
+  vehicle_id: string | null;
+  carrier_id: string | null;
+  driver_id: string | null;
+  total_weight: number | null;
+  total_stops: number | null;
+}
+
+interface CalcState {
+  result: CalcResult;
+  originZoneId: string;
+  destZoneId: string;
+}
+
+const STAGE_LABELS: Record<string, string> = {
+  BASE: 'Base', VARIABLE: 'Variable', MODIFIER: 'Modificador',
+  SURCHARGE: 'Recargo', ADJUSTMENT: 'Ajuste', TAX: 'Impuesto',
+};
+
 export default function SettlementModal({ isOpen, onClose, onSuccess, settlement }: SettlementModalProps) {
   const { appUser } = useAuth();
   const [activeTab, setActiveTab] = useState('general');
@@ -16,7 +41,15 @@ export default function SettlementModal({ isOpen, onClose, onSuccess, settlement
   const [routes, setRoutes] = useState<any[]>([]);
   const [carriers, setCarriers] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
-  const [rates, setRates] = useState<any[]>([]);
+  const [routeDetails, setRouteDetails] = useState<RouteDetails | null>(null);
+
+  const [calc, setCalc] = useState<CalcState | null>(null);
+  const [calcLoading, setCalcLoading] = useState(false);
+  const [calcError, setCalcError] = useState('');
+  // Reglas que el motor aplicó y que el usuario dejó marcadas para que cuenten en ESTA
+  // liquidación puntual (por defecto, todas las que aplicó el motor). Destildar una no cambia
+  // la regla del catálogo ni su condición — solo la excluye de este cálculo.
+  const [selectedRuleSeqs, setSelectedRuleSeqs] = useState<Set<number>>(new Set());
 
   const [formData, setFormData] = useState({
     route_id: '',
@@ -24,32 +57,15 @@ export default function SettlementModal({ isOpen, onClose, onSuccess, settlement
     driver_id: '',
     settlement_date: new Date().toISOString().split('T')[0],
     status: 'Borrador',
-    
+
     // Datos de la ruta
     total_distance: 0,
     total_deliveries: 0,
     total_returns: 0,
-    
-    // Tarifas
-    per_km_rate: 0,
-    per_delivery_rate: 0,
-    base_rate: 0,
-    per_return_rate: 0,
-    
-    // Reglas
-    capacity_bonus_rate: 0,
-    capacity_penalty_rate: 0,
-    min_guaranteed: 0,
-    
-    // Cálculos
-    distance_amount: 0,
-    delivery_amount: 0,
-    base_amount: 0,
-    return_amount: 0,
-    bonus_amount: 0,
-    penalty_amount: 0,
+
+    // Total calculado por el motor de reglas
     total_amount: 0,
-    
+
     notes: ''
   });
 
@@ -70,19 +86,6 @@ export default function SettlementModal({ isOpen, onClose, onSuccess, settlement
         total_distance: settlement.total_distance || 0,
         total_deliveries: settlement.total_deliveries || 0,
         total_returns: settlement.total_returns || 0,
-        per_km_rate: 0,
-        per_delivery_rate: 0,
-        base_rate: settlement.base_amount || 0,
-        per_return_rate: 0,
-        capacity_bonus_rate: 0,
-        capacity_penalty_rate: 0,
-        min_guaranteed: 0,
-        distance_amount: settlement.distance_amount || 0,
-        delivery_amount: settlement.delivery_amount || 0,
-        base_amount: settlement.base_amount || 0,
-        return_amount: settlement.return_amount || 0,
-        bonus_amount: settlement.bonus_amount || 0,
-        penalty_amount: settlement.penalty_amount || 0,
         total_amount: settlement.total_amount || 0,
         notes: settlement.notes || ''
       });
@@ -94,29 +97,38 @@ export default function SettlementModal({ isOpen, onClose, onSuccess, settlement
   useEffect(() => {
     if (formData.route_id) {
       loadRouteData(formData.route_id);
+    } else {
+      setRouteDetails(null);
     }
   }, [formData.route_id]);
 
   useEffect(() => {
-    if (formData.carrier_id) {
-      loadCarrierRates(formData.carrier_id);
+    if (routeDetails && appUser?.organization_id) {
+      runCalculation();
+    } else {
+      setCalc(null);
+      setSelectedRuleSeqs(new Set());
     }
-  }, [formData.carrier_id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeDetails, formData.total_distance, formData.total_deliveries, formData.settlement_date, appUser?.organization_id]);
 
+  // El total y el desglose por etapa que ve el usuario (y el que se persiste al guardar) se
+  // recalculan a partir de las líneas que quedaron marcadas, no del total crudo del motor.
   useEffect(() => {
-    calculateAmounts();
-  }, [
-    formData.total_distance,
-    formData.total_deliveries,
-    formData.total_returns,
-    formData.per_km_rate,
-    formData.per_delivery_rate,
-    formData.base_rate,
-    formData.per_return_rate,
-    formData.capacity_bonus_rate,
-    formData.capacity_penalty_rate,
-    formData.min_guaranteed
-  ]);
+    if (!calc) return;
+    const total = calc.result.trace
+      .filter((line) => selectedRuleSeqs.has(line.seq))
+      .reduce((sum, line) => sum + Number(line.final), 0);
+    setFormData((prev) => ({ ...prev, total_amount: Number(total.toFixed(2)) }));
+  }, [calc, selectedRuleSeqs]);
+
+  const toggleRuleSeq = (seq: number) => {
+    setSelectedRuleSeqs((prev) => {
+      const next = new Set(prev);
+      if (next.has(seq)) next.delete(seq); else next.add(seq);
+      return next;
+    });
+  };
 
   const loadData = async () => {
     try {
@@ -152,12 +164,11 @@ export default function SettlementModal({ isOpen, onClose, onSuccess, settlement
     try {
       const { data: route } = await supabase
         .from('routes')
-        .select('*, carriers(id, name), drivers(id, name)')
+        .select('*, carriers(id, name), drivers(id, full_name)')
         .eq('id', routeId)
         .single();
 
       if (route) {
-        // Contar entregas y devoluciones
         const { data: guides } = await supabase
           .from('dispatch_guides')
           .select('status')
@@ -178,66 +189,82 @@ export default function SettlementModal({ isOpen, onClose, onSuccess, settlement
           total_deliveries: deliveries,
           total_returns: returns?.length || 0
         }));
+
+        setRouteDetails({
+          id: route.id,
+          route_type_id: route.route_type_id ?? null,
+          store_id: route.store_id ?? null,
+          vehicle_id: route.vehicle_id ?? null,
+          carrier_id: route.carrier_id ?? null,
+          driver_id: route.driver_id ?? null,
+          total_weight: route.total_weight ?? null,
+          total_stops: route.total_stops ?? null,
+        });
       }
     } catch (error) {
       console.error('Error loading route data:', error);
     }
   };
 
-  const loadCarrierRates = async (carrierId: string) => {
+  const runCalculation = async () => {
+    if (!routeDetails || !appUser?.organization_id) return;
+    setCalcLoading(true);
+    setCalcError('');
     try {
-      const { data } = await supabase
-        .from('rates')
-        .select('*')
-        .eq('carrier_id', carrierId)
-        .in('status', ['active', 'Activo', 'activo'])
-        .order('created_at', { ascending: false })
-        .limit(1);
+      // `stores`/`route_types` del TMS real todavía no tienen columna `zone_id` (ver
+      // src/lib/tarifas/repository.ts) — no se selecciona ni se pide acá; se completa como `null`
+      // al armar el store/routeType sintético para el motor.
+      const [storeRes, routeTypeRes, vehicleRes] = await Promise.all([
+        routeDetails.store_id
+          ? supabase.from('stores').select('id, country_id').eq('id', routeDetails.store_id).maybeSingle()
+          : Promise.resolve({ data: null, error: null } as any),
+        routeDetails.route_type_id
+          ? supabase.from('route_types').select('id').eq('id', routeDetails.route_type_id).maybeSingle()
+          : Promise.resolve({ data: null, error: null } as any),
+        routeDetails.vehicle_id
+          ? supabase.from('vehicles').select('vehicle_type').eq('id', routeDetails.vehicle_id).maybeSingle()
+          : Promise.resolve({ data: null, error: null } as any),
+      ]);
 
-      if (data && data.length > 0) {
-        const rate = data[0];
-        setFormData(prev => ({
-          ...prev,
-          per_km_rate: rate.per_km_rate || 0,
-          per_delivery_rate: rate.per_delivery_rate || 0,
-          base_rate: rate.base_rate || 0,
-          per_return_rate: rate.per_return_rate || 0
-        }));
-        setRates(data);
+      const store = storeRes.data;
+      if (!store) {
+        throw new Error('La ruta seleccionada no tiene un punto de origen configurado. Asignalo en Rutas antes de liquidar.');
       }
-    } catch (error) {
-      console.error('Error loading rates:', error);
+
+      const { input, warning: countryWarning } = await toCalculateInput({
+        countryId: store.country_id,
+        route: {
+          id: routeDetails.id,
+          route_type_id: routeDetails.route_type_id,
+          store_id: routeDetails.store_id,
+          carrier_id: routeDetails.carrier_id,
+          driver_id: routeDetails.driver_id,
+          total_distance: formData.total_distance,
+          total_weight: routeDetails.total_weight,
+          total_stops: routeDetails.total_stops,
+        },
+        vehicleType: vehicleRes.data?.vehicle_type ?? null,
+        settlement: { total_deliveries: formData.total_deliveries, settlement_date: formData.settlement_date },
+        stores: [{ ...store, zone_id: null }],
+        routeTypes: routeTypeRes.data ? [{ ...routeTypeRes.data, zone_id: null }] : [],
+      });
+
+      const derived = deriveContext(input);
+      const result = calculate(input);
+      // El aviso de país de resguardo (ver repository.ts::resolveLiquidadorCountry) se muestra
+      // igual que cualquier otro aviso del motor, en la pestaña "Reglas".
+      if (countryWarning) result.warnings = [countryWarning, ...result.warnings];
+
+      setCalc({ result, originZoneId: derived.originZoneId, destZoneId: derived.destZoneId });
+      setSelectedRuleSeqs(new Set(result.trace.map((line) => line.seq)));
+    } catch (error: any) {
+      console.error('Error calculando tarifa:', error);
+      setCalcError(error?.message || 'No se pudo calcular la tarifa con las reglas configuradas para este país.');
+      setCalc(null);
+      setSelectedRuleSeqs(new Set());
+    } finally {
+      setCalcLoading(false);
     }
-  };
-
-  const calculateAmounts = () => {
-    const distanceAmount = formData.total_distance * formData.per_km_rate;
-    const deliveryAmount = formData.total_deliveries * formData.per_delivery_rate;
-    const baseAmount = formData.base_rate;
-    const returnAmount = formData.total_returns * formData.per_return_rate;
-    
-    let bonusAmount = 0;
-    let penaltyAmount = 0;
-    
-    // Calcular bonus/penalización por capacidad (ejemplo: si usó más del 90% de capacidad)
-    // Esto se puede ajustar según las reglas de negocio
-    
-    const subtotal = distanceAmount + deliveryAmount + baseAmount + returnAmount;
-    const totalWithAdjustments = subtotal + bonusAmount - penaltyAmount;
-    
-    // Aplicar mínimo garantizado
-    const finalTotal = Math.max(totalWithAdjustments, formData.min_guaranteed);
-
-    setFormData(prev => ({
-      ...prev,
-      distance_amount: distanceAmount,
-      delivery_amount: deliveryAmount,
-      base_amount: baseAmount,
-      return_amount: returnAmount,
-      bonus_amount: bonusAmount,
-      penalty_amount: penaltyAmount,
-      total_amount: finalTotal
-    }));
   };
 
   const resetForm = () => {
@@ -250,28 +277,19 @@ export default function SettlementModal({ isOpen, onClose, onSuccess, settlement
       total_distance: 0,
       total_deliveries: 0,
       total_returns: 0,
-      per_km_rate: 0,
-      per_delivery_rate: 0,
-      base_rate: 0,
-      per_return_rate: 0,
-      capacity_bonus_rate: 0,
-      capacity_penalty_rate: 0,
-      min_guaranteed: 0,
-      distance_amount: 0,
-      delivery_amount: 0,
-      base_amount: 0,
-      return_amount: 0,
-      bonus_amount: 0,
-      penalty_amount: 0,
       total_amount: 0,
       notes: ''
     });
+    setRouteDetails(null);
+    setCalc(null);
+    setSelectedRuleSeqs(new Set());
+    setCalcError('');
     setActiveTab('general');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.route_id || !formData.carrier_id || !formData.driver_id) {
       alert('Por favor complete todos los campos obligatorios');
       return;
@@ -280,6 +298,13 @@ export default function SettlementModal({ isOpen, onClose, onSuccess, settlement
     setLoading(true);
 
     try {
+      // La tabla `settlements` real del TMS NO tiene columnas trace/discarded/stage_subtotals/
+      // fx_used/warnings/origin_zone_id/dest_zone_id (verificado en vivo: insertarlas devuelve
+      // 400) — son de un modelo de snapshot que nunca se migró a la base real. Hasta que exista esa
+      // migración, se persiste únicamente lo que la tabla real sí soporta: el total ya CURADO por
+      // el usuario (formData.total_amount, sincronizado desde `calc`+`selectedRuleSeqs` — ver el
+      // useEffect de arriba). El desglose completo (aplicadas/descartadas/avisos) queda disponible
+      // en el modal mientras se arma la liquidación, pero no se guarda todavía.
       const settlementData = {
         organization_id: appUser?.organization_id,
         route_id: formData.route_id,
@@ -289,12 +314,6 @@ export default function SettlementModal({ isOpen, onClose, onSuccess, settlement
         total_distance: formData.total_distance,
         total_deliveries: formData.total_deliveries,
         total_returns: formData.total_returns,
-        base_amount: formData.base_amount,
-        distance_amount: formData.distance_amount,
-        delivery_amount: formData.delivery_amount,
-        return_amount: formData.return_amount,
-        bonus_amount: formData.bonus_amount,
-        penalty_amount: formData.penalty_amount,
         total_amount: formData.total_amount,
         status: formData.status,
         notes: formData.notes,
@@ -346,6 +365,14 @@ export default function SettlementModal({ isOpen, onClose, onSuccess, settlement
   };
 
   if (!isOpen) return null;
+
+  const filteredStageSubtotalsDisplay: Record<string, number> = {};
+  if (calc) {
+    for (const line of calc.result.trace) {
+      if (!selectedRuleSeqs.has(line.seq)) continue;
+      filteredStageSubtotalsDisplay[line.stage] = (filteredStageSubtotalsDisplay[line.stage] ?? 0) + Number(line.final);
+    }
+  }
 
   const tabs = [
     { id: 'general', label: 'Datos Generales', icon: 'ri-file-list-3-line' },
@@ -558,100 +585,87 @@ export default function SettlementModal({ isOpen, onClose, onSuccess, settlement
                   <div className="flex items-start gap-3">
                     <i className="ri-information-line text-blue-600 text-xl mt-0.5"></i>
                     <div>
-                      <h4 className="text-sm font-semibold text-blue-900 mb-1">Tarifas Configuradas</h4>
+                      <h4 className="text-sm font-semibold text-blue-900 mb-1">Cálculo automático por reglas</h4>
                       <p className="text-xs text-blue-700">
-                        Las tarifas se cargan automáticamente según el transportista seleccionado. Puede ajustarlas manualmente si es necesario.
+                        El monto se calcula con las reglas de tarifa activas (Tarifas → Reglas de Tarifa) según
+                        país, zona, transportista y demás condiciones de esta ruta. Destildá una fila para
+                        excluirla de esta liquidación puntual sin desactivar la regla en el catálogo.
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tarifa Base por Ruta ($)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.base_rate}
-                      onChange={(e) => setFormData({ ...formData, base_rate: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                    />
+                {calcLoading && (
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <i className="ri-loader-4-line animate-spin"></i>
+                    Calculando tarifa...
                   </div>
+                )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tarifa por Kilómetro ($)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.per_km_rate}
-                      onChange={(e) => setFormData({ ...formData, per_km_rate: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                    />
+                {calcError && (
+                  <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-3">
+                    <i className="ri-error-warning-line mt-0.5 shrink-0"></i>
+                    <span>{calcError}</span>
                   </div>
+                )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tarifa por Entrega ($)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.per_delivery_rate}
-                      onChange={(e) => setFormData({ ...formData, per_delivery_rate: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                    />
-                  </div>
+                {!formData.route_id && !calcLoading && (
+                  <p className="text-sm text-gray-500">Seleccioná una ruta en "Datos Generales" para ver el cálculo.</p>
+                )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Descuento por Devolución ($)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.per_return_rate}
-                      onChange={(e) => setFormData({ ...formData, per_return_rate: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                    />
+                {calc && (
+                  <div className="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="w-10 py-2 px-3"></th>
+                          <th className="text-left py-2 px-3 font-semibold text-gray-600">Etapa</th>
+                          <th className="text-left py-2 px-3 font-semibold text-gray-600">Regla</th>
+                          <th className="text-right py-2 px-3 font-semibold text-gray-600">Monto</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {calc.result.trace.map((line) => {
+                          const included = selectedRuleSeqs.has(line.seq);
+                          return (
+                            <tr key={line.seq} className="border-t border-gray-200">
+                              <td className="py-2 px-3">
+                                <input
+                                  type="checkbox"
+                                  checked={included}
+                                  onChange={() => toggleRuleSeq(line.seq)}
+                                  className="w-4 h-4 accent-teal-600"
+                                />
+                              </td>
+                              <td className={`py-2 px-3 ${included ? 'text-gray-600' : 'text-gray-300'}`}>{STAGE_LABELS[line.stage] || line.stage}</td>
+                              <td className={`py-2 px-3 ${included ? 'text-gray-800' : 'text-gray-300 line-through'}`}>
+                                {line.label} <span className="text-xs text-gray-400">({line.ruleCode})</span>
+                              </td>
+                              <td className={`py-2 px-3 text-right font-medium ${included ? 'text-gray-900' : 'text-gray-300 line-through'}`}>${line.final}</td>
+                            </tr>
+                          );
+                        })}
+                        {calc.result.trace.length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="py-4 px-3 text-center text-gray-400">
+                              Ninguna regla activa aplica a esta ruta.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                      {calc.result.trace.length > 0 && (
+                        <tfoot>
+                          <tr className="border-t-2 border-teal-200 bg-white">
+                            <td colSpan={3} className="py-2 px-3 text-right font-bold text-gray-900">
+                              Total a liquidar al transportista (seleccionadas)
+                            </td>
+                            <td className="py-2 px-3 text-right font-bold text-teal-600">${formData.total_amount.toFixed(2)}</td>
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
                   </div>
-                </div>
-
-                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                    <i className="ri-calculator-line text-teal-600"></i>
-                    Cálculo Automático
-                  </h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                      <span className="text-sm text-gray-600">Subtotal Kilómetros:</span>
-                      <span className="text-sm font-semibold text-gray-900">
-                        ${formData.distance_amount.toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                      <span className="text-sm text-gray-600">Subtotal Entregas:</span>
-                      <span className="text-sm font-semibold text-gray-900">
-                        ${formData.delivery_amount.toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                      <span className="text-sm text-gray-600">Tarifa Base Ruta:</span>
-                      <span className="text-sm font-semibold text-gray-900">
-                        ${formData.base_amount.toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center py-2 border-b border-gray-200">
-                      <span className="text-sm text-gray-600">Ajuste Devoluciones:</span>
-                      <span className="text-sm font-semibold text-red-600">
-                        -${formData.return_amount.toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                )}
               </div>
             )}
 
@@ -662,90 +676,80 @@ export default function SettlementModal({ isOpen, onClose, onSuccess, settlement
                   <div className="flex items-start gap-3">
                     <i className="ri-alert-line text-amber-600 text-xl mt-0.5"></i>
                     <div>
-                      <h4 className="text-sm font-semibold text-amber-900 mb-1">Reglas de Liquidación</h4>
+                      <h4 className="text-sm font-semibold text-amber-900 mb-1">Reglas evaluadas para esta liquidación</h4>
                       <p className="text-xs text-amber-700">
-                        Configure bonos, penalizaciones y mínimos garantizados según las políticas de su empresa.
+                        Las "Aplicadas" son las que el motor encontró vigentes para este viaje — elegí cuáles
+                        contar en esta liquidación puntual. Para crear, editar o desactivar reglas del catálogo
+                        andá a Tarifas → Reglas de Tarifa.
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="bg-white border border-gray-200 rounded-lg p-4">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                      <i className="ri-trophy-line text-green-600"></i>
-                      Bonificaciones por Capacidad
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                          Tasa de Bono (%)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={formData.capacity_bonus_rate}
-                          onChange={(e) => setFormData({ ...formData, capacity_bonus_rate: parseFloat(e.target.value) || 0 })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm"
-                          placeholder="Ej: 5 para 5%"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">
-                          Bono si usa más del 90% de capacidad del vehículo
-                        </p>
-                      </div>
+                {calc && (
+                  <div className="space-y-3">
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                        <i className="ri-checkbox-circle-line text-green-600"></i>
+                        Aplicadas — incluidas en esta liquidación ({selectedRuleSeqs.size}/{calc.result.trace.length})
+                      </h4>
+                      {calc.result.trace.length === 0 ? (
+                        <p className="text-sm text-gray-400">Ninguna.</p>
+                      ) : (
+                        <ul className="space-y-1">
+                          {calc.result.trace.map((line) => {
+                            const included = selectedRuleSeqs.has(line.seq);
+                            return (
+                              <li key={line.seq} className="text-sm flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-2">
+                                <label className="flex items-center gap-2 cursor-pointer flex-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={included}
+                                    onChange={() => toggleRuleSeq(line.seq)}
+                                    className="w-4 h-4 accent-teal-600"
+                                  />
+                                  <span className={included ? 'text-gray-700' : 'text-gray-400 line-through'}>
+                                    {line.label} <span className="text-xs text-gray-400">({line.ruleCode})</span>
+                                  </span>
+                                </label>
+                                <span className={`font-medium ${included ? 'text-gray-900' : 'text-gray-400 line-through'}`}>${line.final}</span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
                     </div>
-                  </div>
 
-                  <div className="bg-white border border-gray-200 rounded-lg p-4">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                      <i className="ri-error-warning-line text-red-600"></i>
-                      Penalizaciones
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                          Tasa de Penalización (%)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={formData.capacity_penalty_rate}
-                          onChange={(e) => setFormData({ ...formData, capacity_penalty_rate: parseFloat(e.target.value) || 0 })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm"
-                          placeholder="Ej: 10 para 10%"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">
-                          Penalización por exceso de devoluciones o incidencias
-                        </p>
-                      </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                        <i className="ri-close-circle-line text-gray-400"></i>
+                        Descartadas ({calc.result.discarded.length})
+                      </h4>
+                      {calc.result.discarded.length === 0 ? (
+                        <p className="text-sm text-gray-400">Ninguna.</p>
+                      ) : (
+                        <ul className="space-y-1">
+                          {calc.result.discarded.map((d, i) => (
+                            <li key={i} className="text-sm text-gray-500 bg-white border border-gray-200 rounded-lg px-3 py-2">
+                              <span className="font-medium">{d.ruleCode}</span> — {d.detail}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
-                  </div>
 
-                  <div className="bg-white border border-gray-200 rounded-lg p-4">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                      <i className="ri-shield-check-line text-blue-600"></i>
-                      Mínimo Garantizado
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {calc.result.warnings.length > 0 && (
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                          Monto Mínimo ($)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={formData.min_guaranteed}
-                          onChange={(e) => setFormData({ ...formData, min_guaranteed: parseFloat(e.target.value) || 0 })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm"
-                          placeholder="Ej: 50000"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">
-                          Monto mínimo garantizado por ruta completada
-                        </p>
+                        <h4 className="text-sm font-semibold text-gray-700 mb-2">Avisos</h4>
+                        <ul className="space-y-1">
+                          {calc.result.warnings.map((w, i) => (
+                            <li key={i} className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">{w}</li>
+                          ))}
+                        </ul>
                       </div>
-                    </div>
+                    )}
                   </div>
-                </div>
+                )}
               </div>
             )}
 
@@ -757,96 +761,28 @@ export default function SettlementModal({ isOpen, onClose, onSuccess, settlement
                     <i className="ri-money-dollar-circle-line text-teal-600 text-2xl"></i>
                     Resumen Financiero
                   </h3>
-                  
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center py-2 border-b border-teal-200">
-                      <div className="flex items-center gap-2">
-                        <i className="ri-route-line text-gray-600"></i>
-                        <span className="text-sm text-gray-700">Tarifa Base Ruta</span>
-                      </div>
-                      <span className="text-sm font-semibold text-gray-900">
-                        ${formData.base_amount.toFixed(2)}
-                      </span>
-                    </div>
 
-                    <div className="flex justify-between items-center py-2 border-b border-teal-200">
-                      <div className="flex items-center gap-2">
-                        <i className="ri-map-pin-line text-gray-600"></i>
-                        <span className="text-sm text-gray-700">
-                          Kilómetros ({formData.total_distance} km × ${formData.per_km_rate})
+                  {calc ? (
+                    <div className="space-y-3">
+                      {Object.entries(filteredStageSubtotalsDisplay)
+                        .filter(([, amount]) => amount !== 0)
+                        .map(([stage, amount]) => (
+                          <div key={stage} className="flex justify-between items-center py-2 border-b border-teal-200">
+                            <span className="text-sm text-gray-700">{STAGE_LABELS[stage] || stage}</span>
+                            <span className="text-sm font-semibold text-gray-900">${amount.toFixed(2)}</span>
+                          </div>
+                        ))}
+
+                      <div className="flex justify-between items-center pt-4 mt-2 border-t-2 border-teal-300">
+                        <span className="text-lg font-bold text-gray-900">Total a liquidar al transportista</span>
+                        <span className="text-2xl font-bold text-teal-600">
+                          ${formData.total_amount.toFixed(2)}
                         </span>
                       </div>
-                      <span className="text-sm font-semibold text-gray-900">
-                        ${formData.distance_amount.toFixed(2)}
-                      </span>
                     </div>
-
-                    <div className="flex justify-between items-center py-2 border-b border-teal-200">
-                      <div className="flex items-center gap-2">
-                        <i className="ri-checkbox-circle-line text-gray-600"></i>
-                        <span className="text-sm text-gray-700">
-                          Entregas ({formData.total_deliveries} × ${formData.per_delivery_rate})
-                        </span>
-                      </div>
-                      <span className="text-sm font-semibold text-gray-900">
-                        ${formData.delivery_amount.toFixed(2)}
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between items-center py-2 border-b border-teal-200">
-                      <div className="flex items-center gap-2">
-                        <i className="ri-arrow-go-back-line text-gray-600"></i>
-                        <span className="text-sm text-gray-700">
-                          Devoluciones ({formData.total_returns} × ${formData.per_return_rate})
-                        </span>
-                      </div>
-                      <span className="text-sm font-semibold text-red-600">
-                        -${formData.return_amount.toFixed(2)}
-                      </span>
-                    </div>
-
-                    {formData.bonus_amount > 0 && (
-                      <div className="flex justify-between items-center py-2 border-b border-teal-200">
-                        <div className="flex items-center gap-2">
-                          <i className="ri-trophy-line text-gray-600"></i>
-                          <span className="text-sm text-gray-700">Bonificaciones</span>
-                        </div>
-                        <span className="text-sm font-semibold text-green-600">
-                          +${formData.bonus_amount.toFixed(2)}
-                        </span>
-                      </div>
-                    )}
-
-                    {formData.penalty_amount > 0 && (
-                      <div className="flex justify-between items-center py-2 border-b border-teal-200">
-                        <div className="flex items-center gap-2">
-                          <i className="ri-error-warning-line text-gray-600"></i>
-                          <span className="text-sm text-gray-700">Penalizaciones</span>
-                        </div>
-                        <span className="text-sm font-semibold text-red-600">
-                          -${formData.penalty_amount.toFixed(2)}
-                        </span>
-                      </div>
-                    )}
-
-                    <div className="flex justify-between items-center pt-4 mt-2 border-t-2 border-teal-300">
-                      <span className="text-lg font-bold text-gray-900">Total Liquidación</span>
-                      <span className="text-2xl font-bold text-teal-600">
-                        ${formData.total_amount.toFixed(2)}
-                      </span>
-                    </div>
-
-                    {formData.min_guaranteed > 0 && formData.total_amount === formData.min_guaranteed && (
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
-                        <div className="flex items-center gap-2">
-                          <i className="ri-shield-check-line text-blue-600"></i>
-                          <span className="text-xs text-blue-700">
-                            Se aplicó el mínimo garantizado de ${formData.min_guaranteed.toFixed(2)}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">Seleccioná una ruta para ver el resumen del cálculo.</p>
+                  )}
                 </div>
 
                 <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
