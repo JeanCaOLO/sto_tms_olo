@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { AppUser } from '../../lib/mock-auth';
 import { fetchViajesDespachados } from './viajes-api';
+import type { Pais } from './eflow-api';
 import type { Viaje } from './types';
 
-export function useViajes(appUser: AppUser | null) {
+// `pais` es una dependencia: al cambiar de país se recarga desde el otro
+// servidor EFLOW (el país activo lo lee eflow-api de su estado de módulo).
+export function useViajes(appUser: AppUser | null, pais: Pais = 'cr') {
   const [viajes, setViajes] = useState<Viaje[]>([]);
   const [cargandoViajes, setCargandoViajes] = useState(false);
 
@@ -14,7 +17,7 @@ export function useViajes(appUser: AppUser | null) {
       .then(setViajes)
       .catch((error) => console.error('Error cargando viajes:', error))
       .finally(() => setCargandoViajes(false));
-  }, [appUser]);
+  }, [appUser, pais]);
 
   return { viajes, cargandoViajes };
 }

@@ -8,11 +8,41 @@ import { getFallbackPedidos } from './fallback-pedidos';
 
 const TIMEOUT_MS = 4000;
 
+// País activo (cr = Costa Rica, ve = Venezuela). Determina de qué servidor
+// EFLOW carga la data — el server enruta por ?pais=. Persistido por-navegador.
+export type Pais = 'cr' | 've';
+const PAIS_KEY = 'planificacion.pais';
+
+function leerPais(): Pais {
+  try {
+    const v = localStorage.getItem(PAIS_KEY);
+    return v === 've' ? 've' : 'cr';
+  } catch {
+    return 'cr';
+  }
+}
+
+let paisActual: Pais = leerPais();
+export const getPais = (): Pais => paisActual;
+export function setPais(p: Pais): void {
+  paisActual = p;
+  try {
+    localStorage.setItem(PAIS_KEY, p);
+  } catch {
+    /* modo privado / storage bloqueado: se usa solo en memoria */
+  }
+}
+
+// Agrega ?pais= al path (respeta un query string previo).
+function conPais(path: string): string {
+  return `${path}${path.includes('?') ? '&' : '?'}pais=${paisActual}`;
+}
+
 async function getJson<T>(path: string): Promise<T> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(path, { signal: ctrl.signal });
+    const res = await fetch(conPais(path), { signal: ctrl.signal });
     if (!res.ok) throw new Error(`${path} -> HTTP ${res.status}`);
     return (await res.json()) as T;
   } finally {

@@ -7,8 +7,10 @@ import RutasGeneradas from './components/RutasGeneradas';
 import EditarRutaModal from './components/EditarRutaModal';
 import PlanificacionTabs from './components/PlanificacionTabs';
 import MatrizRutasTab from './components/MatrizRutasTab';
+import PaisSelector from './components/PaisSelector';
 import { useCatalogos } from './use-catalogos';
 import { useViajes } from './use-viajes';
+import { getPais, setPais, type Pais } from './eflow-api';
 import { usePedidosRuta } from './use-pedidos-ruta';
 import { usePedidosAnclados } from './use-pedidos-anclados';
 import { useGenerarRuta } from './use-generar-ruta';
@@ -22,8 +24,13 @@ export default function PlanificacionPage() {
   const { appUser } = useAuth();
   const { showToast } = useToast();
   const [tab, setTab] = useState<Tab>('nueva');
-  const { rutas, vehiculos, transportistas, conductores, loading } = useCatalogos(appUser);
-  const { viajes, cargandoViajes } = useViajes(appUser);
+  const [pais, setPaisState] = useState<Pais>(getPais());
+  const cambiarPais = (p: Pais) => {
+    setPais(p); // actualiza el país que consume eflow-api
+    setPaisState(p); // dispara la recarga de viajes/catálogos (deps de los hooks)
+  };
+  const { rutas, vehiculos, transportistas, conductores, loading } = useCatalogos(appUser, pais);
+  const { viajes, cargandoViajes } = useViajes(appUser, pais);
   const {
     viajeId, pedidosRuta, pedidosSeleccionados, excluidosPorCapacidad, optimizando,
     setViaje, togglePedido, quitarPedido, reordenarParadas, optimizarRuta, resetPedidos,
@@ -100,12 +107,15 @@ export default function PlanificacionPage() {
             Selecciona un viaje despachado, asigna transportista, conductor y vehículo, y genera la ruta óptima de entrega
           </p>
         </div>
-        {tab === 'nueva' && pedidosSeleccionados.length > 0 && (
-          <div className="flex items-center gap-2 text-sm bg-teal-50 border border-teal-200 text-teal-700 px-3 py-2 rounded-lg flex-shrink-0">
-            <i className="ri-checkbox-circle-line"></i>
-            <span><strong>{pedidosSeleccionados.length}</strong> de <strong>{pedidosRuta.length}</strong> pedidos incluidos</span>
-          </div>
-        )}
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <PaisSelector pais={pais} onChange={cambiarPais} />
+          {tab === 'nueva' && pedidosSeleccionados.length > 0 && (
+            <div className="flex items-center gap-2 text-sm bg-teal-50 border border-teal-200 text-teal-700 px-3 py-2 rounded-lg">
+              <i className="ri-checkbox-circle-line"></i>
+              <span><strong>{pedidosSeleccionados.length}</strong> de <strong>{pedidosRuta.length}</strong> pedidos incluidos</span>
+            </div>
+          )}
+        </div>
       </div>
 
       <PlanificacionTabs tab={tab} setTab={setTab} rutasGeneradasCount={rutasGeneradas.length} />
