@@ -15,7 +15,13 @@ interface Props {
   onEliminar: (id: string) => void;
   onEditar: (ruta: RutaGenerada) => void;
   onCambiarEstado: (id: string, estado: EstadoSecuencia) => void;
+  seleccionada: boolean;
+  onToggleSeleccion: (id: string) => void;
 }
+
+// Detiene la propagación para que clickear un control interno (botones, mapa,
+// "ver secuencia") no togglee la selección de la tarjeta.
+const noPropagar = (e: React.MouseEvent) => e.stopPropagation();
 
 const creadaHace = (isoDate: string): string => {
   const minutos = Math.round((Date.now() - new Date(isoDate).getTime()) / 60000);
@@ -35,21 +41,40 @@ const nombreDe = <T extends { id: string; name?: string; full_name?: string; pla
   return item?.name || item?.full_name || item?.plate || 'Desconocido';
 };
 
-export default function RutaGeneradaCard({ ruta, rutasTipo, transportistas, conductores, vehiculos, onEliminar, onEditar, onCambiarEstado }: Props) {
+export default function RutaGeneradaCard({ ruta, rutasTipo, transportistas, conductores, vehiculos, onEliminar, onEditar, onCambiarEstado, seleccionada, onToggleSeleccion }: Props) {
   const estado = estadoDeRuta(ruta.fechaRuta);
   const estadoSeq = infoEstadoSecuencia(ruta.estado);
 
   return (
-    <Card className="flex flex-col">
+    <div
+      role="checkbox"
+      aria-checked={seleccionada}
+      aria-label={`Seleccionar secuencia ${ruta.routeNumber}`}
+      tabIndex={0}
+      onClick={() => onToggleSeleccion(ruta.id)}
+      onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); onToggleSeleccion(ruta.id); } }}
+      className={`rounded-lg cursor-pointer transition-shadow ${seleccionada ? 'ring-2 ring-teal-500' : 'ring-0'}`}
+    >
+    <Card className={`flex flex-col transition-colors ${seleccionada ? 'bg-teal-50/60 border-teal-300' : ''}`}>
       <div className="flex items-start justify-between mb-3">
-        <div>
-          <p className="font-semibold text-slate-800">{ruta.routeNumber}</p>
-          <p className="text-xs text-slate-500 mt-0.5">{nombreDe(rutasTipo, ruta.rutaTypeId)}</p>
-          <p className="text-xs text-slate-400 mt-0.5">
-            <i className="ri-time-line mr-1"></i>Creada {creadaHace(ruta.createdAt)}
-          </p>
+        <div className="flex items-start gap-2.5">
+          <span
+            aria-hidden="true"
+            className={`mt-0.5 w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-md border transition-colors ${
+              seleccionada ? 'bg-teal-600 border-teal-600 text-white' : 'bg-white border-slate-300 text-transparent'
+            }`}
+          >
+            <i className="ri-check-line text-sm"></i>
+          </span>
+          <div>
+            <p className="font-semibold text-slate-800">{ruta.routeNumber}</p>
+            <p className="text-xs text-slate-500 mt-0.5">{nombreDe(rutasTipo, ruta.rutaTypeId)}</p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              <i className="ri-time-line mr-1"></i>Creada {creadaHace(ruta.createdAt)}
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1" onClick={noPropagar}>
           <Badge variant={estadoSeq.variant} size="sm">
             <i className={`${estadoSeq.icon} mr-1`}></i>{estadoSeq.label}
           </Badge>
@@ -57,14 +82,14 @@ export default function RutaGeneradaCard({ ruta, rutasTipo, transportistas, cond
           <button
             onClick={() => onEditar(ruta)}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer"
-            title="Editar ruta"
+            title="Editar secuencia"
           >
             <i className="ri-pencil-line"></i>
           </button>
           <button
             onClick={() => onEliminar(ruta.id)}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
-            title="Eliminar ruta"
+            title="Eliminar secuencia"
           >
             <i className="ri-delete-bin-line"></i>
           </button>
@@ -80,7 +105,7 @@ export default function RutaGeneradaCard({ ruta, rutasTipo, transportistas, cond
 
       <div className="border-t border-slate-100 mt-3 pt-3">
         <p className="text-xs font-semibold text-slate-500 mb-2" id={`estado-${ruta.id}`}>Estado de la secuencia</p>
-        <div className="flex flex-wrap gap-1.5" role="group" aria-labelledby={`estado-${ruta.id}`}>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-labelledby={`estado-${ruta.id}`} onClick={noPropagar}>
           {ESTADOS_SECUENCIA.map((e) => {
             const activo = e.estado === estadoSeq.estado;
             return (
@@ -102,11 +127,11 @@ export default function RutaGeneradaCard({ ruta, rutasTipo, transportistas, cond
         </div>
       </div>
 
-      <div className="border-t border-slate-100 mt-3 pt-3">
+      <div className="border-t border-slate-100 mt-3 pt-3" onClick={noPropagar}>
         <RutaMapaPreview pedidos={ruta.pedidos} />
       </div>
 
-      <div className="border-t border-slate-100 mt-3 pt-3 flex-1">
+      <div className="border-t border-slate-100 mt-3 pt-3 flex-1" onClick={noPropagar}>
         <p className="text-xs font-semibold text-slate-500 mb-2">Secuencia de paradas</p>
         <StopMiniPreview pedidos={ruta.pedidos} />
       </div>
@@ -116,5 +141,6 @@ export default function RutaGeneradaCard({ ruta, rutasTipo, transportistas, cond
         <span className="text-xs text-slate-500">{ruta.totalWeight.toFixed(1)} kg · {ruta.totalVolume.toFixed(1)} m³</span>
       </div>
     </Card>
+    </div>
   );
 }

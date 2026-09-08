@@ -24,5 +24,16 @@ export function useRutasGeneradas() {
     refresh();
   };
 
-  return { rutas, refresh, eliminar, actualizar, cambiarEstado };
+  // Acciones en lote: aplican sobre varias secuencias y refrescan una sola vez.
+  const eliminarVarias = (ids: string[]) => {
+    ids.forEach(eliminarRutaGenerada);
+    refresh();
+  };
+
+  const cambiarEstadoVarias = (ids: string[], estado: EstadoSecuencia) => {
+    ids.forEach((id) => cambiarEstadoRutaGenerada(id, estado));
+    refresh();
+  };
+
+  return { rutas, refresh, eliminar, actualizar, cambiarEstado, eliminarVarias, cambiarEstadoVarias };
 }

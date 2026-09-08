@@ -38,7 +38,7 @@ export default function PlanificacionPage() {
   } = usePedidosRuta();
   const { anclados, toggleAnclaConValidacion, limpiarAnclas } = usePedidosAnclados();
   const { generarRuta, generando } = useGenerarRuta({ appUser, vehiculos, rutas });
-  const { rutas: rutasGeneradas, refresh: refreshRutasGeneradas, eliminar: eliminarRutaGenerada, actualizar: actualizarRutaGenerada, cambiarEstado: cambiarEstadoRutaGenerada } = useRutasGeneradas();
+  const { rutas: rutasGeneradas, refresh: refreshRutasGeneradas, eliminar: eliminarRutaGenerada, actualizar: actualizarRutaGenerada, cambiarEstado: cambiarEstadoRutaGenerada, eliminarVarias: eliminarRutasGeneradas, cambiarEstadoVarias: cambiarEstadoRutasGeneradas } = useRutasGeneradas();
   const rutaTypeId = viajes.find((v) => v.id === viajeId)?.route_type_id || '';
   const [editandoRuta, setEditandoRuta] = useState<RutaGenerada | null>(null);
 
@@ -130,6 +130,8 @@ export default function PlanificacionPage() {
           onEliminar={eliminarRutaGenerada}
           onEditar={setEditandoRuta}
           onCambiarEstado={cambiarEstadoRutaGenerada}
+          onEliminarVarias={eliminarRutasGeneradas}
+          onCambiarEstadoVarias={cambiarEstadoRutasGeneradas}
         />
       )}
 

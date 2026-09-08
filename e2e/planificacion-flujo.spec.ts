@@ -90,8 +90,8 @@ test.describe('Planificación — flujo de generación de ruta', () => {
     // 6. Toast de éxito
     await expect(page.getByText(/ruta .* generada con \d+ paradas/i)).toBeVisible({ timeout: 10000 });
 
-    // 7. Aparece en "Rutas Generadas"
-    await page.getByRole('button', { name: /rutas generadas/i }).click();
+    // 7. Aparece en "Secuencias Generadas"
+    await page.getByRole('button', { name: /secuencias generadas/i }).click();
     await expect(page.locator('body')).toContainText(/RT-MOCK-\d+|·/i);
 
     expect(errors, errors.join('\n')).toEqual([]);

@@ -9,7 +9,7 @@ interface Props {
 const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: 'nueva', icon: 'ri-add-circle-line', label: 'Nueva Ruta' },
   { id: 'flota', icon: 'ri-stack-line', label: 'Reparto de Flota' },
-  { id: 'generadas', icon: 'ri-route-line', label: 'Rutas Generadas' },
+  { id: 'generadas', icon: 'ri-route-line', label: 'Secuencias Generadas' },
   { id: 'matriz', icon: 'ri-table-line', label: 'Matriz de Rutas' },
 ];
 
