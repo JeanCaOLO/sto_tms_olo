@@ -56,8 +56,8 @@ export default function RutaGeneradaCard({ ruta, rutasTipo, transportistas, cond
       className={`rounded-lg cursor-pointer transition-shadow ${seleccionada ? 'ring-2 ring-teal-500' : 'ring-0'}`}
     >
     <Card className={`flex flex-col transition-colors ${seleccionada ? 'bg-teal-50/60 border-teal-300' : ''}`}>
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-start gap-2.5">
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div className="flex items-start gap-2.5 min-w-0">
           <span
             aria-hidden="true"
             className={`mt-0.5 w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-md border transition-colors ${
@@ -66,19 +66,21 @@ export default function RutaGeneradaCard({ ruta, rutasTipo, transportistas, cond
           >
             <i className="ri-check-line text-sm"></i>
           </span>
-          <div>
-            <p className="font-semibold text-slate-800">{ruta.routeNumber}</p>
-            <p className="text-xs text-slate-500 mt-0.5">{nombreDe(rutasTipo, ruta.rutaTypeId)}</p>
+          <div className="min-w-0">
+            <p className="font-semibold text-slate-800 truncate">{ruta.routeNumber}</p>
+            <p className="text-xs text-slate-500 mt-0.5 truncate">{nombreDe(rutasTipo, ruta.rutaTypeId)}</p>
             <p className="text-xs text-slate-400 mt-0.5">
               <i className="ri-time-line mr-1"></i>Creada {creadaHace(ruta.createdAt)}
             </p>
+            <div className="flex flex-wrap items-center gap-1 mt-1.5" onClick={noPropagar}>
+              <Badge variant={estadoSeq.variant} size="sm">
+                <i className={`${estadoSeq.icon} mr-1`}></i>{estadoSeq.label}
+              </Badge>
+              <Badge variant={estado.variant} size="sm">{estado.label}</Badge>
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-1" onClick={noPropagar}>
-          <Badge variant={estadoSeq.variant} size="sm">
-            <i className={`${estadoSeq.icon} mr-1`}></i>{estadoSeq.label}
-          </Badge>
-          <Badge variant={estado.variant} size="sm">{estado.label}</Badge>
+        <div className="flex items-center gap-1 flex-shrink-0" onClick={noPropagar}>
           <button
             onClick={() => onEditar(ruta)}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer"
@@ -136,9 +138,9 @@ export default function RutaGeneradaCard({ ruta, rutasTipo, transportistas, cond
         <StopMiniPreview pedidos={ruta.pedidos} />
       </div>
 
-      <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
+      <div className="flex flex-wrap items-center justify-between gap-2 mt-4 pt-3 border-t border-slate-100">
         <Badge variant="info">{ruta.pedidos.length} paradas</Badge>
-        <span className="text-xs text-slate-500">{ruta.totalWeight.toFixed(1)} kg · {ruta.totalVolume.toFixed(1)} m³</span>
+        <span className="text-xs text-slate-500 whitespace-nowrap">{ruta.totalWeight.toFixed(1)} kg · {ruta.totalVolume.toFixed(1)} m³</span>
       </div>
     </Card>
     </div>
