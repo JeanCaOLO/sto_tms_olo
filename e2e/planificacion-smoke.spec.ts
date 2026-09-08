@@ -4,7 +4,11 @@ function trackErrors(page: Page): string[] {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   page.on('console', (msg) => {
-    if (msg.type() === 'error') errors.push(`console: ${msg.text()}`);
+    // Ignora ruido esperado: fetch abortado al re-render y 500/502 de /api
+    // cuando el backend EFLOW está offline (la app cae al mock por diseño).
+    if (msg.type() === 'error' && !/aborted without reason|Failed to load resource.*(500|502)|eflow_query_failed/i.test(msg.text())) {
+      errors.push(`console: ${msg.text()}`);
+    }
   });
   return errors;
 }

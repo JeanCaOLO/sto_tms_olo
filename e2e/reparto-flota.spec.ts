@@ -4,7 +4,7 @@ function trackErrors(page: Page): string[] {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   page.on('console', (msg) => {
-    if (msg.type() === 'error' && !/aborted without reason/i.test(msg.text())) {
+    if (msg.type() === 'error' && !/aborted without reason|Failed to load resource.*(500|502)|eflow_query_failed/i.test(msg.text())) {
       errors.push(`console: ${msg.text()}`);
     }
   });

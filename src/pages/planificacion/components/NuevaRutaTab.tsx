@@ -1,6 +1,9 @@
+import { useState } from 'react';
+import Card from '../../../components/base/Card';
 import PedidosRuta from './PedidosRuta';
 import RutaEnConstruccion from './RutaEnConstruccion';
 import ConfiguracionRuta from './ConfiguracionRuta';
+import RutaMapaPreview from './RutaMapaPreview';
 import type { DevolucionEnVivoInput } from '../live-devolucion';
 import type { Conductor, Pedido, PedidoSeleccionado, Transportista, Vehiculo, Viaje } from '../types';
 
@@ -39,6 +42,9 @@ interface Props {
 
 export default function NuevaRutaTab(props: Props) {
   const { excluidosPorCapacidad, pedidosSeleccionados } = props;
+  // El mapa vive full-width debajo de las columnas; el foco de parada se
+  // levanta acá para que clic en una parada (columna derecha) lo mueva.
+  const [paradaEnfocadaId, setParadaEnfocadaId] = useState<string>();
   const totalWeight = pedidosSeleccionados.reduce((s, p) => s + (p.total_weight || 0), 0);
   const totalVolume = pedidosSeleccionados.reduce((s, p) => s + (p.total_volume || 0), 0);
 
@@ -118,8 +124,23 @@ export default function NuevaRutaTab(props: Props) {
           onReordenarParadas={props.onReordenarParadas}
           onAgregarDevolucionEnVivo={props.onAgregarDevolucionEnVivo}
           onOptimizarRuta={props.onOptimizarRuta}
+          onEnfocarParada={setParadaEnfocadaId}
         />
       </div>
+
+      {pedidosSeleccionados.length > 0 && (
+        <Card>
+          <h2 className="text-lg font-semibold text-slate-800 mb-3">
+            <i className="ri-map-2-line mr-2 text-teal-600"></i>
+            Mapa de la secuencia de paradas
+          </h2>
+          <RutaMapaPreview
+            pedidos={pedidosSeleccionados}
+            paradaEnfocadaId={paradaEnfocadaId}
+            alturaClase="h-[460px]"
+          />
+        </Card>
+      )}
     </>
   );
 }

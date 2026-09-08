@@ -4,9 +4,10 @@ function trackErrors(page: Page): string[] {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   page.on('console', (msg) => {
-    // "signal is aborted without reason" = fetch de enriquecimiento cancelado
-    // al re-render; es ruido esperado, no un fallo de la app.
-    if (msg.type() === 'error' && !/aborted without reason/i.test(msg.text())) {
+    // Ruido esperado, no fallos de la app: (1) "aborted without reason" =
+    // fetch de enriquecimiento cancelado al re-render; (2) 500/502 de /api =
+    // backend EFLOW offline (sin `pnpm server`), la app cae al mock por diseño.
+    if (msg.type() === 'error' && !/aborted without reason|Failed to load resource.*(500|502)|eflow_query_failed/i.test(msg.text())) {
       errors.push(`console: ${msg.text()}`);
     }
   });
@@ -17,15 +18,23 @@ function trackErrors(page: Page): string[] {
 // los 4 viajes mock (`VJ-MOCK-*`) cuando no. Estos helpers dejan las pruebas
 // agnósticas al origen de datos: seleccionan por posición, no por etiqueta fija.
 
+const opcionesViaje = (page: Page) =>
+  page.getByLabel('Viaje (WMS)').locator('option[value]:not([value=""])');
+
 /** Valores de las <option> de viaje con value no vacío (incluye las de optgroup). */
 async function viajeOptionValues(page: Page): Promise<string[]> {
-  return page
-    .getByLabel('Viaje (WMS)')
-    .locator('option[value]:not([value=""])')
-    .evaluateAll((opts) => opts.map((o) => (o as HTMLOptionElement).value));
+  return opcionesViaje(page).evaluateAll((opts) => opts.map((o) => (o as HTMLOptionElement).value));
+}
+
+// El selector se puebla de forma asíncrona: real de EFLOW (server :4000) o, si
+// está offline, del mock tras el fallback. Espera a que haya opciones antes de
+// leerlas — evita fragilidad de timing bajo carga (fallback tardío al mock).
+async function esperarViajes(page: Page): Promise<void> {
+  await expect(opcionesViaje(page).first()).toBeAttached({ timeout: 15000 });
 }
 
 async function seleccionarPrimerViaje(page: Page): Promise<string> {
+  await esperarViajes(page);
   const values = await viajeOptionValues(page);
   expect(values.length, 'el selector de viaje no trae ninguna opción').toBeGreaterThan(0);
   await page.getByLabel('Viaje (WMS)').selectOption(values[0]);
@@ -111,6 +120,7 @@ test.describe('Planificación — flujo de generación de ruta', () => {
     // `getFallbackPedidos` marca los índices 8 y 14 como devolución, así que
     // todo viaje (real o mock) que use ese pool las trae. Recorremos las
     // opciones hasta encontrar una que muestre el badge.
+    await esperarViajes(page);
     const values = await viajeOptionValues(page);
     let encontrada = false;
     for (const v of values.slice(0, 5)) {
@@ -129,6 +139,7 @@ test.describe('Planificación — flujo de generación de ruta', () => {
 
   test('cambiar de viaje reemplaza las paradas del viaje anterior (no las acumula)', async ({ page }) => {
     await page.goto('/planificacion', { waitUntil: 'networkidle' });
+    await esperarViajes(page);
     const values = await viajeOptionValues(page);
     test.skip(values.length < 2, 'Se necesitan al menos 2 viajes para esta prueba.');
     const viajeSelect = page.getByLabel('Viaje (WMS)');

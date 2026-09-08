@@ -2,7 +2,6 @@ import { useState } from 'react';
 import Card from '../../../components/base/Card';
 import Badge from '../../../components/base/Badge';
 import ParadaCard from './ParadaCard';
-import RutaMapaPreview from './RutaMapaPreview';
 import DevolucionEnVivoForm from './DevolucionEnVivoForm';
 import { entregasADescargarPara } from '../capacity-fit';
 import type { DevolucionEnVivoInput } from '../live-devolucion';
@@ -17,14 +16,16 @@ interface Props {
   onReordenarParadas: (fromIndex: number, toIndex: number) => void;
   onAgregarDevolucionEnVivo: (input: DevolucionEnVivoInput) => void;
   onOptimizarRuta: () => void;
+  /** Enfocar una parada en el mapa (el mapa vive en NuevaRutaTab, full-width). */
+  onEnfocarParada: (id: string) => void;
 }
 
 export default function RutaEnConstruccion({
   pedidosSeleccionados, pedidosAnclados, vehiculoSeleccionado, optimizando,
   onQuitarPedido, onReordenarParadas, onAgregarDevolucionEnVivo, onOptimizarRuta,
+  onEnfocarParada,
 }: Props) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [paradaEnfocadaId, setParadaEnfocadaId] = useState<string>();
   const [mostrarForm, setMostrarForm] = useState(false);
 
   const handleDragOver = (e: React.DragEvent, index: number) => {
@@ -128,17 +129,11 @@ export default function RutaEnConstruccion({
               onDragStart={() => setDraggedIndex(index)}
               onDragOver={(e) => handleDragOver(e, index)}
               onDragEnd={() => setDraggedIndex(null)}
-              onEnfocar={setParadaEnfocadaId}
+              onEnfocar={onEnfocarParada}
             />
           ))
         )}
       </div>
-
-      {pedidosSeleccionados.length > 0 && (
-        <div className="mt-4 flex-shrink-0">
-          <RutaMapaPreview pedidos={pedidosSeleccionados} paradaEnfocadaId={paradaEnfocadaId} />
-        </div>
-      )}
     </Card>
   );
 }
