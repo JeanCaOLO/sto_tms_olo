@@ -56,9 +56,13 @@ por `NUMEROVIAJEWMH = journey_id`. Ver `VIAJES_BASE` en `server/queries.mjs`.
 - **Peso/volumen:** `PESOPEDIDO_TOTAL`/`CUBICAJEPEDIDO_TOTAL` poblados en CR
   (76%/48%) pero **en 0 en VE** (`EFLOW_FEBECA`). El bin-packing debe degradar
   con gracia cuando falten.
-- **Coordenadas:** `CLIENTES.LATITUD/LONGITUD` poblado en **~2%** (698 de 35.651
-  en CR). Es el mayor bloqueante para la optimización real; el pedido sin
-  coordenadas queda fuera del cálculo (excepción ya contemplada).
+- **Coordenadas:** la única fuente es `CLIENTES.LATITUD/LONGITUD` (varchar
+  decimal, p. ej. `"9.93291300"` / `"-84.06559500"`). Poco poblada: **CR ~2%**
+  (698 de 35.651) · **VE ~6%** (2.865 de 45.651). Es el mayor bloqueante para la
+  optimización real; el pedido sin coordenadas queda fuera del cálculo (excepción
+  ya contemplada). NO usar `CLIENTES.IDGEOREFERENCIA1..5` como coordenadas — son
+  FKs a la jerarquía administrativa (`GEOREFERENCIA1..5`: provincia/cantón/
+  distrito), no lat/long.
 - **`FECHAPLANIFICADADESPACHO`:** casi vacía (0.2%) — el cliente no la usa; el
   OMS deriva la fecha de la regla T-1 sobre fecha de entrega/cierre.
 - **Capacidad de vehículo:** 0 en ambos países (VE: 15/225 con peso, 0 volumen).
