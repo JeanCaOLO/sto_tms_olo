@@ -10,6 +10,7 @@ export function useColaController() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [overrideOpen, setOverrideOpen] = useState(false);
 
   useEffect(() => {
@@ -26,7 +27,7 @@ export function useColaController() {
 
   const selected = orders.find((o) => o.id === selectedId) ?? null;
 
-  const scoreForTier: Record<PriorityTier, number> = { critico: 950, alto: 650, medio: 350, bajo: 50 };
+  const scoreForTier: Record<PriorityTier, number> = { 1: 950, 2: 650, 3: 350, 4: 50 };
 
   // Override manual local (FR3.4/FR3.5): recalcula score, reordena y registra
   // en el historial del pedido. Mock: no persiste fuera de la sesión.
@@ -48,11 +49,13 @@ export function useColaController() {
         .sort((a, b) => b.score - a.score),
     );
     setOverrideOpen(false);
+    setDetailOpen(true); // vuelve al detalle con la prioridad actualizada
   };
 
   return {
     country, setCountry, orders, loading, error,
     selectedId, setSelectedId, selected,
+    detailOpen, setDetailOpen,
     overrideOpen, setOverrideOpen, applyOverride,
   };
 }

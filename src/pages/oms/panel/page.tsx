@@ -7,10 +7,10 @@ import { usePanelController } from './usePanelController';
 
 // Colores por tier para la distribución (paleta del design system, tema claro).
 const TIER_BAR: Record<PriorityTier, { dot: string; bar: string; text: string }> = {
-  critico: { dot: 'bg-red-500', bar: 'bg-red-500', text: 'text-red-600' },
-  alto: { dot: 'bg-amber-500', bar: 'bg-amber-500', text: 'text-amber-600' },
-  medio: { dot: 'bg-teal-500', bar: 'bg-teal-500', text: 'text-teal-600' },
-  bajo: { dot: 'bg-slate-400', bar: 'bg-slate-400', text: 'text-slate-600' },
+  1: { dot: 'bg-red-500', bar: 'bg-red-500', text: 'text-red-600' },
+  2: { dot: 'bg-amber-500', bar: 'bg-amber-500', text: 'text-amber-600' },
+  3: { dot: 'bg-teal-500', bar: 'bg-teal-500', text: 'text-teal-600' },
+  4: { dot: 'bg-slate-400', bar: 'bg-slate-400', text: 'text-slate-600' },
 };
 
 // Pantalla Panel OMS — dashboard de salud del motor (FR4).

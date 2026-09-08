@@ -112,3 +112,34 @@
 **Digest**: 161124a2d1b911a186b86cb14bf45a021d33ece32874b161745fe7480432809b
 
 ---
+
+## Document Indexed
+**Timestamp**: 2026-09-07T19:21:21Z
+**Event**: DOCUMENT_INDEXED
+**Space**: default
+**Document**: 01a07d51-65d8-7174-a6ce-0547938c8d76
+**Source**: documents/2026-09-07-reunion-oms-antonio-flujo-priorizacion.md
+**Digest**: 85a5373b9403bda6792cdce7bf458faa861c97475c5744d16c0764c8691ffdb7
+
+---
+
+## Document Indexed
+**Timestamp**: 2026-09-07T20:11:35Z
+**Event**: DOCUMENT_INDEXED
+**Space**: default
+**Document**: 01a07d7f-63f8-7f42-b2ef-c19e50a4b054
+**Source**: documents/2026-09-07-reuniones-oms-origen-datos-pedidos.md
+**Digest**: 6bb30f4291a1bec3db524499c9ff11a8b9b8c92cb5e8b0503081eb2994a5689b
+
+---
+
+## Document Updated
+**Timestamp**: 2026-09-07T20:23:19Z
+**Event**: DOCUMENT_UPDATED
+**Space**: default
+**Document**: 01a07d7f-63f8-7f42-b2ef-c19e50a4b054
+**Change**: edited
+**Source**: documents/2026-09-07-reuniones-oms-origen-datos-pedidos.md
+**Digest**: 48e76d5e279dc3f9934ae2d137e1ca2a9223d58c534557cf9d778dade7f94f85
+
+---

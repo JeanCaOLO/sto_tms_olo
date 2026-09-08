@@ -11,8 +11,9 @@ export default function OmsSimuladorPage() {
   const [ran, setRan] = useState(false);
   const [running, setRunning] = useState(false);
 
-  const demote: Record<PriorityTier, PriorityTier> = { critico: 'alto', alto: 'medio', medio: 'bajo', bajo: 'bajo' };
-  const scoreForTier: Record<PriorityTier, number> = { critico: 950, alto: 650, medio: 350, bajo: 50 };
+  // La "simulación" mock baja un nivel de prioridad (mayor número = menos urgente).
+  const demote: Record<PriorityTier, PriorityTier> = { 1: 2, 2: 3, 3: 4, 4: 4 };
+  const scoreForTier: Record<PriorityTier, number> = { 1: 950, 2: 650, 3: 350, 4: 50 };
 
   const current = queueOrders.slice().sort((a, b) => b.score - a.score);
   const simulated = current

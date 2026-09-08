@@ -51,40 +51,40 @@ export const cofersaRoutes: DispatchRoute[] = [
   { id: '44', name: 'REY', routeType: 'GAM', country: 'CR', loadDays: [], deliveryDays: [], byAppointment: true, exceptions: 0, active: true },
 ];
 
-// FR2/FR3 — cola de priorización (mock).
+// FR2/FR3 — cola de priorización (mock). tier numérico: 1 = más urgente.
 export const queueOrders: QueueOrder[] = [
   {
-    id: 'PED-10432', customer: 'EPA', route: '34 Escazú Epa', country: 'CR', tier: 'critico', score: 920,
-    readyToPrepDate: '2026-08-28', status: 'Pendiente', intakeTime: '08:41',
-    appliedRules: [{ name: 'Fecha de despacho vencida', weight: 600 }, { name: 'Cliente EPA — quiebre de stock', weight: 320 }],
-    history: [{ at: '2026-08-28 08:41', from: 'sin asignar', to: 'critico', type: 'automatico' }],
+    id: 'PED-10432', ref: 'ERP-CF-88213', customer: 'Cofersa', route: '34 Escazú Epa', country: 'CR', tier: 1, score: 920,
+    itemCount: 24, dispatchDate: '2026-08-29', readyToPrepDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '08:41',
+    appliedRules: [{ name: 'Fecha de despacho vencida', weight: 600 }, { name: 'Cliente — quiebre de stock', weight: 320 }],
+    history: [{ at: '2026-08-28 08:41', from: 'sin asignar', to: 1, type: 'automatico' }],
   },
   {
-    id: 'PED-10440', customer: 'Cofersa', route: '13 Puntarenas', country: 'CR', tier: 'alto', score: 610,
-    readyToPrepDate: '2026-08-29', status: 'Pendiente', intakeTime: '09:05',
+    id: 'PED-10440', ref: 'ERP-CF-88240', customer: 'Cofersa', route: '13 Puntarenas', country: 'CR', tier: 2, score: 610,
+    itemCount: 8, dispatchDate: '2026-08-30', readyToPrepDate: '2026-08-29', status: 'DISP', situation: 'DISP', intakeTime: '09:05',
     appliedRules: [{ name: 'Día de ruta próximo', weight: 610 }],
-    history: [{ at: '2026-08-28 09:05', from: 'sin asignar', to: 'alto', type: 'automatico' }],
+    history: [{ at: '2026-08-28 09:05', from: 'sin asignar', to: 2, type: 'automatico' }],
   },
   {
-    id: 'PED-10455', customer: 'EPA', route: '34 Escazú Epa', country: 'CR', tier: 'medio', score: 300,
-    readyToPrepDate: '2026-08-30', status: 'Pendiente', intakeTime: '09:22',
+    id: 'PED-10455', ref: 'ERP-CF-88255', customer: 'Cofersa', route: '08 San Carlos', country: 'CR', tier: 3, score: 300,
+    itemCount: 15, dispatchDate: '2026-08-31', readyToPrepDate: '2026-08-30', status: 'DISP', situation: 'DISP', intakeTime: '09:22',
     appliedRules: [{ name: 'Día de ruta a 2 días', weight: 300 }],
-    history: [{ at: '2026-08-28 09:22', from: 'sin asignar', to: 'medio', type: 'automatico' }],
+    history: [{ at: '2026-08-28 09:22', from: 'sin asignar', to: 3, type: 'automatico' }],
   },
   {
-    id: 'PED-10461', customer: 'Cofersa', route: '08 San Carlos', country: 'CR', tier: 'critico', score: 950,
-    readyToPrepDate: '2026-08-27', status: 'Referencia WMS inválida', intakeTime: '07:58',
+    id: 'PED-10461', ref: 'ERP-CF-88261', customer: 'Cofersa', route: '08 San Carlos', country: 'CR', tier: 1, score: 950,
+    itemCount: 3, dispatchDate: '2026-08-28', readyToPrepDate: '2026-08-27', status: 'DISP', situation: 'DISP', intakeTime: '07:58',
     appliedRules: [{ name: 'Fecha de despacho vencida', weight: 600 }, { name: 'Override manual', weight: 350 }],
     history: [
-      { at: '2026-08-28 07:58', from: 'sin asignar', to: 'alto', type: 'automatico' },
-      { at: '2026-08-28 10:12', from: 'alto', to: 'critico', type: 'manual', reason: 'Viaje extra pagado por el cliente' },
+      { at: '2026-08-28 07:58', from: 'sin asignar', to: 2, type: 'automatico' },
+      { at: '2026-08-28 10:12', from: 2, to: 1, type: 'manual', reason: 'Viaje extra pagado por el cliente' },
     ],
   },
   {
-    id: 'PED-10470', customer: 'Mayoreo', route: '12 Zona Sur', country: 'CR', tier: 'bajo', score: 0,
-    readyToPrepDate: '2026-09-02', status: 'Pendiente', intakeTime: '10:30',
+    id: 'PED-10470', ref: 'ERP-CF-88270', customer: 'Cofersa', route: '12 Zona Sur', country: 'CR', tier: 4, score: 0,
+    itemCount: 41, dispatchDate: '2026-09-03', readyToPrepDate: '2026-09-02', status: 'DISP', situation: 'DISP', intakeTime: '10:30',
     appliedRules: [],
-    history: [{ at: '2026-08-28 10:30', from: 'sin asignar', to: 'bajo', type: 'automatico' }],
+    history: [{ at: '2026-08-28 10:30', from: 'sin asignar', to: 4, type: 'automatico' }],
   },
 ];
 
@@ -108,9 +108,9 @@ export const ruleProfiles = ['Base CR', 'Perfil EPA', 'Perfil Cofersa'];
 
 // FR7 — auditoría (mock).
 export const auditEntries: AuditEntry[] = [
-  { id: 'A-1', timestamp: '2026-08-28 09:12', orderId: 'PED-10432', country: 'CR', changeType: 'automatico', tierFrom: 'sin asignar', tierTo: 'critico', scoreFrom: null, scoreTo: 920, actor: 'sistema', detail: 'Regla: Fecha de despacho vencida' },
-  { id: 'A-2', timestamp: '2026-08-28 10:12', orderId: 'PED-10461', country: 'CR', changeType: 'manual', tierFrom: 'alto', tierTo: 'critico', scoreFrom: 600, scoreTo: 950, actor: 'jperez', detail: 'Viaje extra pagado por el cliente' },
-  { id: 'A-3', timestamp: '2026-08-28 09:05', orderId: 'PED-10440', country: 'CR', changeType: 'automatico', tierFrom: 'sin asignar', tierTo: 'alto', scoreFrom: null, scoreTo: 610, actor: 'sistema', detail: 'Regla: Día de ruta próximo' },
+  { id: 'A-1', timestamp: '2026-08-28 09:12', orderId: 'PED-10432', country: 'CR', changeType: 'automatico', tierFrom: 'sin asignar', tierTo: 1, scoreFrom: null, scoreTo: 920, actor: 'sistema', detail: 'Regla: Fecha de despacho vencida' },
+  { id: 'A-2', timestamp: '2026-08-28 10:12', orderId: 'PED-10461', country: 'CR', changeType: 'manual', tierFrom: 2, tierTo: 1, scoreFrom: 600, scoreTo: 950, actor: 'jperez', detail: 'Viaje extra pagado por el cliente' },
+  { id: 'A-3', timestamp: '2026-08-28 09:05', orderId: 'PED-10440', country: 'CR', changeType: 'automatico', tierFrom: 'sin asignar', tierTo: 2, scoreFrom: null, scoreTo: 610, actor: 'sistema', detail: 'Regla: Día de ruta próximo' },
 ];
 
 // KPIs del Panel derivados de los mocks (FR4.1).
@@ -120,6 +120,6 @@ export function computeKpis() {
   const overrides = auditEntries.filter((a) => a.changeType === 'manual').length;
   const total = auditEntries.length || 1;
   const overridePct = Math.round((overrides / total) * 100);
-  const sinRuta = queueOrders.filter((o) => o.appliedRules.length === 0 && o.tier === 'bajo').length;
+  const sinRuta = queueOrders.filter((o) => o.appliedRules.length === 0 && o.tier === 4).length;
   return { pendientes, vencidos, overridePct, sinRuta };
 }

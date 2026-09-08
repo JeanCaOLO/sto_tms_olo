@@ -18,23 +18,27 @@ export const WEEK_DAY_LABELS: Record<WeekDay, string> = {
   D: 'Domingo',
 };
 
-// Nivel categórico de prioridad. Nombres ilustrativos hasta homologar (OQ-1);
-// solo el orden es normativo. (requirements.md, glosario)
-export type PriorityTier = 'critico' | 'alto' | 'medio' | 'bajo';
+// Nivel numérico de prioridad. 1 = más urgente (convención: menor número = más
+// prioridad; coherente con "EPA prioridad 1 / cross docking 0" del flujo actual).
+// El número exacto de niveles sigue abierto (OQ-1) — el prototipo usa 1..4.
+export type PriorityTier = 1 | 2 | 3 | 4;
+
+export const TIER_LEVELS: PriorityTier[] = [1, 2, 3, 4];
 
 export const TIER_LABEL: Record<PriorityTier, string> = {
-  critico: 'Crítico',
-  alto: 'Alto',
-  medio: 'Medio',
-  bajo: 'Bajo',
+  1: 'Prioridad 1',
+  2: 'Prioridad 2',
+  3: 'Prioridad 3',
+  4: 'Prioridad 4',
 };
 
 // Mapeo tier -> variante de Badge del design system (design-system-mapping.md).
+// 1 (más urgente) = danger; escala descendente hasta default.
 export const TIER_BADGE: Record<PriorityTier, 'danger' | 'warning' | 'info' | 'default'> = {
-  critico: 'danger',
-  alto: 'warning',
-  medio: 'info',
-  bajo: 'default',
+  1: 'danger',
+  2: 'warning',
+  3: 'info',
+  4: 'default',
 };
 
 export type RouteType = 'Rural' | 'GAM';
@@ -55,13 +59,17 @@ export interface DispatchRoute {
 // FR2/FR3 — pedido en la cola de priorización.
 export interface QueueOrder {
   id: string;
+  ref: string;             // referencia externa del pedido (WMS/ERP)
   customer: string;
   route: string;
   country: Country;
   tier: PriorityTier;
   score: number;
-  readyToPrepDate: string; // ISO date
-  status: string;
+  itemCount: number;       // número de artículos del pedido
+  dispatchDate: string;    // fecha de despacho (ISO date)
+  readyToPrepDate: string; // fecha de alisto calculada (ISO date)
+  status: string;          // estado del pedido
+  situation: string;       // situación del pedido (p. ej. DISP = disponible)
   intakeTime: string;
   appliedRules: { name: string; weight: number }[];
   history: { at: string; from: PriorityTier | 'sin asignar'; to: PriorityTier; type: 'automatico' | 'manual'; reason?: string }[];

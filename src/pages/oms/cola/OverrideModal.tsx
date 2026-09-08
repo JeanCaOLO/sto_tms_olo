@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Button from '../../../components/base/Button';
 import Select from '../../../components/base/Select';
-import { TIER_LABEL, type PriorityTier } from '../types';
+import { TIER_LABEL, TIER_LEVELS, type PriorityTier } from '../types';
 
 interface OverrideModalProps {
   orderId: string;
@@ -29,9 +29,9 @@ export default function OverrideModal({ orderId, currentTier, onConfirm, onCance
         <div className="space-y-4">
           <Select
             label="Nuevo nivel de prioridad"
-            value={tier}
-            onChange={(e) => setTier(e.target.value as PriorityTier)}
-            options={(Object.keys(TIER_LABEL) as PriorityTier[]).map((t) => ({ value: t, label: TIER_LABEL[t] }))}
+            value={String(tier)}
+            onChange={(e) => setTier(Number(e.target.value) as PriorityTier)}
+            options={TIER_LEVELS.map((t) => ({ value: String(t), label: TIER_LABEL[t] }))}
           />
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">Motivo (obligatorio, mín. 10 caracteres)</label>

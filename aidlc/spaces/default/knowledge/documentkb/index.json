@@ -200,6 +200,56 @@
       },
       "content": "documentkb/01a06d3d-8873-7d06-85ea-3c5425c511be/content.md",
       "content_sha256": "161124a2d1b911a186b86cb14bf45a021d33ece32874b161745fe7480432809b"
+    },
+    {
+      "id": "01a07d51-65d8-7174-a6ce-0547938c8d76",
+      "source": {
+        "kind": "managed",
+        "path": "documents/2026-09-07-reunion-oms-antonio-flujo-priorizacion.md"
+      },
+      "sha256": "85a5373b9403bda6792cdce7bf458faa861c97475c5744d16c0764c8691ffdb7",
+      "bytes": 19823,
+      "indexed_at": "2026-09-07T19:21:21.607Z",
+      "extraction": {
+        "state": "extracted",
+        "extractor": {
+          "name": "builtin-text",
+          "version": "1"
+        },
+        "chars": 19406,
+        "truncated": false,
+        "source_revision": "85a5373b9403bda6792cdce7bf458faa861c97475c5744d16c0764c8691ffdb7"
+      },
+      "summary": {
+        "state": "absent"
+      },
+      "content": "documentkb/01a07d51-65d8-7174-a6ce-0547938c8d76/content.md",
+      "content_sha256": "85a5373b9403bda6792cdce7bf458faa861c97475c5744d16c0764c8691ffdb7"
+    },
+    {
+      "id": "01a07d7f-63f8-7f42-b2ef-c19e50a4b054",
+      "source": {
+        "kind": "managed",
+        "path": "documents/2026-09-07-reuniones-oms-origen-datos-pedidos.md"
+      },
+      "sha256": "48e76d5e279dc3f9934ae2d137e1ca2a9223d58c534557cf9d778dade7f94f85",
+      "bytes": 15270,
+      "indexed_at": "2026-09-07T20:23:19.885Z",
+      "extraction": {
+        "state": "extracted",
+        "extractor": {
+          "name": "builtin-text",
+          "version": "1"
+        },
+        "chars": 14884,
+        "truncated": false,
+        "source_revision": "48e76d5e279dc3f9934ae2d137e1ca2a9223d58c534557cf9d778dade7f94f85"
+      },
+      "summary": {
+        "state": "absent"
+      },
+      "content": "documentkb/01a07d7f-63f8-7f42-b2ef-c19e50a4b054/content.md",
+      "content_sha256": "48e76d5e279dc3f9934ae2d137e1ca2a9223d58c534557cf9d778dade7f94f85"
     }
   ]
 }

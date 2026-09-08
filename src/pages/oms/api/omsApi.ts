@@ -59,10 +59,10 @@ export const omsApi = {
     void country;
     // Mock ilustrativo (conteos de ejemplo, no derivados de la cola reducida).
     return delay([
-      { tier: 'critico', count: 12 },
-      { tier: 'alto', count: 45 },
-      { tier: 'medio', count: 102 },
-      { tier: 'bajo', count: 88 },
+      { tier: 1, count: 12 },
+      { tier: 2, count: 45 },
+      { tier: 3, count: 102 },
+      { tier: 4, count: 88 },
     ]);
   },
 };
