@@ -45,7 +45,7 @@ export default function RutaEnConstruccion({
     : [];
 
   return (
-    <Card className="h-full flex flex-col">
+    <Card className="flex flex-col">
       <div className="flex items-center justify-between mb-4 flex-shrink-0 gap-2">
         <h2 className="text-lg font-semibold text-slate-800">
           <i className="ri-route-line mr-2"></i>
@@ -111,7 +111,7 @@ export default function RutaEnConstruccion({
         </div>
       )}
 
-      <div className="overflow-y-auto flex-1 min-h-0">
+      <div className="overflow-y-auto max-h-[60vh] pr-1">
         {pedidosSeleccionados.length === 0 ? (
           <div className="text-center py-12 text-slate-400">
             <i className="ri-route-line text-4xl mb-2"></i>

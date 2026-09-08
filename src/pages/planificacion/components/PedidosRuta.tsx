@@ -37,7 +37,7 @@ export default function PedidosRuta({ rutaNombre, pedidos, pedidosIncluidos, ped
 
   if (!rutaSeleccionada) {
     return (
-      <Card className="h-full">
+      <Card>
         <h2 className="text-lg font-semibold text-slate-800 mb-4">
           <i className="ri-inbox-line mr-2 text-slate-400"></i>
           Pedidos de la Ruta
@@ -54,7 +54,7 @@ export default function PedidosRuta({ rutaNombre, pedidos, pedidosIncluidos, ped
   }
 
   return (
-    <Card className="h-full flex flex-col">
+    <Card className="flex flex-col">
       <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div>
           <h2 className="text-lg font-semibold text-slate-800">
@@ -91,7 +91,7 @@ export default function PedidosRuta({ rutaNombre, pedidos, pedidosIncluidos, ped
             )}
           </div>
 
-          <div className="space-y-4 overflow-y-auto flex-1 min-h-0">
+          <div className="space-y-4 overflow-y-auto max-h-[60vh] pr-1">
             {pedidosFiltrados.length === 0 ? (
               <div className="text-center py-12 text-slate-400">
                 <i className="ri-inbox-2-line text-4xl mb-2"></i>

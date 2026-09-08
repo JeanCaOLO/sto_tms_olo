@@ -62,7 +62,7 @@ test.describe('Planificación — flujo de generación de ruta', () => {
     await expect(page.getByTitle('Incluir en la ruta')).toHaveCount(0);
     const totalPedidos = await page.getByTitle('Excluir de la ruta').count();
     expect(totalPedidos, 'el viaje debería traer al menos una parada').toBeGreaterThan(0);
-    await expect(page.getByText(/paradas en ruta/i)).toContainText(String(totalPedidos));
+    await expect(page.getByText(/paradas? en ruta/i)).toContainText(String(totalPedidos));
 
     // 3. Catálogos (EFLOW real o fallback) — conductor/vehículo
     const conductorSelect = page.getByLabel('Conductor');
@@ -151,7 +151,7 @@ test.describe('Planificación — flujo de generación de ruta', () => {
 
     // Excluyo un pedido: ese estado también debe descartarse al cambiar de viaje.
     await page.getByTitle('Excluir de la ruta').first().click();
-    await expect(page.getByText(/paradas en ruta/i)).toContainText(String(n0 - 1));
+    await expect(page.getByText(/paradas? en ruta/i)).toContainText(String(n0 - 1));
 
     await viajeSelect.selectOption(values[1]);
     await expect(page.getByText(/pedidos pendientes asignados/i)).toBeVisible({ timeout: 10000 });
@@ -160,7 +160,7 @@ test.describe('Planificación — flujo de generación de ruta', () => {
     // pool completo del nuevo viaje y ningún botón "Incluir" (todo incluido).
     const n1 = await page.getByTitle('Excluir de la ruta').count();
     expect(n1).toBeGreaterThan(0);
-    await expect(page.getByText(/paradas en ruta/i)).toContainText(String(n1));
+    await expect(page.getByText(/paradas? en ruta/i)).toContainText(String(n1));
     await expect(page.getByTitle('Incluir en la ruta')).toHaveCount(0);
   });
 });

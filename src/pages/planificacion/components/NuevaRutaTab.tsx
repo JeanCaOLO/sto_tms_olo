@@ -103,7 +103,7 @@ export default function NuevaRutaTab(props: Props) {
         optimizando={props.optimizando}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         <PedidosRuta
           rutaNombre={props.rutaNombre}
           pedidos={props.pedidosRuta}
