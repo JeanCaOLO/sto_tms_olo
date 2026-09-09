@@ -15,9 +15,11 @@ const viaje: Viaje = {
 };
 
 describe('usePedidosRuta — devolución en vivo', () => {
-  it('agregarDevolucionEnVivo la añade al final de la secuencia con stop_number', () => {
+  // setViaje es async (carga perezosa de pedidos); cuando el viaje ya trae
+  // pedidos los usa directo, pero igual hay que await-ear el act.
+  it('agregarDevolucionEnVivo la añade al final de la secuencia con stop_number', async () => {
     const { result } = renderHook(() => usePedidosRuta());
-    act(() => result.current.setViaje(viaje));
+    await act(async () => { await result.current.setViaje(viaje); });
     act(() => result.current.agregarDevolucionEnVivo({ ref: 'Sitio X', peso: 20, volumen: 0.5 }));
 
     const seq = result.current.pedidosSeleccionados;
@@ -26,9 +28,9 @@ describe('usePedidosRuta — devolución en vivo', () => {
     expect(seq[1].stop_number).toBe(2);
   });
 
-  it('quitarPedido elimina la devolución en vivo de la secuencia y del pool', () => {
+  it('quitarPedido elimina la devolución en vivo de la secuencia y del pool', async () => {
     const { result } = renderHook(() => usePedidosRuta());
-    act(() => result.current.setViaje(viaje));
+    await act(async () => { await result.current.setViaje(viaje); });
     act(() => result.current.agregarDevolucionEnVivo({ ref: 'Sitio X', peso: 20, volumen: 0.5 }));
     const liveId = result.current.pedidosSeleccionados[1].id;
     act(() => result.current.quitarPedido(liveId));

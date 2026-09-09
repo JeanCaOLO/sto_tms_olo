@@ -96,17 +96,18 @@ export function mapViaje(row: ViajeRow): Viaje {
   const nombre = (row.route_name || row.route_alias || '').trim();
   return {
     id: String(row.trip_id),
-    trip_number: nombre ? `Viaje ${row.trip_id} · ${nombre}` : `Viaje ${row.trip_id}`,
+    // El viaje SOLO tiene número; el nombre pertenece a la ruta (route_type_name).
+    trip_number: `Viaje ${row.trip_id}`,
     route_type_id: rid,
     route_type_name: nombre,
     trip_date: (row.trip_dispatch || row.trip_created || '').slice(0, 10),
-    // ponytail: QA trips are PENDING/COMPLETED/MERGED; the tab only cares that a
-    // dispatched WMS trip is selectable, so they all map to 'despachado'.
+    // QA/PROD trips are PENDING/COMPLETED/MERGED; el tab solo necesita que un
+    // viaje sea seleccionable, así que todos mapean a 'despachado'.
     status: 'despachado',
-    // No QA endpoint for a trip's order lines — keep the synthetic stops keyed
-    // by route (same approach as the old mock viaje). Brief: swap the selectors,
-    // not the sequencing pool.
-    pedidos: getFallbackPedidos(rid),
+    // Los pedidos se cargan de forma perezosa al elegir el viaje
+    // (fetchPedidosDeViaje) — no al listar. Evita el N+1 de traer los pedidos
+    // de los ~100 viajes por adelantado.
+    pedidos: [],
   };
 }
 
@@ -181,23 +182,19 @@ export function mapPedido(row: PedidoRow, routeTypeId: string): Pedido {
 
 export async function fetchViajes(): Promise<Viaje[]> {
   const rows = await getJson<ViajeRow[]>('/api/viajes?limit=100');
-  const viajes = rows.map(mapViaje);
-  await Promise.all(viajes.map(async (viaje) => {
-    viaje.pedidos = await fetchPedidosPorViaje(viaje.id, viaje.route_type_id, viaje.pedidos);
-  }));
-  return viajes;
+  return rows.map(mapViaje); // pedidos se cargan al elegir el viaje
 }
 
-// Real order lines for one trip, mirroring the fetchRutas/fetchConductores
-// fallback pattern: independent fallback to the mock stops when /api is
-// unreachable OR returns 0 rows (most QA trips — see doc #8).
-export async function fetchPedidosPorViaje(viajeId: string, routeTypeId: string, fallback: Pedido[]): Promise<Pedido[]> {
+// Pedidos reales de un viaje (journey_orders -> EXPEDICIONESCABECERA). Se llama
+// al ELEGIR el viaje (carga perezosa). Cae al pool mock si /api no responde o el
+// viaje no trae filas reales — mismo patrón que rutas/conductores.
+export async function fetchPedidosDeViaje(viajeId: string, routeTypeId: string): Promise<Pedido[]> {
   try {
     const rows = await getJson<PedidoRow[]>(`/api/viajes/${viajeId}/pedidos`);
-    return rows.length ? rows.map((r) => mapPedido(r, routeTypeId)) : fallback;
+    return rows.length ? rows.map((r) => mapPedido(r, routeTypeId)) : getFallbackPedidos(routeTypeId);
   } catch (err) {
     console.warn(`[planificacion] /api/viajes/${viajeId}/pedidos no disponible, usando mock:`, (err as Error).message);
-    return fallback;
+    return getFallbackPedidos(routeTypeId);
   }
 }
 

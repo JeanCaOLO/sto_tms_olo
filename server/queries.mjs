@@ -36,10 +36,12 @@ FROM ${wmh}.dbo.trasportation_units
 WHERE (@carrierId IS NULL OR transportation_company_id = @carrierId)
 ORDER BY license_plate`;
 
-// --- Viajes (torre de control WMH + ruta/nombre desde las expediciones) -----
-// journeys es la cabecera del viaje WMH. La ruta no vive en el viaje; se toma
-// del primer pedido (EXPEDICIONESCABECERA.RUTA por NUMEROVIAJEWMH). El chofer y
-// la unidad salen de journey_order_transportation (una fila por viaje).
+// --- Viajes (journeys = TODOS los viajes; solo se listan los que tienen pedidos)
+// El viaje SOLO tiene número (journey_id) — NO tiene nombre; el nombre es de la
+// RUTA, que se deriva de los pedidos. Sus pedidos se leen de journey_orders
+// (viaje ↔ pedido) y se enriquecen con EXPEDICIONESCABECERA por
+// (order_number = IDEXPEDICION, company_id = IDCOMPANIA, branch_id = IDSUCURSAL).
+// El chofer/unidad salen de journey_order_transportation (una fila por viaje).
 export const VIAJES_BASE = ({ wmh, sap }) => `
 SELECT
   j.journey_id            AS trip_id,
@@ -48,7 +50,7 @@ SELECT
   j.dispatch_date         AS trip_dispatch,
   j.closing_date          AS trip_closed,
   j.dock                  AS dock,
-  rc.route_codes          AS route_codes,
+  agg.route_code          AS route_codes,
   r.route_name            AS route_name,
   r.route_alias           AS route_alias,
   d.driver_id             AS driver_id,
@@ -61,10 +63,19 @@ SELECT
   u.vehicle_brand         AS vehicle_brand,
   u.weight_capacity       AS vehicle_weight_capacity,
   u.volumetric_capacity   AS vehicle_volumetric_capacity,
-  cnt.pedidos             AS customer_count,
-  cnt.peso                AS total_weight,
-  cnt.volumen             AS total_volume
+  agg.pedidos             AS customer_count,
+  agg.peso                AS total_weight,
+  agg.volumen             AS total_volume
 FROM ${wmh}.dbo.journeys j
+CROSS APPLY (
+  -- resumen de los pedidos del viaje: journey_orders -> EXPEDICIONESCABECERA
+  SELECT COUNT(*) AS pedidos, SUM(e.PESOPEDIDO_TOTAL) AS peso,
+         SUM(e.CUBICAJEPEDIDO_TOTAL) AS volumen, MIN(e.RUTA) AS route_code
+  FROM ${wmh}.dbo.journey_orders jo
+  JOIN ${sap}.dbo.EXPEDICIONESCABECERA e
+    ON e.IDEXPEDICION = jo.order_number AND e.IDCOMPANIA = jo.company_id AND e.IDSUCURSAL = jo.branch_id
+  WHERE jo.journey_id = j.journey_id
+) agg
 OUTER APPLY (
   SELECT TOP 1 jot.driver_id, jot.unit_id
   FROM ${wmh}.dbo.journey_order_transportation jot
@@ -73,30 +84,25 @@ OUTER APPLY (
 LEFT JOIN ${wmh}.dbo.drivers                  d  ON d.driver_id = t.driver_id
 LEFT JOIN ${wmh}.dbo.trasportation_units      u  ON u.unit_id   = t.unit_id
 LEFT JOIN ${wmh}.dbo.transportation_companies co ON co.transportation_company_id = d.transportation_company_id
-OUTER APPLY (
-  SELECT COUNT(*) AS pedidos, SUM(e.PESOPEDIDO_TOTAL) AS peso, SUM(e.CUBICAJEPEDIDO_TOTAL) AS volumen,
-         MIN(e.RUTA) AS route_codes
-  FROM ${sap}.dbo.EXPEDICIONESCABECERA e
-  WHERE e.NUMEROVIAJEWMH = j.journey_id
-) cnt
-CROSS APPLY ( SELECT cnt.route_codes AS route_codes ) rc
-LEFT JOIN ${wmh}.dbo.distribution_routes r ON r.route_code = rc.route_codes
+LEFT JOIN ${wmh}.dbo.distribution_routes      r  ON r.route_code = agg.route_code
+WHERE agg.pedidos > 0
 `;
 
 export const listViajes = (db) =>
   `${VIAJES_BASE(db)} ORDER BY j.journey_id DESC OFFSET 0 ROWS FETCH NEXT @limit ROWS ONLY`;
 
-export const getViaje = (db) => `${VIAJES_BASE(db)} WHERE j.journey_id = @id`;
+export const getViaje = (db) => `${VIAJES_BASE(db)} AND j.journey_id = @id`;
 
 // --- Pedidos de un viaje ----------------------------------------------------
-// EXPEDICIONESCABECERA es la cabecera del pedido (una fila por expedición) con
-// RUTA + peso/volumen totalizados. Se liga al viaje por NUMEROVIAJEWMH y a
-// CLIENTES por IDCLIENTE+IDCOMPANIA para nombre/dirección/coordenadas. Las
-// coordenadas están poco pobladas (~2% de clientes) — quedan NULL cuando faltan.
-export const listPedidosPorViaje = ({ sap }) => `
+// Fuente de verdad: journey_orders (viaje ↔ pedido). Cada pedido se enriquece
+// con su cabecera EXPEDICIONESCABECERA (ruta, peso/volumen totalizados,
+// prioridad, cliente) por (order_number, company_id, branch_id), y con CLIENTES
+// por (IDCLIENTE, IDCOMPANIA) para dirección/coordenadas. Coordenadas poco
+// pobladas (~2% CR / ~6% VE) — quedan NULL cuando faltan.
+export const listPedidosPorViaje = ({ wmh, sap }) => `
 SELECT
-  e.NUMEROVIAJEWMH        AS trip_id,
-  e.IDEXPEDICION          AS order_number,
+  jo.journey_id           AS trip_id,
+  jo.order_number         AS order_number,
   e.IDCLIENTE             AS customer_id,
   cl.NOMBRELARGO          AS customer_name,
   cl.DIRECCIONLARGA       AS delivery_address,
@@ -107,8 +113,10 @@ SELECT
   e.CUBICAJEPEDIDO_TOTAL  AS total_volume,
   e.PRIORIDAD             AS priority,
   e.TPEXPE                AS expedition_type
-FROM ${sap}.dbo.EXPEDICIONESCABECERA e
+FROM ${wmh}.dbo.journey_orders jo
+JOIN ${sap}.dbo.EXPEDICIONESCABECERA e
+  ON e.IDEXPEDICION = jo.order_number AND e.IDCOMPANIA = jo.company_id AND e.IDSUCURSAL = jo.branch_id
 LEFT JOIN ${sap}.dbo.CLIENTES cl
   ON cl.IDCLIENTE = e.IDCLIENTE AND cl.IDCOMPANIA = e.IDCOMPANIA
-WHERE e.NUMEROVIAJEWMH = @viajeId
-ORDER BY e.IDEXPEDICION`;
+WHERE jo.journey_id = @viajeId
+ORDER BY jo.order_number`;

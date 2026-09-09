@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   mapViaje, mapRuta, mapTransportista, mapConductor, mapVehiculo, capacidadSintetica,
-  mapPedido, fetchViajes, fetchTransportistas, fetchPedidosPorViaje,
+  mapPedido, fetchViajes, fetchTransportistas, fetchPedidosDeViaje,
 } from './eflow-api';
 import { FALLBACK_TRANSPORTISTAS } from './fallback-catalogos';
 import { getFallbackPedidos } from './fallback-pedidos';
@@ -19,16 +19,16 @@ describe('mapViaje', () => {
     expect(v.id).toBe('8213');
     expect(v.route_type_id).toBe('eflow-rt-11');
     expect(v.route_type_name).toBe('GUANACASTE BAJURA');
-    expect(v.trip_number).toBe('Viaje 8213 · GUANACASTE BAJURA');
+    // El viaje solo lleva número; el nombre es de la ruta, no del viaje.
+    expect(v.trip_number).toBe('Viaje 8213');
     expect(v.status).toBe('despachado');
     expect(v.trip_date).toBe('2026-07-14');
   });
 
-  it('falls back to trip_created when no dispatch date, and seeds synthetic stops', () => {
+  it('cae a trip_created sin dispatch date y no seedea pedidos (carga perezosa)', () => {
     const v = mapViaje(row);
     expect(v.trip_date).toBe('2026-07-14');
-    expect(v.pedidos.length).toBeGreaterThan(0);
-    expect(v.pedidos.every((p) => p.route_type_id === 'eflow-rt-11')).toBe(true);
+    expect(v.pedidos).toEqual([]);
   });
 
   it('handles a missing route name', () => {
@@ -69,23 +69,18 @@ describe('catalog mappers', () => {
 });
 
 describe('fetch + fallback', () => {
-  it('fetchViajes maps the API payload and enriches pedidos per trip', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      if (url.includes('/pedidos')) {
-        return { ok: true, json: async () => ([]) }; // no real order lines for this trip in QA
-      }
-      return {
-        ok: true,
-        json: async () => ([{
-          trip_id: 1, trip_status: 'COMPLETED', trip_created: '2026-01-01T00:00:00Z',
-          trip_dispatch: null, route_codes: '08', route_name: 'SAN CARLOS', route_alias: 'SAN CARLOS',
-        }]),
-      };
-    }));
+  it('fetchViajes mapea el payload y NO carga pedidos (carga perezosa al elegir)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ([{
+        trip_id: 1, trip_status: 'COMPLETED', trip_created: '2026-01-01T00:00:00Z',
+        trip_dispatch: null, route_codes: '08', route_name: 'SAN CARLOS', route_alias: 'SAN CARLOS',
+      }]),
+    })));
     const v = await fetchViajes();
     expect(v[0].route_type_id).toBe('eflow-rt-08');
-    // 0 real rows -> falls back to the mock stops seeded by mapViaje
-    expect(v[0].pedidos.length).toBeGreaterThan(0);
+    expect(v[0].trip_number).toBe('Viaje 1'); // solo número
+    expect(v[0].pedidos).toEqual([]); // los pedidos se cargan al seleccionar
   });
 
   it('fetchTransportistas returns the fallback when the API errors', async () => {
@@ -103,7 +98,7 @@ describe('fetch + fallback', () => {
     expect(await fetchTransportistas(FALLBACK_TRANSPORTISTAS)).toBe(FALLBACK_TRANSPORTISTAS);
   });
 
-  it('fetchPedidosPorViaje maps real order lines when present', async () => {
+  it('fetchPedidosDeViaje mapea las líneas reales cuando existen', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: true,
       json: async () => ([{
@@ -113,25 +108,24 @@ describe('fetch + fallback', () => {
         delivery_longitude: '-83.30615300', route_code: '32', total_units: 6, total_amount: 11043.48,
       }]),
     })));
-    const fallback = getFallbackPedidos('eflow-rt-32');
-    const pedidos = await fetchPedidosPorViaje('8007', 'eflow-rt-32', fallback);
-    expect(pedidos).not.toBe(fallback);
+    const pedidos = await fetchPedidosDeViaje('8007', 'eflow-rt-32');
     expect(pedidos[0].order_number).toBe('EDI0112261');
     expect(pedidos[0].customer_name).toBe('ALMACENES EL COLONO S.A.');
     expect(pedidos[0].delivery_latitude).toBeCloseTo(8.5337);
-    expect(pedidos[0].tipo).toBeUndefined(); // no real devolucion signal (doc #8)
+    expect(pedidos[0].tipo).toBeUndefined(); // sin señal real de devolución
   });
 
-  it('fetchPedidosPorViaje falls back to the mock when the trip has 0 real rows', async () => {
+  it('fetchPedidosDeViaje cae al mock cuando el viaje no trae filas reales', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ([]) })));
-    const fallback = getFallbackPedidos('eflow-rt-01');
-    expect(await fetchPedidosPorViaje('1', 'eflow-rt-01', fallback)).toBe(fallback);
+    const pedidos = await fetchPedidosDeViaje('1', 'eflow-rt-01');
+    expect(pedidos).toEqual(getFallbackPedidos('eflow-rt-01'));
+    expect(pedidos.length).toBeGreaterThan(0);
   });
 
-  it('fetchPedidosPorViaje falls back to the mock when /api is unreachable', async () => {
+  it('fetchPedidosDeViaje cae al mock cuando /api no responde', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('network down'); }));
-    const fallback = getFallbackPedidos('eflow-rt-01');
-    expect(await fetchPedidosPorViaje('1', 'eflow-rt-01', fallback)).toBe(fallback);
+    const pedidos = await fetchPedidosDeViaje('1', 'eflow-rt-01');
+    expect(pedidos).toEqual(getFallbackPedidos('eflow-rt-01'));
   });
 });
 

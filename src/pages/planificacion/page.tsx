@@ -32,7 +32,7 @@ export default function PlanificacionPage() {
   const { rutas, vehiculos, transportistas, conductores, loading } = useCatalogos(appUser, pais);
   const { viajes, cargandoViajes } = useViajes(appUser, pais);
   const {
-    viajeId, pedidosRuta, pedidosSeleccionados, excluidosPorCapacidad, optimizando,
+    viajeId, pedidosRuta, pedidosSeleccionados, excluidosPorCapacidad, optimizando, cargandoPedidos,
     setViaje, togglePedido, quitarPedido, reordenarParadas, optimizarRuta, resetPedidos,
     agregarDevolucionEnVivo,
   } = usePedidosRuta();
@@ -178,7 +178,7 @@ export default function PlanificacionPage() {
           pedidosRuta={pedidosRuta}
           pedidosSeleccionados={pedidosSeleccionados}
           pedidosAnclados={anclados}
-          cargandoPedidos={cargandoViajes}
+          cargandoPedidos={cargandoViajes || cargandoPedidos}
           excluidosPorCapacidad={excluidosPorCapacidad}
           rutaNombre={rutaNombre}
           generando={generando}

@@ -3,6 +3,7 @@ import { optimizarConCapacidad } from './capacity-fit';
 import { construirMatrizDistancias } from './distance-matrix';
 import { withStopNumbers } from './optimize-stops';
 import { conAnclasEnVivo, crearDevolucionEnVivo, type DevolucionEnVivoInput } from './live-devolucion';
+import { fetchPedidosDeViaje } from './eflow-api';
 import type { Pedido, PedidoSeleccionado, Vehiculo, Viaje } from './types';
 
 export function usePedidosRuta() {
@@ -11,13 +12,36 @@ export function usePedidosRuta() {
   const [pedidosSeleccionados, setPedidosSeleccionados] = useState<PedidoSeleccionado[]>([]);
   const [excluidosPorCapacidad, setExcluidosPorCapacidad] = useState<PedidoSeleccionado[]>([]);
   const [optimizando, setOptimizando] = useState(false);
+  const [cargandoPedidos, setCargandoPedidos] = useState(false);
 
-  const setViaje = (viaje?: Viaje) => {
-    const pedidos = viaje?.pedidos || [];
-    setViajeIdState(viaje?.id || '');
+  const aplicarPedidos = (pedidos: Pedido[]) => {
     setPedidosRuta(pedidos);
     setPedidosSeleccionados(withStopNumbers(pedidos));
     setExcluidosPorCapacidad([]);
+  };
+
+  // Al elegir el viaje se cargan sus pedidos asignados. Si el viaje ya los trae
+  // (precargados) se usan directo; si no, se cargan perezoso desde
+  // journey_orders. Sin viaje, limpia el panel.
+  const setViaje = async (viaje?: Viaje) => {
+    setViajeIdState(viaje?.id || '');
+    if (!viaje) {
+      aplicarPedidos([]);
+      return;
+    }
+    if (viaje.pedidos && viaje.pedidos.length > 0) {
+      aplicarPedidos(viaje.pedidos);
+      return;
+    }
+    setCargandoPedidos(true);
+    try {
+      aplicarPedidos(await fetchPedidosDeViaje(viaje.id, viaje.route_type_id));
+    } catch (error) {
+      console.error('Error cargando pedidos del viaje:', error);
+      aplicarPedidos([]);
+    } finally {
+      setCargandoPedidos(false);
+    }
   };
 
   const togglePedido = (pedido: Pedido) => {
@@ -73,7 +97,7 @@ export function usePedidosRuta() {
   const resetPedidos = () => setViaje(undefined);
 
   return {
-    viajeId, pedidosRuta, pedidosSeleccionados, excluidosPorCapacidad, optimizando,
+    viajeId, pedidosRuta, pedidosSeleccionados, excluidosPorCapacidad, optimizando, cargandoPedidos,
     setViaje, togglePedido, quitarPedido, reordenarParadas, optimizarRuta, resetPedidos,
     agregarDevolucionEnVivo,
   };
