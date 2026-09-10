@@ -1,50 +1,54 @@
 import { useEffect, useState } from 'react';
 import { omsApi } from '../api/omsApi';
-import type { PriorityRule } from '../types';
+import type { CompanyConfig, EngineRule, PriorityTableRow, RuleParam } from '../types';
 
-// Controller del Motor de Reglas (FR5). Carga perfiles y reglas; toggle local.
+// Controller del Motor de Reglas (FR5) — catálogo semi-configurable.
+// La lógica de cada regla vive en código; aquí solo se activa/desactiva,
+// se ajusta el peso y sus parámetros, y se configura por compañía.
 export function useReglasController() {
-  const [profiles, setProfiles] = useState<string[]>([]);
-  const [rules, setRules] = useState<PriorityRule[]>([]);
-  const [activeProfile, setActiveProfile] = useState<string>('');
+  const [rules, setRules] = useState<EngineRule[]>([]);
+  const [companies, setCompanies] = useState<CompanyConfig[]>([]);
+  const [priorityTable, setPriorityTable] = useState<PriorityTableRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    Promise.all([omsApi.getProfiles(), omsApi.getRules()])
-      .then(([p, r]) => {
+    Promise.all([omsApi.getEngineRules(), omsApi.getCompanyConfigs(), omsApi.getPriorityTable()])
+      .then(([r, c, p]) => {
         if (cancelled) return;
-        setProfiles(p);
         setRules(r);
-        setActiveProfile(p[0] ?? '');
+        setCompanies(c);
+        setPriorityTable(p);
       })
       .catch(() => { if (!cancelled) setError('No se pudieron cargar las reglas.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);
 
-  const [modalOpen, setModalOpen] = useState(false);
-
-  const toggleRule = (id: string) => {
+  const toggleRule = (id: string) =>
     setRules((prev) => prev.map((r) => (r.id === id ? { ...r, active: !r.active } : r)));
+
+  const setWeight = (id: string, weight: number) =>
+    setRules((prev) => prev.map((r) => (r.id === id ? { ...r, weight } : r)));
+
+  const saveParams = (id: string, params: RuleParam[]) => {
+    setRules((prev) => prev.map((r) => (r.id === id ? { ...r, params } : r)));
+    setEditingId(null);
   };
 
-  // Alta de regla local (mock, sin backend): agrega la fila al perfil activo.
-  const addRule = (rule: Omit<PriorityRule, 'id' | 'profile'>) => {
-    setRules((prev) => [
-      ...prev,
-      { ...rule, id: `R-${Date.now()}`, profile: activeProfile },
-    ]);
-    setModalOpen(false);
-  };
+  const toggleCompany = (id: string) =>
+    setCompanies((prev) => prev.map((c) => (c.id === id ? { ...c, prioritizes: !c.prioritizes } : c)));
 
-  const rulesInProfile = rules.filter((r) => r.profile === activeProfile);
+  const editingRule = rules.find((r) => r.id === editingId) ?? null;
 
   return {
-    profiles, activeProfile, setActiveProfile, rulesInProfile, loading, error,
-    toggleRule, modalOpen, setModalOpen, addRule,
+    rules, companies, priorityTable, loading, error,
+    toggleRule, setWeight,
+    editingId, setEditingId, editingRule, saveParams,
+    toggleCompany,
   };
 }

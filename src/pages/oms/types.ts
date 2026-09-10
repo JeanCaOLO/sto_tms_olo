@@ -95,18 +95,42 @@ export interface OmsAlert {
   timestamp: string;
 }
 
-// FR5 — regla del motor.
-export type RuleOperator = 'igual' | 'distinto' | 'mayor' | 'menor' | 'mayor-igual' | 'menor-igual' | 'contiene';
+// FR5 — Motor de Reglas como CATÁLOGO semi-configurable.
+// La LÓGICA de cada macro-regla vive en código (Python) y es de solo lectura;
+// desde la UI solo se activa/desactiva, se ajusta el peso y sus parámetros.
 
-export interface PriorityRule {
+// Un parámetro editable de una regla (solo dato, nunca lógica).
+export interface RuleParam {
+  key: string;
+  label: string;
+  value: string;
+  kind: 'text' | 'number' | 'time';
+  help?: string;
+}
+
+export interface EngineRule {
+  id: string;
+  order: number;         // orden de la macro-regla (1..5)
+  name: string;
+  description: string;   // qué hace (solo lectura)
+  weight: number;        // peso/score (editable)
+  active: boolean;       // toggle para el rollout por etapas
+  firstDelivery: boolean; // parte de la primera entrega
+  params: RuleParam[];   // parámetros editables
+}
+
+// Configuración por compañía (ej.: EPA no prioriza; Cofersa sí).
+export interface CompanyConfig {
   id: string;
   name: string;
-  field: string;
-  operator: RuleOperator;
-  value: string;
-  weight: number;
-  active: boolean;
-  profile: string;
+  prioritizes: boolean;
+}
+
+// Tabla de prioridades que define el cliente (números 1..N).
+export interface PriorityTableRow {
+  level: number;
+  label: string;
+  description: string;
 }
 
 // FR7 — registro de auditoría de priorización.

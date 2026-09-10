@@ -5,9 +5,11 @@
 
 import type {
   AuditEntry,
+  CompanyConfig,
   DispatchRoute,
+  EngineRule,
   OmsAlert,
-  PriorityRule,
+  PriorityTableRow,
   QueueOrder,
 } from './types';
 
@@ -226,15 +228,64 @@ export const omsAlerts: OmsAlert[] = [
   { id: 'AL-4', severity: 'atencion', type: 'País no identificado', orderId: 'PED-10462', timestamp: '2026-08-28 09:01' },
 ];
 
-// FR5 — reglas del motor (mock).
-export const priorityRules: PriorityRule[] = [
-  { id: 'R-1', name: 'Fecha de despacho vencida', field: 'ready_to_prep_date', operator: 'menor-igual', value: 'hoy', weight: 600, active: true, profile: 'Base CR' },
-  { id: 'R-2', name: 'Cliente EPA — quiebre de stock', field: 'flag_quiebre_stock', operator: 'igual', value: 'true', weight: 320, active: true, profile: 'Perfil EPA' },
-  { id: 'R-3', name: 'Día de ruta próximo (≤1 día)', field: 'dias_a_salida', operator: 'menor-igual', value: '1', weight: 300, active: true, profile: 'Base CR' },
-  { id: 'R-4', name: 'Cofersa — hora de ingreso temprana', field: 'hora_ingreso', operator: 'menor', value: '10:00', weight: 120, active: false, profile: 'Perfil Cofersa' },
+// FR5 — catálogo de las 5 macro-reglas implementadas del OMS (lógica en código).
+// Primera entrega ACTIVA: (1) Cálculo de fecha y (3) Cliente retira.
+export const engineRules: EngineRule[] = [
+  {
+    id: 'MR-1', order: 1, name: 'Cálculo de fecha (T-1)', firstDelivery: true, active: true, weight: 600,
+    description: 'Calcula la fecha de listo como fecha de entrega − 1 día (T-1), aplicando horas de corte y duración de la ruta. Genera (inyecta) el pedido cuando corresponde prepararlo.',
+    params: [
+      { key: 't1_dias', label: 'Días de T-1', value: '1', kind: 'number', help: 'Días antes de la entrega para alistar.' },
+      { key: 'corte_gam', label: 'Hora de corte GAM', value: '17:00', kind: 'time' },
+      { key: 'corte_rural', label: 'Hora de corte Rural', value: '15:00', kind: 'time' },
+      { key: 'umbral_inyeccion', label: 'Umbral de inyección (prioridad ≤)', value: '2', kind: 'number', help: 'Prioridad a partir de la cual se prepara (menor número = más urgente).' },
+    ],
+  },
+  {
+    id: 'MR-2', order: 2, name: 'Análisis de observaciones', firstDelivery: false, active: false, weight: 200,
+    description: 'Interpreta el texto libre del campo observaciones (dirección, fecha solicitada, urgencia, cita, cliente retira) para ajustar el ruteo y la prioridad. Requiere estandarización de observaciones.',
+    params: [
+      { key: 'patrones_urgencia', label: 'Palabras de urgencia', value: 'urgente, hoy, inmediato', kind: 'text' },
+    ],
+  },
+  {
+    id: 'MR-3', order: 3, name: 'Cliente retira', firstDelivery: true, active: true, weight: 900,
+    description: 'Identifica los pedidos "cliente retira" por patrón en observaciones y les asigna la prioridad más alta, agrupándolos en un viaje/cliente dummy (ruta 0).',
+    params: [
+      { key: 'patron_retira', label: 'Patrón de detección', value: 'retira', kind: 'text' },
+      { key: 'prioridad_retira', label: 'Prioridad asignada', value: '1', kind: 'number', help: 'Nivel de prioridad para cliente retira.' },
+      { key: 'ventana_horas', label: 'Ventana (horas)', value: '48', kind: 'number' },
+    ],
+  },
+  {
+    id: 'MR-4', order: 4, name: 'Asignación de viaje / bajada', firstDelivery: false, active: false, weight: 150,
+    description: 'Consume el viaje asignado por el TMS y asigna la bajada/muelle de despacho (todo lo del mismo viaje va a la misma bajada). El OMS no crea el viaje.',
+    params: [
+      { key: 'modo_bajada', label: 'Modo de asignación', value: 'por capacidad', kind: 'text', help: 'por capacidad | fijo (ruta→bajada).' },
+    ],
+  },
+  {
+    id: 'MR-5', order: 5, name: 'Inventario / capacidad', firstDelivery: false, active: false, weight: 100,
+    description: 'Valida la viabilidad de inventario y capacidad antes de liberar (reservas, pendientes, prioridad de reposición, callbacks al ERP). Etapa futura.',
+    params: [
+      { key: 'valida_inventario', label: 'Validar inventario total', value: 'sí', kind: 'text' },
+    ],
+  },
 ];
 
-export const ruleProfiles = ['Base CR', 'Perfil EPA', 'Perfil Cofersa'];
+// Configuración por compañía (ej.: EPA no prioriza — cross docking; Cofersa sí).
+export const companyConfigs: CompanyConfig[] = [
+  { id: '0109', name: 'Cofersa', prioritizes: true },
+  { id: 'EPA', name: 'EPA', prioritizes: false },
+];
+
+// Tabla de prioridades que define el cliente (números 1..N; 1 = más urgente).
+export const priorityTable: PriorityTableRow[] = [
+  { level: 1, label: 'Prioridad 1', description: 'Cliente retira / vencido / urgente — se lista primero' },
+  { level: 2, label: 'Prioridad 2', description: 'Se lista hoy para mañana (T-1)' },
+  { level: 3, label: 'Prioridad 3', description: 'Adelanto por capacidad ociosa (día +2)' },
+  { level: 4, label: 'Prioridad 4', description: 'Días posteriores — espera su T-1' },
+];
 
 // FR7 — auditoría (mock).
 export const auditEntries: AuditEntry[] = [
