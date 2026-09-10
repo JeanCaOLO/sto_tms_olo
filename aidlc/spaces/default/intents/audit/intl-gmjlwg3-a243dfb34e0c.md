@@ -143,3 +143,56 @@
 **Digest**: 48e76d5e279dc3f9934ae2d137e1ca2a9223d58c534557cf9d778dade7f94f85
 
 ---
+
+## Document Indexed
+**Timestamp**: 2026-09-08T13:22:40Z
+**Event**: DOCUMENT_INDEXED
+**Space**: default
+**Document**: 01a0812f-5d13-76cd-bdf6-454ea7ecc749
+**Source**: documents/2026-09-08-conversacion-exploratoria-oms-integracion-wms-wmh-reglas.md
+**Digest**: 1ceb7031747c2aea72fdde2c9e83b424254d3698ec72a898ede851dc61f3277e
+
+---
+
+## Document Indexed
+**Timestamp**: 2026-09-08T19:19:52Z
+**Event**: DOCUMENT_INDEXED
+**Space**: default
+**Document**: 01a08276-65d5-7d72-86a5-44a987401a5a
+**Source**: documents/2026-09-08-reunion-funcional-oms-reglas-priorizacion-antonio.md
+**Digest**: f2e19b6076255ddfa460408f3dabb890a140a81b85b66c70965e4f7e3675e512
+
+---
+
+## Document Updated
+**Timestamp**: 2026-09-08T19:28:21Z
+**Event**: DOCUMENT_UPDATED
+**Space**: default
+**Document**: 01a07d7f-63f8-7f42-b2ef-c19e50a4b054
+**Change**: edited
+**Source**: documents/2026-09-07-reuniones-oms-origen-datos-pedidos.md
+**Digest**: e357fd50534a61d3ed829375c06e7c57493ab07cfc4b76119714e92adf357de1
+
+---
+
+## Document Updated
+**Timestamp**: 2026-09-08T19:28:22Z
+**Event**: DOCUMENT_UPDATED
+**Space**: default
+**Document**: 01a0812f-5d13-76cd-bdf6-454ea7ecc749
+**Change**: edited
+**Source**: documents/2026-09-08-conversacion-exploratoria-oms-integracion-wms-wmh-reglas.md
+**Digest**: f4f8c083a4f7e739cc4d1fe32d396e5ace7b16d2b7b6b93f3232daf6b9c1ad94
+
+---
+
+## Document Updated
+**Timestamp**: 2026-09-08T19:28:23Z
+**Event**: DOCUMENT_UPDATED
+**Space**: default
+**Document**: 01a08276-65d5-7d72-86a5-44a987401a5a
+**Change**: edited
+**Source**: documents/2026-09-08-reunion-funcional-oms-reglas-priorizacion-antonio.md
+**Digest**: a62e9df05accae786acb1a333dff3fd16f5cb55adc0e95798f40117448f38f96
+
+---

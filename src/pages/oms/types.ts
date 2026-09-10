@@ -60,13 +60,22 @@ export interface DispatchRoute {
 export interface QueueOrder {
   id: string;
   ref: string;             // referencia externa del pedido (WMS/ERP)
+  warehouseId: string;     // ID Almacén
+  companyId: string;       // ID Compañía
+  branchId: string;        // ID Sucursal
+  orderType: string;       // Tipo de Orden (p. ej. expedición ERP)
   customer: string;
   route: string;
   country: Country;
   tier: PriorityTier;
   score: number;
+  totalAmount: number;     // Monto Total
+  weight: number;          // Peso (kg)
+  volume: number;          // Volumen (m³)
   itemCount: number;       // número de artículos del pedido
-  dispatchDate: string;    // fecha de despacho (ISO date)
+  observations: string;    // Observaciones (texto libre del vendedor)
+  dispatchDate: string;    // Fecha de Despacho (ISO date)
+  createdDate: string;     // Fecha de creación (ISO date)
   readyToPrepDate: string; // fecha de alisto calculada (ISO date)
   status: string;          // estado del pedido
   situation: string;       // situación del pedido (p. ej. DISP = disponible)

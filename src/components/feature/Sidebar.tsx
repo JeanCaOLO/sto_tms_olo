@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useSidebar } from '../../hooks/useSidebar';
 
 interface MenuItem {
   icon: string;
@@ -63,7 +64,7 @@ function isGroup(item: NavItem): item is MenuGroup {
 
 export default function Sidebar() {
   const location = useLocation();
-  const [collapsed, setCollapsed] = useState(false);
+  const { collapsed, toggle } = useSidebar();
 
   const groups = navItems.filter(isGroup);
   const activeGroups = groups
@@ -90,7 +91,7 @@ export default function Sidebar() {
           </div>
         )}
         <button
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={toggle}
           className="w-8 h-8 flex items-center justify-center hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
         >
           <i className={`ri-${collapsed ? 'menu-unfold' : 'menu-fold'}-line text-lg`}></i>

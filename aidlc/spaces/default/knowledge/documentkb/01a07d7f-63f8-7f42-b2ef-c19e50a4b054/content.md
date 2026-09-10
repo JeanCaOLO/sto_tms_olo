@@ -49,11 +49,11 @@ El OMS tomaría los pedidos del **WMS** (no de la tabla intermedia, que ya se de
 - **Nivel pedido vs. viaje:** mientras la priorización sea **a nivel de PEDIDO** (primer sprint), se consulta el **WMS** (`expedición`). La pregunta de "torre de control sí/no" solo entra cuando se llegue a **nivel de VIAJE**.
 
 ## 5. Réplicas y servidores (estado actual)
-- **Producción Costa Rica (OLO):** servidor **`10.17.2.420`** `[verificar IP]` → base **`IFLOW_OLO`** (producción) e **`IFLOW…`** `[verificar]`. **Estas dos son las que el OMS necesitaría.**
-- **QA:** existe un `IFLOW_OLO` de QA (Rafael abrió QA por error; la buena es producción).
+- **Producción Costa Rica (OLO):** servidor **`10.17.2.420`** `[verificar IP]` → base **`EFLOW_OLO`** (producción) e **`EFLOW…`** `[verificar]`. **Estas dos son las que el OMS necesitaría.**
+- **QA:** existe un `EFLOW_OLO` de QA (Rafael abrió QA por error; la buena es producción).
 - **Softland productivo CR:** servidor **`…224.30`** `[verificar]`. **En Costa Rica NO existe un Softland unificado**: cada compañía tiene su **propio** sistema de facturación y le manda info al **EPRAC de OLO**. (En Venezuela **sí** hay un Softland con las 3 compañías → allá sí se puede consultar la ruta en Softland; en CR **no** hay acceso al Softland de los clientes.)
-- **Réplicas existentes:** hay réplicas en uso de **Venezuela, Colombia y Costa Rica (Cofersa)** en una instancia llamada **`réplica`** en el mismo servidor. **PERO** Rafael **no encontró evidencia** de una réplica de las tablas de **`IFLOW_OLO` (CR producción)** que el OMS requiere.
-- **Conclusión de infra:** **falta crear/solicitar la réplica** de `IFLOW_OLO` (CR). Si no, habría que **pegarle directo al transaccional** (no deseable). **Quién autoriza la solicitud de réplica no está claro** (¿el cliente? Rafael lo consultará con **Alfredo**). El OMS debe **especificar qué tablas y de qué BD** para poder pedirla.
+- **Réplicas existentes:** hay réplicas en uso de **Venezuela, Colombia y Costa Rica (Cofersa)** en una instancia llamada **`réplica`** en el mismo servidor. **PERO** Rafael **no encontró evidencia** de una réplica de las tablas de **`EFLOW_OLO` (CR producción)** que el OMS requiere.
+- **Conclusión de infra:** **falta crear/solicitar la réplica** de `EFLOW_OLO` (CR). Si no, habría que **pegarle directo al transaccional** (no deseable). **Quién autoriza la solicitud de réplica no está claro** (¿el cliente? Rafael lo consultará con **Alfredo**). El OMS debe **especificar qué tablas y de qué BD** para poder pedirla.
 - **Nota:** "Hiperpos" fue mencionado como "el único fiable para la info de OLO" `[verificar qué es]`.
 
 ## 6. Posicionamiento del OMS y visión de fondo (Jean)
@@ -76,13 +76,13 @@ En la sesión también se habló de **choferes/conductores, transportistas (`tra
 1. **`fecha_planificación_despacho`:** **confirmado que SÍ se usa** (hay registros con la fecha). Pendiente: validar la **cobertura** (¿todos los pedidos la traen o solo algunos?) y definir el **fallback** para los que no la traigan.
 2. **Alcance de pedidos:** ¿el OMS maneja **solo** lo que se carga en torre de control, o **todos** los pedidos (incluyendo los que en CR van directo por WMS)?
 3. **Pedidos `PEN`:** ¿se muestran en la cola de prioridad hasta el cierre, o se excluyen una vez empezados?
-4. **Réplica:** definir **qué tablas y de qué BD** (`IFLOW_OLO` producción CR) → **solicitarla** (quién autoriza: consultar con Alfredo/cliente). Hoy **no existe** esa réplica.
+4. **Réplica:** definir **qué tablas y de qué BD** (`EFLOW_OLO` producción CR) → **solicitarla** (quién autoriza: consultar con Alfredo/cliente). Hoy **no existe** esa réplica.
 5. **Tipos/estatus de expedición** (`"TPE"`, check, picking rápido): confirmar significados con el cliente.
 6. **Mapa ruta → zona:** en CR la ruta es solo un número sin catálogo; ¿de dónde sale el nombre/zona? (Softland del cliente, sin acceso en CR.)
 7. **Calendario de rutas:** no hay tabla; hoy vive en **Softland** (que en CR no es accesible) y en el **Excel manual** de Ana. → refuerza que el TMS/OMS debería ser el **maestro** de ese calendario.
 
 ## Extractos verbatim clave (reconstruidos)
-- **No hay réplica aún:** *"No tengo evidencia de que haya réplica de eso [IFLOW_OLO producción CR]… habría que replicarlo, porque si no le tendrían que pegar directo al transaccional. ¿Quién hace esa solicitud de réplica? No sé… déjame consultarlo con Alfredo."*
+- **No hay réplica aún:** *"No tengo evidencia de que haya réplica de eso [EFLOW_OLO producción CR]… habría que replicarlo, porque si no le tendrían que pegar directo al transaccional. ¿Quién hace esa solicitud de réplica? No sé… déjame consultarlo con Alfredo."*
 - **Fecha de planificación (duda de Rafael, luego corregida):** *"Hay un campo `fecha_planificación_despacho`, pero creo que ellos todavía no usan ese campo…"* — **NOTA DEL EDITOR:** esto se corrigió después: el campo **SÍ se usa**, hay registros con la fecha cargada.
 - **Dos números de viaje / híbrido:** *"Tienes dos números de viaje: uno a nivel de torre de control (WMH) y otro a nivel de WMS… el de WMS casi siempre tiene valor porque se crea automático; el de WMH puede no existir porque se carga manual. En el TMS de Costa Rica hice un híbrido: si consigo el pedido en WMH uso ese viaje, si no, el de WMS."*
 - **CR no carga todo en torre de control:** *"En Costa Rica solo una compañía se carga en torre de control; el resto se procesa directo por WMS… tienen que definir si van a manejar solo lo de torre de control o los dos."*
@@ -96,7 +96,7 @@ En la sesión también se habló de **choferes/conductores, transportistas (`tra
 | IPRAC / IPRA / Iprac | **EPRAC** |
 | Soslan / Sollan / Soflan | **Softland** (ERP de facturación del cliente) |
 | Jan / JN | **Jean** (desarrollador del cliente) |
-| Iflow OLO / Iflo OLO / iflce | **`IFLOW_OLO`** (BD del WMS, producción CR) `[verificar]` |
+| Iflow OLO / Iflo OLO / iflce | **`EFLOW_OLO`** (BD del WMS, producción CR) `[verificar]` |
 | Iflow Febeca | BD `IFLOW` de Febeca (Venezuela) `[verificar]` |
 | almacén movimiento carcán / carcal / carcampo | tabla **`almacén_movimiento_carcán`** (¿"carga camión"/CARCAM?) `[verificar]` |
 | Jorn Orders / Jorness Horders / journal riding | **`Journey Orders`** (torre de control, cabecera) `[verificar]` |

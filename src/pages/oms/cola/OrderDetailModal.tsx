@@ -26,15 +26,28 @@ export default function OrderDetailModal({ order, onOverride, onClose }: OrderDe
 
         <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm mb-5">
           <div className="flex justify-between"><span className="text-slate-500">Referencia</span><span className="text-slate-900 font-medium">{order.ref}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Tipo de Orden</span><span className="text-slate-900">{order.orderType}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">ID Almacén</span><span className="text-slate-900">{order.warehouseId}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">ID Compañía</span><span className="text-slate-900">{order.companyId}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">ID Sucursal</span><span className="text-slate-900">{order.branchId}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Cliente</span><span className="text-slate-900">{order.customer}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Ruta</span><span className="text-slate-900">{order.route}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Monto Total</span><span className="text-slate-900">{order.totalAmount.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Peso (kg)</span><span className="text-slate-900">{order.weight.toFixed(1)}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Volumen (m³)</span><span className="text-slate-900">{order.volume.toFixed(1)}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Artículos</span><span className="text-slate-900">{order.itemCount}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Fecha despacho</span><span className="text-slate-900">{order.dispatchDate}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Fecha creación</span><span className="text-slate-900">{order.createdDate}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Fecha Alisto</span><span className="text-slate-900">{order.readyToPrepDate}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Ingreso</span><span className="text-slate-900">{order.intakeTime}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Estado</span><span className="text-slate-900">{order.status}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Situación</span><span className="text-slate-900">{order.situation}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Score</span><span className="text-slate-900 font-semibold">{order.score}</span></div>
+        </div>
+
+        <div className="mb-5">
+          <span className="text-sm text-slate-500">Observaciones</span>
+          <p className="text-sm text-slate-900 mt-1">{order.observations}</p>
         </div>
 
         <div className="mb-5">

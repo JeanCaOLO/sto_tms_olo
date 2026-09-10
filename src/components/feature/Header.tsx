@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { useSidebar } from '../../hooks/useSidebar';
 
 const roleColors: Record<string, string> = {
   SuperUsuario: 'bg-teal-100 text-teal-700',
@@ -19,6 +20,7 @@ function getInitials(name: string): string {
 
 export default function Header() {
   const { appUser, signOut } = useAuth();
+  const { collapsed } = useSidebar();
   const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
@@ -49,7 +51,7 @@ export default function Header() {
   const roleClass = roleColors[roleName] ?? 'bg-slate-100 text-slate-700';
 
   return (
-    <header className="fixed top-0 right-0 left-64 h-16 bg-white border-b border-slate-200 z-30 px-6 flex items-center justify-between">
+    <header className={`fixed top-0 right-0 h-16 bg-white border-b border-slate-200 z-30 px-6 flex items-center justify-between transition-all duration-300 ${collapsed ? 'left-20' : 'left-64'}`}>
       <div className="flex items-center gap-4 flex-1">
         <div className="relative flex-1 max-w-md">
           <div className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center">

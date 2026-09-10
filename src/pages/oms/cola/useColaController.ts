@@ -1,9 +1,26 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { omsApi } from '../api/omsApi';
 import type { Country, PriorityTier, QueueOrder } from '../types';
 
-// Controller de la Cola de Priorización (FR2/FR3). Maneja selección de pedido
-// y el override manual local (única intervención humana; sin backend).
+const ALL = 'todos';
+
+export interface ColaFilters {
+  warehouse: string;
+  company: string;
+  branch: string;
+  route: string;
+  tier: string;
+  status: string;
+  situation: string;
+  query: string;
+}
+
+const EMPTY_FILTERS: ColaFilters = {
+  warehouse: ALL, company: ALL, branch: ALL, route: ALL, tier: ALL, status: ALL, situation: ALL, query: '',
+};
+
+// Controller de la Cola de Priorización (FR2/FR3). Maneja filtros, selección de
+// pedido y el override manual local (única intervención humana; sin backend).
 export function useColaController() {
   const [country, setCountry] = useState<Country>('CR');
   const [orders, setOrders] = useState<QueueOrder[]>([]);
@@ -12,6 +29,9 @@ export function useColaController() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [overrideOpen, setOverrideOpen] = useState(false);
+  const [filters, setFilters] = useState<ColaFilters>(EMPTY_FILTERS);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     let cancelled = false;
@@ -24,6 +44,57 @@ export function useColaController() {
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [country]);
+
+  // Opciones de filtro derivadas de los pedidos cargados.
+  const options = useMemo(() => {
+    const uniq = (vals: string[]) => Array.from(new Set(vals)).sort();
+    return {
+      warehouses: uniq(orders.map((o) => o.warehouseId)),
+      companies: uniq(orders.map((o) => o.companyId)),
+      branches: uniq(orders.map((o) => o.branchId)),
+      routes: uniq(orders.map((o) => o.route)),
+      tiers: uniq(orders.map((o) => String(o.tier))),
+      statuses: uniq(orders.map((o) => o.status)),
+      situations: uniq(orders.map((o) => o.situation)),
+    };
+  }, [orders]);
+
+  // Filtrado con lógica AND (FR3.3).
+  const filtered = useMemo(() => {
+    const q = filters.query.trim().toLowerCase();
+    return orders.filter((o) => {
+      if (filters.warehouse !== ALL && o.warehouseId !== filters.warehouse) return false;
+      if (filters.company !== ALL && o.companyId !== filters.company) return false;
+      if (filters.branch !== ALL && o.branchId !== filters.branch) return false;
+      if (filters.route !== ALL && o.route !== filters.route) return false;
+      if (filters.tier !== ALL && String(o.tier) !== filters.tier) return false;
+      if (filters.status !== ALL && o.status !== filters.status) return false;
+      if (filters.situation !== ALL && o.situation !== filters.situation) return false;
+      if (q && !`${o.id} ${o.ref} ${o.customer} ${o.route} ${o.observations}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [orders, filters]);
+
+  // Reinicia a la página 1 cuando cambian los filtros o el tamaño de página.
+  useEffect(() => { setPage(1); }, [filters, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pageStart = (currentPage - 1) * pageSize;
+  const paginated = filtered.slice(pageStart, pageStart + pageSize);
+
+  const goToPage = (p: number) => {
+    if (Number.isNaN(p)) return;
+    setPage(Math.min(Math.max(1, Math.trunc(p)), totalPages));
+  };
+
+  const setFilter = (key: keyof ColaFilters, value: string) =>
+    setFilters((prev) => ({ ...prev, [key]: value }));
+  const resetFilters = () => setFilters(EMPTY_FILTERS);
+  const filtersActive =
+    filters.warehouse !== ALL || filters.company !== ALL || filters.branch !== ALL ||
+    filters.route !== ALL || filters.tier !== ALL || filters.status !== ALL ||
+    filters.situation !== ALL || filters.query.trim() !== '';
 
   const selected = orders.find((o) => o.id === selectedId) ?? null;
 
@@ -53,7 +124,9 @@ export function useColaController() {
   };
 
   return {
-    country, setCountry, orders, loading, error,
+    country, setCountry, orders: paginated, filteredCount: filtered.length, totalCount: orders.length, loading, error,
+    filters, setFilter, resetFilters, filtersActive, options,
+    page: currentPage, pageSize, setPageSize, goToPage, totalPages, pageStart,
     selectedId, setSelectedId, selected,
     detailOpen, setDetailOpen,
     overrideOpen, setOverrideOpen, applyOverride,

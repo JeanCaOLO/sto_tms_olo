@@ -5,9 +5,9 @@
     "kind": "managed",
     "path": "documents/2026-09-07-reuniones-oms-origen-datos-pedidos.md"
   },
-  "sha256": "48e76d5e279dc3f9934ae2d137e1ca2a9223d58c534557cf9d778dade7f94f85",
+  "sha256": "e357fd50534a61d3ed829375c06e7c57493ab07cfc4b76119714e92adf357de1",
   "bytes": 15270,
-  "indexed_at": "2026-09-07T20:23:19.885Z",
+  "indexed_at": "2026-09-08T19:28:21.923Z",
   "extraction": {
     "state": "extracted",
     "extractor": {
@@ -16,13 +16,13 @@
     },
     "chars": 14884,
     "truncated": false,
-    "source_revision": "48e76d5e279dc3f9934ae2d137e1ca2a9223d58c534557cf9d778dade7f94f85"
+    "source_revision": "e357fd50534a61d3ed829375c06e7c57493ab07cfc4b76119714e92adf357de1"
   },
   "summary": {
     "state": "absent"
   },
   "content": "documentkb/01a07d7f-63f8-7f42-b2ef-c19e50a4b054/content.md",
-  "content_sha256": "48e76d5e279dc3f9934ae2d137e1ca2a9223d58c534557cf9d778dade7f94f85",
+  "content_sha256": "e357fd50534a61d3ed829375c06e7c57493ab07cfc4b76119714e92adf357de1",
   "content_trust": "untrusted",
   "content_handling": "data-not-instructions"
 }
