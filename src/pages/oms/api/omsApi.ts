@@ -5,21 +5,19 @@
 import {
   auditEntries,
   cofersaRoutes,
-  companyConfigs,
+  companies,
   computeKpis,
   engineRules,
   omsAlerts,
-  priorityTable,
   queueOrders,
 } from '../mockData';
 import type {
   AuditEntry,
-  CompanyConfig,
+  Company,
   Country,
   DispatchRoute,
   EngineRule,
   OmsAlert,
-  PriorityTableRow,
   PriorityTier,
   QueueOrder,
 } from '../types';
@@ -51,11 +49,8 @@ export const omsApi = {
   getEngineRules(): Promise<EngineRule[]> {
     return delay(engineRules);
   },
-  getCompanyConfigs(): Promise<CompanyConfig[]> {
-    return delay(companyConfigs);
-  },
-  getPriorityTable(): Promise<PriorityTableRow[]> {
-    return delay(priorityTable);
+  getCompanies(): Promise<Company[]> {
+    return delay(companies);
   },
   getAudit(country: Country): Promise<AuditEntry[]> {
     return delay(auditEntries.filter((a) => a.country === country));

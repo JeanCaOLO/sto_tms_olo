@@ -110,7 +110,8 @@ export interface RuleParam {
 
 export interface EngineRule {
   id: string;
-  order: number;         // orden de la macro-regla (1..5)
+  company: string;       // compañía a la que aplica la regla
+  order: number;         // orden de la macro-regla (1..N)
   name: string;
   description: string;   // qué hace (solo lectura)
   weight: number;        // peso/score (editable)
@@ -119,18 +120,10 @@ export interface EngineRule {
   params: RuleParam[];   // parámetros editables
 }
 
-// Configuración por compañía (ej.: EPA no prioriza; Cofersa sí).
-export interface CompanyConfig {
+// Compañía seleccionable en el Motor de Reglas.
+export interface Company {
   id: string;
   name: string;
-  prioritizes: boolean;
-}
-
-// Tabla de prioridades que define el cliente (números 1..N).
-export interface PriorityTableRow {
-  level: number;
-  label: string;
-  description: string;
 }
 
 // FR7 — registro de auditoría de priorización.

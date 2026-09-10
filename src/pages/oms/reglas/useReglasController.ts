@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import { omsApi } from '../api/omsApi';
-import type { CompanyConfig, EngineRule, PriorityTableRow, RuleParam } from '../types';
+import type { Company, EngineRule, RuleParam } from '../types';
 
 // Controller del Motor de Reglas (FR5) — catálogo semi-configurable.
 // La lógica de cada regla vive en código; aquí solo se activa/desactiva,
-// se ajusta el peso y sus parámetros, y se configura por compañía.
+// se ajusta el peso y sus parámetros. La lista se filtra por compañía.
 export function useReglasController() {
   const [rules, setRules] = useState<EngineRule[]>([]);
-  const [companies, setCompanies] = useState<CompanyConfig[]>([]);
-  const [priorityTable, setPriorityTable] = useState<PriorityTableRow[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [company, setCompany] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -17,12 +17,12 @@ export function useReglasController() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    Promise.all([omsApi.getEngineRules(), omsApi.getCompanyConfigs(), omsApi.getPriorityTable()])
-      .then(([r, c, p]) => {
+    Promise.all([omsApi.getEngineRules(), omsApi.getCompanies()])
+      .then(([r, c]) => {
         if (cancelled) return;
         setRules(r);
         setCompanies(c);
-        setPriorityTable(p);
+        setCompany(c[0]?.id ?? '');
       })
       .catch(() => { if (!cancelled) setError('No se pudieron cargar las reglas.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -40,15 +40,16 @@ export function useReglasController() {
     setEditingId(null);
   };
 
-  const toggleCompany = (id: string) =>
-    setCompanies((prev) => prev.map((c) => (c.id === id ? { ...c, prioritizes: !c.prioritizes } : c)));
+  // Reglas de la compañía seleccionada, ordenadas.
+  const rulesForCompany = rules
+    .filter((r) => r.company === company)
+    .sort((a, b) => a.order - b.order);
 
   const editingRule = rules.find((r) => r.id === editingId) ?? null;
 
   return {
-    rules, companies, priorityTable, loading, error,
+    rules: rulesForCompany, companies, company, setCompany, loading, error,
     toggleRule, setWeight,
     editingId, setEditingId, editingRule, saveParams,
-    toggleCompany,
   };
 }
