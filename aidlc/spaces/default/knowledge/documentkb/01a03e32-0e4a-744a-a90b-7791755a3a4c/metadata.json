@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "01a03e32-0e4a-744a-a90b-7791755a3a4c",
+  "source": {
+    "kind": "managed",
+    "path": "documents/kiro-oms-design.md"
+  },
+  "sha256": "d1cdb91ef9bb2d8a268808217249a127bf26dc1a9a8678bc09f1e54d52bbb2ed",
+  "bytes": 42587,
+  "indexed_at": "2026-08-26T13:11:02.943Z",
+  "extraction": {
+    "state": "extracted",
+    "extractor": {
+      "name": "builtin-text",
+      "version": "1"
+    },
+    "chars": 41920,
+    "truncated": false,
+    "source_revision": "d1cdb91ef9bb2d8a268808217249a127bf26dc1a9a8678bc09f1e54d52bbb2ed"
+  },
+  "summary": {
+    "state": "absent"
+  },
+  "content": "documentkb/01a03e32-0e4a-744a-a90b-7791755a3a4c/content.md",
+  "content_sha256": "d1cdb91ef9bb2d8a268808217249a127bf26dc1a9a8678bc09f1e54d52bbb2ed",
+  "content_trust": "untrusted",
+  "content_handling": "data-not-instructions"
+}

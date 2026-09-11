@@ -1,0 +1,21 @@
+{
+  "stage": "code-generation",
+  "unit": "oms-frontend-prototype",
+  "upstream_ids": ["FR1", "FR2", "FR3", "FR4", "FR5", "FR6", "FR7", "FR8", "FR9", "FR10"],
+  "coverage": [
+    { "id": "FR1", "status": "OK", "target": "src/pages/oms/rutas-despacho/page.tsx (cuadrícula semanal de días de carga)" },
+    { "id": "FR2", "status": "OK", "target": "src/pages/oms/cola/page.tsx + mockData (score/ready_to_prep_date)" },
+    { "id": "FR3", "status": "OK", "target": "src/pages/oms/cola/OverrideModal.tsx + useColaController (override por pedido)" },
+    { "id": "FR4", "status": "OK", "target": "src/pages/oms/panel/page.tsx (KPIs + alertas)" },
+    { "id": "FR5", "status": "OK", "target": "src/pages/oms/reglas/page.tsx (perfiles + reglas)" },
+    { "id": "FR6", "status": "OK", "target": "src/pages/oms/simulador/page.tsx (comparación actual vs. simulada)" },
+    { "id": "FR7", "status": "OK", "target": "src/pages/oms/auditoria/page.tsx (registro solo lectura)" },
+    { "id": "FR8", "status": "Deferred", "target": "inserción al lago no implementada en el prototipo (sin backend); reflejada solo como tipos de alerta en el Panel" },
+    { "id": "FR9", "status": "OK", "target": "src/pages/oms/components/CountrySelector.tsx (país obligatorio en el header)" },
+    { "id": "FR10", "status": "Deferred", "target": "permisos/RLS no implementados en el prototipo; se resuelven en Construcción con la capa de seguridad transversal" }
+  ],
+  "reverse": [
+    { "id": "src/pages/oms/mockData.ts", "status": "N/A", "target": "capa de datos mock — se reemplaza por la capa real en Construcción" },
+    { "id": "src/pages/oms/api/omsApi.ts", "status": "N/A", "target": "API mock — sin backend por diseño del prototipo" }
+  ]
+}

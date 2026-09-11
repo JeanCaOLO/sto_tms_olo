@@ -1,4 +1,4 @@
-[
+﻿[
   {
     "slug": "workspace-scaffold",
     "number": "0.1",
@@ -50,7 +50,7 @@
     "name": "Workspace Detection",
     "phase": "initialization",
     "execution": "ALWAYS",
-    "condition": "Scans and classifies workspace — auto-proceeds (no approval gate)",
+    "condition": "Scans and classifies workspace ÔÇö auto-proceeds (no approval gate)",
     "lead_agent": "orchestrator",
     "support_agents": [],
     "mode": "inline",
@@ -97,7 +97,7 @@
     "name": "State Initialization",
     "phase": "initialization",
     "execution": "ALWAYS",
-    "condition": "Creates full populated state file and determines routing — auto-proceeds",
+    "condition": "Creates full populated state file and determines routing ÔÇö auto-proceeds",
     "lead_agent": "orchestrator",
     "support_agents": [],
     "mode": "inline",
@@ -144,7 +144,7 @@
     "name": "Intent Capture & Framing",
     "phase": "ideation",
     "execution": "ALWAYS",
-    "condition": "First stage of every workflow — establishes the initiative's foundation",
+    "condition": "First stage of every workflow ÔÇö establishes the initiative's foundation",
     "lead_agent": "aidlc-product-agent",
     "support_agents": [
       "aidlc-architect-agent"
@@ -389,7 +389,7 @@
     "name": "Scope Definition",
     "phase": "ideation",
     "execution": "ALWAYS",
-    "condition": "Always executes — defines the scope boundary and prioritized backlog",
+    "condition": "Always executes ÔÇö defines the scope boundary and prioritized backlog",
     "lead_agent": "aidlc-product-agent",
     "support_agents": [
       "aidlc-delivery-agent"
@@ -641,7 +641,7 @@
     "name": "Approval & Handoff",
     "phase": "ideation",
     "execution": "ALWAYS",
-    "condition": "Always executes — compiles all Ideation artifacts into initiative brief for approval",
+    "condition": "Always executes ÔÇö compiles all Ideation artifacts into initiative brief for approval",
     "lead_agent": "aidlc-delivery-agent",
     "support_agents": [
       "aidlc-product-agent"
@@ -943,7 +943,7 @@
     "name": "Requirements Analysis",
     "phase": "inception",
     "execution": "ALWAYS",
-    "condition": "Always executes — depth scales with project complexity",
+    "condition": "Always executes ÔÇö depth scales with project complexity",
     "lead_agent": "aidlc-product-agent",
     "support_agents": [],
     "mode": "inline",
@@ -1312,7 +1312,7 @@
     "review_class": "advisory",
     "summary_confirmation": "required",
     "inputs": "<record>/inception/requirements-analysis/requirements.md, <record>/inception/user-stories/stories.md (if produced), RE artifacts (if brownfield)",
-    "outputs": "components.md (fenced ```yaml component catalogue plus a human-readable mermaid diagram and summary table), decisions.md (Architecture Decision Records), and traceability.json — all under this stage's record dir, engine-resolved",
+    "outputs": "components.md (fenced ```yaml component catalogue plus a human-readable mermaid diagram and summary table), decisions.md (Architecture Decision Records), and traceability.json ÔÇö all under this stage's record dir, engine-resolved",
     "rules_in_context": [
       {
         "path": "aidlc/spaces/default/memory/org.md",
@@ -1364,7 +1364,7 @@
     "name": "Units Generation",
     "phase": "inception",
     "execution": "ALWAYS",
-    "condition": "Always executes when in scope. Produces the dependency DAG that Stage 2.9 Delivery Planning consumes for Bolt sequencing. In the compiled scope grid, 2.7 (Units Generation) and 2.9 (Delivery Planning) travel together — both EXECUTE or both SKIP per scope.",
+    "condition": "Always executes when in scope. Produces the dependency DAG that Stage 2.9 Delivery Planning consumes for Bolt sequencing. In the compiled scope grid, 2.7 (Units Generation) and 2.9 (Delivery Planning) travel together ÔÇö both EXECUTE or both SKIP per scope.",
     "lead_agent": "aidlc-architect-agent",
     "support_agents": [
       "aidlc-delivery-agent"
@@ -1466,7 +1466,7 @@
     "name": "Contract Design",
     "phase": "inception",
     "execution": "CONDITIONAL",
-    "condition": "Execute when the system has any formal contract to pin down — an inter-unit boundary (more than one unit that must integrate) OR a unit that exposes a public/external API consumed outside the system. Skip only for a single self-contained unit with no inter-unit boundaries and no externally consumed API.",
+    "condition": "Execute when the system has any formal contract to pin down ÔÇö an inter-unit boundary (more than one unit that must integrate) OR a unit that exposes a public/external API consumed outside the system. Skip only for a single self-contained unit with no inter-unit boundaries and no externally consumed API.",
     "lead_agent": "aidlc-architect-agent",
     "support_agents": [
       "aidlc-aws-platform-agent"
@@ -1512,7 +1512,7 @@
     "review_class": "advisory",
     "summary_confirmation": "required",
     "inputs": "<record>/inception/units-generation/unit-of-work.md, <record>/inception/units-generation/unit-of-work-dependency.md, <record>/inception/domain-design/components.md (if produced), <record>/inception/requirements-analysis/requirements.md",
-    "outputs": "contract-summary.md (under this stage's record dir, engine-resolved) — a human-readable overview of every contract (inter-unit boundaries and public/external APIs), each with a fenced spec block (OpenAPI / AsyncAPI / shared schema) inline",
+    "outputs": "contract-summary.md (under this stage's record dir, engine-resolved) ÔÇö a human-readable overview of every contract (inter-unit boundaries and public/external APIs), each with a fenced spec block (OpenAPI / AsyncAPI / shared schema) inline",
     "rules_in_context": [
       {
         "path": "aidlc/spaces/default/memory/org.md",
@@ -1556,7 +1556,7 @@
     "name": "Delivery Planning",
     "phase": "inception",
     "execution": "ALWAYS",
-    "condition": "Always executes — capstone Inception stage, produces the detailed execution plan for Construction and Operation",
+    "condition": "Always executes ÔÇö capstone Inception stage, produces the detailed execution plan for Construction and Operation",
     "lead_agent": "aidlc-delivery-agent",
     "support_agents": [
       "aidlc-architect-agent"

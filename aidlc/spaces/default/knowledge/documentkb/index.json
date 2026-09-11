@@ -1,0 +1,305 @@
+{
+  "schema_version": 1,
+  "documents": [
+    {
+      "id": "01a03464-4dad-7c72-b911-a838e5258ec7",
+      "source": {
+        "kind": "managed",
+        "path": "documents/CONTEXTO_PROYECTO_TMS.md"
+      },
+      "sha256": "d3485b342c9fd8aa2e96d44d7857f831d90b9b82ab91563b9a03ae145f6b9e75",
+      "bytes": 44543,
+      "indexed_at": "2026-08-24T15:29:43.824Z",
+      "extraction": {
+        "state": "extracted",
+        "extractor": {
+          "name": "builtin-text",
+          "version": "1"
+        },
+        "chars": 43571,
+        "truncated": false,
+        "source_revision": "d3485b342c9fd8aa2e96d44d7857f831d90b9b82ab91563b9a03ae145f6b9e75"
+      },
+      "summary": {
+        "state": "absent"
+      },
+      "content": "documentkb/01a03464-4dad-7c72-b911-a838e5258ec7/content.md",
+      "content_sha256": "d3485b342c9fd8aa2e96d44d7857f831d90b9b82ab91563b9a03ae145f6b9e75"
+    },
+    {
+      "id": "01a03464-4db3-79d2-ac66-81f6ac32f34e",
+      "source": {
+        "kind": "managed",
+        "path": "documents/PLAN_MODULO_OMS.md"
+      },
+      "sha256": "fe947b0cfa860f3d0a93e7c8143bf16584e98d7dde360d5c1ec353b3a577bf28",
+      "bytes": 32341,
+      "indexed_at": "2026-08-24T15:29:43.824Z",
+      "extraction": {
+        "state": "extracted",
+        "extractor": {
+          "name": "builtin-text",
+          "version": "1"
+        },
+        "chars": 31413,
+        "truncated": false,
+        "source_revision": "fe947b0cfa860f3d0a93e7c8143bf16584e98d7dde360d5c1ec353b3a577bf28"
+      },
+      "summary": {
+        "state": "absent"
+      },
+      "content": "documentkb/01a03464-4db3-79d2-ac66-81f6ac32f34e/content.md",
+      "content_sha256": "fe947b0cfa860f3d0a93e7c8143bf16584e98d7dde360d5c1ec353b3a577bf28"
+    },
+    {
+      "id": "01a03e32-0e3a-7f1f-83dc-16ab104c38ca",
+      "source": {
+        "kind": "managed",
+        "path": "documents/2026-08-26-reunion-oms-roles.md"
+      },
+      "sha256": "6ed085fcfb418670aadb013577a424f1bc8592d59fd04acd6d6153aa8db5f898",
+      "bytes": 11732,
+      "indexed_at": "2026-08-26T19:52:57.553Z",
+      "extraction": {
+        "state": "extracted",
+        "extractor": {
+          "name": "builtin-text",
+          "version": "1"
+        },
+        "chars": 11435,
+        "truncated": false,
+        "source_revision": "6ed085fcfb418670aadb013577a424f1bc8592d59fd04acd6d6153aa8db5f898"
+      },
+      "summary": {
+        "state": "absent"
+      },
+      "content": "documentkb/01a03e32-0e3a-7f1f-83dc-16ab104c38ca/content.md",
+      "content_sha256": "6ed085fcfb418670aadb013577a424f1bc8592d59fd04acd6d6153aa8db5f898"
+    },
+    {
+      "id": "01a03e32-0e4a-744a-a90b-7791755a3a4c",
+      "source": {
+        "kind": "managed",
+        "path": "documents/kiro-oms-design.md"
+      },
+      "sha256": "d1cdb91ef9bb2d8a268808217249a127bf26dc1a9a8678bc09f1e54d52bbb2ed",
+      "bytes": 42587,
+      "indexed_at": "2026-08-26T13:11:02.943Z",
+      "extraction": {
+        "state": "extracted",
+        "extractor": {
+          "name": "builtin-text",
+          "version": "1"
+        },
+        "chars": 41920,
+        "truncated": false,
+        "source_revision": "d1cdb91ef9bb2d8a268808217249a127bf26dc1a9a8678bc09f1e54d52bbb2ed"
+      },
+      "summary": {
+        "state": "absent"
+      },
+      "content": "documentkb/01a03e32-0e4a-744a-a90b-7791755a3a4c/content.md",
+      "content_sha256": "d1cdb91ef9bb2d8a268808217249a127bf26dc1a9a8678bc09f1e54d52bbb2ed"
+    },
+    {
+      "id": "01a03e32-0e4e-7cc3-8f58-7a1d911481f9",
+      "source": {
+        "kind": "managed",
+        "path": "documents/kiro-oms-requirements.md"
+      },
+      "sha256": "07735cbaf4b5d39580fbe3663ef1019088f8db63ff14b3b3ba85b310e2255a3e",
+      "bytes": 25744,
+      "indexed_at": "2026-08-26T13:11:02.943Z",
+      "extraction": {
+        "state": "extracted",
+        "extractor": {
+          "name": "builtin-text",
+          "version": "1"
+        },
+        "chars": 25382,
+        "truncated": false,
+        "source_revision": "07735cbaf4b5d39580fbe3663ef1019088f8db63ff14b3b3ba85b310e2255a3e"
+      },
+      "summary": {
+        "state": "absent"
+      },
+      "content": "documentkb/01a03e32-0e4e-7cc3-8f58-7a1d911481f9/content.md",
+      "content_sha256": "07735cbaf4b5d39580fbe3663ef1019088f8db63ff14b3b3ba85b310e2255a3e"
+    },
+    {
+      "id": "01a062d1-16bb-7f1a-be81-2b10b75115fe",
+      "source": {
+        "kind": "managed",
+        "path": "documents/2026-09-01-reunion-oms-revision-mockup.md"
+      },
+      "sha256": "c23634a11b361e73e2f85390f08b572f7f3c57fc30bc1f695a5dd56f8b53b585",
+      "bytes": 7999,
+      "indexed_at": "2026-09-02T15:51:05.133Z",
+      "extraction": {
+        "state": "extracted",
+        "extractor": {
+          "name": "builtin-text",
+          "version": "1"
+        },
+        "chars": 7817,
+        "truncated": false,
+        "source_revision": "c23634a11b361e73e2f85390f08b572f7f3c57fc30bc1f695a5dd56f8b53b585"
+      },
+      "summary": {
+        "state": "absent"
+      },
+      "content": "documentkb/01a062d1-16bb-7f1a-be81-2b10b75115fe/content.md",
+      "content_sha256": "c23634a11b361e73e2f85390f08b572f7f3c57fc30bc1f695a5dd56f8b53b585"
+    },
+    {
+      "id": "01a068b6-20bb-71c7-8ba8-cdc26cfadab5",
+      "source": {
+        "kind": "managed",
+        "path": "documents/2026-09-02-reunion-portafolio-suite-repos-bd.md"
+      },
+      "sha256": "18f56818eb2449f4a0ba101a4d994e18dcd1fcbdece017ff0d6842e882e5be87",
+      "bytes": 6358,
+      "indexed_at": "2026-09-03T19:19:21.520Z",
+      "extraction": {
+        "state": "extracted",
+        "extractor": {
+          "name": "builtin-text",
+          "version": "1"
+        },
+        "chars": 6186,
+        "truncated": false,
+        "source_revision": "18f56818eb2449f4a0ba101a4d994e18dcd1fcbdece017ff0d6842e882e5be87"
+      },
+      "summary": {
+        "state": "absent"
+      },
+      "content": "documentkb/01a068b6-20bb-71c7-8ba8-cdc26cfadab5/content.md",
+      "content_sha256": "18f56818eb2449f4a0ba101a4d994e18dcd1fcbdece017ff0d6842e882e5be87"
+    },
+    {
+      "id": "01a06d3d-8873-7d06-85ea-3c5425c511be",
+      "source": {
+        "kind": "managed",
+        "path": "documents/2026-09-03-reunion-arquitectura-repos-javier.md"
+      },
+      "sha256": "161124a2d1b911a186b86cb14bf45a021d33ece32874b161745fe7480432809b",
+      "bytes": 4547,
+      "indexed_at": "2026-09-04T16:25:44.293Z",
+      "extraction": {
+        "state": "extracted",
+        "extractor": {
+          "name": "builtin-text",
+          "version": "1"
+        },
+        "chars": 4463,
+        "truncated": false,
+        "source_revision": "161124a2d1b911a186b86cb14bf45a021d33ece32874b161745fe7480432809b"
+      },
+      "summary": {
+        "state": "absent"
+      },
+      "content": "documentkb/01a06d3d-8873-7d06-85ea-3c5425c511be/content.md",
+      "content_sha256": "161124a2d1b911a186b86cb14bf45a021d33ece32874b161745fe7480432809b"
+    },
+    {
+      "id": "01a07d51-65d8-7174-a6ce-0547938c8d76",
+      "source": {
+        "kind": "managed",
+        "path": "documents/2026-09-07-reunion-oms-antonio-flujo-priorizacion.md"
+      },
+      "sha256": "85a5373b9403bda6792cdce7bf458faa861c97475c5744d16c0764c8691ffdb7",
+      "bytes": 19823,
+      "indexed_at": "2026-09-07T19:21:21.607Z",
+      "extraction": {
+        "state": "extracted",
+        "extractor": {
+          "name": "builtin-text",
+          "version": "1"
+        },
+        "chars": 19406,
+        "truncated": false,
+        "source_revision": "85a5373b9403bda6792cdce7bf458faa861c97475c5744d16c0764c8691ffdb7"
+      },
+      "summary": {
+        "state": "absent"
+      },
+      "content": "documentkb/01a07d51-65d8-7174-a6ce-0547938c8d76/content.md",
+      "content_sha256": "85a5373b9403bda6792cdce7bf458faa861c97475c5744d16c0764c8691ffdb7"
+    },
+    {
+      "id": "01a07d7f-63f8-7f42-b2ef-c19e50a4b054",
+      "source": {
+        "kind": "managed",
+        "path": "documents/2026-09-07-reuniones-oms-origen-datos-pedidos.md"
+      },
+      "sha256": "e357fd50534a61d3ed829375c06e7c57493ab07cfc4b76119714e92adf357de1",
+      "bytes": 15270,
+      "indexed_at": "2026-09-08T19:28:21.923Z",
+      "extraction": {
+        "state": "extracted",
+        "extractor": {
+          "name": "builtin-text",
+          "version": "1"
+        },
+        "chars": 14884,
+        "truncated": false,
+        "source_revision": "e357fd50534a61d3ed829375c06e7c57493ab07cfc4b76119714e92adf357de1"
+      },
+      "summary": {
+        "state": "absent"
+      },
+      "content": "documentkb/01a07d7f-63f8-7f42-b2ef-c19e50a4b054/content.md",
+      "content_sha256": "e357fd50534a61d3ed829375c06e7c57493ab07cfc4b76119714e92adf357de1"
+    },
+    {
+      "id": "01a0812f-5d13-76cd-bdf6-454ea7ecc749",
+      "source": {
+        "kind": "managed",
+        "path": "documents/2026-09-08-conversacion-exploratoria-oms-integracion-wms-wmh-reglas.md"
+      },
+      "sha256": "f4f8c083a4f7e739cc4d1fe32d396e5ace7b16d2b7b6b93f3232daf6b9c1ad94",
+      "bytes": 12777,
+      "indexed_at": "2026-09-08T19:28:22.566Z",
+      "extraction": {
+        "state": "extracted",
+        "extractor": {
+          "name": "builtin-text",
+          "version": "1"
+        },
+        "chars": 12491,
+        "truncated": false,
+        "source_revision": "f4f8c083a4f7e739cc4d1fe32d396e5ace7b16d2b7b6b93f3232daf6b9c1ad94"
+      },
+      "summary": {
+        "state": "absent"
+      },
+      "content": "documentkb/01a0812f-5d13-76cd-bdf6-454ea7ecc749/content.md",
+      "content_sha256": "f4f8c083a4f7e739cc4d1fe32d396e5ace7b16d2b7b6b93f3232daf6b9c1ad94"
+    },
+    {
+      "id": "01a08276-65d5-7d72-86a5-44a987401a5a",
+      "source": {
+        "kind": "managed",
+        "path": "documents/2026-09-08-reunion-funcional-oms-reglas-priorizacion-antonio.md"
+      },
+      "sha256": "a62e9df05accae786acb1a333dff3fd16f5cb55adc0e95798f40117448f38f96",
+      "bytes": 20138,
+      "indexed_at": "2026-09-08T19:28:23.264Z",
+      "extraction": {
+        "state": "extracted",
+        "extractor": {
+          "name": "builtin-text",
+          "version": "1"
+        },
+        "chars": 19687,
+        "truncated": false,
+        "source_revision": "a62e9df05accae786acb1a333dff3fd16f5cb55adc0e95798f40117448f38f96"
+      },
+      "summary": {
+        "state": "absent"
+      },
+      "content": "documentkb/01a08276-65d5-7d72-86a5-44a987401a5a/content.md",
+      "content_sha256": "a62e9df05accae786acb1a333dff3fd16f5cb55adc0e95798f40117448f38f96"
+    }
+  ]
+}

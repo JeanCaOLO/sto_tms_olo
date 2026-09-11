@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "01a03464-4dad-7c72-b911-a838e5258ec7",
+  "source": {
+    "kind": "managed",
+    "path": "documents/CONTEXTO_PROYECTO_TMS.md"
+  },
+  "sha256": "d3485b342c9fd8aa2e96d44d7857f831d90b9b82ab91563b9a03ae145f6b9e75",
+  "bytes": 44543,
+  "indexed_at": "2026-08-24T15:29:43.824Z",
+  "extraction": {
+    "state": "extracted",
+    "extractor": {
+      "name": "builtin-text",
+      "version": "1"
+    },
+    "chars": 43571,
+    "truncated": false,
+    "source_revision": "d3485b342c9fd8aa2e96d44d7857f831d90b9b82ab91563b9a03ae145f6b9e75"
+  },
+  "summary": {
+    "state": "absent"
+  },
+  "content": "documentkb/01a03464-4dad-7c72-b911-a838e5258ec7/content.md",
+  "content_sha256": "d3485b342c9fd8aa2e96d44d7857f831d90b9b82ab91563b9a03ae145f6b9e75",
+  "content_trust": "untrusted",
+  "content_handling": "data-not-instructions"
+}

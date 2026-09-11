@@ -5,14 +5,18 @@ import { isGroup, navItems } from './sidebar-nav-items';
 import SidebarNavGroup from './SidebarNavGroup';
 import SidebarNavLink from './SidebarNavLink';
 
-const CATALOG_PATHS = ['/paises', '/rutas', '/transportistas', '/vehiculos', '/conductores', '/clientes', '/tiendas'];
-
 export default function Sidebar() {
   const location = useLocation();
   const { collapsed, toggleCollapsed, mobileOpen, setMobileOpen } = useSidebar();
 
-  const isCatalogActive = CATALOG_PATHS.includes(location.pathname);
-  const [catalogOpen, setCatalogOpen] = useState(isCatalogActive);
+  // Grupos abiertos por label; arranca con el grupo cuyo hijo coincide con la ruta actual.
+  const initialOpen = navItems
+    .filter(isGroup)
+    .filter((group) => group.children.some((child) => child.path === location.pathname))
+    .map((group) => group.label);
+  const [openGroups, setOpenGroups] = useState<string[]>(initialOpen);
+  const toggleGroup = (label: string) =>
+    setOpenGroups((prev) => (prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label]));
 
   return (
     <>
@@ -56,10 +60,10 @@ export default function Sidebar() {
               <SidebarNavGroup
                 key={item.label}
                 item={item}
-                isActive={isCatalogActive}
+                isActive={item.children.some((child) => child.path === location.pathname)}
                 collapsed={collapsed}
-                open={catalogOpen}
-                onToggle={() => setCatalogOpen((v) => !v)}
+                open={openGroups.includes(item.label)}
+                onToggle={() => toggleGroup(item.label)}
               />
             ) : (
               <SidebarNavLink key={item.path} item={item} isActive={location.pathname === item.path} collapsed={collapsed} />
