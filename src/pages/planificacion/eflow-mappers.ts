@@ -28,15 +28,16 @@ interface VehiculoRow { vehicle_id: number; license_plate: string; vehicle_brand
 export interface PedidoRow {
   trip_id: number;
   order_number: string;
-  invoice_number: string | null;
   customer_id: string | null;
   customer_name: string | null;
   delivery_address: string | null;
   delivery_latitude: string | null;
   delivery_longitude: string | null;
   route_code: string | null;
-  total_units: number | null;
-  total_amount: number | null;
+  // Peso/volumen con cascada de fuentes en el backend (cabecera -> detalle ->
+  // calculado). Vienen ya resueltos; null cuando ninguna fuente los tenía.
+  total_weight: number | null;
+  total_volume: number | null;
 }
 
 // --- Pure mappers: QA row -> view model the components already expect -------
@@ -121,8 +122,8 @@ export function mapPedido(row: PedidoRow, routeTypeId: string): Pedido {
     delivery_address: row.delivery_address || '',
     delivery_city: '',
     delivery_zone: '',
-    total_weight: 0,
-    total_volume: 0,
+    total_weight: Number(row.total_weight) || 0,
+    total_volume: Number(row.total_volume) || 0,
     status: 'pending',
     order_date: new Date().toISOString(),
     delivery_latitude: toCoord(row.delivery_latitude),
