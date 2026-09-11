@@ -71,6 +71,16 @@ export interface StageEntry {
   // approve/advance: a code-generation stage that wrote only its markdown
   // produces[] docs but no actual code must not pass (issue #366).
   workspace_requires?: boolean;
+  // Compile-resolved sensor bindings. Runtime dispatchers consume the detailed
+  // graph shape; user-facing directives intentionally project only sensor ids.
+  sensors_applicable?: Array<{
+    id: string;
+    path: string;
+    fire_on: "write" | "gate";
+    default_severity: "advisory" | "blocking";
+    category?: string;
+    matches?: string;
+  }>;
 }
 
 // The per-unit marker carried by the Construction stages that run once per
@@ -3697,6 +3707,13 @@ function cloneId(projectDir: string): string {
 // there is no per-stage scoping. AUTONOMY_MODE_SET only counts when its Mode is
 // autonomous because that grant consumes the human turn that unlocks downstream
 // presence carve-outs.
+export const BLOCKING_SENSOR_OVERRIDE_CHOICE = "Override blocking sensors";
+export const BLOCKING_SENSOR_OVERRIDE_DECISION = "Blocking gate sensor failure";
+export const BLOCKING_SENSOR_OVERRIDE_OPTIONS = [
+  "Fix findings",
+  BLOCKING_SENSOR_OVERRIDE_CHOICE,
+] as const;
+
 const GATE_RESOLUTION_EVENTS = new Set([
   "GATE_APPROVED",
   "GATE_REJECTED",
@@ -12540,7 +12557,8 @@ export interface ScopeCostSummary {
   skip: number;          // total - execute
   gates: number;         // EXECUTE stages outside initialization; mirrors
                          // computeGate() in aidlc-orchestrate.ts - change together
-  perUnitStages: number; // EXECUTE stages that repeat per Unit of Work
+  perUnitStages: number; // EXECUTE stages that repeat per Unit of Work when
+                         // units-generation EXECUTEs; otherwise they run once
 }
 
 // Cost of an arbitrary EXECUTE/SKIP grid (the composer-proposal shape). Indexes
@@ -12556,6 +12574,7 @@ export function gridCostSummary(
   const byslug = new Map<string, StageEntry>();
   for (const s of loadStageGraph()) byslug.set(s.slug, s);
   const total = Object.keys(stages).length;
+  const hasUnitDag = stages["units-generation"] === "EXECUTE";
   let execute = 0;
   let gates = 0;
   let perUnitStages = 0;
@@ -12565,7 +12584,9 @@ export function gridCostSummary(
     const node = byslug.get(slug);
     if (!node) continue;
     if (node.phase !== "initialization") gates++;
-    if (isPerUnitStage(node)) perUnitStages++;
+    // Without units-generation there is no Unit DAG, so per-unit stages
+    // degrade to one stage-level pass (aidlc-orchestrate.ts).
+    if (hasUnitDag && isPerUnitStage(node)) perUnitStages++;
   }
   return { total, execute, skip: total - execute, gates, perUnitStages };
 }

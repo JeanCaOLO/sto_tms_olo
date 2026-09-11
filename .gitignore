@@ -2,10 +2,14 @@
 .claude/orchestrator/roster.json
 .claude/orchestrator/dependency_state.json
 .claude/orchestrator/.comment_*.md
+.claude/settings.local.json
 
 # Python bytecode from running the skill's scripts locally
 __pycache__/
 *.pyc
+
+# Spike local de OpenRouter: se usa con una API key incrustada para pruebas.
+probar_openrouter_cliente_retira.py
 
 # Dependencies
 node_modules/
@@ -13,6 +17,7 @@ node_modules/
 # Build output (vite.config.ts define outDir: "out")
 dist/
 out/
+coverage/
 
 # Auto-generado por unplugin-auto-import (vite.config.ts) en cada build/dev
 auto-imports.d.ts
@@ -24,12 +29,34 @@ yarn-debug.log*
 yarn-error.log*
 
 # Archivos de entorno locales (nunca deben ir a git — ver Estandares_Desarrollo_AWS_Intelix.md §12)
+.env
 .env.local
 .env.*.local
+*.local
 
 # OS / editor
 .DS_Store
 Thumbs.db
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# Orca briefs (locales)
+.orca-briefs/
+
+# Clones mirror locales (scripts/mirror-gitlab.mjs y scripts/mirror-github.mjs / pnpm pushing)
+/.mirror-gitlab/
+/.mirror-github/
+
+# Datos de referencia crudos (se prefiere commitear el JSON generado).
+/Rutas cofersa.xlsx
+# Sistemas de rutas: JSON generado por `pnpm run data:build`.
+# cofersa.json SÍ se commitea (3 KB, sin PII). El de programación de viajes
+# NO: ~6 MB y contiene nombres de conductores. Ver docs/work/2026-09/2026-09-01-matriz-rutas-multisistema.md
+/public/data/route-systems/meta.json
 
 # AI-DLC — the committed-vs-ignored split (workspace layout, re-rooted under aidlc/).
 # Rule of thumb (vision §5.1): per-user session CURSORS and machine-local
@@ -78,4 +105,3 @@ aidlc/diagnostics/
 # concurrent appends — there is intentionally NO .gitattributes merge=union,
 # which was proven to corrupt the multi-line audit blocks) ·
 # aidlc/spaces/*/intents/*/<phase>/<stage>/*.md (artifacts + diary).
-.claude/settings.local.json

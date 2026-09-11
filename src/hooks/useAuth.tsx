@@ -1,21 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-
-interface Role {
-  id: string;
-  name: string;
-}
-
-interface AppUser {
-  id: string;
-  auth_user_id: string;
-  full_name: string;
-  email: string;
-  role_id: string;
-  organization_id: string;
-  role: Role;
-}
+import { MOCK_AUTH_ENABLED, mockAppUser, mockSession, mockUser, type AppUser } from '../lib/mock-auth';
 
 interface AuthContextType {
   session: Session | null;
@@ -47,6 +33,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    if (MOCK_AUTH_ENABLED) {
+      setSession(mockSession);
+      setUser(mockUser);
+      setAppUser(mockAppUser);
+      setLoading(false);
+      return;
+    }
+
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       setSession(s);
       setUser(s?.user ?? null);
@@ -71,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string): Promise<{ error: string | null }> => {
+    if (MOCK_AUTH_ENABLED) return { error: null };
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       if (error.message.includes('Invalid login credentials')) {
@@ -85,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    if (MOCK_AUTH_ENABLED) return;
     await supabase.auth.signOut();
     setAppUser(null);
   };

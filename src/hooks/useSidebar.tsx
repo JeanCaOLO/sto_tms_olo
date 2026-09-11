@@ -1,27 +1,31 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
 
-interface SidebarContextValue {
+interface SidebarContextType {
   collapsed: boolean;
-  toggle: () => void;
-  setCollapsed: (v: boolean) => void;
+  toggleCollapsed: () => void;
+  mobileOpen: boolean;
+  setMobileOpen: (open: boolean) => void;
 }
 
-const SidebarContext = createContext<SidebarContextValue | undefined>(undefined);
+const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
 
-// Estado compartido del colapso del sidebar, para que el layout (main, header)
-// reaccione al ancho del sidebar y no quede espacio muerto al cerrarlo.
 export function SidebarProvider({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
-  const toggle = () => setCollapsed((c) => !c);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
   return (
-    <SidebarContext.Provider value={{ collapsed, toggle, setCollapsed }}>
+    <SidebarContext.Provider
+      value={{ collapsed, toggleCollapsed: () => setCollapsed((c) => !c), mobileOpen, setMobileOpen }}
+    >
       {children}
     </SidebarContext.Provider>
   );
 }
 
-export function useSidebar(): SidebarContextValue {
-  const ctx = useContext(SidebarContext);
-  if (!ctx) throw new Error('useSidebar debe usarse dentro de SidebarProvider');
-  return ctx;
+export function useSidebar(): SidebarContextType {
+  const context = useContext(SidebarContext);
+  if (!context) {
+    throw new Error('useSidebar debe usarse dentro de SidebarProvider');
+  }
+  return context;
 }

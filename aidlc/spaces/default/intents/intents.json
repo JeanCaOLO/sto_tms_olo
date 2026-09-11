@@ -1,5 +1,19 @@
 [
   {
+    "uuid": "01a03919-3f4d-7fe7-abf5-b6921d34a277",
+    "slug": "route-planning-reqs",
+    "dirName": "260825-route-planning-reqs",
+    "scope": "route-planning-docs",
+    "status": "complete"
+  },
+  {
+    "uuid": "01a05940-671e-7630-b9c1-f3ca9ddc8f0b",
+    "slug": "devoluciones-pickups",
+    "dirName": "260831-devoluciones-pickups",
+    "scope": "feature",
+    "status": "complete"
+  },
+  {
     "uuid": "01a04077-4ed3-78a8-ab14-612a6bfb6e91",
     "slug": "modulo-oms",
     "dirName": "260826-modulo-oms",
