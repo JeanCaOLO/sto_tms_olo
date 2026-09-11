@@ -15,9 +15,12 @@
 // DEST   (GitHub):  git@github.com:JeanCaOLO/sto_tms_olo.git  (SSH; override con $GITHUB_REMOTE)
 //
 // Como funciona: mantiene un clon --mirror bare de GitLab en .mirror-github/
-// (gitignored), hace fetch de GitLab y push de cada rama + tags a GitHub. Ambos
-// usan `main` (BRANCH_MAP vacío = 1:1). Con --prune borra en GitHub lo que ya no
-// está en GitLab. No toca PRs.
+// (gitignored), hace fetch de GitLab y push SOLO de las ramas listadas en
+// BRANCHES a GitHub, SIN forzar (fast-forward). NO toca `main` ni otras ramas de
+// otros colaboradores. NO borra nada en GitHub. NO empuja tags.
+//
+// Por defecto solo sincroniza `jesus-planificacion`. Otra rama:
+//   pnpm pushing -- --branch mi-rama
 //
 // Auth GitLab: $GITLAB_TOKEN (PAT) si existe; si no, OAuth con GITLAB_USER +
 //   GITLAB_PASSWORD (de .env.local o ../TMS-Backend/.env). El token OAuth se
@@ -34,7 +37,9 @@ const GITLAB_HOST = 'git.intelix.biz';
 const GITLAB_REPO = `https://${GITLAB_HOST}/olo/tms/TMS-Frontend.git`;
 const GITHUB_REPO = process.env.GITHUB_REMOTE || 'git@github.com:JeanCaOLO/sto_tms_olo.git';
 const MIRROR_DIR = resolve('.mirror-github/repo.git');
-const BRANCH_MAP = {}; // GitLab -> GitHub (1:1; ambos usan `main`)
+// Ramas a sincronizar. SOLO estas se empujan (fast-forward, sin forzar). Nunca
+// se toca `main` ni ramas de otros. Override: --branch <nombre>.
+const DEFAULT_BRANCHES = ['jesus-planificacion'];
 
 const argv = process.argv.slice(2);
 const flag = (name) => {
@@ -45,8 +50,8 @@ const flag = (name) => {
 };
 
 const once = Boolean(flag('once'));
-const prune = Boolean(flag('prune'));
 const everyMin = Number(flag('every')) || 5;
+const branches = flag('branch') ? [String(flag('branch'))] : DEFAULT_BRANCHES;
 
 const sh = (a, opts = {}) => execFileSync('git', a, { encoding: 'utf8', ...opts }).trim();
 const shIO = (a) => execFileSync('git', a, { stdio: 'inherit' });
@@ -108,40 +113,35 @@ async function syncOnce() {
     shIO(['clone', '--mirror', gitlabAuthUrl, MIRROR_DIR]);
   }
 
-  sh(['-C', MIRROR_DIR, 'fetch', '--prune', gitlabAuthUrl,
-    '+refs/heads/*:refs/heads/*', '+refs/tags/*:refs/tags/*']);
+  sh(['-C', MIRROR_DIR, 'fetch', '--prune', gitlabAuthUrl, '+refs/heads/*:refs/heads/*']);
 
   const heads = sh(['-C', MIRROR_DIR, 'for-each-ref', '--format=%(refname:short)', 'refs/heads'])
     .split('\n').filter(Boolean);
-  const headSpecs = heads.map((b) => `+refs/heads/${b}:refs/heads/${BRANCH_MAP[b] ?? b}`);
-  sh(['-C', MIRROR_DIR, 'push', githubUrl, ...headSpecs, '+refs/tags/*:refs/tags/*']);
+  const toPush = branches.filter((b) => heads.includes(b));
+  if (!toPush.length) throw new Error(`Ninguna de las ramas [${branches.join(', ')}] existe en GitLab`);
 
-  let stale = [];
-  if (prune) {
-    const wanted = new Set(heads.map((b) => BRANCH_MAP[b] ?? b));
-    const ghHeads = sh(['ls-remote', '--heads', githubUrl])
-      .split('\n').filter(Boolean).map((l) => l.split('refs/heads/')[1]);
-    stale = ghHeads.filter((b) => !wanted.has(b));
-    if (stale.length) sh(['-C', MIRROR_DIR, 'push', githubUrl, ...stale.map((b) => `:refs/heads/${b}`)]);
-  }
-  return { mapped: heads.map((b) => (BRANCH_MAP[b] ? `${b}→${BRANCH_MAP[b]}` : b)).join(', '), pruned: stale };
+  // Push SIN forzar (sin '+'): si la rama divergiera, git falla y NO sobrescribe
+  // nada en GitHub. Solo se tocan las ramas de `branches` — nunca main ni otras.
+  const specs = toPush.map((b) => `refs/heads/${b}:refs/heads/${b}`);
+  sh(['-C', MIRROR_DIR, 'push', githubUrl, ...specs]);
+  return { pushed: toPush.join(', ') };
 }
 
 if (once) {
   try {
     const r = await syncOnce();
-    console.log(`\x1b[32m✓ ${r.mapped}${r.pruned.length ? `  (podado en GitHub: ${r.pruned.join(', ')})` : ''}\x1b[0m`);
+    console.log(`\x1b[32m✓ push a GitHub: ${r.pushed}\x1b[0m`);
   } catch (e) {
     die(e.message.split('\n')[0] + '\n  ¿VPN conectada? ¿credenciales GitLab válidas? ¿acceso SSH/token a GitHub?');
   }
 } else {
-  console.log(`\x1b[36mmirror GitLab -> GitHub cada ${everyMin} min${prune ? ' (con prune)' : ''}. Ctrl+C para parar.\x1b[0m`);
+  console.log(`\x1b[36mmirror GitLab -> GitHub (${branches.join(', ')}) cada ${everyMin} min. Ctrl+C para parar.\x1b[0m`);
   process.on('SIGINT', () => { console.log('\n\x1b[36mdetenido.\x1b[0m'); process.exit(0); });
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
       const r = await syncOnce();
-      console.log(`\x1b[32m[${stamp()}] ✓ ${r.mapped}${r.pruned.length ? `  podado: ${r.pruned.join(', ')}` : ''}\x1b[0m`);
+      console.log(`\x1b[32m[${stamp()}] ✓ ${r.pushed}\x1b[0m`);
     } catch (e) {
       console.warn(`\x1b[33m[${stamp()}] ! ${e.message.split('\n')[0]} — reintento en ${everyMin} min\x1b[0m`);
     }
