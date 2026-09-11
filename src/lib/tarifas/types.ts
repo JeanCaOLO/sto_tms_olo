@@ -209,6 +209,54 @@ export interface Override {
   reason: string;
 }
 
+// ── Costo + margen (Fase 2) ───────────────────────────────────────────────────────────────────
+// El costo NO se liquida al transportista: es lo que le cuesta a la empresa operar el viaje
+// (flota propia u outsourcing), y solo se usa para derivar el margen. Por eso vive fuera del AST
+// de Rule — mezclarlo forzaría conceptos de costo dentro de un vocabulario pensado para tarifas.
+
+export interface OwnCostParams {
+  id: string;
+  countryId: string;
+  costPerKm: Money;
+  depreciationPerKm: Money;
+  driverDaily: Money;
+}
+
+export interface OutsourcedCostRate {
+  id: string;
+  countryId: string;
+  carrierId: string;
+  truckTypeId: string;
+  flatRate: Money;
+}
+
+export interface CostBreakdown {
+  total: Money;
+  breakdown: TraceLine[];
+  modelId: string;
+}
+
+// En este dominio no existe un "cobro a cliente": el margen compara lo LIQUIDADO (totalLiquidado)
+// contra el costo operativo — "¿estamos pagando más de lo que cuesta operar el viaje?", no un
+// margen de venta.
+export interface MarginPolicy {
+  countryId: string;
+  warnBelow: number;
+  criticalBelow: number;
+  requireReasonBelow: number;
+  blockOnLoss: boolean;
+}
+
+export type MarginStatus = 'OK' | 'WARN' | 'CRITICAL' | 'LOSS';
+export type MarginAction = 'NONE' | 'REQUIRE_REASON' | 'BLOCK';
+
+export interface MarginResult {
+  amount: Money;
+  pct: string;
+  status: MarginStatus;
+  action: MarginAction;
+}
+
 // ── Salida del kernel ────────────────────────────────────────────────────────────────────────
 
 export interface TraceLine {
@@ -249,6 +297,8 @@ export interface CalcResult {
   discarded: DiscardedRule[];
   stageSubtotals: Record<Stage, Money>;
   totalLiquidado: Money;
+  cost: CostBreakdown;
+  margin: MarginResult;
   fxUsed: FxUsed;
   warnings: string[];
 }
@@ -264,6 +314,9 @@ export interface CalculateInput {
   locations: Location[];
   zoneLaneRates: ZoneLaneRate[];
   fxRates: FxRate[];
+  ownCostParams: OwnCostParams;
+  outsourcedCostRates: OutsourcedCostRate[];
+  marginPolicy: MarginPolicy;
   overrides?: Record<string, Override>; // indexados por ruleCode
   adhocRules?: Rule[]; // reglas del viaje actual, no persistidas
 }

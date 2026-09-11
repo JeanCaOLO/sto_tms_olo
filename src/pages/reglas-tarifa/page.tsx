@@ -13,16 +13,18 @@ import PlantillasTab from './components/PlantillasTab';
 import ResumenTab from './components/ResumenTab';
 import ZoneLaneRatesSection from './components/ZoneLaneRatesSection';
 import FxRatesSection from './components/FxRatesSection';
+import CostosTab from './components/CostosTab';
+import MargenPolicyTab from './components/MargenPolicyTab';
 import BitacoraTab from './components/BitacoraTab';
 import HelpButton from './components/HelpButton';
 import {
   deleteRule, deleteZone, listCountries, listRules, listZoneGroups, listZones,
-} from '../../lib/tarifas/rulesDataSource';
+} from '../../lib/tarifas/localRulesDataSource';
 import { LIQUIDADOR_ROLES, obtenerRolActivo, establecerRolActivo, puede } from '../../lib/liquidador/rbac';
 import type { LiquidadorRole } from '../../lib/liquidador/rbac';
 import { registrarEvento } from '../../lib/liquidador/auditLog';
 
-type Tab = 'reglas' | 'zonas' | 'plantillas' | 'resumen' | 'probador' | 'bitacora';
+type Tab = 'reglas' | 'zonas' | 'costos' | 'margen' | 'plantillas' | 'resumen' | 'probador' | 'bitacora';
 
 export default function ReglasTarifaPage() {
   const { appUser } = useAuth();
@@ -243,6 +245,18 @@ export default function ReglasTarifaPage() {
           Zonas
         </button>
         <button
+          onClick={() => setActiveTab('costos')}
+          className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'costos' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+        >
+          Costos
+        </button>
+        <button
+          onClick={() => setActiveTab('margen')}
+          className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'margen' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+        >
+          Política de Margen
+        </button>
+        <button
           onClick={() => setActiveTab('plantillas')}
           className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'plantillas' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
         >
@@ -433,6 +447,14 @@ export default function ReglasTarifaPage() {
         <ZoneLaneRatesSection organizationId={appUser?.organization_id || ''} zones={zones} />
         <FxRatesSection organizationId={appUser?.organization_id || ''} countries={countries} />
         </div>
+      )}
+
+      {activeTab === 'costos' && (
+        <CostosTab organizationId={appUser?.organization_id || ''} countries={countries} />
+      )}
+
+      {activeTab === 'margen' && (
+        <MargenPolicyTab organizationId={appUser?.organization_id || ''} countries={countries} />
       )}
 
       {activeTab === 'plantillas' && (

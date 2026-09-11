@@ -1,0 +1,118 @@
+{
+  "countries": [
+    { "id": "VE", "iso2": "VE", "name": "Venezuela", "local_currency": "VES", "ref_currency": "USD", "rounding_decimals": 2, "rounding_mode": "HALF_UP", "overnight_threshold_hours": 24 },
+    { "id": "CO", "iso2": "CO", "name": "Colombia", "local_currency": "COP", "ref_currency": "USD", "rounding_decimals": 0, "rounding_mode": "HALF_EVEN", "overnight_threshold_hours": 20 },
+    { "id": "CR", "iso2": "CR", "name": "Costa Rica", "local_currency": "CRC", "ref_currency": "USD", "rounding_decimals": 2, "rounding_mode": "DOWN", "overnight_threshold_hours": 30 }
+  ],
+  "zoneGroups": [
+    { "id": "ZG_VE_CENTRO", "country_id": "VE", "code": "CENTRO", "name": "Centro", "status": "active" },
+    { "id": "ZG_VE_OCCIDENTE", "country_id": "VE", "code": "OCCIDENTE", "name": "Occidente", "status": "active" },
+    { "id": "ZG_CO_ANDINA", "country_id": "CO", "code": "ANDINA", "name": "Región Andina", "status": "active" },
+    { "id": "ZG_CO_CARIBE", "country_id": "CO", "code": "CARIBE", "name": "Región Caribe", "status": "active" },
+    { "id": "ZG_CR_VALLE", "country_id": "CR", "code": "VALLE_CENTRAL", "name": "Valle Central", "status": "active" },
+    { "id": "ZG_CR_GUANACASTE", "country_id": "CR", "code": "GUANACASTE", "name": "Guanacaste", "status": "active" },
+    { "id": "ZG_VE_SIN_GRUPO", "country_id": "VE", "code": "SIN_GRUPO", "name": "Sin grupo asignado", "status": "active" },
+    { "id": "ZG_CO_SIN_GRUPO", "country_id": "CO", "code": "SIN_GRUPO", "name": "Sin grupo asignado", "status": "active" },
+    { "id": "ZG_CR_SIN_GRUPO", "country_id": "CR", "code": "SIN_GRUPO", "name": "Sin grupo asignado", "status": "active" }
+  ],
+  "zones": [
+    { "id": "Z_VE_CCS", "country_id": "VE", "zone_group_id": "ZG_VE_CENTRO", "code": "CCS", "name": "Caracas", "status": "active" },
+    { "id": "Z_VE_CAR", "country_id": "VE", "zone_group_id": "ZG_VE_CENTRO", "code": "CAR", "name": "Carabobo", "status": "active" },
+    { "id": "Z_VE_ZUL", "country_id": "VE", "zone_group_id": "ZG_VE_OCCIDENTE", "code": "ZUL", "name": "Zulia", "status": "active" },
+    { "id": "Z_VE_SIN_ZONA", "country_id": "VE", "zone_group_id": "ZG_VE_SIN_GRUPO", "code": "SIN_ZONA", "name": "Sin zona asignada", "status": "active" },
+    { "id": "Z_CO_BOG", "country_id": "CO", "zone_group_id": "ZG_CO_ANDINA", "code": "BOG", "name": "Bogotá", "status": "active" },
+    { "id": "Z_CO_MED", "country_id": "CO", "zone_group_id": "ZG_CO_ANDINA", "code": "MED", "name": "Medellín", "status": "active" },
+    { "id": "Z_CO_BAQ", "country_id": "CO", "zone_group_id": "ZG_CO_CARIBE", "code": "BAQ", "name": "Barranquilla", "status": "active" },
+    { "id": "Z_CO_SIN_ZONA", "country_id": "CO", "zone_group_id": "ZG_CO_SIN_GRUPO", "code": "SIN_ZONA", "name": "Sin zona asignada", "status": "active" },
+    { "id": "Z_CR_SJO", "country_id": "CR", "zone_group_id": "ZG_CR_VALLE", "code": "SJO", "name": "San José", "status": "active" },
+    { "id": "Z_CR_ALA", "country_id": "CR", "zone_group_id": "ZG_CR_VALLE", "code": "ALA", "name": "Alajuela", "status": "active" },
+    { "id": "Z_CR_LIB", "country_id": "CR", "zone_group_id": "ZG_CR_GUANACASTE", "code": "LIB", "name": "Liberia", "status": "active" },
+    { "id": "Z_CR_SIN_ZONA", "country_id": "CR", "zone_group_id": "ZG_CR_SIN_GRUPO", "code": "SIN_ZONA", "name": "Sin zona asignada", "status": "active" }
+  ],
+  "zoneLaneRates": [
+    { "id": "ZLR_VE_1", "country_id": "VE", "origin_zone_id": "Z_VE_CAR", "dest_zone_id": "Z_VE_ZUL", "amount": "500.00", "currency": "USD", "status": "active" },
+    { "id": "ZLR_VE_2", "country_id": "VE", "origin_zone_id": "Z_VE_ZUL", "dest_zone_id": "Z_VE_CAR", "amount": "500.00", "currency": "USD", "status": "active" },
+    { "id": "ZLR_VE_3", "country_id": "VE", "origin_zone_id": "Z_VE_CCS", "dest_zone_id": "Z_VE_ZUL", "amount": "600.00", "currency": "USD", "status": "active" },
+    { "id": "ZLR_VE_4", "country_id": "VE", "origin_zone_id": "Z_VE_ZUL", "dest_zone_id": "Z_VE_CCS", "amount": "600.00", "currency": "USD", "status": "active" },
+    { "id": "ZLR_CO_1", "country_id": "CO", "origin_zone_id": "Z_CO_MED", "dest_zone_id": "Z_CO_BAQ", "amount": "300.00", "currency": "USD", "status": "active" },
+    { "id": "ZLR_CO_2", "country_id": "CO", "origin_zone_id": "Z_CO_BAQ", "dest_zone_id": "Z_CO_MED", "amount": "300.00", "currency": "USD", "status": "active" },
+    { "id": "ZLR_CO_3", "country_id": "CO", "origin_zone_id": "Z_CO_BOG", "dest_zone_id": "Z_CO_BAQ", "amount": "420.00", "currency": "USD", "status": "active" },
+    { "id": "ZLR_CO_4", "country_id": "CO", "origin_zone_id": "Z_CO_BAQ", "dest_zone_id": "Z_CO_BOG", "amount": "420.00", "currency": "USD", "status": "active" },
+    { "id": "ZLR_CR_1", "country_id": "CR", "origin_zone_id": "Z_CR_SJO", "dest_zone_id": "Z_CR_ALA", "amount": "150.00", "currency": "USD", "status": "active" },
+    { "id": "ZLR_CR_2", "country_id": "CR", "origin_zone_id": "Z_CR_ALA", "dest_zone_id": "Z_CR_SJO", "amount": "150.00", "currency": "USD", "status": "active" },
+    { "id": "ZLR_CR_3", "country_id": "CR", "origin_zone_id": "Z_CR_ALA", "dest_zone_id": "Z_CR_LIB", "amount": "340.00", "currency": "USD", "status": "active" },
+    { "id": "ZLR_CR_4", "country_id": "CR", "origin_zone_id": "Z_CR_LIB", "dest_zone_id": "Z_CR_ALA", "amount": "340.00", "currency": "USD", "status": "active" }
+  ],
+  "fxRates": [
+    { "id": "FX_VE_1", "country_id": "VE", "from_currency": "VES", "to_currency": "USD", "rate": "40.00", "rate_type": "OFFICIAL", "source": "BCV (tasa ilustrativa de demo)", "valid_from": "2020-01-01T00:00:00.000Z" },
+    { "id": "FX_CO_1", "country_id": "CO", "from_currency": "COP", "to_currency": "USD", "rate": "4000.00", "rate_type": "OFFICIAL", "source": "TRM Banco de la República (tasa ilustrativa de demo)", "valid_from": "2020-01-01T00:00:00.000Z" },
+    { "id": "FX_CR_1", "country_id": "CR", "from_currency": "CRC", "to_currency": "USD", "rate": "520.00", "rate_type": "OFFICIAL", "source": "BCCR (tasa ilustrativa de demo)", "valid_from": "2020-01-01T00:00:00.000Z" }
+  ],
+  "pricingRules": [
+    { "id": "RULE_VE_R1", "country_id": "VE", "code": "R1", "name": "Zona Caracas → Carabobo", "stage": "BASE", "priority": 10, "stacking": "EXCLUSIVE", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "AND", "args": [{ "p": "EQ", "left": "originZone", "right": "CCS" }, { "p": "EQ", "left": "destZone", "right": "CAR" }] }, "expression": { "op": "FIXED", "amount": "400.00" }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_VE_R2", "country_id": "VE", "code": "R2", "name": "Tarifa por cliente", "stage": "VARIABLE", "priority": 20, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "GT", "left": "clientCount", "right": 0 }, "expression": { "op": "PER_UNIT", "unit": "clientCount", "rate": "2.00" }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_VE_R3", "country_id": "VE", "code": "R3", "name": "Servicio Express", "stage": "MODIFIER", "priority": 30, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "EQ", "left": "serviceType", "right": "EXPRESS" }, "expression": { "op": "FIXED", "amount": "30.00" }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_VE_ZONE_FALLBACK", "country_id": "VE", "code": "R_ZONE_FALLBACK", "name": "Zona (tabla general con respaldo por km)", "stage": "BASE", "priority": 50, "stacking": "EXCLUSIVE", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "ALWAYS" }, "expression": { "op": "LOOKUP_ZONE", "fallback": { "op": "PER_KM", "rate": "1.20" } }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_VE_OVERNIGHT", "country_id": "VE", "code": "R_OVERNIGHT", "name": "Pernocta", "stage": "SURCHARGE", "priority": 10, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "GT", "left": "overnightNights", "right": 0 }, "expression": { "op": "PER_UNIT", "unit": "overnightNights", "rate": "15.00" }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_VE_TOLLS", "country_id": "VE", "code": "R_TOLLS", "name": "Peajes", "stage": "SURCHARGE", "priority": 20, "stacking": "SUM", "exclusion_group": null, "currency_mode": "LOCAL", "conditions": { "p": "GT", "left": "tollsAmount", "right": 0 }, "expression": { "op": "PER_UNIT", "unit": "tollsAmount", "rate": "1" }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_VE_LATE_PENALTY", "country_id": "VE", "code": "R_LATE_PENALTY", "name": "Penalización por retraso", "stage": "ADJUSTMENT", "priority": 10, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "GT", "left": "lateMinutes", "right": 0 }, "expression": { "op": "TIERED", "unit": "lateMinutes", "tiers": [{ "upTo": 15, "amount": "0.00" }, { "upTo": 60, "amount": "-10.00" }, { "upTo": null, "amount": "-25.00" }] }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_VE_VOLUME_DISCOUNT", "country_id": "VE", "code": "R_VOLUME_DISCOUNT", "name": "Descuento por volumen (>50 clientes)", "stage": "ADJUSTMENT", "priority": 20, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "GT", "left": "clientCount", "right": 50 }, "expression": { "op": "PERCENT", "pct": "-0.03", "base": { "of": "RUNNING_SUBTOTAL" } }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_VE_MAX_INCIDENT_FIXED", "country_id": "VE", "code": "R_INCIDENT_FIXED", "name": "Recargo por incidente (fijo)", "stage": "SURCHARGE", "priority": 30, "stacking": "MAX", "exclusion_group": "incident_surcharge", "currency_mode": "REF", "conditions": { "p": "GT", "left": "incidentCount", "right": 0 }, "expression": { "op": "FIXED", "amount": "15.00" }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_VE_MAX_INCIDENT_PER_UNIT", "country_id": "VE", "code": "R_INCIDENT_PER_UNIT", "name": "Recargo por incidente (por incidente)", "stage": "SURCHARGE", "priority": 40, "stacking": "MAX", "exclusion_group": "incident_surcharge", "currency_mode": "REF", "conditions": { "p": "GT", "left": "incidentCount", "right": 1 }, "expression": { "op": "PER_UNIT", "unit": "incidentCount", "rate": "10.00" }, "is_adhoc": false, "active": true, "version": 1 },
+
+    { "id": "RULE_CO_R1", "country_id": "CO", "code": "R1", "name": "Zona Bogotá → Medellín", "stage": "BASE", "priority": 10, "stacking": "EXCLUSIVE", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "AND", "args": [{ "p": "EQ", "left": "originZone", "right": "BOG" }, { "p": "EQ", "left": "destZone", "right": "MED" }] }, "expression": { "op": "FIXED", "amount": "350.00" }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_CO_R2", "country_id": "CO", "code": "R2", "name": "Tarifa por cliente", "stage": "VARIABLE", "priority": 20, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "GT", "left": "clientCount", "right": 0 }, "expression": { "op": "PER_UNIT", "unit": "clientCount", "rate": "1.50" }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_CO_R3", "country_id": "CO", "code": "R3", "name": "Servicio Express", "stage": "MODIFIER", "priority": 30, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "EQ", "left": "serviceType", "right": "EXPRESS" }, "expression": { "op": "FIXED", "amount": "20.00" }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_CO_ZONE_FALLBACK", "country_id": "CO", "code": "R_ZONE_FALLBACK", "name": "Zona (tabla general con respaldo por km)", "stage": "BASE", "priority": 50, "stacking": "EXCLUSIVE", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "ALWAYS" }, "expression": { "op": "LOOKUP_ZONE", "fallback": { "op": "PER_KM", "rate": "1.00" } }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_CO_OVERNIGHT", "country_id": "CO", "code": "R_OVERNIGHT", "name": "Pernocta", "stage": "SURCHARGE", "priority": 10, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "GT", "left": "overnightNights", "right": 0 }, "expression": { "op": "PER_UNIT", "unit": "overnightNights", "rate": "12.00" }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_CO_TOLLS", "country_id": "CO", "code": "R_TOLLS", "name": "Peajes", "stage": "SURCHARGE", "priority": 20, "stacking": "SUM", "exclusion_group": null, "currency_mode": "LOCAL", "conditions": { "p": "GT", "left": "tollsAmount", "right": 0 }, "expression": { "op": "PER_UNIT", "unit": "tollsAmount", "rate": "1" }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_CO_LATE_PENALTY", "country_id": "CO", "code": "R_LATE_PENALTY", "name": "Penalización por retraso", "stage": "ADJUSTMENT", "priority": 10, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "GT", "left": "lateMinutes", "right": 0 }, "expression": { "op": "TIERED", "unit": "lateMinutes", "tiers": [{ "upTo": 15, "amount": "0.00" }, { "upTo": 60, "amount": "-8.00" }, { "upTo": null, "amount": "-20.00" }] }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_CO_VOLUME_DISCOUNT", "country_id": "CO", "code": "R_VOLUME_DISCOUNT", "name": "Descuento por volumen (>50 clientes)", "stage": "ADJUSTMENT", "priority": 20, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "GT", "left": "clientCount", "right": 50 }, "expression": { "op": "PERCENT", "pct": "-0.04", "base": { "of": "RUNNING_SUBTOTAL" } }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_CO_MAX_INCIDENT_FIXED", "country_id": "CO", "code": "R_INCIDENT_FIXED", "name": "Recargo por incidente (fijo)", "stage": "SURCHARGE", "priority": 30, "stacking": "MAX", "exclusion_group": "incident_surcharge", "currency_mode": "REF", "conditions": { "p": "GT", "left": "incidentCount", "right": 0 }, "expression": { "op": "FIXED", "amount": "12.00" }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_CO_MAX_INCIDENT_PER_UNIT", "country_id": "CO", "code": "R_INCIDENT_PER_UNIT", "name": "Recargo por incidente (por incidente)", "stage": "SURCHARGE", "priority": 40, "stacking": "MAX", "exclusion_group": "incident_surcharge", "currency_mode": "REF", "conditions": { "p": "GT", "left": "incidentCount", "right": 1 }, "expression": { "op": "PER_UNIT", "unit": "incidentCount", "rate": "8.00" }, "is_adhoc": false, "active": true, "version": 1 },
+
+    { "id": "RULE_CR_R1", "country_id": "CR", "code": "R1", "name": "Zona San José → Liberia", "stage": "BASE", "priority": 10, "stacking": "EXCLUSIVE", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "AND", "args": [{ "p": "EQ", "left": "originZone", "right": "SJO" }, { "p": "EQ", "left": "destZone", "right": "LIB" }] }, "expression": { "op": "FIXED", "amount": "380.00" }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_CR_R2", "country_id": "CR", "code": "R2", "name": "Tarifa por cliente", "stage": "VARIABLE", "priority": 20, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "GT", "left": "clientCount", "right": 0 }, "expression": { "op": "PER_UNIT", "unit": "clientCount", "rate": "1.80" }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_CR_R3", "country_id": "CR", "code": "R3", "name": "Servicio Express", "stage": "MODIFIER", "priority": 30, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "EQ", "left": "serviceType", "right": "EXPRESS" }, "expression": { "op": "FIXED", "amount": "22.00" }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_CR_ZONE_FALLBACK", "country_id": "CR", "code": "R_ZONE_FALLBACK", "name": "Zona (tabla general con respaldo por km)", "stage": "BASE", "priority": 50, "stacking": "EXCLUSIVE", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "ALWAYS" }, "expression": { "op": "LOOKUP_ZONE", "fallback": { "op": "PER_KM", "rate": "1.30" } }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_CR_OVERNIGHT", "country_id": "CR", "code": "R_OVERNIGHT", "name": "Pernocta", "stage": "SURCHARGE", "priority": 10, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "GT", "left": "overnightNights", "right": 0 }, "expression": { "op": "PER_UNIT", "unit": "overnightNights", "rate": "18.00" }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_CR_TOLLS", "country_id": "CR", "code": "R_TOLLS", "name": "Peajes", "stage": "SURCHARGE", "priority": 20, "stacking": "SUM", "exclusion_group": null, "currency_mode": "LOCAL", "conditions": { "p": "GT", "left": "tollsAmount", "right": 0 }, "expression": { "op": "PER_UNIT", "unit": "tollsAmount", "rate": "1" }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_CR_LATE_PENALTY", "country_id": "CR", "code": "R_LATE_PENALTY", "name": "Penalización por retraso", "stage": "ADJUSTMENT", "priority": 10, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "GT", "left": "lateMinutes", "right": 0 }, "expression": { "op": "TIERED", "unit": "lateMinutes", "tiers": [{ "upTo": 15, "amount": "0.00" }, { "upTo": 60, "amount": "-9.00" }, { "upTo": null, "amount": "-22.00" }] }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_CR_VOLUME_DISCOUNT", "country_id": "CR", "code": "R_VOLUME_DISCOUNT", "name": "Descuento por volumen (>50 clientes)", "stage": "ADJUSTMENT", "priority": 20, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "GT", "left": "clientCount", "right": 50 }, "expression": { "op": "PERCENT", "pct": "-0.035", "base": { "of": "RUNNING_SUBTOTAL" } }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_CR_MAX_INCIDENT_FIXED", "country_id": "CR", "code": "R_INCIDENT_FIXED", "name": "Recargo por incidente (fijo)", "stage": "SURCHARGE", "priority": 30, "stacking": "MAX", "exclusion_group": "incident_surcharge", "currency_mode": "REF", "conditions": { "p": "GT", "left": "incidentCount", "right": 0 }, "expression": { "op": "FIXED", "amount": "14.00" }, "is_adhoc": false, "active": true, "version": 1 },
+    { "id": "RULE_CR_MAX_INCIDENT_PER_UNIT", "country_id": "CR", "code": "R_INCIDENT_PER_UNIT", "name": "Recargo por incidente (por incidente)", "stage": "SURCHARGE", "priority": 40, "stacking": "MAX", "exclusion_group": "incident_surcharge", "currency_mode": "REF", "conditions": { "p": "GT", "left": "incidentCount", "right": 1 }, "expression": { "op": "PER_UNIT", "unit": "incidentCount", "rate": "9.00" }, "is_adhoc": false, "active": true, "version": 1 }
+  ],
+  "pricingTemplates": [
+    { "id": "TPL_VE_1", "country_id": "VE", "name": "Caracas → Carabobo Express 40 clientes", "trip": { "originLocationId": "Z_VE_CCS", "destLocationId": "Z_VE_CAR", "km": 180, "clientCount": 40, "packageCount": 40, "weightKg": 1200, "truckTypeId": "TT-350", "serviceType": "EXPRESS", "fleetType": "OWN", "carrierId": null, "customerId": null, "durationHours": 3, "tollsAmount": "0.00", "lateMinutes": 0, "incidentCount": 0 } },
+    { "id": "TPL_CO_1", "country_id": "CO", "name": "Bogotá → Medellín Express 30 clientes", "trip": { "originLocationId": "Z_CO_BOG", "destLocationId": "Z_CO_MED", "km": 415, "clientCount": 30, "packageCount": 30, "weightKg": 900, "truckTypeId": "TT-350", "serviceType": "EXPRESS", "fleetType": "OWN", "carrierId": null, "customerId": null, "durationHours": 8, "tollsAmount": "50000.00", "lateMinutes": 0, "incidentCount": 0 } },
+    { "id": "TPL_CR_1", "country_id": "CR", "name": "San José → Liberia Express 25 clientes", "trip": { "originLocationId": "Z_CR_SJO", "destLocationId": "Z_CR_LIB", "km": 220, "clientCount": 25, "packageCount": 25, "weightKg": 700, "truckTypeId": "TT-350", "serviceType": "EXPRESS", "fleetType": "OWN", "carrierId": null, "customerId": null, "durationHours": 4, "tollsAmount": "0.00", "lateMinutes": 0, "incidentCount": 0 } }
+  ],
+  "testCarriers": [
+    { "id": "CARRIER_VE_1", "name": "Transporte Andino (VE)" },
+    { "id": "CARRIER_VE_2", "name": "Logística del Centro (VE)" },
+    { "id": "CARRIER_CO_1", "name": "Transportes del Cauca (CO)" },
+    { "id": "CARRIER_CO_2", "name": "Andina Cargo (CO)" },
+    { "id": "CARRIER_CR_1", "name": "Transportes Guanacaste (CR)" },
+    { "id": "CARRIER_CR_2", "name": "Central Cargo CR (CR)" }
+  ],
+  "ownCostParams": [
+    { "id": "OWN_VE", "country_id": "VE", "cost_per_km": "1.10", "depreciation_per_km": "0.18", "driver_daily": "35.00" },
+    { "id": "OWN_CO", "country_id": "CO", "cost_per_km": "0.95", "depreciation_per_km": "0.15", "driver_daily": "28.00" },
+    { "id": "OWN_CR", "country_id": "CR", "cost_per_km": "1.05", "depreciation_per_km": "0.20", "driver_daily": "40.00" }
+  ],
+  "outsourcedCostRates": [
+    { "id": "OSR_VE_1", "country_id": "VE", "carrier_id": "CARRIER_VE_1", "truck_type_id": "TT-350", "flat_rate": "420.00" },
+    { "id": "OSR_VE_2", "country_id": "VE", "carrier_id": "CARRIER_VE_2", "truck_type_id": "TT-750", "flat_rate": "650.00" },
+    { "id": "OSR_CO_1", "country_id": "CO", "carrier_id": "CARRIER_CO_1", "truck_type_id": "TT-350", "flat_rate": "300.00" },
+    { "id": "OSR_CO_2", "country_id": "CO", "carrier_id": "CARRIER_CO_2", "truck_type_id": "TT-750", "flat_rate": "480.00" },
+    { "id": "OSR_CR_1", "country_id": "CR", "carrier_id": "CARRIER_CR_1", "truck_type_id": "TT-350", "flat_rate": "360.00" },
+    { "id": "OSR_CR_2", "country_id": "CR", "carrier_id": "CARRIER_CR_2", "truck_type_id": "TT-750", "flat_rate": "560.00" }
+  ],
+  "marginPolicies": [
+    { "id": "MP_VE", "country_id": "VE", "warn_below": 0.15, "critical_below": 0.1, "require_reason_below": 0.15, "block_on_loss": true },
+    { "id": "MP_CO", "country_id": "CO", "warn_below": 0.2, "critical_below": 0.12, "require_reason_below": 0.2, "block_on_loss": true },
+    { "id": "MP_CR", "country_id": "CR", "warn_below": 0.18, "critical_below": 0.08, "require_reason_below": 0.18, "block_on_loss": false }
+  ],
+  "auditLog": [],
+  "settlementSnapshots": []
+}

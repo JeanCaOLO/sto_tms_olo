@@ -3,7 +3,7 @@ import Card from '../../../components/base/Card';
 import Badge from '../../../components/base/Badge';
 import Select from '../../../components/base/Select';
 import HelpButton from './HelpButton';
-import { listFxRates, listRules, listZoneLaneRates } from '../../../lib/tarifas/rulesDataSource';
+import { listFxRates, listRules, listZoneLaneRates } from '../../../lib/tarifas/localRulesDataSource';
 import { STAGE_ORDER } from '../../../lib/tarifas/types';
 
 interface ResumenTabProps {

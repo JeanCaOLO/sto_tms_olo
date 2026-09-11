@@ -4,7 +4,8 @@
 import Decimal from 'decimal.js';
 import type { EvalContext } from '../evaluator';
 import type {
-  Country, Location, Rule, TripContext, VarBag, Zone, ZoneGroup,
+  Country, Location, MarginPolicy, OutsourcedCostRate, OwnCostParams, Rule, TripContext, VarBag,
+  Zone, ZoneGroup,
 } from '../types';
 
 // Contexto de evaluación mínimo para probar evaluateExpr en aislamiento, sin correr todo el pipeline.
@@ -91,6 +92,39 @@ export function makeRule(overrides: Partial<Rule> & Pick<Rule, 'stage' | 'expres
     isAdhoc: false,
     active: true,
     version: 1,
+    ...overrides,
+  };
+}
+
+export function makeOwnCostParams(overrides: Partial<OwnCostParams> = {}): OwnCostParams {
+  return {
+    id: 'OWN_VE',
+    countryId: 'VE',
+    costPerKm: '1.10',
+    depreciationPerKm: '0.18',
+    driverDaily: '35.00',
+    ...overrides,
+  };
+}
+
+export function makeOutsourcedCostRate(overrides: Partial<OutsourcedCostRate> = {}): OutsourcedCostRate {
+  return {
+    id: 'OSR_1',
+    countryId: 'VE',
+    carrierId: 'CARRIER_1',
+    truckTypeId: 'TT_350',
+    flatRate: '420.00',
+    ...overrides,
+  };
+}
+
+export function makeMarginPolicy(overrides: Partial<MarginPolicy> = {}): MarginPolicy {
+  return {
+    countryId: 'VE',
+    warnBelow: 0.15,
+    criticalBelow: 0.1,
+    requireReasonBelow: 0.15,
+    blockOnLoss: true,
     ...overrides,
   };
 }

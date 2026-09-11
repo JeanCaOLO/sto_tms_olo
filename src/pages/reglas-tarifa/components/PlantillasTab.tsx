@@ -4,7 +4,7 @@ import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
 import HelpButton from './HelpButton';
-import { deleteTemplate, listTemplates, saveTemplate } from '../../../lib/tarifas/rulesDataSource';
+import { deleteTemplate, listTemplates, saveTemplate } from '../../../lib/tarifas/localRulesDataSource';
 import type { FleetType, ServiceType } from '../../../lib/tarifas/types';
 
 interface PlantillasTabProps {

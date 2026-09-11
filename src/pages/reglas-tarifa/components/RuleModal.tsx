@@ -3,7 +3,7 @@ import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
 import { RuleSchema } from '../../../lib/tarifas/schemas';
-import { saveRule } from '../../../lib/tarifas/rulesDataSource';
+import { saveRule } from '../../../lib/tarifas/localRulesDataSource';
 import type {
   BaseRef, ComparisonOp, Expr, NumericVarKey, Pred, Stage, VarKey,
 } from '../../../lib/tarifas/types';

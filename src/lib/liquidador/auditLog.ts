@@ -1,10 +1,9 @@
-// Bitácora de auditoría append-only (RF-012 / RNF-023 / RNF-024) — persistida en la tabla real
-// `audit_log` del proyecto de Supabase temporal del Liquidador (`supabaseLiquidador`). Este módulo
-// SOLO expone `registrarEvento` (INSERT) y `listarEventos` (SELECT) — nunca UPDATE ni DELETE. La
-// política RLS de `audit_log` en la base tampoco permite update/delete desde el cliente, así que la
-// inmutabilidad no depende solo de que nadie llame a una función que no existe acá.
+// Bitácora de auditoría append-only (RF-012 / RNF-023 / RNF-024) — persistida en
+// `localData/store.ts` (JSON + localStorage) mientras no hay acceso a una base de datos real para
+// el módulo de tarifas. Este módulo SOLO expone `registrarEvento` (append) y `listarEventos`
+// (lectura) — nunca update ni delete, ni acá ni en la UI que lo consume (BitacoraTab.tsx).
 
-import { supabaseLiquidador } from '../tarifas/supabaseLiquidador';
+import { genId, loadDatabase, persist } from '../tarifas/localData/store';
 import type { LiquidadorRole } from './rbac';
 
 export interface EventoAuditoria {
@@ -19,7 +18,9 @@ export interface EventoAuditoria {
 }
 
 export async function registrarEvento(evento: EventoAuditoria): Promise<void> {
-  const { error } = await supabaseLiquidador.from('audit_log').insert([{
+  const db = loadDatabase();
+  db.auditLog.push({
+    id: genId('audit'),
     entity: evento.entidad,
     entity_id: evento.entidadId,
     action: evento.accion,
@@ -28,12 +29,9 @@ export async function registrarEvento(evento: EventoAuditoria): Promise<void> {
     before: evento.antes ?? null,
     after: evento.despues ?? null,
     reason: evento.motivo ?? null,
-  }]);
-  if (error) {
-    // La bitácora no debe tumbar la acción de negocio que la disparó — se deja constancia en
-    // consola y se sigue. En el backend definitivo esto se resuelve con una transacción real.
-    console.error('No se pudo registrar el evento en la bitácora de auditoría:', error);
-  }
+    created_at: new Date().toISOString(),
+  });
+  persist(db);
 }
 
 export interface FilaAuditoria {
@@ -50,11 +48,9 @@ export interface FilaAuditoria {
 }
 
 export async function listarEventos(limite = 200): Promise<FilaAuditoria[]> {
-  const { data, error } = await supabaseLiquidador
-    .from('audit_log')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(limite);
-  if (error) throw error;
-  return data || [];
+  return loadDatabase()
+    .auditLog
+    .slice()
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, limite) as FilaAuditoria[];
 }

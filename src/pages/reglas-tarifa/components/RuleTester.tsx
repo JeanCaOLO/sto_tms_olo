@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import Card from '../../../components/base/Card';
 import Button from '../../../components/base/Button';
+import Badge from '../../../components/base/Badge';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
 import { calculate, deriveContext } from '../../../lib/tarifas';
-import { listRulesAndZonesForTesting, listTemplates } from '../../../lib/tarifas/rulesDataSource';
+import { listRulesAndZonesForTesting, listTemplates } from '../../../lib/tarifas/localRulesDataSource';
 import type {
   CalcResult, CalculateInput, Country, FleetType, Location, Rule, ServiceType, Zone, ZoneGroup,
 } from '../../../lib/tarifas/types';
@@ -18,6 +19,14 @@ const STAGE_LABELS: Record<string, string> = {
   SURCHARGE: 'Recargo', ADJUSTMENT: 'Ajuste', TAX: 'Impuesto',
 };
 
+const MARGIN_BADGE_VARIANT: Record<string, 'success' | 'warning' | 'danger'> = {
+  OK: 'success', WARN: 'warning', CRITICAL: 'danger', LOSS: 'danger',
+};
+
+const MARGIN_STATUS_LABEL: Record<string, string> = {
+  OK: 'OK', WARN: 'Atención', CRITICAL: 'Crítico', LOSS: 'Pérdida',
+};
+
 export default function RuleTester({ organizationId }: RuleTesterProps) {
   const [loadingData, setLoadingData] = useState(true);
   const [countries, setCountries] = useState<any[]>([]);
@@ -26,6 +35,9 @@ export default function RuleTester({ organizationId }: RuleTesterProps) {
   const [rawRules, setRawRules] = useState<any[]>([]);
   const [rawZoneLaneRates, setRawZoneLaneRates] = useState<any[]>([]);
   const [rawFxRates, setRawFxRates] = useState<any[]>([]);
+  const [rawOwnCostParams, setRawOwnCostParams] = useState<any[]>([]);
+  const [rawOutsourcedCostRates, setRawOutsourcedCostRates] = useState<any[]>([]);
+  const [rawMarginPolicies, setRawMarginPolicies] = useState<any[]>([]);
   const [carriers, setCarriers] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
@@ -64,6 +76,9 @@ export default function RuleTester({ organizationId }: RuleTesterProps) {
       setRawRules(raw.rules);
       setRawZoneLaneRates(raw.zoneLaneRates);
       setRawFxRates(raw.fxRates);
+      setRawOwnCostParams(raw.ownCostParams);
+      setRawOutsourcedCostRates(raw.outsourcedCostRates);
+      setRawMarginPolicies(raw.marginPolicies);
       setCarriers(raw.carriers);
       setTemplates(await listTemplates(organizationId));
 
@@ -116,8 +131,37 @@ export default function RuleTester({ organizationId }: RuleTesterProps) {
         isAdhoc: !!r.is_adhoc, active: !!r.active, version: r.version,
       }));
 
+      const ownCostParamsRow = rawOwnCostParams.find((p: any) => p.country_id === trip.countryId);
+      if (!ownCostParamsRow) {
+        throw new Error('No hay parámetros de costo propio configurados para este país — cargalos en la pestaña Costos.');
+      }
+      const marginPolicyRow = rawMarginPolicies.find((p: any) => p.country_id === trip.countryId);
+      if (!marginPolicyRow) {
+        throw new Error('No hay política de margen configurada para este país — cargala en la pestaña Política de Margen.');
+      }
+
       const input: CalculateInput = {
         country,
+        ownCostParams: {
+          id: ownCostParamsRow.id,
+          countryId: trip.countryId,
+          costPerKm: String(ownCostParamsRow.cost_per_km),
+          depreciationPerKm: String(ownCostParamsRow.depreciation_per_km),
+          driverDaily: String(ownCostParamsRow.driver_daily),
+        },
+        outsourcedCostRates: rawOutsourcedCostRates
+          .filter((r: any) => r.country_id === trip.countryId)
+          .map((r: any) => ({
+            id: r.id, countryId: trip.countryId, carrierId: r.carrier_id, truckTypeId: r.truck_type_id,
+            flatRate: String(r.flat_rate),
+          })),
+        marginPolicy: {
+          countryId: trip.countryId,
+          warnBelow: Number(marginPolicyRow.warn_below),
+          criticalBelow: Number(marginPolicyRow.critical_below),
+          requireReasonBelow: Number(marginPolicyRow.require_reason_below),
+          blockOnLoss: !!marginPolicyRow.block_on_loss,
+        },
         trip: {
           countryId: trip.countryId,
           quotedAt: new Date(trip.quotedAt).toISOString(),
@@ -355,6 +399,27 @@ export default function RuleTester({ organizationId }: RuleTesterProps) {
             <div className="flex justify-between items-center pt-3 border-t-2 border-teal-200">
               <span className="font-bold text-slate-900">Total a liquidar al transportista</span>
               <span className="text-xl font-bold text-teal-600">${result.totalLiquidado}</span>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-600">Costo operativo estimado ({result.cost.modelId})</span>
+                <span className="font-semibold text-slate-800">${result.cost.total}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-600">Margen vs. costo operativo</span>
+                <span className="flex items-center gap-2">
+                  <span className="font-semibold text-slate-800">${result.margin.amount} ({(Number(result.margin.pct) * 100).toFixed(1)}%)</span>
+                  <Badge variant={MARGIN_BADGE_VARIANT[result.margin.status]}>{MARGIN_STATUS_LABEL[result.margin.status]}</Badge>
+                </span>
+              </div>
+              {result.margin.action !== 'NONE' && (
+                <p className="text-xs text-amber-700">
+                  {result.margin.action === 'BLOCK'
+                    ? 'Esta combinación bloquearía la aprobación de una liquidación real (pérdida con blockOnLoss activo).'
+                    : 'Esta combinación exigiría un motivo para aprobar una liquidación real.'}
+                </p>
+              )}
             </div>
 
             {result.discarded.length > 0 && (

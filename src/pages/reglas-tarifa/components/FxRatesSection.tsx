@@ -3,7 +3,7 @@ import Card from '../../../components/base/Card';
 import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
-import { deleteFxRate, listFxRates, saveFxRate } from '../../../lib/tarifas/rulesDataSource';
+import { deleteFxRate, listFxRates, saveFxRate } from '../../../lib/tarifas/localRulesDataSource';
 import HelpButton from './HelpButton';
 
 interface FxRatesSectionProps {

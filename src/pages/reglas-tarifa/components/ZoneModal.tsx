@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
-import { saveZone } from '../../../lib/tarifas/rulesDataSource';
+import { saveZone } from '../../../lib/tarifas/localRulesDataSource';
 import { puede } from '../../../lib/liquidador/rbac';
 import type { LiquidadorRole } from '../../../lib/liquidador/rbac';
 import { registrarEvento } from '../../../lib/liquidador/auditLog';
