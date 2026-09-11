@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Work log closure check",
+      "trigger": "Stop",
+      "description": "Checks closure traceability at the end of a team-mode session without running in solo mode.",
+      "action": {
+        "type": "agent",
+        "prompt": "Before ending, inspect crew.json. If it is absent, mode is solo, or no significant implementation iteration closed, stop without comment. In team mode, when significant work closed, verify that estimation data is complete and the applicable docs/work entry exists. Never reconstruct timestamps or invent history. If evidence is missing, state the exact missing artifact and let the user decide whether the change is below the documented significance threshold."
+      }
+    }
+  ]
+}

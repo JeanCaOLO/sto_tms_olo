@@ -1,0 +1,40 @@
+﻿node_modules/
+dist/
+out/
+BRIEF.md
+.env
+.env.local
+*.local
+.claude/settings.local.json
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+# AI-DLC (awslabs/aidlc-workflows v2) â€” per-user/per-machine runtime state.
+# Everything else under aidlc/ (memory, codekb, intents.json, aidlc-state.md,
+# audit/*.md, stage artifacts) is committed shared work â€” do not ignore those.
+aidlc/active-space
+aidlc/spaces/*/intents/active-intent
+aidlc/.aidlc-clone-id
+aidlc/.aidlc-active-space-*.tmp
+aidlc/.aidlc-sessions/
+aidlc/spaces/*/intents/.aidlc-*
+aidlc/spaces/*/knowledge/documentkb/.journal/
+aidlc/spaces/*/knowledge/.sources.local.json
+aidlc/spaces/*/intents/*/runtime-graph.json
+aidlc/spaces/*/intents/*/.aidlc-*
+aidlc/diagnostics/
+coverage/
+.orca-briefs/
+# Datos de referencia crudos (se prefiere commitear el JSON generado).
+/Rutas cofersa.xlsx
+# Sistemas de rutas: JSON generado por `pnpm run data:build`.
+# cofersa.json SÍ se commitea (3 KB, sin PII). El de programación de viajes
+# NO: ~6 MB y contiene nombres de conductores. Ver docs/work/2026-09/2026-09-01-matriz-rutas-multisistema.md
+/public/data/route-systems/meta.json
+
+# clon mirror local para scripts/mirror-gitlab.mjs
+/.mirror-gitlab/
+# clon mirror local para scripts/mirror-github.mjs (pnpm pushing)
+/.mirror-github/
