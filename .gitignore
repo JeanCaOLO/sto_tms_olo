@@ -36,3 +36,5 @@ coverage/
 
 # clon mirror local para scripts/mirror-gitlab.mjs
 /.mirror-gitlab/
+# clon mirror local para scripts/mirror-github.mjs (pnpm pushing)
+/.mirror-github/
