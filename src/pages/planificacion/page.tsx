@@ -144,7 +144,7 @@ export default function PlanificacionPage() {
         onGuardar={actualizarRutaGenerada}
       />
 
-      {tab === 'matriz' && <MatrizRutasTab />}
+      {tab === 'matriz' && <MatrizRutasTab pais={pais} />}
 
       {tab === 'flota' && (
         <FlotaSplitTab

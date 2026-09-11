@@ -9,13 +9,13 @@ import MatrizLeyenda from './MatrizLeyenda';
 
 const DEFAULT_ID = ROUTE_SYSTEMS[0]?.id ?? '';
 
-export default function MatrizRutasTab() {
+export default function MatrizRutasTab({ pais }: { pais?: string }) {
   const [params, setParams] = useSearchParams();
   const systemId = getRouteSystem(params.get('sistema') ?? '') ? params.get('sistema')! : DEFAULT_ID;
   const system = getRouteSystem(systemId);
   const [query, setQuery] = useState('');
   const debounced = useDebounced(query);
-  const { status, rows, reload } = useRouteSystem(system);
+  const { status, rows, reload } = useRouteSystem(system, pais);
 
   const filtered = useMemo(
     () => (system ? filterRows(rows, debounced, system.columns.map((c) => c.key)) : rows),

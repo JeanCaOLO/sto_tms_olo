@@ -102,6 +102,18 @@ export async function fetchVehiculos(fallback: Vehiculo[]): Promise<Vehiculo[]> 
   return listOrFallback('/api/catalogos/vehiculos', mapVehiculo, fallback);
 }
 
+// Matriz de días de despacho por ruta (EFLOW RUTA_DIA_AB). `day_ids` = CSV de
+// ID_DIA (1=Lunes … 7=Domingo). Sin fallback mock: la matriz muestra el estado real.
+export interface RutaDiaRow {
+  route_code: string;
+  route_name: string | null;
+  day_ids: string | null;
+  promesa_horas: number | string | null;
+}
+export function fetchRutasDias(): Promise<RutaDiaRow[]> {
+  return getJson<RutaDiaRow[]>('/api/catalogos/rutas-dias');
+}
+
 async function listOrFallback<R, T>(path: string, map: (r: R) => T, fallback: T[]): Promise<T[]> {
   try {
     const rows = await getJson<R[]>(path);

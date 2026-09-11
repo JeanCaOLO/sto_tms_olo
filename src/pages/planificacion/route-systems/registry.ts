@@ -4,6 +4,7 @@
 // (ver scripts/build-route-systems.ts) y 2) añadir una entrada aquí. Sin tocar
 // el componente ni la página.
 
+import type { Row } from './parse';
 export type { Row, Cell } from './parse';
 
 export type Align = 'left' | 'right' | 'center';
@@ -21,7 +22,7 @@ export interface ColumnDef {
 export interface RouteSystem {
   id: string;
   label: string;
-  /** Fichero bajo `public/data/route-systems/`. */
+  /** Fichero bajo `public/data/route-systems/`. Vacío si usa `loader`. */
   file: string;
   description: string;
   columns: ColumnDef[];
@@ -29,12 +30,37 @@ export interface RouteSystem {
   pageSize: number;
   /** Contiene datos personales reales (nombres de conductores, etc.). */
   hasPII?: boolean;
+  /** Carga en vivo (en vez del JSON estático). Depende del país activo. */
+  loader?: () => Promise<Row[]>;
 }
+
+import { cargarRutasDias } from './eflow-dias';
 
 export const ROUTE_SYSTEMS: RouteSystem[] = [
   {
+    id: 'eflow-dias',
+    label: 'Días de ruta (EFLOW)',
+    file: '',
+    loader: cargarRutasDias,
+    description:
+      'Días de despacho por ruta leídos en vivo de EFLOW (RUTA_DIA_AB) — cambia con el país. El cuadro verde/rojo indica que la ruta corre ese día.',
+    pageSize: 0,
+    columns: [
+      { key: 'route_code', label: 'Ruta', mono: true },
+      { key: 'route_name', label: 'Nombre', grow: true },
+      { key: 'lunes', label: 'Lunes', align: 'center', kind: 'dia' },
+      { key: 'martes', label: 'Martes', align: 'center', kind: 'dia' },
+      { key: 'miercoles', label: 'Miércoles', align: 'center', kind: 'dia' },
+      { key: 'jueves', label: 'Jueves', align: 'center', kind: 'dia' },
+      { key: 'viernes', label: 'Viernes', align: 'center', kind: 'dia' },
+      { key: 'sabado', label: 'Sábado', align: 'center', kind: 'dia' },
+      { key: 'domingo', label: 'Domingo', align: 'center', kind: 'dia' },
+      { key: 'promesa', label: 'Promesa', align: 'right' },
+    ],
+  },
+  {
     id: 'cofersa',
-    label: 'COFERSA',
+    label: 'COFERSA (Excel)',
     file: 'cofersa.json',
     description: 'Zonas de reparto COFERSA y su calendario semanal.',
     pageSize: 0,

@@ -131,10 +131,10 @@ describe('fetch + fallback', () => {
 
 describe('mapPedido', () => {
   const row = {
-    trip_id: 8007, order_number: 'EDI0112261', invoice_number: '00100001010000854213',
+    trip_id: 8007, order_number: 'EDI0112261',
     customer_id: 'A7074', customer_name: 'ALMACENES EL COLONO S.A.',
     delivery_address: 'Prov:: PUNTARENAS', delivery_latitude: '8.53370870',
-    delivery_longitude: '-83.30615300', route_code: '32', total_units: 6, total_amount: 11043.48,
+    delivery_longitude: '-83.30615300', route_code: '32', total_weight: 344.08, total_volume: 12.5,
   };
 
   it('maps a real order line to a Pedido', () => {
@@ -145,6 +145,8 @@ describe('mapPedido', () => {
     expect(p.delivery_latitude).toBeCloseTo(8.5337);
     expect(p.delivery_longitude).toBeCloseTo(-83.3062);
     expect(p.route_type_id).toBe('eflow-rt-32');
+    expect(p.total_weight).toBeCloseTo(344.08);
+    expect(p.total_volume).toBeCloseTo(12.5);
   });
 
   it('keeps the stop with null coords instead of dropping it (~71% of clients have no lat/lng)', () => {
