@@ -1,3 +1,31 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer utilities {
+  /* Oculta la barra de desplazamiento manteniendo el scroll funcional. */
+  .scrollbar-hide {
+    -ms-overflow-style: none; /* IE y Edge antiguo */
+    scrollbar-width: none; /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Edge (WebKit) */
+  }
+  .scrollbar-dark {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(71 85 105) transparent; /* slate-600 thumb, transparent track */
+  }
+  .scrollbar-dark::-webkit-scrollbar {
+    width: 6px;
+  }
+  .scrollbar-dark::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-dark::-webkit-scrollbar-thumb {
+    background-color: rgb(71 85 105);
+    border-radius: 9999px;
+  }
+  .scrollbar-dark::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(100 116 139); /* slate-500 */
+  }
+}

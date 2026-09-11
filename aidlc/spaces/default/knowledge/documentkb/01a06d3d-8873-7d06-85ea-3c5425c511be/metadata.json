@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "01a06d3d-8873-7d06-85ea-3c5425c511be",
+  "source": {
+    "kind": "managed",
+    "path": "documents/2026-09-03-reunion-arquitectura-repos-javier.md"
+  },
+  "sha256": "161124a2d1b911a186b86cb14bf45a021d33ece32874b161745fe7480432809b",
+  "bytes": 4547,
+  "indexed_at": "2026-09-04T16:25:44.293Z",
+  "extraction": {
+    "state": "extracted",
+    "extractor": {
+      "name": "builtin-text",
+      "version": "1"
+    },
+    "chars": 4463,
+    "truncated": false,
+    "source_revision": "161124a2d1b911a186b86cb14bf45a021d33ece32874b161745fe7480432809b"
+  },
+  "summary": {
+    "state": "absent"
+  },
+  "content": "documentkb/01a06d3d-8873-7d06-85ea-3c5425c511be/content.md",
+  "content_sha256": "161124a2d1b911a186b86cb14bf45a021d33ece32874b161745fe7480432809b",
+  "content_trust": "untrusted",
+  "content_handling": "data-not-instructions"
+}

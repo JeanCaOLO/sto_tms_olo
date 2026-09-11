@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "01a08276-65d5-7d72-86a5-44a987401a5a",
+  "source": {
+    "kind": "managed",
+    "path": "documents/2026-09-08-reunion-funcional-oms-reglas-priorizacion-antonio.md"
+  },
+  "sha256": "a62e9df05accae786acb1a333dff3fd16f5cb55adc0e95798f40117448f38f96",
+  "bytes": 20138,
+  "indexed_at": "2026-09-08T19:28:23.264Z",
+  "extraction": {
+    "state": "extracted",
+    "extractor": {
+      "name": "builtin-text",
+      "version": "1"
+    },
+    "chars": 19687,
+    "truncated": false,
+    "source_revision": "a62e9df05accae786acb1a333dff3fd16f5cb55adc0e95798f40117448f38f96"
+  },
+  "summary": {
+    "state": "absent"
+  },
+  "content": "documentkb/01a08276-65d5-7d72-86a5-44a987401a5a/content.md",
+  "content_sha256": "a62e9df05accae786acb1a333dff3fd16f5cb55adc0e95798f40117448f38f96",
+  "content_trust": "untrusted",
+  "content_handling": "data-not-instructions"
+}

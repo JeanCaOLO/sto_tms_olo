@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "01a07d7f-63f8-7f42-b2ef-c19e50a4b054",
+  "source": {
+    "kind": "managed",
+    "path": "documents/2026-09-07-reuniones-oms-origen-datos-pedidos.md"
+  },
+  "sha256": "e357fd50534a61d3ed829375c06e7c57493ab07cfc4b76119714e92adf357de1",
+  "bytes": 15270,
+  "indexed_at": "2026-09-08T19:28:21.923Z",
+  "extraction": {
+    "state": "extracted",
+    "extractor": {
+      "name": "builtin-text",
+      "version": "1"
+    },
+    "chars": 14884,
+    "truncated": false,
+    "source_revision": "e357fd50534a61d3ed829375c06e7c57493ab07cfc4b76119714e92adf357de1"
+  },
+  "summary": {
+    "state": "absent"
+  },
+  "content": "documentkb/01a07d7f-63f8-7f42-b2ef-c19e50a4b054/content.md",
+  "content_sha256": "e357fd50534a61d3ed829375c06e7c57493ab07cfc4b76119714e92adf357de1",
+  "content_trust": "untrusted",
+  "content_handling": "data-not-instructions"
+}

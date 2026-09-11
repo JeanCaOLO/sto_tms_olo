@@ -1,35 +1,32 @@
 import { useState } from 'react';
 import Card from '../../../components/base/Card';
 import Badge from '../../../components/base/Badge';
-
-interface PedidoSeleccionado {
-  id: string;
-  order_number: string;
-  customer_name?: string;
-  delivery_address: string;
-  delivery_city: string;
-  delivery_zone: string;
-  total_weight: number;
-  total_volume: number;
-  stop_number: number;
-}
+import ParadaCard from './ParadaCard';
+import DevolucionEnVivoForm from './DevolucionEnVivoForm';
+import { entregasADescargarPara } from '../capacity-fit';
+import type { DevolucionEnVivoInput } from '../live-devolucion';
+import type { PedidoSeleccionado, Vehiculo } from '../types';
 
 interface Props {
   pedidosSeleccionados: PedidoSeleccionado[];
+  pedidosAnclados: Set<string>;
+  vehiculoSeleccionado?: Vehiculo;
+  optimizando: boolean;
   onQuitarPedido: (pedidoId: string) => void;
   onReordenarParadas: (fromIndex: number, toIndex: number) => void;
+  onAgregarDevolucionEnVivo: (input: DevolucionEnVivoInput) => void;
+  onOptimizarRuta: () => void;
+  /** Enfocar una parada en el mapa (el mapa vive en NuevaRutaTab, full-width). */
+  onEnfocarParada: (id: string) => void;
 }
 
 export default function RutaEnConstruccion({
-  pedidosSeleccionados,
-  onQuitarPedido,
-  onReordenarParadas
+  pedidosSeleccionados, pedidosAnclados, vehiculoSeleccionado, optimizando,
+  onQuitarPedido, onReordenarParadas, onAgregarDevolucionEnVivo, onOptimizarRuta,
+  onEnfocarParada,
 }: Props) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-
-  const handleDragStart = (index: number) => {
-    setDraggedIndex(index);
-  };
+  const [mostrarForm, setMostrarForm] = useState(false);
 
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
@@ -39,25 +36,68 @@ export default function RutaEnConstruccion({
     }
   };
 
-  const handleDragEnd = () => {
-    setDraggedIndex(null);
-  };
-
   const totalWeight = pedidosSeleccionados.reduce((sum, p) => sum + (p.total_weight || 0), 0);
   const totalVolume = pedidosSeleccionados.reduce((sum, p) => sum + (p.total_volume || 0), 0);
+  const live = pedidosSeleccionados.filter((p) => p.is_live);
+  const liveSinRecalcular = live.some((p) => p.eta_min == null);
+  const entregasADescargar = vehiculoSeleccionado
+    ? entregasADescargarPara(pedidosSeleccionados, vehiculoSeleccionado, pedidosAnclados)
+    : [];
 
   return (
-    <Card className="h-full">
-      <div className="flex items-center justify-between mb-4">
+    <Card className="flex flex-col">
+      <div className="flex items-center justify-between mb-4 flex-shrink-0 gap-2">
         <h2 className="text-lg font-semibold text-slate-800">
           <i className="ri-route-line mr-2"></i>
           Ruta en Construcción
         </h2>
-        <Badge variant="warning">{pedidosSeleccionados.length} paradas</Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="warning">{pedidosSeleccionados.length} paradas</Badge>
+          <button
+            onClick={() => setMostrarForm((v) => !v)}
+            className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 cursor-pointer whitespace-nowrap"
+          >
+            <i className="ri-truck-line"></i>Devolución en vivo
+          </button>
+        </div>
       </div>
 
+      {mostrarForm && (
+        <div className="flex-shrink-0">
+          <DevolucionEnVivoForm
+            onAgregar={(input) => { onAgregarDevolucionEnVivo(input); setMostrarForm(false); }}
+            onCancelar={() => setMostrarForm(false)}
+          />
+        </div>
+      )}
+
+      {live.length > 0 && (
+        <div role="alert" className="flex-shrink-0 mb-3 rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-sm text-indigo-900">
+          <p className="flex items-center gap-1.5 font-medium">
+            <i className="ri-alert-line"></i>
+            {live.length} devolución/es en vivo en la secuencia — carga entrante {live.reduce((s, p) => s + (p.total_weight || 0), 0).toFixed(1)} kg.
+          </p>
+          {entregasADescargar.length > 0 && (
+            <p className="mt-1">
+              No cabe con la carga actual. Descarga antes de recoger:{' '}
+              <strong>{entregasADescargar.map((p) => p.order_number).join(', ')}</strong>.
+            </p>
+          )}
+          {liveSinRecalcular && (
+            <button
+              onClick={onOptimizarRuta}
+              disabled={optimizando}
+              className="mt-2 flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 cursor-pointer disabled:opacity-60"
+            >
+              <i className={optimizando ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'}></i>
+              Recalcular secuencia y carga
+            </button>
+          )}
+        </div>
+      )}
+
       {pedidosSeleccionados.length > 0 && (
-        <div className="bg-slate-50 rounded-lg p-3 mb-4">
+        <div className="bg-slate-50 rounded-lg p-3 mb-4 flex-shrink-0">
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
               <span className="text-slate-500">Peso Total:</span>
@@ -71,7 +111,7 @@ export default function RutaEnConstruccion({
         </div>
       )}
 
-      <div className="space-y-2 max-h-[600px] overflow-y-auto">
+      <div className="overflow-y-auto max-h-[60vh] pr-1">
         {pedidosSeleccionados.length === 0 ? (
           <div className="text-center py-12 text-slate-400">
             <i className="ri-route-line text-4xl mb-2"></i>
@@ -80,78 +120,20 @@ export default function RutaEnConstruccion({
           </div>
         ) : (
           pedidosSeleccionados.map((pedido, index) => (
-            <div
+            <ParadaCard
               key={pedido.id}
-              draggable
-              onDragStart={() => handleDragStart(index)}
+              pedido={pedido}
+              isLast={index === pedidosSeleccionados.length - 1}
+              isDragging={draggedIndex === index}
+              onQuitar={onQuitarPedido}
+              onDragStart={() => setDraggedIndex(index)}
               onDragOver={(e) => handleDragOver(e, index)}
-              onDragEnd={handleDragEnd}
-              className={`border rounded-lg p-3 bg-white transition-all cursor-move ${
-                draggedIndex === index
-                  ? 'border-teal-400 shadow-lg opacity-50'
-                  : 'border-slate-200 hover:border-teal-300 hover:shadow-sm'
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0 w-8 h-8 bg-teal-600 text-white rounded-lg flex items-center justify-center font-bold">
-                  {pedido.stop_number}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-semibold text-slate-800">{pedido.order_number}</span>
-                    <button
-                      onClick={() => onQuitarPedido(pedido.id)}
-                      className="w-6 h-6 flex items-center justify-center rounded text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors whitespace-nowrap"
-                    >
-                      <i className="ri-close-line"></i>
-                    </button>
-                  </div>
-
-                  <p className="text-sm text-slate-600 mb-2 flex items-center">
-                    <i className="ri-user-line mr-1 text-slate-400"></i>
-                    {pedido.customer_name}
-                  </p>
-
-                  <div className="space-y-1 text-xs text-slate-500">
-                    <div className="flex items-start">
-                      <i className="ri-map-pin-line mr-1 mt-0.5 flex-shrink-0"></i>
-                      <span className="break-words">{pedido.delivery_address}, {pedido.delivery_city}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <i className="ri-road-map-line mr-1"></i>
-                      <span>Zona: {pedido.delivery_zone}</span>
-                    </div>
-                    <div className="flex items-center gap-3 mt-2">
-                      <span className="flex items-center">
-                        <i className="ri-weight-line mr-1"></i>
-                        {pedido.total_weight} kg
-                      </span>
-                      <span className="flex items-center">
-                        <i className="ri-box-3-line mr-1"></i>
-                        {pedido.total_volume} m³
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex-shrink-0 text-slate-400 cursor-move">
-                  <i className="ri-draggable text-lg"></i>
-                </div>
-              </div>
-            </div>
+              onDragEnd={() => setDraggedIndex(null)}
+              onEnfocar={onEnfocarParada}
+            />
           ))
         )}
       </div>
-
-      {pedidosSeleccionados.length > 0 && (
-        <div className="mt-4 p-3 bg-teal-50 border border-teal-200 rounded-lg">
-          <div className="flex items-start gap-2 text-sm text-teal-800">
-            <i className="ri-magic-line mt-0.5"></i>
-            <p>Usa <strong>Optimizar paradas</strong> para calcular la secuencia de entrega más eficiente, o arrastra para reordenar manualmente.</p>
-          </div>
-        </div>
-      )}
     </Card>
   );
 }

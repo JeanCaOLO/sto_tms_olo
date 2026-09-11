@@ -1,0 +1,28 @@
+{
+  "stage": "code-generation",
+  "unit": "u1-devoluciones-en-secuencia",
+  "upstream_ids": ["BR1.1", "BR1.2", "BR1.3", "BR1.4"],
+  "coverage": [
+    {
+      "id": "BR1.1",
+      "status": "OK",
+      "target": "src/pages/planificacion/types.ts (Pedido.tipo opcional); src/pages/planificacion/optimize-stops.test.ts; src/pages/planificacion/fallback-viajes.ts / fallback-pedidos.ts"
+    },
+    {
+      "id": "BR1.2",
+      "status": "OK",
+      "target": "src/pages/planificacion/capacity-fit.ts (optimizarConCapacidad); src/pages/planificacion/capacity-fit.test.ts; src/pages/planificacion/components/ConfiguracionRuta.tsx + NuevaRutaTab.tsx (subtotales)"
+    },
+    {
+      "id": "BR1.3",
+      "status": "OK",
+      "target": "src/pages/planificacion/route-geometry.ts (obtenerGeometriaRutaPorLeg); src/pages/planificacion/route-geometry.test.ts; src/pages/planificacion/components/RutaMapaPreview.tsx (Polyline por leg); src/pages/planificacion/optimize-stops.test.ts"
+    },
+    {
+      "id": "BR1.4",
+      "status": "OK",
+      "target": "src/pages/planificacion/components/TipoParadaBadge.tsx; src/pages/planificacion/components/TipoParadaBadge.test.tsx; PedidoCard.tsx / ParadaCard.tsx (borde + badge); RutaMapaPreview.tsx (patrón discontinuo + leyenda); e2e/planificacion-flujo.spec.ts"
+    }
+  ],
+  "reverse": []
+}
