@@ -86,7 +86,7 @@ export default function ConfiguracionRuta(props: Props) {
           {generando ? (
             <><i className="ri-loader-4-line animate-spin mr-2"></i>Generando...</>
           ) : (
-            <><i className="ri-check-double-line mr-2"></i>Generar Ruta</>
+            <><i className="ri-check-double-line mr-2"></i>Generar secuencia</>
           )}
         </Button>
       </div>

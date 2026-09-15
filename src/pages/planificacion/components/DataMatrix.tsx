@@ -121,6 +121,13 @@ export default function DataMatrix({ caption, columns, rows, pageSize, resetKey 
                         {cell(row[c.key])}
                         <CitaPreviaChip />
                       </span>
+                    ) : c.sub ? (
+                      <span className="flex flex-col leading-tight">
+                        {cell(row[c.key])}
+                        <span className="font-sans text-xs text-slate-400 font-normal max-w-[16rem] truncate">
+                          {String(row[c.sub] ?? '')}
+                        </span>
+                      </span>
                     ) : (
                       cell(row[c.key])
                     )}

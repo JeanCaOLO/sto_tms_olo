@@ -17,6 +17,9 @@ export interface ColumnDef {
   grow?: boolean; // puede envolver / ocupar el ancho sobrante
   /** 'dia' = celda de carga/entrega (X verde/roja). Default: texto. */
   kind?: 'dia';
+  /** Key de una 2ª línea que se pinta (atenuada) bajo el valor, en la misma
+   *  celda. Sirve p. ej. para "código arriba, nombre abajo" y ahorrar columna. */
+  sub?: string;
 }
 
 export interface RouteSystem {
@@ -46,8 +49,7 @@ export const ROUTE_SYSTEMS: RouteSystem[] = [
       'Días de despacho por ruta leídos en vivo de EFLOW (RUTA_DIA_AB) — cambia con el país. El cuadro verde/rojo indica que la ruta corre ese día.',
     pageSize: 0,
     columns: [
-      { key: 'route_code', label: 'Ruta', mono: true },
-      { key: 'route_name', label: 'Nombre', grow: true },
+      { key: 'route_code', label: 'Ruta', mono: true, sub: 'route_name' },
       { key: 'lunes', label: 'Lunes', align: 'center', kind: 'dia' },
       { key: 'martes', label: 'Martes', align: 'center', kind: 'dia' },
       { key: 'miercoles', label: 'Miércoles', align: 'center', kind: 'dia' },
