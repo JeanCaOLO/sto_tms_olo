@@ -29,18 +29,18 @@ export const FALLBACK_TRANSPORTISTAS: Transportista[] = [
 ];
 
 export const FALLBACK_VEHICULOS: Vehiculo[] = [
-  { id: 'eflow-veh-2', plate: 'CL188786', brand: 'Toyota', model: 'Dyna', vehicle_type: 'Camión liviano', capacity_weight: 4500, capacity_volume: 20 },
-  { id: 'eflow-veh-3', plate: 'C162414', brand: 'Freightliner', model: 'M2', vehicle_type: 'Camión pesado', capacity_weight: 8000, capacity_volume: 32 },
-  { id: 'eflow-veh-4', plate: 'CL244242', brand: 'Hyundai', model: 'HD65', vehicle_type: 'Camión liviano', capacity_weight: 3500, capacity_volume: 16 },
-  { id: 'eflow-veh-6', plate: 'CL300011', brand: 'KIA', model: 'Bongo', vehicle_type: 'Camión pequeño', capacity_weight: 2500, capacity_volume: 12 },
-  { id: 'eflow-veh-7', plate: 'CL345361', brand: 'Isuzu', model: 'QRL', vehicle_type: 'Camión liviano', capacity_weight: 4500, capacity_volume: 20 },
-  { id: 'eflow-veh-8', plate: 'CL186068', brand: 'Toyota', model: 'Dyna', vehicle_type: 'Camión liviano', capacity_weight: 4500, capacity_volume: 20 },
-  { id: 'eflow-veh-9', plate: 'CL272155', brand: 'Isuzu', model: 'QKR', vehicle_type: 'Camión pequeño', capacity_weight: 2800, capacity_volume: 13 },
-  { id: 'eflow-veh-12', plate: 'CL190087', brand: 'Isuzu', model: 'NPR', vehicle_type: 'Camión liviano', capacity_weight: 5000, capacity_volume: 22 },
-  { id: 'eflow-veh-14', plate: 'C132239', brand: 'Nissan', model: 'UD', vehicle_type: 'Camión pesado', capacity_weight: 8000, capacity_volume: 32 },
-  { id: 'eflow-veh-21', plate: 'C177642', brand: 'JAC', model: 'N-Series', vehicle_type: 'Camión liviano', capacity_weight: 4200, capacity_volume: 19 },
-  { id: 'eflow-veh-23', plate: 'C162179', brand: 'Mitsubishi', model: 'Canter', vehicle_type: 'Camión liviano', capacity_weight: 4000, capacity_volume: 18 },
-  { id: 'eflow-veh-24', plate: 'CL228091', brand: 'KIA', model: 'Bongo', vehicle_type: 'Camión pequeño', capacity_weight: 2500, capacity_volume: 12 },
+  { id: 'eflow-veh-2', plate: 'CL188786', brand: 'Toyota', model: 'Dyna', vehicle_type: 'Camión liviano', capacity_weight: 4500, capacity_volume: 20, carrier_id: 'eflow-car-3' },
+  { id: 'eflow-veh-3', plate: 'C162414', brand: 'Freightliner', model: 'M2', vehicle_type: 'Camión pesado', capacity_weight: 8000, capacity_volume: 32, carrier_id: 'eflow-car-3' },
+  { id: 'eflow-veh-4', plate: 'CL244242', brand: 'Hyundai', model: 'HD65', vehicle_type: 'Camión liviano', capacity_weight: 3500, capacity_volume: 16, carrier_id: 'eflow-car-3' },
+  { id: 'eflow-veh-6', plate: 'CL300011', brand: 'KIA', model: 'Bongo', vehicle_type: 'Camión pequeño', capacity_weight: 2500, capacity_volume: 12, carrier_id: 'eflow-car-3' },
+  { id: 'eflow-veh-7', plate: 'CL345361', brand: 'Isuzu', model: 'QRL', vehicle_type: 'Camión liviano', capacity_weight: 4500, capacity_volume: 20, carrier_id: 'eflow-car-3' },
+  { id: 'eflow-veh-8', plate: 'CL186068', brand: 'Toyota', model: 'Dyna', vehicle_type: 'Camión liviano', capacity_weight: 4500, capacity_volume: 20, carrier_id: 'eflow-car-3' },
+  { id: 'eflow-veh-9', plate: 'CL272155', brand: 'Isuzu', model: 'QKR', vehicle_type: 'Camión pequeño', capacity_weight: 2800, capacity_volume: 13, carrier_id: 'eflow-car-3' },
+  { id: 'eflow-veh-12', plate: 'CL190087', brand: 'Isuzu', model: 'NPR', vehicle_type: 'Camión liviano', capacity_weight: 5000, capacity_volume: 22, carrier_id: 'eflow-car-3' },
+  { id: 'eflow-veh-14', plate: 'C132239', brand: 'Nissan', model: 'UD', vehicle_type: 'Camión pesado', capacity_weight: 8000, capacity_volume: 32, carrier_id: 'eflow-car-3' },
+  { id: 'eflow-veh-21', plate: 'C177642', brand: 'JAC', model: 'N-Series', vehicle_type: 'Camión liviano', capacity_weight: 4200, capacity_volume: 19, carrier_id: 'eflow-car-3' },
+  { id: 'eflow-veh-23', plate: 'C162179', brand: 'Mitsubishi', model: 'Canter', vehicle_type: 'Camión liviano', capacity_weight: 4000, capacity_volume: 18, carrier_id: 'eflow-car-3' },
+  { id: 'eflow-veh-24', plate: 'CL228091', brand: 'KIA', model: 'Bongo', vehicle_type: 'Camión pequeño', capacity_weight: 2500, capacity_volume: 12, carrier_id: 'eflow-car-3' },
 ];
 
 export const FALLBACK_CONDUCTORES: Conductor[] = [

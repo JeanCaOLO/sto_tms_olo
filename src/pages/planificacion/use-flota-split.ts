@@ -2,7 +2,8 @@ import { useState } from 'react';
 import type { AppUser } from '../../lib/mock-auth';
 import { fetchPedidosDeRuta } from './pedidos-api';
 import { repartirEntreFlota, type FlotaSlot, type ResultadoReparto } from './fleet-split';
-import type { Pedido } from './types';
+import { sugerirVehiculos } from './fleet-suggest';
+import type { Pedido, Vehiculo } from './types';
 
 export function useFlotaSplit(appUser: AppUser | null) {
   const [rutaTypeId, setRutaTypeIdState] = useState('');
@@ -38,6 +39,14 @@ export function useFlotaSplit(appUser: AppUser | null) {
     setResultado(null);
   };
 
+  // Auto-elige los vehículos por capacidad (Ana 2026-09-15) y llena los slots.
+  // El conductor queda vacío para que el usuario lo asigne.
+  const sugerirFlota = (vehiculos: Vehiculo[]) => {
+    const { vehiculos: elegidos } = sugerirVehiculos(pool, vehiculos);
+    setSlots(elegidos.map((vehiculo) => ({ vehiculo, conductorId: '' })));
+    setResultado(null);
+  };
+
   const calcularReparto = () => setResultado(repartirEntreFlota(pool, slots));
 
   const reset = () => {
@@ -47,5 +56,5 @@ export function useFlotaSplit(appUser: AppUser | null) {
     setResultado(null);
   };
 
-  return { rutaTypeId, pool, cargando, slots, resultado, setRutaTypeId, addSlot, removeSlot, calcularReparto, reset };
+  return { rutaTypeId, pool, cargando, slots, resultado, setRutaTypeId, addSlot, removeSlot, sugerirFlota, calcularReparto, reset };
 }

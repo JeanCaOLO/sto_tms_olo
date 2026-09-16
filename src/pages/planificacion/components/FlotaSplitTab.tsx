@@ -22,7 +22,7 @@ export default function FlotaSplitTab({ rutas, vehiculos, conductores, onRutasGe
   const [fechaRuta, setFechaRuta] = useState(new Date().toISOString().split('T')[0]);
   const {
     rutaTypeId, pool, cargando, slots, resultado,
-    setRutaTypeId, addSlot, removeSlot, calcularReparto, reset,
+    setRutaTypeId, addSlot, removeSlot, sugerirFlota, calcularReparto, reset,
   } = useFlotaSplit(appUser);
   const { generarFlota, generando } = useGenerarFlota();
 
@@ -62,6 +62,18 @@ export default function FlotaSplitTab({ rutas, vehiculos, conductores, onRutasGe
             {cargando ? 'Cargando pedidos...' : `${pool.length} pedidos pendientes en el pool (${totalPeso.toFixed(1)} kg)`}
           </p>
         )}
+
+        <div className="flex justify-end mb-2">
+          <Button
+            variant="ghost"
+            className="text-sm"
+            onClick={() => sugerirFlota(vehiculos)}
+            disabled={pool.length === 0}
+            title="Elige automáticamente los vehículos que cubren el peso del pool"
+          >
+            <i className="ri-magic-line mr-1"></i>Sugerir vehículos por capacidad
+          </Button>
+        </div>
 
         <FlotaSlotPicker vehiculos={vehiculos} conductores={conductores} slots={slots} onAdd={addSlot} onRemove={removeSlot} />
 

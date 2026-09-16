@@ -99,6 +99,7 @@ export const mapVehiculo = (row: VehiculoRow): Vehiculo => ({
   brand: (row.vehicle_brand || '').trim(),
   model: (row.unit_description || '').trim(),
   vehicle_type: '',
+  carrier_id: row.carrier_id != null ? `eflow-car-${row.carrier_id}` : '',
   ...capacidadSintetica(row.vehicle_brand),
 });
 

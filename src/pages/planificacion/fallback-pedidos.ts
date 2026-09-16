@@ -47,7 +47,10 @@ export function getFallbackPedidos(routeTypeId: string): Pedido[] {
     customer_id: `mock-customer-${i}`,
     store_id: 'mock-store-1',
     status: 'pending',
-    order_date: new Date().toISOString(),
+    // Fecha sintética estable por índice (no now()): así dos llamadas devuelven
+    // exactamente lo mismo — antes el race de 1 ms entre llamadas hacía flaky el
+    // test de fallback.
+    order_date: new Date(Date.UTC(2026, 0, 1, 8, 0, i)).toISOString(),
     route_type_id: routeTypeId,
     tipo: DEVOLUCIONES.has(i) ? ('devolucion' as const) : undefined,
     ...stop,

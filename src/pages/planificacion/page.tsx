@@ -7,6 +7,8 @@ import RutasGeneradas from './components/RutasGeneradas';
 import EditarRutaModal from './components/EditarRutaModal';
 import PlanificacionTabs from './components/PlanificacionTabs';
 import MatrizRutasTab from './components/MatrizRutasTab';
+import AsignarViajesTab from './components/AsignarViajesTab';
+import MaestrosTab from './components/MaestrosTab';
 import PaisSelector from './components/PaisSelector';
 import { useCatalogos } from './use-catalogos';
 import { useViajes } from './use-viajes';
@@ -18,17 +20,15 @@ import { useRutasGeneradas } from './use-rutas-generadas';
 import type { Pedido } from './types';
 import type { RutaGenerada } from './generar-ruta-mock';
 
-type Tab = 'nueva' | 'flota' | 'generadas' | 'matriz';
+type Tab = 'nueva' | 'asignar' | 'flota' | 'generadas' | 'matriz' | 'maestros';
 
 export default function PlanificacionPage() {
   const { appUser } = useAuth();
   const { showToast } = useToast();
   const [tab, setTab] = useState<Tab>('nueva');
   const [pais, setPaisState] = useState<Pais>(getPais());
-  const cambiarPais = (p: Pais) => {
-    setPais(p); // actualiza el país que consume eflow-api
-    setPaisState(p); // dispara la recarga de viajes/catálogos (deps de los hooks)
-  };
+  // setPais actualiza el país que consume eflow-api; setPaisState recarga viajes/catálogos.
+  const cambiarPais = (p: Pais) => { setPais(p); setPaisState(p); };
   const { rutas, vehiculos, transportistas, conductores, loading } = useCatalogos(appUser, pais);
   const { viajes, cargandoViajes } = useViajes(appUser, pais);
   const {
