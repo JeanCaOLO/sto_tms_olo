@@ -52,9 +52,19 @@ export function setPais(p: Pais): void {
   }
 }
 
-// Agrega ?pais= al path (respeta un query string previo).
+// Compañía cliente activa (IDCOMPANIA, p.ej. '0109'). '' = todas. Filtra viajes y
+// sus pedidos en el backend; los catálogos globales ignoran el parámetro.
+let companiaActual = '';
+export const getCompania = (): string => companiaActual;
+export const setCompania = (c: string): void => {
+  companiaActual = c;
+};
+
+// Agrega ?pais= (y &company= si hay compañía activa) al path.
 function conPais(path: string): string {
-  return `${path}${path.includes('?') ? '&' : '?'}pais=${paisActual}`;
+  const sep = path.includes('?') ? '&' : '?';
+  const company = companiaActual ? `&company=${encodeURIComponent(companiaActual)}` : '';
+  return `${path}${sep}pais=${paisActual}${company}`;
 }
 
 async function getJson<T>(path: string): Promise<T> {
@@ -112,6 +122,22 @@ export interface RutaDiaRow {
 }
 export function fetchRutasDias(): Promise<RutaDiaRow[]> {
   return getJson<RutaDiaRow[]>('/api/catalogos/rutas-dias');
+}
+
+// Compañías cliente que operan en el país (IDCOMPANIA + nombre). CR ≈ COFERSA;
+// VE = FEBECA + SILLACA. Cae al fallback si /api no responde.
+export interface Compania {
+  id: string;
+  name: string;
+}
+export async function fetchCompanias(fallback: Compania[]): Promise<Compania[]> {
+  try {
+    const rows = await getJson<{ id: string; name: string | null; trips: number }[]>('/api/catalogos/companias');
+    return rows.length ? rows.map((r) => ({ id: r.id, name: r.name || r.id })) : fallback;
+  } catch (err) {
+    console.warn('[planificacion] /api/catalogos/companias no disponible, usando fallback:', (err as Error).message);
+    return fallback;
+  }
 }
 
 async function listOrFallback<R, T>(path: string, map: (r: R) => T, fallback: T[]): Promise<T[]> {

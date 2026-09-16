@@ -63,6 +63,8 @@ export interface Vehiculo {
   vehicle_type: string;
   capacity_weight: number;
   capacity_volume: number;
+  /** Transportista dueño (`eflow-car-<id>`); '' si EFLOW no lo trae. */
+  carrier_id: string;
 }
 
 export interface Conductor {

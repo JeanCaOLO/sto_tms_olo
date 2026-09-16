@@ -7,10 +7,13 @@ import RutasGeneradas from './components/RutasGeneradas';
 import EditarRutaModal from './components/EditarRutaModal';
 import PlanificacionTabs from './components/PlanificacionTabs';
 import MatrizRutasTab from './components/MatrizRutasTab';
-import PaisSelector from './components/PaisSelector';
+import AsignarViajesTab from './components/AsignarViajesTab';
+import MaestrosTab from './components/MaestrosTab';
+import PlanificacionHeader from './components/PlanificacionHeader';
 import { useCatalogos } from './use-catalogos';
 import { useViajes } from './use-viajes';
-import { getPais, setPais, type Pais } from './eflow-api';
+import { useCompanias } from './use-companias';
+import { getPais, setPais, getCompania, setCompania, type Pais } from './eflow-api';
 import { usePedidosRuta } from './use-pedidos-ruta';
 import { usePedidosAnclados } from './use-pedidos-anclados';
 import { useGenerarRuta } from './use-generar-ruta';
@@ -18,19 +21,24 @@ import { useRutasGeneradas } from './use-rutas-generadas';
 import type { Pedido } from './types';
 import type { RutaGenerada } from './generar-ruta-mock';
 
-type Tab = 'nueva' | 'flota' | 'generadas' | 'matriz';
+type Tab = 'nueva' | 'asignar' | 'flota' | 'generadas' | 'matriz' | 'maestros';
 
 export default function PlanificacionPage() {
   const { appUser } = useAuth();
   const { showToast } = useToast();
   const [tab, setTab] = useState<Tab>('nueva');
   const [pais, setPaisState] = useState<Pais>(getPais());
-  const cambiarPais = (p: Pais) => {
-    setPais(p); // actualiza el país que consume eflow-api
-    setPaisState(p); // dispara la recarga de viajes/catálogos (deps de los hooks)
-  };
+  const [company, setCompanyState] = useState<string>(getCompania());
+  // setPais/setCompania actualizan lo que consume eflow-api; el estado recarga hooks.
+  // Al cambiar de país se resetea la compañía (los IDCOMPANIA son por país).
+  const cambiarPais = (p: Pais) => { setPais(p); setPaisState(p); setCompania(''); setCompanyState(''); };
+  const cambiarCompania = (c: string) => { setCompania(c); setCompanyState(c); };
+  const companias = useCompanias(appUser, pais);
   const { rutas, vehiculos, transportistas, conductores, loading } = useCatalogos(appUser, pais);
-  const { viajes, cargandoViajes } = useViajes(appUser, pais);
+  const { viajes, cargandoViajes } = useViajes(appUser, pais, company);
+  // Opción B: al filtrar por compañía, las rutas mostradas se derivan de sus viajes
+  // (distribution_routes no tiene columna de compañía). Sin compañía, todas.
+  const rutasVisibles = company ? rutas.filter((r) => viajes.some((v) => v.route_type_id === r.id)) : rutas;
   const {
     viajeId, pedidosRuta, pedidosSeleccionados, excluidosPorCapacidad, optimizando, cargandoPedidos,
     setViaje, togglePedido, quitarPedido, reordenarParadas, optimizarRuta, resetPedidos,
@@ -100,23 +108,14 @@ export default function PlanificacionPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl lg:text-2xl font-bold text-slate-800">Planificación de Rutas</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Selecciona un viaje despachado, asigna transportista, conductor y vehículo, y genera la ruta óptima de entrega
-          </p>
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <PaisSelector pais={pais} onChange={cambiarPais} />
-          {tab === 'nueva' && pedidosSeleccionados.length > 0 && (
-            <div className="flex items-center gap-2 text-sm bg-teal-50 border border-teal-200 text-teal-700 px-3 py-2 rounded-lg">
-              <i className="ri-checkbox-circle-line"></i>
-              <span><strong>{pedidosSeleccionados.length}</strong> de <strong>{pedidosRuta.length}</strong> pedidos incluidos</span>
-            </div>
-          )}
-        </div>
-      </div>
+      <PlanificacionHeader
+        pais={pais}
+        onPais={cambiarPais}
+        companias={companias}
+        company={company}
+        onCompania={cambiarCompania}
+        resumen={tab === 'nueva' && pedidosSeleccionados.length > 0 ? { incluidos: pedidosSeleccionados.length, total: pedidosRuta.length } : null}
+      />
 
       <PlanificacionTabs tab={tab} setTab={setTab} rutasGeneradasCount={rutasGeneradas.length} />
 
@@ -145,12 +144,15 @@ export default function PlanificacionPage() {
       />
 
       {tab === 'matriz' && <MatrizRutasTab pais={pais} />}
+      {tab === 'asignar' && <AsignarViajesTab pais={pais} rutas={rutasVisibles} />}
+      {tab === 'maestros' && <MaestrosTab transportistas={transportistas} conductores={conductores} vehiculos={vehiculos} />}
 
       {tab === 'flota' && (
         <FlotaSplitTab
-          rutas={rutas}
+          rutas={rutasVisibles}
           vehiculos={vehiculos}
           conductores={conductores}
+          viajes={viajes}
           onRutasGeneradas={() => {
             refreshRutasGeneradas();
             setTab('generadas');

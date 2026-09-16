@@ -7,6 +7,11 @@ export interface FlotaSlot {
   conductorId: string;
 }
 
+// Marca + modelo sin repetir (EFLOW suele traer brand == unit_description, lo que
+// daba etiquetas tipo "NISSAN UD NISSAN UD").
+export const marcaModelo = (v: Vehiculo): string =>
+  v.model && v.model !== v.brand ? `${v.brand} ${v.model}` : v.brand;
+
 export interface AsignacionFlota {
   slot: FlotaSlot;
   pedidos: PedidoSeleccionado[];
