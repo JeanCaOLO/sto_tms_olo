@@ -20,6 +20,9 @@ export interface Pedido {
   // 2026-08-18). Sin lat/lng, queda fuera del cálculo de ruta óptima.
   is_exception?: boolean;
   exception_address_raw?: string;
+  // Coordenadas geocodificadas (Nominatim) a nivel distrito/ciudad, no puerta.
+  // Se rellenan cuando EFLOW no trae lat/lng del cliente (ver geocode.ts).
+  geo_approx?: boolean;
   // Tipo de parada. Ausente ⇒ 'entrega' (retro-compatible, BR1.1). Para
   // 'devolucion' la semántica de delivery_address / total_weight /
   // total_volume se invierte (recogida / carga entrante) — ver ADR-1.

@@ -1,5 +1,6 @@
 import type { Conductor, Pedido, RutaTipo, Transportista, Vehiculo, Viaje } from './types';
 import { getFallbackPedidos } from './fallback-pedidos';
+import { geocodeCliente } from './geocode';
 import {
   mapConductor,
   mapPedido,
@@ -89,10 +90,18 @@ export async function fetchViajes(): Promise<Viaje[]> {
 // Pedidos reales de un viaje (journey_orders -> EXPEDICIONESCABECERA). Se llama
 // al ELEGIR el viaje (carga perezosa). Cae al pool mock si /api no responde o el
 // viaje no trae filas reales — mismo patrón que rutas/conductores.
+// Rellena lat/lng desde la capa geocode (Nominatim) cuando EFLOW no las trae, y
+// marca el pedido como geo_approx (nivel distrito/ciudad, no puerta).
+function conGeocode(p: Pedido): Pedido {
+  if (p.delivery_latitude != null && p.delivery_longitude != null) return p;
+  const g = geocodeCliente(paisActual, p.customer_id);
+  return g ? { ...p, delivery_latitude: g.lat, delivery_longitude: g.lng, geo_approx: true } : p;
+}
+
 export async function fetchPedidosDeViaje(viajeId: string, routeTypeId: string): Promise<Pedido[]> {
   try {
     const rows = await getJson<PedidoRow[]>(`/api/viajes/${viajeId}/pedidos`);
-    return rows.length ? rows.map((r) => mapPedido(r, routeTypeId)) : getFallbackPedidos(routeTypeId);
+    return rows.length ? rows.map((r) => conGeocode(mapPedido(r, routeTypeId))) : getFallbackPedidos(routeTypeId);
   } catch (err) {
     console.warn(`[planificacion] /api/viajes/${viajeId}/pedidos no disponible, usando mock:`, (err as Error).message);
     return getFallbackPedidos(routeTypeId);
