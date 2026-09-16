@@ -85,7 +85,7 @@ export default function Header() {
           </button>
 
           {showNotifications && (
-            <div className="absolute right-0 top-12 w-80 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-50">
+            <div className="fixed left-4 right-4 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-80 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-50">
               <div className="px-4 py-2 border-b border-slate-200 flex items-center justify-between">
                 <h3 className="font-semibold text-sm text-slate-800">Notificaciones</h3>
                 <span className="text-xs text-teal-600 font-medium cursor-pointer">Marcar todas</span>
