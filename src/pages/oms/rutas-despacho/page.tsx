@@ -1,16 +1,16 @@
 import Card from '../../../components/base/Card';
 import Badge from '../../../components/base/Badge';
-import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
-import OmsPageHeader from '../components/OmsPageHeader';
-import RouteFormModal from './RouteFormModal';
+import Select from '../../../components/base/Select';
 import { WEEK_DAYS, WEEK_DAY_LABELS, type WeekDay } from '../types';
 import { useRutasController } from './useRutasController';
 
 // Pantalla Calendario de Rutas y Días de Despacho (FR1).
 // Cuadrícula semanal: un check teal en las columnas de los días de salida.
+// Por ahora es SOLO DE CONSULTA: no permite crear ni actualizar rutas desde
+// la UI (el CRUD gated a administrador de FR1.1 queda pendiente de definir).
 export default function OmsRutasDespachoPage() {
-  const { country, setCountry, routes, loading, error, query, setQuery, modalOpen, setModalOpen, addRoute } = useRutasController();
+  const { country, companies, company, setCompany, routes, loading, error, query, setQuery } = useRutasController();
 
   const dayCell = (route: { loadDays: WeekDay[]; byAppointment: boolean }, day: WeekDay) => {
     const on = route.loadDays.includes(day);
@@ -29,12 +29,22 @@ export default function OmsRutasDespachoPage() {
 
   return (
     <div className="space-y-6">
-      <OmsPageHeader
-        title="Calendario de Rutas"
-        subtitle="Días de salida (carga) por ruta — fuente de la Regla 1 del motor"
-        country={country}
-        onCountryChange={setCountry}
-      />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Calendario de Rutas</h1>
+          <p className="text-sm text-slate-600 mt-1">
+            Días de salida (carga) por ruta — fuente de la Regla 1 del motor
+          </p>
+        </div>
+        <div className="w-full sm:w-56">
+          <Select
+            label="Compañía"
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+            options={companies.map((c) => ({ value: c.id, label: c.name }))}
+          />
+        </div>
+      </div>
 
       <Card padding={false}>
         <div className="flex items-center justify-between p-6 pb-4">
@@ -44,7 +54,6 @@ export default function OmsRutasDespachoPage() {
             </h2>
             <p className="text-sm text-slate-600 mt-0.5">Cliente: Cofersa · {routes.length} zonas</p>
           </div>
-          <Button icon={<i className="ri-add-line"></i>} onClick={() => setModalOpen(true)}>Nueva Ruta</Button>
         </div>
 
         <div className="px-6 pb-4">
@@ -126,10 +135,6 @@ export default function OmsRutasDespachoPage() {
         alimentan el cálculo del <code>ready_to_prep_date</code> de la Regla 1 (alistar
         un día antes de la salida). El sembrado real se hace en Construcción.
       </p>
-
-      {modalOpen && (
-        <RouteFormModal country={country} onSave={addRoute} onCancel={() => setModalOpen(false)} />
-      )}
     </div>
   );
 }

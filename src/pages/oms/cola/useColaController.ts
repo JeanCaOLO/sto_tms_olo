@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { omsApi } from '../api/omsApi';
-import type { Country, PriorityTier, QueueOrder } from '../types';
+import type { PriorityTier, QueueOrder } from '../types';
+import { useOmsView } from '../useOmsView';
 
 const ALL = 'todos';
 
@@ -22,7 +23,7 @@ const EMPTY_FILTERS: ColaFilters = {
 // Controller de la Cola de Priorización (FR2/FR3). Maneja filtros, selección de
 // pedido y el override manual local (única intervención humana; sin backend).
 export function useColaController() {
-  const [country, setCountry] = useState<Country>('CR');
+  const country = 'CR' as const;
   const [orders, setOrders] = useState<QueueOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +33,7 @@ export function useColaController() {
   const [filters, setFilters] = useState<ColaFilters>(EMPTY_FILTERS);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const { view, setView } = useOmsView('cards');
 
   useEffect(() => {
     let cancelled = false;
@@ -43,7 +45,7 @@ export function useColaController() {
       .catch(() => { if (!cancelled) setError('No se pudo cargar la cola.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [country]);
+  }, []);
 
   // Opciones de filtro derivadas de los pedidos cargados.
   const options = useMemo(() => {
@@ -124,8 +126,9 @@ export function useColaController() {
   };
 
   return {
-    country, setCountry, orders: paginated, filteredCount: filtered.length, totalCount: orders.length, loading, error,
+    orders: paginated, filteredCount: filtered.length, totalCount: orders.length, loading, error,
     filters, setFilter, resetFilters, filtersActive, options,
+    view, setView,
     page: currentPage, pageSize, setPageSize, goToPage, totalPages, pageStart,
     selectedId, setSelectedId, selected,
     detailOpen, setDetailOpen,

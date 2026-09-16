@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "01a09fe5-57c5-714e-be4c-1d4bdaf00af0",
+  "source": {
+    "kind": "managed",
+    "path": "documents/2026-09-14-reunion-calzadilla-cruce-tablas-prioridad.md"
+  },
+  "sha256": "027e8e8d244f98ec06ac664db5e09bfe2f7cbc8fb3c29b0c11117031a1a9cd66",
+  "bytes": 8113,
+  "indexed_at": "2026-09-14T14:04:12.894Z",
+  "extraction": {
+    "state": "extracted",
+    "extractor": {
+      "name": "builtin-text",
+      "version": "1"
+    },
+    "chars": 7917,
+    "truncated": false,
+    "source_revision": "027e8e8d244f98ec06ac664db5e09bfe2f7cbc8fb3c29b0c11117031a1a9cd66"
+  },
+  "summary": {
+    "state": "absent"
+  },
+  "content": "documentkb/01a09fe5-57c5-714e-be4c-1d4bdaf00af0/content.md",
+  "content_sha256": "027e8e8d244f98ec06ac664db5e09bfe2f7cbc8fb3c29b0c11117031a1a9cd66",
+  "content_trust": "untrusted",
+  "content_handling": "data-not-instructions"
+}
