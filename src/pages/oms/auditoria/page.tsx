@@ -1,40 +1,71 @@
 import { useEffect, useState } from 'react';
 import Card from '../../../components/base/Card';
 import Badge from '../../../components/base/Badge';
-import OmsPageHeader from '../components/OmsPageHeader';
+import Select from '../../../components/base/Select';
+import ViewToggle from '../components/ViewToggle';
+import { useOmsView } from '../useOmsView';
 import { omsApi } from '../api/omsApi';
 import { TIER_LABEL } from '../types';
-import type { AuditEntry, Country } from '../types';
+import type { AuditEntry, Company, Country } from '../types';
+
+const tierChange = (e: AuditEntry) =>
+  `${e.tierFrom === 'sin asignar' ? 'sin asignar' : TIER_LABEL[e.tierFrom]} → ${TIER_LABEL[e.tierTo]}`;
 
 // Pantalla Auditoría de Priorización (FR7): registro inmutable, solo lectura.
+// Lista como cards (default en mobile) o tabla, alternables con el toggle del
+// header. En desktop es siempre tabla (ver useOmsView).
 export default function OmsAuditoriaPage() {
-  const [country, setCountry] = useState<Country>('CR');
+  const country: Country = 'CR';
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [company, setCompany] = useState<string>('');
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<'todos' | 'automatico' | 'manual'>('todos');
+  const { view, setView } = useOmsView('cards');
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    omsApi.getAudit(country)
-      .then((rows) => { if (!cancelled) setEntries(rows); })
+    Promise.all([omsApi.getCompanies(), omsApi.getAudit(country)])
+      .then(([c, rows]) => {
+        if (cancelled) return;
+        setCompanies(c);
+        setCompany((prev) => prev || c[0]?.id || '');
+        setEntries(rows);
+      })
       .catch(() => { if (!cancelled) setError('No se pudo cargar la auditoría.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [country]);
+  }, []);
 
   const rows = entries.filter((e) => typeFilter === 'todos' || e.changeType === typeFilter);
 
   return (
     <div className="space-y-6">
-      <OmsPageHeader
-        title="Auditoría de Priorización"
-        subtitle="Registro inmutable de cambios de prioridad (solo lectura)"
-        country={country}
-        onCountryChange={setCountry}
-      />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Auditoría de Priorización</h1>
+          <p className="text-sm text-slate-600 mt-1">
+            Registro inmutable de cambios de prioridad (solo lectura)
+          </p>
+        </div>
+        <div className="w-full sm:w-56">
+          <Select
+            label="Compañía"
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+            options={companies.map((c) => ({ value: c.id, label: c.name }))}
+          />
+        </div>
+      </div>
+
+      {!loading && !error && rows.length > 0 && (
+        <div className="flex justify-end sm:hidden">
+          <ViewToggle view={view} onChange={setView} />
+        </div>
+      )}
 
       <Card padding={false}>
         <div className="flex items-center gap-2 p-4">
@@ -63,7 +94,8 @@ export default function OmsAuditoriaPage() {
             <p className="mt-2 text-sm">No hay registros para estos criterios.</p>
           </div>
         )}
-        {!loading && !error && rows.length > 0 && (
+
+        {!loading && !error && rows.length > 0 && view === 'table' && (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -87,9 +119,7 @@ export default function OmsAuditoriaPage() {
                         {e.changeType === 'manual' ? 'Manual' : 'Automático'}
                       </Badge>
                     </td>
-                    <td className="py-3 px-4 text-sm text-slate-700">
-                      {e.tierFrom === 'sin asignar' ? 'sin asignar' : TIER_LABEL[e.tierFrom]} → {TIER_LABEL[e.tierTo]}
-                    </td>
+                    <td className="py-3 px-4 text-sm text-slate-700">{tierChange(e)}</td>
                     <td className="py-3 px-4 text-sm text-slate-700">{e.scoreFrom ?? '—'} → {e.scoreTo}</td>
                     <td className="py-3 px-4 text-sm text-slate-700">{e.actor}</td>
                     <td className="py-3 px-4 text-sm text-slate-600">{e.detail}</td>
@@ -97,6 +127,28 @@ export default function OmsAuditoriaPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {!loading && !error && rows.length > 0 && view === 'cards' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 p-4">
+            {rows.map((e) => (
+              <div key={e.id} className="rounded-lg border border-slate-200 p-4">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <span className="font-semibold text-slate-900">{e.orderId}</span>
+                  <Badge variant={e.changeType === 'manual' ? 'warning' : 'default'} size="sm">
+                    {e.changeType === 'manual' ? 'Manual' : 'Automático'}
+                  </Badge>
+                </div>
+                <div className="text-sm space-y-1.5">
+                  <div className="flex justify-between gap-3"><span className="text-slate-500">Fecha</span><span className="text-slate-900 text-right">{e.timestamp}</span></div>
+                  <div className="flex justify-between gap-3"><span className="text-slate-500">Tier</span><span className="text-slate-900 text-right">{tierChange(e)}</span></div>
+                  <div className="flex justify-between gap-3"><span className="text-slate-500">Score</span><span className="text-slate-900 text-right">{e.scoreFrom ?? '—'} → {e.scoreTo}</span></div>
+                  <div className="flex justify-between gap-3"><span className="text-slate-500">Actor</span><span className="text-slate-900 text-right truncate">{e.actor}</span></div>
+                  <div className="flex justify-between gap-3"><span className="text-slate-500">Detalle</span><span className="text-slate-900 text-right">{e.detail}</span></div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </Card>

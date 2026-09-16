@@ -1,10 +1,11 @@
+import type { ReactNode } from 'react';
 import Card from '../../../components/base/Card';
 import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
-import OmsPageHeader from '../components/OmsPageHeader';
 import PriorityBadge from '../components/PriorityBadge';
-import { TIER_LABEL, type PriorityTier } from '../types';
+import ViewToggle from '../components/ViewToggle';
+import { TIER_LABEL, type PriorityTier, type QueueOrder } from '../types';
 import OrderDetailModal from './OrderDetailModal';
 import OverrideModal from './OverrideModal';
 import { useColaController } from './useColaController';
@@ -13,10 +14,15 @@ const money = (n: number) => n.toLocaleString('es-CR', { minimumFractionDigits: 
 
 // Pantalla Cola de Priorización (FR2/FR3): tabla completa + filtros.
 // El detalle del pedido se muestra en un modal (con el botón de override dentro).
+// El país queda fijo internamente (ver useColaController); el filtro visible es
+// Compañía, dentro del bloque de filtros (no hay selector de país en el header).
+// La lista se presenta como cards (default en mobile) o tabla, alternables con
+// el toggle del header. Ambas vistas comparten los mismos datos paginados.
 export default function OmsColaPage() {
   const {
-    country, setCountry, orders, filteredCount, loading, error,
+    orders, filteredCount, loading, error,
     filters, setFilter, resetFilters, filtersActive, options,
+    view, setView,
     page, pageSize, setPageSize, goToPage, totalPages, pageStart,
     selectedId, setSelectedId, selected,
     detailOpen, setDetailOpen,
@@ -28,30 +34,84 @@ export default function OmsColaPage() {
     ...all.map((v) => ({ value: v, label: v })),
   ];
 
+  const openDetail = (id: string) => { setSelectedId(id); setDetailOpen(true); };
+
+  const pagination = (
+    <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 border-t border-slate-100">
+      <div className="flex items-center gap-2 text-sm text-slate-600">
+        <span>Mostrar</span>
+        <select
+          value={pageSize}
+          onChange={(e) => setPageSize(Number(e.target.value))}
+          className="px-2 py-1 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
+          aria-label="Pedidos por página"
+        >
+          {[5, 10, 25, 50, 100].map((n) => (
+            <option key={n} value={n}>{n}</option>
+          ))}
+        </select>
+        <span>por página · {filteredCount} pedidos</span>
+      </div>
+
+      <div className="flex items-center gap-2 text-sm text-slate-600">
+        <span className="hidden sm:inline">
+          {pageStart + 1}–{Math.min(pageStart + orders.length, filteredCount)} de {filteredCount}
+        </span>
+        <button
+          onClick={() => goToPage(page - 1)}
+          disabled={page <= 1}
+          className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          aria-label="Página anterior"
+        >
+          <i className="ri-arrow-left-s-line"></i>
+        </button>
+        <div className="flex items-center gap-1.5">
+          <span>Página</span>
+          <input
+            type="number"
+            min={1}
+            max={totalPages}
+            value={page}
+            onChange={(e) => goToPage(Number(e.target.value))}
+            className="w-14 px-2 py-1 text-sm text-center border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+            aria-label="Número de página"
+          />
+          <span>de {totalPages}</span>
+        </div>
+        <button
+          onClick={() => goToPage(page + 1)}
+          disabled={page >= totalPages}
+          className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          aria-label="Página siguiente"
+        >
+          <i className="ri-arrow-right-s-line"></i>
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
-      <OmsPageHeader
-        title="Cola de Priorización"
-        subtitle="Pedidos pendientes ordenados por prioridad calculada"
-        country={country}
-        onCountryChange={setCountry}
-      />
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Cola de Priorización</h1>
+        <p className="text-sm text-slate-600 mt-1">Pedidos pendientes ordenados por prioridad calculada</p>
+      </div>
 
       <Card>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="w-40">
+        <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end">
+          <div className="sm:w-40">
             <Select label="Almacén" value={filters.warehouse} onChange={(e) => setFilter('warehouse', e.target.value)} options={opt(options.warehouses, 'Todos')} />
           </div>
-          <div className="w-40">
+          <div className="sm:w-40">
             <Select label="Compañía" value={filters.company} onChange={(e) => setFilter('company', e.target.value)} options={opt(options.companies, 'Todas')} />
           </div>
-          <div className="w-40">
+          <div className="sm:w-40">
             <Select label="Sucursal" value={filters.branch} onChange={(e) => setFilter('branch', e.target.value)} options={opt(options.branches, 'Todas')} />
           </div>
-          <div className="w-44">
+          <div className="sm:w-44">
             <Select label="Ruta" value={filters.route} onChange={(e) => setFilter('route', e.target.value)} options={opt(options.routes, 'Todas')} />
           </div>
-          <div className="w-40">
+          <div className="sm:w-40">
             <Select
               label="Prioridad"
               value={filters.tier}
@@ -59,20 +119,28 @@ export default function OmsColaPage() {
               options={[{ value: 'todos', label: 'Todas' }, ...options.tiers.map((t) => ({ value: t, label: TIER_LABEL[Number(t) as PriorityTier] }))]}
             />
           </div>
-          <div className="w-40">
+          <div className="sm:w-40">
             <Select label="Estado" value={filters.status} onChange={(e) => setFilter('status', e.target.value)} options={opt(options.statuses, 'Todos')} />
           </div>
-          <div className="w-40">
+          <div className="sm:w-40">
             <Select label="Situación" value={filters.situation} onChange={(e) => setFilter('situation', e.target.value)} options={opt(options.situations, 'Todas')} />
           </div>
-          <div className="w-64">
+          <div className="col-span-2 sm:w-64">
             <Input label="Buscar" icon="ri-search-line" placeholder="Pedido, ref., cliente…" value={filters.query} onChange={(e) => setFilter('query', e.target.value)} />
           </div>
           {filtersActive && (
-            <Button variant="ghost" onClick={resetFilters}>Limpiar</Button>
+            <div className="col-span-2 sm:w-auto">
+              <Button variant="ghost" onClick={resetFilters}>Limpiar</Button>
+            </div>
           )}
         </div>
       </Card>
+
+      {!loading && !error && filteredCount > 0 && (
+        <div className="flex justify-end sm:hidden">
+          <ViewToggle view={view} onChange={setView} />
+        </div>
+      )}
 
       <Card padding={false}>
         {loading && (
@@ -89,7 +157,8 @@ export default function OmsColaPage() {
             </p>
           </div>
         )}
-        {!loading && !error && filteredCount > 0 && (
+
+        {!loading && !error && filteredCount > 0 && view === 'table' && (
           <div className="overflow-x-auto">
             <table className="w-full whitespace-nowrap">
               <thead>
@@ -119,7 +188,7 @@ export default function OmsColaPage() {
                 {orders.map((o) => (
                   <tr
                     key={o.id}
-                    onClick={() => { setSelectedId(o.id); setDetailOpen(true); }}
+                    onClick={() => openDetail(o.id)}
                     className={`border-b border-slate-100 hover:bg-slate-50 cursor-pointer ${selectedId === o.id ? 'bg-teal-50' : ''}`}
                   >
                     <td className="py-3 px-4"><PriorityBadge tier={o.tier} /></td>
@@ -145,57 +214,18 @@ export default function OmsColaPage() {
                 ))}
               </tbody>
             </table>
-            <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 border-t border-slate-100">
-              <div className="flex items-center gap-2 text-sm text-slate-600">
-                <span>Mostrar</span>
-                <select
-                  value={pageSize}
-                  onChange={(e) => setPageSize(Number(e.target.value))}
-                  className="px-2 py-1 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
-                  aria-label="Pedidos por página"
-                >
-                  {[5, 10, 25, 50, 100].map((n) => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </select>
-                <span>por página · {filteredCount} pedidos</span>
-              </div>
+            {pagination}
+          </div>
+        )}
 
-              <div className="flex items-center gap-2 text-sm text-slate-600">
-                <span className="hidden sm:inline">
-                  {pageStart + 1}–{Math.min(pageStart + orders.length, filteredCount)} de {filteredCount}
-                </span>
-                <button
-                  onClick={() => goToPage(page - 1)}
-                  disabled={page <= 1}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  aria-label="Página anterior"
-                >
-                  <i className="ri-arrow-left-s-line"></i>
-                </button>
-                <div className="flex items-center gap-1.5">
-                  <span>Página</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={totalPages}
-                    value={page}
-                    onChange={(e) => goToPage(Number(e.target.value))}
-                    className="w-14 px-2 py-1 text-sm text-center border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    aria-label="Número de página"
-                  />
-                  <span>de {totalPages}</span>
-                </div>
-                <button
-                  onClick={() => goToPage(page + 1)}
-                  disabled={page >= totalPages}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  aria-label="Página siguiente"
-                >
-                  <i className="ri-arrow-right-s-line"></i>
-                </button>
-              </div>
+        {!loading && !error && filteredCount > 0 && view === 'cards' && (
+          <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 p-4">
+              {orders.map((o) => (
+                <OrderCard key={o.id} order={o} selected={selectedId === o.id} onClick={() => openDetail(o.id)} />
+              ))}
             </div>
+            {pagination}
           </div>
         )}
       </Card>
@@ -217,5 +247,42 @@ export default function OmsColaPage() {
         />
       )}
     </div>
+  );
+}
+
+// Card de un pedido (vista mobile por defecto). Los campos van agrupados y
+// ordenados: prioridad + id arriba, luego identificación, métricas y fechas.
+function OrderCard({ order: o, selected, onClick }: { order: QueueOrder; selected: boolean; onClick: () => void }) {
+  const field = (label: string, value: ReactNode) => (
+    <div className="flex justify-between gap-3">
+      <span className="text-slate-500">{label}</span>
+      <span className="text-slate-900 text-right truncate">{value}</span>
+    </div>
+  );
+  return (
+    <button
+      onClick={onClick}
+      className={`text-left w-full rounded-lg border p-4 transition-colors cursor-pointer hover:border-teal-300 hover:bg-slate-50 ${
+        selected ? 'border-teal-400 bg-teal-50' : 'border-slate-200'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <span className="font-semibold text-slate-900">{o.id}</span>
+        <PriorityBadge tier={o.tier} />
+      </div>
+      <div className="text-sm space-y-1.5">
+        {field('Cliente', o.customer)}
+        {field('Ruta', o.route)}
+        {field('Tipo de Orden', o.orderType)}
+        {field('Almacén / Cía / Suc.', `${o.warehouseId} / ${o.companyId} / ${o.branchId}`)}
+        {field('Monto Total', money(o.totalAmount))}
+        {field('Peso / Volumen', `${o.weight.toFixed(1)} kg · ${o.volume.toFixed(1)} m³`)}
+        {field('Artículos', o.itemCount)}
+        {field('Fecha Despacho', o.dispatchDate)}
+        {field('Fecha Alisto', o.readyToPrepDate)}
+        {field('Estado / Situación', `${o.status} · ${o.situation}`)}
+        {field('Score', <span className="font-semibold">{o.score}</span>)}
+      </div>
+    </button>
   );
 }
