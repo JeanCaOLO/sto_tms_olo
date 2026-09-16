@@ -64,6 +64,7 @@ export default function PlanificacionPage() {
   const handleSetTransportistaId = (value: string) => {
     setTransportistaId(value);
     setConductorId('');
+    setVehiculoId(''); // el vehículo pertenece al transportista; limpiar al cambiarlo
   };
 
   const handleToggleAncla = (pedido: Pedido) =>

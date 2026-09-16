@@ -3,6 +3,7 @@ import Input from '../../../components/base/Input';
 import type { Conductor, Transportista, Vehiculo, Viaje } from '../types';
 import { useCofersaDias } from '../route-systems/use-cofersa-dias';
 import { rutasActivas, type DiaSemana } from '../route-systems/cofersa-dias';
+import { marcaModelo } from '../fleet-split';
 
 // getDay() (0=domingo) → clave del calendario COFERSA. Domingo no tiene día
 // laborable COFERSA (índice -1 → sin coincidencias).
@@ -61,6 +62,11 @@ export default function RouteConfigForm({
   const conductoresFiltrados = transportistaId
     ? conductores.filter((c) => c.carrier_id === transportistaId)
     : conductores;
+  // El vehículo pertenece al transportista (trasportation_units.transportation_
+  // company_id). Al elegir transportista, mostrar solo su flota.
+  const vehiculosFiltrados = transportistaId
+    ? vehiculos.filter((v) => v.carrier_id === transportistaId)
+    : vehiculos;
 
   const { data: cofersa, status: cofersaStatus } = useCofersaDias();
 
@@ -163,7 +169,10 @@ export default function RouteConfigForm({
         value={vehiculoId}
         onChange={(e) => setVehiculoId(e.target.value)}
         required
-        options={[{ value: '', label: 'Seleccionar vehículo' }, ...vehiculos.map((v) => ({ value: v.id, label: `${v.plate} - ${v.brand} ${v.model}` }))]}
+        options={[
+          { value: '', label: vehiculosFiltrados.length === 0 ? 'Sin vehículos' : 'Seleccionar vehículo' },
+          ...vehiculosFiltrados.map((v) => ({ value: v.id, label: `${v.plate} - ${marcaModelo(v)}` })),
+        ]}
       />
       <Input type="date" label="Fecha de Ruta" value={fechaRuta} onChange={(e) => setFechaRuta(e.target.value)} required />
     </div>

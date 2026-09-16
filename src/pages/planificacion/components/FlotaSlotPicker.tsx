@@ -17,6 +17,12 @@ export default function FlotaSlotPicker({ vehiculos, conductores, slots, onAdd, 
   const [conductorId, setConductorId] = useState('');
 
   const disponibles = vehiculos.filter((v) => !slots.some((s) => s.vehiculo.id === v.id));
+  // El conductor pertenece al mismo transportista que el vehículo: al elegir
+  // vehículo, mostrar solo los conductores de su flota.
+  const vehiculoSel = vehiculos.find((v) => v.id === vehiculoId);
+  const conductoresDisponibles = vehiculoSel?.carrier_id
+    ? conductores.filter((c) => c.carrier_id === vehiculoSel.carrier_id)
+    : conductores;
 
   const handleAdd = () => {
     const vehiculo = vehiculos.find((v) => v.id === vehiculoId);
@@ -32,14 +38,14 @@ export default function FlotaSlotPicker({ vehiculos, conductores, slots, onAdd, 
         <Select
           label="Vehículo"
           value={vehiculoId}
-          onChange={(e) => setVehiculoId(e.target.value)}
+          onChange={(e) => { setVehiculoId(e.target.value); setConductorId(''); }}
           options={[{ value: '', label: 'Seleccionar vehículo' }, ...disponibles.map((v) => ({ value: v.id, label: `${v.plate} - ${marcaModelo(v)}` }))]}
         />
         <Select
           label="Conductor (opcional)"
           value={conductorId}
           onChange={(e) => setConductorId(e.target.value)}
-          options={[{ value: '', label: 'Sin asignar' }, ...conductores.map((c) => ({ value: c.id, label: c.full_name }))]}
+          options={[{ value: '', label: 'Sin asignar' }, ...conductoresDisponibles.map((c) => ({ value: c.id, label: c.full_name }))]}
         />
         <Button onClick={handleAdd} disabled={!vehiculoId} className="whitespace-nowrap">
           <i className="ri-add-line mr-1"></i>Agregar
