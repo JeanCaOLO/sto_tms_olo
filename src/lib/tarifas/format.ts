@@ -2,12 +2,23 @@
 // cómo se ven en pantalla — eso es trabajo de la UI, no del motor de cálculo.
 // Puerto casi literal de prototipoTarifador/src/ui/format.ts (mismo vocabulario Pred/VarKey).
 
-import type { BaseRef, DiscardReason, Stage, VarKey } from './types';
+import type { BaseRef, BuiltinVarKey, DiscardReason, Stage, VarKey } from './types';
 import type { Pred } from './types';
 
+/**
+ * Símbolo de cada moneda que el módulo maneja hoy. Antes esto era un `if (currency === 'USD')` y
+ * todo lo demás quedaba como "1710000 COP" — pero además, y peor, `formatInputs` anteponía `$` a
+ * CUALQUIER importe, así que un tarifario en colones se mostraba con signo de dólar.
+ */
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  USD: '$',
+  COP: '$',
+  CRC: '₡',
+};
+
 export function formatMoney(amount: string, currency: string): string {
-  if (currency === 'USD') return `$${amount}`;
-  return `${amount} ${currency}`;
+  const symbol = CURRENCY_SYMBOLS[currency];
+  return symbol ? `${symbol}${amount}` : `${amount} ${currency}`;
 }
 
 export function formatPct(fraction: string): string {
@@ -23,7 +34,9 @@ export const STAGE_LABELS: Record<Stage, string> = {
   TAX: 'Impuesto',
 };
 
-export const VAR_KEY_LABELS: Record<VarKey, string> = {
+// Solo las variables del sistema. Las personalizadas de cada compañía llevan su propia etiqueta y
+// se resuelven con `varLabel`.
+export const VAR_KEY_LABELS: Record<BuiltinVarKey, string> = {
   countryId: 'País',
   km: 'Distancia (km)',
   clientCount: 'Clientes',
@@ -35,7 +48,11 @@ export const VAR_KEY_LABELS: Record<VarKey, string> = {
   carrierId: 'Transportista',
   customerId: 'Cliente',
   durationHours: 'Duración (h)',
-  tollsAmount: 'Peajes',
+  tollsAmount: 'Monto de peajes',
+  tollCount: 'Cantidad de peajes',
+  pickupCount: 'Recolectas',
+  truckVolumeM3: 'Volumen del camión (m³)',
+  truckWeightTons: 'Capacidad del camión (t)',
   lateMinutes: 'Retraso (min)',
   incidentCount: 'Incidentes',
   originZone: 'Zona de origen',
@@ -66,53 +83,74 @@ export const DISCARD_REASON_LABELS: Record<DiscardReason, string> = {
   EXCLUDED_BY_EXCLUSIVE: 'Excluida por EXCLUSIVE',
   LOST_MAX: 'Perdió el MAX',
   INACTIVE: 'Inactiva',
+  OVERRIDDEN_BY_PARTY: 'Sobrescrita por la compañía',
+  OUT_OF_PERIOD: 'Fuera de vigencia',
+  RULE_BROKEN: 'Regla ilegible',
 };
 
+/**
+ * Nombre en pantalla de cualquier variable. Para una personalizada usa la etiqueta que le puso la
+ * compañía y, si ya no está declarada, muestra su clave cruda en vez de romper — una regla vieja
+ * que apunta a una variable borrada tiene que seguir siendo legible para poder arreglarla.
+ */
+export function varLabel(key: VarKey, customLabels: Record<string, string> = {}): string {
+  if (key.startsWith('custom:')) {
+    return customLabels[key] ?? key.replace(/^custom:/, '');
+  }
+  return VAR_KEY_LABELS[key as BuiltinVarKey] ?? key;
+}
+
 // Convierte un Pred en un string legible ("Zona de origen = CCS Y Zona de destino = CAR").
-export function formatPred(pred: Pred): string {
+export function formatPred(pred: Pred, customLabels: Record<string, string> = {}): string {
   switch (pred.p) {
     case 'ALWAYS':
       return 'Siempre';
     case 'EQ':
-      return `${VAR_KEY_LABELS[pred.left]} = ${pred.right}`;
+      return `${varLabel(pred.left, customLabels)} = ${pred.right}`;
     case 'NEQ':
-      return `${VAR_KEY_LABELS[pred.left]} ≠ ${pred.right}`;
+      return `${varLabel(pred.left, customLabels)} ≠ ${pred.right}`;
     case 'GT':
-      return `${VAR_KEY_LABELS[pred.left]} > ${pred.right}`;
+      return `${varLabel(pred.left, customLabels)} > ${pred.right}`;
     case 'GTE':
-      return `${VAR_KEY_LABELS[pred.left]} ≥ ${pred.right}`;
+      return `${varLabel(pred.left, customLabels)} ≥ ${pred.right}`;
     case 'LT':
-      return `${VAR_KEY_LABELS[pred.left]} < ${pred.right}`;
+      return `${varLabel(pred.left, customLabels)} < ${pred.right}`;
     case 'LTE':
-      return `${VAR_KEY_LABELS[pred.left]} ≤ ${pred.right}`;
+      return `${varLabel(pred.left, customLabels)} ≤ ${pred.right}`;
     case 'IN':
-      return `${VAR_KEY_LABELS[pred.left]} en [${pred.values.join(', ')}]`;
+      return `${varLabel(pred.left, customLabels)} en [${pred.values.join(', ')}]`;
     case 'BETWEEN':
-      return `${VAR_KEY_LABELS[pred.left]} entre ${pred.from} y ${pred.to}`;
+      return `${varLabel(pred.left, customLabels)} entre ${pred.from} y ${pred.to}`;
     case 'AND':
-      return pred.args.map(formatPred).join(' Y ');
+      return pred.args.map((p) => formatPred(p, customLabels)).join(' Y ');
     case 'OR':
-      return pred.args.map(formatPred).join(' O ');
+      return pred.args.map((p) => formatPred(p, customLabels)).join(' O ');
     case 'NOT':
-      return `NO (${formatPred(pred.arg)})`;
+      return `NO (${formatPred(pred.arg, customLabels)})`;
   }
 }
 
-// Convierte los `inputs` de una TraceLine en un string legible ("40 × $2.00").
+// Convierte los `inputs` de una TraceLine en un string legible ("40 × 2.00").
 export function formatInputs(inputs: Record<string, string | number>): string {
   const keys = Object.keys(inputs);
   if (keys.length === 0) return '—';
 
+  // Sin símbolo de moneda: esta cadena se muestra al lado de la columna de importes, que ya la
+  // lleva. Anteponer `$` acá mostraba pesos y colones como si fueran dólares.
   if (keys.length === 1 && keys[0] === 'amount') {
-    return `$${inputs.amount}`;
+    return String(inputs.amount);
   }
   if (keys.length === 2 && keys.includes('rate')) {
     const unitKey = keys.find((k) => k !== 'rate')!;
-    return `${inputs[unitKey]} × $${inputs.rate}`;
+    return `${inputs[unitKey]} × ${inputs.rate}`;
   }
   if (keys.includes('pct') && keys.includes('base')) {
     const baseOf = String(inputs.base) as BaseRef['of'];
     return `${(Number(inputs.pct) * 100).toFixed(2)}% de ${BASE_REF_LABELS[baseOf] ?? inputs.base}`;
+  }
+  if (keys.includes('cada') && keys.includes('amount')) {
+    const unitKey = keys.find((k) => k !== 'cada' && k !== 'amount')!;
+    return `${inputs[unitKey]} → cada ${inputs.cada}: ${inputs.amount}`;
   }
   if (keys.includes('originZone') && keys.includes('destZone')) {
     return `${inputs.originZone} → ${inputs.destZone}`;
