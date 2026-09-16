@@ -2,7 +2,7 @@ import { useState } from 'react';
 import Card from '../../../components/base/Card';
 import RutaMapaPreview from './RutaMapaPreview';
 import PedidosAsignadosModal from './PedidosAsignadosModal';
-import type { AsignacionFlota, ResultadoReparto } from '../fleet-split';
+import { marcaModelo, type AsignacionFlota, type ResultadoReparto } from '../fleet-split';
 import type { Conductor } from '../types';
 
 interface Props {
@@ -85,7 +85,7 @@ export default function FlotaResultadoPreview({ resultado, conductores }: Props)
                 <p className="mt-0.5 text-xs text-slate-500 truncate">
                   <span className="font-medium text-slate-600">{a.slot.vehiculo.plate}</span>
                   <span className="mx-1 text-slate-300">·</span>
-                  {a.slot.vehiculo.brand} {a.slot.vehiculo.model}
+                  {marcaModelo(a.slot.vehiculo)}
                 </p>
               </div>
               <button

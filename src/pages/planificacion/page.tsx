@@ -145,12 +145,15 @@ export default function PlanificacionPage() {
       />
 
       {tab === 'matriz' && <MatrizRutasTab pais={pais} />}
+      {tab === 'asignar' && <AsignarViajesTab pais={pais} rutas={rutas} />}
+      {tab === 'maestros' && <MaestrosTab transportistas={transportistas} conductores={conductores} vehiculos={vehiculos} />}
 
       {tab === 'flota' && (
         <FlotaSplitTab
           rutas={rutas}
           vehiculos={vehiculos}
           conductores={conductores}
+          viajes={viajes}
           onRutasGeneradas={() => {
             refreshRutasGeneradas();
             setTab('generadas');
