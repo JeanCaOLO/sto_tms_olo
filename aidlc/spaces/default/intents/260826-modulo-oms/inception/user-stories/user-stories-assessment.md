@@ -6,13 +6,13 @@
 ## Cobertura de requerimientos
 
 Los 14 FR del `requirements.md` v2 tienen al menos una historia que los cubre
-(ver `traceability.json` → `fr_coverage`). 33 historias en 9 épicas.
+(ver `traceability.json` → `fr_coverage`). 34 historias en 9 épicas.
 
 | FR | Historias | Estado |
 |---|---|---|
 | FR1 (lectura de cola) | US1 | Cubierto |
 | FR2 (T-1) | US7, US8, US9 | Cubierto |
-| FR3 (prioridad numérica + score) | US10, US11 | Cubierto |
+| FR3 (prioridad numérica + score + umbral) | US10, US11, US11b | Cubierto |
 | FR4 (override) | US6, US14, US15 | Cubierto |
 | FR5 (motor catálogo) | US16, US17, US18 | Cubierto |
 | FR6 (5 macro-reglas) | US12, US13, US16 | Cubierto (Regla 4/5 documentadas como futuro) |
@@ -54,10 +54,11 @@ de `project.md`:
 
 ## Etiquetas de entrega
 
-- **1ª entrega** (Regla 1 fecha + Regla 3 cliente retira/IA, Cola, override,
-  auditoría básica): US1, US2, US6, US7, US9, US10, US13, US14, US15, US27, US33.
+- **1ª entrega** (Regla 1 fecha + Regla 3 cliente retira/IA con su clasificación
+  US12, Cola, override, auditoría básica, corte por umbral de inyección US11b):
+  US1, US2, US6, US7, US9, US10, US11b, US12, US13, US14, US15, US27, US33.
 - **Siguiente** (Motor catálogo, Simulador-configurador, multi-compañía, panel):
-  US3, US4, US5, US8, US11, US12, US16–US26, US28, US30–US32.
+  US3, US4, US5, US8, US11, US16–US26, US28, US30–US32.
 - **Futuro**: US29 (alta de calendario en UI); Regla 4 (viaje/bajada) y Regla 5
   (inventario) se documentan en `requirements.md` pero no generan historias de
   construcción en este ciclo.

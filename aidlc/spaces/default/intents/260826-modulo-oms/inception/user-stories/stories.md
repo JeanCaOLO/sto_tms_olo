@@ -30,8 +30,17 @@ para gestionar el alistamiento del día.
 - Given pedidos en `expedición_cabecera` con `fecha_de_cierre IS NULL` y
   `situación = DISP` sin `NUMEROVIAJEWMH`, When abro la Cola, Then veo esos
   pedidos y no los que ya están en `almacén_movimiento_carcam`.
+- Given un pedido ya presente en `almacén_movimiento_carcam` (anti-join por
+  `pedido+almacén+compañía+sucursal`), When se resuelve la cola, Then ese pedido
+  **no** aparece (verifica el anti-join, no solo el filtro de situación).
 - Given la Cola recién abierta, When carga, Then el filtro de situación entra
   por defecto en `DISP`.
+- Given la lectura de la cola, When el OMS consulta, Then va contra la **réplica
+  de `EFLOW_OLO`**, no contra el transaccional (FR1.4/NFR9; contrato de la query,
+  aunque la réplica se provisione después — ver dependencias).
+- **UX (5 estados)**: Given la vista sin datos / cargando / sin conexión al
+  motor, Then muestra el estado vacío / skeleton / error correspondiente, nunca
+  una tabla en blanco.
 
 ### US2 — Filtrar la cola `[1ª entrega]` (FR10.1, FR10.2)
 Como **Responsable del OMS**, quiero filtrar por situación, almacén y compañía,
@@ -64,6 +73,9 @@ Como **Responsable del OMS**, quiero abrir el detalle de un pedido en un modal,
 para que la tabla use todo el ancho.
 - Given un pedido en la cola, When lo selecciono, Then se abre un modal con su
   detalle y, si tengo permiso, el botón de override.
+- **UX/accesibilidad**: Given el modal abierto, When se muestra, Then el foco
+  entra y queda atrapado en el modal, `Esc` lo cierra, y al cerrarse el foco
+  vuelve a la fila de origen (WCAG 2.1.2 / 2.4.3).
 
 ---
 
@@ -76,6 +88,9 @@ fecha de entrega, para alistar en el momento correcto.
   corre hoy y hoy es su T-1, Then lo marca para preparar hoy.
 - Given ese cálculo, When el motor actúa, Then **no escribe ninguna fecha**
   (invariante): la `fecha de expedición planificada` queda intacta.
+- **Fallback (FR2.5)**: Given un pedido **sin** fecha de expedición planificada
+  (caso Cofersa hoy), When el motor lo evalúa, Then aplica la **regla de ruta**
+  (día de salida por ruta) para decidir el T-1.
 
 ### US8 — Respetar horas de corte `[siguiente]` (FR2.3)
 Como **Sistema/Motor OMS**, aplico las horas de corte de la ruta, para no
@@ -87,11 +102,14 @@ adelantar ni atrasar el alistamiento.
 Como **Sistema/Motor OMS**, cambio la situación del pedido a `GENERADA` cuando
 la regla se cumple, para mandarlo a preparar.
 - Given un pedido `DISP` cuya regla T-1 se cumple, When el motor lo procesa,
-  Then su transición es **`DISP` → `GENERADA`** y se asigna su prioridad.
+  Then su transición es **`DISP` → `GENERADA`** y se asigna su prioridad, en una
+  **escritura atómica** (estado + situación + prioridad en una sola transacción;
+  nunca `GENERADA` sin prioridad).
 - Given un pedido cuya regla no se cumple, When el motor lo procesa, Then no
   cambia su situación (no lo genera todavía).
 - Given cualquier escritura del motor, When actúa, Then escribe **solo** a nivel
-  WMS/EFLOW (no WMH, no intermedias) — invariante.
+  WMS/EFLOW y **no toca el WMH ni las tablas intermedias** (invariante, criterio
+  negativo verificable).
 
 ### US10 — Asignar prioridad numérica con score `[1ª entrega]` (FR3)
 Como **Sistema/Motor OMS**, asigno una prioridad numérica invertida calculada
@@ -99,26 +117,49 @@ por score ponderado, para ordenar el alistamiento.
 - Given las reglas activas que aplican a un pedido, When el motor calcula, Then
   la prioridad es un **número invertido** (menor = más urgente) resultado del
   **score ponderado** (suma de pesos; mayor peso = cliente retira, luego fecha).
-- Given dos pedidos, When uno tiene prioridad 1 y otro 2, Then el 1 se atiende
-  antes.
+- Given dos pedidos, uno "cliente retira" y otro solo con la regla de fecha,
+  When el motor calcula, Then el de cliente retira obtiene mayor score y por
+  tanto **menor número de prioridad** (verifica la ponderación, no solo el orden).
+- Given dos pedidos con el **mismo score**, When el motor ordena, Then aplica un
+  **desempate estable** (fecha de entrega, luego hora de entrada, luego id) para
+  que el orden sea determinista entre corridas.
 
 ### US11 — Revisitar prioridades periódicamente `[siguiente]` (FR3.3, NFR1)
 Como **Sistema/Motor OMS**, corro al menos una vez al día y en las horas de
 corte, para actualizar prioridades según la capacidad.
 - Given pedidos no alcanzados hoy, When el motor corre al día siguiente, Then
-  suben de prioridad.
+  su **número de prioridad disminuye** respecto a la corrida anterior (prioridad
+  invertida → más urgente).
+
+### US11b — Cortar por umbral de inyección `[1ª entrega]` (FR3.4, NFR4)
+Como **Sistema/Motor OMS**, solo preparo pedidos hasta cierta prioridad, para no
+inyectar más de lo que la capacidad soporta (~80 en proceso).
+- Given un umbral de inyección `U` (configurable) y pedidos con prioridad peor
+  que `U` (número mayor), When el motor corre, Then esos pedidos **no** se
+  generan (no pasan a `GENERADA`) y esperan a la siguiente corrida.
+- Given pedidos con prioridad ≤ `U`, When el motor corre, Then sí se generan.
+- Nota: el valor de `U` se afina con OQ-5; el comportamiento de corte es
+  verificable ahora con un umbral parametrizable.
 
 ---
 
 ## E3 — Análisis de observaciones con IA
 
-### US12 — Interpretar observaciones con IA `[siguiente]` (FR6.2, FR7)
+### US12 — Interpretar observaciones con IA `[1ª entrega]` (FR6.2, FR7)
 Como **Sistema/Motor OMS**, interpreto el texto libre de `observaciones` con un
 modelo de IA (Amazon Bedrock), para no depender de que un humano lea 400–500/día.
-- Given un pedido con observación en texto libre, When el motor la procesa, Then
-  el modelo la clasifica y dispara la acción correspondiente.
+- Given un pedido con observación de texto libre, When el motor la procesa, Then
+  el modelo la clasifica y, si es **"retira"**, marca el pedido como
+  cliente-retira (salida de 1ª entrega; otras salidas quedan como futuras).
 - Given el diseño, When se ejecuta, Then el **prompt vive en la Lambda** y no es
   editable desde la UI.
+- Given un **fallo o timeout de Bedrock**, When el motor procesa un pedido, Then
+  el pedido se prioriza igual por las demás reglas (degrada sin la clasificación
+  IA) y no se bloquea el motor. `ponytail:` degradación simple (seguir sin la
+  regla IA); upgrade = reintento / cola de reproceso.
+- Given el objetivo de costo (FR7.4), When se integra, Then la invocación se
+  hace **por lote** (una corrida sobre las ~400 observaciones), no una llamada
+  por pedido.
 
 ### US13 — Detectar "cliente retira" y priorizarlo `[1ª entrega]` (FR6.3, FR7.3)
 Como **Sistema/Motor OMS**, identifico los pedidos "cliente retira" por su
@@ -136,12 +177,20 @@ pedido puntual con un motivo, para casos extraordinarios.
 - Given un pedido en la cola, When ejecuto un override con un nuevo valor y un
   **motivo obligatorio**, Then la prioridad cambia y queda registrado en la
   Auditoría como cambio **manual**.
+- Given un override **sin motivo** (o con valor fuera de rango), When intento
+  guardarlo, Then se rechaza (criterio negativo).
+- **UX (prevención de error)**: Given el formulario de override, When el motivo
+  está vacío o el valor es inválido, Then el botón Aplicar está deshabilitado y
+  el requisito se muestra antes de intentar guardar, no como alerta posterior.
 
 ### US15 — Impedir override sin permiso `[1ª entrega]` (FR4.3, FR14)
 Como responsable de seguridad, quiero que solo roles autorizados hagan override,
 para proteger el cálculo.
 - Given un usuario sin permiso de override, When intenta alterar la prioridad,
   Then la acción se deniega.
+- **UX**: Given un usuario sin permiso, When ve el detalle, Then las acciones sin
+  permiso se **ocultan o deshabilitan con tooltip** (no se ofrecen para luego
+  rebotar).
 
 ---
 
@@ -208,7 +257,11 @@ manualmente al inicio y automatizar cuando confíe.
 - Given modo automático, When se genera, Then se aplica sola.
 - Given modo **mixto** con **hora de corte**, When nadie interviene antes de esa
   hora, Then se aplica sola; When alguien interviene antes, Then espera su
-  decisión.
+  decisión. Borde: una intervención **en el minuto exacto** del corte se trata
+  como "antes del corte" (gana la intervención).
+- **UX (acción de alto impacto)**: Given que aplicar sustituye la simulación
+  aplicada vigente de la compañía (US22), When pulso "Aplicar", Then se pide una
+  confirmación explícita ("esto sustituye la priorización vigente de {compañía}").
 
 ### US24 — Configurar simulaciones por compañía `[siguiente]` (FR9.6)
 Como **Administrador de Módulo**, quiero configurar el número de simulaciones al
@@ -225,7 +278,9 @@ para adaptarlo a cada compañía.
 ### US25 — Ver la salud del motor `[siguiente]` (FR11.1)
 Como **Jefe de Almacén**, quiero un panel con indicadores operativos, para
 detectar anomalías.
-- Given el Panel, When lo abro, Then veo los KPIs de la operación del día.
+- Given el Panel, When lo abro, Then veo al menos: nº de pedidos generados hoy,
+  % de override manual (ventana configurable, US26) y nº de pedidos en proceso
+  (~capacidad); cada KPI con su valor del día.
 
 ### US26 — Indicador de % de override con ventana configurable `[siguiente]` (FR11.2)
 Como **Jefe de Almacén**, quiero ver el % de override manual con una ventana
@@ -238,6 +293,8 @@ Como **Responsable del OMS**, quiero un registro de solo lectura de las
 priorizaciones ejecutadas, distinguiendo automático vs. manual.
 - Given priorizaciones ejecutadas, When abro la Auditoría, Then veo cada una con
   su tipo (automático/manual) y, en manual, el usuario y motivo.
+- Given un registro de auditoría, When un usuario intenta editarlo o borrarlo,
+  Then la acción se deniega (solo lectura, NFR6 — criterio negativo).
 
 ---
 
@@ -294,6 +351,26 @@ Estas Open Questions del `requirements.md` condicionan varias historias pero
 - OQ-5 (score vs. filtro estricto; umbral de inyección) → afina US10/US9.
 - OQ-6 (duración de rutas y horas de corte) → habilita US8.
 - OQ-1 (BD `logistica_olo`) y OQ-7 (viaje cliente retira) → contexto de E6/E8.
+
+### Deuda: re-diseño de mockups (refined-mockups desalineado con el modelo v2)
+
+Los `refined-mockups` (`mockups.md`) se produjeron contra el modelo previo y
+quedaron desalineados con `requirements.md` v2 y estas historias. Antes de
+construir hay que re-correr **refined-mockups** para reconciliar, al menos:
+
+- Prioridad numérica invertida por **número** (T-1 + score), no por *tiers* de
+  color/nivel — afecta US10/US11/US11b.
+- **Motor de Reglas** como **catálogo semi-configurable con selector de
+  compañía** (activar/peso/parámetros), no un *rule builder* de alta de reglas
+  — afecta E5 (US16–US18).
+- **Simulador** con **modal previo de configuración** + resultado como
+  tabla-Cola, no *split-screen* ni recuadro de "estado actual" — afecta E6
+  (US19–US24), incluida la confirmación de "aplicar" (US23) y el selector de
+  **compañía** (no país).
+- Retirar la alerta "sincronización al lago" del mockup (fuera del modelo v2).
+
+Se registra como dependencia, no como historia. Ver `next_stage`: refined-mockups
+fue reseteada por el salto de etapas y debe re-correrse alineada al modelo v2.
 
 ## Sources
 

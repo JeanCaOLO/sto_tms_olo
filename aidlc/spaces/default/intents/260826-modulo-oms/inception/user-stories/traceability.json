@@ -4,7 +4,7 @@
   "trace_granularity_note": "El campo traces_to y fr_coverage trazan a FR de PRIMER NIVEL (FR1..FR14) a propósito; stories.md cita los sub-FR (FRn.m) en la narrativa de cada historia para mayor detalle.",
   "story_map": [
     { "epic": "E1", "name": "Cola de Priorización", "stories": ["US1", "US2", "US3", "US4", "US5", "US6"] },
-    { "epic": "E2", "name": "Motor de priorización (automático)", "stories": ["US7", "US8", "US9", "US10", "US11"] },
+    { "epic": "E2", "name": "Motor de priorización (automático)", "stories": ["US7", "US8", "US9", "US10", "US11", "US11b"] },
     { "epic": "E3", "name": "Análisis de observaciones con IA", "stories": ["US12", "US13"] },
     { "epic": "E4", "name": "Override manual", "stories": ["US14", "US15"] },
     { "epic": "E5", "name": "Motor de Reglas (catálogo)", "stories": ["US16", "US17", "US18"] },
@@ -25,7 +25,8 @@
     { "id": "US9", "traces_to": ["FR2", "FR8"], "delivery": "primera-entrega" },
     { "id": "US10", "traces_to": ["FR3"], "delivery": "primera-entrega" },
     { "id": "US11", "traces_to": ["FR3"], "delivery": "siguiente" },
-    { "id": "US12", "traces_to": ["FR6", "FR7"], "delivery": "siguiente" },
+    { "id": "US11b", "traces_to": ["FR3"], "delivery": "primera-entrega" },
+    { "id": "US12", "traces_to": ["FR6", "FR7"], "delivery": "primera-entrega" },
     { "id": "US13", "traces_to": ["FR6", "FR7"], "delivery": "primera-entrega" },
     { "id": "US14", "traces_to": ["FR4"], "delivery": "primera-entrega" },
     { "id": "US15", "traces_to": ["FR4", "FR14"], "delivery": "primera-entrega" },
@@ -49,7 +50,7 @@
     { "id": "US33", "traces_to": ["FR14"], "delivery": "primera-entrega" }
   ],
   "fr_coverage": {
-    "FR1": ["US1"], "FR2": ["US7", "US8", "US9"], "FR3": ["US10", "US11"],
+    "FR1": ["US1"], "FR2": ["US7", "US8", "US9"], "FR3": ["US10", "US11", "US11b"],
     "FR4": ["US6", "US14", "US15"], "FR5": ["US16", "US17", "US18"],
     "FR6": ["US12", "US13", "US16"], "FR7": ["US12", "US13"],
     "FR8": ["US9"], "FR9": ["US19", "US20", "US21", "US22", "US23", "US24"],
