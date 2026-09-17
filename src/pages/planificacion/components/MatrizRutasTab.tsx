@@ -1,18 +1,16 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { ROUTE_SYSTEMS, getRouteSystem } from '../route-systems/registry';
 import { useRouteSystem } from '../route-systems/use-route-system';
 import { useDebounced } from '../route-systems/use-debounced';
 import { filterRows } from '../route-systems/filter';
 import DataMatrix from './DataMatrix';
-import MatrizLeyenda from './MatrizLeyenda';
 
-const DEFAULT_ID = ROUTE_SYSTEMS[0]?.id ?? '';
+// Solo la matriz de "Días de ruta (EFLOW)" — el primero del registro. Se quitó el
+// selector de sistemas (COFERSA Excel / Asignación de Viajes) por pedido de Ana.
+const EFLOW_DIAS_ID = ROUTE_SYSTEMS[0]?.id ?? '';
 
 export default function MatrizRutasTab({ pais }: { pais?: string }) {
-  const [params, setParams] = useSearchParams();
-  const systemId = getRouteSystem(params.get('sistema') ?? '') ? params.get('sistema')! : DEFAULT_ID;
-  const system = getRouteSystem(systemId);
+  const system = getRouteSystem(EFLOW_DIAS_ID);
   const [query, setQuery] = useState('');
   const debounced = useDebounced(query);
   const { status, rows, reload } = useRouteSystem(system, pais);
@@ -22,19 +20,10 @@ export default function MatrizRutasTab({ pais }: { pais?: string }) {
     [rows, debounced, system],
   );
 
-  const selectSystem = (id: string) => {
-    setParams((p) => {
-      p.set('sistema', id);
-      return p;
-    });
-    setQuery('');
-  };
-
   if (!system) return <Empty icon="ri-error-warning-line" text="Sistema de rutas desconocido." />;
 
   return (
     <div className="space-y-4">
-      <SystemPicker activeId={system.id} onSelect={selectSystem} />
       <p className="text-sm text-slate-500">{system.description}</p>
 
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -43,7 +32,7 @@ export default function MatrizRutasTab({ pais }: { pais?: string }) {
           <input
             type="search"
             aria-label={`Buscar en ${system.label}`}
-            placeholder="Buscar por destino, conductor, nº de viaje…"
+            placeholder="Buscar por ruta o nombre…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/40"
@@ -52,11 +41,11 @@ export default function MatrizRutasTab({ pais }: { pais?: string }) {
         <span aria-live="polite" className="text-sm text-slate-500 whitespace-nowrap">
           {status === 'ready'
             ? `${filtered.length.toLocaleString('es')} de ${rows.length.toLocaleString('es')} filas`
-            : ' '}
+            : ' '}
         </span>
       </div>
 
-      {status === 'loading' && <Empty icon="ri-loader-4-line animate-spin" text="Cargando programación…" />}
+      {status === 'loading' && <Empty icon="ri-loader-4-line animate-spin" text="Cargando días de ruta…" />}
       {status === 'error' && (
         <Empty icon="ri-error-warning-line" text="No se pudo cargar la programación.">
           <button onClick={reload} className="mt-2 text-teal-600 hover:underline cursor-pointer">
@@ -64,14 +53,8 @@ export default function MatrizRutasTab({ pais }: { pais?: string }) {
           </button>
         </Empty>
       )}
-      {status === 'not-generated' && (
-        <Empty
-          icon="ri-file-list-3-line"
-          text={`La programación de ${system.label} todavía no se ha generado. Ejecuta \`pnpm run data:build\`.`}
-        />
-      )}
       {status === 'ready' && rows.length === 0 && (
-        <Empty icon="ri-inbox-line" text="Este sistema no tiene filas registradas." />
+        <Empty icon="ri-inbox-line" text="No hay días de ruta registrados." />
       )}
       {status === 'ready' && rows.length > 0 && filtered.length === 0 && (
         <Empty icon="ri-search-line" text={`Sin coincidencias para «${debounced}».`}>
@@ -80,7 +63,6 @@ export default function MatrizRutasTab({ pais }: { pais?: string }) {
           </button>
         </Empty>
       )}
-      {status === 'ready' && filtered.length > 0 && system.id === 'cofersa' && <MatrizLeyenda />}
       {status === 'ready' && filtered.length > 0 && (
         <DataMatrix
           caption={system.label}
@@ -90,43 +72,6 @@ export default function MatrizRutasTab({ pais }: { pais?: string }) {
           resetKey={`${system.id}:${debounced}`}
         />
       )}
-    </div>
-  );
-}
-
-function SystemPicker({ activeId, onSelect }: { activeId: string; onSelect: (id: string) => void }) {
-  if (ROUTE_SYSTEMS.length > 5) {
-    return (
-      <select
-        aria-label="Sistema de rutas"
-        value={activeId}
-        onChange={(e) => onSelect(e.target.value)}
-        className="text-sm border border-slate-200 rounded-lg px-3 py-2"
-      >
-        {ROUTE_SYSTEMS.map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.label}
-          </option>
-        ))}
-      </select>
-    );
-  }
-  return (
-    <div role="group" aria-label="Sistema de rutas" className="flex flex-wrap gap-1 border-b border-slate-200">
-      {ROUTE_SYSTEMS.map((s) => (
-        <button
-          key={s.id}
-          aria-pressed={s.id === activeId}
-          onClick={() => onSelect(s.id)}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors cursor-pointer ${
-            s.id === activeId
-              ? 'border-teal-600 text-teal-700'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          {s.label}
-        </button>
-      ))}
     </div>
   );
 }

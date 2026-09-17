@@ -1,4 +1,4 @@
-type Tab = 'nueva' | 'flota' | 'generadas' | 'matriz';
+type Tab = 'nueva' | 'asignar' | 'flota' | 'generadas' | 'matriz' | 'maestros';
 
 interface Props {
   tab: Tab;
@@ -7,10 +7,12 @@ interface Props {
 }
 
 const TABS: { id: Tab; icon: string; label: string }[] = [
-  { id: 'nueva', icon: 'ri-add-circle-line', label: 'Nueva Ruta' },
+  { id: 'nueva', icon: 'ri-add-circle-line', label: 'Nueva secuencia de paradas' },
+  { id: 'asignar', icon: 'ri-git-merge-line', label: 'Asignar Viajes' },
   { id: 'flota', icon: 'ri-stack-line', label: 'Reparto de Flota' },
   { id: 'generadas', icon: 'ri-route-line', label: 'Secuencias Generadas' },
   { id: 'matriz', icon: 'ri-table-line', label: 'Matriz de Rutas' },
+  { id: 'maestros', icon: 'ri-archive-line', label: 'Maestros' },
 ];
 
 export default function PlanificacionTabs({ tab, setTab, rutasGeneradasCount }: Props) {

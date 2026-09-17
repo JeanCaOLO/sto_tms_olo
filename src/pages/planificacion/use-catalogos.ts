@@ -6,7 +6,7 @@ import type { Pais } from './eflow-api';
 const EMPTY: Catalogos = { rutas: [], vehiculos: [], transportistas: [], conductores: [] };
 
 // `pais` es dependencia: al cambiar recarga los catálogos del otro país.
-export function useCatalogos(appUser: AppUser | null, pais: Pais = 'cr') {
+export function useCatalogos(appUser: AppUser | null, pais: Pais = 'cr', demo = false) {
   const [catalogos, setCatalogos] = useState<Catalogos>(EMPTY);
   const [loading, setLoading] = useState(true);
 
@@ -17,7 +17,7 @@ export function useCatalogos(appUser: AppUser | null, pais: Pais = 'cr') {
       .then(setCatalogos)
       .catch((error) => console.error('Error cargando catálogos:', error))
       .finally(() => setLoading(false));
-  }, [appUser, pais]);
+  }, [appUser, pais, demo]);
 
   return { ...catalogos, loading };
 }

@@ -19,7 +19,19 @@ export const navItems: NavItem[] = [
   { icon: 'ri-file-list-line', label: 'Pedidos', path: '/pedidos' },
   { icon: 'ri-arrow-go-back-line', label: 'Devoluciones', path: '/devoluciones' },
   { icon: 'ri-file-text-line', label: 'Guías de Despacho', path: '/guias' },
-  { icon: 'ri-map-pin-add-line', label: 'Planificación', path: '/planificacion' },
+  {
+    type: 'group',
+    icon: 'ri-map-pin-add-line',
+    label: 'Planificación',
+    children: [
+      { icon: 'ri-add-circle-line', label: 'Nueva secuencia', path: '/planificacion/nueva' },
+      { icon: 'ri-git-merge-line', label: 'Asignar Viajes', path: '/planificacion/asignar' },
+      { icon: 'ri-stack-line', label: 'Reparto de Flota', path: '/planificacion/flota' },
+      { icon: 'ri-route-line', label: 'Secuencias Generadas', path: '/planificacion/generadas' },
+      { icon: 'ri-table-line', label: 'Matriz de Rutas', path: '/planificacion/matriz' },
+      { icon: 'ri-archive-line', label: 'Maestros', path: '/planificacion/maestros' },
+    ],
+  },
   { icon: 'ri-map-pin-line', label: 'Tracking', path: '/tracking' },
   { icon: 'ri-money-dollar-circle-line', label: 'Tarifas', path: '/liquidaciones' },
   {

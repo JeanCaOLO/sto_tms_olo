@@ -1,5 +1,5 @@
 import { haversineKm } from '../../lib/routePlanning/haversine';
-import { OSRM_BASE_URL } from './osrm-config';
+import { osrmBaseUrl } from './osrm-config';
 import type { Pedido } from './types';
 
 // Factor de rodeo calle-real sobre línea recta, usado solo en el fallback
@@ -50,7 +50,7 @@ async function matrizOsrm(conCoords: Pedido[]): Promise<{ km: Map<string, number
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), OSRM_TIMEOUT_MS);
   try {
-    const res = await fetch(`${OSRM_BASE_URL}/table/v1/driving/${coords}?annotations=distance,duration`, { signal: controller.signal });
+    const res = await fetch(`${osrmBaseUrl()}/table/v1/driving/${coords}?annotations=distance,duration`, { signal: controller.signal });
     if (!res.ok) return null;
     const data = await res.json();
     if (data.code !== 'Ok' || !Array.isArray(data.distances) || !Array.isArray(data.durations)) return null;

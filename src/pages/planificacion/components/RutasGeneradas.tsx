@@ -75,7 +75,7 @@ export default function RutasGeneradas({
             <i className="ri-route-line text-4xl"></i>
           </div>
           <p className="mt-4 font-medium text-slate-500">Todavía no has generado ninguna secuencia</p>
-          <p className="text-sm mt-1 text-center">Las secuencias de paradas que generes en la pestaña "Nueva Ruta" van a aparecer aquí</p>
+          <p className="text-sm mt-1 text-center">Las secuencias de paradas que generes en la pestaña "Nueva secuencia de paradas" van a aparecer aquí</p>
         </div>
       </Card>
     );

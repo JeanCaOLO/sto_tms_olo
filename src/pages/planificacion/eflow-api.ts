@@ -1,5 +1,7 @@
 import type { Conductor, Pedido, RutaTipo, Transportista, Vehiculo, Viaje } from './types';
 import { getFallbackPedidos } from './fallback-pedidos';
+import { geocodeCliente } from './geocode';
+import { demoCatalogos, demoCompanias, demoPedidosDeViaje, demoViajes } from './demo';
 import {
   mapConductor,
   mapPedido,
@@ -52,9 +54,28 @@ export function setPais(p: Pais): void {
   }
 }
 
-// Agrega ?pais= al path (respeta un query string previo).
+// Compañía cliente activa (IDCOMPANIA, p.ej. '0109'). '' = todas. Filtra viajes y
+// sus pedidos en el backend; los catálogos globales ignoran el parámetro.
+let companiaActual = '';
+export const getCompania = (): string => companiaActual;
+export const setCompania = (c: string): void => {
+  companiaActual = c;
+};
+
+// Modo demo: cuando está ON, todo el módulo se alimenta de datos de prueba
+// perfectos (demo.ts / demo-data.json) en vez de EFLOW. No se persiste: arranca
+// apagado en cada carga.
+let demoActual = false;
+export const getDemo = (): boolean => demoActual;
+export const setDemo = (v: boolean): void => {
+  demoActual = v;
+};
+
+// Agrega ?pais= (y &company= si hay compañía activa) al path.
 function conPais(path: string): string {
-  return `${path}${path.includes('?') ? '&' : '?'}pais=${paisActual}`;
+  const sep = path.includes('?') ? '&' : '?';
+  const company = companiaActual ? `&company=${encodeURIComponent(companiaActual)}` : '';
+  return `${path}${sep}pais=${paisActual}${company}`;
 }
 
 async function getJson<T>(path: string): Promise<T> {
@@ -72,6 +93,7 @@ async function getJson<T>(path: string): Promise<T> {
 // --- Fetchers with graceful mock fallback ----------------------------------
 
 export async function fetchViajes(): Promise<Viaje[]> {
+  if (demoActual) return demoViajes(paisActual, companiaActual);
   const rows = await getJson<ViajeRow[]>('/api/viajes?limit=100');
   return rows.map(mapViaje); // pedidos se cargan al elegir el viaje
 }
@@ -79,10 +101,19 @@ export async function fetchViajes(): Promise<Viaje[]> {
 // Pedidos reales de un viaje (journey_orders -> EXPEDICIONESCABECERA). Se llama
 // al ELEGIR el viaje (carga perezosa). Cae al pool mock si /api no responde o el
 // viaje no trae filas reales — mismo patrón que rutas/conductores.
+// Rellena lat/lng desde la capa geocode (Nominatim) cuando EFLOW no las trae, y
+// marca el pedido como geo_approx (nivel distrito/ciudad, no puerta).
+function conGeocode(p: Pedido): Pedido {
+  if (p.delivery_latitude != null && p.delivery_longitude != null) return p;
+  const g = geocodeCliente(paisActual, p.customer_id);
+  return g ? { ...p, delivery_latitude: g.lat, delivery_longitude: g.lng, geo_approx: true } : p;
+}
+
 export async function fetchPedidosDeViaje(viajeId: string, routeTypeId: string): Promise<Pedido[]> {
+  if (demoActual) return demoPedidosDeViaje(paisActual, companiaActual, viajeId);
   try {
     const rows = await getJson<PedidoRow[]>(`/api/viajes/${viajeId}/pedidos`);
-    return rows.length ? rows.map((r) => mapPedido(r, routeTypeId)) : getFallbackPedidos(routeTypeId);
+    return rows.length ? rows.map((r) => conGeocode(mapPedido(r, routeTypeId))) : getFallbackPedidos(routeTypeId);
   } catch (err) {
     console.warn(`[planificacion] /api/viajes/${viajeId}/pedidos no disponible, usando mock:`, (err as Error).message);
     return getFallbackPedidos(routeTypeId);
@@ -90,15 +121,19 @@ export async function fetchPedidosDeViaje(viajeId: string, routeTypeId: string):
 }
 
 export async function fetchRutas(fallback: RutaTipo[]): Promise<RutaTipo[]> {
+  if (demoActual) return demoCatalogos(paisActual, companiaActual).rutas;
   return listOrFallback('/api/catalogos/rutas', mapRuta, fallback);
 }
 export async function fetchTransportistas(fallback: Transportista[]): Promise<Transportista[]> {
+  if (demoActual) return demoCatalogos(paisActual, companiaActual).transportistas;
   return listOrFallback('/api/catalogos/transportistas', mapTransportista, fallback);
 }
 export async function fetchConductores(fallback: Conductor[]): Promise<Conductor[]> {
+  if (demoActual) return demoCatalogos(paisActual, companiaActual).conductores;
   return listOrFallback('/api/catalogos/conductores', mapConductor, fallback);
 }
 export async function fetchVehiculos(fallback: Vehiculo[]): Promise<Vehiculo[]> {
+  if (demoActual) return demoCatalogos(paisActual, companiaActual).vehiculos;
   return listOrFallback('/api/catalogos/vehiculos', mapVehiculo, fallback);
 }
 
@@ -112,6 +147,23 @@ export interface RutaDiaRow {
 }
 export function fetchRutasDias(): Promise<RutaDiaRow[]> {
   return getJson<RutaDiaRow[]>('/api/catalogos/rutas-dias');
+}
+
+// Compañías cliente que operan en el país (IDCOMPANIA + nombre). CR ≈ COFERSA;
+// VE = FEBECA + SILLACA. Cae al fallback si /api no responde.
+export interface Compania {
+  id: string;
+  name: string;
+}
+export async function fetchCompanias(fallback: Compania[]): Promise<Compania[]> {
+  if (demoActual) return demoCompanias(paisActual);
+  try {
+    const rows = await getJson<{ id: string; name: string | null; trips: number }[]>('/api/catalogos/companias');
+    return rows.length ? rows.map((r) => ({ id: r.id, name: r.name || r.id })) : fallback;
+  } catch (err) {
+    console.warn('[planificacion] /api/catalogos/companias no disponible, usando fallback:', (err as Error).message);
+    return fallback;
+  }
 }
 
 async function listOrFallback<R, T>(path: string, map: (r: R) => T, fallback: T[]): Promise<T[]> {

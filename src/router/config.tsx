@@ -51,6 +51,10 @@ const routes: RouteObject[] = [
   },
   {
     path: '/planificacion',
+    element: <Navigate to="/planificacion/nueva" replace />
+  },
+  {
+    path: '/planificacion/:tab',
     element: <PlanificacionPage />
   },
   {
