@@ -1,238 +1,427 @@
-import { useState, useEffect } from 'react';
+// El Probador del motor.
+//
+// Qué es: el banco de pruebas donde se arma un viaje y se ve el total con su desglose, sin emitir
+// nada. Sirve para dos cosas distintas y las dos importan — entender por qué una regla cobra lo que
+// cobra, y demostrarle a alguien que el cálculo hace lo que se dice que hace.
+//
+// Lo que estaba mal y esta versión corrige:
+//
+//   · Mentía sobre dos capacidades. No pasaba las variables personalizadas de la compañía ni su
+//     estructura de costos, así que una regla por variable daba cero acá y su valor real en la
+//     liquidación. Ahora las dos pantallas pasan por el MISMO armado (`catalogLoader` +
+//     `buildCalculateInput`); si el Probador mostrara otra cosa, sería un defecto del motor y no
+//     de una copia divergida.
+//   · Pedía todo a mano. Trece números y dos zonas, aunque la ruta ya los tuviera cargados. Ahora
+//     hay dos modos: **desde una ruta** (la cascada de la liquidación, con conductor y vehículo) y
+//     **viaje libre**, para inventar combinaciones que ninguna ruta produce — que es justamente lo
+//     que un probador tiene que permitir.
+//   · Mandaba `driverId: null` fijo: ninguna regla por conductor podía probarse.
+//   · Mostraba una tabla de tres columnas —etapa, regla, monto— y tiraba todo lo que el motor
+//     produce para explicarse. Ahora usa el mismo panel plegable que la liquidación.
+//
+// Y las plantillas dejaron de ser sólo un atajo: cada una declara cuánto **debe** dar, el Probador
+// muestra el veredicto, y un test recorre todas y se pone rojo si un total se movió.
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Card from '../../../components/base/Card';
 import Button from '../../../components/base/Button';
-import Badge from '../../../components/base/Badge';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
-import { calculate, deriveContext } from '../../../lib/tarifas';
-import { listRulesAndZonesForTesting, listTemplates } from '../../../lib/tarifas/localRulesDataSource';
+import DriverCarrierPicker from '../../../components/tarifas/DriverCarrierPicker';
+import CalcBreakdownPanel from '../../../components/tarifas/CalcBreakdownPanel';
+import { calculate } from '../../../lib/tarifas';
+import { CatalogError, loadCountries, loadParties, loadTarifasCatalog } from '../../../lib/tarifas/catalogLoader';
+import { buildCalculateInput } from '../../../lib/tarifas/settlementInput';
+import { listRoutesByCountry } from '../../../lib/tarifas/routesDataSource';
+import { listDriversByCountry, toDriverOptions } from '../../../lib/tarifas/driversDataSource';
+import { listVehicleTypes } from '../../../lib/tarifas/partyVehicleTypesDataSource';
+import { listTemplates, saveTemplate } from '../../../lib/tarifas/localRulesDataSource';
+import {
+  applyDriverSelection, applyPartySelection, applyRouteSelection, applyVehicleSelection,
+  availableRoutes, draftProblems, emptyDraft,
+  type FormCatalogs, type SettlementDraft, type VehicleOption,
+} from '../../../lib/tarifas/settlementForm';
+import {
+  buildCustomVarFields, constantVars, initialCustomVarValues, parseCustomVarValues,
+} from '../../../lib/tarifas/customVarFields';
+import { toTripContext } from '../../../lib/tarifas/routeTrip';
+import {
+  checkScenario, toScenario, toTemplateRow, type ScenarioCheck, type TemplateScenario,
+} from '../../../lib/tarifas/templateScenarios';
+import { formatMoney } from '../../../lib/tarifas/format';
 import type {
-  CalcResult, CalculateInput, Country, FleetType, Location, Rule, ServiceType, Zone, ZoneGroup,
+  CalcResult, DriverDef, FleetType, RouteDef, ServiceType, TripContext, Zone,
 } from '../../../lib/tarifas/types';
 
 interface RuleTesterProps {
   organizationId: string;
 }
 
-const STAGE_LABELS: Record<string, string> = {
-  BASE: 'Base', VARIABLE: 'Variable', MODIFIER: 'Modificador',
-  SURCHARGE: 'Recargo', ADJUSTMENT: 'Ajuste', TAX: 'Impuesto',
-};
+type Modo = 'ruta' | 'libre';
 
-const MARGIN_BADGE_VARIANT: Record<string, 'success' | 'warning' | 'danger'> = {
-  OK: 'success', WARN: 'warning', CRITICAL: 'danger', LOSS: 'danger',
-};
+/** El viaje del modo libre: lo que en el modo ruta aporta la lane, acá se teclea. */
+interface ViajeLibre {
+  originZoneId: string;
+  destZoneId: string;
+  km: string;
+  clientCount: string;
+  packageCount: string;
+  weightKg: string;
+  durationHours: string;
+  tollsAmount: string;
+  tollCount: string;
+  truckTypeId: string;
+  truckVolumeM3: string;
+  truckWeightTons: string;
+  fleetType: FleetType;
+  customerId: string;
+}
 
-const MARGIN_STATUS_LABEL: Record<string, string> = {
-  OK: 'OK', WARN: 'Atención', CRITICAL: 'Crítico', LOSS: 'Pérdida',
-};
+const viajeLibreInicial = (): ViajeLibre => ({
+  originZoneId: '', destZoneId: '',
+  km: '100', clientCount: '5', packageCount: '20', weightKg: '500',
+  durationHours: '4', tollsAmount: '0', tollCount: '0',
+  truckTypeId: '', truckVolumeM3: '0', truckWeightTons: '0',
+  fleetType: 'OWN', customerId: '',
+});
+
+/** Lo del día: no sale de la ruta ni de la compañía, es de este viaje. */
+interface DatosDelDia {
+  quotedAt: string;
+  serviceType: ServiceType;
+  pickupCount: string;
+  lateMinutes: string;
+  incidentCount: string;
+}
+
+const hoy = () => new Date().toISOString().slice(0, 10);
+
+const diaInicial = (): DatosDelDia => ({
+  quotedAt: hoy(), serviceType: 'STANDARD', pickupCount: '0', lateMinutes: '0', incidentCount: '0',
+});
 
 export default function RuleTester({ organizationId }: RuleTesterProps) {
-  const [loadingData, setLoadingData] = useState(true);
-  const [countries, setCountries] = useState<any[]>([]);
-  const [zones, setZones] = useState<Zone[]>([]);
-  const [zoneGroups, setZoneGroups] = useState<ZoneGroup[]>([]);
-  const [rawRules, setRawRules] = useState<any[]>([]);
-  const [rawZoneLaneRates, setRawZoneLaneRates] = useState<any[]>([]);
-  const [rawFxRates, setRawFxRates] = useState<any[]>([]);
-  const [rawOwnCostParams, setRawOwnCostParams] = useState<any[]>([]);
-  const [rawOutsourcedCostRates, setRawOutsourcedCostRates] = useState<any[]>([]);
-  const [rawMarginPolicies, setRawMarginPolicies] = useState<any[]>([]);
-  const [carriers, setCarriers] = useState<any[]>([]);
-  const [templates, setTemplates] = useState<any[]>([]);
-  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [cargando, setCargando] = useState(true);
+  const [modo, setModo] = useState<Modo>('ruta');
+  const [countryId, setCountryId] = useState('');
 
-  const [trip, setTrip] = useState({
-    countryId: '',
-    originZoneId: '',
-    destZoneId: '',
-    quotedAt: new Date().toISOString().split('T')[0],
-    km: 100,
-    clientCount: 5,
-    packageCount: 20,
-    weightKg: 500,
-    truckTypeId: 'CAMION-1',
-    serviceType: 'STANDARD' as ServiceType,
-    fleetType: 'OWN' as FleetType,
-    carrierId: '',
-    customerId: '',
-    durationHours: 4,
-    tollsAmount: '0',
-    lateMinutes: 0,
-    incidentCount: 0,
-  });
+  const [countries, setCountries] = useState<{ id: string; name: string }[]>([]);
+  const [routes, setRoutes] = useState<RouteDef[]>([]);
+  const [drivers, setDrivers] = useState<DriverDef[]>([]);
+  const [vehicleTypes, setVehicleTypes] = useState<VehicleOption[]>([]);
+  const [templates, setTemplates] = useState<Record<string, unknown>[]>([]);
 
+  const [draft, setDraft] = useState<SettlementDraft>(emptyDraft());
+  const [descartado, setDescartado] = useState<string | null>(null);
+  const [libre, setLibre] = useState<ViajeLibre>(viajeLibreInicial());
+  const [dia, setDia] = useState<DatosDelDia>(diaInicial());
+  const [customRaw, setCustomRaw] = useState<Record<string, string>>({});
+
+  const [escenarioId, setEscenarioId] = useState('');
   const [result, setResult] = useState<CalcResult | null>(null);
+  const [tripCalculado, setTripCalculado] = useState<TripContext | null>(null);
   const [error, setError] = useState('');
+  const [guardando, setGuardando] = useState(false);
 
-  const loadData = async () => {
-    setLoadingData(true);
+  // Valores de variables que trae una plantilla y que hay que reponer DESPUÉS de que se regeneren
+  // los campos de la compañía. Sin esto, aplicar un escenario cargaba sus variables y el efecto que
+  // reinicia los campos las pisaba con el valor por defecto un instante después.
+  const pendientes = useRef<Record<string, string> | null>(null);
+
+  // ── Carga ─────────────────────────────────────────────────────────────────────────────────
+
+  const recargar = useCallback(async () => {
+    setCargando(true);
     try {
-      const raw = await listRulesAndZonesForTesting(organizationId);
-      setCountries(raw.countries);
-      setZoneGroups(raw.zoneGroups.map((g: any) => ({ id: g.id, countryId: g.country_id ?? '', code: g.code, name: g.name })));
-      const mappedZones: Zone[] = raw.zones.map((z: any) => ({ id: z.id, countryId: z.country_id ?? '', zoneGroupId: z.zone_group_id ?? null, code: z.code, name: z.name }));
-      setZones(mappedZones);
-      setRawRules(raw.rules);
-      setRawZoneLaneRates(raw.zoneLaneRates);
-      setRawFxRates(raw.fxRates);
-      setRawOwnCostParams(raw.ownCostParams);
-      setRawOutsourcedCostRates(raw.outsourcedCostRates);
-      setRawMarginPolicies(raw.marginPolicies);
-      setCarriers(raw.carriers);
-      setTemplates(await listTemplates(organizationId));
-
-      setTrip((prev) => ({
-        ...prev,
-        countryId: prev.countryId || raw.countries[0]?.id || '',
-        originZoneId: prev.originZoneId || mappedZones[0]?.id || '',
-        destZoneId: prev.destZoneId || mappedZones[1]?.id || mappedZones[0]?.id || '',
-      }));
+      const paises = loadCountries();
+      setCountries(paises.map((c) => ({ id: c.id, name: c.name })));
+      setCountryId((prev) => prev || paises[0]?.id || '');
+      setTemplates(await listTemplates(organizationId) as Record<string, unknown>[]);
     } finally {
-      setLoadingData(false);
+      setCargando(false);
     }
-  };
-
-  useEffect(() => {
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId]);
 
-  const runCalculation = () => {
-    setError('');
-    setResult(null);
+  useEffect(() => { void recargar(); }, [recargar]);
+
+  useEffect(() => {
+    if (!countryId) return;
+    void (async () => {
+      setRoutes(await listRoutesByCountry(countryId));
+      setDrivers(await listDriversByCountry(countryId));
+    })();
+  }, [countryId]);
+
+  useEffect(() => {
+    if (!draft.partyId) { setVehicleTypes([]); return; }
+    void listVehicleTypes(draft.partyId)
+      .then((v) => setVehicleTypes(v.map((t) => ({
+        code: t.code, name: t.name, volumeM3: t.volumeM3, weightTons: t.weightTons,
+      }))))
+      .catch(() => setVehicleTypes([]));
+  }, [draft.partyId]);
+
+  const parties = useMemo(
+    () => loadParties().filter((p) => p.countryId === countryId),
+    [countryId],
+  );
+
+  const catalogs: FormCatalogs = useMemo(() => ({
+    parties: parties.map((p) => ({
+      id: p.id, name: p.name, classification: p.classification, status: p.status,
+    })),
+    routes,
+    drivers,
+    vehicleTypes,
+  }), [parties, routes, drivers, vehicleTypes]);
+
+  // ── El catálogo del motor ─────────────────────────────────────────────────────────────────
+
+  const catalogOrError = useMemo(() => {
+    if (!countryId) return null;
     try {
-      const countryRow = countries.find((c: any) => c.id === trip.countryId) as any;
-      if (!countryRow) throw new Error('Elegí un país.');
-      const country: Country = {
-        id: countryRow.id,
-        iso2: countryRow.iso2,
-        name: countryRow.name,
-        localCurrency: countryRow.local_currency,
-        refCurrency: countryRow.ref_currency,
-        roundingDecimals: countryRow.rounding_decimals,
-        roundingMode: countryRow.rounding_mode,
-        overnightThresholdHours: countryRow.overnight_threshold_hours,
-      };
+      return loadTarifasCatalog(countryId, draft.partyId);
+    } catch (e) {
+      return e instanceof CatalogError ? e : null;
+    }
+  }, [countryId, draft.partyId]);
 
-      const originZone = zones.find((z) => z.id === trip.originZoneId);
-      const destZone = zones.find((z) => z.id === trip.destZoneId);
-      const locations: Location[] = [
-        ...(originZone ? [{ id: originZone.id, countryId: originZone.countryId, zoneId: originZone.id, code: originZone.code, name: originZone.name }] : []),
-        ...(destZone ? [{ id: destZone.id, countryId: destZone.countryId, zoneId: destZone.id, code: destZone.code, name: destZone.name }] : []),
-      ];
+  const catalog = catalogOrError && !(catalogOrError instanceof CatalogError) ? catalogOrError : null;
+  const catalogError = catalogOrError instanceof CatalogError ? catalogOrError.message : '';
 
-      // Mismo fallback que src/lib/tarifas/repository.ts::mapRuleRow: country_id nulo = regla
-      // global, se "estampa" el país del viaje actual (resolveRules filtra por countryId exacto).
-      const mappedRules: Rule[] = rawRules.map((r: any) => ({
-        id: r.id, countryId: r.country_id ?? trip.countryId, code: r.code, name: r.name, stage: r.stage,
-        priority: r.priority, stacking: r.stacking, exclusionGroup: r.exclusion_group ?? null,
-        currencyMode: r.currency_mode, conditions: r.conditions, expression: r.expression,
-        isAdhoc: !!r.is_adhoc, active: !!r.active, version: r.version,
-      }));
+  // Estable entre renders: si fuera un `??` suelto, sería un arreglo nuevo cada vez y el efecto
+  // que elige las zonas por defecto se dispararía sin parar.
+  const zones: Zone[] = useMemo(() => catalog?.zones ?? [], [catalog]);
 
-      const ownCostParamsRow = rawOwnCostParams.find((p: any) => p.country_id === trip.countryId);
-      if (!ownCostParamsRow) {
-        throw new Error('No hay parámetros de costo propio configurados para este país — cargalos en la pestaña Costos.');
+  const customFields = useMemo(
+    () => buildCustomVarFields(catalog?.partyVariables ?? []),
+    [catalog],
+  );
+  const constantes = useMemo(
+    () => constantVars(catalog?.partyVariables ?? []),
+    [catalog],
+  );
+
+  useEffect(() => {
+    const base = initialCustomVarValues(customFields);
+    if (pendientes.current) {
+      for (const key of Object.keys(base)) {
+        const traido = pendientes.current[key];
+        if (traido !== undefined) base[key] = traido;
       }
-      const marginPolicyRow = rawMarginPolicies.find((p: any) => p.country_id === trip.countryId);
-      if (!marginPolicyRow) {
-        throw new Error('No hay política de margen configurada para este país — cargala en la pestaña Política de Margen.');
-      }
+      pendientes.current = null;
+    }
+    setCustomRaw(base);
+  }, [customFields]);
 
-      const input: CalculateInput = {
-        country,
-        ownCostParams: {
-          id: ownCostParamsRow.id,
-          countryId: trip.countryId,
-          costPerKm: String(ownCostParamsRow.cost_per_km),
-          depreciationPerKm: String(ownCostParamsRow.depreciation_per_km),
-          driverDaily: String(ownCostParamsRow.driver_daily),
-        },
-        outsourcedCostRates: rawOutsourcedCostRates
-          .filter((r: any) => r.country_id === trip.countryId)
-          .map((r: any) => ({
-            id: r.id, countryId: trip.countryId, carrierId: r.carrier_id, truckTypeId: r.truck_type_id,
-            flatRate: String(r.flat_rate),
-          })),
-        marginPolicy: {
-          countryId: trip.countryId,
-          warnBelow: Number(marginPolicyRow.warn_below),
-          criticalBelow: Number(marginPolicyRow.critical_below),
-          requireReasonBelow: Number(marginPolicyRow.require_reason_below),
-          blockOnLoss: !!marginPolicyRow.block_on_loss,
-        },
-        trip: {
-          countryId: trip.countryId,
-          quotedAt: new Date(trip.quotedAt).toISOString(),
-          originLocationId: originZone?.id ?? '',
-          destLocationId: destZone?.id ?? '',
-          km: Number(trip.km),
-          clientCount: Number(trip.clientCount),
-          packageCount: Number(trip.packageCount),
-          weightKg: Number(trip.weightKg),
-          truckTypeId: trip.truckTypeId,
-          serviceType: trip.serviceType,
-          fleetType: trip.fleetType,
-          carrierId: trip.carrierId || null,
-          driverId: null,
-          customerId: trip.customerId || null,
-          durationHours: Number(trip.durationHours),
-          tollsAmount: trip.tollsAmount || '0',
-          lateMinutes: Number(trip.lateMinutes),
-          incidentCount: Number(trip.incidentCount),
-        },
-        rules: mappedRules,
-        zones,
-        zoneGroups,
-        locations,
-        zoneLaneRates: rawZoneLaneRates
-          .filter((r) => r.country_id === trip.countryId)
-          .map((r) => ({ id: r.id, countryId: trip.countryId, originZoneId: r.origin_zone_id, destZoneId: r.dest_zone_id, amount: String(r.amount) })),
-        fxRates: rawFxRates
-          .filter((r) => r.country_id === trip.countryId)
-          .map((r) => ({ id: r.id, countryId: trip.countryId, from: r.from_currency, to: r.to_currency, rate: String(r.rate), type: r.rate_type, source: r.source ?? '', validFrom: r.valid_from })),
-      };
+  // Zonas por defecto para el modo libre: sin ellas, toda regla por zona queda muda.
+  useEffect(() => {
+    if (zones.length === 0) return;
+    setLibre((prev) => (prev.originZoneId
+      ? prev
+      : { ...prev, originZoneId: zones[0].id, destZoneId: zones[1]?.id ?? zones[0].id }));
+  }, [zones]);
 
-      const calcResult = calculate(input);
-      const derived = deriveContext(input);
-      setResult(calcResult);
-      if (derived.originZoneId === '' || derived.destZoneId === '') {
-        setError('Aviso: no se resolvió zona origen y/o destino (revisá que las zonas elegidas existan) — las reglas que condicionen por zona no van a matchear.');
-      }
-    } catch (err: any) {
+  const ruta = useMemo(
+    () => routes.find((r) => r.id === draft.routeId) ?? null,
+    [routes, draft.routeId],
+  );
+
+  const vehiculo = useMemo(
+    () => vehicleTypes.find((v) => v.code === draft.truckTypeCode) ?? null,
+    [vehicleTypes, draft.truckTypeCode],
+  );
+
+  const problemas = modo === 'ruta' ? draftProblems(draft, catalogs) : [];
+
+  // ── El cálculo ────────────────────────────────────────────────────────────────────────────
+
+  const armarViaje = useCallback((): TripContext | null => {
+    const { values, errors } = parseCustomVarValues(customFields, customRaw);
+    if (Object.keys(errors).length > 0) {
+      setError(Object.values(errors).join(' '));
+      return null;
+    }
+
+    const quotedAt = new Date(dia.quotedAt).toISOString();
+
+    if (modo === 'ruta') {
+      if (!ruta || !draft.partyId) return null;
+      const party = parties.find((p) => p.id === draft.partyId);
+      if (!party) return null;
+
+      return toTripContext(ruta, {
+        quotedAt,
+        partyId: draft.partyId,
+        driverId: draft.driverId,
+        truckTypeId: draft.truckTypeCode ?? '',
+        serviceType: dia.serviceType,
+        truckVolumeM3: vehiculo?.volumeM3 ?? 0,
+        truckWeightTons: vehiculo?.weightTons ?? 0,
+        pickupCount: Number(dia.pickupCount) || 0,
+        lateMinutes: Number(dia.lateMinutes) || 0,
+        incidentCount: Number(dia.incidentCount) || 0,
+        customVars: values,
+      }, party.classification);
+    }
+
+    // Viaje libre: la compañía es opcional, y sin ella la flota la elige quien prueba.
+    const party = draft.partyId ? parties.find((p) => p.id === draft.partyId) : null;
+    const fleetType: FleetType = party
+      ? (party.classification === 'OWN' ? 'OWN' : 'OUTSOURCED')
+      : libre.fleetType;
+
+    return {
+      countryId,
+      partyId: draft.partyId,
+      quotedAt,
+      originLocationId: libre.originZoneId,
+      destLocationId: libre.destZoneId,
+      km: Number(libre.km) || 0,
+      clientCount: Number(libre.clientCount) || 0,
+      packageCount: Number(libre.packageCount) || 0,
+      weightKg: Number(libre.weightKg) || 0,
+      truckTypeId: libre.truckTypeId,
+      serviceType: dia.serviceType,
+      fleetType,
+      carrierId: fleetType === 'OUTSOURCED' ? draft.partyId : null,
+      driverId: draft.driverId,
+      customerId: libre.customerId || null,
+      durationHours: Number(libre.durationHours) || 0,
+      tollsAmount: libre.tollsAmount || '0',
+      tollCount: Number(libre.tollCount) || 0,
+      pickupCount: Number(dia.pickupCount) || 0,
+      truckVolumeM3: Number(libre.truckVolumeM3) || 0,
+      truckWeightTons: Number(libre.truckWeightTons) || 0,
+      lateMinutes: Number(dia.lateMinutes) || 0,
+      incidentCount: Number(dia.incidentCount) || 0,
+      customVars: values,
+    };
+  }, [modo, ruta, draft, parties, vehiculo, libre, dia, customFields, customRaw, countryId]);
+
+  const recalcular = useCallback(() => {
+    setError('');
+    if (!catalog) { setResult(null); setTripCalculado(null); return; }
+
+    try {
+      const trip = armarViaje();
+      if (!trip) { setResult(null); setTripCalculado(null); return; }
+
+      const { input, issues, warnings } = buildCalculateInput(catalog, trip);
+      const calc = calculate(input);
+      calc.warnings = [...warnings, ...calc.warnings];
+      calc.blockingIssues = [...issues, ...calc.blockingIssues];
+      setResult(calc);
+      setTripCalculado(input.trip);
+    } catch (err) {
       console.error('Error en el probador del motor:', err);
-      setError(err?.message || 'Ocurrió un error evaluando las reglas. Revisá el JSON de condiciones/expresiones en modo avanzado.');
+      setResult(null);
+      setTripCalculado(null);
+      setError((err as Error)?.message
+        || 'No se pudo evaluar. Revisá el JSON de condiciones o expresiones en modo avanzado.');
+    }
+  }, [catalog, armarViaje]);
+
+  // Recalcula ante cualquier cambio: es un probador, ver el efecto inmediato ES la herramienta.
+  useEffect(() => { recalcular(); }, [recalcular]);
+
+  // ── Escenarios ────────────────────────────────────────────────────────────────────────────
+
+  const escenario: TemplateScenario | null = useMemo(() => {
+    const row = templates.find((t) => t.id === escenarioId);
+    return row ? toScenario(row as never) : null;
+  }, [templates, escenarioId]);
+
+  const veredicto: ScenarioCheck | null = useMemo(
+    () => (escenario && result ? checkScenario(escenario, result.totalLiquidado) : null),
+    [escenario, result],
+  );
+
+  const aplicarEscenario = (id: string) => {
+    setEscenarioId(id);
+    const row = templates.find((t) => t.id === id);
+    if (!row) return;
+
+    const s = toScenario(row as never);
+    const t = s.trip;
+
+    // Un escenario guardado describe un viaje entero, no una lane: se carga en modo libre.
+    setModo('libre');
+    setCountryId(s.countryId || countryId);
+    setDraft((prev) => ({ ...prev, partyId: t.partyId, routeId: null, driverId: t.driverId, truckTypeCode: null }));
+    setLibre({
+      originZoneId: t.originLocationId,
+      destZoneId: t.destLocationId,
+      km: String(t.km),
+      clientCount: String(t.clientCount),
+      packageCount: String(t.packageCount),
+      weightKg: String(t.weightKg),
+      durationHours: String(t.durationHours),
+      tollsAmount: String(t.tollsAmount),
+      tollCount: String(t.tollCount),
+      truckTypeId: t.truckTypeId,
+      truckVolumeM3: String(t.truckVolumeM3),
+      truckWeightTons: String(t.truckWeightTons),
+      fleetType: t.fleetType,
+      customerId: t.customerId ?? '',
+    });
+    setDia({
+      quotedAt: t.quotedAt.slice(0, 10),
+      serviceType: t.serviceType,
+      pickupCount: String(t.pickupCount),
+      lateMinutes: String(t.lateMinutes),
+      incidentCount: String(t.incidentCount),
+    });
+
+    const vars: Record<string, string> = {};
+    for (const [k, v] of Object.entries(t.customVars ?? {})) vars[k] = String(v);
+    pendientes.current = vars;
+    setCustomRaw((prev) => ({ ...prev, ...vars }));
+  };
+
+  /**
+   * Fija el total actual como el esperado del escenario.
+   *
+   * Es deliberadamente un acto explícito: un total que se movió puede ser una mejora o una
+   * regresión, y la única forma de distinguirlas es que alguien mire el número nuevo y lo acepte.
+   */
+  const fijarEsperado = async () => {
+    if (!escenario || !result || !tripCalculado) return;
+    setGuardando(true);
+    try {
+      const fila = toTemplateRow({
+        id: escenario.id,
+        name: escenario.name,
+        countryId: escenario.countryId,
+        trip: tripCalculado,
+        expectedTotal: result.totalLiquidado,
+      });
+      await saveTemplate(organizationId, fila as never, escenario.id);
+      setTemplates(await listTemplates(organizationId) as Record<string, unknown>[]);
+    } finally {
+      setGuardando(false);
     }
   };
 
-  const applyTemplate = (id: string) => {
-    setSelectedTemplateId(id);
-    const tpl = templates.find((t) => t.id === id);
-    if (!tpl?.trip) return;
-    const t = tpl.trip;
-    setTrip((prev) => ({
-      ...prev,
-      countryId: tpl.country_id ?? prev.countryId,
-      originZoneId: t.originLocationId ?? prev.originZoneId,
-      destZoneId: t.destLocationId ?? prev.destZoneId,
-      km: t.km ?? prev.km,
-      clientCount: t.clientCount ?? prev.clientCount,
-      packageCount: t.packageCount ?? prev.packageCount,
-      weightKg: t.weightKg ?? prev.weightKg,
-      truckTypeId: t.truckTypeId ?? prev.truckTypeId,
-      serviceType: t.serviceType ?? prev.serviceType,
-      fleetType: t.fleetType ?? prev.fleetType,
-      carrierId: t.carrierId ?? '',
-      customerId: t.customerId ?? '',
-      durationHours: t.durationHours ?? prev.durationHours,
-      tollsAmount: t.tollsAmount ?? prev.tollsAmount,
-      lateMinutes: t.lateMinutes ?? prev.lateMinutes,
-      incidentCount: t.incidentCount ?? prev.incidentCount,
-    }));
+  // ── Pantalla ──────────────────────────────────────────────────────────────────────────────
+
+  const aplicar = (cambio: { draft: SettlementDraft; cleared: string[] }) => {
+    setDraft(cambio.draft);
+    setDescartado(cambio.cleared.length === 0 ? null : {
+      routeId: 'Se quitó la ruta: era de otra compañía.',
+      driverId: 'Se quitó el conductor: era de otra compañía.',
+      truckTypeCode: 'Se quitó el vehículo: no está en el catálogo de esta compañía.',
+    }[cambio.cleared[0]] ?? null);
   };
 
-  if (loadingData) {
+  const driverOptions = useMemo(
+    () => toDriverOptions(drivers, parties.map((p) => ({ id: p.id, name: p.name }))),
+    [drivers, parties],
+  );
+
+  const zonaCode = (id: string) => zones.find((z) => z.id === id)?.code ?? '—';
+
+  if (cargando) {
     return (
       <Card>
         <div className="text-center py-10 text-slate-500">
@@ -244,121 +433,292 @@ export default function RuleTester({ organizationId }: RuleTesterProps) {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* ── El viaje ──────────────────────────────────────────────────────────────────── */}
       <Card>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
             <i className="ri-flask-line text-teal-600"></i>
-            Datos del viaje de prueba
+            El viaje de prueba
           </h3>
-          <Button variant="secondary" size="sm" onClick={loadData}>
+          <Button variant="secondary" size="sm" onClick={() => void recargar()}>
             <i className="ri-refresh-line"></i>
-            Recargar datos
+            Recargar
           </Button>
         </div>
 
         <div className="space-y-3">
           {templates.length > 0 && (
             <Select
-              label="Cargar plantilla"
-              value={selectedTemplateId}
-              onChange={(e) => applyTemplate(e.target.value)}
-              options={[{ value: '', label: 'Sin plantilla (viaje manual)' }, ...templates.map((t) => ({ value: t.id, label: t.name }))]}
+              label="Escenario guardado"
+              value={escenarioId}
+              onChange={(e) => (e.target.value ? aplicarEscenario(e.target.value) : setEscenarioId(''))}
+              options={[
+                { value: '', label: 'Ninguno — armar el viaje a mano' },
+                ...templates.map((t) => ({ value: String(t.id), label: String(t.name) })),
+              ]}
             />
           )}
+
           <Select
             label="País"
-            value={trip.countryId}
-            onChange={(e) => setTrip({ ...trip, countryId: e.target.value })}
-            options={countries.map((c: any) => ({ value: c.id, label: c.name }))}
+            value={countryId}
+            onChange={(e) => { setCountryId(e.target.value); setDraft(emptyDraft()); setEscenarioId(''); }}
+            options={countries.map((c) => ({ value: c.id, label: c.name }))}
           />
 
-          <div className="grid grid-cols-2 gap-3">
-            <Select
-              label="Zona origen"
-              value={trip.originZoneId}
-              onChange={(e) => setTrip({ ...trip, originZoneId: e.target.value })}
-              options={zones.map((z) => ({ value: z.id, label: `${z.code} - ${z.name}` }))}
-            />
-            <Select
-              label="Zona destino"
-              value={trip.destZoneId}
-              onChange={(e) => setTrip({ ...trip, destZoneId: e.target.value })}
-              options={zones.map((z) => ({ value: z.id, label: `${z.code} - ${z.name}` }))}
-            />
+          {/* Los dos modos ───────────────────────────────────────────────────────────── */}
+          <div className="flex rounded-lg border border-slate-200 p-0.5 bg-slate-50">
+            {([['ruta', 'Desde una ruta'], ['libre', 'Viaje libre']] as const).map(([valor, label]) => (
+              <button
+                key={valor}
+                type="button"
+                onClick={() => setModo(valor)}
+                className={`flex-1 text-xs py-1.5 rounded-md cursor-pointer transition ${
+                  modo === valor ? 'bg-white shadow-sm font-medium text-slate-800' : 'text-slate-500'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-
-          {zones.length === 0 && (
-            <p className="text-xs text-amber-600">No hay zonas todavía — creá al menos una en la pestaña Zonas.</p>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Km" type="number" value={trip.km} onChange={(e) => setTrip({ ...trip, km: Number(e.target.value) })} />
-            <Input label="Paradas/clientes" type="number" value={trip.clientCount} onChange={(e) => setTrip({ ...trip, clientCount: Number(e.target.value) })} />
-            <Input label="Entregas/bultos" type="number" value={trip.packageCount} onChange={(e) => setTrip({ ...trip, packageCount: Number(e.target.value) })} />
-            <Input label="Peso (kg)" type="number" value={trip.weightKg} onChange={(e) => setTrip({ ...trip, weightKg: Number(e.target.value) })} />
-            <Input label="Duración (horas)" type="number" value={trip.durationHours} onChange={(e) => setTrip({ ...trip, durationHours: Number(e.target.value) })} />
-            <Input label="Peajes" value={trip.tollsAmount} onChange={(e) => setTrip({ ...trip, tollsAmount: e.target.value })} />
-            <Input label="Minutos de atraso" type="number" value={trip.lateMinutes} onChange={(e) => setTrip({ ...trip, lateMinutes: Number(e.target.value) })} />
-            <Input label="Incidentes" type="number" value={trip.incidentCount} onChange={(e) => setTrip({ ...trip, incidentCount: Number(e.target.value) })} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Select
-              label="Tipo de servicio"
-              value={trip.serviceType}
-              onChange={(e) => setTrip({ ...trip, serviceType: e.target.value as ServiceType })}
-              options={[{ value: 'STANDARD', label: 'Estándar' }, { value: 'EXPRESS', label: 'Express' }, { value: 'DEDICATED', label: 'Dedicado' }]}
-            />
-            <Select
-              label="Flota"
-              value={trip.fleetType}
-              onChange={(e) => setTrip({ ...trip, fleetType: e.target.value as FleetType })}
-              options={[{ value: 'OWN', label: 'Propia' }, { value: 'OUTSOURCED', label: 'Tercerizada' }]}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Tipo de vehículo" value={trip.truckTypeId} onChange={(e) => setTrip({ ...trip, truckTypeId: e.target.value })} />
-            <Input label="Fecha" type="date" value={trip.quotedAt} onChange={(e) => setTrip({ ...trip, quotedAt: e.target.value })} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            {trip.fleetType === 'OUTSOURCED' && carriers.length > 0 ? (
-              <Select
-                label="Transportista"
-                value={trip.carrierId}
-                onChange={(e) => setTrip({ ...trip, carrierId: e.target.value })}
-                options={[{ value: '', label: 'Elegir...' }, ...carriers.map((c) => ({ value: c.id, label: c.name }))]}
-              />
-            ) : (
-              <Input
-                label="Transportista (id libre)"
-                value={trip.carrierId}
-                onChange={(e) => setTrip({ ...trip, carrierId: e.target.value })}
-                placeholder={trip.fleetType === 'OUTSOURCED' ? 'Requerido para outsourcing' : 'Dejá vacío para flota propia'}
-              />
-            )}
-            <Input label="Cliente (id libre)" value={trip.customerId} onChange={(e) => setTrip({ ...trip, customerId: e.target.value })} />
-          </div>
-
-          <p className="text-xs text-slate-400">
-            El motor calcula cuánto se le debe liquidar (pagar) al transportista por este viaje —
-            la bifurcación nómina (flota propia) / cuentas por pagar (tercerizada) la deciden las
-            reglas activas condicionadas por "Flota", no un cálculo aparte.
+          <p className="text-[11px] text-slate-400 -mt-1">
+            {modo === 'ruta'
+              ? 'Igual que el alta de liquidación: la ruta aporta zonas, kilómetros, paradas y peajes.'
+              : 'Para inventar combinaciones que ninguna ruta produce y ver qué reglas se despiertan.'}
           </p>
 
-          <Button className="w-full" onClick={runCalculation} disabled={zones.length === 0 || rawRules.length === 0}>
-            <i className="ri-play-line mr-2"></i>
-            Calcular
-          </Button>
-          {rawRules.length === 0 && <p className="text-xs text-amber-600">No hay reglas todavía — creá al menos una en la pestaña Reglas.</p>}
+          {catalogError && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              {catalogError}
+            </p>
+          )}
+
+          {/* Compañía ──────────────────────────────────────────────────────────────────── */}
+          <Select
+            label={modo === 'ruta' ? 'Compañía a la que se le liquida *' : 'Compañía (opcional)'}
+            value={draft.partyId ?? ''}
+            onChange={(e) => aplicar(applyPartySelection(draft, e.target.value || null, catalogs))}
+            options={[
+              { value: '', label: modo === 'ruta' ? 'Elegir…' : 'Sin compañía (sólo reglas del país)' },
+              ...parties.map((p) => ({
+                value: p.id,
+                label: `${p.name} · ${p.classification === 'OWN' ? 'flota propia' : 'tercero'}`,
+              })),
+            ]}
+          />
+
+          {descartado && (
+            <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              <i className="ri-information-line mr-1"></i>{descartado}
+            </p>
+          )}
+
+          {modo === 'ruta' ? (
+            <>
+              <Select
+                label="Ruta *"
+                value={draft.routeId ?? ''}
+                onChange={(e) => aplicar(applyRouteSelection(draft, e.target.value || null, catalogs))}
+                options={[
+                  {
+                    value: '',
+                    label: availableRoutes(catalogs, draft.partyId).length === 0
+                      ? 'No hay rutas cargadas para esta compañía'
+                      : 'Elegir ruta…',
+                  },
+                  ...availableRoutes(catalogs, draft.partyId).map((r) => ({
+                    value: r.id, label: `${r.code} — ${r.name}`,
+                  })),
+                ]}
+              />
+
+              {ruta && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
+                  <p className="text-[11px] text-slate-500 uppercase font-medium mb-2">
+                    De la ruta {ruta.code}
+                  </p>
+                  <div className="grid grid-cols-3 md:grid-cols-4 gap-y-2 gap-x-4 text-xs">
+                    <Dato label="Zona origen" valor={zonaCode(ruta.originZoneId)} />
+                    <Dato label="Zona destino" valor={zonaCode(ruta.destZoneId)} />
+                    <Dato label="Km" valor={String(ruta.km)} />
+                    <Dato label="Paradas" valor={String(ruta.stopCount)} />
+                    <Dato label="Bultos" valor={String(ruta.packageCount)} />
+                    <Dato label="Peso" valor={`${ruta.weightKg} kg`} />
+                    <Dato label="Peajes" valor={`${ruta.tollCount} · ${ruta.tollsAmount}`} />
+                    <Dato label="Duración" valor={`${ruta.durationHours} h`} />
+                  </div>
+                </div>
+              )}
+
+              <DriverCarrierPicker
+                drivers={driverOptions}
+                carriers={parties.map((p) => ({ id: p.id, name: p.name }))}
+                driverId={draft.driverId ?? ''}
+                carrierId={draft.partyId ?? ''}
+                onChange={(next) => {
+                  if (next.driverId !== (draft.driverId ?? '')) {
+                    aplicar(applyDriverSelection(draft, next.driverId || null, catalogs));
+                  } else if (next.carrierId !== (draft.partyId ?? '')) {
+                    aplicar(applyPartySelection(draft, next.carrierId || null, catalogs));
+                  }
+                }}
+              />
+
+              <Select
+                label="Tipo de vehículo"
+                value={draft.truckTypeCode ?? ''}
+                onChange={(e) => setDraft(applyVehicleSelection(draft, e.target.value || null))}
+                options={[
+                  {
+                    value: '',
+                    label: vehicleTypes.length === 0
+                      ? 'La compañía no tiene catálogo de vehículos'
+                      : 'Elegir vehículo…',
+                  },
+                  ...vehicleTypes.map((v) => ({
+                    value: v.code,
+                    label: `${v.code} — ${v.name}${v.volumeM3 ? ` · ${v.volumeM3} m³` : ''}`,
+                  })),
+                ]}
+              />
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <Select
+                  label="Zona origen"
+                  value={libre.originZoneId}
+                  onChange={(e) => setLibre({ ...libre, originZoneId: e.target.value })}
+                  options={zones.map((z) => ({ value: z.id, label: `${z.code} — ${z.name}` }))}
+                />
+                <Select
+                  label="Zona destino"
+                  value={libre.destZoneId}
+                  onChange={(e) => setLibre({ ...libre, destZoneId: e.target.value })}
+                  options={zones.map((z) => ({ value: z.id, label: `${z.code} — ${z.name}` }))}
+                />
+              </div>
+
+              {zones.length === 0 && (
+                <p className="text-xs text-amber-600">
+                  No hay zonas en este país — creá al menos una en la pestaña Zonas, o ninguna regla
+                  por zona podrá aplicar.
+                </p>
+              )}
+
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <Input label="Km" type="number" value={libre.km} onChange={(e) => setLibre({ ...libre, km: e.target.value })} />
+                <Input label="Paradas" type="number" value={libre.clientCount} onChange={(e) => setLibre({ ...libre, clientCount: e.target.value })} />
+                <Input label="Bultos" type="number" value={libre.packageCount} onChange={(e) => setLibre({ ...libre, packageCount: e.target.value })} />
+                <Input label="Peso (kg)" type="number" value={libre.weightKg} onChange={(e) => setLibre({ ...libre, weightKg: e.target.value })} />
+                <Input label="Duración (h)" type="number" value={libre.durationHours} onChange={(e) => setLibre({ ...libre, durationHours: e.target.value })} />
+                <Input label="Cantidad de peajes" type="number" value={libre.tollCount} onChange={(e) => setLibre({ ...libre, tollCount: e.target.value })} />
+                <Input label="Monto de peajes" value={libre.tollsAmount} onChange={(e) => setLibre({ ...libre, tollsAmount: e.target.value })} />
+                <Input label="Vehículo (código)" value={libre.truckTypeId} onChange={(e) => setLibre({ ...libre, truckTypeId: e.target.value })} />
+                <Input label="Volumen (m³)" type="number" value={libre.truckVolumeM3} onChange={(e) => setLibre({ ...libre, truckVolumeM3: e.target.value })} />
+                <Input label="Capacidad (t)" type="number" value={libre.truckWeightTons} onChange={(e) => setLibre({ ...libre, truckWeightTons: e.target.value })} />
+                <Input label="Cliente (id libre)" value={libre.customerId} onChange={(e) => setLibre({ ...libre, customerId: e.target.value })} />
+              </div>
+
+              {!draft.partyId && (
+                <Select
+                  label="Flota"
+                  value={libre.fleetType}
+                  onChange={(e) => setLibre({ ...libre, fleetType: e.target.value as FleetType })}
+                  options={[{ value: 'OWN', label: 'Propia' }, { value: 'OUTSOURCED', label: 'Tercerizada' }]}
+                />
+              )}
+              {draft.partyId && (
+                <p className="text-[11px] text-slate-400">
+                  La flota la define la compañía elegida, no se teclea: es su única fuente de verdad.
+                </p>
+              )}
+            </>
+          )}
+
+          {/* Lo del día ────────────────────────────────────────────────────────────────── */}
+          <div className="border-t border-slate-200 pt-3">
+            <p className="text-[11px] text-slate-500 uppercase font-medium mb-2">Lo del día</p>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <Input label="Fecha" type="date" value={dia.quotedAt} onChange={(e) => setDia({ ...dia, quotedAt: e.target.value })} />
+              <Select
+                label="Servicio"
+                value={dia.serviceType}
+                onChange={(e) => setDia({ ...dia, serviceType: e.target.value as ServiceType })}
+                options={[
+                  { value: 'STANDARD', label: 'Estándar' },
+                  { value: 'EXPRESS', label: 'Express' },
+                  { value: 'DEDICATED', label: 'Dedicado' },
+                ]}
+              />
+              <Input label="Recolectas" type="number" value={dia.pickupCount} onChange={(e) => setDia({ ...dia, pickupCount: e.target.value })} />
+              <Input label="Minutos de atraso" type="number" value={dia.lateMinutes} onChange={(e) => setDia({ ...dia, lateMinutes: e.target.value })} />
+              <Input label="Incidentes" type="number" value={dia.incidentCount} onChange={(e) => setDia({ ...dia, incidentCount: e.target.value })} />
+            </div>
+          </div>
+
+          {/* Variables de la compañía ──────────────────────────────────────────────────── */}
+          {(customFields.length > 0 || constantes.length > 0) && (
+            <div className="border-t border-slate-200 pt-3">
+              <p className="text-[11px] text-slate-500 uppercase font-medium mb-2">
+                Variables de la compañía
+              </p>
+              {customFields.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {customFields.map((f) => (
+                    <Input
+                      key={f.key}
+                      label={f.unit ? `${f.label} (${f.unit})` : f.label}
+                      type={f.kind === 'NUMBER' ? 'number' : 'text'}
+                      value={customRaw[f.key] ?? ''}
+                      onChange={(e) => setCustomRaw({ ...customRaw, [f.key]: e.target.value })}
+                    />
+                  ))}
+                </div>
+              )}
+              {constantes.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {constantes.map((c) => (
+                    <span key={c.key} className="px-2 py-1 text-xs bg-slate-100 rounded-full text-slate-600">
+                      {c.label}: <strong>{c.defaultValue}</strong>
+                      <span className="text-slate-400 ml-1">fija de la compañía</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {problemas.length > 0 && (
+            <ul className="space-y-1">
+              {problemas.map((p) => (
+                <li
+                  key={p.code}
+                  className={`text-xs rounded-lg px-3 py-2 border ${
+                    p.blocking
+                      ? 'text-slate-600 bg-slate-50 border-slate-200'
+                      : 'text-amber-700 bg-amber-50 border-amber-200'
+                  }`}
+                >
+                  {p.message}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <p className="text-xs text-slate-400">
+            Acá no se emite nada: es el mismo cálculo que hará la liquidación, con los mismos datos.
+            La bifurcación nómina (flota propia) / cuentas por pagar (tercero) la deciden las reglas
+            condicionadas por flota, no un cálculo aparte.
+          </p>
         </div>
       </Card>
 
+      {/* ── El resultado ──────────────────────────────────────────────────────────────── */}
       <Card>
         <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
           <i className="ri-file-list-3-line text-teal-600"></i>
-          Resultado
+          ¿Por qué este total?
         </h3>
 
         {error && (
@@ -368,86 +728,74 @@ export default function RuleTester({ organizationId }: RuleTesterProps) {
           </div>
         )}
 
-        {!result && !error && <p className="text-sm text-slate-400">Completá los datos y hacé click en Calcular.</p>}
-
-        {result && (
-          <div className="space-y-4">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200">
-                    <th className="text-left py-2 font-semibold text-slate-600">Etapa</th>
-                    <th className="text-left py-2 font-semibold text-slate-600">Regla</th>
-                    <th className="text-right py-2 font-semibold text-slate-600">Monto</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.trace.map((line) => (
-                    <tr key={line.seq} className="border-b border-slate-100">
-                      <td className="py-2 text-slate-600">{STAGE_LABELS[line.stage] || line.stage}</td>
-                      <td className="py-2 text-slate-800">{line.label} <span className="text-xs text-slate-400">({line.ruleCode})</span></td>
-                      <td className="py-2 text-right font-medium text-slate-900">${line.final}</td>
-                    </tr>
-                  ))}
-                  {result.trace.length === 0 && (
-                    <tr><td colSpan={3} className="py-4 text-center text-slate-400">Ninguna regla activa aplica.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex justify-between items-center pt-3 border-t-2 border-teal-200">
-              <span className="font-bold text-slate-900">Total a liquidar al transportista</span>
-              <span className="text-xl font-bold text-teal-600">${result.totalLiquidado}</span>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2">
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-600">Costo operativo estimado ({result.cost.modelId})</span>
-                <span className="font-semibold text-slate-800">${result.cost.total}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-600">Margen vs. costo operativo</span>
-                <span className="flex items-center gap-2">
-                  <span className="font-semibold text-slate-800">${result.margin.amount} ({(Number(result.margin.pct) * 100).toFixed(1)}%)</span>
-                  <Badge variant={MARGIN_BADGE_VARIANT[result.margin.status]}>{MARGIN_STATUS_LABEL[result.margin.status]}</Badge>
-                </span>
-              </div>
-              {result.margin.action !== 'NONE' && (
-                <p className="text-xs text-amber-700">
-                  {result.margin.action === 'BLOCK'
-                    ? 'Esta combinación bloquearía la aprobación de una liquidación real (pérdida con blockOnLoss activo).'
-                    : 'Esta combinación exigiría un motivo para aprobar una liquidación real.'}
-                </p>
-              )}
-            </div>
-
-            {result.discarded.length > 0 && (
-              <div>
-                <h4 className="text-xs font-semibold text-slate-500 uppercase mb-2">Descartadas</h4>
-                <ul className="space-y-1">
-                  {result.discarded.map((d, i) => (
-                    <li key={i} className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-                      <span className="font-medium">{d.ruleCode}</span> ({d.reason}) — {d.detail}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+        {veredicto && result && (
+          <div
+            className={`mb-4 rounded-lg px-4 py-3 border text-sm ${
+              veredicto.verdict === 'OK'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : veredicto.verdict === 'MOVIO'
+                  ? 'bg-red-50 border-red-200 text-red-800'
+                  : 'bg-slate-50 border-slate-200 text-slate-600'
+            }`}
+          >
+            {veredicto.verdict === 'OK' && (
+              <>
+                <i className="ri-check-line mr-1"></i>
+                Este escenario sigue dando lo que declara:{' '}
+                <strong>{formatMoney(veredicto.expected!, result.currency)}</strong>.
+              </>
             )}
-
-            {result.warnings.length > 0 && (
-              <div>
-                <h4 className="text-xs font-semibold text-slate-500 uppercase mb-2">Avisos</h4>
-                <ul className="space-y-1">
-                  {result.warnings.map((w, i) => (
-                    <li key={i} className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">{w}</li>
-                  ))}
-                </ul>
+            {veredicto.verdict === 'MOVIO' && (
+              <>
+                <i className="ri-error-warning-line mr-1"></i>
+                El total se movió: esperaba <strong>{formatMoney(veredicto.expected!, result.currency)}</strong>{' '}
+                y da <strong>{formatMoney(veredicto.actual, result.currency)}</strong>{' '}
+                (diferencia {veredicto.drift}). Si el cambio es correcto, fijá el total nuevo.
+              </>
+            )}
+            {veredicto.verdict === 'SIN_ESPERADO' && (
+              <>Este escenario no declara un total esperado: no verifica nada todavía.</>
+            )}
+            {veredicto.verdict !== 'OK' && (
+              <div className="mt-2">
+                <Button variant="secondary" size="sm" onClick={() => void fijarEsperado()} disabled={guardando}>
+                  <i className="ri-bookmark-line mr-1"></i>
+                  Fijar {formatMoney(veredicto.actual, result.currency)} como el total esperado
+                </Button>
               </div>
             )}
           </div>
         )}
+
+        {!result && !error && (
+          <p className="text-sm text-slate-400">
+            {modo === 'ruta'
+              ? 'Elegí compañía y ruta para ver el desglose.'
+              : 'Completá el viaje para ver el desglose.'}
+          </p>
+        )}
+
+        {result && (
+          <CalcBreakdownPanel
+            result={result}
+            ctx={{
+              rules: catalog?.rules ?? [],
+              customLabels: Object.fromEntries(
+                [...customFields, ...constantes].map((f) => [f.key, f.label]),
+              ),
+            }}
+          />
+        )}
       </Card>
+    </div>
+  );
+}
+
+function Dato({ label, valor }: { label: string; valor: string }) {
+  return (
+    <div>
+      <span className="block text-slate-400">{label}</span>
+      <span className="text-slate-700 font-medium">{valor}</span>
     </div>
   );
 }

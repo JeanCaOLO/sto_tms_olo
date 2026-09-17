@@ -108,7 +108,6 @@ export default function AdhocRuleModal({ isOpen, onClose, onAdd, countryId }: Ad
       priority: 999,
       stacking,
       exclusionGroup: null,
-      currencyMode: 'REF',
       conditions: buildConditions(),
       expression: buildExpression(),
       isAdhoc: true,

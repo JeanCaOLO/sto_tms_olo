@@ -15,7 +15,10 @@ export function computeMargin(
   totalLiquidado: Decimal,
   costTotal: Decimal,
   policy: MarginPolicy,
-  country: Pick<Country, 'roundingDecimals' | 'roundingMode'>,
+  // Ambos importes llegan ya en la moneda LOCAL del país (ver `evaluator.ts` y `cost.ts`), así que
+  // la resta compara moneda contra la misma moneda. `localCurrency` solo se propaga al resultado
+  // para que la UI sepa cómo rotularlo.
+  country: Pick<Country, 'roundingDecimals' | 'roundingMode' | 'localCurrency'>,
 ): MarginResult {
   const amount = totalLiquidado.minus(costTotal);
   const pct = totalLiquidado.isZero() ? ZERO : amount.dividedBy(totalLiquidado);
@@ -40,5 +43,6 @@ export function computeMargin(
     pct: pct.toFixed(4),
     status,
     action,
+    currency: country.localCurrency,
   };
 }

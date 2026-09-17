@@ -11,20 +11,23 @@ import DeleteConfirmModal from './components/DeleteConfirmModal';
 import RuleTester from './components/RuleTester';
 import PlantillasTab from './components/PlantillasTab';
 import ResumenTab from './components/ResumenTab';
-import ZoneLaneRatesSection from './components/ZoneLaneRatesSection';
-import FxRatesSection from './components/FxRatesSection';
+import TarifariosTab from './components/TarifariosTab';
 import CostosTab from './components/CostosTab';
 import MargenPolicyTab from './components/MargenPolicyTab';
 import BitacoraTab from './components/BitacoraTab';
 import HelpButton from './components/HelpButton';
 import {
-  deleteRule, deleteZone, listCountries, listRules, listZoneGroups, listZones,
+  deleteRule, deleteZone, listRules, listZoneGroups, listZones,
 } from '../../lib/tarifas/localRulesDataSource';
 import { LIQUIDADOR_ROLES, obtenerRolActivo, establecerRolActivo, puede } from '../../lib/liquidador/rbac';
 import type { LiquidadorRole } from '../../lib/liquidador/rbac';
 import { registrarEvento } from '../../lib/liquidador/auditLog';
+import { listParties } from '../../lib/tarifas/partiesDataSource';
+import CountryScopeBar from '../../components/feature/CountryScopeBar';
+import { useActiveCountry } from '../../hooks/useActiveCountry';
+import type { SettlementPartyRow } from '../../lib/tarifas/parties';
 
-type Tab = 'reglas' | 'zonas' | 'costos' | 'margen' | 'plantillas' | 'resumen' | 'probador' | 'bitacora';
+type Tab = 'reglas' | 'zonas' | 'tarifarios' | 'costos' | 'margen' | 'plantillas' | 'resumen' | 'probador' | 'bitacora';
 
 export default function ReglasTarifaPage() {
   const { appUser } = useAuth();
@@ -37,7 +40,8 @@ export default function ReglasTarifaPage() {
     establecerRolActivo(rol);
   };
 
-  const [countries, setCountries] = useState<any[]>([]);
+  // País activo: el ámbito global del módulo. Reemplaza a los selectores que tenía cada pestaña.
+  const { countries, country: activeCountry, countryId, loading: loadingCountries, setCountry } = useActiveCountry();
 
   // --- Reglas ---
   const [rules, setRules] = useState<any[]>([]);
@@ -48,6 +52,8 @@ export default function ReglasTarifaPage() {
   const [ruleDeleteError, setRuleDeleteError] = useState('');
   const [ruleSearch, setRuleSearch] = useState('');
   const [ruleStageFilter, setRuleStageFilter] = useState('all');
+  const [ruleScopeFilter, setRuleScopeFilter] = useState('all');
+  const [parties, setParties] = useState<SettlementPartyRow[]>([]);
 
   // --- Zonas ---
   const [zones, setZones] = useState<any[]>([]);
@@ -60,20 +66,16 @@ export default function ReglasTarifaPage() {
 
   useEffect(() => {
     if (appUser?.organization_id) {
-      loadCountries();
       loadRules();
       loadZones();
       loadZoneGroups();
     }
   }, [appUser?.organization_id]);
 
-  const loadCountries = async () => {
-    setCountries(await listCountries(appUser?.organization_id || ''));
-  };
-
   const loadRules = async () => {
     try {
       setLoadingRules(true);
+      setParties(await listParties({ includeInactive: true }));
       setRules(await listRules(appUser?.organization_id || ''));
     } catch (error) {
       console.error('Error cargando reglas:', error);
@@ -153,17 +155,83 @@ export default function ReglasTarifaPage() {
     }
   };
 
-  const filteredRules = rules.filter((r) => {
+  const partyName = (id: string | null) => parties.find((p) => p.id === id)?.name ?? id ?? '';
+
+  // Acotado al país activo. Las reglas SIN país son globales: aplican también acá, así que se
+  // muestran — esconderlas daría una lista incompleta de lo que va a correr al liquidar.
+  const countryRules = rules.filter((r) => !r.country_id || r.country_id === countryId);
+  const countryZones = zones.filter((z) => z.country_id === countryId);
+  const countryZoneGroups = zoneGroups.filter((g) => g.country_id === countryId);
+
+  // Códigos de país que alguna compañía sobrescribe: sirve para marcar en la lista la regla de país
+  // que quedó reemplazada y la de compañía que la reemplaza.
+  const overriddenCountryCodes = new Set(
+    countryRules.filter((r) => r.scope === 'PARTY').map((r) => r.code),
+  );
+
+  const filteredRules = countryRules.filter((r) => {
     const matchesSearch = !ruleSearch
       || r.code?.toLowerCase().includes(ruleSearch.toLowerCase())
-      || r.name?.toLowerCase().includes(ruleSearch.toLowerCase());
+      || r.name?.toLowerCase().includes(ruleSearch.toLowerCase())
+      || partyName(r.party_id).toLowerCase().includes(ruleSearch.toLowerCase())
+      || (r.description ?? '').toLowerCase().includes(ruleSearch.toLowerCase());
     const matchesStage = ruleStageFilter === 'all' || r.stage === ruleStageFilter;
-    return matchesSearch && matchesStage;
+    const matchesScope =
+      ruleScopeFilter === 'all'
+        ? true
+        : ruleScopeFilter === 'COUNTRY'
+          ? r.scope !== 'PARTY'
+          : r.party_id === ruleScopeFilter;
+    return matchesSearch && matchesStage && matchesScope;
   });
 
   const stackingBadge = (stacking: string) => {
     const variant = stacking === 'EXCLUSIVE' ? 'warning' : stacking === 'MAX' ? 'info' : 'default';
     return <Badge variant={variant}>{stacking}</Badge>;
+  };
+
+  // Vigencia contra HOY, que es distinto de la vigencia que usa el motor (esa se mide contra la
+  // fecha del viaje). Acá solo sirve para que se vea de un vistazo cuál ya venció y cuál todavía no
+  // empezó — una regla vencida sigue liquidando correctamente los viajes de su período.
+  const vigenciaBadge = (rule: any) => {
+    const desde: string | null = rule.effective_from || null;
+    const hasta: string | null = rule.effective_to || null;
+    if (!desde && !hasta) return <span className="text-xs text-slate-400">Sin límite</span>;
+
+    const hoy = new Date().toISOString().slice(0, 10);
+    const estado = hasta && hoy > hasta ? 'vencida' : desde && hoy < desde ? 'futura' : 'vigente';
+
+    return (
+      <div className="flex flex-col items-start gap-0.5">
+        <Badge variant={estado === 'vigente' ? 'success' : estado === 'vencida' ? 'default' : 'info'}>
+          {estado === 'vigente' ? 'Vigente' : estado === 'vencida' ? 'Vencida' : 'Futura'}
+        </Badge>
+        <span className="text-[11px] text-slate-500 whitespace-nowrap">
+          {desde ?? '…'} → {hasta ?? '…'}
+        </span>
+      </div>
+    );
+  };
+
+  // Tres estados posibles, que es todo lo que el modelo de alcance permite:
+  // - de país y nadie la pisa  -> la heredan todas las compañías
+  // - de país y alguien la pisa -> sigue valiendo para el resto, pero no para esa compañía
+  // - de compañía              -> propia, o sobrescribe la de país con el mismo código
+  const scopeBadge = (rule: any) => {
+    if (rule.scope !== 'PARTY') {
+      return overriddenCountryCodes.has(rule.code)
+        ? <Badge variant="warning">Heredada (sobrescrita)</Badge>
+        : <Badge variant="default">Heredada</Badge>;
+    }
+    const sobrescribe = rules.some((r) => r.scope !== 'PARTY' && r.code === rule.code);
+    return (
+      <div className="flex flex-col items-start gap-0.5">
+        <Badge variant={sobrescribe ? 'warning' : 'info'}>
+          {sobrescribe ? 'Sobrescribe' : 'Propia'}
+        </Badge>
+        <span className="text-[11px] text-slate-500">{partyName(rule.party_id)}</span>
+      </div>
+    );
   };
 
   return (
@@ -222,6 +290,13 @@ export default function ReglasTarifaPage() {
         </div>
       </div>
 
+      <CountryScopeBar
+        countries={countries}
+        country={activeCountry}
+        onChange={setCountry}
+        loading={loadingCountries}
+      />
+
       <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-3">
         <i className="ri-shield-user-line mt-0.5 shrink-0"></i>
         <span>
@@ -243,6 +318,12 @@ export default function ReglasTarifaPage() {
           className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'zonas' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
         >
           Zonas
+        </button>
+        <button
+          onClick={() => setActiveTab('tarifarios')}
+          className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'tarifarios' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+        >
+          Tarifarios
         </button>
         <button
           onClick={() => setActiveTab('costos')}
@@ -306,6 +387,17 @@ export default function ReglasTarifaPage() {
                   ]}
                 />
               </div>
+              <div className="w-full md:w-64">
+                <Select
+                  value={ruleScopeFilter}
+                  onChange={(e) => setRuleScopeFilter(e.target.value)}
+                  options={[
+                    { value: 'all', label: 'Todos los alcances' },
+                    { value: 'COUNTRY', label: 'Solo reglas de país' },
+                    ...parties.map((p) => ({ value: p.id, label: `Solo ${p.name}` })),
+                  ]}
+                />
+              </div>
             </div>
 
             {loadingRules ? (
@@ -329,9 +421,11 @@ export default function ReglasTarifaPage() {
                     <tr className="border-b border-slate-200">
                       <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Código</th>
                       <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Nombre</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Alcance</th>
                       <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Etapa</th>
                       <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Competencia</th>
                       <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Prioridad</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Vigencia</th>
                       <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Estado</th>
                       <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Acciones</th>
                     </tr>
@@ -340,10 +434,20 @@ export default function ReglasTarifaPage() {
                     {filteredRules.map((rule) => (
                       <tr key={rule.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                         <td className="py-3 px-4 font-mono text-sm text-teal-700">{rule.code}</td>
-                        <td className="py-3 px-4 text-sm text-slate-800">{rule.name}</td>
+                        <td className="py-3 px-4 text-sm text-slate-800">
+                          <div>{rule.name}</div>
+                          {rule.description && (
+                            <div className="text-xs text-slate-500 mt-0.5 max-w-md">{rule.description}</div>
+                          )}
+                          {rule.reason && (
+                            <div className="text-[11px] text-slate-400 mt-0.5 italic">Motivo: {rule.reason}</div>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">{scopeBadge(rule)}</td>
                         <td className="py-3 px-4 text-sm text-slate-600">{rule.stage}</td>
                         <td className="py-3 px-4">{stackingBadge(rule.stacking)}</td>
                         <td className="py-3 px-4 text-sm text-slate-600">{rule.priority}</td>
+                        <td className="py-3 px-4">{vigenciaBadge(rule)}</td>
                         <td className="py-3 px-4">
                           <Badge variant={rule.active ? 'success' : 'default'}>{rule.active ? 'Activa' : 'Inactiva'}</Badge>
                         </td>
@@ -384,7 +488,7 @@ export default function ReglasTarifaPage() {
             <div className="text-center py-14 text-slate-500">
               <i className="ri-loader-4-line animate-spin text-2xl"></i>
             </div>
-          ) : zones.length === 0 ? (
+          ) : countryZones.length === 0 ? (
             <div className="text-center py-14">
               <div className="w-16 h-16 flex items-center justify-center bg-slate-100 rounded-full mx-auto mb-4">
                 <i className="ri-map-pin-line text-2xl text-slate-400"></i>
@@ -408,7 +512,7 @@ export default function ReglasTarifaPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {zones.map((zone) => (
+                  {countryZones.map((zone) => (
                     <tr key={zone.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                       <td className="py-3 px-4 font-mono text-sm text-teal-700">{zone.code}</td>
                       <td className="py-3 px-4 text-sm text-slate-800">{zone.name}</td>
@@ -444,25 +548,31 @@ export default function ReglasTarifaPage() {
             </div>
           )}
         </Card>
-        <ZoneLaneRatesSection organizationId={appUser?.organization_id || ''} zones={zones} />
-        <FxRatesSection organizationId={appUser?.organization_id || ''} countries={countries} />
         </div>
       )}
 
+      {activeTab === 'tarifarios' && (
+        <TarifariosTab
+          countryId={countryId}
+          currency={activeCountry?.local_currency}
+          zones={countryZones}
+        />
+      )}
+
       {activeTab === 'costos' && (
-        <CostosTab organizationId={appUser?.organization_id || ''} countries={countries} />
+        <CostosTab organizationId={appUser?.organization_id || ''} country={activeCountry} />
       )}
 
       {activeTab === 'margen' && (
-        <MargenPolicyTab organizationId={appUser?.organization_id || ''} countries={countries} />
+        <MargenPolicyTab organizationId={appUser?.organization_id || ''} countryId={countryId} />
       )}
 
       {activeTab === 'plantillas' && (
-        <PlantillasTab organizationId={appUser?.organization_id || ''} countries={countries} zones={zones} />
+        <PlantillasTab organizationId={appUser?.organization_id || ''} countryId={countryId} zones={zones} />
       )}
 
       {activeTab === 'resumen' && (
-        <ResumenTab organizationId={appUser?.organization_id || ''} countries={countries} zones={zones} />
+        <ResumenTab organizationId={appUser?.organization_id || ''} countryId={countryId} />
       )}
 
       {activeTab === 'probador' && (
@@ -477,7 +587,7 @@ export default function ReglasTarifaPage() {
         onSuccess={loadRules}
         rule={selectedRule}
         organizationId={appUser?.organization_id || ''}
-        countries={countries}
+        country={activeCountry}
         rolActivo={rolActivo}
         usuarioActivo={usuarioActivo}
       />
@@ -488,8 +598,8 @@ export default function ReglasTarifaPage() {
         onSuccess={loadZones}
         zone={selectedZone}
         organizationId={appUser?.organization_id || ''}
-        countries={countries}
-        zoneGroups={zoneGroups}
+        countryId={countryId}
+        zoneGroups={countryZoneGroups}
         rolActivo={rolActivo}
         usuarioActivo={usuarioActivo}
       />

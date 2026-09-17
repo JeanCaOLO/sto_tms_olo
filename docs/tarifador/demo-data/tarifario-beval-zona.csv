@@ -1,0 +1,6 @@
+Zona Origen;Zona Destino;Tarifa
+CCS;CAR;380,00
+CCS;ZUL;600,00
+CAR;ZUL;500,00
+ZUL;CAR;500,00
+CAR;CCS;380,00

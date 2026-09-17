@@ -21,7 +21,17 @@ export const navItems: NavItem[] = [
   { icon: 'ri-file-text-line', label: 'Guías de Despacho', path: '/guias' },
   { icon: 'ri-map-pin-add-line', label: 'Planificación', path: '/planificacion' },
   { icon: 'ri-map-pin-line', label: 'Tracking', path: '/tracking' },
-  { icon: 'ri-money-dollar-circle-line', label: 'Tarifas', path: '/liquidaciones' },
+  {
+    type: 'group',
+    icon: 'ri-money-dollar-circle-line',
+    label: 'Tarifas',
+    children: [
+      { icon: 'ri-money-dollar-circle-line', label: 'Liquidaciones', path: '/liquidaciones' },
+      { icon: 'ri-home-gear-line', label: 'Flota Propia', path: '/tarifas/flota-propia' },
+      { icon: 'ri-truck-line', label: 'Flota Externa', path: '/tarifas/transportistas' },
+      { icon: 'ri-price-tag-3-line', label: 'Reglas de Tarifa', path: '/reglas-tarifa' },
+    ],
+  },
   {
     type: 'group',
     icon: 'ri-scales-3-line',

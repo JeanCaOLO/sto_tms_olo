@@ -13,13 +13,14 @@ interface ZoneModalProps {
   onSuccess: () => void;
   zone?: any;
   organizationId: string;
-  countries: { id: string; name: string }[];
+  /** País activo del módulo: toda zona nueva nace en él. */
+  countryId: string;
   zoneGroups: { id: string; name: string }[];
   rolActivo: LiquidadorRole;
   usuarioActivo: string;
 }
 
-export default function ZoneModal({ isOpen, onClose, onSuccess, zone, organizationId, countries, zoneGroups, rolActivo, usuarioActivo }: ZoneModalProps) {
+export default function ZoneModal({ isOpen, onClose, onSuccess, zone, organizationId, countryId, zoneGroups, rolActivo, usuarioActivo }: ZoneModalProps) {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [formData, setFormData] = useState({
@@ -42,7 +43,7 @@ export default function ZoneModal({ isOpen, onClose, onSuccess, zone, organizati
           status: zone.status || 'active',
         });
       } else {
-        setFormData({ code: '', name: '', country_id: countries[0]?.id ?? '', zone_group_id: '', status: 'active' });
+        setFormData({ code: '', name: '', country_id: countryId, zone_group_id: '', status: 'active' });
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -151,13 +152,6 @@ export default function ZoneModal({ isOpen, onClose, onSuccess, zone, organizati
             required
           />
 
-          <Select
-            label="País *"
-            value={formData.country_id}
-            onChange={(e) => setFormData({ ...formData, country_id: e.target.value })}
-            options={[{ value: '', label: 'Elegir...' }, ...countries.map((c) => ({ value: c.id, label: c.name }))]}
-            required
-          />
 
           <Select
             label="Grupo de zona"
