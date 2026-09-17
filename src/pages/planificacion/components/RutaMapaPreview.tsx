@@ -4,6 +4,7 @@ import type { Map as LeafletMap } from 'leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import ParadaDetalleModal from './ParadaDetalleModal';
+import PedidosAsignadosModal from './PedidosAsignadosModal';
 import { obtenerGeometriaRutaPorLeg, type Leg } from '../route-geometry';
 import type { PedidoSeleccionado } from '../types';
 
@@ -26,18 +27,28 @@ const tieneCoordenadas = (p: PedidoSeleccionado): p is ParadaUbicada =>
 
 const ENTREGA_COLOR = '#0d9488'; // teal
 const DEVOLUCION_COLOR = '#4f46e5'; // indigo
+const COMPARTIDA_COLOR = '#d97706'; // ámbar: parada con 2+ pedidos
 
-const iconoParada = (numero: number, tipo?: 'entrega' | 'devolucion') =>
-  L.divIcon({
+// `count` = nº de pedidos en esta parada. >1 (parada compartida) se pinta ámbar
+// con un badge con la cantidad, para que se note en el mapa.
+const iconoParada = (numero: number, tipo?: 'entrega' | 'devolucion', count = 1) => {
+  const fondo = count > 1 ? COMPARTIDA_COLOR : tipo === 'devolucion' ? DEVOLUCION_COLOR : ENTREGA_COLOR;
+  const badge =
+    count > 1
+      ? `<div style="position:absolute;top:-7px;right:-7px;min-width:16px;height:16px;padding:0 3px;border-radius:9999px;
+          background:#f59e0b;color:#fff;font-size:9px;font-weight:700;border:2px solid #fff;
+          display:flex;align-items:center;justify-content:center;">${count}</div>`
+      : '';
+  return L.divIcon({
     className: '',
-    html: `<div style="
-      width:24px;height:24px;border-radius:9999px;background:${tipo === 'devolucion' ? DEVOLUCION_COLOR : ENTREGA_COLOR};color:#fff;
-      display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;
-      border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.4);
-    ">${numero}</div>`,
+    html: `<div style="position:relative;width:24px;height:24px;">
+      <div style="width:24px;height:24px;border-radius:9999px;background:${fondo};color:#fff;
+        display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;
+        border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.4);">${numero}</div>${badge}</div>`,
     iconSize: [24, 24],
     iconAnchor: [12, 12],
   });
+};
 
 // Leyenda (control Leaflet, bottomleft). BR1.4: el mapa distingue devolución
 // por color + patrón de línea + esta leyenda textual. Se oculta si no hay
@@ -101,8 +112,18 @@ export default function RutaMapaPreview({ pedidos, alturaClase = 'h-[240px]', pa
       })),
     [paradas],
   );
+  // Agrupa las paradas por coordenada: 2+ pedidos en el mismo punto = una sola
+  // parada compartida (se marca distinto y el click muestra todos sus pedidos).
+  const grupos = useMemo(() => {
+    const m = new Map<string, ParadaUbicada[]>();
+    for (const p of paradas) {
+      const key = `${p.delivery_latitude},${p.delivery_longitude}`;
+      (m.get(key) ?? m.set(key, []).get(key)!).push(p);
+    }
+    return [...m.entries()].map(([key, peds]) => ({ key, peds, numero: peds[0].stop_number }));
+  }, [paradas]);
   const [legs, setLegs] = useState<Leg[]>(legsRectos);
-  const [seleccionado, setSeleccionado] = useState<PedidoSeleccionado | null>(null);
+  const [grupoSel, setGrupoSel] = useState<ParadaUbicada[] | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
 
   // BR1.3: un leg es "de recolección" si su parada de origen o destino es
@@ -155,19 +176,28 @@ export default function RutaMapaPreview({ pedidos, alturaClase = 'h-[240px]', pa
             <Polyline key={`${leg.fromStopNumber}-${leg.toStopNumber}-${i}`} positions={leg.coords} pathOptions={{ color: ENTREGA_COLOR, weight: 3, opacity: 0.7 }} />
           ),
         )}
-        {paradas.map((p) => (
+        {grupos.map((g) => (
           <Marker
-            key={p.id}
-            position={[p.delivery_latitude, p.delivery_longitude]}
-            icon={iconoParada(p.stop_number, p.tipo)}
-            eventHandlers={{ click: () => setSeleccionado(p) }}
+            key={g.key}
+            position={[g.peds[0].delivery_latitude, g.peds[0].delivery_longitude]}
+            icon={iconoParada(g.numero, g.peds[0].tipo, g.peds.length)}
+            eventHandlers={{ click: () => setGrupoSel(g.peds) }}
           />
         ))}
         <AjustarBounds paradas={paradas} />
         <EnfocarParada paradas={paradas} paradaId={paradaEnfocadaId} />
         <Leyenda visible={hayDevolucion} />
       </MapContainer>
-      {seleccionado && <ParadaDetalleModal pedido={seleccionado} onClose={() => setSeleccionado(null)} />}
+      {grupoSel && grupoSel.length === 1 && (
+        <ParadaDetalleModal pedido={grupoSel[0]} onClose={() => setGrupoSel(null)} />
+      )}
+      {grupoSel && grupoSel.length > 1 && (
+        <PedidosAsignadosModal
+          titulo={`Parada compartida — ${grupoSel.length} pedidos`}
+          pedidos={grupoSel}
+          onClose={() => setGrupoSel(null)}
+        />
+      )}
     </div>
   );
 }

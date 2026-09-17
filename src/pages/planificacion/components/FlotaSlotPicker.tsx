@@ -2,19 +2,29 @@ import { useState } from 'react';
 import Button from '../../../components/base/Button';
 import Select from '../../../components/base/Select';
 import type { Conductor, Vehiculo } from '../types';
-import { marcaModelo, type FlotaSlot } from '../fleet-split';
+import { marcaModelo, type FlotaSlot, type ResultadoReparto } from '../fleet-split';
 
 interface Props {
   vehiculos: Vehiculo[];
   conductores: Conductor[];
   slots: FlotaSlot[];
+  resultado?: ResultadoReparto | null;
   onAdd: (slot: FlotaSlot) => void;
   onRemove: (index: number) => void;
 }
 
-export default function FlotaSlotPicker({ vehiculos, conductores, slots, onAdd, onRemove }: Props) {
+export default function FlotaSlotPicker({ vehiculos, conductores, slots, resultado, onAdd, onRemove }: Props) {
   const [vehiculoId, setVehiculoId] = useState('');
   const [conductorId, setConductorId] = useState('');
+
+  // Capacidad del vehículo + % que ocupan sus pedidos asignados (tras repartir).
+  const ocupacion = (v: Vehiculo): string => {
+    const asig = resultado?.asignaciones.find((a) => a.slot.vehiculo.id === v.id);
+    const cap = v.capacity_weight ? `${v.capacity_weight.toLocaleString('es')} kg` : 'sin capacidad';
+    if (!asig || !v.capacity_weight) return cap;
+    const peso = asig.pedidos.reduce((s, p) => s + (p.total_weight || 0), 0);
+    return `${cap} · ${Math.round((peso / v.capacity_weight) * 100)}%`;
+  };
 
   const disponibles = vehiculos.filter((v) => !slots.some((s) => s.vehiculo.id === v.id));
   // El conductor pertenece al mismo transportista que el vehículo: al elegir
@@ -60,6 +70,7 @@ export default function FlotaSlotPicker({ vehiculos, conductores, slots, onAdd, 
                 <i className="ri-truck-line mr-1.5 text-slate-400"></i>
                 {slot.vehiculo.plate} — {marcaModelo(slot.vehiculo)}
                 {slot.conductorId && ` · ${conductores.find((c) => c.id === slot.conductorId)?.full_name || ''}`}
+                <span className="text-slate-400"> · {ocupacion(slot.vehiculo)}</span>
               </span>
               <button onClick={() => onRemove(i)} className="text-slate-400 hover:text-red-600 cursor-pointer">
                 <i className="ri-close-line"></i>
