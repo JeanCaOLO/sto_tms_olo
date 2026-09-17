@@ -89,7 +89,7 @@ export default function FlotaSplitTab({ rutas, vehiculos, conductores, viajes, o
 
         <FlotaSlotPicker vehiculos={vehiculos} conductores={conductores} slots={slots} resultado={resultado} onAdd={addSlot} onRemove={removeSlot} />
 
-        <div className="flex gap-3 mt-4">
+        <div className="flex flex-wrap gap-3 mt-4">
           <Button variant="secondary" onClick={calcularReparto} disabled={slots.length === 0 || pool.length === 0}>
             <i className="ri-refresh-line mr-1"></i>Calcular Reparto
           </Button>
