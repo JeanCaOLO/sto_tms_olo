@@ -13,6 +13,7 @@ import { omsApi } from '../api/omsApi';
 import { queueOrders } from '../mockData';
 import {
   APPLY_MODE_LABEL, SITUATION_OPTIONS,
+  companyOptions,
   type ApplyMode, type Company, type EngineRule, type OrderSituation,
   type QueueOrder, type Simulation, type SimulationExecution,
 } from '../types';
@@ -113,7 +114,7 @@ export default function OmsSimuladorPage() {
               label="Compañía"
               value={companyId}
               onChange={(e) => setCompanyId(e.target.value)}
-              options={companies.map((c) => ({ value: c.id, label: c.name }))}
+              options={companyOptions(companies)}
             />
           </div>
           <Button icon={<i className="ri-add-line"></i>} onClick={openNew} disabled={loading || companyRules.length === 0}>

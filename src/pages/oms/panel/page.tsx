@@ -2,7 +2,7 @@ import Card from '../../../components/base/Card';
 import Badge from '../../../components/base/Badge';
 import Select from '../../../components/base/Select';
 import StatCard from '../../../components/feature/StatCard';
-import { TIER_LABEL, type PriorityTier } from '../types';
+import { TIER_LABEL, companyOptions, type PriorityTier } from '../types';
 import { usePanelController } from './usePanelController';
 
 // Colores por tier para la distribución (paleta del design system, tema claro).
@@ -33,7 +33,7 @@ export default function OmsPanelPage() {
             label="Compañía"
             value={company}
             onChange={(e) => setCompany(e.target.value)}
-            options={companies.map((c) => ({ value: c.id, label: c.name }))}
+            options={companyOptions(companies)}
           />
         </div>
       </div>

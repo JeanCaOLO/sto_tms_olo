@@ -5,7 +5,7 @@ import Select from '../../../components/base/Select';
 import ViewToggle from '../components/ViewToggle';
 import { useOmsView } from '../useOmsView';
 import { omsApi } from '../api/omsApi';
-import { TIER_LABEL } from '../types';
+import { TIER_LABEL, companyOptions } from '../types';
 import type { AuditEntry, Company, Country } from '../types';
 
 const tierChange = (e: AuditEntry) =>
@@ -56,7 +56,7 @@ export default function OmsAuditoriaPage() {
             label="Compañía"
             value={company}
             onChange={(e) => setCompany(e.target.value)}
-            options={companies.map((c) => ({ value: c.id, label: c.name }))}
+            options={companyOptions(companies)}
           />
         </div>
       </div>

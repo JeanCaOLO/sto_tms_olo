@@ -124,7 +124,24 @@ export interface EngineRule {
 export interface Company {
   id: string;
   name: string;
+  hidden?: boolean; // oculta del selector (no seleccionable), sin borrar el registro
 }
+
+// Etiqueta canónica de compañía para los selectores del OMS: "código - nombre"
+// (p. ej. "0109 - Cofersa"). Única fuente para que todas las vistas coincidan.
+export const companyLabel = (c: Company): string => `${c.id} - ${c.name}`;
+
+// Opciones del selector de compañía, iguales en todas las vistas del OMS.
+// Excluye las marcadas como ocultas (no seleccionables por ahora).
+export const companyOptions = (companies: Company[]) =>
+  companies.filter((c) => !c.hidden).map((c) => ({ value: c.id, label: companyLabel(c) }));
+
+// Etiqueta "código - nombre" a partir del código, resolviendo el nombre contra
+// el catálogo. Si el código no está en el catálogo, cae al propio código.
+export const companyLabelById = (id: string, companies: Company[]): string => {
+  const c = companies.find((x) => x.id === id);
+  return c ? companyLabel(c) : id;
+};
 
 // FR7 — registro de auditoría de priorización.
 export interface AuditEntry {
