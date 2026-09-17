@@ -30,7 +30,17 @@ export function AmbosSwatch() {
 
 // Celda de día COFERSA: X verde = carga, X roja = entrega, cuadro diagonal =
 // ambos el mismo día, · gris = sin actividad (incluye filas de cita previa).
-function DiaCell({ estado }: { estado: Row[string] }) {
+function DiaCell({ estado, dia }: { estado: Row[string]; dia?: string }) {
+  if (estado === 'sale') {
+    return (
+      <span
+        className="inline-flex w-6 h-6 items-center justify-center rounded-full bg-teal-100 text-teal-600"
+        aria-label={dia ? `Sale ${dia}` : 'Sale ese día'}
+      >
+        <i className="ri-check-line text-sm"></i>
+      </span>
+    );
+  }
   if (estado === 'carga') {
     return (
       <span className="text-green-600 font-bold" title="Día de carga" aria-label="Carga">
@@ -115,7 +125,7 @@ export default function DataMatrix({ caption, columns, rows, pageSize, resetKey 
                     } ${c.grow ? 'max-w-[22rem] truncate' : 'whitespace-nowrap'}`}
                   >
                     {c.kind === 'dia' ? (
-                      <DiaCell estado={row[c.key]} />
+                      <DiaCell estado={row[c.key]} dia={c.label} />
                     ) : c.key === 'zona' && row.citaPrevia ? (
                       <span className="inline-flex items-center gap-2">
                         {cell(row[c.key])}

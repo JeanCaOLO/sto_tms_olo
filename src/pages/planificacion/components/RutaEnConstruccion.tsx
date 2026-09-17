@@ -49,7 +49,7 @@ export default function RutaEnConstruccion({
       <div className="flex items-center justify-between mb-4 flex-shrink-0 gap-2">
         <h2 className="text-lg font-semibold text-slate-800">
           <i className="ri-route-line mr-2"></i>
-          Ruta en Construcción
+          Secuencia en Construcción
         </h2>
         <div className="flex items-center gap-2">
           <Badge variant="warning">{pedidosSeleccionados.length} paradas</Badge>

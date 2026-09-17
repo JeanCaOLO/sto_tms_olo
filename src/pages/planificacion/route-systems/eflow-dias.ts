@@ -28,7 +28,7 @@ export async function cargarRutasDias(): Promise<Row[]> {
     for (const k of DIA_KEYS) row[k] = null; // días sin actividad por defecto
     for (const id of String(r.day_ids ?? '').split(',')) {
       const col = DIA_COL[Number(id)];
-      if (col) row[col] = 'ambos'; // la ruta corre ese día (carga y entrega)
+      if (col) row[col] = 'sale'; // la ruta sale ese día (check verde)
     }
     return row;
   });
