@@ -1,6 +1,7 @@
 import type { Conductor, Pedido, RutaTipo, Transportista, Vehiculo, Viaje } from './types';
 import { getFallbackPedidos } from './fallback-pedidos';
 import { geocodeCliente } from './geocode';
+import { demoCatalogos, demoCompanias, demoPedidosDeViaje, demoViajes } from './demo';
 import {
   mapConductor,
   mapPedido,
@@ -61,6 +62,15 @@ export const setCompania = (c: string): void => {
   companiaActual = c;
 };
 
+// Modo demo: cuando está ON, todo el módulo se alimenta de datos de prueba
+// perfectos (demo.ts / demo-data.json) en vez de EFLOW. No se persiste: arranca
+// apagado en cada carga.
+let demoActual = false;
+export const getDemo = (): boolean => demoActual;
+export const setDemo = (v: boolean): void => {
+  demoActual = v;
+};
+
 // Agrega ?pais= (y &company= si hay compañía activa) al path.
 function conPais(path: string): string {
   const sep = path.includes('?') ? '&' : '?';
@@ -83,6 +93,7 @@ async function getJson<T>(path: string): Promise<T> {
 // --- Fetchers with graceful mock fallback ----------------------------------
 
 export async function fetchViajes(): Promise<Viaje[]> {
+  if (demoActual) return demoViajes(paisActual, companiaActual);
   const rows = await getJson<ViajeRow[]>('/api/viajes?limit=100');
   return rows.map(mapViaje); // pedidos se cargan al elegir el viaje
 }
@@ -99,6 +110,7 @@ function conGeocode(p: Pedido): Pedido {
 }
 
 export async function fetchPedidosDeViaje(viajeId: string, routeTypeId: string): Promise<Pedido[]> {
+  if (demoActual) return demoPedidosDeViaje(paisActual, companiaActual, viajeId);
   try {
     const rows = await getJson<PedidoRow[]>(`/api/viajes/${viajeId}/pedidos`);
     return rows.length ? rows.map((r) => conGeocode(mapPedido(r, routeTypeId))) : getFallbackPedidos(routeTypeId);
@@ -109,15 +121,19 @@ export async function fetchPedidosDeViaje(viajeId: string, routeTypeId: string):
 }
 
 export async function fetchRutas(fallback: RutaTipo[]): Promise<RutaTipo[]> {
+  if (demoActual) return demoCatalogos(paisActual, companiaActual).rutas;
   return listOrFallback('/api/catalogos/rutas', mapRuta, fallback);
 }
 export async function fetchTransportistas(fallback: Transportista[]): Promise<Transportista[]> {
+  if (demoActual) return demoCatalogos(paisActual, companiaActual).transportistas;
   return listOrFallback('/api/catalogos/transportistas', mapTransportista, fallback);
 }
 export async function fetchConductores(fallback: Conductor[]): Promise<Conductor[]> {
+  if (demoActual) return demoCatalogos(paisActual, companiaActual).conductores;
   return listOrFallback('/api/catalogos/conductores', mapConductor, fallback);
 }
 export async function fetchVehiculos(fallback: Vehiculo[]): Promise<Vehiculo[]> {
+  if (demoActual) return demoCatalogos(paisActual, companiaActual).vehiculos;
   return listOrFallback('/api/catalogos/vehiculos', mapVehiculo, fallback);
 }
 
@@ -140,6 +156,7 @@ export interface Compania {
   name: string;
 }
 export async function fetchCompanias(fallback: Compania[]): Promise<Compania[]> {
+  if (demoActual) return demoCompanias(paisActual);
   try {
     const rows = await getJson<{ id: string; name: string | null; trips: number }[]>('/api/catalogos/companias');
     return rows.length ? rows.map((r) => ({ id: r.id, name: r.name || r.id })) : fallback;

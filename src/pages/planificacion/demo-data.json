@@ -1,0 +1,190 @@
+{
+  "cr": {
+    "companias": [{ "id": "0109", "name": "COFERSA" }],
+    "0109": {
+      "rutas": [
+        { "id": "eflow-rt-01", "name": "01 · CASCO CENTRAL" },
+        { "id": "eflow-rt-02", "name": "02 · HEREDIA NORTE" },
+        { "id": "eflow-rt-03", "name": "03 · CARTAGO ESTE" }
+      ],
+      "transportistas": [
+        { "id": "eflow-car-1", "name": "Transportes Valle Central S.A." },
+        { "id": "eflow-car-2", "name": "Distribución Rápida CR S.R.L." },
+        { "id": "eflow-car-3", "name": "COFERSA Flota Propia" }
+      ],
+      "conductores": [
+        { "id": "eflow-drv-1", "full_name": "Luis Diego Solórzano Gómez", "document": "1-1204-0699", "carrier_id": "eflow-car-1" },
+        { "id": "eflow-drv-2", "full_name": "Gerardo Alonso Durán Alfaro", "document": "2-0540-0666", "carrier_id": "eflow-car-1" },
+        { "id": "eflow-drv-3", "full_name": "Marta Elena Vargas Salazar", "document": "1-0896-0212", "carrier_id": "eflow-car-2" },
+        { "id": "eflow-drv-4", "full_name": "Federico José Ulloa Umaña", "document": "6-0173-0907", "carrier_id": "eflow-car-2" },
+        { "id": "eflow-drv-5", "full_name": "Diego Ricardo Sánchez Mora", "document": "3-0459-0128", "carrier_id": "eflow-car-3" }
+      ],
+      "vehiculos": [
+        { "id": "eflow-veh-1", "plate": "CL1201", "brand": "Isuzu", "model": "NPR", "vehicle_type": "Camión liviano", "capacity_weight": 4500, "capacity_volume": 20, "carrier_id": "eflow-car-1" },
+        { "id": "eflow-veh-2", "plate": "CL1202", "brand": "KIA", "model": "Bongo", "vehicle_type": "Camión pequeño", "capacity_weight": 2500, "capacity_volume": 12, "carrier_id": "eflow-car-1" },
+        { "id": "eflow-veh-3", "plate": "C1203", "brand": "Freightliner", "model": "M2 106", "vehicle_type": "Camión pesado", "capacity_weight": 12000, "capacity_volume": 45, "carrier_id": "eflow-car-2" },
+        { "id": "eflow-veh-4", "plate": "CL1204", "brand": "Hyundai", "model": "HD65", "vehicle_type": "Camión liviano", "capacity_weight": 3500, "capacity_volume": 16, "carrier_id": "eflow-car-2" },
+        { "id": "eflow-veh-5", "plate": "C1205", "brand": "Nissan", "model": "UD Croner", "vehicle_type": "Camión pesado", "capacity_weight": 8000, "capacity_volume": 32, "carrier_id": "eflow-car-3" },
+        { "id": "eflow-veh-6", "plate": "CL1206", "brand": "Mitsubishi", "model": "Canter FE85", "vehicle_type": "Camión liviano", "capacity_weight": 4000, "capacity_volume": 18, "carrier_id": "eflow-car-3" }
+      ],
+      "viajes": [
+        {
+          "id": "demo-cr-0109-1",
+          "trip_number": "Viaje 9001",
+          "route_type_id": "eflow-rt-01",
+          "route_type_name": "01 · CASCO CENTRAL",
+          "trip_date": "2026-09-17",
+          "status": "despachado",
+          "pedidos": [
+            { "id": "demo-ped-cr-0109-1-1", "order_number": "EDI9000001", "customer_id": "DEMO-CR-001", "store_id": "", "delivery_address": "Avenida Central, frente al Banco Nacional, San José", "delivery_city": "San José", "delivery_zone": "GAM Centro", "total_weight": 350.5, "total_volume": 2.1, "status": "pending", "order_date": "2026-09-17T08:00:00.000Z", "delivery_latitude": 9.9333, "delivery_longitude": -84.0783, "customer_name": "Comercial El Sol S.A.", "route_type_id": "eflow-rt-01" },
+            { "id": "demo-ped-cr-0109-1-2", "order_number": "EDI9000002", "customer_id": "DEMO-CR-002", "store_id": "", "delivery_address": "Barrio Amón, 200 norte de la Casa Amarilla, San José", "delivery_city": "San José", "delivery_zone": "GAM Centro", "total_weight": 820, "total_volume": 5.4, "status": "pending", "order_date": "2026-09-17T08:05:00.000Z", "delivery_latitude": 9.9375, "delivery_longitude": -84.0755, "customer_name": "Ferretería Amón", "route_type_id": "eflow-rt-01" },
+            { "id": "demo-ped-cr-0109-1-3", "order_number": "EDI9000003", "customer_id": "DEMO-CR-003", "store_id": "", "delivery_address": "La Merced, contiguo al parque, San José", "delivery_city": "San José", "delivery_zone": "GAM Centro", "total_weight": 145, "total_volume": 0.9, "status": "pending", "order_date": "2026-09-17T08:10:00.000Z", "delivery_latitude": 9.9345, "delivery_longitude": -84.087, "customer_name": "Abastecedor La Merced", "route_type_id": "eflow-rt-01" },
+            { "id": "demo-ped-cr-0109-1-4", "order_number": "EDI9000004", "customer_id": "DEMO-CR-004", "store_id": "", "delivery_address": "Barrio Hospital, 100 sur del Hospital San Juan de Dios, San José", "delivery_city": "San José", "delivery_zone": "GAM Centro", "total_weight": 1180, "total_volume": 7.6, "status": "pending", "order_date": "2026-09-17T08:15:00.000Z", "delivery_latitude": 9.93, "delivery_longitude": -84.085, "customer_name": "Distribuidora Hospital", "route_type_id": "eflow-rt-01" },
+            { "id": "demo-ped-cr-0109-1-5", "order_number": "EDI9000005", "customer_id": "DEMO-CR-005", "store_id": "", "delivery_address": "Catedral, avenida 2, San José", "delivery_city": "San José", "delivery_zone": "GAM Centro", "total_weight": 60, "total_volume": 0.4, "status": "pending", "order_date": "2026-09-17T08:20:00.000Z", "delivery_latitude": 9.933, "delivery_longitude": -84.076, "customer_name": "Pulpería La Catedral", "route_type_id": "eflow-rt-01" }
+          ]
+        },
+        {
+          "id": "demo-cr-0109-2",
+          "trip_number": "Viaje 9002",
+          "route_type_id": "eflow-rt-02",
+          "route_type_name": "02 · HEREDIA NORTE",
+          "trip_date": "2026-09-17",
+          "status": "despachado",
+          "pedidos": [
+            { "id": "demo-ped-cr-0109-2-1", "order_number": "EDI9000006", "customer_id": "DEMO-CR-006", "store_id": "", "delivery_address": "Heredia centro, frente al parque Nicolás Ulloa", "delivery_city": "Heredia", "delivery_zone": "Heredia", "total_weight": 640, "total_volume": 4.1, "status": "pending", "order_date": "2026-09-17T07:30:00.000Z", "delivery_latitude": 9.9981, "delivery_longitude": -84.1197, "customer_name": "Super Heredia", "route_type_id": "eflow-rt-02" },
+            { "id": "demo-ped-cr-0109-2-2", "order_number": "EDI9000007", "customer_id": "DEMO-CR-007", "store_id": "", "delivery_address": "San Francisco de Heredia, 300 este del cruce", "delivery_city": "Heredia", "delivery_zone": "Heredia", "total_weight": 210, "total_volume": 1.5, "status": "pending", "order_date": "2026-09-17T07:35:00.000Z", "delivery_latitude": 9.995, "delivery_longitude": -84.105, "customer_name": "Mini Súper San Francisco", "route_type_id": "eflow-rt-02" },
+            { "id": "demo-ped-cr-0109-2-3", "order_number": "EDI9000008", "customer_id": "DEMO-CR-008", "store_id": "", "delivery_address": "San Rafael de Heredia, contiguo a la iglesia", "delivery_city": "Heredia", "delivery_zone": "Heredia", "total_weight": 900, "total_volume": 6.0, "status": "pending", "order_date": "2026-09-17T07:40:00.000Z", "delivery_latitude": 10.017, "delivery_longitude": -84.087, "customer_name": "Ferretería San Rafael", "route_type_id": "eflow-rt-02" },
+            { "id": "demo-ped-cr-0109-2-4", "order_number": "EDI9000009", "customer_id": "DEMO-CR-009", "store_id": "", "delivery_address": "Barva de Heredia, costado norte del parque", "delivery_city": "Heredia", "delivery_zone": "Heredia", "total_weight": 75, "total_volume": 0.5, "status": "pending", "order_date": "2026-09-17T07:45:00.000Z", "delivery_latitude": 10.082, "delivery_longitude": -84.101, "customer_name": "Pulpería Barva", "route_type_id": "eflow-rt-02" },
+            { "id": "demo-ped-cr-0109-2-5", "order_number": "EDI9000010", "customer_id": "DEMO-CR-010", "store_id": "", "delivery_address": "Alajuela centro, 100 oeste de la Catedral", "delivery_city": "Alajuela", "delivery_zone": "Alajuela", "total_weight": 1320, "total_volume": 8.0, "status": "pending", "order_date": "2026-09-17T07:50:00.000Z", "delivery_latitude": 10.0162, "delivery_longitude": -84.2116, "customer_name": "Comercial Alajuela", "route_type_id": "eflow-rt-02" }
+          ]
+        },
+        {
+          "id": "demo-cr-0109-3",
+          "trip_number": "Viaje 9003",
+          "route_type_id": "eflow-rt-03",
+          "route_type_name": "03 · CARTAGO ESTE",
+          "trip_date": "2026-09-17",
+          "status": "despachado",
+          "pedidos": [
+            { "id": "demo-ped-cr-0109-3-1", "order_number": "EDI9000011", "customer_id": "DEMO-CR-011", "store_id": "", "delivery_address": "Cartago centro, frente a las Ruinas", "delivery_city": "Cartago", "delivery_zone": "Cartago", "total_weight": 480, "total_volume": 3.2, "status": "pending", "order_date": "2026-09-17T09:00:00.000Z", "delivery_latitude": 9.8644, "delivery_longitude": -83.9194, "customer_name": "Distribuidora Las Ruinas", "route_type_id": "eflow-rt-03" },
+            { "id": "demo-ped-cr-0109-3-2", "order_number": "EDI9000012", "customer_id": "DEMO-CR-012", "store_id": "", "delivery_address": "Tres Ríos, La Unión, 200 sur del parque", "delivery_city": "La Unión", "delivery_zone": "Cartago", "total_weight": 260, "total_volume": 1.8, "status": "pending", "order_date": "2026-09-17T09:05:00.000Z", "delivery_latitude": 9.906, "delivery_longitude": -83.984, "customer_name": "Súper Tres Ríos", "route_type_id": "eflow-rt-03" },
+            { "id": "demo-ped-cr-0109-3-3", "order_number": "EDI9000013", "customer_id": "DEMO-CR-013", "store_id": "", "delivery_address": "Curridabat, frente al Walmart", "delivery_city": "Curridabat", "delivery_zone": "GAM Este", "total_weight": 1050, "total_volume": 6.8, "status": "pending", "order_date": "2026-09-17T09:10:00.000Z", "delivery_latitude": 9.9186, "delivery_longitude": -84.03, "customer_name": "Almacén Curridabat", "route_type_id": "eflow-rt-03" },
+            { "id": "demo-ped-cr-0109-3-4", "order_number": "EDI9000014", "customer_id": "DEMO-CR-014", "store_id": "", "delivery_address": "Paraíso de Cartago, contiguo al mercado", "delivery_city": "Paraíso", "delivery_zone": "Cartago", "total_weight": 320, "total_volume": 2.4, "status": "pending", "order_date": "2026-09-17T09:15:00.000Z", "delivery_latitude": 9.8383, "delivery_longitude": -83.8656, "customer_name": "Comercial Paraíso", "route_type_id": "eflow-rt-03" },
+            { "id": "demo-ped-cr-0109-3-5", "order_number": "EDI9000015", "customer_id": "DEMO-CR-015", "store_id": "", "delivery_address": "San Pedro, Montes de Oca, 100 norte de la iglesia", "delivery_city": "San Pedro", "delivery_zone": "GAM Este", "total_weight": 95, "total_volume": 0.7, "status": "pending", "order_date": "2026-09-17T09:20:00.000Z", "delivery_latitude": 9.9333, "delivery_longitude": -84.05, "customer_name": "Pulpería San Pedro", "route_type_id": "eflow-rt-03" }
+          ]
+        }
+      ]
+    }
+  },
+  "ve": {
+    "companias": [
+      { "id": "0001", "name": "FEBECA" },
+      { "id": "0002", "name": "SILLACA" },
+      { "id": "0003", "name": "BEVAL" }
+    ],
+    "0001": {
+      "rutas": [
+        { "id": "eflow-rt-cb1", "name": "CARABOBO 1" },
+        { "id": "eflow-rt-cb2", "name": "CARABOBO 2" }
+      ],
+      "transportistas": [
+        { "id": "eflow-car-10", "name": "Servi Transporte Contra Reloj C.A." },
+        { "id": "eflow-car-11", "name": "Transporte Vencar 2025 C.A." }
+      ],
+      "conductores": [
+        { "id": "eflow-drv-10", "full_name": "José Gregorio Pérez Rivas", "document": "V-15.482.331", "carrier_id": "eflow-car-10" },
+        { "id": "eflow-drv-11", "full_name": "Carlos Enrique Mújica León", "document": "V-12.998.104", "carrier_id": "eflow-car-10" },
+        { "id": "eflow-drv-12", "full_name": "Douglas Alberto Ramírez", "document": "V-18.220.556", "carrier_id": "eflow-car-11" }
+      ],
+      "vehiculos": [
+        { "id": "eflow-veh-10", "plate": "AF512VC", "brand": "Ford", "model": "Cargo 815", "vehicle_type": "Camión liviano", "capacity_weight": 5000, "capacity_volume": 22, "carrier_id": "eflow-car-10" },
+        { "id": "eflow-veh-11", "plate": "AC118CB", "brand": "Chevrolet", "model": "NPR", "vehicle_type": "Camión liviano", "capacity_weight": 3800, "capacity_volume": 17, "carrier_id": "eflow-car-10" },
+        { "id": "eflow-veh-12", "plate": "A99BK4V", "brand": "Mack", "model": "Granite", "vehicle_type": "Camión pesado", "capacity_weight": 15000, "capacity_volume": 50, "carrier_id": "eflow-car-11" },
+        { "id": "eflow-veh-13", "plate": "AD771VC", "brand": "Iveco", "model": "Tector", "vehicle_type": "Camión mediano", "capacity_weight": 7000, "capacity_volume": 28, "carrier_id": "eflow-car-11" }
+      ],
+      "viajes": [
+        {
+          "id": "demo-ve-0001-1",
+          "trip_number": "Viaje 9101",
+          "route_type_id": "eflow-rt-cb1",
+          "route_type_name": "CARABOBO 1",
+          "trip_date": "2026-09-17",
+          "status": "despachado",
+          "pedidos": [
+            { "id": "demo-ped-ve-0001-1-1", "order_number": "PL9100001", "customer_id": "DEMO-VE-001", "store_id": "", "delivery_address": "Av. Bolívar Norte, Valencia, Carabobo", "delivery_city": "Valencia", "delivery_zone": "Carabobo", "total_weight": 720, "total_volume": 4.6, "status": "pending", "order_date": "2026-09-17T08:00:00.000Z", "delivery_latitude": 10.162, "delivery_longitude": -68.0077, "customer_name": "Comercializadora Valencia C.A.", "route_type_id": "eflow-rt-cb1" },
+            { "id": "demo-ped-ve-0001-1-2", "order_number": "PL9100002", "customer_id": "DEMO-VE-002", "store_id": "", "delivery_address": "Naguanagua, Av. Universidad, Carabobo", "delivery_city": "Naguanagua", "delivery_zone": "Carabobo", "total_weight": 1500, "total_volume": 9.2, "status": "pending", "order_date": "2026-09-17T08:05:00.000Z", "delivery_latitude": 10.247, "delivery_longitude": -68.013, "customer_name": "Distribuidora Naguanagua", "route_type_id": "eflow-rt-cb1" },
+            { "id": "demo-ped-ve-0001-1-3", "order_number": "PL9100003", "customer_id": "DEMO-VE-003", "store_id": "", "delivery_address": "San Diego, C.C. Metrópolis, Carabobo", "delivery_city": "San Diego", "delivery_zone": "Carabobo", "total_weight": 340, "total_volume": 2.3, "status": "pending", "order_date": "2026-09-17T08:10:00.000Z", "delivery_latitude": 10.2707, "delivery_longitude": -67.9558, "customer_name": "Ferretotal San Diego", "route_type_id": "eflow-rt-cb1" },
+            { "id": "demo-ped-ve-0001-1-4", "order_number": "PL9100004", "customer_id": "DEMO-VE-004", "store_id": "", "delivery_address": "Guacara, Av. Carabobo, sector centro", "delivery_city": "Guacara", "delivery_zone": "Carabobo", "total_weight": 260, "total_volume": 1.7, "status": "pending", "order_date": "2026-09-17T08:15:00.000Z", "delivery_latitude": 10.2299, "delivery_longitude": -67.8776, "customer_name": "Abastos Guacara", "route_type_id": "eflow-rt-cb1" },
+            { "id": "demo-ped-ve-0001-1-5", "order_number": "PL9100005", "customer_id": "DEMO-VE-005", "store_id": "", "delivery_address": "Los Guayos, zona industrial, Carabobo", "delivery_city": "Los Guayos", "delivery_zone": "Carabobo", "total_weight": 980, "total_volume": 6.4, "status": "pending", "order_date": "2026-09-17T08:20:00.000Z", "delivery_latitude": 10.1817, "delivery_longitude": -67.9314, "customer_name": "Mayorista Los Guayos", "route_type_id": "eflow-rt-cb1" }
+          ]
+        }
+      ]
+    },
+    "0002": {
+      "rutas": [{ "id": "eflow-rt-ar1", "name": "ARAGUA 1" }],
+      "transportistas": [
+        { "id": "eflow-car-20", "name": "Transporte La Eficaz C.A." },
+        { "id": "eflow-car-21", "name": "Very Fast C.A." }
+      ],
+      "conductores": [
+        { "id": "eflow-drv-20", "full_name": "Wilmer Antonio Colmenares", "document": "V-14.667.012", "carrier_id": "eflow-car-20" },
+        { "id": "eflow-drv-21", "full_name": "Rafael Ángel Sequera", "document": "V-16.339.887", "carrier_id": "eflow-car-21" }
+      ],
+      "vehiculos": [
+        { "id": "eflow-veh-20", "plate": "AB230AR", "brand": "JAC", "model": "1040", "vehicle_type": "Camión pequeño", "capacity_weight": 2800, "capacity_volume": 13, "carrier_id": "eflow-car-20" },
+        { "id": "eflow-veh-21", "plate": "AG455AR", "brand": "Foton", "model": "Aumark", "vehicle_type": "Camión liviano", "capacity_weight": 4200, "capacity_volume": 19, "carrier_id": "eflow-car-20" },
+        { "id": "eflow-veh-22", "plate": "A77RR2A", "brand": "International", "model": "DuraStar", "vehicle_type": "Camión pesado", "capacity_weight": 10000, "capacity_volume": 40, "carrier_id": "eflow-car-21" }
+      ],
+      "viajes": [
+        {
+          "id": "demo-ve-0002-1",
+          "trip_number": "Viaje 9201",
+          "route_type_id": "eflow-rt-ar1",
+          "route_type_name": "ARAGUA 1",
+          "trip_date": "2026-09-17",
+          "status": "despachado",
+          "pedidos": [
+            { "id": "demo-ped-ve-0002-1-1", "order_number": "PL9200001", "customer_id": "DEMO-VE-101", "store_id": "", "delivery_address": "Maracay centro, Av. Bolívar, Aragua", "delivery_city": "Maracay", "delivery_zone": "Aragua", "total_weight": 560, "total_volume": 3.6, "status": "pending", "order_date": "2026-09-17T07:30:00.000Z", "delivery_latitude": 10.2469, "delivery_longitude": -67.596, "customer_name": "Comercial Maracay", "route_type_id": "eflow-rt-ar1" },
+            { "id": "demo-ped-ve-0002-1-2", "order_number": "PL9200002", "customer_id": "DEMO-VE-102", "store_id": "", "delivery_address": "San Jacinto, Maracay, Aragua", "delivery_city": "Maracay", "delivery_zone": "Aragua", "total_weight": 1200, "total_volume": 7.8, "status": "pending", "order_date": "2026-09-17T07:35:00.000Z", "delivery_latitude": 10.27, "delivery_longitude": -67.58, "customer_name": "Distribuidora San Jacinto", "route_type_id": "eflow-rt-ar1" },
+            { "id": "demo-ped-ve-0002-1-3", "order_number": "PL9200003", "customer_id": "DEMO-VE-103", "store_id": "", "delivery_address": "Turmero, Av. Bermúdez, Aragua", "delivery_city": "Turmero", "delivery_zone": "Aragua", "total_weight": 190, "total_volume": 1.3, "status": "pending", "order_date": "2026-09-17T07:40:00.000Z", "delivery_latitude": 10.228, "delivery_longitude": -67.474, "customer_name": "Súper Turmero", "route_type_id": "eflow-rt-ar1" },
+            { "id": "demo-ped-ve-0002-1-4", "order_number": "PL9200004", "customer_id": "DEMO-VE-104", "store_id": "", "delivery_address": "Cagua, zona centro, Aragua", "delivery_city": "Cagua", "delivery_zone": "Aragua", "total_weight": 830, "total_volume": 5.5, "status": "pending", "order_date": "2026-09-17T07:45:00.000Z", "delivery_latitude": 10.1867, "delivery_longitude": -67.4606, "customer_name": "Mayorista Cagua", "route_type_id": "eflow-rt-ar1" },
+            { "id": "demo-ped-ve-0002-1-5", "order_number": "PL9200005", "customer_id": "DEMO-VE-105", "store_id": "", "delivery_address": "La Victoria, Av. Victoria, Aragua", "delivery_city": "La Victoria", "delivery_zone": "Aragua", "total_weight": 410, "total_volume": 2.8, "status": "pending", "order_date": "2026-09-17T07:50:00.000Z", "delivery_latitude": 10.227, "delivery_longitude": -67.333, "customer_name": "Abastos La Victoria", "route_type_id": "eflow-rt-ar1" }
+          ]
+        }
+      ]
+    },
+    "0003": {
+      "rutas": [{ "id": "eflow-rt-la1", "name": "LARA 1" }],
+      "transportistas": [
+        { "id": "eflow-car-30", "name": "Transporte y Logística AMS C.A." },
+        { "id": "eflow-car-31", "name": "Ruta Express 2026 C.A." }
+      ],
+      "conductores": [
+        { "id": "eflow-drv-30", "full_name": "Jesús Alberto Mendoza Pérez", "document": "V-17.554.902", "carrier_id": "eflow-car-30" },
+        { "id": "eflow-drv-31", "full_name": "Yorman David Escalona", "document": "V-20.118.443", "carrier_id": "eflow-car-31" }
+      ],
+      "vehiculos": [
+        { "id": "eflow-veh-30", "plate": "AH902LA", "brand": "Dongfeng", "model": "Captain", "vehicle_type": "Camión liviano", "capacity_weight": 3200, "capacity_volume": 15, "carrier_id": "eflow-car-30" },
+        { "id": "eflow-veh-31", "plate": "AK334LA", "brand": "Hino", "model": "Serie 300", "vehicle_type": "Camión mediano", "capacity_weight": 6500, "capacity_volume": 26, "carrier_id": "eflow-car-30" },
+        { "id": "eflow-veh-32", "plate": "A55LR9A", "brand": "Volvo", "model": "VM 270", "vehicle_type": "Camión pesado", "capacity_weight": 13000, "capacity_volume": 48, "carrier_id": "eflow-car-31" }
+      ],
+      "viajes": [
+        {
+          "id": "demo-ve-0003-1",
+          "trip_number": "Viaje 9301",
+          "route_type_id": "eflow-rt-la1",
+          "route_type_name": "LARA 1",
+          "trip_date": "2026-09-17",
+          "status": "despachado",
+          "pedidos": [
+            { "id": "demo-ped-ve-0003-1-1", "order_number": "PL9300001", "customer_id": "DEMO-VE-201", "store_id": "", "delivery_address": "Barquisimeto centro, Av. 20, Lara", "delivery_city": "Barquisimeto", "delivery_zone": "Lara", "total_weight": 690, "total_volume": 4.4, "status": "pending", "order_date": "2026-09-17T09:00:00.000Z", "delivery_latitude": 10.0678, "delivery_longitude": -69.3467, "customer_name": "Comercial Lara C.A.", "route_type_id": "eflow-rt-la1" },
+            { "id": "demo-ped-ve-0003-1-2", "order_number": "PL9300002", "customer_id": "DEMO-VE-202", "store_id": "", "delivery_address": "Cabudare, Av. Libertador, Lara", "delivery_city": "Cabudare", "delivery_zone": "Lara", "total_weight": 1420, "total_volume": 8.9, "status": "pending", "order_date": "2026-09-17T09:05:00.000Z", "delivery_latitude": 10.0264, "delivery_longitude": -69.2626, "customer_name": "Distribuidora Cabudare", "route_type_id": "eflow-rt-la1" },
+            { "id": "demo-ped-ve-0003-1-3", "order_number": "PL9300003", "customer_id": "DEMO-VE-203", "store_id": "", "delivery_address": "El Ujano, Barquisimeto, Lara", "delivery_city": "Barquisimeto", "delivery_zone": "Lara", "total_weight": 230, "total_volume": 1.6, "status": "pending", "order_date": "2026-09-17T09:10:00.000Z", "delivery_latitude": 10.04, "delivery_longitude": -69.32, "customer_name": "Súper El Ujano", "route_type_id": "eflow-rt-la1" },
+            { "id": "demo-ped-ve-0003-1-4", "order_number": "PL9300004", "customer_id": "DEMO-VE-204", "store_id": "", "delivery_address": "Tamaca, Barquisimeto, Lara", "delivery_city": "Barquisimeto", "delivery_zone": "Lara", "total_weight": 900, "total_volume": 5.9, "status": "pending", "order_date": "2026-09-17T09:15:00.000Z", "delivery_latitude": 10.13, "delivery_longitude": -69.33, "customer_name": "Mayorista Tamaca", "route_type_id": "eflow-rt-la1" },
+            { "id": "demo-ped-ve-0003-1-5", "order_number": "PL9300005", "customer_id": "DEMO-VE-205", "store_id": "", "delivery_address": "Quíbor, centro, Lara", "delivery_city": "Quíbor", "delivery_zone": "Lara", "total_weight": 380, "total_volume": 2.6, "status": "pending", "order_date": "2026-09-17T09:20:00.000Z", "delivery_latitude": 9.9283, "delivery_longitude": -69.5786, "customer_name": "Abastos Quíbor", "route_type_id": "eflow-rt-la1" }
+          ]
+        }
+      ]
+    }
+  }
+}

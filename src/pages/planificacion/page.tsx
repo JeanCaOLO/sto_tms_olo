@@ -13,7 +13,8 @@ import PlanificacionHeader from './components/PlanificacionHeader';
 import { useCatalogos } from './use-catalogos';
 import { useViajes } from './use-viajes';
 import { useCompanias } from './use-companias';
-import { getPais, setPais, getCompania, setCompania, type Pais } from './eflow-api';
+import { useTabRoute } from './use-tab-route';
+import { getPais, setPais, getCompania, setCompania, getDemo, setDemo, type Pais } from './eflow-api';
 import { usePedidosRuta } from './use-pedidos-ruta';
 import { usePedidosAnclados } from './use-pedidos-anclados';
 import { useGenerarRuta } from './use-generar-ruta';
@@ -21,23 +22,21 @@ import { useRutasGeneradas } from './use-rutas-generadas';
 import type { Pedido } from './types';
 import type { RutaGenerada } from './generar-ruta-mock';
 
-type Tab = 'nueva' | 'asignar' | 'flota' | 'generadas' | 'matriz' | 'maestros';
-
 export default function PlanificacionPage() {
   const { appUser } = useAuth();
   const { showToast } = useToast();
-  const [tab, setTab] = useState<Tab>('nueva');
+  const [tab, setTab] = useTabRoute('nueva');
   const [pais, setPaisState] = useState<Pais>(getPais());
   const [company, setCompanyState] = useState<string>(getCompania());
-  // setPais/setCompania actualizan lo que consume eflow-api; el estado recarga hooks.
-  // Al cambiar de país se resetea la compañía (los IDCOMPANIA son por país).
+  const [demo, setDemoState] = useState<boolean>(getDemo());
+  // Cambiar país resetea la compañía (los IDCOMPANIA son por país). `demo` recarga los hooks.
   const cambiarPais = (p: Pais) => { setPais(p); setPaisState(p); setCompania(''); setCompanyState(''); };
   const cambiarCompania = (c: string) => { setCompania(c); setCompanyState(c); };
-  const companias = useCompanias(appUser, pais);
-  const { rutas, vehiculos, transportistas, conductores, loading } = useCatalogos(appUser, pais);
-  const { viajes, cargandoViajes } = useViajes(appUser, pais, company);
-  // Opción B: al filtrar por compañía, las rutas mostradas se derivan de sus viajes
-  // (distribution_routes no tiene columna de compañía). Sin compañía, todas.
+  const cambiarDemo = (v: boolean) => { setDemo(v); setDemoState(v); };
+  const companias = useCompanias(appUser, pais, demo);
+  const { rutas, vehiculos, transportistas, conductores, loading } = useCatalogos(appUser, pais, demo);
+  const { viajes, cargandoViajes } = useViajes(appUser, pais, company, demo);
+  // Opción B: con compañía, las rutas mostradas se derivan de sus viajes (distribution_routes no la tiene).
   const rutasVisibles = company ? rutas.filter((r) => viajes.some((v) => v.route_type_id === r.id)) : rutas;
   const {
     viajeId, pedidosRuta, pedidosSeleccionados, excluidosPorCapacidad, optimizando, cargandoPedidos,
@@ -115,6 +114,7 @@ export default function PlanificacionPage() {
         companias={companias}
         company={company}
         onCompania={cambiarCompania}
+        demo={demo} onDemo={cambiarDemo}
         resumen={tab === 'nueva' && pedidosSeleccionados.length > 0 ? { incluidos: pedidosSeleccionados.length, total: pedidosRuta.length } : null}
       />
 

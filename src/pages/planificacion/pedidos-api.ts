@@ -1,11 +1,14 @@
 import { supabase } from '../../lib/supabase';
 import type { AppUser } from '../../lib/mock-auth';
 import { getFallbackPedidos } from './fallback-pedidos';
+import { getCompania, getDemo, getPais } from './eflow-api';
+import { demoPedidosDeRuta } from './demo';
 import type { Pedido } from './types';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function fetchPedidosDeRuta(appUser: AppUser, routeTypeId: string): Promise<Pedido[]> {
+  if (getDemo()) return demoPedidosDeRuta(getPais(), getCompania(), routeTypeId);
   // `orders.route_type_id` es uuid. Los ids del catálogo EFLOW ("eflow-rt-08")
   // no lo son y jamás casarían — consultarlos solo produce un 400 de Postgres.
   // Vamos directo al pool mock (que es lo que el prototipo usa de todos modos).

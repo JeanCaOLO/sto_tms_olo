@@ -4,7 +4,7 @@ import { fetchCompanias, type Compania, type Pais } from './eflow-api';
 import { fallbackCompanias } from './fallback-companias';
 
 // Compañías del país activo. `pais` es dependencia: al cambiar recarga.
-export function useCompanias(appUser: AppUser | null, pais: Pais) {
+export function useCompanias(appUser: AppUser | null, pais: Pais, demo = false) {
   const [companias, setCompanias] = useState<Compania[]>(() => fallbackCompanias(pais));
 
   useEffect(() => {
@@ -16,7 +16,7 @@ export function useCompanias(appUser: AppUser | null, pais: Pais) {
     return () => {
       vivo = false;
     };
-  }, [appUser, pais]);
+  }, [appUser, pais, demo]);
 
   return companias;
 }
