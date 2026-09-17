@@ -1,5 +1,15 @@
 # Mockups refinados — Módulo OMS
 
+> ⚠️ **SUPERADO (2026-09-16).** Este documento se produjo contra el modelo
+> previo (FR1–FR10) y quedó desalineado con el modelo v2 (14 FR). **No usar como
+> fuente de diseño.** La referencia de UI oficial es el **prototipo React
+> funcional en `src/pages/oms/`** (fase posterior, mayor fidelidad; ya incluye
+> el Simulador-configurador, el catálogo de reglas con selector de compañía y la
+> prioridad numérica invertida). El modelo firme vive en
+> `inception/requirements-analysis/requirements.md` v2,
+> `inception/user-stories/stories.md` y `memory/project.md` (`## Decided`).
+> Refined Mockups se marcó `skipped` por estar superada por ese prototipo.
+
 > Intent: `260826-modulo-oms`. Etapa: Refined Mockups (Inception). Lead: diseño;
 > apoyo: producto. Fuente: `requirements.md` (FR1–FR10) de Requirements
 > Analysis, `PLAN_MODULO_OMS.md` §4–§5 y el design system extraído por la

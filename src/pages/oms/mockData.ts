@@ -230,7 +230,7 @@ export const omsAlerts: OmsAlert[] = [
 // Compañías seleccionables en el Motor de Reglas.
 export const companies: Company[] = [
   { id: '0109', name: 'Cofersa' },
-  { id: 'EPA', name: 'EPA' },
+  { id: 'EPA', name: 'EPA', hidden: true }, // oculta por ahora; solo Cofersa en el selector
 ];
 
 // FR5 — catálogo de macro-reglas implementadas del OMS (lógica en código),

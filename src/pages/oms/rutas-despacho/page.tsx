@@ -2,7 +2,7 @@ import Card from '../../../components/base/Card';
 import Badge from '../../../components/base/Badge';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
-import { WEEK_DAYS, WEEK_DAY_LABELS, type WeekDay } from '../types';
+import { WEEK_DAYS, WEEK_DAY_LABELS, companyOptions, type WeekDay } from '../types';
 import { useRutasController } from './useRutasController';
 
 // Pantalla Calendario de Rutas y Días de Despacho (FR1).
@@ -41,7 +41,7 @@ export default function OmsRutasDespachoPage() {
             label="Compañía"
             value={company}
             onChange={(e) => setCompany(e.target.value)}
-            options={companies.map((c) => ({ value: c.id, label: c.name }))}
+            options={companyOptions(companies)}
           />
         </div>
       </div>

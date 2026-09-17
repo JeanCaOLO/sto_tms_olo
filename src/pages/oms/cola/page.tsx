@@ -5,7 +5,8 @@ import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
 import PriorityBadge from '../components/PriorityBadge';
 import ViewToggle from '../components/ViewToggle';
-import { TIER_LABEL, type PriorityTier, type QueueOrder } from '../types';
+import { TIER_LABEL, companyLabelById, type PriorityTier, type QueueOrder } from '../types';
+import { companies } from '../mockData';
 import OrderDetailModal from './OrderDetailModal';
 import OverrideModal from './OverrideModal';
 import { useColaController } from './useColaController';
@@ -29,9 +30,9 @@ export default function OmsColaPage() {
     overrideOpen, setOverrideOpen, applyOverride,
   } = useColaController();
 
-  const opt = (all: string[], allLabel: string) => [
+  const opt = (all: string[], allLabel: string, label: (v: string) => string = (v) => v) => [
     { value: 'todos', label: allLabel },
-    ...all.map((v) => ({ value: v, label: v })),
+    ...all.map((v) => ({ value: v, label: label(v) })),
   ];
 
   const openDetail = (id: string) => { setSelectedId(id); setDetailOpen(true); };
@@ -103,7 +104,7 @@ export default function OmsColaPage() {
             <Select label="Almacén" value={filters.warehouse} onChange={(e) => setFilter('warehouse', e.target.value)} options={opt(options.warehouses, 'Todos')} />
           </div>
           <div className="sm:w-40">
-            <Select label="Compañía" value={filters.company} onChange={(e) => setFilter('company', e.target.value)} options={opt(options.companies, 'Todas')} />
+            <Select label="Compañía" value={filters.company} onChange={(e) => setFilter('company', e.target.value)} options={opt(options.companies, 'Todas', (v) => companyLabelById(v, companies))} />
           </div>
           <div className="sm:w-40">
             <Select label="Sucursal" value={filters.branch} onChange={(e) => setFilter('branch', e.target.value)} options={opt(options.branches, 'Todas')} />

@@ -4,6 +4,7 @@ import Badge from '../../../components/base/Badge';
 import Button from '../../../components/base/Button';
 import Select from '../../../components/base/Select';
 import RuleParamsModal from './RuleParamsModal';
+import { companyOptions } from '../types';
 import { useReglasController } from './useReglasController';
 
 // Pantalla Motor de Reglas (FR5) — catálogo semi-configurable por compañía.
@@ -33,7 +34,7 @@ export default function OmsReglasPage() {
             label="Compañía"
             value={company}
             onChange={(e) => setCompany(e.target.value)}
-            options={companies.map((c) => ({ value: c.id, label: c.name }))}
+            options={companyOptions(companies)}
           />
         </div>
       </div>
