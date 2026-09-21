@@ -9387,11 +9387,23 @@ function reapStaleLock(lockDir: string, reapUnstamped = true): boolean {
   // STEP 1 — CAS swap: move the dir to a reaper-private nonce path. This is the
   // atomic arbiter; only one process wins the rename of a given dir.
   const dead = `${lockDir}.dead.${reapSuffix()}`;
-  try {
-    renameSync(lockDir, dead);
-  } catch {
-    return false; // another waiter already reclaimed (or the holder released)
+  let claimed = false;
+  for (let attempt = 0; attempt < 10 && !claimed; attempt++) {
+    try {
+      renameSync(lockDir, dead);
+      claimed = true;
+    } catch (error) {
+      // ENOENT (or similar "source is gone") means a genuine competitor won
+      // the race — stop immediately, same as before. EBUSY/EPERM/EACCES on
+      // Windows can mean a just-released lock dir still has a transient
+      // handle on it (AV scan, delayed close) even though no live process
+      // holds it — worth a brief retry instead of reporting a false leak.
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "EBUSY" && code !== "EPERM" && code !== "EACCES") return false;
+      if (attempt < 9) Bun.sleepSync(10);
+    }
   }
+  if (!claimed) return false;
   // STEP 2 — verify the dir we just grabbed STILL carries the identity judged
   // stale. stampMatches re-reads owner.json inside the now-private `dead` dir.
   if (!stampMatches(dead, owner)) {
@@ -9426,7 +9438,22 @@ function ownerReceiptMatches(receipt: OwnerStampedLockReceipt): boolean {
 
 function releaseOwnerStampedLock(receipt: OwnerStampedLockReceipt): void {
   const retired = `${receipt.lockDir}.released.${reapSuffix()}`;
-  try { renameSync(receipt.lockDir, retired); } catch { return; }
+  let renamed = false;
+  for (let attempt = 0; attempt < 10 && !renamed; attempt++) {
+    try {
+      renameSync(receipt.lockDir, retired);
+      renamed = true;
+    } catch (error) {
+      // Windows can hold a transient handle on a just-written lock dir (AV
+      // scan, delayed close of owner.json) that fails the rename with
+      // EBUSY/EPERM/EACCES for a few ms even though the owning process has
+      // already exited — retry briefly instead of leaking the lock silently.
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "EBUSY" && code !== "EPERM" && code !== "EACCES") return;
+      if (attempt < 9) Bun.sleepSync(10);
+    }
+  }
+  if (!renamed) return;
   if (!stampMatches(retired, receipt.owner)) {
     try { renameSync(retired, receipt.lockDir); } catch {
       try { rmSync(retired, { recursive: true, force: true }); } catch { /* replacement is authoritative */ }

@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { supabase, type AuthSession as Session, type AuthUser as User } from '../lib/supabase';
 import { MOCK_AUTH_ENABLED, mockAppUser, mockSession, mockUser, type AppUser } from '../lib/mock-auth';
 
 interface AuthContextType {
@@ -68,13 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (MOCK_AUTH_ENABLED) return { error: null };
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      if (error.message.includes('Invalid login credentials')) {
-        return { error: 'Correo o contraseña incorrectos.' };
-      }
-      if (error.message.includes('Email not confirmed')) {
-        return { error: 'Debes confirmar tu correo electrónico antes de ingresar.' };
-      }
-      return { error: 'Error al iniciar sesión. Intenta nuevamente.' };
+      return { error: error.message || 'Error al iniciar sesión. Intenta nuevamente.' };
     }
     return { error: null };
   };

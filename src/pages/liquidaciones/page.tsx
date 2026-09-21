@@ -7,6 +7,7 @@ import Input from '../../components/base/Input';
 import Select from '../../components/base/Select';
 import Badge from '../../components/base/Badge';
 import StatCard from '../../components/feature/StatCard';
+import DataTable, { type DataTableColumn } from '../../components/base/DataTable';
 import SettlementModal from './components/SettlementModal';
 import {
   deleteSnapshot, listSnapshots, type SettlementSnapshot,
@@ -39,18 +40,10 @@ export default function LiquidacionesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedSettlement, setSelectedSettlement] = useState<any>(null);
 
-  // Filtros
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [carrierFilter, setCarrierFilter] = useState('');
-  const [driverFilter, setDriverFilter] = useState('');
+  // Filtros que no calzan bien en el filtro de columna estilo Excel (rangos / fuente externa)
   const [marginFilter, setMarginFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-
-  // Datos para filtros
-  const [carriers, setCarriers] = useState<any[]>([]);
-  const [drivers, setDrivers] = useState<any[]>([]);
 
   // Snapshot de margen/costo por liquidación — ver src/lib/tarifas/localData/settlementSnapshots.ts
   const [snapshotsBySettlementId, setSnapshotsBySettlementId] = useState<Record<string, SettlementSnapshot>>({});
@@ -66,9 +59,8 @@ export default function LiquidacionesPage() {
   useEffect(() => {
     if (appUser?.organization_id) {
       loadSettlements();
-      loadFilters();
     }
-  }, [appUser, statusFilter, carrierFilter, driverFilter, dateFrom, dateTo]);
+  }, [appUser, dateFrom, dateTo]);
 
   const loadSettlements = async () => {
     try {
@@ -84,15 +76,6 @@ export default function LiquidacionesPage() {
         .eq('organization_id', appUser?.organization_id)
         .order('created_at', { ascending: false });
 
-      if (statusFilter) {
-        query = query.eq('status', statusFilter);
-      }
-      if (carrierFilter) {
-        query = query.eq('carrier_id', carrierFilter);
-      }
-      if (driverFilter) {
-        query = query.eq('driver_id', driverFilter);
-      }
       if (dateFrom) {
         query = query.gte('settlement_date', dateFrom);
       }
@@ -118,30 +101,6 @@ export default function LiquidacionesPage() {
     }
   };
 
-  const loadFilters = async () => {
-    try {
-      const [carriersRes, driversRes] = await Promise.all([
-        supabase
-          .from('carriers')
-          .select('id, name')
-          .eq('organization_id', appUser?.organization_id)
-          .eq('status', 'active')
-          .order('name'),
-        supabase
-          .from('drivers')
-          .select('id, full_name')
-          .eq('organization_id', appUser?.organization_id)
-          .eq('status', 'active')
-          .order('full_name')
-      ]);
-
-      if (carriersRes.data) setCarriers(carriersRes.data);
-      if (driversRes.data) setDrivers(driversRes.data);
-    } catch (error) {
-      console.error('Error loading filters:', error);
-    }
-  };
-
   const calculateKPIs = (data: any[]) => {
     const totalLiquidado = data.reduce((sum, s) => sum + (parseFloat(s.total_amount) || 0), 0);
     const pendiente = data
@@ -154,12 +113,7 @@ export default function LiquidacionesPage() {
       .filter(s => s.status === 'En Revisión')
       .reduce((sum, s) => sum + (parseFloat(s.total_amount) || 0), 0);
 
-    setKpis({
-      totalLiquidado,
-      pendiente,
-      aprobado,
-      enRevision
-    });
+    setKpis({ totalLiquidado, pendiente, aprobado, enRevision });
   };
 
   const handleEdit = (settlement: any) => {
@@ -221,11 +175,7 @@ export default function LiquidacionesPage() {
     loadSettlements();
   };
 
-  const clearFilters = () => {
-    setSearchTerm('');
-    setStatusFilter('');
-    setCarrierFilter('');
-    setDriverFilter('');
+  const clearRangeFilters = () => {
     setMarginFilter('');
     setDateFrom('');
     setDateTo('');
@@ -241,20 +191,108 @@ export default function LiquidacionesPage() {
     );
   };
 
-  const filteredSettlements = settlements.filter(settlement => {
-    const matchesSearch =
-      settlement.settlement_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      settlement.routes?.route_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      settlement.drivers?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      settlement.carriers?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+  const marginFilteredSettlements = settlements.filter((settlement) =>
+    !marginFilter || snapshotsBySettlementId[settlement.id]?.margin_status === marginFilter
+  );
 
-    const matchesMargin = !marginFilter
-      || snapshotsBySettlementId[settlement.id]?.margin_status === marginFilter;
+  const hasActiveRangeFilters = marginFilter || dateFrom || dateTo;
 
-    return matchesSearch && matchesMargin;
-  });
-
-  const hasActiveFilters = searchTerm || statusFilter || carrierFilter || driverFilter || marginFilter || dateFrom || dateTo;
+  const columns: DataTableColumn<any>[] = [
+    {
+      key: 'settlement_number',
+      header: 'Número',
+      accessor: (s) => s.settlement_number,
+      sortable: true,
+      render: (s) => (
+        <div className="flex items-center gap-2">
+          <i className="ri-file-text-line text-teal-600"></i>
+          <span className="text-sm font-medium text-slate-800">{s.settlement_number}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'route',
+      header: 'Ruta',
+      accessor: (s) => s.routes?.route_number ?? '',
+      sortable: true,
+      render: (s) => (
+        <>
+          <div className="text-sm text-slate-800">{s.routes?.route_number}</div>
+          <div className="text-xs text-slate-500">{s.routes?.stores?.name}</div>
+        </>
+      ),
+    },
+    {
+      key: 'settlement_date',
+      header: 'Fecha',
+      accessor: (s) => s.settlement_date,
+      sortable: true,
+      render: (s) => new Date(s.settlement_date).toLocaleDateString('es-CL'),
+    },
+    { key: 'carrier', header: 'Transportista', accessor: (s) => s.carriers?.name ?? '', sortable: true, filterable: true },
+    {
+      key: 'driver',
+      header: 'Conductor',
+      accessor: (s) => s.drivers?.full_name ?? '',
+      sortable: true,
+      filterable: true,
+      render: (s) => (
+        <>
+          <div className="text-sm text-slate-800">{s.drivers?.full_name}</div>
+          <div className="text-xs text-slate-500">{s.drivers?.document}</div>
+        </>
+      ),
+    },
+    {
+      key: 'details',
+      header: 'Detalles',
+      accessor: (s) => s.total_distance ?? 0,
+      render: (s) => (
+        <div className="flex items-center gap-3 text-xs text-slate-600">
+          <div className="flex items-center gap-1"><i className="ri-map-pin-line"></i><span>{s.total_distance} km</span></div>
+          <div className="flex items-center gap-1"><i className="ri-checkbox-circle-line"></i><span>{s.total_deliveries}</span></div>
+          <div className="flex items-center gap-1"><i className="ri-arrow-go-back-line"></i><span>{s.total_returns}</span></div>
+        </div>
+      ),
+    },
+    {
+      key: 'total_amount',
+      header: 'Monto Total',
+      accessor: (s) => parseFloat(s.total_amount) || 0,
+      sortable: true,
+      render: (s) => (
+        <span className="text-sm font-semibold text-teal-600">
+          ${parseFloat(s.total_amount).toLocaleString('es-CL', { minimumFractionDigits: 2 })}
+        </span>
+      ),
+    },
+    {
+      key: 'margin',
+      header: 'Margen',
+      accessor: (s) => snapshotsBySettlementId[s.id]?.margin_status ?? '',
+      filterable: true,
+      render: (s) => getMarginBadge(s.id),
+    },
+    {
+      key: 'status',
+      header: 'Estado',
+      accessor: (s) => s.status,
+      filterable: true,
+      render: (s) => (
+        <select
+          value={s.status}
+          onChange={(e) => handleStatusChange(s, e.target.value)}
+          className={`text-xs font-medium rounded-full px-2.5 py-1 border-0 cursor-pointer focus:ring-2 focus:ring-teal-500 ${STATUS_SELECT_CLASSES[s.status] || 'bg-slate-100 text-slate-700'}`}
+        >
+          <option value="Borrador">Borrador</option>
+          <option value="En Revisión">En Revisión</option>
+          <option value="Aprobado">Aprobado</option>
+          <option value="Pagado">Pagado</option>
+          <option value="Rechazado">Rechazado</option>
+        </select>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -271,89 +309,31 @@ export default function LiquidacionesPage() {
 
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <StatCard
-          title="Total Liquidado"
-          value={`$${kpis.totalLiquidado.toLocaleString('es-CL', { minimumFractionDigits: 2 })}`}
-          icon="ri-money-dollar-circle-line"
-          color="teal"
-        />
-        <StatCard
-          title="Pendiente"
-          value={`$${kpis.pendiente.toLocaleString('es-CL', { minimumFractionDigits: 2 })}`}
-          icon="ri-time-line"
-          color="amber"
-        />
-        <StatCard
-          title="Aprobado"
-          value={`$${kpis.aprobado.toLocaleString('es-CL', { minimumFractionDigits: 2 })}`}
-          icon="ri-checkbox-circle-line"
-          color="emerald"
-        />
-        <StatCard
-          title="En Revisión"
-          value={`$${kpis.enRevision.toLocaleString('es-CL', { minimumFractionDigits: 2 })}`}
-          icon="ri-file-list-3-line"
-          color="blue"
-        />
+        <StatCard title="Total Liquidado" value={`$${kpis.totalLiquidado.toLocaleString('es-CL', { minimumFractionDigits: 2 })}`} icon="ri-money-dollar-circle-line" color="teal" />
+        <StatCard title="Pendiente" value={`$${kpis.pendiente.toLocaleString('es-CL', { minimumFractionDigits: 2 })}`} icon="ri-time-line" color="amber" />
+        <StatCard title="Aprobado" value={`$${kpis.aprobado.toLocaleString('es-CL', { minimumFractionDigits: 2 })}`} icon="ri-checkbox-circle-line" color="emerald" />
+        <StatCard title="En Revisión" value={`$${kpis.enRevision.toLocaleString('es-CL', { minimumFractionDigits: 2 })}`} icon="ri-file-list-3-line" color="blue" />
       </div>
 
-      {/* Filtros */}
+      {/* Filtros de rango (no calzan en el filtro de columna estilo Excel) */}
       <Card>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
             <i className="ri-filter-3-line text-teal-600"></i>
-            Filtros
+            Filtros de fecha y margen
           </h2>
-          {hasActiveFilters && (
+          {hasActiveRangeFilters && (
             <button
-              onClick={clearFilters}
+              onClick={clearRangeFilters}
               className="text-sm text-teal-600 hover:text-teal-700 font-medium flex items-center gap-1 whitespace-nowrap"
             >
               <i className="ri-close-circle-line"></i>
-              Limpiar filtros
+              Limpiar
             </button>
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-8 gap-4">
-          <div className="lg:col-span-2">
-            <Input
-              label="Buscar"
-              icon="ri-search-line"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Número, ruta, conductor..."
-            />
-          </div>
-
-          <Select
-            label="Estado"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            options={[
-              { value: '', label: 'Todos' },
-              { value: 'Borrador', label: 'Borrador' },
-              { value: 'En Revisión', label: 'En Revisión' },
-              { value: 'Aprobado', label: 'Aprobado' },
-              { value: 'Pagado', label: 'Pagado' },
-              { value: 'Rechazado', label: 'Rechazado' },
-            ]}
-          />
-
-          <Select
-            label="Transportista"
-            value={carrierFilter}
-            onChange={(e) => setCarrierFilter(e.target.value)}
-            options={[{ value: '', label: 'Todos' }, ...carriers.map((c) => ({ value: c.id, label: c.name }))]}
-          />
-
-          <Select
-            label="Conductor"
-            value={driverFilter}
-            onChange={(e) => setDriverFilter(e.target.value)}
-            options={[{ value: '', label: 'Todos' }, ...drivers.map((d) => ({ value: d.id, label: d.full_name }))]}
-          />
-
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Select
             label="Margen"
             value={marginFilter}
@@ -366,136 +346,38 @@ export default function LiquidacionesPage() {
               { value: 'LOSS', label: 'Pérdida' },
             ]}
           />
-
           <Input label="Desde" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
           <Input label="Hasta" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
         </div>
       </Card>
 
-      {/* Tabla */}
-      <Card>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700">Número</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700">Ruta</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700">Fecha</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700">Transportista</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700">Conductor</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700">Detalles</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700">Monto Total</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700">Margen</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-700">Estado</th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-700">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading ? (
-                <tr>
-                  <td colSpan={10} className="px-6 py-14 text-center text-slate-500">
-                    <i className="ri-loader-4-line animate-spin text-2xl"></i>
-                  </td>
-                </tr>
-              ) : filteredSettlements.length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="py-14 text-center">
-                    <div className="w-16 h-16 flex items-center justify-center bg-slate-100 rounded-full mx-auto mb-4">
-                      <i className="ri-file-list-3-line text-2xl text-slate-400"></i>
-                    </div>
-                    <h3 className="text-lg font-medium text-slate-700 mb-1">
-                      {settlements.length === 0 ? 'No hay tarifas' : 'Sin resultados'}
-                    </h3>
-                    <p className="text-sm text-slate-500">Crea tu primera tarifa para comenzar</p>
-                  </td>
-                </tr>
-              ) : (
-                filteredSettlements.map((settlement) => (
-                  <tr key={settlement.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <i className="ri-file-text-line text-teal-600"></i>
-                        <span className="text-sm font-medium text-slate-800">{settlement.settlement_number}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-slate-800">{settlement.routes?.route_number}</div>
-                      <div className="text-xs text-slate-500">{settlement.routes?.stores?.name}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-slate-800">
-                        {new Date(settlement.settlement_date).toLocaleDateString('es-CL')}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-slate-800">{settlement.carriers?.name}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-slate-800">{settlement.drivers?.full_name}</div>
-                      <div className="text-xs text-slate-500">{settlement.drivers?.document}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-3 text-xs text-slate-600">
-                        <div className="flex items-center gap-1">
-                          <i className="ri-map-pin-line"></i>
-                          <span>{settlement.total_distance} km</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <i className="ri-checkbox-circle-line"></i>
-                          <span>{settlement.total_deliveries}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <i className="ri-arrow-go-back-line"></i>
-                          <span>{settlement.total_returns}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-semibold text-teal-600">
-                        ${parseFloat(settlement.total_amount).toLocaleString('es-CL', { minimumFractionDigits: 2 })}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {getMarginBadge(settlement.id)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <select
-                        value={settlement.status}
-                        onChange={(e) => handleStatusChange(settlement, e.target.value)}
-                        className={`text-xs font-medium rounded-full px-2.5 py-1 border-0 cursor-pointer focus:ring-2 focus:ring-teal-500 ${STATUS_SELECT_CLASSES[settlement.status] || 'bg-slate-100 text-slate-700'}`}
-                      >
-                        <option value="Borrador">Borrador</option>
-                        <option value="En Revisión">En Revisión</option>
-                        <option value="Aprobado">Aprobado</option>
-                        <option value="Pagado">Pagado</option>
-                        <option value="Rechazado">Rechazado</option>
-                      </select>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => handleEdit(settlement)}
-                          className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer"
-                          title="Editar"
-                        >
-                          <i className="ri-edit-line text-base"></i>
-                        </button>
-                        <button
-                          onClick={() => handleDelete(settlement.id)}
-                          className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
-                          title="Eliminar"
-                        >
-                          <i className="ri-delete-bin-line text-base"></i>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+      <DataTable
+        data={marginFilteredSettlements}
+        columns={columns}
+        getRowId={(s) => s.id}
+        loading={loading}
+        searchPlaceholder="Buscar por número, ruta, conductor..."
+        exportFileName="liquidaciones"
+        emptyMessage="No hay tarifas"
+        actions={(settlement) => (
+          <>
+            <button
+              onClick={() => handleEdit(settlement)}
+              className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer"
+              title="Editar"
+            >
+              <i className="ri-edit-line text-base"></i>
+            </button>
+            <button
+              onClick={() => handleDelete(settlement.id)}
+              className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
+              title="Eliminar"
+            >
+              <i className="ri-delete-bin-line text-base"></i>
+            </button>
+          </>
+        )}
+      />
 
       <SettlementModal
         isOpen={isModalOpen}

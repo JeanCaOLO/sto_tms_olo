@@ -41,7 +41,7 @@ export default function Login() {
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
         <img
           src="https://readdy.ai/api/search-image?query=modern%20logistics%20warehouse%20interior%20with%20trucks%20and%20cargo%20containers%2C%20professional%20industrial%20environment%2C%20teal%20and%20dark%20color%20scheme%2C%20dramatic%20lighting%2C%20high%20contrast%2C%20cinematic%20photography%20style%2C%20wide%20angle%20view%20showing%20scale%20and%20depth&width=800&height=900&seq=login-bg-01&orientation=portrait"
-          alt="STO Transportes"
+          alt="TMS Transportes"
           className="absolute inset-0 w-full h-full object-cover object-top"
         />
         <div className="absolute inset-0 bg-gradient-to-br from-slate-900/90 via-slate-900/70 to-teal-900/80"></div>
@@ -51,7 +51,7 @@ export default function Login() {
               <i className="ri-truck-line text-2xl text-white"></i>
             </div>
             <div>
-              <h1 className="text-white font-bold text-xl tracking-wide">STO</h1>
+              <h1 className="text-white font-bold text-xl tracking-wide">TMS</h1>
               <p className="text-teal-300 text-xs font-medium tracking-widest uppercase">Transportes OLO</p>
             </div>
           </div>
@@ -91,7 +91,7 @@ export default function Login() {
           </div>
 
           <p className="text-slate-500 text-xs">
-            © {new Date().getFullYear()} STO Sistema de Transportes OLO. Todos los derechos reservados.
+            © {new Date().getFullYear()} TMS Sistema de Transportes OLO. Todos los derechos reservados.
           </p>
         </div>
       </div>
@@ -105,7 +105,7 @@ export default function Login() {
               <i className="ri-truck-line text-xl text-white"></i>
             </div>
             <div>
-              <h1 className="font-bold text-lg text-slate-900">STO</h1>
+              <h1 className="font-bold text-lg text-slate-900">TMS</h1>
               <p className="text-teal-600 text-xs font-medium tracking-widest uppercase">Transportes OLO</p>
             </div>
           </div>

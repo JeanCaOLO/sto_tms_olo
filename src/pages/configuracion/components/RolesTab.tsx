@@ -3,6 +3,7 @@ import { supabase } from '../../../lib/supabase';
 import Card from '../../../components/base/Card';
 import Button from '../../../components/base/Button';
 import Badge from '../../../components/base/Badge';
+import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
 import RoleModal from './RoleModal';
 
 interface Role {
@@ -107,6 +108,42 @@ export default function RolesTab() {
   const totalRoles = roles.length;
   const totalUsers = roles.reduce((sum, role) => sum + (role.user_count || 0), 0);
 
+  const columns: DataTableColumn<Role>[] = [
+    {
+      key: 'name',
+      header: 'Rol',
+      accessor: (r) => r.name,
+      sortable: true,
+      render: (r) => (
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-teal-500 to-teal-600 rounded-lg">
+            <i className="ri-shield-user-line text-white"></i>
+          </div>
+          <span className="font-semibold text-slate-800">{r.name}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'description',
+      header: 'Descripción',
+      accessor: (r) => r.description || '',
+      render: (r) => r.description
+        ? <span className="text-slate-600">{r.description}</span>
+        : <span className="text-slate-400 italic">Sin descripción</span>,
+    },
+    {
+      key: 'user_count',
+      header: 'Usuarios',
+      accessor: (r) => r.user_count || 0,
+      sortable: true,
+      render: (r) => (
+        <Badge className={`text-xs ${getRoleBadgeColor(r.name)}`}>
+          {r.user_count || 0} usuario{r.user_count !== 1 ? 's' : ''}
+        </Badge>
+      ),
+    },
+  ];
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -188,87 +225,49 @@ export default function RolesTab() {
         </div>
       </Card>
 
-      {/* Roles Grid */}
-      {roles.length === 0 ? (
-        <Card className="p-12">
-          <div className="text-center text-slate-400">
-            <i className="ri-shield-user-line text-5xl mb-3"></i>
-            <p className="text-sm">No hay roles registrados</p>
-            <p className="text-xs mt-1">Crea el primer rol para comenzar</p>
-          </div>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-2 gap-4">
-          {roles.map((role) => (
-            <Card key={role.id} className="p-5 hover:shadow-lg transition-shadow">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 flex items-center justify-center bg-gradient-to-br from-teal-500 to-teal-600 rounded-lg">
-                    <i className="ri-shield-user-line text-xl text-white"></i>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-slate-800">{role.name}</h3>
-                    <Badge className={`text-xs mt-1 ${getRoleBadgeColor(role.name)}`}>
-                      {role.user_count || 0} usuario{role.user_count !== 1 ? 's' : ''}
-                    </Badge>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => handleEdit(role)}
-                    className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-all cursor-pointer"
-                    title="Editar"
-                  >
-                    <i className="ri-edit-line text-lg"></i>
-                  </button>
-                  <button
-                    onClick={() => setDeleteConfirm(role.id)}
-                    className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
-                    title="Eliminar"
-                  >
-                    <i className="ri-delete-bin-line text-lg"></i>
-                  </button>
-                </div>
-              </div>
-
-              {role.description && (
-                <p className="text-sm text-slate-600 leading-relaxed">
-                  {role.description}
-                </p>
-              )}
-
-              {!role.description && (
-                <p className="text-sm text-slate-400 italic">
-                  Sin descripción
-                </p>
-              )}
-
-              {/* Delete Confirmation */}
-              {deleteConfirm === role.id && (
-                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-700 mb-3">
-                    ¿Estás seguro de eliminar este rol?
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleDelete(role.id)}
-                      className="flex-1 px-3 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-all cursor-pointer whitespace-nowrap"
-                    >
-                      Sí, eliminar
-                    </button>
-                    <button
-                      onClick={() => setDeleteConfirm(null)}
-                      className="flex-1 px-3 py-2 bg-white text-slate-700 text-sm font-medium rounded-lg border border-slate-200 hover:bg-slate-50 transition-all cursor-pointer whitespace-nowrap"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              )}
-            </Card>
-          ))}
-        </div>
-      )}
+      <DataTable
+        data={roles}
+        columns={columns}
+        getRowId={(r) => r.id}
+        searchPlaceholder="Buscar rol..."
+        exportFileName="roles"
+        emptyMessage="No hay roles registrados"
+        actions={(role) =>
+          deleteConfirm === role.id ? (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => handleDelete(role.id)}
+                className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors cursor-pointer whitespace-nowrap"
+              >
+                Confirmar
+              </button>
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="px-3 py-1 text-xs bg-slate-200 text-slate-700 rounded hover:bg-slate-300 transition-colors cursor-pointer whitespace-nowrap"
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={() => handleEdit(role)}
+                className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-all cursor-pointer"
+                title="Editar"
+              >
+                <i className="ri-edit-line text-lg"></i>
+              </button>
+              <button
+                onClick={() => setDeleteConfirm(role.id)}
+                className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
+                title="Eliminar"
+              >
+                <i className="ri-delete-bin-line text-lg"></i>
+              </button>
+            </>
+          )
+        }
+      />
 
       {/* Modal */}
       <RoleModal

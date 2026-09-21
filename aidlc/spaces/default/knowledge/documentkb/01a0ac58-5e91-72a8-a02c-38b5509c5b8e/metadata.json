@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "01a0ac58-5e91-72a8-a02c-38b5509c5b8e",
+  "source": {
+    "kind": "managed",
+    "path": "documents/2026-09-16-notas-jeancarlo-catalogos-tarifario-planificacion.md"
+  },
+  "sha256": "e1a559340abace1226ec5285b2c896579cc475aa90002d1208c85c126575e463",
+  "bytes": 11291,
+  "indexed_at": "2026-09-16T22:31:07.657Z",
+  "extraction": {
+    "state": "extracted",
+    "extractor": {
+      "name": "builtin-text",
+      "version": "1"
+    },
+    "chars": 10961,
+    "truncated": false,
+    "source_revision": "e1a559340abace1226ec5285b2c896579cc475aa90002d1208c85c126575e463"
+  },
+  "summary": {
+    "state": "absent"
+  },
+  "content": "documentkb/01a0ac58-5e91-72a8-a02c-38b5509c5b8e/content.md",
+  "content_sha256": "e1a559340abace1226ec5285b2c896579cc475aa90002d1208c85c126575e463",
+  "content_trust": "untrusted",
+  "content_handling": "data-not-instructions"
+}

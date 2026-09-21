@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
-import Card from '@/components/base/Card';
 import Button from '@/components/base/Button';
-import Input from '@/components/base/Input';
-import Select from '@/components/base/Select';
 import Badge from '@/components/base/Badge';
 import StatCard from '@/components/feature/StatCard';
+import DataTable, { type DataTableColumn } from '@/components/base/DataTable';
 import ContractModal from './components/ContractModal';
 import DocumentsList from './components/DocumentsList';
 
@@ -54,11 +52,7 @@ const typeLabels: Record<string, string> = {
 export default function ContratosPage() {
   const { appUser } = useAuth();
   const [contracts, setContracts] = useState<Contract[]>([]);
-  const [filtered, setFiltered] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState('all');
   const [showModal, setShowModal] = useState(false);
   const [selected, setSelected] = useState<Contract | null>(null);
   const [showDocuments, setShowDocuments] = useState(false);
@@ -67,10 +61,6 @@ export default function ContratosPage() {
   useEffect(() => {
     if (appUser?.organization_id) fetchContracts();
   }, [appUser]);
-
-  useEffect(() => {
-    filterContracts();
-  }, [contracts, searchTerm, statusFilter, typeFilter]);
 
   const fetchContracts = async () => {
     try {
@@ -87,22 +77,6 @@ export default function ContratosPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const filterContracts = () => {
-    let result = [...contracts];
-    if (searchTerm) {
-      const t = searchTerm.toLowerCase();
-      result = result.filter(
-        (c) =>
-          c.contract_number.toLowerCase().includes(t) ||
-          c.title.toLowerCase().includes(t) ||
-          (c.entity_name || '').toLowerCase().includes(t)
-      );
-    }
-    if (statusFilter !== 'all') result = result.filter((c) => c.status === statusFilter);
-    if (typeFilter !== 'all') result = result.filter((c) => c.contract_type === typeFilter);
-    setFiltered(result);
   };
 
   const handleEdit = (contract: Contract) => {
@@ -136,6 +110,86 @@ export default function ContratosPage() {
   }).length;
   const expired = contracts.filter((c) => c.status === 'expired').length;
 
+  const columns: DataTableColumn<Contract>[] = [
+    {
+      key: 'contract_number',
+      header: 'N° Contrato',
+      accessor: (c) => c.contract_number,
+      sortable: true,
+      render: (c) => <span className="font-mono font-semibold text-teal-700 text-sm">{c.contract_number}</span>,
+    },
+    {
+      key: 'title',
+      header: 'Título',
+      accessor: (c) => c.title,
+      sortable: true,
+      render: (c) => <span className="font-medium text-slate-800 text-sm">{c.title}</span>,
+    },
+    {
+      key: 'contract_type',
+      header: 'Tipo',
+      accessor: (c) => typeLabels[c.contract_type] || c.contract_type,
+      filterable: true,
+    },
+    { key: 'entity_name', header: 'Entidad', accessor: (c) => c.entity_name || '—', sortable: true, filterable: true },
+    {
+      key: 'start_date',
+      header: 'Vigencia',
+      accessor: (c) => c.start_date,
+      sortable: true,
+      render: (c) => {
+        const daysLeft = getDaysRemaining(c.end_date);
+        return (
+          <div>
+            <div className="text-sm text-slate-700">
+              {new Date(c.start_date).toLocaleDateString('es-ES')}
+              {c.end_date && (
+                <span className="text-slate-400"> → {new Date(c.end_date).toLocaleDateString('es-ES')}</span>
+              )}
+            </div>
+            {daysLeft !== null && c.status === 'active' && (
+              <div
+                className={`text-xs mt-0.5 font-medium ${
+                  daysLeft < 0 ? 'text-red-500' : daysLeft <= 30 ? 'text-amber-500' : 'text-slate-400'
+                }`}
+              >
+                {daysLeft < 0
+                  ? `Venció hace ${Math.abs(daysLeft)} días`
+                  : daysLeft === 0
+                  ? 'Vence hoy'
+                  : `${daysLeft} días restantes`}
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'value',
+      header: 'Valor',
+      accessor: (c) => c.value ?? 0,
+      sortable: true,
+      render: (c) =>
+        c.value != null ? (
+          <span className="text-sm font-medium text-slate-700">
+            {c.currency} {c.value.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+          </span>
+        ) : (
+          <span className="text-sm text-slate-400">—</span>
+        ),
+    },
+    {
+      key: 'status',
+      header: 'Estado',
+      accessor: (c) => (statusConfig[c.status] || statusConfig.draft).label,
+      filterable: true,
+      render: (c) => {
+        const cfg = statusConfig[c.status] || statusConfig.draft;
+        return <Badge variant={cfg.variant}>{cfg.label}</Badge>;
+      },
+    },
+  ];
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -164,157 +218,32 @@ export default function ContratosPage() {
         <StatCard title="Vencidos" value={expired} icon="ri-time-line" color="red" />
       </div>
 
-      <Card>
-        <div className="space-y-4">
-          <div className="flex flex-col lg:flex-row gap-4">
-            <div className="flex-1">
-              <Input
-                placeholder="Buscar por número, título o entidad..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                icon="ri-search-line"
-              />
-            </div>
-            <div className="w-44">
-              <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                <option value="all">Todos los estados</option>
-                <option value="draft">Borrador</option>
-                <option value="active">Activo</option>
-                <option value="expired">Vencido</option>
-                <option value="terminated">Terminado</option>
-                <option value="suspended">Suspendido</option>
-              </Select>
-            </div>
-            <div className="w-44">
-              <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-                <option value="all">Todos los tipos</option>
-                <option value="service">Servicio</option>
-                <option value="transport">Transporte</option>
-                <option value="carrier">Transportista</option>
-                <option value="driver">Conductor</option>
-                <option value="vehicle">Vehículo</option>
-              </Select>
-            </div>
-          </div>
-
-          {filtered.length === 0 ? (
-            <div className="text-center py-14">
-              <div className="w-16 h-16 flex items-center justify-center bg-slate-100 rounded-full mx-auto mb-4">
-                <i className="ri-file-paper-2-line text-2xl text-slate-400"></i>
-              </div>
-              <h3 className="text-lg font-medium text-slate-700 mb-1">
-                {contracts.length === 0 ? 'No hay contratos registrados' : 'Sin resultados'}
-              </h3>
-              <p className="text-sm text-slate-500">
-                {contracts.length === 0
-                  ? 'Comienza creando tu primer contrato'
-                  : 'Ajusta los filtros para encontrar lo que buscas'}
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-200">
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">N° Contrato</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Título</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Tipo</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Entidad</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Vigencia</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Valor</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Estado</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((contract) => {
-                    const daysLeft = getDaysRemaining(contract.end_date);
-                    const cfg = statusConfig[contract.status] || statusConfig.draft;
-                    return (
-                      <tr key={contract.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td className="py-3 px-4">
-                          <span className="font-mono font-semibold text-teal-700 text-sm">
-                            {contract.contract_number}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="font-medium text-slate-800 text-sm">{contract.title}</span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="text-sm text-slate-600">{typeLabels[contract.contract_type] || contract.contract_type}</span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className="text-sm text-slate-600">{contract.entity_name || '—'}</span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div>
-                            <div className="text-sm text-slate-700">
-                              {new Date(contract.start_date).toLocaleDateString('es-ES')}
-                              {contract.end_date && (
-                                <span className="text-slate-400">
-                                  {' '}→ {new Date(contract.end_date).toLocaleDateString('es-ES')}
-                                </span>
-                              )}
-                            </div>
-                            {daysLeft !== null && contract.status === 'active' && (
-                              <div
-                                className={`text-xs mt-0.5 font-medium ${
-                                  daysLeft < 0
-                                    ? 'text-red-500'
-                                    : daysLeft <= 30
-                                    ? 'text-amber-500'
-                                    : 'text-slate-400'
-                                }`}
-                              >
-                                {daysLeft < 0
-                                  ? `Venció hace ${Math.abs(daysLeft)} días`
-                                  : daysLeft === 0
-                                  ? 'Vence hoy'
-                                  : `${daysLeft} días restantes`}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          {contract.value != null ? (
-                            <span className="text-sm font-medium text-slate-700">
-                              {contract.currency}{' '}
-                              {contract.value.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
-                            </span>
-                          ) : (
-                            <span className="text-sm text-slate-400">—</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4">
-                          <Badge variant={cfg.variant}>{cfg.label}</Badge>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => handleViewDocs(contract)}
-                              className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-teal-600 hover:bg-teal-50 rounded-lg cursor-pointer"
-                              title="Ver documentos"
-                            >
-                              <i className="ri-folder-open-line text-base"></i>
-                            </button>
-                            <button
-                              onClick={() => handleEdit(contract)}
-                              className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer"
-                              title="Editar"
-                            >
-                              <i className="ri-edit-line text-base"></i>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </Card>
+      <DataTable
+        data={contracts}
+        columns={columns}
+        getRowId={(c) => c.id}
+        searchPlaceholder="Buscar por número, título o entidad..."
+        exportFileName="contratos"
+        emptyMessage="No hay contratos registrados"
+        actions={(contract) => (
+          <>
+            <button
+              onClick={() => handleViewDocs(contract)}
+              className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-teal-600 hover:bg-teal-50 rounded-lg cursor-pointer"
+              title="Ver documentos"
+            >
+              <i className="ri-folder-open-line text-base"></i>
+            </button>
+            <button
+              onClick={() => handleEdit(contract)}
+              className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer"
+              title="Editar"
+            >
+              <i className="ri-edit-line text-base"></i>
+            </button>
+          </>
+        )}
+      />
 
       {showModal && (
         <ContractModal

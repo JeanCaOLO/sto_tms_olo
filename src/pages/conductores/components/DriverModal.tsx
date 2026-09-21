@@ -26,6 +26,12 @@ interface Carrier {
   code: string;
 }
 
+interface LicenseType {
+  id: string;
+  code: string;
+  name: string;
+}
+
 interface DriverModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -49,12 +55,14 @@ export default function DriverModal({ isOpen, onClose, driver, onSave }: DriverM
     notes: ''
   });
   const [carriers, setCarriers] = useState<Carrier[]>([]);
+  const [licenseTypes, setLicenseTypes] = useState<LicenseType[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (isOpen) {
       loadCarriers();
+      loadLicenseTypes();
       if (driver) {
         setFormData(driver);
       } else {
@@ -69,8 +77,18 @@ export default function DriverModal({ isOpen, onClose, driver, onSave }: DriverM
       .select('id, name, code')
       .eq('status', 'active')
       .order('name');
-    
+
     if (data) setCarriers(data);
+  };
+
+  const loadLicenseTypes = async () => {
+    const { data } = await supabase
+      .from('license_types')
+      .select('id, code, name')
+      .eq('activo', true)
+      .order('orden');
+
+    if (data) setLicenseTypes(data);
   };
 
   const generateCode = async () => {
@@ -97,8 +115,11 @@ export default function DriverModal({ isOpen, onClose, driver, onSave }: DriverM
         .eq('id', user.id)
         .single();
 
+      const licenseType = licenseTypes.find((lt) => lt.code === formData.license_type);
+
       const driverData = {
         ...formData,
+        license_type_id: licenseType?.id ?? null,
         organization_id: userData?.organization_id,
         updated_at: new Date().toISOString()
       };
@@ -205,12 +226,16 @@ export default function DriverModal({ isOpen, onClose, driver, onSave }: DriverM
               value={formData.license_type}
               onChange={(e) => setFormData({ ...formData, license_type: e.target.value })}
               required
-              options={[
-                { value: 'B', label: 'Clase B - Automóviles' },
-                { value: 'A2', label: 'Clase A2 - Camiones hasta 3.5 ton' },
-                { value: 'A4', label: 'Clase A4 - Camiones sobre 3.5 ton' },
-                { value: 'A5', label: 'Clase A5 - Articulados' },
-              ]}
+              options={
+                licenseTypes.length > 0
+                  ? licenseTypes.map((lt) => ({ value: lt.code, label: lt.name }))
+                  : [
+                      { value: 'B', label: 'Clase B - Automóviles' },
+                      { value: 'A2', label: 'Clase A2 - Camiones hasta 3.5 ton' },
+                      { value: 'A4', label: 'Clase A4 - Camiones sobre 3.5 ton' },
+                      { value: 'A5', label: 'Clase A5 - Articulados' },
+                    ]
+              }
             />
 
             <Input

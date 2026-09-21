@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import Button from '../../components/base/Button';
-import Input from '../../components/base/Input';
-import Select from '../../components/base/Select';
 import Badge from '../../components/base/Badge';
 import Card from '../../components/base/Card';
+import DataTable, { type DataTableColumn } from '../../components/base/DataTable';
 import DriverModal from './components/DriverModal';
 import CsvImportModal from '../../components/feature/CsvImportModal';
 
@@ -30,29 +29,18 @@ interface Driver {
 
 export default function ConductoresPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [filteredDrivers, setFilteredDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [carrierFilter, setCarrierFilter] = useState('all');
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
-  const [carriers, setCarriers] = useState<any[]>([]);
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
 
   useEffect(() => {
     loadDrivers();
-    loadCarriers();
   }, []);
-
-  useEffect(() => {
-    filterDrivers();
-  }, [drivers, searchTerm, statusFilter, carrierFilter]);
 
   const loadDrivers = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('drivers')
       .select(`
         *,
@@ -69,39 +57,6 @@ export default function ConductoresPage() {
     setLoading(false);
   };
 
-  const loadCarriers = async () => {
-    const { data } = await supabase
-      .from('carriers')
-      .select('id, name, code')
-      .eq('status', 'active')
-      .order('name');
-    
-    if (data) setCarriers(data);
-  };
-
-  const filterDrivers = () => {
-    let filtered = [...drivers];
-
-    if (searchTerm) {
-      filtered = filtered.filter(driver =>
-        driver.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        driver.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        driver.document.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        driver.license_number.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(driver => driver.status === statusFilter);
-    }
-
-    if (carrierFilter !== 'all') {
-      filtered = filtered.filter(driver => driver.carrier_id === carrierFilter);
-    }
-
-    setFilteredDrivers(filtered);
-  };
-
   const handleDelete = async (id: string) => {
     if (!confirm('¿Estás seguro de eliminar este conductor?')) return;
 
@@ -116,9 +71,9 @@ export default function ConductoresPage() {
   };
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, 'success' | 'warning' | 'error'> = {
+    const variants: Record<string, 'success' | 'warning' | 'danger'> = {
       active: 'success',
-      inactive: 'error',
+      inactive: 'danger',
       on_leave: 'warning'
     };
     const labels: Record<string, string> = {
@@ -149,6 +104,81 @@ export default function ConductoresPage() {
     expiringSoon: drivers.filter(d => isLicenseExpiringSoon(d.license_expiry)).length
   };
 
+  const columns: DataTableColumn<Driver>[] = [
+    {
+      key: 'full_name',
+      header: 'Conductor',
+      accessor: (d) => d.full_name,
+      sortable: true,
+      render: (d) => (
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-teal-400 to-teal-600 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+            {d.full_name.split(' ').map(n => n[0]).join('').substring(0, 2)}
+          </div>
+          <div>
+            <div className="font-medium text-gray-900">{d.full_name}</div>
+            <div className="text-sm text-gray-500">{d.code}</div>
+          </div>
+        </div>
+      ),
+    },
+    { key: 'document', header: 'Documento', accessor: (d) => d.document, sortable: true },
+    {
+      key: 'contact',
+      header: 'Contacto',
+      accessor: (d) => d.phone,
+      render: (d) => (
+        <>
+          <div className="text-sm text-gray-600">{d.phone}</div>
+          <div className="text-xs text-gray-500">{d.email}</div>
+        </>
+      ),
+    },
+    {
+      key: 'license',
+      header: 'Licencia',
+      accessor: (d) => d.license_type,
+      filterable: true,
+      render: (d) => (
+        <>
+          <div className="text-sm text-gray-900 font-medium">Clase {d.license_type}</div>
+          <div className="text-xs text-gray-500">{d.license_number}</div>
+        </>
+      ),
+    },
+    {
+      key: 'license_expiry',
+      header: 'Vencimiento',
+      accessor: (d) => d.license_expiry,
+      sortable: true,
+      render: (d) => (
+        <>
+          <div className={`text-sm ${isLicenseExpired(d.license_expiry) ? 'text-red-600 font-semibold' : isLicenseExpiringSoon(d.license_expiry) ? 'text-amber-600 font-semibold' : 'text-gray-600'}`}>
+            {new Date(d.license_expiry).toLocaleDateString('es-CL')}
+          </div>
+          {isLicenseExpired(d.license_expiry) && <div className="text-xs text-red-600 font-medium">VENCIDA</div>}
+          {isLicenseExpiringSoon(d.license_expiry) && !isLicenseExpired(d.license_expiry) && (
+            <div className="text-xs text-amber-600 font-medium">Por vencer</div>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'carrier',
+      header: 'Transportista',
+      accessor: (d) => d.carriers?.name ?? '',
+      sortable: true,
+      filterable: true,
+    },
+    {
+      key: 'status',
+      header: 'Estado',
+      accessor: (d) => ({ active: 'Activo', inactive: 'Inactivo', on_leave: 'En Licencia' }[d.status] ?? d.status),
+      filterable: true,
+      render: (d) => getStatusBadge(d.status),
+    },
+  ];
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -168,7 +198,7 @@ export default function ConductoresPage() {
           <p className="text-gray-600 mt-1">Gestiona los conductores de tu flota</p>
         </div>
         <div className="flex gap-3">
-          <Button 
+          <Button
             variant="secondary"
             onClick={() => setIsCsvModalOpen(true)}
           >
@@ -232,206 +262,32 @@ export default function ConductoresPage() {
         </Card>
       </div>
 
-      <Card>
-        <div className="flex flex-col md:flex-row gap-4 mb-6">
-          <div className="flex-1">
-            <Input
-              placeholder="Buscar por nombre, código, documento o licencia..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              icon={<i className="ri-search-line"></i>}
-            />
-          </div>
-          <Select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value="all">Todos los estados</option>
-            <option value="active">Activos</option>
-            <option value="inactive">Inactivos</option>
-            <option value="on_leave">En Licencia</option>
-          </Select>
-          <Select
-            value={carrierFilter}
-            onChange={(e) => setCarrierFilter(e.target.value)}
-          >
-            <option value="all">Todos los transportistas</option>
-            {carriers.map(carrier => (
-              <option key={carrier.id} value={carrier.id}>{carrier.name}</option>
-            ))}
-          </Select>
-          <div className="flex gap-2">
+      <DataTable
+        data={drivers}
+        columns={columns}
+        getRowId={(d) => d.id}
+        searchPlaceholder="Buscar por nombre, código, documento o licencia..."
+        exportFileName="conductores"
+        emptyMessage="No se encontraron conductores"
+        actions={(d) => (
+          <>
             <button
-              onClick={() => setViewMode('grid')}
-              className={`px-3 py-2 rounded-lg ${viewMode === 'grid' ? 'bg-teal-100 text-teal-600' : 'bg-gray-100 text-gray-600'}`}
+              onClick={() => { setSelectedDriver(d); setIsModalOpen(true); }}
+              className="p-2 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
+              title="Editar"
             >
-              <i className="ri-grid-line"></i>
+              <i className="ri-edit-line"></i>
             </button>
             <button
-              onClick={() => setViewMode('table')}
-              className={`px-3 py-2 rounded-lg ${viewMode === 'table' ? 'bg-teal-100 text-teal-600' : 'bg-gray-100 text-gray-600'}`}
+              onClick={() => handleDelete(d.id)}
+              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              title="Eliminar"
             >
-              <i className="ri-list-check"></i>
+              <i className="ri-delete-bin-line"></i>
             </button>
-          </div>
-        </div>
-
-        {viewMode === 'grid' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredDrivers.map((driver) => (
-              <div key={driver.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                <div className="flex items-start gap-4">
-                  <div className="w-16 h-16 bg-gradient-to-br from-teal-400 to-teal-600 rounded-full flex items-center justify-center text-white font-bold text-xl flex-shrink-0">
-                    {driver.full_name.split(' ').map(n => n[0]).join('').substring(0, 2)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="min-w-0">
-                        <h3 className="font-semibold text-gray-900 truncate">{driver.full_name}</h3>
-                        <p className="text-sm text-gray-500">{driver.code}</p>
-                      </div>
-                      {getStatusBadge(driver.status)}
-                    </div>
-
-                    <div className="space-y-1 text-sm text-gray-600 mb-3">
-                      <div className="flex items-center gap-2">
-                        <i className="ri-id-card-line w-4 h-4 flex items-center justify-center"></i>
-                        <span className="truncate">{driver.document}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <i className="ri-phone-line w-4 h-4 flex items-center justify-center"></i>
-                        <span className="truncate">{driver.phone}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <i className="ri-building-line w-4 h-4 flex items-center justify-center"></i>
-                        <span className="truncate">{driver.carriers?.name || 'Sin transportista'}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <i className="ri-bank-card-line w-4 h-4 flex items-center justify-center"></i>
-                        <span className="truncate">Licencia {driver.license_type} - {driver.license_number}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <i className="ri-calendar-line w-4 h-4 flex items-center justify-center"></i>
-                        <span className={`truncate ${isLicenseExpired(driver.license_expiry) ? 'text-red-600 font-semibold' : isLicenseExpiringSoon(driver.license_expiry) ? 'text-amber-600 font-semibold' : ''}`}>
-                          Vence: {new Date(driver.license_expiry).toLocaleDateString('es-CL')}
-                          {isLicenseExpired(driver.license_expiry) && ' (VENCIDA)'}
-                          {isLicenseExpiringSoon(driver.license_expiry) && !isLicenseExpired(driver.license_expiry) && ' (Próxima a vencer)'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {(isLicenseExpired(driver.license_expiry) || isLicenseExpiringSoon(driver.license_expiry)) && (
-                      <div className={`flex items-center gap-2 px-3 py-2 rounded-lg mb-3 ${isLicenseExpired(driver.license_expiry) ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
-                        <i className="ri-alarm-warning-line w-4 h-4 flex items-center justify-center"></i>
-                        <span className="text-xs font-medium">
-                          {isLicenseExpired(driver.license_expiry) ? 'Licencia vencida' : 'Licencia por vencer'}
-                        </span>
-                      </div>
-                    )}
-
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => { setSelectedDriver(driver); setIsModalOpen(true); }}
-                        className="flex-1 px-3 py-1.5 bg-teal-50 text-teal-600 rounded-lg hover:bg-teal-100 transition-colors text-sm font-medium whitespace-nowrap"
-                      >
-                        <i className="ri-edit-line mr-1"></i>
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => handleDelete(driver.id)}
-                        className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors whitespace-nowrap"
-                      >
-                        <i className="ri-delete-bin-line"></i>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Conductor</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Documento</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Contacto</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Licencia</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Vencimiento</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Transportista</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Estado</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-600 uppercase">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredDrivers.map((driver) => (
-                  <tr key={driver.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-teal-400 to-teal-600 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                          {driver.full_name.split(' ').map(n => n[0]).join('').substring(0, 2)}
-                        </div>
-                        <div>
-                          <div className="font-medium text-gray-900">{driver.full_name}</div>
-                          <div className="text-sm text-gray-500">{driver.code}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{driver.document}</td>
-                    <td className="px-4 py-3">
-                      <div className="text-sm text-gray-600">{driver.phone}</div>
-                      <div className="text-xs text-gray-500">{driver.email}</div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="text-sm text-gray-900 font-medium">Clase {driver.license_type}</div>
-                      <div className="text-xs text-gray-500">{driver.license_number}</div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className={`text-sm ${isLicenseExpired(driver.license_expiry) ? 'text-red-600 font-semibold' : isLicenseExpiringSoon(driver.license_expiry) ? 'text-amber-600 font-semibold' : 'text-gray-600'}`}>
-                        {new Date(driver.license_expiry).toLocaleDateString('es-CL')}
-                      </div>
-                      {isLicenseExpired(driver.license_expiry) && (
-                        <div className="text-xs text-red-600 font-medium">VENCIDA</div>
-                      )}
-                      {isLicenseExpiringSoon(driver.license_expiry) && !isLicenseExpired(driver.license_expiry) && (
-                        <div className="text-xs text-amber-600 font-medium">Por vencer</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{driver.carriers?.name || '-'}</td>
-                    <td className="px-4 py-3">{getStatusBadge(driver.status)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => { setSelectedDriver(driver); setIsModalOpen(true); }}
-                          className="p-2 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
-                          title="Editar"
-                        >
-                          <i className="ri-edit-line"></i>
-                        </button>
-                        <button
-                          onClick={() => handleDelete(driver.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Eliminar"
-                        >
-                          <i className="ri-delete-bin-line"></i>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          </>
         )}
-
-        {filteredDrivers.length === 0 && (
-          <div className="text-center py-12">
-            <i className="ri-user-line text-6xl text-gray-300 mb-4"></i>
-            <p className="text-gray-500">No se encontraron conductores</p>
-          </div>
-        )}
-      </Card>
+      />
 
       <DriverModal
         isOpen={isModalOpen}

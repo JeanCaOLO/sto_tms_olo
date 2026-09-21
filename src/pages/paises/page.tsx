@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import Button from '../../components/base/Button';
 import Badge from '../../components/base/Badge';
-import Input from '../../components/base/Input';
-import Select from '../../components/base/Select';
+import DataTable, { type DataTableColumn } from '../../components/base/DataTable';
 import CountryModal from './components/CountryModal';
 import DeleteConfirmModal from './components/DeleteConfirmModal';
 import CsvImportModal from '../../components/feature/CsvImportModal';
@@ -27,16 +26,12 @@ interface Country {
 
 export default function PaisesPage() {
   const [countries, setCountries] = useState<Country[]>([]);
-  const [filteredCountries, setFilteredCountries] = useState<Country[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isCsvImportOpen, setIsCsvImportOpen] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
   const [countryToDelete, setCountryToDelete] = useState<Country | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [organizationId, setOrganizationId] = useState<string>('');
   const [storeCounts, setStoreCounts] = useState<Record<string, number>>({});
   const [deleteError, setDeleteError] = useState<string>('');
@@ -57,10 +52,6 @@ export default function PaisesPage() {
   useEffect(() => {
     fetchOrganizationAndCountries();
   }, []);
-
-  useEffect(() => {
-    filterCountries();
-  }, [countries, searchTerm, statusFilter]);
 
   const fetchOrganizationAndCountries = async () => {
     try {
@@ -104,23 +95,6 @@ export default function PaisesPage() {
       });
       setStoreCounts(counts);
     }
-  };
-
-  const filterCountries = () => {
-    let filtered = [...countries];
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(c =>
-        c.name.toLowerCase().includes(term) ||
-        c.code.toLowerCase().includes(term) ||
-        c.iso_code?.toLowerCase().includes(term) ||
-        c.capital?.toLowerCase().includes(term)
-      );
-    }
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(c => c.status === statusFilter);
-    }
-    setFilteredCountries(filtered);
   };
 
   const handleSaveCountry = async (countryData: any) => {
@@ -189,6 +163,82 @@ export default function PaisesPage() {
   const inactiveCount = countries.filter(c => c.status === 'inactive').length;
   const totalStores = Object.values(storeCounts).reduce((a, b) => a + b, 0);
 
+  const columns: DataTableColumn<Country>[] = [
+    {
+      key: 'name',
+      header: 'País',
+      accessor: (c) => c.name,
+      sortable: true,
+      render: (c) => (
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center text-white font-bold text-sm shadow-sm">
+            {c.flag_emoji || c.code?.slice(0, 2)}
+          </div>
+          <div>
+            <div className="font-semibold text-slate-900 text-sm">{c.name}</div>
+            {c.language && <div className="text-xs text-slate-400">{c.language}</div>}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'codes',
+      header: 'Códigos',
+      accessor: (c) => c.code,
+      sortable: true,
+      render: (c) => (
+        <div className="flex flex-col gap-0.5">
+          <span className="text-xs font-mono bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded w-fit">{c.code}</span>
+          <span className="text-xs font-mono bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded w-fit">{c.iso_code}</span>
+        </div>
+      ),
+    },
+    { key: 'capital', header: 'Capital', accessor: (c) => c.capital ?? '', sortable: true },
+    {
+      key: 'currency',
+      header: 'Moneda / Tel.',
+      accessor: (c) => c.currency,
+      sortable: true,
+      filterable: true,
+      render: (c) => (
+        <>
+          <div className="text-sm font-semibold text-slate-900">{c.currency}</div>
+          {c.phone_code && <div className="text-xs text-slate-400">{c.phone_code}</div>}
+        </>
+      ),
+    },
+    {
+      key: 'timezone',
+      header: 'Zona Horaria',
+      accessor: (c) => c.timezone,
+      filterable: true,
+      render: (c) => <span className="text-xs text-slate-600 bg-slate-100 px-2 py-1 rounded-md">{c.timezone}</span>,
+    },
+    {
+      key: 'stores',
+      header: 'Tiendas',
+      accessor: (c) => storeCounts[c.id] || 0,
+      sortable: true,
+      render: (c) => (
+        <span className="inline-flex items-center gap-1 text-sm font-medium text-slate-700">
+          <i className="ri-store-2-line text-teal-500"></i>
+          {storeCounts[c.id] || 0}
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Estado',
+      accessor: (c) => (c.status === 'active' ? 'Activo' : 'Inactivo'),
+      filterable: true,
+      render: (c) => (
+        <Badge variant={c.status === 'active' ? 'success' : 'danger'} size="sm">
+          {c.status === 'active' ? 'Activo' : 'Inactivo'}
+        </Badge>
+      ),
+    },
+  ];
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full min-h-[400px]">
@@ -246,209 +296,32 @@ export default function PaisesPage() {
         ))}
       </div>
 
-      {/* Filtros y controles */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-          <div className="flex flex-col sm:flex-row gap-3 flex-1">
-            <div className="flex-1 max-w-sm">
-              <Input
-                type="text"
-                placeholder="Buscar por nombre, código, capital..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                icon="ri-search-line"
-              />
-            </div>
-            <div className="w-full sm:w-44">
-              <Select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                options={[
-                  { value: 'all', label: 'Todos los estados' },
-                  { value: 'active', label: 'Activos' },
-                  { value: 'inactive', label: 'Inactivos' },
-                ]}
-              />
-            </div>
-          </div>
-          {/* Toggle vista */}
-          <div className="flex items-center bg-slate-100 rounded-lg p-1 gap-1">
+      <DataTable
+        data={countries}
+        columns={columns}
+        getRowId={(c) => c.id}
+        searchPlaceholder="Buscar por nombre, código, capital..."
+        exportFileName="paises"
+        emptyMessage="No se encontraron países"
+        actions={(c) => (
+          <>
             <button
-              onClick={() => setViewMode('table')}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer ${viewMode === 'table' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              onClick={() => openEdit(c)}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer"
+              title="Editar"
             >
-              <i className="ri-list-check text-base"></i>
+              <i className="ri-edit-line"></i>
             </button>
             <button
-              onClick={() => setViewMode('cards')}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer ${viewMode === 'cards' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              onClick={() => openDelete(c)}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+              title="Eliminar"
             >
-              <i className="ri-layout-grid-line text-base"></i>
+              <i className="ri-delete-bin-line"></i>
             </button>
-          </div>
-        </div>
-
-        {/* Resultado */}
-        <div className="px-4 py-2 border-b border-slate-100 bg-slate-50">
-          <span className="text-xs text-slate-500">{filteredCountries.length} país{filteredCountries.length !== 1 ? 'es' : ''} encontrado{filteredCountries.length !== 1 ? 's' : ''}</span>
-        </div>
-
-        {/* Vista Tabla */}
-        {viewMode === 'table' && (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">País</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Códigos</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Capital</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Moneda / Tel.</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Zona Horaria</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Tiendas</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Estado</th>
-                  <th className="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredCountries.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-6 py-16 text-center">
-                      <div className="flex flex-col items-center gap-2">
-                        <i className="ri-global-line text-5xl text-slate-200"></i>
-                        <p className="text-slate-400 font-medium">No se encontraron países</p>
-                        <p className="text-slate-400 text-sm">Intenta ajustar los filtros o crea un nuevo país</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredCountries.map((country) => (
-                    <tr key={country.id} className="hover:bg-slate-50 transition-colors group">
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center text-white font-bold text-sm shadow-sm">
-                            {country.flag_emoji || country.code?.slice(0, 2)}
-                          </div>
-                          <div>
-                            <div className="font-semibold text-slate-900 text-sm">{country.name}</div>
-                            {country.language && <div className="text-xs text-slate-400">{country.language}</div>}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-xs font-mono bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded w-fit">{country.code}</span>
-                          <span className="text-xs font-mono bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded w-fit">{country.iso_code}</span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-4">
-                        <span className="text-sm text-slate-700">{country.capital || <span className="text-slate-300">—</span>}</span>
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="text-sm font-semibold text-slate-900">{country.currency}</div>
-                        {country.phone_code && <div className="text-xs text-slate-400">{country.phone_code}</div>}
-                      </td>
-                      <td className="px-5 py-4">
-                        <span className="text-xs text-slate-600 bg-slate-100 px-2 py-1 rounded-md">{country.timezone}</span>
-                      </td>
-                      <td className="px-5 py-4">
-                        <span className="inline-flex items-center gap-1 text-sm font-medium text-slate-700">
-                          <i className="ri-store-2-line text-teal-500"></i>
-                          {storeCounts[country.id] || 0}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4">
-                        <Badge variant={country.status === 'active' ? 'success' : 'danger'} size="sm">
-                          {country.status === 'active' ? 'Activo' : 'Inactivo'}
-                        </Badge>
-                      </td>
-                      <td className="px-5 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => openEdit(country)}
-                            className="w-8 h-8 flex items-center justify-center rounded-lg text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer"
-                            title="Editar"
-                          >
-                            <i className="ri-edit-line"></i>
-                          </button>
-                          <button
-                            onClick={() => openDelete(country)}
-                            className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-                            title="Eliminar"
-                          >
-                            <i className="ri-delete-bin-line"></i>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+          </>
         )}
-
-        {/* Vista Tarjetas */}
-        {viewMode === 'cards' && (
-          <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredCountries.length === 0 ? (
-              <div className="col-span-full py-16 text-center">
-                <i className="ri-global-line text-5xl text-slate-200"></i>
-                <p className="mt-2 text-slate-400">No se encontraron países</p>
-              </div>
-            ) : (
-              filteredCountries.map((country) => (
-                <div key={country.id} className="bg-white border border-slate-200 rounded-xl p-4 hover:shadow-md transition-all group relative overflow-hidden">
-                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-teal-400 to-teal-600 rounded-t-xl"></div>
-                  <div className="flex items-start justify-between mb-3 mt-1">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center text-white text-xl font-bold shadow-sm">
-                      {country.flag_emoji || country.code?.slice(0, 2)}
-                    </div>
-                    <Badge variant={country.status === 'active' ? 'success' : 'danger'} size="sm">
-                      {country.status === 'active' ? 'Activo' : 'Inactivo'}
-                    </Badge>
-                  </div>
-                  <h3 className="font-bold text-slate-900 text-base mb-0.5">{country.name}</h3>
-                  {country.capital && <p className="text-xs text-slate-400 mb-3">{country.capital}</p>}
-                  <div className="space-y-1.5 text-xs text-slate-600">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Código</span>
-                      <span className="font-mono font-semibold">{country.code} / {country.iso_code}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Moneda</span>
-                      <span className="font-semibold text-slate-800">{country.currency}</span>
-                    </div>
-                    {country.phone_code && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-slate-400">Tel.</span>
-                        <span>{country.phone_code}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Tiendas</span>
-                      <span className="font-semibold text-teal-600">{storeCounts[country.id] || 0}</span>
-                    </div>
-                  </div>
-                  <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => openEdit(country)}
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer"
-                    >
-                      <i className="ri-edit-line"></i> Editar
-                    </button>
-                    <button
-                      onClick={() => openDelete(country)}
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-                    >
-                      <i className="ri-delete-bin-line"></i> Eliminar
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-      </div>
+      />
 
       <CountryModal
         isOpen={isModalOpen}

@@ -131,14 +131,14 @@ logísticos):
   actual (`src/pages/dashboard/page.tsx`).
 - **[AufaitUX — Dashboard UI/UX for Logistics & Supply Chain](https://www.aufaitux.com/blog/dashboard-design-logistics-supply-chain-ux/)**
   — jerarquía visual por tamaño/color para lo crítico, KPIs principales arriba y detalle
-  "drill-down" abajo — mismo patrón que ya usa el Dashboard de STO con `StatCard`.
+  "drill-down" abajo — mismo patrón que ya usa el Dashboard de TMS con `StatCard`.
 - Colecciones de referencia visual (sin patrón único a copiar, útiles para moodboard):
   [Dribbble — order management](https://dribbble.com/search/order-management),
   [Behance — order management system UI](https://www.behance.net/search/projects/order%20management%20system%20ui%20design).
 
 **Conclusión para el diseño del OMS:** no hace falta inventar un lenguaje visual nuevo — el
 patrón de mercado (cola priorizada + rule builder visual + panel lateral de detalle + modo
-simulación + auditoría) encaja bien encima del design system que STO ya tiene. Se detalla en
+simulación + auditoría) encaja bien encima del design system que TMS ya tiene. Se detalla en
 §4 y §5.
 
 ---

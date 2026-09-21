@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import Button from '../../components/base/Button';
 import Badge from '../../components/base/Badge';
-import Input from '../../components/base/Input';
-import Select from '../../components/base/Select';
+import DataTable, { type DataTableColumn } from '../../components/base/DataTable';
 import StoreModal from './components/StoreModal';
 import DeleteConfirmModal from './components/DeleteConfirmModal';
 import CsvImportModal from '../../components/feature/CsvImportModal';
@@ -52,23 +51,16 @@ const STORE_TYPE_CONFIG: Record<string, { label: string; icon: string; color: st
 
 export default function TiendasPage() {
   const [stores, setStores] = useState<Store[]>([]);
-  const [filteredStores, setFilteredStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isCsvImportOpen, setIsCsvImportOpen] = useState(false);
   const [selectedStore, setSelectedStore] = useState<Store | null>(null);
   const [storeToDelete, setStoreToDelete] = useState<Store | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [countryFilter, setCountryFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [organizationId, setOrganizationId] = useState<string>('');
   const [countries, setCountries] = useState<Country[]>([]);
 
   useEffect(() => { fetchOrganizationAndData(); }, []);
-  useEffect(() => { filterStores(); }, [stores, searchTerm, statusFilter, countryFilter, typeFilter]);
 
   const fetchOrganizationAndData = async () => {
     try {
@@ -104,24 +96,6 @@ export default function TiendasPage() {
       .from('countries').select('id, name, code, flag_emoji')
       .eq('organization_id', orgId).eq('status', 'active').order('name');
     setCountries(data || []);
-  };
-
-  const filterStores = () => {
-    let filtered = [...stores];
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(s =>
-        s.name.toLowerCase().includes(term) ||
-        s.code.toLowerCase().includes(term) ||
-        s.city?.toLowerCase().includes(term) ||
-        s.manager_name?.toLowerCase().includes(term) ||
-        s.delivery_zone?.toLowerCase().includes(term)
-      );
-    }
-    if (statusFilter !== 'all') filtered = filtered.filter(s => s.status === statusFilter);
-    if (countryFilter !== 'all') filtered = filtered.filter(s => s.country_id === countryFilter);
-    if (typeFilter !== 'all') filtered = filtered.filter(s => s.store_type === typeFilter);
-    setFilteredStores(filtered);
   };
 
   const handleSaveStore = async (storeData: any) => {
@@ -171,7 +145,6 @@ export default function TiendasPage() {
   const activeCount = stores.filter(s => s.status === 'active').length;
   const warehouseCount = stores.filter(s => s.store_type === 'warehouse').length;
   const originCount = stores.filter(s => s.is_origin).length;
-  const dcCount = stores.filter(s => s.store_type === 'distribution_center').length;
 
   const csvFields = [
     { key: 'name', label: 'name', required: true, type: 'text' as const },
@@ -214,6 +187,117 @@ export default function TiendasPage() {
 
     return transformed;
   };
+
+  const columns: DataTableColumn<Store>[] = [
+    {
+      key: 'name',
+      header: 'Ubicación',
+      accessor: (s) => s.name,
+      sortable: true,
+      render: (s) => {
+        const typeConf = STORE_TYPE_CONFIG[s.store_type] || STORE_TYPE_CONFIG.store;
+        return (
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${typeConf.bg}`}>
+              <i className={`${typeConf.icon} text-lg ${typeConf.color}`}></i>
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-semibold text-slate-900 text-sm">{s.name}</span>
+                {s.is_origin && (
+                  <span className="inline-flex items-center gap-0.5 text-xs bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full font-medium">
+                    <i className="ri-map-pin-2-fill text-xs"></i> Origen
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-slate-400 font-mono">{s.code}</div>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'store_type',
+      header: 'Tipo',
+      accessor: (s) => (STORE_TYPE_CONFIG[s.store_type] || STORE_TYPE_CONFIG.store).label,
+      filterable: true,
+      render: (s) => {
+        const typeConf = STORE_TYPE_CONFIG[s.store_type] || STORE_TYPE_CONFIG.store;
+        return (
+          <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${typeConf.bg} ${typeConf.color}`}>
+            <i className={typeConf.icon}></i>
+            {typeConf.label}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'country',
+      header: 'País / Ciudad',
+      accessor: (s) => s.countries?.name ?? '',
+      sortable: true,
+      filterable: true,
+      render: (s) => (
+        <>
+          <div className="text-sm text-slate-700">{s.countries?.flag_emoji} {s.countries?.name}</div>
+          <div className="text-xs text-slate-400">{s.city}{s.state ? `, ${s.state}` : ''}</div>
+        </>
+      ),
+    },
+    {
+      key: 'address',
+      header: 'Dirección',
+      accessor: (s) => s.address ?? '',
+      render: (s) => (
+        <>
+          <div className="text-sm text-slate-700 truncate max-w-[200px]">{s.address || <span className="text-slate-300">—</span>}</div>
+          {s.delivery_zone && (
+            <div className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+              <i className="ri-map-pin-line"></i>{s.delivery_zone}
+            </div>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'capacity',
+      header: 'Capacidad',
+      accessor: (s) => s.capacity ?? 0,
+      sortable: true,
+      render: (s) =>
+        s.capacity ? (
+          <div>
+            <div className="text-sm font-semibold text-slate-800">{s.capacity.toLocaleString()}</div>
+            {s.area_m2 && <div className="text-xs text-slate-400">{s.area_m2} m²</div>}
+          </div>
+        ) : (
+          <span className="text-slate-300 text-sm">—</span>
+        ),
+    },
+    {
+      key: 'manager_name',
+      header: 'Responsable',
+      accessor: (s) => s.manager_name ?? '',
+      sortable: true,
+      render: (s) => (
+        <>
+          <div className="text-sm text-slate-700">{s.manager_name || <span className="text-slate-300">—</span>}</div>
+          {s.phone && <div className="text-xs text-slate-400">{s.phone}</div>}
+        </>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Estado',
+      accessor: (s) => (s.status === 'active' ? 'Activo' : 'Inactivo'),
+      filterable: true,
+      render: (s) => (
+        <Badge variant={s.status === 'active' ? 'success' : 'danger'} size="sm">
+          {s.status === 'active' ? 'Activo' : 'Inactivo'}
+        </Badge>
+      ),
+    },
+  ];
 
   if (loading) {
     return (
@@ -272,286 +356,32 @@ export default function TiendasPage() {
         ))}
       </div>
 
-      {/* Filtros */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-        <div className="p-4 border-b border-slate-100 flex flex-col lg:flex-row gap-3 items-start lg:items-center justify-between">
-          <div className="flex flex-col sm:flex-row gap-3 flex-1 flex-wrap">
-            <div className="flex-1 min-w-[200px] max-w-sm">
-              <Input
-                type="text"
-                placeholder="Buscar por nombre, código, ciudad..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                icon="ri-search-line"
-              />
-            </div>
-            <div className="w-full sm:w-44">
-              <Select
-                value={countryFilter}
-                onChange={(e) => setCountryFilter(e.target.value)}
-                options={[
-                  { value: 'all', label: 'Todos los países' },
-                  ...countries.map(c => ({ value: c.id, label: `${c.flag_emoji || ''} ${c.name}`.trim() })),
-                ]}
-              />
-            </div>
-            <div className="w-full sm:w-48">
-              <Select
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-                options={[
-                  { value: 'all', label: 'Todos los tipos' },
-                  { value: 'store', label: 'Tienda' },
-                  { value: 'warehouse', label: 'Bodega' },
-                  { value: 'distribution_center', label: 'C. Distribución' },
-                ]}
-              />
-            </div>
-            <div className="w-full sm:w-40">
-              <Select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                options={[
-                  { value: 'all', label: 'Todos los estados' },
-                  { value: 'active', label: 'Activos' },
-                  { value: 'inactive', label: 'Inactivos' },
-                ]}
-              />
-            </div>
-          </div>
-          {/* Toggle vista */}
-          <div className="flex items-center bg-slate-100 rounded-lg p-1 gap-1 flex-shrink-0">
+      <DataTable
+        data={stores}
+        columns={columns}
+        getRowId={(s) => s.id}
+        searchPlaceholder="Buscar por nombre, código, ciudad..."
+        exportFileName="puntos_de_entrega"
+        emptyMessage="No se encontraron puntos de entrega"
+        actions={(s) => (
+          <>
             <button
-              onClick={() => setViewMode('table')}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer ${viewMode === 'table' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              onClick={() => openEdit(s)}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer"
+              title="Editar"
             >
-              <i className="ri-list-check text-base"></i>
+              <i className="ri-edit-line"></i>
             </button>
             <button
-              onClick={() => setViewMode('cards')}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all cursor-pointer ${viewMode === 'cards' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              onClick={() => openDelete(s)}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+              title="Eliminar"
             >
-              <i className="ri-layout-grid-line text-base"></i>
+              <i className="ri-delete-bin-line"></i>
             </button>
-          </div>
-        </div>
-
-        {/* Contador */}
-        <div className="px-4 py-2 border-b border-slate-100 bg-slate-50">
-          <span className="text-xs text-slate-500">
-            {filteredStores.length} ubicación{filteredStores.length !== 1 ? 'es' : ''} encontrada{filteredStores.length !== 1 ? 's' : ''}
-          </span>
-        </div>
-
-        {/* Vista Tabla */}
-        {viewMode === 'table' && (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Ubicación</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Tipo</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">País / Ciudad</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Dirección</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Capacidad</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Responsable</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Estado</th>
-                  <th className="px-5 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredStores.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-6 py-16 text-center">
-                      <div className="flex flex-col items-center gap-2">
-                        <i className="ri-store-2-line text-5xl text-slate-200"></i>
-                        <p className="text-slate-400 font-medium">No se encontraron puntos de entrega</p>
-                        <p className="text-slate-400 text-sm">Intenta ajustar los filtros o crea un nuevo punto de entrega</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredStores.map((store) => {
-                    const typeConf = STORE_TYPE_CONFIG[store.store_type] || STORE_TYPE_CONFIG.store;
-                    return (
-                      <tr key={store.id} className="hover:bg-slate-50 transition-colors group">
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${typeConf.bg}`}>
-                              <i className={`${typeConf.icon} text-lg ${typeConf.color}`}></i>
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-1.5">
-                                <span className="font-semibold text-slate-900 text-sm">{store.name}</span>
-                                {store.is_origin && (
-                                  <span className="inline-flex items-center gap-0.5 text-xs bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full font-medium">
-                                    <i className="ri-map-pin-2-fill text-xs"></i> Origen
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-xs text-slate-400 font-mono">{store.code}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-5 py-4">
-                          <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${typeConf.bg} ${typeConf.color}`}>
-                            <i className={typeConf.icon}></i>
-                            {typeConf.label}
-                          </span>
-                        </td>
-                        <td className="px-5 py-4">
-                          <div className="text-sm text-slate-700">
-                            {store.countries?.flag_emoji} {store.countries?.name}
-                          </div>
-                          <div className="text-xs text-slate-400">{store.city}{store.state ? `, ${store.state}` : ''}</div>
-                        </td>
-                        <td className="px-5 py-4 max-w-[200px]">
-                          <div className="text-sm text-slate-700 truncate">{store.address || <span className="text-slate-300">—</span>}</div>
-                          {store.delivery_zone && (
-                            <div className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-                              <i className="ri-map-pin-line"></i>{store.delivery_zone}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-5 py-4">
-                          {store.capacity ? (
-                            <div>
-                              <div className="text-sm font-semibold text-slate-800">{store.capacity.toLocaleString()}</div>
-                              {store.area_m2 && <div className="text-xs text-slate-400">{store.area_m2} m²</div>}
-                            </div>
-                          ) : (
-                            <span className="text-slate-300 text-sm">—</span>
-                          )}
-                        </td>
-                        <td className="px-5 py-4">
-                          <div className="text-sm text-slate-700">{store.manager_name || <span className="text-slate-300">—</span>}</div>
-                          {store.phone && <div className="text-xs text-slate-400">{store.phone}</div>}
-                        </td>
-                        <td className="px-5 py-4">
-                          <Badge variant={store.status === 'active' ? 'success' : 'danger'} size="sm">
-                            {store.status === 'active' ? 'Activo' : 'Inactivo'}
-                          </Badge>
-                        </td>
-                        <td className="px-5 py-4 text-right">
-                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={() => openEdit(store)}
-                              className="w-8 h-8 flex items-center justify-center rounded-lg text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer"
-                              title="Editar"
-                            >
-                              <i className="ri-edit-line"></i>
-                            </button>
-                            <button
-                              onClick={() => openDelete(store)}
-                              className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-                              title="Eliminar"
-                            >
-                              <i className="ri-delete-bin-line"></i>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+          </>
         )}
-
-        {/* Vista Tarjetas */}
-        {viewMode === 'cards' && (
-          <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredStores.length === 0 ? (
-              <div className="col-span-full py-16 text-center">
-                <i className="ri-store-2-line text-5xl text-slate-200"></i>
-                <p className="mt-2 text-slate-400">No se encontraron puntos de entrega</p>
-              </div>
-            ) : (
-              filteredStores.map((store) => {
-                const typeConf = STORE_TYPE_CONFIG[store.store_type] || STORE_TYPE_CONFIG.store;
-                return (
-                  <div key={store.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden hover:shadow-md transition-all group">
-                    {/* Card header */}
-                    <div className={`h-1.5 w-full ${store.store_type === 'warehouse' ? 'bg-amber-400' : store.store_type === 'distribution_center' ? 'bg-violet-400' : 'bg-teal-400'}`}></div>
-                    <div className="p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${typeConf.bg}`}>
-                          <i className={`${typeConf.icon} text-xl ${typeConf.color}`}></i>
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <Badge variant={store.status === 'active' ? 'success' : 'danger'} size="sm">
-                            {store.status === 'active' ? 'Activo' : 'Inactivo'}
-                          </Badge>
-                          {store.is_origin && (
-                            <span className="text-xs bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full font-medium flex items-center gap-0.5">
-                              <i className="ri-map-pin-2-fill text-xs"></i> Origen
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <h3 className="font-bold text-slate-900 text-sm leading-tight mb-0.5">{store.name}</h3>
-                      <p className="text-xs font-mono text-slate-400 mb-3">{store.code}</p>
-
-                      <div className="space-y-1.5 text-xs text-slate-600">
-                        <div className="flex items-center gap-1.5">
-                          <i className="ri-global-line text-slate-400 w-3.5"></i>
-                          <span>{store.countries?.flag_emoji} {store.countries?.name}</span>
-                        </div>
-                        {store.city && (
-                          <div className="flex items-center gap-1.5">
-                            <i className="ri-map-pin-line text-slate-400 w-3.5"></i>
-                            <span className="truncate">{store.city}{store.state ? `, ${store.state}` : ''}</span>
-                          </div>
-                        )}
-                        {store.manager_name && (
-                          <div className="flex items-center gap-1.5">
-                            <i className="ri-user-line text-slate-400 w-3.5"></i>
-                            <span className="truncate">{store.manager_name}</span>
-                          </div>
-                        )}
-                        {store.capacity && (
-                          <div className="flex items-center gap-1.5">
-                            <i className="ri-archive-line text-slate-400 w-3.5"></i>
-                            <span>{store.capacity.toLocaleString()} uds{store.area_m2 ? ` · ${store.area_m2} m²` : ''}</span>
-                          </div>
-                        )}
-                        {store.opening_hours && (
-                          <div className="flex items-center gap-1.5">
-                            <i className="ri-time-line text-slate-400 w-3.5"></i>
-                            <span className="truncate">{store.opening_hours}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${typeConf.bg} ${typeConf.color}`}>
-                          {typeConf.label}
-                        </span>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => openEdit(store)}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer"
-                          >
-                            <i className="ri-edit-line text-sm"></i>
-                          </button>
-                          <button
-                            onClick={() => openDelete(store)}
-                            className="w-7 h-7 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-                          >
-                            <i className="ri-delete-bin-line text-sm"></i>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        )}
-      </div>
+      />
 
       <StoreModal
         isOpen={isModalOpen}

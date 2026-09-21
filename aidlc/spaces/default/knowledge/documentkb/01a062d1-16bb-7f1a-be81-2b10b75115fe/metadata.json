@@ -5,8 +5,8 @@
     "kind": "managed",
     "path": "documents/2026-09-01-reunion-oms-revision-mockup.md"
   },
-  "sha256": "c23634a11b361e73e2f85390f08b572f7f3c57fc30bc1f695a5dd56f8b53b585",
-  "bytes": 7999,
+  "sha256": "5fc7d5b0dec9f8a6ef8df0f2f5c78c7c1b2b6ea4b1983362fcfcb440c96a2544",
+  "bytes": 8063,
   "indexed_at": "2026-09-02T15:51:05.133Z",
   "extraction": {
     "state": "extracted",
@@ -14,15 +14,15 @@
       "name": "builtin-text",
       "version": "1"
     },
-    "chars": 7817,
+    "chars": 7881,
     "truncated": false,
-    "source_revision": "c23634a11b361e73e2f85390f08b572f7f3c57fc30bc1f695a5dd56f8b53b585"
+    "source_revision": "5fc7d5b0dec9f8a6ef8df0f2f5c78c7c1b2b6ea4b1983362fcfcb440c96a2544"
   },
   "summary": {
     "state": "absent"
   },
   "content": "documentkb/01a062d1-16bb-7f1a-be81-2b10b75115fe/content.md",
-  "content_sha256": "c23634a11b361e73e2f85390f08b572f7f3c57fc30bc1f695a5dd56f8b53b585",
+  "content_sha256": "5fc7d5b0dec9f8a6ef8df0f2f5c78c7c1b2b6ea4b1983362fcfcb440c96a2544",
   "content_trust": "untrusted",
   "content_handling": "data-not-instructions"
 }

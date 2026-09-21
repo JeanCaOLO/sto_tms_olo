@@ -1,9 +1,27 @@
 import Card from '../../../components/base/Card';
 import Badge from '../../../components/base/Badge';
 import StatCard from '../../../components/feature/StatCard';
+import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
 import OmsPageHeader from '../components/OmsPageHeader';
-import { TIER_LABEL, type PriorityTier } from '../types';
+import { TIER_LABEL, type PriorityTier, type OmsAlert } from '../types';
 import { usePanelController } from './usePanelController';
+
+const alertColumns: DataTableColumn<OmsAlert>[] = [
+  {
+    key: 'severity',
+    header: 'Severidad',
+    accessor: (a) => a.severity,
+    filterable: true,
+    render: (a) => (
+      <Badge variant={a.severity === 'critica' ? 'danger' : 'warning'}>
+        {a.severity === 'critica' ? 'Crítica' : 'Atención'}
+      </Badge>
+    ),
+  },
+  { key: 'type', header: 'Tipo de alerta', accessor: (a) => a.type, sortable: true, filterable: true },
+  { key: 'orderId', header: 'Pedido', accessor: (a) => a.orderId, sortable: true, render: (a) => <span className="font-medium text-slate-900">{a.orderId}</span> },
+  { key: 'timestamp', header: 'Timestamp', accessor: (a) => a.timestamp, sortable: true, render: (a) => <span className="text-slate-500">{a.timestamp}</span> },
+];
 
 // Colores por tier para la distribución (paleta del design system, tema claro).
 const TIER_BAR: Record<PriorityTier, { dot: string; bar: string; text: string }> = {
@@ -61,39 +79,14 @@ export default function OmsPanelPage() {
                 <h2 className="text-lg font-semibold text-slate-900">Alertas activas</h2>
                 <span className="text-xs text-slate-500">Actualizado hace 12 s · cada 60 s</span>
               </div>
-              {alerts.length === 0 ? (
-                <div className="text-center py-10 text-slate-500">
-                  <i className="ri-checkbox-circle-line text-3xl text-emerald-500"></i>
-                  <p className="mt-2 text-sm">Sin alertas activas. El motor opera con normalidad.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-slate-200">
-                        <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Severidad</th>
-                        <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Tipo de alerta</th>
-                        <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Pedido</th>
-                        <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Timestamp</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {alerts.map((a) => (
-                        <tr key={a.id} className="border-b border-slate-100 hover:bg-slate-50">
-                          <td className="py-3 px-4">
-                            <Badge variant={a.severity === 'critica' ? 'danger' : 'warning'}>
-                              {a.severity === 'critica' ? 'Crítica' : 'Atención'}
-                            </Badge>
-                          </td>
-                          <td className="py-3 px-4 text-sm text-slate-700">{a.type}</td>
-                          <td className="py-3 px-4 text-sm font-medium text-slate-900">{a.orderId}</td>
-                          <td className="py-3 px-4 text-sm text-slate-500">{a.timestamp}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <DataTable
+                data={alerts}
+                columns={alertColumns}
+                getRowId={(a) => a.id}
+                searchPlaceholder="Buscar alerta..."
+                exportFileName="alertas_oms"
+                emptyMessage="Sin alertas activas. El motor opera con normalidad."
+              />
             </Card>
 
             <Card>

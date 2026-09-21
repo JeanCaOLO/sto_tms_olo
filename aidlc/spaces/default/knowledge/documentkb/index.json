@@ -7,8 +7,8 @@
         "kind": "managed",
         "path": "documents/CONTEXTO_PROYECTO_TMS.md"
       },
-      "sha256": "d3485b342c9fd8aa2e96d44d7857f831d90b9b82ab91563b9a03ae145f6b9e75",
-      "bytes": 44543,
+      "sha256": "e48cd6f31a2a7aaf971fc09f4b3a6fc46c5b340e5979d766061503e87a383255",
+      "bytes": 44857,
       "indexed_at": "2026-08-24T15:29:43.824Z",
       "extraction": {
         "state": "extracted",
@@ -16,15 +16,15 @@
           "name": "builtin-text",
           "version": "1"
         },
-        "chars": 43571,
+        "chars": 43885,
         "truncated": false,
-        "source_revision": "d3485b342c9fd8aa2e96d44d7857f831d90b9b82ab91563b9a03ae145f6b9e75"
+        "source_revision": "e48cd6f31a2a7aaf971fc09f4b3a6fc46c5b340e5979d766061503e87a383255"
       },
       "summary": {
         "state": "absent"
       },
       "content": "documentkb/01a03464-4dad-7c72-b911-a838e5258ec7/content.md",
-      "content_sha256": "d3485b342c9fd8aa2e96d44d7857f831d90b9b82ab91563b9a03ae145f6b9e75"
+      "content_sha256": "e48cd6f31a2a7aaf971fc09f4b3a6fc46c5b340e5979d766061503e87a383255"
     },
     {
       "id": "01a03464-4db3-79d2-ac66-81f6ac32f34e",
@@ -32,8 +32,8 @@
         "kind": "managed",
         "path": "documents/PLAN_MODULO_OMS.md"
       },
-      "sha256": "fe947b0cfa860f3d0a93e7c8143bf16584e98d7dde360d5c1ec353b3a577bf28",
-      "bytes": 32341,
+      "sha256": "6902dc6a5943bec8519adae1c69196aaad492a81a91a1bd03dba0bc10d84bbd8",
+      "bytes": 32774,
       "indexed_at": "2026-08-24T15:29:43.824Z",
       "extraction": {
         "state": "extracted",
@@ -41,15 +41,15 @@
           "name": "builtin-text",
           "version": "1"
         },
-        "chars": 31413,
+        "chars": 31846,
         "truncated": false,
-        "source_revision": "fe947b0cfa860f3d0a93e7c8143bf16584e98d7dde360d5c1ec353b3a577bf28"
+        "source_revision": "6902dc6a5943bec8519adae1c69196aaad492a81a91a1bd03dba0bc10d84bbd8"
       },
       "summary": {
         "state": "absent"
       },
       "content": "documentkb/01a03464-4db3-79d2-ac66-81f6ac32f34e/content.md",
-      "content_sha256": "fe947b0cfa860f3d0a93e7c8143bf16584e98d7dde360d5c1ec353b3a577bf28"
+      "content_sha256": "6902dc6a5943bec8519adae1c69196aaad492a81a91a1bd03dba0bc10d84bbd8"
     },
     {
       "id": "01a03e32-0e3a-7f1f-83dc-16ab104c38ca",
@@ -57,8 +57,8 @@
         "kind": "managed",
         "path": "documents/2026-08-26-reunion-oms-roles.md"
       },
-      "sha256": "6ed085fcfb418670aadb013577a424f1bc8592d59fd04acd6d6153aa8db5f898",
-      "bytes": 11732,
+      "sha256": "69be9e5ade1b1491c8b14c69f8ee5f4807affd38ec6765ff458bd4fbda2e1449",
+      "bytes": 11832,
       "indexed_at": "2026-08-26T19:52:57.553Z",
       "extraction": {
         "state": "extracted",
@@ -66,15 +66,15 @@
           "name": "builtin-text",
           "version": "1"
         },
-        "chars": 11435,
+        "chars": 11535,
         "truncated": false,
-        "source_revision": "6ed085fcfb418670aadb013577a424f1bc8592d59fd04acd6d6153aa8db5f898"
+        "source_revision": "69be9e5ade1b1491c8b14c69f8ee5f4807affd38ec6765ff458bd4fbda2e1449"
       },
       "summary": {
         "state": "absent"
       },
       "content": "documentkb/01a03e32-0e3a-7f1f-83dc-16ab104c38ca/content.md",
-      "content_sha256": "6ed085fcfb418670aadb013577a424f1bc8592d59fd04acd6d6153aa8db5f898"
+      "content_sha256": "69be9e5ade1b1491c8b14c69f8ee5f4807affd38ec6765ff458bd4fbda2e1449"
     },
     {
       "id": "01a03e32-0e4a-744a-a90b-7791755a3a4c",
@@ -132,8 +132,8 @@
         "kind": "managed",
         "path": "documents/2026-09-01-reunion-oms-revision-mockup.md"
       },
-      "sha256": "c23634a11b361e73e2f85390f08b572f7f3c57fc30bc1f695a5dd56f8b53b585",
-      "bytes": 7999,
+      "sha256": "5fc7d5b0dec9f8a6ef8df0f2f5c78c7c1b2b6ea4b1983362fcfcb440c96a2544",
+      "bytes": 8063,
       "indexed_at": "2026-09-02T15:51:05.133Z",
       "extraction": {
         "state": "extracted",
@@ -141,15 +141,15 @@
           "name": "builtin-text",
           "version": "1"
         },
-        "chars": 7817,
+        "chars": 7881,
         "truncated": false,
-        "source_revision": "c23634a11b361e73e2f85390f08b572f7f3c57fc30bc1f695a5dd56f8b53b585"
+        "source_revision": "5fc7d5b0dec9f8a6ef8df0f2f5c78c7c1b2b6ea4b1983362fcfcb440c96a2544"
       },
       "summary": {
         "state": "absent"
       },
       "content": "documentkb/01a062d1-16bb-7f1a-be81-2b10b75115fe/content.md",
-      "content_sha256": "c23634a11b361e73e2f85390f08b572f7f3c57fc30bc1f695a5dd56f8b53b585"
+      "content_sha256": "5fc7d5b0dec9f8a6ef8df0f2f5c78c7c1b2b6ea4b1983362fcfcb440c96a2544"
     },
     {
       "id": "01a068b6-20bb-71c7-8ba8-cdc26cfadab5",
@@ -157,8 +157,8 @@
         "kind": "managed",
         "path": "documents/2026-09-02-reunion-portafolio-suite-repos-bd.md"
       },
-      "sha256": "18f56818eb2449f4a0ba101a4d994e18dcd1fcbdece017ff0d6842e882e5be87",
-      "bytes": 6358,
+      "sha256": "d734be0f1f7ee200d70490baeda80e49e5d49cb7a55f3163cfb782c3ec357339",
+      "bytes": 6412,
       "indexed_at": "2026-09-03T19:19:21.520Z",
       "extraction": {
         "state": "extracted",
@@ -166,15 +166,15 @@
           "name": "builtin-text",
           "version": "1"
         },
-        "chars": 6186,
+        "chars": 6240,
         "truncated": false,
-        "source_revision": "18f56818eb2449f4a0ba101a4d994e18dcd1fcbdece017ff0d6842e882e5be87"
+        "source_revision": "d734be0f1f7ee200d70490baeda80e49e5d49cb7a55f3163cfb782c3ec357339"
       },
       "summary": {
         "state": "absent"
       },
       "content": "documentkb/01a068b6-20bb-71c7-8ba8-cdc26cfadab5/content.md",
-      "content_sha256": "18f56818eb2449f4a0ba101a4d994e18dcd1fcbdece017ff0d6842e882e5be87"
+      "content_sha256": "d734be0f1f7ee200d70490baeda80e49e5d49cb7a55f3163cfb782c3ec357339"
     },
     {
       "id": "01a06d3d-8873-7d06-85ea-3c5425c511be",
@@ -182,8 +182,8 @@
         "kind": "managed",
         "path": "documents/2026-09-03-reunion-arquitectura-repos-javier.md"
       },
-      "sha256": "161124a2d1b911a186b86cb14bf45a021d33ece32874b161745fe7480432809b",
-      "bytes": 4547,
+      "sha256": "54fb43f89644345bf7f70d48d58d40d1ca3d52d6a348faa4fd67aa36842e0cdc",
+      "bytes": 4580,
       "indexed_at": "2026-09-04T16:25:44.293Z",
       "extraction": {
         "state": "extracted",
@@ -191,15 +191,15 @@
           "name": "builtin-text",
           "version": "1"
         },
-        "chars": 4463,
+        "chars": 4496,
         "truncated": false,
-        "source_revision": "161124a2d1b911a186b86cb14bf45a021d33ece32874b161745fe7480432809b"
+        "source_revision": "54fb43f89644345bf7f70d48d58d40d1ca3d52d6a348faa4fd67aa36842e0cdc"
       },
       "summary": {
         "state": "absent"
       },
       "content": "documentkb/01a06d3d-8873-7d06-85ea-3c5425c511be/content.md",
-      "content_sha256": "161124a2d1b911a186b86cb14bf45a021d33ece32874b161745fe7480432809b"
+      "content_sha256": "54fb43f89644345bf7f70d48d58d40d1ca3d52d6a348faa4fd67aa36842e0cdc"
     },
     {
       "id": "01a07d51-65d8-7174-a6ce-0547938c8d76",
@@ -207,8 +207,8 @@
         "kind": "managed",
         "path": "documents/2026-09-07-reunion-oms-antonio-flujo-priorizacion.md"
       },
-      "sha256": "85a5373b9403bda6792cdce7bf458faa861c97475c5744d16c0764c8691ffdb7",
-      "bytes": 19823,
+      "sha256": "9178c978c0227b526be6a33de0c8bb5b07f6c6f2c73d3193488a61ef91c08c01",
+      "bytes": 19971,
       "indexed_at": "2026-09-07T19:21:21.607Z",
       "extraction": {
         "state": "extracted",
@@ -216,15 +216,15 @@
           "name": "builtin-text",
           "version": "1"
         },
-        "chars": 19406,
+        "chars": 19554,
         "truncated": false,
-        "source_revision": "85a5373b9403bda6792cdce7bf458faa861c97475c5744d16c0764c8691ffdb7"
+        "source_revision": "9178c978c0227b526be6a33de0c8bb5b07f6c6f2c73d3193488a61ef91c08c01"
       },
       "summary": {
         "state": "absent"
       },
       "content": "documentkb/01a07d51-65d8-7174-a6ce-0547938c8d76/content.md",
-      "content_sha256": "85a5373b9403bda6792cdce7bf458faa861c97475c5744d16c0764c8691ffdb7"
+      "content_sha256": "9178c978c0227b526be6a33de0c8bb5b07f6c6f2c73d3193488a61ef91c08c01"
     },
     {
       "id": "01a07d7f-63f8-7f42-b2ef-c19e50a4b054",
@@ -232,8 +232,8 @@
         "kind": "managed",
         "path": "documents/2026-09-07-reuniones-oms-origen-datos-pedidos.md"
       },
-      "sha256": "e357fd50534a61d3ed829375c06e7c57493ab07cfc4b76119714e92adf357de1",
-      "bytes": 15270,
+      "sha256": "e6c099c5f38c9522e8df2a5edf5c6f2131802d0ab5fd0c6a690a0832bab86ece",
+      "bytes": 15378,
       "indexed_at": "2026-09-08T19:28:21.923Z",
       "extraction": {
         "state": "extracted",
@@ -241,15 +241,15 @@
           "name": "builtin-text",
           "version": "1"
         },
-        "chars": 14884,
+        "chars": 14992,
         "truncated": false,
-        "source_revision": "e357fd50534a61d3ed829375c06e7c57493ab07cfc4b76119714e92adf357de1"
+        "source_revision": "e6c099c5f38c9522e8df2a5edf5c6f2131802d0ab5fd0c6a690a0832bab86ece"
       },
       "summary": {
         "state": "absent"
       },
       "content": "documentkb/01a07d7f-63f8-7f42-b2ef-c19e50a4b054/content.md",
-      "content_sha256": "e357fd50534a61d3ed829375c06e7c57493ab07cfc4b76119714e92adf357de1"
+      "content_sha256": "e6c099c5f38c9522e8df2a5edf5c6f2131802d0ab5fd0c6a690a0832bab86ece"
     },
     {
       "id": "01a0812f-5d13-76cd-bdf6-454ea7ecc749",
@@ -257,8 +257,8 @@
         "kind": "managed",
         "path": "documents/2026-09-08-conversacion-exploratoria-oms-integracion-wms-wmh-reglas.md"
       },
-      "sha256": "f4f8c083a4f7e739cc4d1fe32d396e5ace7b16d2b7b6b93f3232daf6b9c1ad94",
-      "bytes": 12777,
+      "sha256": "9d386fee81ca42c9beabaf171e204b5bd3815b5b0187cfb8456600e79d06217a",
+      "bytes": 12876,
       "indexed_at": "2026-09-08T19:28:22.566Z",
       "extraction": {
         "state": "extracted",
@@ -266,15 +266,15 @@
           "name": "builtin-text",
           "version": "1"
         },
-        "chars": 12491,
+        "chars": 12590,
         "truncated": false,
-        "source_revision": "f4f8c083a4f7e739cc4d1fe32d396e5ace7b16d2b7b6b93f3232daf6b9c1ad94"
+        "source_revision": "9d386fee81ca42c9beabaf171e204b5bd3815b5b0187cfb8456600e79d06217a"
       },
       "summary": {
         "state": "absent"
       },
       "content": "documentkb/01a0812f-5d13-76cd-bdf6-454ea7ecc749/content.md",
-      "content_sha256": "f4f8c083a4f7e739cc4d1fe32d396e5ace7b16d2b7b6b93f3232daf6b9c1ad94"
+      "content_sha256": "9d386fee81ca42c9beabaf171e204b5bd3815b5b0187cfb8456600e79d06217a"
     },
     {
       "id": "01a08276-65d5-7d72-86a5-44a987401a5a",
@@ -282,8 +282,8 @@
         "kind": "managed",
         "path": "documents/2026-09-08-reunion-funcional-oms-reglas-priorizacion-antonio.md"
       },
-      "sha256": "a62e9df05accae786acb1a333dff3fd16f5cb55adc0e95798f40117448f38f96",
-      "bytes": 20138,
+      "sha256": "1e221328b566352670f60c3525c2b024011a65075dd4d7b8cdf0fc55207ea27b",
+      "bytes": 20268,
       "indexed_at": "2026-09-08T19:28:23.264Z",
       "extraction": {
         "state": "extracted",
@@ -291,15 +291,65 @@
           "name": "builtin-text",
           "version": "1"
         },
-        "chars": 19687,
+        "chars": 19817,
         "truncated": false,
-        "source_revision": "a62e9df05accae786acb1a333dff3fd16f5cb55adc0e95798f40117448f38f96"
+        "source_revision": "1e221328b566352670f60c3525c2b024011a65075dd4d7b8cdf0fc55207ea27b"
       },
       "summary": {
         "state": "absent"
       },
       "content": "documentkb/01a08276-65d5-7d72-86a5-44a987401a5a/content.md",
-      "content_sha256": "a62e9df05accae786acb1a333dff3fd16f5cb55adc0e95798f40117448f38f96"
+      "content_sha256": "1e221328b566352670f60c3525c2b024011a65075dd4d7b8cdf0fc55207ea27b"
+    },
+    {
+      "id": "01a0ac58-5e91-72a8-a02c-38b5509c5b8e",
+      "source": {
+        "kind": "managed",
+        "path": "documents/2026-09-16-notas-jeancarlo-catalogos-tarifario-planificacion.md"
+      },
+      "sha256": "e1a559340abace1226ec5285b2c896579cc475aa90002d1208c85c126575e463",
+      "bytes": 11291,
+      "indexed_at": "2026-09-16T22:31:07.657Z",
+      "extraction": {
+        "state": "extracted",
+        "extractor": {
+          "name": "builtin-text",
+          "version": "1"
+        },
+        "chars": 10961,
+        "truncated": false,
+        "source_revision": "e1a559340abace1226ec5285b2c896579cc475aa90002d1208c85c126575e463"
+      },
+      "summary": {
+        "state": "absent"
+      },
+      "content": "documentkb/01a0ac58-5e91-72a8-a02c-38b5509c5b8e/content.md",
+      "content_sha256": "e1a559340abace1226ec5285b2c896579cc475aa90002d1208c85c126575e463"
+    },
+    {
+      "id": "01a0ac58-7ca6-7ba9-a911-5a0173feb56b",
+      "source": {
+        "kind": "managed",
+        "path": "documents/OMS_ESPECIFICACION_DETALLADA.md"
+      },
+      "sha256": "45ea11c5f47afb0d4f400fe317b4abd180b8595680fd17c98064d1fca81c3c40",
+      "bytes": 13876,
+      "indexed_at": "2026-09-16T22:31:15.335Z",
+      "extraction": {
+        "state": "extracted",
+        "extractor": {
+          "name": "builtin-text",
+          "version": "1"
+        },
+        "chars": 13456,
+        "truncated": false,
+        "source_revision": "45ea11c5f47afb0d4f400fe317b4abd180b8595680fd17c98064d1fca81c3c40"
+      },
+      "summary": {
+        "state": "absent"
+      },
+      "content": "documentkb/01a0ac58-7ca6-7ba9-a911-5a0173feb56b/content.md",
+      "content_sha256": "45ea11c5f47afb0d4f400fe317b4abd180b8595680fd17c98064d1fca81c3c40"
     }
   ]
 }

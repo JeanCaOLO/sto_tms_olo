@@ -1,10 +1,10 @@
 import Card from '../../../components/base/Card';
 import Button from '../../../components/base/Button';
-import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
+import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
 import OmsPageHeader from '../components/OmsPageHeader';
 import PriorityBadge from '../components/PriorityBadge';
-import { TIER_LABEL, type PriorityTier } from '../types';
+import { TIER_LABEL, type PriorityTier, type QueueOrder } from '../types';
 import OrderDetailModal from './OrderDetailModal';
 import OverrideModal from './OverrideModal';
 import { useColaController } from './useColaController';
@@ -15,9 +15,8 @@ const money = (n: number) => n.toLocaleString('es-CR', { minimumFractionDigits: 
 // El detalle del pedido se muestra en un modal (con el botón de override dentro).
 export default function OmsColaPage() {
   const {
-    country, setCountry, orders, filteredCount, loading, error,
+    country, setCountry, orders, loading, error,
     filters, setFilter, resetFilters, filtersActive, options,
-    page, pageSize, setPageSize, goToPage, totalPages, pageStart,
     selectedId, setSelectedId, selected,
     detailOpen, setDetailOpen,
     overrideOpen, setOverrideOpen, applyOverride,
@@ -26,6 +25,33 @@ export default function OmsColaPage() {
   const opt = (all: string[], allLabel: string) => [
     { value: 'todos', label: allLabel },
     ...all.map((v) => ({ value: v, label: v })),
+  ];
+
+  const columns: DataTableColumn<QueueOrder>[] = [
+    { key: 'tier', header: 'Prioridad', accessor: (o) => o.tier, sortable: true, render: (o) => <PriorityBadge tier={o.tier} /> },
+    { key: 'id', header: 'Pedido', accessor: (o) => o.id, sortable: true, render: (o) => <span className="font-medium text-slate-900">{o.id}</span> },
+    { key: 'warehouseId', header: 'ID Almacén', accessor: (o) => o.warehouseId, sortable: true, filterable: true },
+    { key: 'companyId', header: 'ID Compañía', accessor: (o) => o.companyId, sortable: true, filterable: true },
+    { key: 'branchId', header: 'ID Sucursal', accessor: (o) => o.branchId, sortable: true, filterable: true },
+    { key: 'orderType', header: 'Tipo de Orden', accessor: (o) => o.orderType, sortable: true, filterable: true },
+    { key: 'customer', header: 'Cliente', accessor: (o) => o.customer, sortable: true, filterable: true },
+    { key: 'route', header: 'Ruta', accessor: (o) => o.route, sortable: true, filterable: true },
+    { key: 'totalAmount', header: 'Monto Total', accessor: (o) => o.totalAmount, sortable: true, align: 'right', render: (o) => money(o.totalAmount) },
+    { key: 'weight', header: 'Peso (kg)', accessor: (o) => o.weight, sortable: true, align: 'right', render: (o) => o.weight.toFixed(1) },
+    { key: 'volume', header: 'Volumen (m³)', accessor: (o) => o.volume, sortable: true, align: 'right', render: (o) => o.volume.toFixed(1) },
+    { key: 'itemCount', header: 'N.º artículos', accessor: (o) => o.itemCount, sortable: true, align: 'right' },
+    {
+      key: 'observations',
+      header: 'Observaciones',
+      accessor: (o) => o.observations,
+      render: (o) => <span className="max-w-[220px] truncate block" title={o.observations}>{o.observations}</span>,
+    },
+    { key: 'dispatchDate', header: 'Fecha Despacho', accessor: (o) => o.dispatchDate, sortable: true },
+    { key: 'createdDate', header: 'Fecha creación', accessor: (o) => o.createdDate, sortable: true },
+    { key: 'readyToPrepDate', header: 'Fecha Alisto', accessor: (o) => o.readyToPrepDate, sortable: true },
+    { key: 'score', header: 'Score', accessor: (o) => o.score, sortable: true, align: 'right', render: (o) => <span className="font-semibold text-slate-900">{o.score}</span> },
+    { key: 'status', header: 'Estado', accessor: (o) => o.status, filterable: true },
+    { key: 'situation', header: 'Situación', accessor: (o) => o.situation, filterable: true },
   ];
 
   return (
@@ -65,140 +91,32 @@ export default function OmsColaPage() {
           <div className="w-40">
             <Select label="Situación" value={filters.situation} onChange={(e) => setFilter('situation', e.target.value)} options={opt(options.situations, 'Todas')} />
           </div>
-          <div className="w-64">
-            <Input label="Buscar" icon="ri-search-line" placeholder="Pedido, ref., cliente…" value={filters.query} onChange={(e) => setFilter('query', e.target.value)} />
-          </div>
           {filtersActive && (
             <Button variant="ghost" onClick={resetFilters}>Limpiar</Button>
           )}
         </div>
       </Card>
 
-      <Card padding={false}>
-        {loading && (
-          <div className="flex items-center justify-center h-64">
-            <i className="ri-loader-4-line animate-spin text-teal-600 text-2xl"></i>
-          </div>
-        )}
-        {!loading && error && <div className="p-6 text-sm text-red-600">{error}</div>}
-        {!loading && !error && filteredCount === 0 && (
-          <div className="text-center py-12 text-slate-500">
-            <i className="ri-inbox-line text-3xl"></i>
-            <p className="mt-2 text-sm">
-              {filtersActive ? 'Ningún pedido cumple los filtros.' : 'No hay pedidos pendientes para este país.'}
-            </p>
-          </div>
-        )}
-        {!loading && !error && filteredCount > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full whitespace-nowrap">
-              <thead>
-                <tr className="border-b border-slate-200">
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Prioridad</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Pedido</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">ID Almacén</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">ID Compañía</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">ID Sucursal</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Tipo de Orden</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Cliente</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Ruta</th>
-                  <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">Monto Total</th>
-                  <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">Peso (kg)</th>
-                  <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">Volumen (m³)</th>
-                  <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">N.º artículos</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Observaciones</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Fecha Despacho</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Fecha creación</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Fecha Alisto</th>
-                  <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">Score</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Estado</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Situación</th>
-                </tr>
-              </thead>
-              <tbody>
-                {orders.map((o) => (
-                  <tr
-                    key={o.id}
-                    onClick={() => { setSelectedId(o.id); setDetailOpen(true); }}
-                    className={`border-b border-slate-100 hover:bg-slate-50 cursor-pointer ${selectedId === o.id ? 'bg-teal-50' : ''}`}
-                  >
-                    <td className="py-3 px-4"><PriorityBadge tier={o.tier} /></td>
-                    <td className="py-3 px-4 text-sm font-medium text-slate-900">{o.id}</td>
-                    <td className="py-3 px-4 text-sm text-slate-700">{o.warehouseId}</td>
-                    <td className="py-3 px-4 text-sm text-slate-700">{o.companyId}</td>
-                    <td className="py-3 px-4 text-sm text-slate-700">{o.branchId}</td>
-                    <td className="py-3 px-4 text-sm text-slate-700">{o.orderType}</td>
-                    <td className="py-3 px-4 text-sm text-slate-700">{o.customer}</td>
-                    <td className="py-3 px-4 text-sm text-slate-700">{o.route}</td>
-                    <td className="py-3 px-4 text-sm text-slate-700 text-right">{money(o.totalAmount)}</td>
-                    <td className="py-3 px-4 text-sm text-slate-700 text-right">{o.weight.toFixed(1)}</td>
-                    <td className="py-3 px-4 text-sm text-slate-700 text-right">{o.volume.toFixed(1)}</td>
-                    <td className="py-3 px-4 text-sm text-slate-700 text-right">{o.itemCount}</td>
-                    <td className="py-3 px-4 text-sm text-slate-600 max-w-[220px] truncate" title={o.observations}>{o.observations}</td>
-                    <td className="py-3 px-4 text-sm text-slate-700">{o.dispatchDate}</td>
-                    <td className="py-3 px-4 text-sm text-slate-700">{o.createdDate}</td>
-                    <td className="py-3 px-4 text-sm text-slate-700">{o.readyToPrepDate}</td>
-                    <td className="py-3 px-4 text-sm font-semibold text-slate-900 text-right">{o.score}</td>
-                    <td className="py-3 px-4 text-sm text-slate-600">{o.status}</td>
-                    <td className="py-3 px-4 text-sm text-slate-600">{o.situation}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 border-t border-slate-100">
-              <div className="flex items-center gap-2 text-sm text-slate-600">
-                <span>Mostrar</span>
-                <select
-                  value={pageSize}
-                  onChange={(e) => setPageSize(Number(e.target.value))}
-                  className="px-2 py-1 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
-                  aria-label="Pedidos por página"
-                >
-                  {[5, 10, 25, 50, 100].map((n) => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </select>
-                <span>por página · {filteredCount} pedidos</span>
-              </div>
+      {!loading && error && (
+        <Card padding={false}>
+          <div className="p-6 text-sm text-red-600">{error}</div>
+        </Card>
+      )}
 
-              <div className="flex items-center gap-2 text-sm text-slate-600">
-                <span className="hidden sm:inline">
-                  {pageStart + 1}–{Math.min(pageStart + orders.length, filteredCount)} de {filteredCount}
-                </span>
-                <button
-                  onClick={() => goToPage(page - 1)}
-                  disabled={page <= 1}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  aria-label="Página anterior"
-                >
-                  <i className="ri-arrow-left-s-line"></i>
-                </button>
-                <div className="flex items-center gap-1.5">
-                  <span>Página</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={totalPages}
-                    value={page}
-                    onChange={(e) => goToPage(Number(e.target.value))}
-                    className="w-14 px-2 py-1 text-sm text-center border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    aria-label="Número de página"
-                  />
-                  <span>de {totalPages}</span>
-                </div>
-                <button
-                  onClick={() => goToPage(page + 1)}
-                  disabled={page >= totalPages}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  aria-label="Página siguiente"
-                >
-                  <i className="ri-arrow-right-s-line"></i>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </Card>
+      {(loading || !error) && (
+        <DataTable
+          data={orders}
+          columns={columns}
+          getRowId={(o) => o.id}
+          loading={loading}
+          pageSize={10}
+          selectedRowId={selectedId}
+          onRowClick={(o) => { setSelectedId(o.id); setDetailOpen(true); }}
+          searchPlaceholder="Pedido, ref., cliente..."
+          exportFileName="cola_priorizacion"
+          emptyMessage={filtersActive ? 'Ningún pedido cumple los filtros.' : 'No hay pedidos pendientes para este país.'}
+        />
+      )}
 
       {detailOpen && selected && (
         <OrderDetailModal

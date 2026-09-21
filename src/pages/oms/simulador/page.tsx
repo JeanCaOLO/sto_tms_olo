@@ -1,9 +1,18 @@
 import { useState } from 'react';
 import Card from '../../../components/base/Card';
 import Button from '../../../components/base/Button';
+import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
 import PriorityBadge from '../components/PriorityBadge';
 import { queueOrders } from '../mockData';
 import type { PriorityTier } from '../types';
+
+type SimRow = { id: string; tier: PriorityTier; score: number };
+
+const simColumns: DataTableColumn<SimRow>[] = [
+  { key: 'id', header: 'Pedido', accessor: (o) => o.id, sortable: true, render: (o) => <span className="font-medium text-slate-900">{o.id}</span> },
+  { key: 'tier', header: 'Tier', accessor: (o) => o.tier, sortable: true, filterable: true, render: (o) => <PriorityBadge tier={o.tier} /> },
+  { key: 'score', header: 'Score', accessor: (o) => o.score, sortable: true },
+];
 
 // Pantalla Simulador de Reglas (FR6): comparación cola actual vs. simulada.
 // Mock: la "simulación" baja un nivel a los pedidos de tier alto para ilustrar.
@@ -71,29 +80,17 @@ export default function OmsSimuladorPage() {
           </Card>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {[{ title: 'Cola ACTUAL', rows: current }, { title: 'Cola SIMULADA', rows: simulated }].map((col) => (
-              <Card key={col.title} padding={false}>
-                <h2 className="text-sm font-semibold text-slate-900 p-4 pb-2">{col.title}</h2>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-slate-200">
-                        <th className="text-left py-2 px-4 text-sm font-semibold text-slate-700">Pedido</th>
-                        <th className="text-left py-2 px-4 text-sm font-semibold text-slate-700">Tier</th>
-                        <th className="text-left py-2 px-4 text-sm font-semibold text-slate-700">Score</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {col.rows.map((o) => (
-                        <tr key={o.id} className="border-b border-slate-100">
-                          <td className="py-2 px-4 text-sm font-medium text-slate-900">{o.id}</td>
-                          <td className="py-2 px-4"><PriorityBadge tier={o.tier} /></td>
-                          <td className="py-2 px-4 text-sm text-slate-700">{o.score}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
+              <div key={col.title}>
+                <h2 className="text-sm font-semibold text-slate-900 mb-2">{col.title}</h2>
+                <DataTable
+                  data={col.rows}
+                  columns={simColumns}
+                  getRowId={(o) => o.id}
+                  searchPlaceholder="Buscar pedido..."
+                  exportFileName={col.title === 'Cola ACTUAL' ? 'cola_actual' : 'cola_simulada'}
+                  emptyMessage="Sin pedidos"
+                />
+              </div>
             ))}
           </div>
           <div className="flex justify-end">
