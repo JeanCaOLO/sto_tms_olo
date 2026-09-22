@@ -15,21 +15,41 @@ interface RouteTypeModalProps {
 export default function RouteTypeModal({ isOpen, onClose, onSuccess, routeType }: RouteTypeModalProps) {
   const { appUser } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [zones, setZones] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     name: '',
-    status: 'active'
+    status: 'active',
+    zone_id: ''
   });
+
+  useEffect(() => {
+    if (isOpen && appUser?.organization_id) {
+      loadZones();
+    }
+  }, [isOpen, appUser?.organization_id]);
+
+  const loadZones = async () => {
+    const { data } = await supabase
+      .from('zones')
+      .select('id, code, name')
+      .eq('organization_id', appUser?.organization_id)
+      .eq('status', 'active')
+      .order('code');
+    setZones(data || []);
+  };
 
   useEffect(() => {
     if (routeType) {
       setFormData({
         name: routeType.name || '',
-        status: routeType.status || 'active'
+        status: routeType.status || 'active',
+        zone_id: routeType.zone_id || ''
       });
     } else {
       setFormData({
         name: '',
-        status: 'active'
+        status: 'active',
+        zone_id: ''
       });
     }
   }, [routeType, isOpen]);
@@ -51,6 +71,7 @@ export default function RouteTypeModal({ isOpen, onClose, onSuccess, routeType }
           .update({
             name: formData.name,
             status: formData.status,
+            zone_id: formData.zone_id || null,
             updated_at: new Date().toISOString()
           })
           .eq('id', routeType.id);
@@ -62,6 +83,7 @@ export default function RouteTypeModal({ isOpen, onClose, onSuccess, routeType }
           .insert({
             name: formData.name,
             status: formData.status,
+            zone_id: formData.zone_id || null,
             organization_id: appUser.organization_id
           });
 
@@ -115,6 +137,20 @@ export default function RouteTypeModal({ isOpen, onClose, onSuccess, routeType }
             <option value="active">Activo</option>
             <option value="inactive">Inactivo</option>
           </Select>
+
+          <Select
+            label="Zona (destino de reparto)"
+            value={formData.zone_id}
+            onChange={(e) => setFormData({ ...formData, zone_id: e.target.value })}
+          >
+            <option value="">Sin asignar</option>
+            {zones.map((z) => (
+              <option key={z.id} value={z.id}>{z.code} - {z.name}</option>
+            ))}
+          </Select>
+          <p className="text-xs text-gray-500 -mt-3">
+            Las reglas de tarifa por zona destino usan la zona asignada acá (Reglas de Tarifa → Zonas).
+          </p>
 
           <div className="flex gap-3 pt-4">
             <Button

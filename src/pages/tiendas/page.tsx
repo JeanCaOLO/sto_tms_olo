@@ -133,7 +133,7 @@ export default function TiendasPage() {
         phone: storeData.phone, email: storeData.email, store_type: storeData.store_type,
         manager_name: storeData.manager_name, status: storeData.status, is_origin: storeData.is_origin,
         opening_hours: storeData.opening_hours, capacity: storeData.capacity, area_m2: storeData.area_m2,
-        delivery_zone: storeData.delivery_zone, notes: storeData.notes,
+        delivery_zone: storeData.delivery_zone, zone_id: storeData.zone_id || null, notes: storeData.notes,
         contact_name: storeData.contact_name, contact_phone: storeData.contact_phone,
         contact_email: storeData.contact_email, updated_at: new Date().toISOString(),
       };
