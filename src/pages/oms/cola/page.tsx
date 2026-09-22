@@ -2,7 +2,6 @@ import Card from '../../../components/base/Card';
 import Button from '../../../components/base/Button';
 import Select from '../../../components/base/Select';
 import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
-import OmsPageHeader from '../components/OmsPageHeader';
 import PriorityBadge from '../components/PriorityBadge';
 import { TIER_LABEL, type PriorityTier, type QueueOrder } from '../types';
 import OrderDetailModal from './OrderDetailModal';
@@ -13,9 +12,13 @@ const money = (n: number) => n.toLocaleString('es-CR', { minimumFractionDigits: 
 
 // Pantalla Cola de Priorización (FR2/FR3): tabla completa + filtros.
 // El detalle del pedido se muestra en un modal (con el botón de override dentro).
+// El país queda fijo internamente (ver useColaController); el filtro visible es
+// Compañía, dentro del bloque de filtros (no hay selector de país en el header).
+// La lista es un DataTable (estándar del sistema: búsqueda, filtros por columna,
+// orden, paginación y export .xlsx integrados).
 export default function OmsColaPage() {
   const {
-    country, setCountry, orders, loading, error,
+    orders, loading, error,
     filters, setFilter, resetFilters, filtersActive, options,
     selectedId, setSelectedId, selected,
     detailOpen, setDetailOpen,
@@ -56,28 +59,26 @@ export default function OmsColaPage() {
 
   return (
     <div className="space-y-6">
-      <OmsPageHeader
-        title="Cola de Priorización"
-        subtitle="Pedidos pendientes ordenados por prioridad calculada"
-        country={country}
-        onCountryChange={setCountry}
-      />
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Cola de Priorización</h1>
+        <p className="text-sm text-slate-600 mt-1">Pedidos pendientes ordenados por prioridad calculada</p>
+      </div>
 
       <Card>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="w-40">
+        <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end">
+          <div className="sm:w-40">
             <Select label="Almacén" value={filters.warehouse} onChange={(e) => setFilter('warehouse', e.target.value)} options={opt(options.warehouses, 'Todos')} />
           </div>
-          <div className="w-40">
+          <div className="sm:w-40">
             <Select label="Compañía" value={filters.company} onChange={(e) => setFilter('company', e.target.value)} options={opt(options.companies, 'Todas')} />
           </div>
-          <div className="w-40">
+          <div className="sm:w-40">
             <Select label="Sucursal" value={filters.branch} onChange={(e) => setFilter('branch', e.target.value)} options={opt(options.branches, 'Todas')} />
           </div>
-          <div className="w-44">
+          <div className="sm:w-44">
             <Select label="Ruta" value={filters.route} onChange={(e) => setFilter('route', e.target.value)} options={opt(options.routes, 'Todas')} />
           </div>
-          <div className="w-40">
+          <div className="sm:w-40">
             <Select
               label="Prioridad"
               value={filters.tier}
@@ -85,14 +86,16 @@ export default function OmsColaPage() {
               options={[{ value: 'todos', label: 'Todas' }, ...options.tiers.map((t) => ({ value: t, label: TIER_LABEL[Number(t) as PriorityTier] }))]}
             />
           </div>
-          <div className="w-40">
+          <div className="sm:w-40">
             <Select label="Estado" value={filters.status} onChange={(e) => setFilter('status', e.target.value)} options={opt(options.statuses, 'Todos')} />
           </div>
-          <div className="w-40">
+          <div className="sm:w-40">
             <Select label="Situación" value={filters.situation} onChange={(e) => setFilter('situation', e.target.value)} options={opt(options.situations, 'Todas')} />
           </div>
           {filtersActive && (
-            <Button variant="ghost" onClick={resetFilters}>Limpiar</Button>
+            <div className="col-span-2 sm:w-auto">
+              <Button variant="ghost" onClick={resetFilters}>Limpiar</Button>
+            </div>
           )}
         </div>
       </Card>
@@ -137,3 +140,4 @@ export default function OmsColaPage() {
     </div>
   );
 }
+

@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
 import { omsApi } from '../api/omsApi';
-import type { Country, DispatchRoute } from '../types';
+import type { Company, Country, DispatchRoute } from '../types';
 
 // Controller del Calendario de Rutas (FR1). Un solo load por país.
+// El país sigue siendo el filtro de dato; la compañía es el selector visible
+// en el header, igual que en el Motor de Reglas y el Panel OMS.
 export function useRutasController() {
-  const [country, setCountry] = useState<Country>('CR');
+  const country: Country = 'CR';
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [company, setCompany] = useState<string>('');
   const [routes, setRoutes] = useState<DispatchRoute[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -14,14 +18,17 @@ export function useRutasController() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    omsApi.getRoutes(country)
-      .then((r) => { if (!cancelled) setRoutes(r); })
+    Promise.all([omsApi.getCompanies(), omsApi.getRoutes(country)])
+      .then(([c, r]) => {
+        if (cancelled) return;
+        setCompanies(c);
+        setCompany((prev) => prev || c[0]?.id || '');
+        setRoutes(r);
+      })
       .catch(() => { if (!cancelled) setError('No se pudo cargar el calendario de rutas.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [country]);
-
-  const [modalOpen, setModalOpen] = useState(false);
+  }, []);
 
   const filtered = routes.filter((r) => {
     const q = query.trim().toLowerCase();
@@ -29,17 +36,7 @@ export function useRutasController() {
     return `${r.id} ${r.name}`.toLowerCase().includes(q);
   });
 
-  // Alta de ruta local (mock, sin backend): agrega la fila al país activo.
-  const addRoute = (route: Omit<DispatchRoute, 'country' | 'exceptions' | 'byAppointment'>) => {
-    setRoutes((prev) => [
-      { ...route, country, exceptions: 0, byAppointment: route.loadDays.length === 0 },
-      ...prev,
-    ]);
-    setModalOpen(false);
-  };
-
   return {
-    country, setCountry, routes: filtered, loading, error, query, setQuery,
-    modalOpen, setModalOpen, addRoute,
+    country, companies, company, setCompany, routes: filtered, loading, error, query, setQuery,
   };
 }

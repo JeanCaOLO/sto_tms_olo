@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { omsApi } from '../api/omsApi';
-import type { Country, PriorityTier, QueueOrder } from '../types';
+import type { PriorityTier, QueueOrder } from '../types';
 
 const ALL = 'todos';
 
@@ -22,7 +22,7 @@ const EMPTY_FILTERS: ColaFilters = {
 // Controller de la Cola de Priorización (FR2/FR3). Maneja filtros, selección de
 // pedido y el override manual local (única intervención humana; sin backend).
 export function useColaController() {
-  const [country, setCountry] = useState<Country>('CR');
+  const country = 'CR' as const;
   const [orders, setOrders] = useState<QueueOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +41,7 @@ export function useColaController() {
       .catch(() => { if (!cancelled) setError('No se pudo cargar la cola.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [country]);
+  }, []);
 
   // Opciones de filtro derivadas de los pedidos cargados.
   const options = useMemo(() => {
@@ -112,7 +112,7 @@ export function useColaController() {
     // `orders` es el set FILTRADO completo (sin paginar) - DataTable hace su
     // propia paginación/orden/búsqueda internamente (ver src/components/base/DataTable.tsx);
     // pasarle un slice ya paginado desde acá rompía su selector de tamaño de página.
-    country, setCountry, orders: filtered, totalCount: orders.length, loading, error,
+    orders: filtered, totalCount: orders.length, loading, error,
     filters, setFilter, resetFilters, filtersActive, options,
     selectedId, setSelectedId, selected,
     detailOpen, setDetailOpen,

@@ -1,15 +1,22 @@
 import { useEffect, useState } from 'react';
 import Card from '../../../components/base/Card';
 import Badge from '../../../components/base/Badge';
+import Select from '../../../components/base/Select';
 import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
-import OmsPageHeader from '../components/OmsPageHeader';
 import { omsApi } from '../api/omsApi';
 import { TIER_LABEL } from '../types';
-import type { AuditEntry, Country } from '../types';
+import type { AuditEntry, Company, Country } from '../types';
+
+const tierChange = (e: AuditEntry) =>
+  `${e.tierFrom === 'sin asignar' ? 'sin asignar' : TIER_LABEL[e.tierFrom]} → ${TIER_LABEL[e.tierTo]}`;
 
 // Pantalla Auditoría de Priorización (FR7): registro inmutable, solo lectura.
+// Lista en DataTable (estándar del sistema: búsqueda, filtros por columna, orden,
+// paginación y export .xlsx integrados).
 export default function OmsAuditoriaPage() {
-  const [country, setCountry] = useState<Country>('CR');
+  const country: Country = 'CR';
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [company, setCompany] = useState<string>('');
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -19,12 +26,17 @@ export default function OmsAuditoriaPage() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    omsApi.getAudit(country)
-      .then((rows) => { if (!cancelled) setEntries(rows); })
+    Promise.all([omsApi.getCompanies(), omsApi.getAudit(country)])
+      .then(([c, rows]) => {
+        if (cancelled) return;
+        setCompanies(c);
+        setCompany((prev) => prev || c[0]?.id || '');
+        setEntries(rows);
+      })
       .catch(() => { if (!cancelled) setError('No se pudo cargar la auditoría.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [country]);
+  }, []);
 
   const rows = entries.filter((e) => typeFilter === 'todos' || e.changeType === typeFilter);
 
@@ -46,9 +58,7 @@ export default function OmsAuditoriaPage() {
       key: 'tier',
       header: 'Tier',
       accessor: (e) => e.tierTo,
-      render: (e) => (
-        <>{e.tierFrom === 'sin asignar' ? 'sin asignar' : TIER_LABEL[e.tierFrom]} → {TIER_LABEL[e.tierTo]}</>
-      ),
+      render: (e) => <>{tierChange(e)}</>,
     },
     {
       key: 'score',
@@ -63,12 +73,22 @@ export default function OmsAuditoriaPage() {
 
   return (
     <div className="space-y-6">
-      <OmsPageHeader
-        title="Auditoría de Priorización"
-        subtitle="Registro inmutable de cambios de prioridad (solo lectura)"
-        country={country}
-        onCountryChange={setCountry}
-      />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Auditoría de Priorización</h1>
+          <p className="text-sm text-slate-600 mt-1">
+            Registro inmutable de cambios de prioridad (solo lectura)
+          </p>
+        </div>
+        <div className="w-full sm:w-56">
+          <Select
+            label="Compañía"
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+            options={companies.map((c) => ({ value: c.id, label: c.name }))}
+          />
+        </div>
+      </div>
 
       <Card padding={false}>
         <div className="flex items-center gap-2 p-4">

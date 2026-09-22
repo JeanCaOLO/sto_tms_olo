@@ -1,8 +1,8 @@
 import Card from '../../../components/base/Card';
 import Badge from '../../../components/base/Badge';
+import Select from '../../../components/base/Select';
 import StatCard from '../../../components/feature/StatCard';
 import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
-import OmsPageHeader from '../components/OmsPageHeader';
 import { TIER_LABEL, type PriorityTier, type OmsAlert } from '../types';
 import { usePanelController } from './usePanelController';
 
@@ -33,18 +33,28 @@ const TIER_BAR: Record<PriorityTier, { dot: string; bar: string; text: string }>
 
 // Pantalla Panel OMS — dashboard de salud del motor (FR4).
 export default function OmsPanelPage() {
-  const { country, setCountry, kpis, alerts, distribution, loading, error } = usePanelController();
+  const { companies, company, setCompany, kpis, alerts, distribution, loading, error } = usePanelController();
 
   const maxCount = Math.max(1, ...distribution.map((d) => d.count));
 
   return (
     <div className="space-y-6">
-      <OmsPageHeader
-        title="Panel OMS"
-        subtitle="Salud del motor de priorización e indicadores operativos"
-        country={country}
-        onCountryChange={setCountry}
-      />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Panel OMS</h1>
+          <p className="text-sm text-slate-600 mt-1">
+            Salud del motor de priorización e indicadores operativos
+          </p>
+        </div>
+        <div className="w-full sm:w-56">
+          <Select
+            label="Compañía"
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+            options={companies.map((c) => ({ value: c.id, label: c.name }))}
+          />
+        </div>
+      </div>
 
       {loading && (
         <div className="flex items-center justify-center h-64">

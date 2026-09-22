@@ -23,7 +23,7 @@ export default function OmsReglasPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Motor de Reglas</h1>
           <p className="text-sm text-slate-600 mt-1">
@@ -32,7 +32,7 @@ export default function OmsReglasPage() {
             Peso y parámetros son de referencia/planificación, editables acá pero no conectados aún al motor real.
           </p>
         </div>
-        <div className="w-56">
+        <div className="w-full sm:w-56">
           <Select
             label="Compañía"
             value={company}
