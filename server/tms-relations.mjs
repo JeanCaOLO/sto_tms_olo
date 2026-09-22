@@ -75,6 +75,12 @@ export const FOREIGN_KEYS = [
   { child: "user_scopes", column: "country_id", parent: "countries" },
   { child: "user_scopes", column: "warehouse_id", parent: "warehouses" },
   { child: "user_scopes", column: "customer_id", parent: "customers" },
+
+  // Staging del WMS real (docs/arquitectura-tms-oms/05-roadmap.md Fase 5),
+  // aplicada vía sql/07_wms_expediciones_staging.sql.
+  { child: "wms_expediciones", column: "organization_id", parent: "organizations" },
+  { child: "wms_expediciones", column: "warehouse_id", parent: "warehouses" },
+  { child: "wms_expediciones", column: "final_customer_id", parent: "final_customers" },
 ];
 
 const TABLES = new Set([
@@ -87,6 +93,8 @@ const TABLES = new Set([
   // Fase 1 — Multi-country Foundation (nuevas tablas de sql/06_fase1_multicountry_foundation.sql).
   "warehouses", "final_customers", "delivery_points", "addresses", "contacts",
   "driver_license_types", "driver_licenses", "user_scopes",
+  // Fase 5 — staging del WMS real (sql/07_wms_expediciones_staging.sql).
+  "wms_expediciones",
 ]);
 
 export function isKnownTable(name) {

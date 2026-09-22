@@ -1,7 +1,12 @@
-// Capa de API MOCK del OMS. Simula llamadas asíncronas sin backend real
-// (sin Supabase, sin Lambdas). En Construcción real esto se reemplaza por la
-// capa de datos contra el lago/Supabase. Patrón §11: Page -> Controller -> Api.
+// Capa de API del OMS. La Cola de Priorización (getQueue) ya lee datos REALES
+// de wms_expediciones (Fase 5 — docs/arquitectura-tms-oms/05-roadmap.md) y ya
+// las prioriza con el Motor de Prioridad real (Fase 6, ../engine/priorityEngine.ts:
+// regla T-1 + cliente retira). El resto (rutas, alertas, catálogo de reglas,
+// auditoría) sigue en mock — todavía no tienen tabla real detrás.
+// Patrón §11: Page -> Controller -> Api.
 
+import { supabase } from '../../../lib/supabase';
+import { calcularPrioridad } from '../engine/priorityEngine';
 import {
   auditEntries,
   cofersaRoutes,
@@ -27,11 +32,64 @@ function delay<T>(data: T, ms = 350): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(data), ms));
 }
 
+// Mapea una fila cruda de wms_expediciones (espejo del WMS real) a QueueOrder,
+// aplicando el Motor de Prioridad real en vez de un placeholder.
+function mapExpedicionToQueueOrder(row: any, country: Country, hoyIso: string): QueueOrder {
+  const prioridad = calcularPrioridad(
+    {
+      fechaPlanificada: row.fecha_planificada ?? null,
+      fechaExpedicion: row.fecha_expedicion ?? null,
+      observaciones: row.observaciones ?? null,
+    },
+    hoyIso,
+  );
+  return {
+    id: row.id,
+    ref: row.expedicion,
+    warehouseId: row.id_compania, // el WMS de esta captura no distingue almacén de compañía - ver nota en seed-wms-expediciones.mjs
+    companyId: row.id_compania,
+    branchId: row.id_sucursal,
+    orderType: row.tipo_expedicion,
+    customer: row.nombre_cliente,
+    route: row.ruta || '(sin ruta)',
+    country,
+    tier: prioridad.tier,
+    score: prioridad.score,
+    totalAmount: 0, // no viene en la vista de Expediciones del WMS
+    weight: 0,
+    volume: 0,
+    itemCount: row.cant_lineas ?? 0,
+    observations: row.observaciones ?? '',
+    dispatchDate: row.fecha_planificada ?? row.fecha_expedicion ?? '',
+    createdDate: row.created_at ?? '',
+    readyToPrepDate: '',
+    status: row.estado,
+    situation: row.situacion,
+    intakeTime: row.created_at ?? '',
+    appliedRules: prioridad.appliedRules,
+    history: [],
+  };
+}
+
 export const omsApi = {
   getRoutes(country: Country): Promise<DispatchRoute[]> {
     return delay(cofersaRoutes.filter((r) => r.country === country));
   },
-  getQueue(country: Country): Promise<QueueOrder[]> {
+  async getQueue(country: Country): Promise<QueueOrder[]> {
+    if (country === 'CR') {
+      const { data, error } = await supabase.from('wms_expediciones').select('*');
+      if (error) {
+        // eslint-disable-next-line no-console
+        console.warn('[OMS] wms_expediciones no disponible, usando mock de respaldo:', error.message);
+      } else if (data && data.length > 0) {
+        const hoyIso = new Date().toISOString().slice(0, 10);
+        return data
+          .map((row: any) => mapExpedicionToQueueOrder(row, country, hoyIso))
+          .sort((a, b) => b.score - a.score);
+      }
+      // Sin datos reales todavía (o error de red) - cae al mock en vez de
+      // mostrar una cola vacía sin explicación.
+    }
     const rows = queueOrders
       .filter((o) => o.country === country)
       .slice()

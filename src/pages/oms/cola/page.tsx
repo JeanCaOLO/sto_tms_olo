@@ -29,7 +29,7 @@ export default function OmsColaPage() {
 
   const columns: DataTableColumn<QueueOrder>[] = [
     { key: 'tier', header: 'Prioridad', accessor: (o) => o.tier, sortable: true, render: (o) => <PriorityBadge tier={o.tier} /> },
-    { key: 'id', header: 'Pedido', accessor: (o) => o.id, sortable: true, render: (o) => <span className="font-medium text-slate-900">{o.id}</span> },
+    { key: 'ref', header: 'Pedido', accessor: (o) => o.ref, sortable: true, render: (o) => <span className="font-medium text-slate-900">{o.ref}</span> },
     { key: 'warehouseId', header: 'ID Almacén', accessor: (o) => o.warehouseId, sortable: true, filterable: true },
     { key: 'companyId', header: 'ID Compañía', accessor: (o) => o.companyId, sortable: true, filterable: true },
     { key: 'branchId', header: 'ID Sucursal', accessor: (o) => o.branchId, sortable: true, filterable: true },
@@ -128,7 +128,7 @@ export default function OmsColaPage() {
 
       {overrideOpen && selected && (
         <OverrideModal
-          orderId={selected.id}
+          orderId={selected.ref}
           currentTier={selected.tier}
           onConfirm={applyOverride}
           onCancel={() => setOverrideOpen(false)}

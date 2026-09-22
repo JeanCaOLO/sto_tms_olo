@@ -12,11 +12,11 @@ interface OrderDetailModalProps {
 // desglose de reglas (suma = score, FR5.5) y el botón de alterar prioridad.
 export default function OrderDetailModal({ order, onOverride, onClose }: OrderDetailModalProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40" role="dialog" aria-modal="true" aria-label={`Detalle del pedido ${order.id}`}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40" role="dialog" aria-modal="true" aria-label={`Detalle del pedido ${order.ref}`}>
       <div className="bg-white rounded-lg shadow-xl w-full max-w-xl p-6 max-h-[90vh] overflow-y-auto scrollbar-hide">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <h3 className="text-lg font-semibold text-slate-900">{order.id}</h3>
+            <h3 className="text-lg font-semibold text-slate-900">{order.ref}</h3>
             <PriorityBadge tier={order.tier} />
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 cursor-pointer" aria-label="Cerrar">
@@ -25,7 +25,6 @@ export default function OrderDetailModal({ order, onOverride, onClose }: OrderDe
         </div>
 
         <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm mb-5">
-          <div className="flex justify-between"><span className="text-slate-500">Referencia</span><span className="text-slate-900 font-medium">{order.ref}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Tipo de Orden</span><span className="text-slate-900">{order.orderType}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">ID Almacén</span><span className="text-slate-900">{order.warehouseId}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">ID Compañía</span><span className="text-slate-900">{order.companyId}</span></div>

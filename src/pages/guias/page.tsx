@@ -7,25 +7,31 @@ import Badge from '../../components/base/Badge';
 import StatCard from '../../components/feature/StatCard';
 import DataTable, { type DataTableColumn } from '../../components/base/DataTable';
 import GuideModal from './components/GuideModal';
+import GuideDetailModal from './components/GuideDetailModal';
 
+// dispatch_guides es una guía POR PARADA (una fila = un pedido de una ruta,
+// con sequence_number, recipient_name, planned/actual_*_time - ver
+// sql/01_*.sql). driver_id/vehicle_id/fecha/total de paradas viven en la RUTA
+// (routes), no en la guía misma - por eso se leen vía el embed `routes(...)`.
 interface DispatchGuide {
   id: string;
   guide_number: string;
   route_id: string;
-  driver_id: string;
-  vehicle_id: string;
-  dispatch_date: string;
-  total_stops: number;
-  completed_stops: number;
+  order_id: string;
+  sequence_number: number;
+  planned_arrival_time: string | null;
+  actual_arrival_time: string | null;
+  status: string;
   delivery_status: 'pending' | 'in_transit' | 'delivered' | 'failed';
+  recipient_name: string | null;
+  notes: string | null;
   routes?: {
     route_number: string;
-  };
-  drivers?: {
-    name: string;
-  };
-  vehicles?: {
-    plate: string;
+    route_date: string;
+    total_stops: number;
+    completed_stops: number;
+    drivers?: { full_name: string };
+    vehicles?: { plate: string };
   };
 }
 
@@ -36,6 +42,7 @@ export default function GuiasPage() {
   const [endDate, setEndDate] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [selectedGuide, setSelectedGuide] = useState<DispatchGuide | null>(null);
+  const [detailGuide, setDetailGuide] = useState<DispatchGuide | null>(null);
 
   useEffect(() => {
     fetchGuides();
@@ -48,11 +55,9 @@ export default function GuiasPage() {
         .from('dispatch_guides')
         .select(`
           *,
-          routes (route_number),
-          drivers (name),
-          vehicles (plate)
+          routes (route_number, route_date, total_stops, completed_stops, drivers (full_name), vehicles (plate))
         `)
-        .order('dispatch_date', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
       setGuides(data || []);
@@ -64,8 +69,10 @@ export default function GuiasPage() {
   };
 
   const dateFilteredGuides = guides.filter((g) => {
-    if (startDate && g.dispatch_date < startDate) return false;
-    if (endDate && g.dispatch_date > endDate) return false;
+    const fecha = g.routes?.route_date;
+    if (!fecha) return true;
+    if (startDate && fecha < startDate) return false;
+    if (endDate && fecha > endDate) return false;
     return true;
   });
 
@@ -108,24 +115,25 @@ export default function GuiasPage() {
       render: (g) => <span className="font-medium text-slate-800">{g.guide_number}</span>,
     },
     { key: 'route', header: 'Ruta', accessor: (g) => g.routes?.route_number ?? '', sortable: true, filterable: true },
-    { key: 'driver', header: 'Conductor', accessor: (g) => g.drivers?.name ?? '', sortable: true, filterable: true },
-    { key: 'vehicle', header: 'Vehículo', accessor: (g) => g.vehicles?.plate ?? '', sortable: true, filterable: true },
+    { key: 'driver', header: 'Conductor', accessor: (g) => g.routes?.drivers?.full_name ?? '', sortable: true, filterable: true },
+    { key: 'vehicle', header: 'Vehículo', accessor: (g) => g.routes?.vehicles?.plate ?? '', sortable: true, filterable: true },
+    { key: 'recipient', header: 'Destinatario', accessor: (g) => g.recipient_name ?? '', sortable: true, filterable: true },
     {
-      key: 'dispatch_date',
+      key: 'route_date',
       header: 'Fecha',
-      accessor: (g) => g.dispatch_date,
+      accessor: (g) => g.routes?.route_date ?? '',
       sortable: true,
-      render: (g) => new Date(g.dispatch_date).toLocaleDateString('es-ES'),
+      render: (g) => (g.routes?.route_date ? new Date(g.routes.route_date).toLocaleDateString('es-ES') : '—'),
     },
     {
-      key: 'stops',
-      header: 'Paradas',
-      accessor: (g) => g.completed_stops,
+      key: 'sequence_number',
+      header: 'Parada',
+      accessor: (g) => g.sequence_number,
       sortable: true,
       render: (g) => (
         <>
-          <span className="font-medium text-teal-600">{g.completed_stops}</span>
-          <span className="text-slate-400"> / {g.total_stops}</span>
+          <span className="font-medium text-teal-600">{g.sequence_number}</span>
+          <span className="text-slate-400"> / {g.routes?.total_stops ?? '—'}</span>
         </>
       ),
     },
@@ -164,7 +172,7 @@ export default function GuiasPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Total Guías" value={totalGuides} icon="ri-file-list-3-line" color="teal" />
         <StatCard title="En Tránsito" value={inTransit} icon="ri-truck-line" color="blue" />
-        <StatCard title="Entregadas" value={delivered} icon="ri-checkbox-circle-line" color="green" />
+        <StatCard title="Entregadas" value={delivered} icon="ri-checkbox-circle-line" color="emerald" />
         <StatCard title="Con Incidencias" value={withIssues} icon="ri-error-warning-line" color="red" />
       </div>
 
@@ -195,7 +203,7 @@ export default function GuiasPage() {
         actions={(guide) => (
           <>
             <button
-              onClick={() => handleEdit(guide)}
+              onClick={() => setDetailGuide(guide)}
               className="w-8 h-8 flex items-center justify-center text-slate-600 hover:text-teal-600 hover:bg-teal-50 rounded-lg cursor-pointer"
               title="Ver detalle"
             >
@@ -211,6 +219,10 @@ export default function GuiasPage() {
           </>
         )}
       />
+
+      {detailGuide && (
+        <GuideDetailModal guide={detailGuide} onClose={() => setDetailGuide(null)} />
+      )}
 
       {showModal && (
         <GuideModal guide={selectedGuide} onClose={handleCloseModal} />

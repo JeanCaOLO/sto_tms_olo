@@ -63,6 +63,10 @@ export interface Vehiculo {
   vehicle_type: string;
   capacity_weight: number;
   capacity_volume: number;
+  // Flota propia de la empresa vs. transportista tercero (carriers.is_flota_propia,
+  // sql/08_carriers_flota_propia.sql). Opcional: el catálogo EFLOW/mock actual
+  // todavía no la resuelve - ver fleet-split.ts.
+  is_flota_propia?: boolean;
 }
 
 export interface Conductor {

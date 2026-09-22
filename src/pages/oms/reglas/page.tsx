@@ -7,8 +7,10 @@ import RuleParamsModal from './RuleParamsModal';
 import { useReglasController } from './useReglasController';
 
 // Pantalla Motor de Reglas (FR5) — catálogo semi-configurable por compañía.
-// Reglas implementadas (lógica en código): activar/desactivar, ajustar peso,
-// editar parámetros. La lista de reglas cambia según la compañía seleccionada.
+// `active` en mockData.ts refleja si la regla YA tiene lógica en
+// ../engine/priorityEngine.ts (no la aspiración de negocio); switch/peso/
+// parámetros son de referencia (mock, no persisten). La lista cambia según
+// la compañía seleccionada.
 export default function OmsReglasPage() {
   const {
     rules, companies, company, setCompany, loading, error,
@@ -25,7 +27,9 @@ export default function OmsReglasPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Motor de Reglas</h1>
           <p className="text-sm text-slate-600 mt-1">
-            Catálogo de reglas implementadas — la lógica vive en código; aquí se activan, se ajusta su peso y sus parámetros
+            Catálogo de reglas del OMS — "Activa" indica que la lógica ya existe en código
+            (src/pages/oms/engine/priorityEngine.ts); "Inactiva" es una regla todavía sin implementar.
+            Peso y parámetros son de referencia/planificación, editables acá pero no conectados aún al motor real.
           </p>
         </div>
         <div className="w-56">
@@ -108,7 +112,8 @@ export default function OmsReglasPage() {
           </div>
           <p className="px-4 py-3 text-xs text-slate-500 border-t border-slate-100">
             <i className="ri-lock-2-line mr-1"></i>
-            La lógica de cada regla está implementada en código (solo lectura). No se crean ni editan reglas nuevas desde la interfaz.
+            No se crean reglas nuevas desde la interfaz: cada fila mapea a una regla real (o pendiente) del código.
+            El switch y los parámetros de esta pantalla son de referencia — no persisten ni cambian el comportamiento real del motor todavía.
           </p>
         </Card>
       )}

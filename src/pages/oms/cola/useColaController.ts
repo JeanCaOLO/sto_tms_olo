@@ -30,8 +30,6 @@ export function useColaController() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [overrideOpen, setOverrideOpen] = useState(false);
   const [filters, setFilters] = useState<ColaFilters>(EMPTY_FILTERS);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,19 +73,6 @@ export function useColaController() {
     });
   }, [orders, filters]);
 
-  // Reinicia a la página 1 cuando cambian los filtros o el tamaño de página.
-  useEffect(() => { setPage(1); }, [filters, pageSize]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const currentPage = Math.min(page, totalPages);
-  const pageStart = (currentPage - 1) * pageSize;
-  const paginated = filtered.slice(pageStart, pageStart + pageSize);
-
-  const goToPage = (p: number) => {
-    if (Number.isNaN(p)) return;
-    setPage(Math.min(Math.max(1, Math.trunc(p)), totalPages));
-  };
-
   const setFilter = (key: keyof ColaFilters, value: string) =>
     setFilters((prev) => ({ ...prev, [key]: value }));
   const resetFilters = () => setFilters(EMPTY_FILTERS);
@@ -124,9 +109,11 @@ export function useColaController() {
   };
 
   return {
-    country, setCountry, orders: paginated, filteredCount: filtered.length, totalCount: orders.length, loading, error,
+    // `orders` es el set FILTRADO completo (sin paginar) - DataTable hace su
+    // propia paginación/orden/búsqueda internamente (ver src/components/base/DataTable.tsx);
+    // pasarle un slice ya paginado desde acá rompía su selector de tamaño de página.
+    country, setCountry, orders: filtered, totalCount: orders.length, loading, error,
     filters, setFilter, resetFilters, filtersActive, options,
-    page: currentPage, pageSize, setPageSize, goToPage, totalPages, pageStart,
     selectedId, setSelectedId, selected,
     detailOpen, setDetailOpen,
     overrideOpen, setOverrideOpen, applyOverride,

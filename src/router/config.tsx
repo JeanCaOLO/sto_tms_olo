@@ -20,6 +20,7 @@ const SeedPage = lazy(() => import('../pages/seed/page'));
 const NotFoundPage = lazy(() => import('../pages/NotFound'));
 const DevolucionesPage = lazy(() => import('../pages/devoluciones/page'));
 const GuiasPage = lazy(() => import('../pages/guias/page'));
+const TrackingPage = lazy(() => import('../pages/tracking/page'));
 const ReportesPage = lazy(() => import('../pages/reportes/page'));
 const ContratosPage = lazy(() => import('../pages/contratos/page'));
 const OmsPanelPage = lazy(() => import('../pages/oms/panel/page'));
@@ -100,17 +101,11 @@ const routes: RouteObject[] = [
   },
   {
     path: '/guias',
-    lazy: async () => {
-      const Component = (await import('../pages/guias/page')).default;
-      return { element: <Component /> };
-    },
+    element: <GuiasPage />,
   },
   {
     path: '/tracking',
-    lazy: async () => {
-      const Component = (await import('../pages/tracking/page')).default;
-      return { element: <Component /> };
-    },
+    element: <TrackingPage />,
   },
   {
     path: '/contratos',

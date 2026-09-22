@@ -3,10 +3,14 @@ import { supabase } from '../../lib/supabase';
 import Button from '../../components/base/Button';
 import Badge from '../../components/base/Badge';
 import DataTable, { type DataTableColumn } from '../../components/base/DataTable';
+import OrderDetailModal from './components/OrderDetailModal';
+import OrderEditModal from './components/OrderEditModal';
 
 export default function Pedidos() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [detailOrder, setDetailOrder] = useState<any | null>(null);
+  const [editOrder, setEditOrder] = useState<any | null>(null);
 
   useEffect(() => {
     loadOrders();
@@ -154,17 +158,37 @@ export default function Pedidos() {
         searchPlaceholder="Buscar por número de pedido o cliente..."
         exportFileName="pedidos"
         emptyMessage="No hay pedidos"
-        actions={() => (
+        actions={(order) => (
           <>
-            <button className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 rounded-lg transition-colors cursor-pointer">
+            <button
+              onClick={() => setDetailOrder(order)}
+              className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              title="Ver detalle"
+            >
               <i className="ri-eye-line text-slate-600 w-4 h-4 flex items-center justify-center"></i>
             </button>
-            <button className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 rounded-lg transition-colors cursor-pointer">
+            <button
+              onClick={() => setEditOrder(order)}
+              className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              title="Editar"
+            >
               <i className="ri-edit-line text-slate-600 w-4 h-4 flex items-center justify-center"></i>
             </button>
           </>
         )}
       />
+
+      {detailOrder && (
+        <OrderDetailModal order={detailOrder} onClose={() => setDetailOrder(null)} />
+      )}
+
+      {editOrder && (
+        <OrderEditModal
+          order={editOrder}
+          onClose={() => setEditOrder(null)}
+          onSaved={() => { setEditOrder(null); loadOrders(); }}
+        />
+      )}
     </div>
   );
 }

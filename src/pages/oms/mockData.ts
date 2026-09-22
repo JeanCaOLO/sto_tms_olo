@@ -233,63 +233,91 @@ export const companies: Company[] = [
   { id: 'EPA', name: 'EPA' },
 ];
 
-// FR5 — catálogo de macro-reglas implementadas del OMS (lógica en código),
-// asociadas por compañía. Primera entrega ACTIVA: Cálculo de fecha y Cliente retira.
+// FR5 — catálogo de macro-reglas del OMS, asociadas por compañía.
+// `active` refleja el ESTADO REAL DEL CÓDIGO (src/pages/oms/engine/priorityEngine.ts),
+// no la aspiración de negocio: una regla en `false` todavía NO tiene lógica
+// detrás, sin importar cuánto se documentó en las reuniones. Mantener
+// sincronizado con priorityEngine.ts cada vez que se implemente/cambie una
+// regla ahí — este catálogo es lo único que un no-desarrollador puede leer
+// para saber "qué de esto ya es real".
+//
+// Hoy están activas exactamente 2 reglas (primera entrega, reunión Antonio
+// 2026-09-08), y priorityEngine.ts las aplica IGUAL para Cofersa y EPA (el
+// código no distingue compañía todavía) - por eso ambas compañías las listan.
 export const engineRules: EngineRule[] = [
-  // --- Cofersa: las 5 macro-reglas ---
+  // --- Cofersa ---
   {
-    id: 'MR-CF-1', company: '0109', order: 1, name: 'Cálculo de fecha (T-1)', firstDelivery: true, active: true, weight: 600,
-    description: 'Calcula la fecha de listo como fecha de entrega − 1 día (T-1), aplicando horas de corte y duración de la ruta. Genera (inyecta) el pedido cuando corresponde prepararlo.',
+    id: 'MR-CF-1', company: '0109', order: 1, name: 'Regla T-1 (fecha de despacho)', firstDelivery: true, active: true, weight: 600,
+    description: 'Calcula la urgencia según los días que faltan para la fecha de entrega (fecha_planificada; si no hay, cae a fecha_expedicion). Vencida u hoy = más urgente; exactamente 1 día antes (ventana T-1, "listo hoy") = urgente; 2 días = media; 3+ días = decrece. Implementada en priorityEngine.ts::calcularPrioridad. Ajuste por horas de corte y duración de ruta: NO aplicado todavía (ver params).',
     params: [
-      { key: 't1_dias', label: 'Días de T-1', value: '1', kind: 'number', help: 'Días antes de la entrega para alistar.' },
-      { key: 'corte_gam', label: 'Hora de corte GAM', value: '17:00', kind: 'time' },
-      { key: 'corte_rural', label: 'Hora de corte Rural', value: '15:00', kind: 'time' },
-      { key: 'umbral_inyeccion', label: 'Umbral de inyección (prioridad ≤)', value: '2', kind: 'number', help: 'Prioridad a partir de la cual se prepara (menor número = más urgente).' },
+      { key: 'prioridad_vencida_o_hoy', label: 'Prioridad si vencida u hoy', value: '2', kind: 'number' },
+      { key: 'prioridad_t1', label: 'Prioridad ventana T-1 (mañana)', value: '3', kind: 'number' },
+      { key: 'prioridad_2dias', label: 'Prioridad a 2 días', value: '10', kind: 'number' },
+      { key: 'prioridad_base_lejana', label: 'Base banda lejana (20 + días, tope 49)', value: '20', kind: 'number' },
     ],
   },
   {
-    id: 'MR-CF-2', company: '0109', order: 2, name: 'Análisis de observaciones', firstDelivery: false, active: false, weight: 200,
-    description: 'Interpreta el texto libre del campo observaciones (dirección, fecha solicitada, urgencia, cita, cliente retira) para ajustar el ruteo y la prioridad. Requiere estandarización de observaciones.',
+    id: 'MR-CF-2', company: '0109', order: 2, name: 'Análisis de observaciones (general)', firstDelivery: false, active: false, weight: 200,
+    description: 'Interpretar el texto libre de observaciones más allá de "cliente retira" (dirección distinta, fecha solicitada, urgencia, cita) para ajustar ruteo/prioridad. NO implementada - hoy solo se detecta el patrón de cliente retira (ver regla aparte). Requiere estandarizar observaciones.',
     params: [
-      { key: 'patrones_urgencia', label: 'Palabras de urgencia', value: 'urgente, hoy, inmediato', kind: 'text' },
+      { key: 'patrones_urgencia', label: 'Palabras de urgencia (propuesta, sin implementar)', value: 'urgente, hoy, inmediato', kind: 'text' },
     ],
   },
   {
     id: 'MR-CF-3', company: '0109', order: 3, name: 'Cliente retira', firstDelivery: true, active: true, weight: 900,
-    description: 'Identifica los pedidos "cliente retira" por patrón en observaciones y les asigna la prioridad más alta, agrupándolos en un viaje/cliente dummy (ruta 0).',
+    description: 'Detecta frases de "cliente retira" en observaciones (heurística de palabras clave, texto libre sin estándar) y asigna la prioridad más alta (1), sin importar la fecha. Implementada en priorityEngine.ts::esClienteRetira. Pendiente (no implementado): agrupar en viaje/cliente dummy.',
     params: [
-      { key: 'patron_retira', label: 'Patrón de detección', value: 'retira', kind: 'text' },
-      { key: 'prioridad_retira', label: 'Prioridad asignada', value: '1', kind: 'number', help: 'Nivel de prioridad para cliente retira.' },
-      { key: 'ventana_horas', label: 'Ventana (horas)', value: '48', kind: 'number' },
+      { key: 'palabras_clave', label: 'Palabras clave detectadas', value: 'cliente retira, retira cliente, retiro cliente, recoge cliente, recoge en bodega', kind: 'text', help: 'Coincidencia por substring, sin distinguir mayúsculas/minúsculas.' },
+      { key: 'prioridad_retira', label: 'Prioridad asignada', value: '1', kind: 'number' },
     ],
   },
   {
     id: 'MR-CF-4', company: '0109', order: 4, name: 'Asignación de viaje / bajada', firstDelivery: false, active: false, weight: 150,
-    description: 'Consume el viaje asignado por el TMS y asigna la bajada/muelle de despacho (todo lo del mismo viaje va a la misma bajada). El OMS no crea el viaje.',
+    description: 'Consumir el viaje asignado por el TMS y asignar la bajada/muelle de despacho (todo lo del mismo viaje a la misma bajada). NO implementada. El OMS no crea el viaje.',
     params: [
-      { key: 'modo_bajada', label: 'Modo de asignación', value: 'por capacidad', kind: 'text', help: 'por capacidad | fijo (ruta→bajada).' },
+      { key: 'modo_bajada', label: 'Modo de asignación (propuesta, sin implementar)', value: 'por capacidad', kind: 'text', help: 'por capacidad | fijo (ruta→bajada).' },
     ],
   },
   {
     id: 'MR-CF-5', company: '0109', order: 5, name: 'Inventario / capacidad', firstDelivery: false, active: false, weight: 100,
-    description: 'Valida la viabilidad de inventario y capacidad antes de liberar (reservas, pendientes, prioridad de reposición, callbacks al ERP). Etapa futura.',
+    description: 'Validar viabilidad de inventario/capacidad antes de liberar (reservas, pendientes, prioridad de reposición, callbacks al ERP). NO implementada. Etapa futura del roadmap.',
     params: [
-      { key: 'valida_inventario', label: 'Validar inventario total', value: 'sí', kind: 'text' },
+      { key: 'valida_inventario', label: 'Validar inventario total (propuesta, sin implementar)', value: 'sí', kind: 'text' },
     ],
   },
-  // --- EPA: opera por cross docking; subconjunto mínimo ---
+  // --- EPA: hoy pasa por el MISMO motor que Cofersa (priorityEngine.ts no
+  // distingue compañía) - el cross docking descrito en las reuniones de
+  // negocio (prioridad fija, sin cálculo de fecha) sigue sin codificarse. ---
   {
-    id: 'MR-EPA-1', company: 'EPA', order: 1, name: 'Cross docking (prioridad por default)', firstDelivery: true, active: true, weight: 500,
-    description: 'EPA recibe y alista al mismo tiempo (cross docking): el pedido sale con prioridad por default sin cálculo de fecha ni cola de priorización.',
+    id: 'MR-EPA-1', company: 'EPA', order: 1, name: 'Regla T-1 (fecha de despacho)', firstDelivery: true, active: true, weight: 600,
+    description: 'Misma lógica y mismos parámetros que en Cofersa (priorityEngine.ts no distingue compañía todavía) - ver MR-CF-1.',
     params: [
-      { key: 'prioridad_default', label: 'Prioridad por default', value: '1', kind: 'number' },
+      { key: 'prioridad_vencida_o_hoy', label: 'Prioridad si vencida u hoy', value: '2', kind: 'number' },
+      { key: 'prioridad_t1', label: 'Prioridad ventana T-1 (mañana)', value: '3', kind: 'number' },
+      { key: 'prioridad_2dias', label: 'Prioridad a 2 días', value: '10', kind: 'number' },
+      { key: 'prioridad_base_lejana', label: 'Base banda lejana (20 + días, tope 49)', value: '20', kind: 'number' },
     ],
   },
   {
-    id: 'MR-EPA-2', company: 'EPA', order: 2, name: 'Asignación de viaje / bajada', firstDelivery: false, active: false, weight: 150,
-    description: 'Consume el viaje asignado por el TMS y asigna la bajada/muelle de despacho. El OMS no crea el viaje.',
+    id: 'MR-EPA-2', company: 'EPA', order: 2, name: 'Cliente retira', firstDelivery: true, active: true, weight: 900,
+    description: 'Misma lógica y mismos parámetros que en Cofersa (priorityEngine.ts no distingue compañía todavía) - ver MR-CF-3.',
     params: [
-      { key: 'modo_bajada', label: 'Modo de asignación', value: 'fijo', kind: 'text', help: 'por capacidad | fijo (ruta→bajada).' },
+      { key: 'palabras_clave', label: 'Palabras clave detectadas', value: 'cliente retira, retira cliente, retiro cliente, recoge cliente, recoge en bodega', kind: 'text' },
+      { key: 'prioridad_retira', label: 'Prioridad asignada', value: '1', kind: 'number' },
+    ],
+  },
+  {
+    id: 'MR-EPA-3', company: 'EPA', order: 3, name: 'Cross docking (prioridad fija, sin T-1)', firstDelivery: false, active: false, weight: 500,
+    description: 'EPA recibe y alista al mismo tiempo (cross docking): el pedido debería salir con prioridad fija, SIN pasar por la regla T-1. NO implementada todavía - hoy los pedidos de EPA sí pasan por la Regla T-1 (MR-EPA-1) igual que Cofersa. Activar esta regla implica excluir a EPA de MR-EPA-1 en el código.',
+    params: [
+      { key: 'prioridad_default', label: 'Prioridad por default (propuesta, sin implementar)', value: '1', kind: 'number' },
+    ],
+  },
+  {
+    id: 'MR-EPA-4', company: 'EPA', order: 4, name: 'Asignación de viaje / bajada', firstDelivery: false, active: false, weight: 150,
+    description: 'Consumir el viaje asignado por el TMS y asignar la bajada/muelle de despacho. NO implementada. El OMS no crea el viaje.',
+    params: [
+      { key: 'modo_bajada', label: 'Modo de asignación (propuesta, sin implementar)', value: 'fijo', kind: 'text', help: 'por capacidad | fijo (ruta→bajada).' },
     ],
   },
 ];
