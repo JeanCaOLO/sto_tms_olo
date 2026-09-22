@@ -55,16 +55,19 @@ export default function ConfiguracionPage() {
     if (!appUser?.organization_id) return;
 
     setLoading(true);
-    const { data, error } = await supabase
-      .from('organizations')
-      .select('*')
-      .eq('id', appUser.organization_id)
-      .maybeSingle();
+    try {
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('*')
+        .eq('id', appUser.organization_id)
+        .maybeSingle();
 
-    if (!error && data) {
-      setOrganization(data);
+      if (!error && data) {
+        setOrganization(data);
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleSaveOrganization = async () => {

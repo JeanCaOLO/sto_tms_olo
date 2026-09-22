@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, useLocation } from 'react-router-dom';
 import { Suspense } from 'react';
 import { AppRoutes } from './router';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import { OperationalContextProvider } from './hooks/useOperationalContext';
 import { SidebarProvider, useSidebar } from './hooks/useSidebar';
 import { ToastProvider } from './hooks/useToast';
 import Sidebar from './components/feature/Sidebar';
@@ -47,19 +48,21 @@ function AppLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <Sidebar />
-      <Header />
-      <main className={`${collapsed ? 'lg:ml-20' : 'lg:ml-64'} mt-16 p-4 lg:p-6 min-w-0 transition-all duration-300`}>
-        <Suspense fallback={
-          <div className="flex items-center justify-center h-64">
-            <i className="ri-loader-4-line animate-spin text-teal-600 text-2xl"></i>
-          </div>
-        }>
-          <AppRoutes />
-        </Suspense>
-      </main>
-    </div>
+    <OperationalContextProvider>
+      <div className="min-h-screen bg-slate-50">
+        <Sidebar />
+        <Header />
+        <main className={`${collapsed ? 'lg:ml-20' : 'lg:ml-64'} mt-16 p-4 lg:p-6 min-w-0 transition-all duration-300`}>
+          <Suspense fallback={
+            <div className="flex items-center justify-center h-64">
+              <i className="ri-loader-4-line animate-spin text-teal-600 text-2xl"></i>
+            </div>
+          }>
+            <AppRoutes />
+          </Suspense>
+        </main>
+      </div>
+    </OperationalContextProvider>
   );
 }
 

@@ -43,7 +43,7 @@ function notify(event: AuthChangeEvent, session: AuthSession | null) {
   listeners.forEach((cb) => cb(event, session));
 }
 
-async function apiFetch(path: string, init: RequestInit = {}) {
+export async function apiFetch(path: string, init: RequestInit = {}) {
   const current = readSession();
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "application/json");

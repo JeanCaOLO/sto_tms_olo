@@ -40,21 +40,24 @@ export default function ConductoresPage() {
 
   const loadDrivers = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('drivers')
-      .select(`
-        *,
-        carriers (
-          name,
-          code
-        )
-      `)
-      .order('created_at', { ascending: false });
+    try {
+      const { data } = await supabase
+        .from('drivers')
+        .select(`
+          *,
+          carriers (
+            name,
+            code
+          )
+        `)
+        .order('created_at', { ascending: false });
 
-    if (data) {
-      setDrivers(data);
+      if (data) {
+        setDrivers(data);
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleDelete = async (id: string) => {
@@ -136,7 +139,7 @@ export default function ConductoresPage() {
     },
     {
       key: 'license',
-      header: 'Licencia',
+      header: 'Licencia de conducir',
       accessor: (d) => d.license_type,
       filterable: true,
       render: (d) => (

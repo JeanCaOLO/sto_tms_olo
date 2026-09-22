@@ -19,7 +19,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchAppUser = async (authUserId: string) => {
+  // Reintenta unas pocas veces antes de rendirse: un hiccup transitorio de red
+  // (p. ej. el tunel a la base de datos cayendose un instante) no debe dejar
+  // appUser en null para el resto de la sesion — 9 paginas condicionan su
+  // propia carga a `appUser?.organization_id` y se quedan "cargando" para
+  // siempre si esto nunca se resuelve (ver ANALISIS_SISTEMA_TMS.md y el
+  // reporte de paginas colgadas de esta sesion).
+  const fetchAppUser = async (authUserId: string, attempt = 1): Promise<void> => {
     const { data, error } = await supabase
       .from('app_users')
       .select('*, role:roles(id, name)')
@@ -28,7 +34,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!error && data) {
       setAppUser(data as AppUser);
+      return;
     }
+
+    if (attempt < 3) {
+      await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+      return fetchAppUser(authUserId, attempt + 1);
+    }
+
+    console.error('No se pudo cargar app_users tras 3 intentos:', error);
   };
 
   useEffect(() => {

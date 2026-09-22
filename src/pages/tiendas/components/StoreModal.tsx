@@ -51,7 +51,6 @@ const emptyForm = {
   capacity: '',
   area_m2: '',
   delivery_zone: '',
-  zone_id: '',
   notes: '',
   phone: '',
   email: '',
@@ -62,7 +61,6 @@ const emptyForm = {
 
 export default function StoreModal({ isOpen, onClose, onSave, store, organizationId, countries: countriesProp }: StoreModalProps) {
   const [countries, setCountries] = useState<Country[]>([]);
-  const [zones, setZones] = useState<{ id: string; code: string; name: string }[]>([]);
   const [activeTab, setActiveTab] = useState('general');
   const [formData, setFormData] = useState({ ...emptyForm });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -74,19 +72,8 @@ export default function StoreModal({ isOpen, onClose, onSave, store, organizatio
       } else {
         fetchCountries();
       }
-      fetchZones();
     }
   }, [isOpen, organizationId, countriesProp]);
-
-  const fetchZones = async () => {
-    const { data } = await supabase
-      .from('zones')
-      .select('id, code, name')
-      .eq('organization_id', organizationId)
-      .eq('status', 'active')
-      .order('code');
-    setZones(data || []);
-  };
 
   useEffect(() => {
     if (isOpen) {
@@ -111,7 +98,6 @@ export default function StoreModal({ isOpen, onClose, onSave, store, organizatio
           capacity: store.capacity?.toString() || '',
           area_m2: store.area_m2?.toString() || '',
           delivery_zone: store.delivery_zone || '',
-          zone_id: store.zone_id || '',
           notes: store.notes || '',
           phone: store.phone || '',
           email: store.email || '',
@@ -384,20 +370,6 @@ export default function StoreModal({ isOpen, onClose, onSave, store, organizatio
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Zona (para reglas de tarifa)</label>
-                    <Select
-                      value={formData.zone_id}
-                      onChange={(e) => set('zone_id', e.target.value)}
-                      options={[
-                        { value: '', label: 'Sin asignar' },
-                        ...zones.map((z) => ({ value: z.id, label: `${z.code} - ${z.name}` })),
-                      ]}
-                    />
-                    <p className="text-xs text-slate-400 mt-1">
-                      Si este punto es el origen de una ruta, esta es la zona que usan las reglas de tarifa por zona.
-                    </p>
-                  </div>
                 </div>
 
                 {/* Coordenadas */}

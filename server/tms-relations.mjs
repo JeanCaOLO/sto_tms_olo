@@ -51,17 +51,42 @@ export const FOREIGN_KEYS = [
   { child: "vehicle_types", column: "organization_id", parent: "organizations" },
   { child: "vehicles", column: "carrier_id", parent: "carriers" },
   { child: "vehicles", column: "organization_id", parent: "organizations" },
-  { child: "drivers", column: "license_type_id", parent: "license_types" },
+  { child: "drivers", column: "license_type_id", parent: "driver_license_types" },
   { child: "rates", column: "tariff_type_id", parent: "tariff_types" },
+
+  // Fase 1 — Multi-country Foundation (docs/arquitectura-tms-oms/05-roadmap.md,
+  // aplicada en Aurora vía sql/06_fase1_multicountry_foundation.sql).
+  // license_types fue RENOMBRADA a driver_license_types (mismas filas/IDs).
+  { child: "warehouses", column: "organization_id", parent: "organizations" },
+  { child: "warehouses", column: "country_id", parent: "countries" },
+  { child: "customers", column: "warehouse_id", parent: "warehouses" },
+  { child: "stores", column: "warehouse_id", parent: "warehouses" },
+  { child: "final_customers", column: "customer_id", parent: "customers" },
+  { child: "delivery_points", column: "final_customer_id", parent: "final_customers" },
+  { child: "delivery_points", column: "address_id", parent: "addresses" },
+  { child: "addresses", column: "country_id", parent: "countries" },
+  { child: "contacts", column: "final_customer_id", parent: "final_customers" },
+  { child: "contacts", column: "delivery_point_id", parent: "delivery_points" },
+  { child: "driver_license_types", column: "country_id", parent: "countries" },
+  { child: "driver_licenses", column: "driver_id", parent: "drivers" },
+  { child: "driver_licenses", column: "driver_license_type_id", parent: "driver_license_types" },
+  { child: "user_scopes", column: "app_user_id", parent: "app_users" },
+  { child: "user_scopes", column: "role_id", parent: "roles" },
+  { child: "user_scopes", column: "country_id", parent: "countries" },
+  { child: "user_scopes", column: "warehouse_id", parent: "warehouses" },
+  { child: "user_scopes", column: "customer_id", parent: "customers" },
 ];
 
 const TABLES = new Set([
   "app_users", "carriers", "contract_documents", "contracts", "costos_fijos",
   "costos_variables", "countries", "customers", "depreciacion", "dispatch_guides",
-  "drivers", "license_types", "order_items", "orders", "organizations", "parametros_globales",
+  "drivers", "order_items", "orders", "organizations", "parametros_globales",
   "rates", "returns", "roles", "route_types", "routes", "rutas_costeo", "tariff_types",
   "settlements", "sku_cotizaciones", "stores", "tipos_camion", "tracking_events",
   "vehicle_types", "vehicles", "v_costo_fijo_mensual", "v_costo_variable_por_km",
+  // Fase 1 — Multi-country Foundation (nuevas tablas de sql/06_fase1_multicountry_foundation.sql).
+  "warehouses", "final_customers", "delivery_points", "addresses", "contacts",
+  "driver_license_types", "driver_licenses", "user_scopes",
 ]);
 
 export function isKnownTable(name) {

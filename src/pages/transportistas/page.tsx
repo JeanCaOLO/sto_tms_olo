@@ -41,40 +41,43 @@ export default function TransportistasPage() {
 
   const loadCarriers = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('carriers')
-      .select(`
-        *,
-        countries (
-          name,
-          code
-        )
-      `)
-      .order('created_at', { ascending: false });
+    try {
+      const { data } = await supabase
+        .from('carriers')
+        .select(`
+          *,
+          countries (
+            name,
+            code
+          )
+        `)
+        .order('created_at', { ascending: false });
 
-    if (data) {
-      const carriersWithCounts = await Promise.all(
-        data.map(async (carrier) => {
-          const { count: driverCount } = await supabase
-            .from('drivers')
-            .select('*', { count: 'exact', head: true })
-            .eq('carrier_id', carrier.id);
+      if (data) {
+        const carriersWithCounts = await Promise.all(
+          data.map(async (carrier) => {
+            const { count: driverCount } = await supabase
+              .from('drivers')
+              .select('*', { count: 'exact', head: true })
+              .eq('carrier_id', carrier.id);
 
-          const { count: vehicleCount } = await supabase
-            .from('vehicles')
-            .select('*', { count: 'exact', head: true })
-            .eq('carrier_id', carrier.id);
+            const { count: vehicleCount } = await supabase
+              .from('vehicles')
+              .select('*', { count: 'exact', head: true })
+              .eq('carrier_id', carrier.id);
 
-          return {
-            ...carrier,
-            driver_count: driverCount || 0,
-            vehicle_count: vehicleCount || 0
-          };
-        })
-      );
-      setCarriers(carriersWithCounts);
+            return {
+              ...carrier,
+              driver_count: driverCount || 0,
+              vehicle_count: vehicleCount || 0
+            };
+          })
+        );
+        setCarriers(carriersWithCounts);
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleDelete = async (id: string) => {

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useSidebar } from '../../hooks/useSidebar';
+import ContextSelector from './ContextSelector';
 
 const roleColors: Record<string, string> = {
   SuperUsuario: 'bg-teal-100 text-teal-700',
@@ -61,6 +62,9 @@ export default function Header() {
         >
           <i className="ri-menu-line text-xl"></i>
         </button>
+        <div className="hidden md:block">
+          <ContextSelector />
+        </div>
         <div className="relative flex-1 max-w-md hidden sm:block">
           <div className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center">
             <i className="ri-search-line text-slate-400 text-base"></i>

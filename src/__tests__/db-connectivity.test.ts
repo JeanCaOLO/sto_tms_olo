@@ -29,7 +29,7 @@ try {
 const TABLES_BY_MODULE: Record<string, string[]> = {
   transportistas: ['carriers', 'countries', 'app_users'],
   vehiculos: ['vehicles', 'vehicle_types', 'carriers'],
-  conductores: ['drivers', 'carriers', 'license_types', 'app_users'],
+  conductores: ['drivers', 'carriers', 'driver_license_types', 'app_users'],
   clientes: ['customers', 'countries'],
   tiendas: ['stores', 'countries', 'app_users'],
   paises: ['countries', 'stores', 'app_users'],
@@ -55,10 +55,13 @@ const KNOWN_MISSING_TABLES = ['zones'];
 const BACKEND_WHITELIST = new Set([
   'app_users', 'carriers', 'contract_documents', 'contracts', 'costos_fijos',
   'costos_variables', 'countries', 'customers', 'depreciacion', 'dispatch_guides',
-  'drivers', 'license_types', 'order_items', 'orders', 'organizations', 'parametros_globales',
+  'drivers', 'order_items', 'orders', 'organizations', 'parametros_globales',
   'rates', 'returns', 'roles', 'route_types', 'routes', 'rutas_costeo', 'tariff_types',
   'settlements', 'sku_cotizaciones', 'stores', 'tipos_camion', 'tracking_events',
   'vehicle_types', 'vehicles', 'v_costo_fijo_mensual', 'v_costo_variable_por_km',
+  // Fase 1 — Multi-country Foundation (docs/arquitectura-tms-oms/05-roadmap.md).
+  'warehouses', 'final_customers', 'delivery_points', 'addresses', 'contacts',
+  'driver_license_types', 'driver_licenses', 'user_scopes',
 ]);
 
 // Top-level await (soportado por vitest/ESM): la disponibilidad de Aurora se
@@ -113,10 +116,15 @@ describe.skipIf(!dbAvailable)('Tablas por módulo (existencia + lectura)', () =>
   });
 });
 
-describe.skipIf(!dbAvailable)('Rotura de flujo conocida: tabla "zones"', () => {
-  it('NO existe en el esquema — StoreModal y RouteTypeModal fallarán al pedirla', async () => {
+describe.skipIf(!dbAvailable)('Rotura de flujo ya corregida: tabla "zones"', () => {
+  // La tabla sigue sin existir (correcto — ver docs/arquitectura-tms-oms/08-db-gap-analysis.md
+  // §4/§5: no se crea sin resolver la semántica de "zona" primero), pero
+  // StoreModal/RouteTypeModal ya NO la referencian (se quitó el selector roto
+  // en la Fase 1) — este test documenta que el bug de ANALISIS_SISTEMA_TMS.md
+  // §5.3 está corregido en el frontend, no solo que la tabla sigue ausente.
+  it('sigue sin existir, y el frontend ya no la referencia', async () => {
     const { rows } = await pool.query("SELECT to_regclass('public.zones') AS reg");
-    expect(rows[0].reg, 'Si esto falla porque "zones" ya existe, actualizar ANALISIS_SISTEMA_TMS.md §5.3 y quitar este test').toBeNull();
+    expect(rows[0].reg).toBeNull();
   });
 });
 

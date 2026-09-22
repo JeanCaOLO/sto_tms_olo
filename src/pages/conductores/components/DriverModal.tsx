@@ -83,7 +83,7 @@ export default function DriverModal({ isOpen, onClose, driver, onSave }: DriverM
 
   const loadLicenseTypes = async () => {
     const { data } = await supabase
-      .from('license_types')
+      .from('driver_license_types')
       .select('id, code, name')
       .eq('activo', true)
       .order('orden');
