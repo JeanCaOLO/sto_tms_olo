@@ -27,7 +27,6 @@ FOREIGN_KEYS: tuple[tuple[str, str, str], ...] = (
     ("order_items", "order_id", "orders"),
     ("orders", "customer_id", "customers"),
     ("orders", "organization_id", "organizations"),
-    ("orders", "route_type_id", "route_types"),
     ("orders", "store_id", "stores"),
     ("rates", "carrier_id", "carriers"),
     ("rates", "country_id", "countries"),
@@ -35,11 +34,9 @@ FOREIGN_KEYS: tuple[tuple[str, str, str], ...] = (
     ("returns", "dispatch_guide_id", "dispatch_guides"),
     ("returns", "order_id", "orders"),
     ("returns", "organization_id", "organizations"),
-    ("route_types", "organization_id", "organizations"),
     ("routes", "carrier_id", "carriers"),
     ("routes", "driver_id", "drivers"),
     ("routes", "organization_id", "organizations"),
-    ("routes", "route_type_id", "route_types"),
     ("routes", "store_id", "stores"),
     ("routes", "vehicle_id", "vehicles"),
     ("rutas_costeo", "codigo_camion", "tipos_camion"),
@@ -81,27 +78,24 @@ FOREIGN_KEYS: tuple[tuple[str, str, str], ...] = (
     ("wms_expediciones", "organization_id", "organizations"),
     ("wms_expediciones", "warehouse_id", "warehouses"),
     ("wms_expediciones", "final_customer_id", "final_customers"),
-    # Zonas (sql/09): route_types se renombró a zones; la vista route_types
-    # queda por compatibilidad, así que conviven los dos nombres en los embeds.
+    # Zonas (sql/09): route_types se renombró a zones (la vista de compatibilidad se retiró en sql/11).
     ("zones", "organization_id", "organizations"),
     ("zones", "country_id", "countries"),
     ("orders", "route_type_id", "zones"),
     ("routes", "route_type_id", "zones"),
-    ("route_types", "country_id", "countries"),  # vista de compatibilidad
 )
 
 TABLES = frozenset({
     "app_users", "carriers", "contract_documents", "contracts", "costos_fijos",
     "costos_variables", "countries", "customers", "depreciacion", "dispatch_guides",
     "drivers", "order_items", "orders", "organizations", "parametros_globales",
-    "rates", "returns", "roles", "route_types", "routes", "rutas_costeo", "tariff_types",
+    "rates", "returns", "roles", "routes", "rutas_costeo", "tariff_types",
     "settlements", "sku_cotizaciones", "stores", "tipos_camion", "tracking_events",
     "vehicle_types", "vehicles", "v_costo_fijo_mensual", "v_costo_variable_por_km",
     "warehouses", "final_customers", "delivery_points", "addresses", "contacts",
     "driver_license_types", "driver_licenses", "user_scopes",
     "wms_expediciones",
-    # sql/09: zones es la tabla; route_types (arriba) es la vista de compatibilidad.
-    "zones",
+    "zones",  # ex route_types (sql/09)
 })
 
 

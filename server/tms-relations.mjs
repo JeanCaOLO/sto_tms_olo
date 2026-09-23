@@ -22,7 +22,6 @@ export const FOREIGN_KEYS = [
   { child: "order_items", column: "order_id", parent: "orders" },
   { child: "orders", column: "customer_id", parent: "customers" },
   { child: "orders", column: "organization_id", parent: "organizations" },
-  { child: "orders", column: "route_type_id", parent: "route_types" },
   { child: "orders", column: "store_id", parent: "stores" },
   { child: "rates", column: "carrier_id", parent: "carriers" },
   { child: "rates", column: "country_id", parent: "countries" },
@@ -30,11 +29,9 @@ export const FOREIGN_KEYS = [
   { child: "returns", column: "dispatch_guide_id", parent: "dispatch_guides" },
   { child: "returns", column: "order_id", parent: "orders" },
   { child: "returns", column: "organization_id", parent: "organizations" },
-  { child: "route_types", column: "organization_id", parent: "organizations" },
   { child: "routes", column: "carrier_id", parent: "carriers" },
   { child: "routes", column: "driver_id", parent: "drivers" },
   { child: "routes", column: "organization_id", parent: "organizations" },
-  { child: "routes", column: "route_type_id", parent: "route_types" },
   { child: "routes", column: "store_id", parent: "stores" },
   { child: "routes", column: "vehicle_id", parent: "vehicles" },
   { child: "rutas_costeo", column: "codigo_camion", parent: "tipos_camion" },
@@ -82,20 +79,18 @@ export const FOREIGN_KEYS = [
   { child: "wms_expediciones", column: "warehouse_id", parent: "warehouses" },
   { child: "wms_expediciones", column: "final_customer_id", parent: "final_customers" },
 
-  // Zonas (sql/09_zonas_y_licencias.sql): route_types se renombró a zones y
-  // quedó una vista route_types por compatibilidad.
+  // Zonas (sql/09_zonas_y_licencias.sql): route_types se renombró a zones (vista retirada en sql/11).
   { child: "zones", column: "organization_id", parent: "organizations" },
   { child: "zones", column: "country_id", parent: "countries" },
   { child: "orders", column: "route_type_id", parent: "zones" },
   { child: "routes", column: "route_type_id", parent: "zones" },
-  { child: "route_types", column: "country_id", parent: "countries" }, // vista de compatibilidad
 ];
 
 const TABLES = new Set([
   "app_users", "carriers", "contract_documents", "contracts", "costos_fijos",
   "costos_variables", "countries", "customers", "depreciacion", "dispatch_guides",
   "drivers", "order_items", "orders", "organizations", "parametros_globales",
-  "rates", "returns", "roles", "route_types", "routes", "rutas_costeo", "tariff_types",
+  "rates", "returns", "roles", "routes", "rutas_costeo", "tariff_types",
   "settlements", "sku_cotizaciones", "stores", "tipos_camion", "tracking_events",
   "vehicle_types", "vehicles", "v_costo_fijo_mensual", "v_costo_variable_por_km",
   // Fase 1 — Multi-country Foundation (nuevas tablas de sql/06_fase1_multicountry_foundation.sql).
@@ -103,8 +98,7 @@ const TABLES = new Set([
   "driver_license_types", "driver_licenses", "user_scopes",
   // Fase 5 — staging del WMS real (sql/07_wms_expediciones_staging.sql).
   "wms_expediciones",
-  // sql/09: zones (tabla) + route_types (vista de compatibilidad).
-  "zones",
+  "zones", // ex route_types (sql/09)
 ]);
 
 export function isKnownTable(name) {

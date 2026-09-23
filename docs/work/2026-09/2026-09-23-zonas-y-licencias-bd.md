@@ -18,5 +18,5 @@ Pedido del usuario: el catálogo de rutas pasa a ser un Catálogo de Zonas ligad
 
 ## Follow-ups
 - [ ] Frontend (Kiro): Catálogo de Zonas, quitar la sección Rutas, CRUD de licencias y estilos del botón "Importar CSV" en Transportistas.
-- [ ] Retirar la vista `route_types` con `sql/11_retirar_vista_route_types.sql` **después de integrar a `main`**: esta rama ya no la usa (Kiro migró Tracking y Liquidaciones), pero `main` y las ramas de los compañeros sí, y la base Aurora es compartida.
+- [x] Vista `route_types` retirada con `sql/11_retirar_vista_route_types.sql` después de integrar a `main` (2026-09-23); se quitaron también las entradas de compatibilidad de `relations.py` y `tms-relations.mjs`. Las ramas que no traigan `main` y consulten `route_types` fallan hasta que integren.
 - [x] Categorías oficiales de Costa Rica cargadas con `sql/10_licencias_costa_rica.sql` (A1–A3, B1–B4, C1–C2); borrados B, A4 y A5, que no existen en CR y no tenían referencias. Las categorías D y E (maquinaria) se agregan desde el CRUD si hacen falta.
