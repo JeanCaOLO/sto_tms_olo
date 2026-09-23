@@ -137,6 +137,39 @@ Resources:
         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
       Target: !Sub integrations/${ContextApiIntegration}
 
+  DeliveryPointCreateRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/v1/delivery-points
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${ContextApiIntegration}
+
+  DeliveryPointUpdateRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: PATCH /api/v1/delivery-points/{id}
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${ContextApiIntegration}
+
+  DeliveryPointDeleteRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: DELETE /api/v1/delivery-points/{id}
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${ContextApiIntegration}
+
 Outputs:
   ContextApiFunctionArn:
     Value: !GetAtt ContextApiFunction.Arn

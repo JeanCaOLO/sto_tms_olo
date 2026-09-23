@@ -13,6 +13,7 @@ from tms_common.responses import json_response
 
 from context_queries import (COUNTRIES_SQL, CUSTOMERS_SQL, DELIVERY_POINTS_SQL,
                              FINAL_CUSTOMER_OWNER_SQL, FINAL_CUSTOMERS_SQL, WAREHOUSES_SQL)
+from delivery_points import create_point, delete_point, update_point
 from scopes import authorize, is_global, resolve_scopes, scopes_payload
 
 
@@ -69,6 +70,9 @@ ROUTES = {
     "GET /api/v1/customers/{id}/final-customers": list_final_customers,
     "GET /api/v1/final-customers/{id}/delivery-points": list_delivery_points,
     "GET /api/v1/me/context": my_context,
+    "POST /api/v1/delivery-points": create_point,
+    "PATCH /api/v1/delivery-points/{id}": update_point,
+    "DELETE /api/v1/delivery-points/{id}": delete_point,
 }
 
 handler = tms_handler(ROUTES)

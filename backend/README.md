@@ -69,6 +69,13 @@ Mientras no haya red desde AWS hacia los SQL Server de EFLOW, el stack `eflow` s
 
 `GET /api/v1/planificacion/pedidos?fecha_entrega=YYYY-MM-DD` (sin parámetro = mañana, hora de Costa Rica). Devuelve los pedidos de `wms_expediciones` con `situacion = 'GENE'` (alistados por el OMS), sin viaje WMH, cuya `fecha_planificada` (fecha de entrega comprometida) es esa fecha. `delivery_zone` = código de ruta del WMS. **Gap:** `wms_expediciones` no trae peso ni volumen (vienen de `EXPEDICIONESCABECERA` en EFLOW): se devuelven `null` con `capacity_known: false`, nunca 0. Dirección y coordenadas salen del punto de entrega por defecto del cliente final, si existe.
 
+## Puntos de entrega
+
+Modelo: cliente (`customers`) → cliente final (`final_customers`) → punto (`delivery_points`) → dirección (`addresses`).
+La lista va por la API genérica; **alta/edición/baja** van por `POST /api/v1/delivery-points`,
+`PATCH|DELETE /api/v1/delivery-points/{id}` (módulo `context`, atómico y autorizado por el scope del cliente).
+`stores` queda solo para la bodega de origen (`CD-CR`).
+
 ## Carga de puntos de entrega desde el WMS
 
 `backend/local/ingest_delivery_points.py` carga un CSV del WMS (`Codigo,Cliente,Zona,Ruta,Latitud,Longitud`) como
