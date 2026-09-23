@@ -1,4 +1,5 @@
 import { usePlanAutomatico } from '../use-plan-automatico';
+import { useZonasNombre } from '../use-zonas-nombre';
 import ViajePropuestoCard from './ViajePropuestoCard';
 import type { Conductor, Vehiculo } from '../types';
 
@@ -18,6 +19,7 @@ function formatoFecha(iso: string): string {
 export default function PlanAutomatico({ vehiculos, conductores }: Props) {
   const { fecha, pedidos, cargando, resultado, planificando, planificar, recargar } =
     usePlanAutomatico({ vehiculos, conductores });
+  const { nombreDe } = useZonasNombre();
 
   if (cargando) {
     return (
@@ -66,7 +68,7 @@ export default function PlanAutomatico({ vehiculos, conductores }: Props) {
           {resultado.viajes.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {resultado.viajes.map((v, i) => (
-                <ViajePropuestoCard key={`${v.destino}-${v.slot.vehiculo.id}`} viaje={v} indice={i} />
+                <ViajePropuestoCard key={`${v.destino}-${v.slot.vehiculo.id}`} viaje={v} indice={i} destinoNombre={nombreDe(v.destino)} />
               ))}
             </div>
           )}

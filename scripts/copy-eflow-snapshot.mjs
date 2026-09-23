@@ -117,13 +117,14 @@ async function main() {
     if (!crRows[0]) throw new Error('No existe el país CR.');
     const countryId = crRows[0].id;
 
-    // route_types — nunca toca GAM/Rural existentes, siempre filas nuevas.
+    // zones (antes route_types, sql/09) — nunca toca GAM/Rural existentes, siempre filas nuevas.
     for (const r of RUTAS) {
+      const code = r.name.match(/^\s*(\d+)\s*·/)?.[1] ?? null;
       const { rowCount } = await client.query(
-        `INSERT INTO route_types (organization_id, name, status)
-         SELECT $1, $2, 'active'
-         WHERE NOT EXISTS (SELECT 1 FROM route_types WHERE organization_id = $1 AND name = $2)`,
-        [organizationId, r.name],
+        `INSERT INTO zones (organization_id, country_id, code, name, status)
+         SELECT $1, $3, $4, $2, 'active'
+         WHERE NOT EXISTS (SELECT 1 FROM zones WHERE organization_id = $1 AND name = $2)`,
+        [organizationId, r.name, countryId, code],
       );
       report.route_types += rowCount;
     }

@@ -76,7 +76,8 @@ async function main() {
     );
     const epaStoreIdByCode = new Map(epaStoreRows.map((s) => [s.code, s.id]));
 
-    const { rows: routeTypes } = await client.query(`SELECT id, name FROM route_types WHERE organization_id = $1`, [organizationId]);
+    // Zonas (antes route_types, sql/09): el código de la zona es el código de ruta del WMS.
+    const { rows: zones } = await client.query(`SELECT id, code, name FROM zones WHERE organization_id = $1`, [organizationId]);
 
     // --- pedidos alistados por el OMS con entrega en la fecha, todavía SIN viaje ---
     const pedidosAlistados = await loadPedidosAlistados(client, fechaEntrega, calcularPrioridad);
@@ -112,7 +113,7 @@ async function main() {
       contador++;
       const slot = propuesta.slot;
 
-      const routeType = routeTypes.find((rt) => rt.name.startsWith(`${propuesta.ruta} ·`) || rt.name === propuesta.ruta);
+      const routeType = zones.find((z) => z.code === propuesta.ruta || z.name === propuesta.ruta);
       if (!routeType) reporte.sinRouteType.push(propuesta.ruta);
 
       const orderIds = [];
@@ -149,7 +150,7 @@ async function main() {
           organizationId, origenStoreId, slot.conductorId, slot.vehiculo.id, slot._carrierId, routeNumber, hoyIso,
           propuesta.pedidos.length,
           `Generado automáticamente por el disparador de viajes - motivo: ${motivo}.` +
-            (routeType ? '' : ` (ruta "${propuesta.ruta}" sin route_type en el catálogo - queda sin asignar)`),
+            (routeType ? '' : ` (ruta "${propuesta.ruta}" sin zona en el catálogo - queda sin asignar)`),
           routeType?.id ?? null,
         ],
       );

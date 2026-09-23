@@ -188,7 +188,7 @@ export default function TrackingPage() {
           driver:drivers(full_name),
           vehicle:vehicles(plate),
           carrier:carriers(name),
-          route_type:route_types(name)
+          route_type:zones(name)
         `)
         .eq('organization_id', appUser.organization_id)
         .order('created_at', { ascending: false });
@@ -212,7 +212,7 @@ export default function TrackingPage() {
 
   const fetchRutas = useCallback(async () => {
     if (!appUser?.organization_id) return;
-    const { data } = await supabase.from('route_types').select('id, name').eq('status', 'active').order('name');
+    const { data } = await supabase.from('zones').select('id, name').eq('status', 'active').order('name');
     setRutas(data || []);
   }, [appUser?.organization_id]);
 

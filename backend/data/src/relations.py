@@ -81,6 +81,13 @@ FOREIGN_KEYS: tuple[tuple[str, str, str], ...] = (
     ("wms_expediciones", "organization_id", "organizations"),
     ("wms_expediciones", "warehouse_id", "warehouses"),
     ("wms_expediciones", "final_customer_id", "final_customers"),
+    # Zonas (sql/09): route_types se renombró a zones; la vista route_types
+    # queda por compatibilidad, así que conviven los dos nombres en los embeds.
+    ("zones", "organization_id", "organizations"),
+    ("zones", "country_id", "countries"),
+    ("orders", "route_type_id", "zones"),
+    ("routes", "route_type_id", "zones"),
+    ("route_types", "country_id", "countries"),  # vista de compatibilidad
 )
 
 TABLES = frozenset({
@@ -93,6 +100,8 @@ TABLES = frozenset({
     "warehouses", "final_customers", "delivery_points", "addresses", "contacts",
     "driver_license_types", "driver_licenses", "user_scopes",
     "wms_expediciones",
+    # sql/09: zones es la tabla; route_types (arriba) es la vista de compatibilidad.
+    "zones",
 })
 
 

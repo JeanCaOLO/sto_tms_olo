@@ -339,7 +339,7 @@ export default function SettlementModal({ isOpen, onClose, onSuccess, settlement
           ? supabase.from('stores').select('id, country_id').eq('id', routeDetails.store_id).maybeSingle()
           : Promise.resolve({ data: null, error: null } as any),
         routeDetails.route_type_id
-          ? supabase.from('route_types').select('id').eq('id', routeDetails.route_type_id).maybeSingle()
+          ? supabase.from('zones').select('id').eq('id', routeDetails.route_type_id).maybeSingle()
           : Promise.resolve({ data: null, error: null } as any),
         routeDetails.vehicle_id
           ? supabase.from('vehicles').select('vehicle_type').eq('id', routeDetails.vehicle_id).maybeSingle()

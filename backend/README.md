@@ -123,7 +123,7 @@ El output `ApiUrl` de `common-services` es el valor de `VITE_API_BASE` del front
 
 ```bash
 pip install -r backend/requirements-dev.txt
-powershell -File scripts/tunel-aurora.ps1   # otra terminal: Aurora en localhost:15432 (TMS_DB_PORT=15432)
+powershell -File scripts/tunel-aurora.ps1   # otra terminal: Aurora en localhost:15432 (TMS_DB_PORT=15432); se reconecta solo si SSM corta la sesión
 npm run api:local                           # Lambdas locales en :4000
 npm run dev                                 # frontend
 ```

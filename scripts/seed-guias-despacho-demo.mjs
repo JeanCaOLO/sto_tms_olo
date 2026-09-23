@@ -81,8 +81,8 @@ async function main() {
     const cofersaId = custRows.find((c) => c.code === 'COFERSA')?.id;
     if (!epaId || !cofersaId) throw new Error('No se encontró EPA/COFERSA.');
 
-    const { rows: routeTypes } = await client.query(`SELECT id, name FROM route_types WHERE organization_id = $1`, [organizationId]);
-    if (routeTypes.length === 0) throw new Error('No hay route_types.');
+    const { rows: routeTypes } = await client.query(`SELECT id, name FROM zones WHERE organization_id = $1`, [organizationId]);
+    if (routeTypes.length === 0) throw new Error('No hay zonas (tabla zones, ex route_types).');
 
     const { rows: drivers } = await client.query(`SELECT id, carrier_id FROM drivers WHERE organization_id = $1`, [organizationId]);
     const { rows: vehicles } = await client.query(`SELECT id FROM vehicles WHERE organization_id = $1`, [organizationId]);

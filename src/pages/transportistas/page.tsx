@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../hooks/useAuth';
 import Button from '../../components/base/Button';
 import Badge from '../../components/base/Badge';
 import Card from '../../components/base/Card';
@@ -29,6 +30,7 @@ interface Carrier {
 }
 
 export default function TransportistasPage() {
+  const { appUser } = useAuth();
   const [carriers, setCarriers] = useState<Carrier[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -192,14 +194,16 @@ export default function TransportistasPage() {
         </div>
         <div className="flex gap-3">
           <Button
+            variant="secondary"
             onClick={() => setIsCsvModalOpen(true)}
-            className="bg-white text-teal-600 border-2 border-teal-600 hover:bg-teal-50"
+            icon={<i className="ri-file-upload-line"></i>}
           >
-            <i className="ri-file-excel-line mr-2"></i>
             Importar CSV
           </Button>
-          <Button onClick={() => { setSelectedCarrier(null); setIsModalOpen(true); }}>
-            <i className="ri-add-line mr-2"></i>
+          <Button
+            onClick={() => { setSelectedCarrier(null); setIsModalOpen(true); }}
+            icon={<i className="ri-add-line"></i>}
+          >
             Nuevo Transportista
           </Button>
         </div>
@@ -294,18 +298,20 @@ export default function TransportistasPage() {
         onClose={() => setIsCsvModalOpen(false)}
         tableName="carriers"
         templateFileName="plantilla_transportistas.csv"
+        organizationId={appUser?.organization_id ?? ''}
+        title="Importar Transportistas desde CSV"
         fields={[
-          { name: 'name', label: 'Nombre', required: true, type: 'text' },
-          { name: 'code', label: 'Código', required: true, type: 'text' },
-          { name: 'tax_id', label: 'RUT/Tax ID', required: true, type: 'text' },
-          { name: 'contact_name', label: 'Nombre Contacto', required: true, type: 'text' },
-          { name: 'email', label: 'Email', required: true, type: 'email' },
-          { name: 'phone', label: 'Teléfono', required: true, type: 'text' },
-          { name: 'address', label: 'Dirección', required: false, type: 'text' },
-          { name: 'country_code', label: 'Código País', required: true, type: 'text' },
-          { name: 'status', label: 'Estado (active/inactive)', required: true, type: 'text' }
+          { key: 'name', label: 'Nombre', required: true, type: 'text' },
+          { key: 'code', label: 'Código', required: true, type: 'text' },
+          { key: 'tax_id', label: 'RUT/Tax ID', required: true, type: 'text' },
+          { key: 'contact_name', label: 'Nombre Contacto', required: true, type: 'text' },
+          { key: 'email', label: 'Email', required: true, type: 'email' },
+          { key: 'phone', label: 'Teléfono', required: true, type: 'text' },
+          { key: 'address', label: 'Dirección', required: false, type: 'text' },
+          { key: 'country_code', label: 'Código País', required: true, type: 'text' },
+          { key: 'status', label: 'Estado (active/inactive)', required: true, type: 'text' },
         ]}
-        transformRow={async (row: any) => {
+        transformRow={async (row, organizationId) => {
           // Resolver country_code -> country_id
           const { data: country } = await supabase
             .from('countries')
@@ -317,14 +323,6 @@ export default function TransportistasPage() {
             throw new Error(`País con código "${row.country_code}" no encontrado`);
           }
 
-          // Obtener organization_id del usuario actual
-          const { data: { user } } = await supabase.auth.getUser();
-          const { data: appUser } = await supabase
-            .from('app_users')
-            .select('organization_id')
-            .eq('id', user?.id)
-            .maybeSingle();
-
           return {
             name: row.name,
             code: row.code,
@@ -335,10 +333,10 @@ export default function TransportistasPage() {
             address: row.address || '',
             country_id: country.id,
             status: row.status,
-            organization_id: appUser?.organization_id
+            organization_id: organizationId,
           };
         }}
-        onSuccess={loadCarriers}
+        onImportComplete={loadCarriers}
       />
     </div>
   );

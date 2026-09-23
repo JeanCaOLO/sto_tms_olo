@@ -41,10 +41,11 @@ export const navItems: NavItem[] = [
     label: 'Catálogos',
     children: [
       { icon: 'ri-global-line', label: 'Países', path: '/paises' },
-      { icon: 'ri-route-line', label: 'Rutas', path: '/rutas' },
+      { icon: 'ri-map-2-line', label: 'Zonas', path: '/zonas' },
       { icon: 'ri-building-line', label: 'Transportistas', path: '/transportistas' },
       { icon: 'ri-truck-line', label: 'Vehículos', path: '/vehiculos' },
       { icon: 'ri-user-line', label: 'Conductores', path: '/conductores' },
+      { icon: 'ri-bank-card-line', label: 'Licencias', path: '/licencias' },
       { icon: 'ri-group-line', label: 'Clientes', path: '/clientes' },
       { icon: 'ri-store-line', label: 'Puntos de Entrega', path: '/tiendas' },
     ],

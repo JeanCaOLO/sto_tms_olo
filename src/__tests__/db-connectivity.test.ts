@@ -34,13 +34,14 @@ const TABLES_BY_MODULE: Record<string, string[]> = {
   tiendas: ['stores', 'countries', 'app_users'],
   paises: ['countries', 'stores', 'app_users'],
   pedidos: ['orders'],
-  rutas: ['routes', 'route_types'],
+  zonas: ['zones', 'countries'],
+  licencias: ['driver_license_types', 'countries'],
   guias: ['dispatch_guides', 'routes', 'drivers', 'vehicles'],
   devoluciones: ['returns', 'orders'],
-  liquidaciones: ['settlements', 'routes', 'carriers', 'drivers', 'dispatch_guides', 'returns', 'stores', 'route_types', 'vehicles'],
+  liquidaciones: ['settlements', 'routes', 'carriers', 'drivers', 'dispatch_guides', 'returns', 'stores', 'zones', 'vehicles'],
   contratos: ['contracts', 'contract_documents'],
   configuracion: ['organizations', 'roles', 'app_users'],
-  tracking: ['routes', 'route_types', 'tracking_events', 'dispatch_guides'],
+  tracking: ['routes', 'zones', 'tracking_events', 'dispatch_guides'],
   dashboard: ['orders', 'routes', 'dispatch_guides', 'returns'],
   reportes: ['orders', 'routes', 'returns'],
   planificacion: ['drivers', 'routes', 'dispatch_guides', 'orders'],
@@ -48,7 +49,8 @@ const TABLES_BY_MODULE: Record<string, string[]> = {
 
 // Tablas referenciadas por el frontend pero que NO existen en el esquema real —
 // documentan una rotura de flujo conocida en vez de dejarla pasar en silencio.
-const KNOWN_MISSING_TABLES = ['zones'];
+// `zones` ya existe (sql/09, renombre de route_types) — ya no está ausente.
+const KNOWN_MISSING_TABLES: string[] = [];
 
 // Backend whitelist (server/tms-relations.mjs) — cualquier tabla del esquema
 // que no esté aquí es rechazada por la API aunque exista en Postgres.
@@ -56,7 +58,7 @@ const BACKEND_WHITELIST = new Set([
   'app_users', 'carriers', 'contract_documents', 'contracts', 'costos_fijos',
   'costos_variables', 'countries', 'customers', 'depreciacion', 'dispatch_guides',
   'drivers', 'order_items', 'orders', 'organizations', 'parametros_globales',
-  'rates', 'returns', 'roles', 'route_types', 'routes', 'rutas_costeo', 'tariff_types',
+  'rates', 'returns', 'roles', 'zones', 'route_types', 'routes', 'rutas_costeo', 'tariff_types',
   'settlements', 'sku_cotizaciones', 'stores', 'tipos_camion', 'tracking_events',
   'vehicle_types', 'vehicles', 'v_costo_fijo_mensual', 'v_costo_variable_por_km',
   // Fase 1 — Multi-country Foundation (docs/arquitectura-tms-oms/05-roadmap.md).
