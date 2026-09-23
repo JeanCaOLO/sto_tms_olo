@@ -69,6 +69,18 @@ Mientras no haya red desde AWS hacia los SQL Server de EFLOW, el stack `eflow` s
 
 `GET /api/v1/planificacion/pedidos?fecha_entrega=YYYY-MM-DD` (sin parámetro = mañana, hora de Costa Rica). Devuelve los pedidos de `wms_expediciones` con `situacion = 'GENE'` (alistados por el OMS), sin viaje WMH, cuya `fecha_planificada` (fecha de entrega comprometida) es esa fecha. `delivery_zone` = código de ruta del WMS. **Gap:** `wms_expediciones` no trae peso ni volumen (vienen de `EXPEDICIONESCABECERA` en EFLOW): se devuelven `null` con `capacity_known: false`, nunca 0. Dirección y coordenadas salen del punto de entrega por defecto del cliente final, si existe.
 
+## Carga de puntos de entrega desde el WMS
+
+`backend/local/ingest_delivery_points.py` carga un CSV del WMS (`Codigo,Cliente,Zona,Ruta,Latitud,Longitud`) como
+cliente final + dirección + punto de entrega de un cliente (`customers.code`). Restaura el cero de los códigos numéricos
+(el WMS usa 9 dígitos), guarda coordenadas solo si están dentro de Costa Rica (`0,0` → `PENDING`, fuera del país →
+`FAILED`) y liga la ruta a `zones.code`. Es idempotente y trabaja en bloque (tabla temporal):
+
+```bash
+python backend/local/ingest_delivery_points.py --csv <archivo.csv> --customer COFERSA            # simulación
+python backend/local/ingest_delivery_points.py --csv <archivo.csv> --customer COFERSA --execute  # aplica
+```
+
 ## Correr los tests
 
 ```bash

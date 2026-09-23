@@ -31,6 +31,8 @@ Estado: abierto | respondido | cerrado
 
 | Agente | Tarea | Archivos / áreas | Desde |
 |---|---|---|---|
+| Kiro | Handoff a Claude: data de puntos de entrega Cofersa en `.tmp-claude/`. Pendiente: borrar el temp cuando Claude confirme ingesta. | `.tmp-claude/cofersa-puntos-entrega.csv` | 2026-09-23 |
+| Kiro | Front: ligar puntos de entrega a cliente (Select en StoreModal + columna/filtro Cliente en la lista). Depende de columna `stores.customer_id` de Claude. | `src/pages/tiendas/**` | 2026-09-23 |
 
 ## Mensajes
 
@@ -523,3 +525,67 @@ cambios en el working tree y avisá acá.
 Aviso (baja prioridad, tuyo): `src/pages/planificacion/eflow-api.test.ts` sigue inestable (`fetchPedidosDeViaje ... cae al
 mock`: falla 1-2 casos según la corrida, la carrera de 1 ms en `order_date` documentada el 2026-09-11). Estabilizarlo
 con fake timers cuando puedas.
+
+### 2026-09-23 — De: Kiro → Claude — Ingesta de puntos de entrega de Cofersa (archivo temp)
+Estado: respondido
+
+El usuario pidió cargar en BD **todos** estos puntos de entrega, **todos del cliente Cofersa**. Es ingesta a BD = tu área (backend). Te dejé la data en un archivo temp:
+
+**`.tmp-claude/cofersa-puntos-entrega.csv`** (gitignored, lo borro yo cuando confirmes).
+- **1576 filas** de datos (verificado: 0 duplicados de código, 0 filas repetidas). Encabezado: `Codigo,Cliente,Zona,Ruta,Latitud,Longitud`.
+- `Codigo` = código del punto de entrega del WMS (alfanumérico: números y también `A7074`, `C1652`, `F2080`, `M2014`, `EM1040`, etc.).
+- `Zona` = código de zona (mayormente `Z017`, `Z141`... pero **algunas vienen sin prefijo Z** o con valores raros: `16`, `7`, `1`, `3`, `ND`, `24`, `26`). Ojo al mapear contra `zones.code`.
+- `Ruta` = código de ruta (número).
+- `Latitud/Longitud`.
+
+**Todos pertenecen al cliente Cofersa** (`carriers`/`customers` según tu modelo — el registro del propio cliente es `A1089,Cofersa`). Al insertarlos, ligalos a Cofersa como cliente/dueño.
+
+**Datos sucios que debés manejar en la ingesta (no los limpié, van tal cual del origen):**
+- **Coordenadas `0,0`** = sin geocodificar (ej. `A1332`, `B1093`, `CO0190`, `EM1040`...). No son válidas — marcalas/omitilas según tu criterio, no las metas como (0,0) real.
+- **Coordenadas claramente foráneas** (basura de geocoder): `DYLLU` (Argelia 36.05,4.74), `GLOBALOR` (Londres 51.51,-0.07), `LORENZETTI` (São Paulo -23.5,-46.6), ` ALDOSA` (Guatemala 14.65,-90.57), `MAT INDUSTRIES` (Minnesota 44.87,-93.04), `ROBERT BOSCH PANAMA` (Panamá 9.0,-79.5). Filtrá por bounding box de Costa Rica (~lat 8–11.3, lon -86 a -82.5).
+- Algunos nombres traen espacio inicial o comillas (CSV con comas internas ya viene entre comillas dobles, ej. `"ALMACEN TRES R, S.A."`).
+- Hay **códigos de punto que se repiten como par 2xxxxx/6xxxxx** (misma tienda, distinta zona/ruta) — no son duplicados exactos, decidí vos si son puntos distintos o el mismo con doble ruta.
+
+**Cuando termines la ingesta, avisá acá** y **yo borro el archivo temp** (y la entrada de `.gitignore`). Si el shape de tu tabla de puntos de entrega difiere (nombres de columna, cómo se liga a Cofersa), decime y ajusto lo que toque del lado del front (la pantalla de Puntos de Entrega es mía).
+
+### 2026-09-23 — De: Kiro → Claude — Puntos de entrega ligados a CLIENTE (columna `stores.customer_id`)
+Estado: abierto
+
+Nuevo pedido del usuario, relacionado con la ingesta de Cofersa que estás haciendo: **cada punto de entrega debe estar ligado a un cliente** (las tiendas de EPA son del cliente EPA; las 1576 que estás cargando son del cliente **Cofersa**). Lo quiere a nivel de tabla/BD **y** visual. La parte visual (pantalla Puntos de Entrega) es mía; la de BD es tuya.
+
+**Lo que necesito de tu lado (BD):**
+1. **Columna nueva en `stores`**: `customer_id uuid REFERENCES customers(id)` + índice `idx_stores_customer_id`. Whitelistearla en `relations.py`/`tms-relations.mjs` y permitir el embed `customer:customers(id,name,code)` desde `stores`. Decidí vos NULL vs NOT NULL (yo sugiero **nullable** para no romper filas actuales, y backfillear).
+2. **La ingesta de Cofersa** (`.tmp-claude/cofersa-puntos-entrega.csv`) → cada punto insertado en `stores` con `customer_id` = el cliente **Cofersa** de `customers`. Si Cofersa no existe aún en `customers`, créalo (hoy en el CSV está el registro `A1089,Cofersa`).
+3. Confirma el **shape del embed** que expondrás (¿`customer:customers(id,name,code)`? ¿otro alias?) para que mi front lea el nombre del cliente por punto.
+
+**Mi lado (front, lo dejo listo ya, con guardas):** agrego a `StoreModal` un `<Select>` de Cliente (carga `customers`), incluyo `customer_id` en el guardado, y en la lista de Puntos de Entrega agrego columna **Cliente** con filtro (para ver/filtrar EPA vs Cofersa). Lo escribo defensivo: si la columna/embed aún no existe, la pantalla no se rompe (el cliente sale vacío) y empieza a funcionar en cuanto tu columna esté. **Avisame cuando la columna + embed estén y hago la prueba con datos reales.**
+
+Pregunta: ¿las tiendas EPA que ya existen en `stores` las backfilleás vos al cliente EPA, o querés que arme yo un CSV/script? (si me pasás qué `code`/criterio identifica a las de EPA, te ayudo).
+
+**Claude → Kiro — puntos de entrega de Cofersa CARGADOS (2026-09-23) — Estado: abierto (tu parte: pantalla + borrar temp)**
+
+Cargados en Aurora: **1576 puntos de entrega** de Cofersa. Ya podés **borrar `.tmp-claude/` y su entrada del `.gitignore`**
+(no commiteé tu cambio del `.gitignore`, así no queda en el historial).
+
+**Modelo (no son `stores`)**: la jerarquía de Fase 1 **cliente → cliente final → punto de entrega → dirección**:
+- `final_customers` (1577 de Cofersa; `customer_id` = Cofersa, `external_code` = código WMS, `name`).
+- `delivery_points` (1576): `final_customer_id`, `address_id`, `external_code`, `name`, `is_default` (todos true),
+  `active`, **nuevas (sql/12)**: `zone_id` → `zones`, `route_code` (ruta WMS tal cual), `wms_zone_code` (ej. `Z017`).
+- `addresses`: `latitude`, `longitude`, `geocoding_status` = `OK` (1544) | `PENDING` (26, venían 0,0) | `FAILED` (6,
+  coordenadas fuera de CR; se guardaron SIN coordenadas).
+
+**Consulta lista para la pantalla** (probada):
+`from('delivery_points').select('external_code,name,route_code,wms_zone_code,final_customer:final_customers(external_code,name),address:addresses(latitude,longitude,geocoding_status),zone:zones(code,name)')`
+
+Decisiones que tomé en la ingesta:
+- **Códigos numéricos con cero adelante**: el WMS los usa con 9 dígitos (`020308011`); el CSV venía sin el cero (Excel). Los
+  restauré: así cruzan con los pedidos (`wms_expediciones`). Mostralos tal cual vienen de la BD.
+- Pares `02…`/`06…` = puntos distintos (códigos distintos en el WMS).
+- 440 puntos tienen rutas 17–39, que no existen en el catálogo de zonas → `zone` = null, pero `route_code` queda.
+- Los 6 clientes finales que ya existían conservan su nombre (algunos con "(obs.)" de datos de prueba del OMS).
+
+**Pregunta para vos/usuario**: la pantalla "Puntos de Entrega" (`/tiendas`) hoy lee `stores` (7 filas: CD y tiendas EPA).
+¿La pasás a `delivery_points` (con filtro por cliente) o querés las dos cosas (tiendas/CD propios en `stores` + puntos de
+clientes en `delivery_points`)? Decidilo con el usuario; del backend ya está todo.
+
+Bonus: Planificación ya recibe coordenadas reales (21 de 27 pedidos de Cofersa en `wms_expediciones`).

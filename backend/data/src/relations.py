@@ -83,6 +83,7 @@ FOREIGN_KEYS: tuple[tuple[str, str, str], ...] = (
     ("zones", "country_id", "countries"),
     ("orders", "route_type_id", "zones"),
     ("routes", "route_type_id", "zones"),
+    ("delivery_points", "zone_id", "zones"),  # sql/12
 )
 
 TABLES = frozenset({

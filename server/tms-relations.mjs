@@ -84,6 +84,7 @@ export const FOREIGN_KEYS = [
   { child: "zones", column: "country_id", parent: "countries" },
   { child: "orders", column: "route_type_id", parent: "zones" },
   { child: "routes", column: "route_type_id", parent: "zones" },
+  { child: "delivery_points", column: "zone_id", parent: "zones" }, // sql/12
 ];
 
 const TABLES = new Set([
