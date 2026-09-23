@@ -13,9 +13,10 @@ import { toDecimal } from './money';
 
 export function calculate(input: CalculateInput): CalcResult {
   const derived = deriveContext(input);
-  const { applied, discarded } = resolveRules(input, derived);
+  const { applied, discarded, warnings: resolverWarnings } = resolveRules(input, derived);
   const charge = runChargePipeline(applied, derived.vars, derived.originZoneId, derived.destZoneId, input);
-  const cost = computeCost(input, derived.overnightNights);
+  const costWarnings: string[] = [];
+  const cost = computeCost(input, derived.overnightNights, derived.vars, (m) => costWarnings.push(m));
   const margin = computeMargin(
     toDecimal(charge.totalLiquidado),
     toDecimal(cost.total),
@@ -25,13 +26,16 @@ export function calculate(input: CalculateInput): CalcResult {
 
   return {
     trace: charge.trace,
-    discarded,
+    // Los descartes salen de dos momentos: el resolver (condición, alcance, exclusividad) y el
+    // pipeline (perdedores de un grupo MAX, que solo se conocen con los montos reales).
+    discarded: [...discarded, ...charge.discarded],
     stageSubtotals: charge.stageSubtotals,
     totalLiquidado: charge.totalLiquidado,
+    currency: input.country.localCurrency,
     cost,
     margin,
-    fxUsed: charge.fxUsed,
-    warnings: charge.warnings,
+    warnings: [...resolverWarnings, ...charge.warnings, ...costWarnings],
+    blockingIssues: charge.blockingIssues,
   };
 }
 

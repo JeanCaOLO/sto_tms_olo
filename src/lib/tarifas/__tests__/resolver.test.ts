@@ -1,7 +1,10 @@
 // Puerto literal de vista-tarifas-fase1/src/kernel/__tests__/resolver.test.ts.
 import { describe, expect, it } from 'vitest';
 import { deriveContext, resolveRules } from '../resolver';
-import { makeCountryVE, makeGeoVE, makeRule, makeTrip } from './fixtures';
+import { calculate } from '../index';
+import {
+  makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostParams, makeRule, makeTrip,
+} from './fixtures';
 
 describe('resolveRules — stacking', () => {
   it('4. EXCLUSIVE deja pasar solo la regla de menor priority', () => {
@@ -26,7 +29,7 @@ describe('resolveRules — stacking', () => {
 
     const derived = deriveContext({ trip, country, zones, zoneGroups, locations });
     const { applied, discarded } = resolveRules(
-      { trip, country, rules: [cheap, expensive], zones, zoneGroups, locations, zoneLaneRates: [] },
+      { trip, country, rules: [cheap, expensive], zones, zoneGroups, locations },
       derived,
     );
 
@@ -63,17 +66,29 @@ describe('resolveRules — stacking', () => {
     });
 
     const derived = deriveContext({ trip, country, zones, zoneGroups, locations });
-    const { applied, discarded } = resolveRules(
-      { trip, country, rules: [low, high], zones, zoneGroups, locations, zoneLaneRates: [] },
+    const { applied } = resolveRules(
+      { trip, country, rules: [low, high], zones, zoneGroups, locations },
       derived,
     );
 
-    expect(applied.map((r) => r.code)).toEqual(['MAX_HIGH']);
-    expect(discarded).toEqual([
+    // El resolver ya NO decide el ganador: deja pasar a los dos candidatos. Comparar montos exige
+    // los subtotales reales, que recién existen en el pipeline — antes se comparaba con una sonda
+    // cuyos subtotales valían cero, así que una regla basada en un porcentaje perdía siempre.
+    // Ver `__tests__/simulaciones.test.ts` § S4.
+    expect(applied.map((r) => r.code)).toEqual(['MAX_LOW', 'MAX_HIGH']);
+
+    // Quién gana se verifica de punta a punta, que es donde la decisión se toma de verdad.
+    const result = calculate({
+      country, trip, rules: [low, high], zones, zoneGroups, locations, ownCostParams: makeOwnCostParams(), outsourcedCostRates: [],
+      marginPolicy: makeMarginPolicy(),
+    });
+
+    expect(result.trace.map((l) => l.ruleCode)).toEqual(['MAX_HIGH']);
+    expect(result.discarded).toEqual([
       {
         ruleCode: 'MAX_LOW',
         reason: 'LOST_MAX',
-        detail: 'Perdió el MAX del grupo "promo" frente a "MAX_HIGH".',
+        detail: 'Perdió el MAX del grupo "promo" frente a "MAX_HIGH" (15.00 contra 25.00).',
       },
     ]);
   });
@@ -92,7 +107,7 @@ describe('resolveRules — stacking', () => {
 
     const derived = deriveContext({ trip, country, zones, zoneGroups, locations });
     const { applied, discarded } = resolveRules(
-      { trip, country, rules: [inactive], zones, zoneGroups, locations, zoneLaneRates: [] },
+      { trip, country, rules: [inactive], zones, zoneGroups, locations },
       derived,
     );
 

@@ -3,13 +3,13 @@ import Card from '../../../components/base/Card';
 import Badge from '../../../components/base/Badge';
 import Select from '../../../components/base/Select';
 import HelpButton from './HelpButton';
-import { listFxRates, listRules, listZoneLaneRates } from '../../../lib/tarifas/localRulesDataSource';
+import { listRules } from '../../../lib/tarifas/localRulesDataSource';
 import { STAGE_ORDER } from '../../../lib/tarifas/types';
 
 interface ResumenTabProps {
   organizationId: string;
-  countries: { id: string; name: string }[];
-  zones: any[];
+  /** País activo del módulo. */
+  countryId: string;
 }
 
 const STAGE_LABELS: Record<string, string> = {
@@ -17,12 +17,9 @@ const STAGE_LABELS: Record<string, string> = {
   SURCHARGE: 'Recargo', ADJUSTMENT: 'Ajuste', TAX: 'Impuesto',
 };
 
-export default function ResumenTab({ organizationId, countries, zones }: ResumenTabProps) {
-  const [countryId, setCountryId] = useState(countries[0]?.id ?? '');
+export default function ResumenTab({ organizationId, countryId }: ResumenTabProps) {
   const [loading, setLoading] = useState(true);
   const [rules, setRules] = useState<any[]>([]);
-  const [zoneLaneRates, setZoneLaneRates] = useState<any[]>([]);
-  const [fxRates, setFxRates] = useState<any[]>([]);
 
   useEffect(() => {
     if (countryId) load();
@@ -31,21 +28,12 @@ export default function ResumenTab({ organizationId, countries, zones }: Resumen
 
   const load = async () => {
     setLoading(true);
-    const [r, zlr, fx] = await Promise.all([
-      listRules(organizationId), listZoneLaneRates(organizationId), listFxRates(organizationId),
-    ]);
-    setRules(r); setZoneLaneRates(zlr); setFxRates(fx);
+    setRules(await listRules(organizationId));
     setLoading(false);
   };
 
-  const zoneLabel = (id: string) => {
-    const z = zones.find((zone) => zone.id === id);
-    return z ? `${z.code} - ${z.name}` : id;
-  };
 
   const activeRules = rules.filter((r) => r.active && (r.country_id === countryId || !r.country_id));
-  const countryZoneLaneRates = zoneLaneRates.filter((r) => r.country_id === countryId);
-  const countryFxRates = fxRates.filter((r) => r.country_id === countryId);
 
   return (
     <div className="space-y-6">
@@ -60,7 +48,6 @@ export default function ResumenTab({ organizationId, countries, zones }: Resumen
             ]}
           />
         </div>
-        <Select value={countryId} onChange={(e) => setCountryId(e.target.value)} options={countries.map((c) => ({ value: c.id, label: c.name }))} />
       </Card>
 
       {loading ? (
@@ -95,35 +82,6 @@ export default function ResumenTab({ organizationId, countries, zones }: Resumen
             {activeRules.length === 0 && <p className="text-sm text-slate-400">No hay reglas activas.</p>}
           </Card>
 
-          <Card>
-            <h3 className="text-sm font-semibold text-slate-700 mb-3">Tarifas por zona (LOOKUP_ZONE)</h3>
-            <table className="w-full text-sm">
-              <tbody>
-                {countryZoneLaneRates.map((r) => (
-                  <tr key={r.id} className="border-b border-slate-100">
-                    <td className="py-1.5">{zoneLabel(r.origin_zone_id)} → {zoneLabel(r.dest_zone_id)}</td>
-                    <td className="py-1.5 text-right">${r.amount}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {countryZoneLaneRates.length === 0 && <p className="text-sm text-slate-400">No hay tarifas por zona configuradas.</p>}
-          </Card>
-
-          <Card>
-            <h3 className="text-sm font-semibold text-slate-700 mb-3">Tasas de cambio</h3>
-            <table className="w-full text-sm">
-              <tbody>
-                {countryFxRates.map((r) => (
-                  <tr key={r.id} className="border-b border-slate-100">
-                    <td className="py-1.5">{r.from_currency} → {r.to_currency}</td>
-                    <td className="py-1.5 text-right">{r.rate}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {countryFxRates.length === 0 && <p className="text-sm text-slate-400">No hay tasas de cambio configuradas.</p>}
-          </Card>
         </>
       )}
     </div>

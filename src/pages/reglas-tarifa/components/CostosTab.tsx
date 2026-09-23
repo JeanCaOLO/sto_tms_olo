@@ -4,6 +4,7 @@ import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
 import HelpButton from './HelpButton';
+import ImportRatesModal from './ImportRatesModal';
 import {
   listOwnCostParams, listOutsourcedCostRates, listSimulatedCarriers,
   saveOwnCostParams, saveOutsourcedCostRate, deleteOutsourcedCostRate,
@@ -11,17 +12,19 @@ import {
 
 interface CostosTabProps {
   organizationId: string;
-  countries: { id: string; name: string }[];
+  /** País activo del módulo. Ya no se elige acá: el ámbito es global. */
+  country: { id: string; name: string; local_currency?: string } | null;
 }
 
+// Por defecto 'REF', que es cómo se interpretaban los importes antes de que el campo existiera.
 const emptyOwnForm = { cost_per_km: '0', depreciation_per_km: '0', driver_daily: '0' };
 const emptyOutsourcedForm = { carrierId: '', truckTypeId: '', flatRate: '0' };
 
 // Motor de costos (Fase 2): cuánto le cuesta a la empresa operar el viaje — flota propia (por km +
 // depreciación + chofer por día) o tercerizada (tarifa plana por transportista/tipo de vehículo).
 // Se usa junto con el total liquidado para derivar el margen (pestaña Política de Margen).
-export default function CostosTab({ organizationId, countries }: CostosTabProps) {
-  const [countryId, setCountryId] = useState(countries[0]?.id ?? '');
+export default function CostosTab({ organizationId, country }: CostosTabProps) {
+  const countryId = country?.id ?? '';
   const [loading, setLoading] = useState(true);
   const [ownParams, setOwnParams] = useState<any[]>([]);
   const [outsourcedRates, setOutsourcedRates] = useState<any[]>([]);
@@ -30,6 +33,7 @@ export default function CostosTab({ organizationId, countries }: CostosTabProps)
   const [ownForm, setOwnForm] = useState(emptyOwnForm);
   const [ownSaving, setOwnSaving] = useState(false);
   const [outsourcedForm, setOutsourcedForm] = useState(emptyOutsourcedForm);
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -52,9 +56,18 @@ export default function CostosTab({ organizationId, countries }: CostosTabProps)
   useEffect(() => {
     const current = ownParams.find((p) => p.country_id === countryId);
     setOwnForm(current
-      ? { cost_per_km: String(current.cost_per_km), depreciation_per_km: String(current.depreciation_per_km), driver_daily: String(current.driver_daily) }
+      ? {
+          cost_per_km: String(current.cost_per_km),
+          depreciation_per_km: String(current.depreciation_per_km),
+          driver_daily: String(current.driver_daily),
+        }
       : emptyOwnForm);
   }, [countryId, ownParams]);
+
+  const currency = country?.local_currency ?? 'moneda local';
+  // Un importe de costo puede estar escrito en cualquiera de las dos monedas; el motor lo lleva a
+  // la local antes de compararlo contra el total liquidado. Declararlo evita el error clásico de
+  // cargar colones donde el sistema esperaba dólares.
 
   const currentOwnParams = ownParams.find((p) => p.country_id === countryId);
   const countryOutsourcedRates = outsourcedRates.filter((r) => r.country_id === countryId);
@@ -93,18 +106,18 @@ export default function CostosTab({ organizationId, countries }: CostosTabProps)
   return (
     <div className="space-y-6">
       <Card>
-        <div className="flex items-center gap-2 mb-3">
-          <h3 className="text-sm font-semibold text-slate-700">País</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-slate-700">Costos de {country?.name ?? 'este país'}</h3>
           <HelpButton
             title="Costos"
             steps={[
               'Flota propia: costo por km + depreciación por km + chofer por día (una fila por país).',
               'Tercerizada (outsourcing): tarifa plana por transportista y tipo de vehículo — se busca por esa combinación exacta al liquidar.',
               'Este costo nunca se le cobra ni se le muestra al transportista: solo se usa para calcular el margen (pestaña Política de Margen).',
+              'Moneda: indicá en cuál escribiste cada importe. El motor lo convierte a la moneda local del país antes de compararlo contra el total liquidado, así el margen nunca compara monedas distintas.',
             ]}
           />
         </div>
-        <Select value={countryId} onChange={(e) => setCountryId(e.target.value)} options={countries.map((c) => ({ value: c.id, label: c.name }))} />
       </Card>
 
       <Card>
@@ -125,7 +138,16 @@ export default function CostosTab({ organizationId, countries }: CostosTabProps)
       </Card>
 
       <Card>
-        <h3 className="text-sm font-semibold text-slate-700 mb-3">Tercerizada (outsourcing) — tarifa plana</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-slate-700">Tercerizada (outsourcing) — tarifa plana</h3>
+          <Button variant="secondary" onClick={() => setIsImportOpen(true)} disabled={!countryId}>
+            <i className="ri-file-upload-line mr-1"></i> Importar CSV o Excel
+          </Button>
+        </div>
+        <p className="text-xs text-slate-500 mb-3">
+          Una tarifa por tipo de vehículo. Podés cargarlas de a una, o importar un archivo con dos
+          columnas —tipo de vehículo y precio— para dar de alta varias de golpe.
+        </p>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end mb-3">
           <Select
             label="Transportista"
@@ -144,7 +166,9 @@ export default function CostosTab({ organizationId, countries }: CostosTabProps)
               <tr key={r.id} className="border-b border-slate-100">
                 <td className="py-2">{carrierLabel(r.carrier_id)}</td>
                 <td className="py-2">{r.truck_type_id}</td>
-                <td className="py-2">${r.flat_rate}</td>
+                <td className="py-2">
+                  {r.flat_rate} {currency}
+                </td>
                 <td className="py-2 text-right">
                   <button onClick={async () => { await deleteOutsourcedCostRate(r.id); await load(); }} className="text-red-500 hover:bg-red-50 rounded-lg p-1">
                     <i className="ri-delete-bin-line"></i>
@@ -156,6 +180,17 @@ export default function CostosTab({ organizationId, countries }: CostosTabProps)
           </tbody>
         </table>
       </Card>
+
+      <ImportRatesModal
+        isOpen={isImportOpen}
+        organizationId={organizationId}
+        countryId={countryId}
+        countryName={country?.name ?? ''}
+        currency={currency}
+        carriers={carriers.map((c) => ({ id: c.id, name: c.name }))}
+        onClose={() => setIsImportOpen(false)}
+        onImported={() => { void load(); }}
+      />
     </div>
   );
 }

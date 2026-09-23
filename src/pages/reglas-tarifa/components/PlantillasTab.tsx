@@ -9,7 +9,8 @@ import type { FleetType, ServiceType } from '../../../lib/tarifas/types';
 
 interface PlantillasTabProps {
   organizationId: string;
-  countries: { id: string; name: string }[];
+  /** País activo del módulo. Las plantillas listadas y las nuevas son de este país. */
+  countryId: string;
   zones: any[];
 }
 
@@ -20,7 +21,7 @@ const emptyTrip = {
   carrierId: '', customerId: '', durationHours: 4, tollsAmount: '0', lateMinutes: 0, incidentCount: 0,
 };
 
-export default function PlantillasTab({ organizationId, countries, zones }: PlantillasTabProps) {
+export default function PlantillasTab({ organizationId, countryId, zones }: PlantillasTabProps) {
   const [templates, setTemplates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<{ id?: string; name: string; trip: typeof emptyTrip } | null>(null);
@@ -36,7 +37,7 @@ export default function PlantillasTab({ organizationId, countries, zones }: Plan
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId]);
 
-  const startNew = () => setEditing({ name: '', trip: { ...emptyTrip, countryId: countries[0]?.id ?? '' } });
+  const startNew = () => setEditing({ name: '', trip: { ...emptyTrip, countryId } });
 
   const startEdit = (t: any) => setEditing({
     id: t.id,
@@ -71,7 +72,10 @@ export default function PlantillasTab({ organizationId, countries, zones }: Plan
     await load();
   };
 
-  const zonesForCountry = (countryId: string) => zones.filter((z) => z.country_id === countryId);
+  const zonesForCountry = (id: string) => zones.filter((z) => z.country_id === id);
+
+  // Acotadas al país activo: el ámbito del módulo es global, no por pestaña.
+  const countryTemplates = templates.filter((t: any) => t.country_id === countryId);
 
   return (
     <div className="space-y-6">
@@ -97,19 +101,18 @@ export default function PlantillasTab({ organizationId, countries, zones }: Plan
           <div className="text-center py-10 text-slate-500"><i className="ri-loader-4-line animate-spin text-2xl"></i></div>
         ) : (
           <table className="w-full text-sm">
-            <thead><tr className="border-b border-slate-200"><th className="text-left py-2">Nombre</th><th className="text-left py-2">País</th><th></th></tr></thead>
+            <thead><tr className="border-b border-slate-200"><th className="text-left py-2">Nombre</th><th></th></tr></thead>
             <tbody>
-              {templates.map((t) => (
+              {countryTemplates.map((t) => (
                 <tr key={t.id} className="border-b border-slate-100">
                   <td className="py-2 text-slate-800">{t.name}</td>
-                  <td className="py-2 text-slate-500">{countries.find((c) => c.id === t.country_id)?.name ?? t.country_id}</td>
                   <td className="py-2 text-right">
                     <button onClick={() => startEdit(t)} className="text-slate-500 hover:bg-slate-100 rounded-lg p-1 mr-1"><i className="ri-edit-line"></i></button>
                     <button onClick={async () => { await deleteTemplate(t.id); await load(); }} className="text-red-500 hover:bg-red-50 rounded-lg p-1"><i className="ri-delete-bin-line"></i></button>
                   </td>
                 </tr>
               ))}
-              {templates.length === 0 && <tr><td colSpan={3} className="py-4 text-center text-slate-400">Sin plantillas guardadas.</td></tr>}
+              {countryTemplates.length === 0 && <tr><td colSpan={2} className="py-4 text-center text-slate-400">Sin plantillas guardadas.</td></tr>}
             </tbody>
           </table>
         )}
@@ -120,15 +123,9 @@ export default function PlantillasTab({ organizationId, countries, zones }: Plan
           <h3 className="text-sm font-semibold text-slate-700 mb-3">{editing.id ? 'Editar plantilla' : 'Nueva plantilla'}</h3>
           <div className="space-y-3">
             <Input label="Nombre" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} placeholder="Ej: Ruta diaria Bodega → Norte" />
-            <Select
-              label="País"
-              value={editing.trip.countryId}
-              onChange={(e) => setEditing({ ...editing, trip: { ...editing.trip, countryId: e.target.value, originZoneId: '', destZoneId: '' } })}
-              options={countries.map((c) => ({ value: c.id, label: c.name }))}
-            />
             <div className="grid grid-cols-2 gap-3">
-              <Select label="Zona origen" value={editing.trip.originZoneId} onChange={(e) => setEditing({ ...editing, trip: { ...editing.trip, originZoneId: e.target.value } })} options={[{ value: '', label: 'Elegir...' }, ...zonesForCountry(editing.trip.countryId).map((z) => ({ value: z.id, label: z.code }))]} />
-              <Select label="Zona destino" value={editing.trip.destZoneId} onChange={(e) => setEditing({ ...editing, trip: { ...editing.trip, destZoneId: e.target.value } })} options={[{ value: '', label: 'Elegir...' }, ...zonesForCountry(editing.trip.countryId).map((z) => ({ value: z.id, label: z.code }))]} />
+              <Select label="Zona origen" value={editing.trip.originZoneId} onChange={(e) => setEditing({ ...editing, trip: { ...editing.trip, originZoneId: e.target.value } })} options={[{ value: '', label: 'Elegir...' }, ...zonesForCountry(countryId).map((z) => ({ value: z.id, label: z.code }))]} />
+              <Select label="Zona destino" value={editing.trip.destZoneId} onChange={(e) => setEditing({ ...editing, trip: { ...editing.trip, destZoneId: e.target.value } })} options={[{ value: '', label: 'Elegir...' }, ...zonesForCountry(countryId).map((z) => ({ value: z.id, label: z.code }))]} />
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <Input label="Km" type="number" value={editing.trip.km} onChange={(e) => setEditing({ ...editing, trip: { ...editing.trip, km: Number(e.target.value) } })} />

@@ -8,7 +8,8 @@ import { listMarginPolicies, saveMarginPolicy } from '../../../lib/tarifas/local
 
 interface MargenPolicyTabProps {
   organizationId: string;
-  countries: { id: string; name: string }[];
+  /** País activo del módulo. El ámbito es global, ya no se elige acá. */
+  countryId: string;
 }
 
 const emptyForm = { warn_below: '0.15', critical_below: '0.10', require_reason_below: '0.15', block_on_loss: true };
@@ -16,8 +17,7 @@ const emptyForm = { warn_below: '0.15', critical_below: '0.10', require_reason_b
 // Política de margen (Fase 2), una fila por país: define a partir de qué porcentaje de margen
 // (liquidado vs. costo operativo) el semáforo pasa a Atención/Crítico/Pérdida, y si una pérdida
 // bloquea la aprobación de la liquidación.
-export default function MargenPolicyTab({ organizationId, countries }: MargenPolicyTabProps) {
-  const [countryId, setCountryId] = useState(countries[0]?.id ?? '');
+export default function MargenPolicyTab({ organizationId, countryId }: MargenPolicyTabProps) {
   const [loading, setLoading] = useState(true);
   const [policies, setPolicies] = useState<any[]>([]);
   const [form, setForm] = useState(emptyForm);
@@ -79,7 +79,6 @@ export default function MargenPolicyTab({ organizationId, countries }: MargenPol
             ]}
           />
         </div>
-        <Select value={countryId} onChange={(e) => setCountryId(e.target.value)} options={countries.map((c) => ({ value: c.id, label: c.name }))} />
       </Card>
 
       <Card>

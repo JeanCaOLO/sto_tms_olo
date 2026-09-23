@@ -17,6 +17,7 @@ export const LIQUIDADOR_ROLES: { value: LiquidadorRole; label: string }[] = [
 export type AccionSensible =
   | 'CREAR_REGLA' | 'EDITAR_REGLA' | 'ELIMINAR_REGLA'
   | 'CREAR_ZONA' | 'EDITAR_ZONA' | 'ELIMINAR_ZONA'
+  | 'CREAR_COMPANIA' | 'EDITAR_COMPANIA' | 'DESACTIVAR_COMPANIA'
   | 'AUTORIZAR_NOVEDAD' | 'RESOLVER_RECOLECTA' | 'LIQUIDAR_CON_EXCEPCION';
 
 // Tabla de permisos explícita (dato auditable, no lógica dispersa) — sección 3 del prompt maestro:
@@ -30,6 +31,11 @@ const PERMISOS: Record<AccionSensible, LiquidadorRole[]> = {
   CREAR_ZONA: ['JEFE_TRANSPORTE'],
   EDITAR_ZONA: ['JEFE_TRANSPORTE'],
   ELIMINAR_ZONA: ['JEFE_TRANSPORTE'],
+  // Alta y baja de compañías a liquidar: mismo rol que administra tarifas y reglas, porque de la
+  // compañía cuelgan su estructura de costos y sus reglas.
+  CREAR_COMPANIA: ['JEFE_TRANSPORTE'],
+  EDITAR_COMPANIA: ['JEFE_TRANSPORTE'],
+  DESACTIVAR_COMPANIA: ['JEFE_TRANSPORTE'],
   AUTORIZAR_NOVEDAD: ['JEFE_TRANSPORTE'],
   RESOLVER_RECOLECTA: ['LIQUIDADOR', 'JEFE_TRANSPORTE'],
   LIQUIDAR_CON_EXCEPCION: ['SUPERVISOR_FINANZAS'],

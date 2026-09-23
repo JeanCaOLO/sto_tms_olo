@@ -15,11 +15,11 @@ describe('runChargePipeline â€” caso del requerimiento', () => {
 
     const derived = deriveContext({ trip, country, zones, zoneGroups, locations });
     const { applied, discarded } = resolveRules(
-      { trip, country, rules, zones, zoneGroups, locations, zoneLaneRates: [] },
+      { trip, country, rules, zones, zoneGroups, locations },
       derived,
     );
     const result = runChargePipeline(applied, derived.vars, derived.originZoneId, derived.destZoneId, {
-      country, trip, zoneLaneRates: [], fxRates: [],
+      country, trip,
     });
 
     expect(result.totalLiquidado).toBe('510.00');
@@ -35,18 +35,18 @@ describe('runChargePipeline â€” caso del requerimiento', () => {
 
     const derived = deriveContext({ trip, country, zones, zoneGroups, locations });
     const { applied } = resolveRules(
-      { trip, country, rules, zones, zoneGroups, locations, zoneLaneRates: [] },
+      { trip, country, rules, zones, zoneGroups, locations },
       derived,
     );
     const result = runChargePipeline(applied, derived.vars, derived.originZoneId, derived.destZoneId, {
-      country, trip, zoneLaneRates: [], fxRates: [],
+      country, trip,
       overrides: { R1: { value: '360.00', reason: 'Descuento comercial autorizado' } },
     });
 
     expect(result.totalLiquidado).toBe('470.00');
     const r1Line = result.trace.find((l) => l.ruleCode === 'R1');
     expect(r1Line?.override).toEqual({ value: '360.00', reason: 'Descuento comercial autorizado' });
-    expect(r1Line?.computedRef).toBe('400.00'); // el valor calculado por la regla se conserva
+    expect(r1Line?.computed).toBe('400.00'); // el valor calculado por la regla se conserva
     expect(r1Line?.final).toBe('360.00');
   });
 });
@@ -75,42 +75,17 @@ describe('PERCENT â€” la base importa', () => {
     const rules = [base, variable, pctRunning, pctStage];
     const derived = deriveContext({ trip, country, zones, zoneGroups, locations });
     const { applied } = resolveRules(
-      { trip, country, rules, zones, zoneGroups, locations, zoneLaneRates: [] },
+      { trip, country, rules, zones, zoneGroups, locations },
       derived,
     );
     const result = runChargePipeline(applied, derived.vars, derived.originZoneId, derived.destZoneId, {
-      country, trip, zoneLaneRates: [], fxRates: [],
+      country, trip,
     });
 
     const running = result.trace.find((l) => l.ruleCode === 'PCT_RUNNING');
     const stage = result.trace.find((l) => l.ruleCode === 'PCT_STAGE');
     expect(running?.final).toBe('15.00'); // 10% de 150 (100 + 50, ya acumulado antes de esta lÃ­nea)
     expect(stage?.final).toBe('10.00'); // 10% de 100 (solo el subtotal ya cerrado de BASE)
-  });
-});
-
-describe('LOOKUP_ZONE â€” respaldo cuando no hay cobertura', () => {
-  it('cae al fallback PER_KM y emite un warning cuando no hay ZoneLaneRate para el par', () => {
-    const country = makeCountryVE();
-    const { zoneGroups, zones, locations } = makeGeoVE();
-    const trip = makeTrip({ km: 100 });
-
-    const rule = makeRule({
-      code: 'ZONE_LOOKUP', stage: 'BASE', priority: 10,
-      expression: { op: 'LOOKUP_ZONE', fallback: { op: 'PER_KM', rate: '1.50' } },
-    });
-
-    const derived = deriveContext({ trip, country, zones, zoneGroups, locations });
-    const { applied } = resolveRules(
-      { trip, country, rules: [rule], zones, zoneGroups, locations, zoneLaneRates: [] },
-      derived,
-    );
-    const result = runChargePipeline(applied, derived.vars, derived.originZoneId, derived.destZoneId, {
-      country, trip, zoneLaneRates: [], fxRates: [],
-    });
-
-    expect(result.trace[0]?.final).toBe('150.00'); // 100km * 1.50
-    expect(result.warnings.some((w) => w.includes('Sin cobertura de zona'))).toBe(true);
   });
 });
 
@@ -152,11 +127,11 @@ describe('Redondeo â€” un solo punto', () => {
 
     const derived = deriveContext({ trip, country, zones, zoneGroups, locations });
     const { applied } = resolveRules(
-      { trip, country, rules: [lineA, lineB], zones, zoneGroups, locations, zoneLaneRates: [] },
+      { trip, country, rules: [lineA, lineB], zones, zoneGroups, locations },
       derived,
     );
     const result = runChargePipeline(applied, derived.vars, derived.originZoneId, derived.destZoneId, {
-      country, trip, zoneLaneRates: [], fxRates: [],
+      country, trip,
     });
 
     expect(result.trace.map((l) => l.final)).toEqual(['1.01', '1.01']); // cada lÃ­nea, mostrada redondeada
