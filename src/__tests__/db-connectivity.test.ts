@@ -58,7 +58,7 @@ const BACKEND_WHITELIST = new Set([
   'app_users', 'carriers', 'contract_documents', 'contracts', 'costos_fijos',
   'costos_variables', 'countries', 'customers', 'depreciacion', 'dispatch_guides',
   'drivers', 'order_items', 'orders', 'organizations', 'parametros_globales',
-  'rates', 'returns', 'roles', 'zones', 'route_types', 'routes', 'rutas_costeo', 'tariff_types',
+  'rates', 'returns', 'roles', 'zones', 'routes', 'rutas_costeo', 'tariff_types',
   'settlements', 'sku_cotizaciones', 'stores', 'tipos_camion', 'tracking_events',
   'vehicle_types', 'vehicles', 'v_costo_fijo_mensual', 'v_costo_variable_por_km',
   // Fase 1 — Multi-country Foundation (docs/arquitectura-tms-oms/05-roadmap.md).
@@ -118,15 +118,19 @@ describe.skipIf(!dbAvailable)('Tablas por módulo (existencia + lectura)', () =>
   });
 });
 
-describe.skipIf(!dbAvailable)('Rotura de flujo ya corregida: tabla "zones"', () => {
-  // La tabla sigue sin existir (correcto — ver docs/arquitectura-tms-oms/08-db-gap-analysis.md
-  // §4/§5: no se crea sin resolver la semántica de "zona" primero), pero
-  // StoreModal/RouteTypeModal ya NO la referencian (se quitó el selector roto
-  // en la Fase 1) — este test documenta que el bug de docs/reference/analisis-sistema-tms.md
-  // §5.3 está corregido en el frontend, no solo que la tabla sigue ausente.
-  it('sigue sin existir, y el frontend ya no la referencia', async () => {
+describe.skipIf(!dbAvailable)('Catálogo de Zonas: tabla "zones"', () => {
+  // `zones` (antes `route_types`, renombrada en sql/09) YA existe y es la fuente
+  // del Catálogo de Zonas. Una zona pertenece obligatoriamente a un país, así que
+  // `country_id` es NOT NULL. Este test invierte el anterior, que documentaba la
+  // ausencia de la tabla (rotura §5.3 ya resuelta).
+  it('existe y country_id es NOT NULL', async () => {
     const { rows } = await pool.query("SELECT to_regclass('public.zones') AS reg");
-    expect(rows[0].reg).toBeNull();
+    expect(rows[0].reg).not.toBeNull();
+
+    const { rows: cols } = await pool.query(
+      "SELECT is_nullable FROM information_schema.columns WHERE table_name = 'zones' AND column_name = 'country_id'",
+    );
+    expect(cols[0]?.is_nullable).toBe('NO');
   });
 });
 
