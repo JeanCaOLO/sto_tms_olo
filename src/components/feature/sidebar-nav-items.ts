@@ -45,7 +45,7 @@ export const navItems: NavItem[] = [
       { icon: 'ri-building-line', label: 'Transportistas', path: '/transportistas' },
       { icon: 'ri-truck-line', label: 'Vehículos', path: '/vehiculos' },
       { icon: 'ri-user-line', label: 'Conductores', path: '/conductores' },
-      { icon: 'ri-bank-card-line', label: 'Licencias', path: '/licencias' },
+      { icon: 'ri-bank-card-line', label: 'Licencias de Conducir', path: '/licencias' },
       { icon: 'ri-group-line', label: 'Clientes', path: '/clientes' },
       { icon: 'ri-store-line', label: 'Puntos de Entrega', path: '/tiendas' },
     ],
