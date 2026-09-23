@@ -1,6 +1,6 @@
 # ADR-009 — Modular Monolith (no microservicios)
 
-**Estado:** Propuesto
+**Estado:** Superado por [`../../decisions/0002-backend-lambdas-python-sam.md`](../../decisions/0002-backend-lambdas-python-sam.md)
 
 ## Contexto
 

@@ -43,12 +43,16 @@ function notify(event: AuthChangeEvent, session: AuthSession | null) {
   listeners.forEach((cb) => cb(event, session));
 }
 
+// Vacío en dev (Vite proxya /api). En build apunta al API Gateway del backend
+// Lambda (backend/common-services, output ApiUrl). Sin barra final.
+const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
+
 export async function apiFetch(path: string, init: RequestInit = {}) {
   const current = readSession();
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "application/json");
   if (current?.access_token) headers.set("Authorization", `Bearer ${current.access_token}`);
-  const res = await fetch(`/api${path}`, { ...init, headers });
+  const res = await fetch(`${API_BASE}/api${path}`, { ...init, headers });
   const body = await res.json().catch(() => null);
   return { ok: res.ok, status: res.status, body };
 }

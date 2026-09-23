@@ -1,0 +1,120 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: TMS - DATA | API genérica de tablas /api/data/{table} sobre Aurora (JWT requerido)
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [dev, qa, prod]
+  CommonStackName:
+    Type: String
+    Description: Stack de common-services del mismo ambiente (ej. dev-tms-common-services)
+  SubnetIds:
+    Type: AWS::SSM::Parameter::Value<List<String>>
+  SecurityGroupId:
+    Type: AWS::SSM::Parameter::Value<String>
+
+Conditions:
+  IsProduction: !Equals [!Ref Environment, prod]
+
+Resources:
+  DataApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-data-api
+      RetentionInDays: !If [IsProduction, 30, 7]
+
+  DataApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-data-api
+      Description: TMS - DATA API | CRUD genérico con lista blanca de tablas y columnas
+      CodeUri: src/
+      Handler: app.handler
+      Runtime: python3.13
+      Architectures: [x86_64]
+      Timeout: 29
+      MemorySize: 512
+      Role:
+        Fn::ImportValue: !Sub ${CommonStackName}-LambdaRoleArn
+      Layers:
+        - Fn::ImportValue: !Sub ${CommonStackName}-CommonLayerArn
+      VpcConfig:
+        SubnetIds: !Ref SubnetIds
+        SecurityGroupIds: [!Ref SecurityGroupId]
+      LoggingConfig:
+        LogFormat: JSON
+        LogGroup: !Ref DataApiLogGroup
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+          TMS_DB_SECRET_NAME:
+            Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName
+
+  DataApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt DataApiFunction.Arn
+      PayloadFormatVersion: "2.0"
+
+  DataApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref DataApiFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub
+        - arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/*/*
+        - ApiId:
+            Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+
+  DataListRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/data/{table}
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${DataApiIntegration}
+
+  DataInsertRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/data/{table}
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${DataApiIntegration}
+
+  DataUpdateRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: PATCH /api/data/{table}
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${DataApiIntegration}
+
+  DataDeleteRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: DELETE /api/data/{table}
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${DataApiIntegration}
+
+Outputs:
+  DataApiFunctionArn:
+    Value: !GetAtt DataApiFunction.Arn

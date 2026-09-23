@@ -61,7 +61,7 @@ implementación) — es trabajo nuevo de esta fase.
 
 ```
 src/
-  pages/**               24 rutas — ver ANALISIS_SISTEMA_TMS.md §2
+  pages/**               24 rutas — ver ../reference/analisis-sistema-tms.md §2
   components/base/       design system (Card, Button, Badge, DataTable, ...)
   components/feature/    Sidebar, Header, StatCard, CsvImportModal
   hooks/                 useAuth, useSidebar, useToast

@@ -1,0 +1,87 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: TMS - PLANNING | Pedidos alistados a planificar (/api/v1/planificacion/*)
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [dev, qa, prod]
+  CommonStackName:
+    Type: String
+    Description: Stack de common-services del mismo ambiente (ej. dev-tms-common-services)
+  SubnetIds:
+    Type: AWS::SSM::Parameter::Value<List<String>>
+  SecurityGroupId:
+    Type: AWS::SSM::Parameter::Value<String>
+
+Conditions:
+  IsProduction: !Equals [!Ref Environment, prod]
+
+Resources:
+  PlanningApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-planning-api
+      RetentionInDays: !If [IsProduction, 30, 7]
+
+  PlanningApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-planning-api
+      Description: TMS - PLANNING API | Pedidos alistados por fecha de entrega para armar viajes
+      CodeUri: src/
+      Handler: app.handler
+      Runtime: python3.13
+      Architectures: [x86_64]
+      Timeout: 15
+      MemorySize: 512
+      Role:
+        Fn::ImportValue: !Sub ${CommonStackName}-LambdaRoleArn
+      Layers:
+        - Fn::ImportValue: !Sub ${CommonStackName}-CommonLayerArn
+      VpcConfig:
+        SubnetIds: !Ref SubnetIds
+        SecurityGroupIds: [!Ref SecurityGroupId]
+      LoggingConfig:
+        LogFormat: JSON
+        LogGroup: !Ref PlanningApiLogGroup
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+          TMS_DB_SECRET_NAME:
+            Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName
+
+  PlanningApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt PlanningApiFunction.Arn
+      PayloadFormatVersion: "2.0"
+
+  PlanningApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref PlanningApiFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub
+        - arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/*/*
+        - ApiId:
+            Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+
+  PlanningOrdersRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/v1/planificacion/pedidos
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${PlanningApiIntegration}
+
+Outputs:
+  PlanningApiFunctionArn:
+    Value: !GetAtt PlanningApiFunction.Arn

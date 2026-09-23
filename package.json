@@ -55,7 +55,7 @@
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "server": "node --env-file=.env.local server/index.mjs",
-    "data:build": "node --experimental-strip-types scripts/build-route-systems.ts",
+    "api:local": "python backend/local/serve.py",
     "type-check": "tsc --noEmit --project tsconfig.app.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",

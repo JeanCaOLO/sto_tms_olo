@@ -1,10 +1,11 @@
 // Disparador automático de viajes — EJECUCIÓN REAL (no vista previa).
 //
-// Corre viaje-trigger.ts contra los pedidos alistados REALES (wms_expediciones,
-// situacion='GENE' y numero_viaje_wmh IS NULL - o sea, todavía no incorporados
-// a ningún viaje) y la flota REAL disponible HOY (excluye choferes/vehículos
-// ya ocupados en una ruta de hoy que no esté anulada). Por cada propuesta que
-// SÍ consiguió camión:
+// Corre el motor de Planificación (plan-automatico.ts → planificarDia, ver
+// scripts/lib/plan-viajes.mjs) contra los pedidos alistados REALES con entrega
+// en la fecha objetivo (wms_expediciones, situacion='GENE', numero_viaje_wmh
+// IS NULL, fecha_planificada = fecha; por defecto mañana) y la flota REAL
+// disponible ese día (excluye choferes/vehículos ya ocupados en una ruta de
+// esa fecha que no esté anulada). Por cada viaje propuesto:
 //   1. Crea un `orders` por pedido (still-pending fields marcados como tales:
 //      sin peso/volumen/dirección reales - mismo gap documentado en
 //      pedidos-alistados-api.ts).
@@ -16,35 +17,18 @@
 //   4. Marca wms_expediciones.numero_viaje_wmh = route_number, para que esos
 //      pedidos no se vuelvan a proponer en la próxima corrida.
 //
-// Las propuestas SIN camión disponible NO crean nada - quedan para la
-// próxima corrida (cuando se libere flota). Esto es intencional: nunca se
-// crea un viaje sin transporte asignado.
+// Los pedidos SIN camión disponible NO crean nada - quedan para la próxima
+// corrida (cuando se libere flota). Nunca se crea un viaje sin transporte.
 //
 // Uso:
-//   node --env-file=.env.local scripts/generar-viajes-automatico.mjs            (dry-run)
-//   node --env-file=.env.local scripts/generar-viajes-automatico.mjs --execute  (aplica)
+//   node --env-file=.env.local scripts/generar-viajes-automatico.mjs                      (dry-run, mañana)
+//   node --env-file=.env.local scripts/generar-viajes-automatico.mjs --fecha 2026-09-25  (dry-run, otra fecha)
+//   node --env-file=.env.local scripts/generar-viajes-automatico.mjs --execute            (aplica)
 
-import * as esbuild from 'esbuild';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import { armarFlota, fechaObjetivo, loadEngine, loadPedidosAlistados, propuestasDelDia } from './lib/plan-viajes.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const execute = process.argv.includes('--execute');
-
-async function importPureModule(entryRelativePath) {
-  const result = await esbuild.build({
-    entryPoints: [path.join(__dirname, '..', entryRelativePath)],
-    bundle: true,
-    write: false,
-    format: 'esm',
-    platform: 'node',
-    target: 'node18',
-  });
-  const code = result.outputFiles[0].text;
-  const dataUrl = 'data:text/javascript;base64,' + Buffer.from(code).toString('base64');
-  return import(dataUrl);
-}
 
 const pool = new pg.Pool({
   host: process.env.TMS_DB_HOST || 'localhost',
@@ -56,14 +40,15 @@ const pool = new pg.Pool({
 });
 
 async function main() {
-  const { generarPropuestasDeViaje } = await importPureModule('src/pages/planificacion/viaje-trigger.ts');
-  const { calcularPrioridad } = await importPureModule('src/pages/oms/engine/priorityEngine.ts');
+  const { planificarDia, calcularPrioridad } = await loadEngine();
+  const fechaEntrega = fechaObjetivo(process.argv);
 
   const client = await pool.connect();
   const reporte = { viajesCreados: 0, ordenesCreadas: 0, guiasCreadas: 0, pedidosMarcados: 0, sinFlota: 0, sinRouteType: [] };
   try {
     await client.query('BEGIN');
-    const hoyIso = new Date().toISOString().slice(0, 10);
+    // Los viajes se crean para el día de la entrega.
+    const hoyIso = fechaEntrega;
 
     const { rows: orgRows } = await client.query('SELECT id FROM organizations LIMIT 1');
     const organizationId = orgRows[0]?.id;
@@ -93,34 +78,8 @@ async function main() {
 
     const { rows: routeTypes } = await client.query(`SELECT id, name FROM route_types WHERE organization_id = $1`, [organizationId]);
 
-    // --- pedidos alistados por el OMS, todavía SIN viaje asignado ---
-    const { rows: alistadosRows } = await client.query(
-      `SELECT id, expedicion, final_customer_id, cliente_code, ruta, fecha_planificada, fecha_expedicion,
-              observaciones, nombre_cliente, cant_lineas, id_compania
-       FROM wms_expediciones WHERE situacion = 'GENE' AND numero_viaje_wmh IS NULL`,
-    );
-    const pedidosAlistados = alistadosRows.map((row) => {
-      const prioridad = calcularPrioridad(
-        {
-          fechaPlanificada: row.fecha_planificada ? row.fecha_planificada.toISOString().slice(0, 10) : null,
-          fechaExpedicion: row.fecha_expedicion ? row.fecha_expedicion.toISOString().slice(0, 10) : null,
-          observaciones: row.observaciones,
-        },
-        hoyIso,
-      );
-      return {
-        // Mismo número de expedición puede repetirse en varias filas del WMS
-        // (múltiples líneas/sucursales de un mismo despacho - ver
-        // scripts/seed-wms-expediciones.mjs) - se sufija con el id de la fila
-        // para no violar la unicidad de orders.order_number.
-        id: row.id, order_number: `${row.expedicion}-${row.id.slice(0, 8)}`, customer_id: row.final_customer_id ?? row.cliente_code,
-        store_id: '', delivery_address: '', delivery_city: '', delivery_zone: row.ruta || '(sin ruta)',
-        total_weight: 0, total_volume: 0, status: 'pending',
-        order_date: row.fecha_planificada ?? row.fecha_expedicion ?? '', customer_name: row.nombre_cliente,
-        cant_lineas: row.cant_lineas ?? 0, id_compania: row.id_compania, cliente_code: row.cliente_code,
-        prioridad: prioridad.prioridad, tier: prioridad.tier, esClienteRetira: prioridad.esClienteRetira,
-      };
-    });
+    // --- pedidos alistados por el OMS con entrega en la fecha, todavía SIN viaje ---
+    const pedidosAlistados = await loadPedidosAlistados(client, fechaEntrega, calcularPrioridad);
 
     // --- flota disponible HOY: excluye choferes/vehículos ya en una ruta de hoy sin anular ---
     const { rows: ocupadosHoy } = await client.query(
@@ -141,33 +100,17 @@ async function main() {
        WHERE organization_id = $1 AND id != ALL($2::uuid[]) ORDER BY id`,
       [organizationId, [...vehiclesOcupados]],
     );
-    // vehicles.carrier_id viene NULL en todos los registros (gap de datos ya
-    // documentado) - se asocia cada chofer con un vehículo libre round-robin
-    // hasta que ese gap se resuelva.
-    const slotsDisponibles = drivers.map((d, i) => {
-      const v = vehicles[i % Math.max(vehicles.length, 1)];
-      if (!v) return null;
-      return {
-        vehiculo: {
-          id: v.id, plate: v.plate, brand: '', model: '', vehicle_type: v.vehicle_type,
-          capacity_weight: Number(v.capacity_weight), capacity_volume: Number(v.capacity_volume),
-          is_flota_propia: d.is_flota_propia,
-        },
-        conductorId: d.conductor_id,
-        _carrierId: d.carrier_id,
-      };
-    }).filter(Boolean);
+    // Parejas conductor-vehículo sin repetir vehículo (ver armarFlota).
+    const slotsDisponibles = armarFlota(drivers, vehicles);
 
-    const { propuestas, gruposEnEspera } = generarPropuestasDeViaje(pedidosAlistados, slotsDisponibles);
+    const { propuestas, sinFlota } = propuestasDelDia(planificarDia, pedidosAlistados, slotsDisponibles);
+    reporte.sinFlota = sinFlota.length;
+    const motivo = `plan automático, entrega ${fechaEntrega}`;
 
     let contador = 0;
     for (const propuesta of propuestas) {
-      if (!propuesta.slotAsignado) {
-        reporte.sinFlota++;
-        continue;
-      }
       contador++;
-      const slot = propuesta.slotAsignado;
+      const slot = propuesta.slot;
 
       const routeType = routeTypes.find((rt) => rt.name.startsWith(`${propuesta.ruta} ·`) || rt.name === propuesta.ruta);
       if (!routeType) reporte.sinRouteType.push(propuesta.ruta);
@@ -182,13 +125,13 @@ async function main() {
              organization_id, store_id, customer_id, order_number, order_date, delivery_date,
              total_weight, total_volume, total_items, total_amount,
              delivery_address, delivery_city, delivery_zone, priority, status, notes, route_type_id
-           ) VALUES ($1,$2,$3,$4,$5,$5,0,0,$6,0,'(pendiente - sin dirección de línea real todavía)',NULL,$7,$8,'assigned',$9,$10)
+           ) VALUES ($1,$2,$3,$4,$5,$11,0,0,$6,0,'(pendiente - sin dirección de línea real todavía)',NULL,$7,$8,'assigned',$9,$10)
            RETURNING id`,
           [
             organizationId, storeId, customerId, pedido.order_number, pedido.order_date || hoyIso,
             pedido.cant_lineas, propuesta.ruta, String(pedido.tier),
-            `Generado automáticamente por el disparador de viajes (viaje-trigger.ts) - motivo: ${propuesta.motivoDisparo}.`,
-            routeType?.id ?? null,
+            `Generado automáticamente por el disparador de viajes (plan-automatico.ts) - motivo: ${motivo}.`,
+            routeType?.id ?? null, pedido.delivery_date ?? fechaEntrega,
           ],
         );
         orderIds.push(rows[0].id);
@@ -205,7 +148,7 @@ async function main() {
         [
           organizationId, origenStoreId, slot.conductorId, slot.vehiculo.id, slot._carrierId, routeNumber, hoyIso,
           propuesta.pedidos.length,
-          `Generado automáticamente por el disparador de viajes - motivo: ${propuesta.motivoDisparo}.` +
+          `Generado automáticamente por el disparador de viajes - motivo: ${motivo}.` +
             (routeType ? '' : ` (ruta "${propuesta.ruta}" sin route_type en el catálogo - queda sin asignar)`),
           routeType?.id ?? null,
         ],
@@ -231,7 +174,7 @@ async function main() {
     }
 
     console.log(`${execute ? 'EJECUTANDO' : 'DRY RUN'}:`, reporte);
-    console.log(`Rutas que siguen esperando acumular carga: ${gruposEnEspera.map((g) => g.ruta).join(', ') || '(ninguna)'}`);
+    console.log(`Entrega ${fechaEntrega}: ${pedidosAlistados.length} pedido(s) alistado(s); sin camión: ${sinFlota.map((p) => p.expedicion).join(', ') || '(ninguno)'}`);
 
     if (execute) {
       await client.query('COMMIT');

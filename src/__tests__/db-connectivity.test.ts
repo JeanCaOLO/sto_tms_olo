@@ -24,7 +24,7 @@ try {
 }
 
 // Todas las tablas que el frontend referencia hoy vía `supabase.from('<tabla>')`
-// (barrido exhaustivo de src/pages/**, ver ANALISIS_SISTEMA_TMS.md §5.4).
+// (barrido exhaustivo de src/pages/**, ver docs/reference/analisis-sistema-tms.md §5.4).
 // Se listan agrupadas por módulo para que un fallo señale el módulo afectado.
 const TABLES_BY_MODULE: Record<string, string[]> = {
   transportistas: ['carriers', 'countries', 'app_users'],
@@ -120,7 +120,7 @@ describe.skipIf(!dbAvailable)('Rotura de flujo ya corregida: tabla "zones"', () 
   // La tabla sigue sin existir (correcto — ver docs/arquitectura-tms-oms/08-db-gap-analysis.md
   // §4/§5: no se crea sin resolver la semántica de "zona" primero), pero
   // StoreModal/RouteTypeModal ya NO la referencian (se quitó el selector roto
-  // en la Fase 1) — este test documenta que el bug de ANALISIS_SISTEMA_TMS.md
+  // en la Fase 1) — este test documenta que el bug de docs/reference/analisis-sistema-tms.md
   // §5.3 está corregido en el frontend, no solo que la tabla sigue ausente.
   it('sigue sin existir, y el frontend ya no la referencia', async () => {
     const { rows } = await pool.query("SELECT to_regclass('public.zones') AS reg");
@@ -140,7 +140,7 @@ describe('EFLOW (WMS QA) — solo lectura, consumido por /planificacion', () => 
     }
     const body = await res.json();
     if (!res.ok && body?.detail?.includes('Sin credenciales')) {
-      console.warn('[db-connectivity] EFLOW sin credenciales en este entorno (esperado — ver ANALISIS_SISTEMA_TMS.md §5.2). No es un fallo de código.');
+      console.warn('[db-connectivity] EFLOW sin credenciales en este entorno (esperado — ver docs/reference/analisis-sistema-tms.md §5.2). No es un fallo de código.');
       return;
     }
     expect(body.ok).toBe(true);

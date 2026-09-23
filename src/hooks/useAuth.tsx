@@ -23,7 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // (p. ej. el tunel a la base de datos cayendose un instante) no debe dejar
   // appUser en null para el resto de la sesion — 9 paginas condicionan su
   // propia carga a `appUser?.organization_id` y se quedan "cargando" para
-  // siempre si esto nunca se resuelve (ver ANALISIS_SISTEMA_TMS.md y el
+  // siempre si esto nunca se resuelve (ver docs/reference/analisis-sistema-tms.md y el
   // reporte de paginas colgadas de esta sesion).
   const fetchAppUser = async (authUserId: string, attempt = 1): Promise<void> => {
     const { data, error } = await supabase

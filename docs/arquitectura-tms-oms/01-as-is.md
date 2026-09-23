@@ -1,6 +1,6 @@
 # Documento 1 — Arquitectura AS-IS
 
-> Verificado contra el código el 2026-09-21. Extiende `ANALISIS_SISTEMA_TMS.md`
+> Verificado contra el código el 2026-09-21. Extiende `../reference/analisis-sistema-tms.md`
 > (que cubre conectividad y roturas de flujo) con vista de dominio, diagramas
 > Mermaid y un inventario explícito de deuda técnica para el rediseño.
 
@@ -128,7 +128,7 @@ flowchart LR
 ## 5. Deuda técnica identificada (para priorizar en el roadmap)
 
 1. **Tabla `zones` inexistente** — referenciada por `StoreModal` y
-   `RouteTypeModal`; rompe esos dos formularios. (Ver `ANALISIS_SISTEMA_TMS.md` §5.3.)
+   `RouteTypeModal`; rompe esos dos formularios. (Ver `../reference/analisis-sistema-tms.md` §5.3.)
 2. **Sin jerarquía País → Almacén → Cliente → Cliente Final** — `organization_id`
    es el único límite de tenant real; `country_id` es un atributo suelto, no
    un nivel de jerarquía con reglas propias.

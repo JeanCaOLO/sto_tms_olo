@@ -36,6 +36,13 @@ export const MOCK_STOPS: MockStop[] = [
 // fallback when the real `orders` query returns 0 pending rows, which
 // currently happens for every route_type_id in the shared dev DB. Remove
 // once real data reliably has pending orders.
+// Fecha ISO (solo día) desplazada `dias` desde hoy. Mañana = tomorrowIso(1).
+export function offsetDayIso(dias: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + dias);
+  return d.toISOString().split('T')[0];
+}
+
 export function getFallbackPedidos(routeTypeId: string): Pedido[] {
   // ponytail: indices 8 y 14 marcados como devolución para que el flujo
   // por ruta (no-viaje) también muestre el caso FR16. Los índices coinciden
@@ -48,8 +55,27 @@ export function getFallbackPedidos(routeTypeId: string): Pedido[] {
     store_id: 'mock-store-1',
     status: 'pending',
     order_date: new Date().toISOString(),
+    delivery_date: offsetDayIso(1),
     route_type_id: routeTypeId,
     tipo: DEVOLUCIONES.has(i) ? ('devolucion' as const) : undefined,
+    ...stop,
+  }));
+}
+
+// Pedidos a planificar para el día objetivo (por defecto mañana). Simula lo que
+// el OMS deja en la base intermedia: pedidos ya alistados con fecha de entrega
+// comprometida. Reparte los MOCK_STOPS en varias zonas para que el motor tenga
+// algo real que agrupar. Reemplazable por el endpoint real (ver CANAL.md).
+export function getFallbackPedidosParaPlanificar(deliveryDate: string = offsetDayIso(1)): Pedido[] {
+  return MOCK_STOPS.map((stop, i) => ({
+    id: `mock-plan-${i}`,
+    order_number: `ORD-${String(i + 1).padStart(4, '0')}`,
+    customer_id: `mock-customer-${i}`,
+    store_id: 'mock-store-1',
+    status: 'alistado',
+    order_date: offsetDayIso(-1),
+    delivery_date: deliveryDate,
+    tipo: undefined,
     ...stop,
   }));
 }

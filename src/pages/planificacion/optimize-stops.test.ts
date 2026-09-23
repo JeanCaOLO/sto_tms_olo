@@ -6,7 +6,7 @@ function p(id: string, lat: number, lng: number, tipo?: 'entrega' | 'devolucion'
   return {
     id, order_number: id, customer_id: 'c', store_id: 's',
     delivery_address: 'x', delivery_city: 'San José', delivery_zone: 'GAM',
-    total_weight: 100, total_volume: 1, status: 'pending', order_date: '2026-01-01',
+    total_weight: 100, total_volume: 1, status: 'pending', order_date: '2026-01-01', delivery_date: '2026-01-02',
     delivery_latitude: lat, delivery_longitude: lng, tipo,
   };
 }

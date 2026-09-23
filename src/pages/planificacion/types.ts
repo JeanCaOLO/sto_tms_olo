@@ -10,6 +10,11 @@ export interface Pedido {
   total_volume: number;
   status: string;
   order_date: string;
+  // Fecha de entrega comprometida (ISO). El módulo de Planificación solo
+  // trabaja los pedidos cuya delivery_date cae en el día objetivo (mañana).
+  // Viene del OMS vía la base intermedia (endpoint de backend, ver CANAL.md);
+  // hoy el mock la siembra en hoy+1.
+  delivery_date: string;
   delivery_latitude?: number;
   delivery_longitude?: number;
   customer_name?: string;

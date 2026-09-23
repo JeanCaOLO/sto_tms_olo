@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useSidebar } from '../../hooks/useSidebar';
 import ContextSelector from './ContextSelector';
+import NotificationsMenu from './NotificationsMenu';
 
 const roleColors: Record<string, string> = {
   SuperUsuario: 'bg-teal-100 text-teal-700',
@@ -26,6 +27,7 @@ export default function Header() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
+  const notifButtonRef = useRef<HTMLButtonElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -80,60 +82,11 @@ export default function Header() {
       <div className="flex items-center gap-3">
         {/* Notificaciones */}
         <div className="relative" ref={notifRef}>
-          <button
-            onClick={() => { setShowNotifications(!showNotifications); setShowProfile(false); }}
-            className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 rounded-lg transition-colors cursor-pointer relative"
-          >
-            <i className="ri-notification-3-line text-xl text-slate-600"></i>
-            <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
-          </button>
-
-          {showNotifications && (
-            <div className="absolute right-0 top-12 w-80 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-50">
-              <div className="px-4 py-2 border-b border-slate-200 flex items-center justify-between">
-                <h3 className="font-semibold text-sm text-slate-800">Notificaciones</h3>
-                <span className="text-xs text-teal-600 font-medium cursor-pointer">Marcar todas</span>
-              </div>
-              <div className="max-h-80 overflow-y-auto">
-                <div className="px-4 py-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100">
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 flex items-center justify-center bg-teal-100 rounded-full shrink-0 mt-0.5">
-                      <i className="ri-route-line text-teal-600 text-sm"></i>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">Nueva ruta asignada</p>
-                      <p className="text-xs text-slate-500 mt-0.5">RUT-2024-003 asignada a Carlos Rodríguez</p>
-                      <p className="text-xs text-slate-400 mt-1">Hace 5 minutos</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="px-4 py-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100">
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 flex items-center justify-center bg-green-100 rounded-full shrink-0 mt-0.5">
-                      <i className="ri-checkbox-circle-line text-green-600 text-sm"></i>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">Entrega completada</p>
-                      <p className="text-xs text-slate-500 mt-0.5">GDE-2024-005 entregado exitosamente</p>
-                      <p className="text-xs text-slate-400 mt-1">Hace 15 minutos</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="px-4 py-3 hover:bg-slate-50 cursor-pointer">
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 flex items-center justify-center bg-amber-100 rounded-full shrink-0 mt-0.5">
-                      <i className="ri-alert-line text-amber-600 text-sm"></i>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">Alerta de capacidad</p>
-                      <p className="text-xs text-slate-500 mt-0.5">Vehículo PPU-1234 al 95% de capacidad</p>
-                      <p className="text-xs text-slate-400 mt-1">Hace 32 minutos</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          <NotificationsMenu
+            open={showNotifications}
+            onToggle={() => { setShowNotifications(!showNotifications); setShowProfile(false); }}
+            buttonRef={notifButtonRef}
+          />
         </div>
 
         {/* Perfil */}

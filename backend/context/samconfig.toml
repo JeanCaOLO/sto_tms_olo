@@ -1,0 +1,44 @@
+version = 0.1
+# Deploy (solo Intelix): sam build && sam deploy --config-env <dev|qa|prod>
+
+[dev.deploy.parameters]
+stack_name = "dev-tms-context"
+region = "us-east-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+resolve_s3 = true
+parameter_overrides = [
+  "Environment=dev",
+  "CommonStackName=dev-tms-common-services",
+  "SubnetIds=/dev/tms/network/subnets",
+  "SecurityGroupId=/dev/tms/network/lambda-sg"
+]
+tags = ["Project=TMS", "Environment=DEV", "Name=dev-tms-context"]
+
+[qa.deploy.parameters]
+stack_name = "qa-tms-context"
+region = "us-east-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+resolve_s3 = true
+parameter_overrides = [
+  "Environment=qa",
+  "CommonStackName=qa-tms-common-services",
+  "SubnetIds=/qa/tms/network/subnets",
+  "SecurityGroupId=/qa/tms/network/lambda-sg"
+]
+tags = ["Project=TMS", "Environment=QA", "Name=qa-tms-context"]
+
+[prod.deploy.parameters]
+stack_name = "prod-tms-context"
+region = "us-east-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+resolve_s3 = true
+parameter_overrides = [
+  "Environment=prod",
+  "CommonStackName=prod-tms-common-services",
+  "SubnetIds=/prod/tms/network/subnets",
+  "SecurityGroupId=/prod/tms/network/lambda-sg"
+]
+tags = ["Project=TMS", "Environment=PROD", "Name=prod-tms-context"]

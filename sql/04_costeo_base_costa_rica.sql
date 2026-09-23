@@ -7,7 +7,7 @@
 --   el proyecto de referencia `ultima_milla_charlie`
 --   (archivo `supabase_setup_olo_costeo.sql`). Los montos, frecuencias y
 --   parámetros son fieles al estudio original y coinciden 1:1 con
---   `Estructura_Costos_Transporte.md` de este repo (tipo activo T3 · 3-4.5 Ton,
+--   `docs/reference/estructura-costos-transporte.md` de este repo (tipo activo T3 · 3-4.5 Ton,
 --   costo fijo diario ₡57,525.70, costo por km de mantenimiento ₡48.81).
 --
 -- ROL EN EL TMS:

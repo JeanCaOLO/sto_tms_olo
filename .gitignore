@@ -51,12 +51,6 @@ Thumbs.db
 /.mirror-gitlab/
 /.mirror-github/
 
-# Datos de referencia crudos (se prefiere commitear el JSON generado).
-/Rutas cofersa.xlsx
-# Sistemas de rutas: JSON generado por `pnpm run data:build`.
-# cofersa.json SÍ se commitea (3 KB, sin PII). El de programación de viajes
-# NO: ~6 MB y contiene nombres de conductores. Ver docs/work/2026-09/2026-09-01-matriz-rutas-multisistema.md
-/public/data/route-systems/meta.json
 
 # AI-DLC — the committed-vs-ignored split (workspace layout, re-rooted under aidlc/).
 # Rule of thumb (vision §5.1): per-user session CURSORS and machine-local
@@ -105,3 +99,12 @@ aidlc/diagnostics/
 # concurrent appends — there is intentionally NO .gitattributes merge=union,
 # which was proven to corrupt the multi-line audit blocks) ·
 # aidlc/spaces/*/intents/*/<phase>/<stage>/*.md (artifacts + diary).
+
+# Backend Python (SAM)
+backend/**/.aws-sam/
+backend/.venv/
+backend/**/__pycache__/
+backend/.pytest_cache/
+# Enlaces que crea `orca skills install --local` con rutas absolutas de la máquina
+.claude/skills/orca-cli
+.claude/skills/orchestration

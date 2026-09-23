@@ -1,0 +1,159 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: TMS - COMMON SERVICES | API Gateway HTTP compartido, Lambda authorizer JWT, Layer tms_common y rol de Lambdas
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [dev, qa, prod]
+  DbSecretName:
+    Type: String
+    Description: Nombre del secreto de Aurora (formato RDS - host, port, username, password, dbname)
+  JwtSecretName:
+    Type: String
+    Description: Nombre del secreto con la clave jwt_secret
+  EflowSecretName:
+    Type: String
+    Description: Nombre del secreto de EFLOW por país ({"cr":{...},"ve":{...}})
+  CorsAllowOrigin:
+    Type: String
+    Default: "*"
+    Description: Origen permitido por CORS (en qa/prod, el dominio del frontend en Amplify)
+
+Conditions:
+  IsProduction: !Equals [!Ref Environment, prod]
+
+Resources:
+  TmsHttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub ${AWS::StackName}-http-api
+      Description: TMS - HTTP API | API compartida por todos los módulos del TMS
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowOrigins: [!Ref CorsAllowOrigin]
+        AllowMethods: [GET, POST, PATCH, DELETE, OPTIONS]
+        AllowHeaders: [Authorization, Content-Type]
+        MaxAge: 600
+
+  TmsHttpApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref TmsHttpApi
+      StageName: !Ref Environment
+      AutoDeploy: true
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 200
+        ThrottlingRateLimit: 100
+
+  TmsCommonLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub ${AWS::StackName}-tms-common
+      Description: TMS - COMMON LAYER | tms_common (pg8000, python-tds, PyJWT)
+      ContentUri: layers/tms_common/
+      CompatibleRuntimes: [python3.13]
+      CompatibleArchitectures: [x86_64]
+      RetentionPolicy: Retain
+    Metadata:
+      BuildMethod: python3.13
+      BuildArchitecture: x86_64
+
+  # Un solo rol para todas las Lambdas del API: comparten exactamente el mismo
+  # patrón de acceso (VPC + leer los tres secretos). Ver estándar §8.
+  TmsApiLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: read-tms-secrets
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${DbSecretName}-*
+                  - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${JwtSecretName}-*
+                  - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${EflowSecretName}-*
+
+  JwtAuthorizerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-jwt-authorizer
+      RetentionInDays: !If [IsProduction, 30, 7]
+
+  # Fuera de VPC a propósito: solo necesita Secrets Manager.
+  JwtAuthorizerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-jwt-authorizer
+      Description: TMS - JWT AUTHORIZER | Valida el Bearer token de sesión
+      CodeUri: src/authorizer/
+      Handler: app.handler
+      Runtime: python3.13
+      Architectures: [x86_64]
+      Timeout: 5
+      MemorySize: 256
+      Role: !GetAtt TmsApiLambdaRole.Arn
+      Layers: [!Ref TmsCommonLayer]
+      LoggingConfig:
+        LogFormat: JSON
+        LogGroup: !Ref JwtAuthorizerLogGroup
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+          JWT_SECRET_NAME: !Ref JwtSecretName
+
+  JwtAuthorizer:
+    Type: AWS::ApiGatewayV2::Authorizer
+    Properties:
+      ApiId: !Ref TmsHttpApi
+      Name: jwt-session
+      AuthorizerType: REQUEST
+      AuthorizerPayloadFormatVersion: "2.0"
+      EnableSimpleResponses: true
+      IdentitySource: ["$request.header.Authorization"]
+      AuthorizerResultTtlInSeconds: 300
+      AuthorizerUri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${JwtAuthorizerFunction.Arn}/invocations
+
+  JwtAuthorizerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref JwtAuthorizerFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${TmsHttpApi}/authorizers/${JwtAuthorizer}
+
+Outputs:
+  ApiUrl:
+    Description: Base del API para VITE_API_BASE del frontend
+    Value: !Sub https://${TmsHttpApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}
+  HttpApiId:
+    Value: !Ref TmsHttpApi
+    Export: { Name: !Sub "${AWS::StackName}-HttpApiId" }
+  JwtAuthorizerId:
+    Value: !Ref JwtAuthorizer
+    Export: { Name: !Sub "${AWS::StackName}-JwtAuthorizerId" }
+  CommonLayerArn:
+    Value: !Ref TmsCommonLayer
+    Export: { Name: !Sub "${AWS::StackName}-CommonLayerArn" }
+  LambdaRoleArn:
+    Value: !GetAtt TmsApiLambdaRole.Arn
+    Export: { Name: !Sub "${AWS::StackName}-LambdaRoleArn" }
+  DbSecretName:
+    Value: !Ref DbSecretName
+    Export: { Name: !Sub "${AWS::StackName}-DbSecretName" }
+  JwtSecretName:
+    Value: !Ref JwtSecretName
+    Export: { Name: !Sub "${AWS::StackName}-JwtSecretName" }
+  EflowSecretName:
+    Value: !Ref EflowSecretName
+    Export: { Name: !Sub "${AWS::StackName}-EflowSecretName" }

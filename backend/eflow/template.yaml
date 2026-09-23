@@ -1,0 +1,170 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: TMS - EFLOW | Lectura read-only de viajes, pedidos y catálogos de EFLOW (WMS/WMH) por país
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [dev, qa, prod]
+  CommonStackName:
+    Type: String
+    Description: Stack de common-services del mismo ambiente (ej. dev-tms-common-services)
+  SubnetIds:
+    Type: AWS::SSM::Parameter::Value<List<String>>
+    Description: Subnets con ruta a los SQL Server de EFLOW (on-prem / VPN)
+  SecurityGroupId:
+    Type: AWS::SSM::Parameter::Value<String>
+  EflowMode:
+    Type: String
+    AllowedValues: [mock, live]
+    Default: mock
+    Description: mock = datos fijos sin red a EFLOW; live = SQL Server real (requiere VPC con ruta a EFLOW)
+
+Conditions:
+  IsProduction: !Equals [!Ref Environment, prod]
+  IsLive: !Equals [!Ref EflowMode, live]
+
+Resources:
+  EflowApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-eflow-api
+      RetentionInDays: !If [IsProduction, 30, 7]
+
+  EflowApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-eflow-api
+      Description: TMS - EFLOW API | SELECT-only parametrizado contra EFLOW CR/VE
+      CodeUri: src/
+      Handler: app.handler
+      Runtime: python3.13
+      Architectures: [x86_64]
+      Timeout: 29
+      MemorySize: 512
+      Role:
+        Fn::ImportValue: !Sub ${CommonStackName}-LambdaRoleArn
+      Layers:
+        - Fn::ImportValue: !Sub ${CommonStackName}-CommonLayerArn
+      # En modo mock no necesita red privada: se deja fuera de la VPC.
+      VpcConfig: !If
+        - IsLive
+        - SubnetIds: !Ref SubnetIds
+          SecurityGroupIds: [!Ref SecurityGroupId]
+        - !Ref AWS::NoValue
+      LoggingConfig:
+        LogFormat: JSON
+        LogGroup: !Ref EflowApiLogGroup
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+          EFLOW_MODE: !Ref EflowMode
+          EFLOW_SECRET_NAME:
+            Fn::ImportValue: !Sub ${CommonStackName}-EflowSecretName
+
+  EflowApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt EflowApiFunction.Arn
+      PayloadFormatVersion: "2.0"
+
+  EflowApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref EflowApiFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub
+        - arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/*/*
+        - ApiId:
+            Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+
+  # Rutas públicas (AuthorizationType NONE) igual que en el Express: el cliente
+  # eflow-api.ts no manda token. Pendiente: protegerlas con el authorizer.
+  HealthRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/health
+      AuthorizationType: NONE
+      Target: !Sub integrations/${EflowApiIntegration}
+
+  TripsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/viajes
+      AuthorizationType: NONE
+      Target: !Sub integrations/${EflowApiIntegration}
+
+  TripRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/viajes/{id}
+      AuthorizationType: NONE
+      Target: !Sub integrations/${EflowApiIntegration}
+
+  TripOrdersRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/viajes/{id}/pedidos
+      AuthorizationType: NONE
+      Target: !Sub integrations/${EflowApiIntegration}
+
+  RoutesCatalogRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/catalogos/rutas
+      AuthorizationType: NONE
+      Target: !Sub integrations/${EflowApiIntegration}
+
+  CarriersCatalogRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/catalogos/transportistas
+      AuthorizationType: NONE
+      Target: !Sub integrations/${EflowApiIntegration}
+
+  DriversCatalogRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/catalogos/conductores
+      AuthorizationType: NONE
+      Target: !Sub integrations/${EflowApiIntegration}
+
+  VehiclesCatalogRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/catalogos/vehiculos
+      AuthorizationType: NONE
+      Target: !Sub integrations/${EflowApiIntegration}
+
+  RouteDaysCatalogRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/catalogos/rutas-dias
+      AuthorizationType: NONE
+      Target: !Sub integrations/${EflowApiIntegration}
+
+Outputs:
+  EflowApiFunctionArn:
+    Value: !GetAtt EflowApiFunction.Arn

@@ -1,0 +1,870 @@
+{
+ "routes": [
+  {
+   "route_id": 1,
+   "route_code": "01",
+   "route_name": "CASCO CENTRAL",
+   "route_alias": "Casco Central",
+   "zone_id": null,
+   "state": 1
+  },
+  {
+   "route_id": 2,
+   "route_code": "02",
+   "route_name": "DESAMPARADOS SAN JOSÉ SUR-OESTE",
+   "route_alias": "Desamparados San José Sur-Oeste",
+   "zone_id": null,
+   "state": 1
+  },
+  {
+   "route_id": 3,
+   "route_code": "03",
+   "route_name": "GUADALUPE SAN JOSÉ NORTE-OESTE",
+   "route_alias": "Guadalupe San José Norte-Oeste",
+   "zone_id": null,
+   "state": 1
+  },
+  {
+   "route_id": 4,
+   "route_code": "04",
+   "route_name": "ALAJUELA",
+   "route_alias": "Alajuela",
+   "zone_id": null,
+   "state": 1
+  },
+  {
+   "route_id": 5,
+   "route_code": "05",
+   "route_name": "HEREDIA",
+   "route_alias": "Heredia",
+   "zone_id": null,
+   "state": 1
+  },
+  {
+   "route_id": 6,
+   "route_code": "06",
+   "route_name": "CARTAGO",
+   "route_alias": "Cartago",
+   "zone_id": null,
+   "state": 1
+  },
+  {
+   "route_id": 7,
+   "route_code": "07",
+   "route_name": "CARRETERA",
+   "route_alias": "Carretera",
+   "zone_id": null,
+   "state": 1
+  },
+  {
+   "route_id": 8,
+   "route_code": "08",
+   "route_name": "SAN CARLOS",
+   "route_alias": "San Carlos",
+   "zone_id": null,
+   "state": 1
+  },
+  {
+   "route_id": 9,
+   "route_code": "09",
+   "route_name": "LIMÓN",
+   "route_alias": "Limón",
+   "zone_id": null,
+   "state": 1
+  },
+  {
+   "route_id": 10,
+   "route_code": "10",
+   "route_name": "GUANACASTE ALTURA",
+   "route_alias": "Guanacaste Altura",
+   "zone_id": null,
+   "state": 1
+  },
+  {
+   "route_id": 11,
+   "route_code": "11",
+   "route_name": "GUANACASTE BAJURA",
+   "route_alias": "Guanacaste Bajura",
+   "zone_id": null,
+   "state": 1
+  },
+  {
+   "route_id": 12,
+   "route_code": "12",
+   "route_name": "ZONA SUR",
+   "route_alias": "Zona Sur",
+   "zone_id": null,
+   "state": 1
+  },
+  {
+   "route_id": 13,
+   "route_code": "13",
+   "route_name": "PUNTARENAS",
+   "route_alias": "Puntarenas",
+   "zone_id": null,
+   "state": 1
+  },
+  {
+   "route_id": 15,
+   "route_code": "15",
+   "route_name": "TURRIALBA",
+   "route_alias": "Turrialba",
+   "zone_id": null,
+   "state": 1
+  },
+  {
+   "route_id": 16,
+   "route_code": "16",
+   "route_name": "CORRALILLO",
+   "route_alias": "Corralillo",
+   "zone_id": null,
+   "state": 1
+  }
+ ],
+ "carriers": [
+  {
+   "carrier_id": 3,
+   "company_code": "0003",
+   "company_name": "Transosa de Alajuela S.A.",
+   "state": 1
+  },
+  {
+   "carrier_id": 8,
+   "company_code": "0008",
+   "company_name": "Inversiones Acuña y Salazar del Caribe S.R.L.",
+   "state": 1
+  },
+  {
+   "carrier_id": 9,
+   "company_code": "0009",
+   "company_name": "Edison Miguel Ureña Ureña",
+   "state": 1
+  },
+  {
+   "carrier_id": 16,
+   "company_code": "0016",
+   "company_name": "Pedro Hernández Castro",
+   "state": 1
+  },
+  {
+   "carrier_id": 7,
+   "company_code": "0007",
+   "company_name": "Javier Martín Ulloa Serrano",
+   "state": 1
+  },
+  {
+   "carrier_id": 4,
+   "company_code": "0004",
+   "company_name": "Luis Carlos Martín Mora Castillo",
+   "state": 1
+  },
+  {
+   "carrier_id": 37,
+   "company_code": "0037",
+   "company_name": "María Jiménez Ramírez",
+   "state": 1
+  },
+  {
+   "carrier_id": 29,
+   "company_code": "0029",
+   "company_name": "OLO",
+   "state": 1
+  },
+  {
+   "carrier_id": 38,
+   "company_code": "0038",
+   "company_name": "Transmajori",
+   "state": 1
+  }
+ ],
+ "drivers": [
+  {
+   "driver_id": 4,
+   "driver_name": "Luis Diego Solórzano Gómez",
+   "driver_document": "204300699",
+   "driver_phone": null,
+   "driver_code": "4",
+   "carrier_id": 3,
+   "state": 1
+  },
+  {
+   "driver_id": 5,
+   "driver_name": "Gerardo Alonso Durán Alfaro",
+   "driver_document": "205400666",
+   "driver_phone": null,
+   "driver_code": "5",
+   "carrier_id": 3,
+   "state": 1
+  },
+  {
+   "driver_id": 6,
+   "driver_name": "Diego Ricardo Solórzano Sánchez",
+   "driver_document": "206590907",
+   "driver_phone": null,
+   "driver_code": "6",
+   "carrier_id": 3,
+   "state": 1
+  },
+  {
+   "driver_id": 7,
+   "driver_name": "Víctor Manuel Vega Chaves",
+   "driver_document": "601730907",
+   "driver_phone": null,
+   "driver_code": "7",
+   "carrier_id": 3,
+   "state": 1
+  },
+  {
+   "driver_id": 8,
+   "driver_name": "Heber Fernando Mena Mena",
+   "driver_document": "108960212",
+   "driver_phone": null,
+   "driver_code": "8",
+   "carrier_id": 3,
+   "state": 1
+  },
+  {
+   "driver_id": 9,
+   "driver_name": "Luis Gerardo Vallejos Castro",
+   "driver_document": "603930431",
+   "driver_phone": null,
+   "driver_code": "9",
+   "carrier_id": 3,
+   "state": 1
+  },
+  {
+   "driver_id": 12,
+   "driver_name": "David José Vargas Borbón",
+   "driver_document": "116350274",
+   "driver_phone": null,
+   "driver_code": "12",
+   "carrier_id": 16,
+   "state": 1
+  },
+  {
+   "driver_id": 11,
+   "driver_name": "Merwin Rafael Ortega Rangel",
+   "driver_document": "186201041419",
+   "driver_phone": null,
+   "driver_code": "11",
+   "carrier_id": 16,
+   "state": 1
+  },
+  {
+   "driver_id": 22,
+   "driver_name": "Edison Miguel Ureña Ureña",
+   "driver_document": "114090799",
+   "driver_phone": null,
+   "driver_code": "22",
+   "carrier_id": 9,
+   "state": 1
+  },
+  {
+   "driver_id": 24,
+   "driver_name": "Francisco Arguedas Morales",
+   "driver_document": "111790453",
+   "driver_phone": null,
+   "driver_code": "24",
+   "carrier_id": 9,
+   "state": 1
+  },
+  {
+   "driver_id": 23,
+   "driver_name": "Jonathan Jesús Álvarez Torres",
+   "driver_document": "111000137",
+   "driver_phone": null,
+   "driver_code": "23",
+   "carrier_id": 9,
+   "state": 1
+  },
+  {
+   "driver_id": 31,
+   "driver_name": "Javier Martín Ulloa Serrano",
+   "driver_document": "106380244",
+   "driver_phone": null,
+   "driver_code": "31",
+   "carrier_id": 7,
+   "state": 1
+  },
+  {
+   "driver_id": 14,
+   "driver_name": "Luis Carlos Mora Castillo",
+   "driver_document": "106510512",
+   "driver_phone": null,
+   "driver_code": "14",
+   "carrier_id": 4,
+   "state": 1
+  },
+  {
+   "driver_id": 21,
+   "driver_name": "Randal Acuña Jiménez",
+   "driver_document": "205680638",
+   "driver_phone": null,
+   "driver_code": "21",
+   "carrier_id": 8,
+   "state": 1
+  },
+  {
+   "driver_id": 20,
+   "driver_name": "Yeiner Enrique González Fernández",
+   "driver_document": "702060910",
+   "driver_phone": null,
+   "driver_code": "20",
+   "carrier_id": 8,
+   "state": 1
+  },
+  {
+   "driver_id": 30,
+   "driver_name": "Federico José Ulloa Umaña",
+   "driver_document": "116080706",
+   "driver_phone": null,
+   "driver_code": "30",
+   "carrier_id": 37,
+   "state": 1
+  },
+  {
+   "driver_id": 34,
+   "driver_name": "Robier Alonso Colomer Olivas",
+   "driver_document": "701180253",
+   "driver_phone": null,
+   "driver_code": "34",
+   "carrier_id": 29,
+   "state": 1
+  },
+  {
+   "driver_id": 69,
+   "driver_name": "Gerardo Stanley Sánchez",
+   "driver_document": "206440829",
+   "driver_phone": null,
+   "driver_code": "69",
+   "carrier_id": 38,
+   "state": 1
+  }
+ ],
+ "vehicles": [
+  {
+   "vehicle_id": 2,
+   "license_plate": "CL188786",
+   "vehicle_brand": "TOYOTA",
+   "unit_description": "Dyna",
+   "weight_capacity": 0,
+   "volumetric_capacity": 0,
+   "carrier_id": 3,
+   "state": 1
+  },
+  {
+   "vehicle_id": 3,
+   "license_plate": "C162414",
+   "vehicle_brand": "FREIGHTLINER",
+   "unit_description": "M2",
+   "weight_capacity": 0,
+   "volumetric_capacity": 0,
+   "carrier_id": 3,
+   "state": 1
+  },
+  {
+   "vehicle_id": 4,
+   "license_plate": "CL244242",
+   "vehicle_brand": "HYUNDAI",
+   "unit_description": "HD65",
+   "weight_capacity": 0,
+   "volumetric_capacity": 0,
+   "carrier_id": 16,
+   "state": 1
+  },
+  {
+   "vehicle_id": 6,
+   "license_plate": "CL300011",
+   "vehicle_brand": "KIA",
+   "unit_description": "Bongo",
+   "weight_capacity": 0,
+   "volumetric_capacity": 0,
+   "carrier_id": 9,
+   "state": 1
+  },
+  {
+   "vehicle_id": 7,
+   "license_plate": "CL345361",
+   "vehicle_brand": "ISUZU",
+   "unit_description": "QRL",
+   "weight_capacity": 0,
+   "volumetric_capacity": 0,
+   "carrier_id": 9,
+   "state": 1
+  },
+  {
+   "vehicle_id": 8,
+   "license_plate": "CL186068",
+   "vehicle_brand": "TOYOTA",
+   "unit_description": "Dyna",
+   "weight_capacity": 0,
+   "volumetric_capacity": 0,
+   "carrier_id": 7,
+   "state": 1
+  },
+  {
+   "vehicle_id": 9,
+   "license_plate": "CL272155",
+   "vehicle_brand": "ISUZU",
+   "unit_description": "QKR",
+   "weight_capacity": 0,
+   "volumetric_capacity": 0,
+   "carrier_id": 4,
+   "state": 1
+  },
+  {
+   "vehicle_id": 12,
+   "license_plate": "CL190087",
+   "vehicle_brand": "ISUZU",
+   "unit_description": "NPR",
+   "weight_capacity": 0,
+   "volumetric_capacity": 0,
+   "carrier_id": 8,
+   "state": 1
+  },
+  {
+   "vehicle_id": 14,
+   "license_plate": "C132239",
+   "vehicle_brand": "NISSAN",
+   "unit_description": "UD",
+   "weight_capacity": 0,
+   "volumetric_capacity": 0,
+   "carrier_id": 8,
+   "state": 1
+  },
+  {
+   "vehicle_id": 21,
+   "license_plate": "C177642",
+   "vehicle_brand": "JAC",
+   "unit_description": "N-Series",
+   "weight_capacity": 0,
+   "volumetric_capacity": 0,
+   "carrier_id": 37,
+   "state": 1
+  },
+  {
+   "vehicle_id": 23,
+   "license_plate": "C162179",
+   "vehicle_brand": "MITSUBISHI",
+   "unit_description": "Canter",
+   "weight_capacity": 0,
+   "volumetric_capacity": 0,
+   "carrier_id": 29,
+   "state": 1
+  },
+  {
+   "vehicle_id": 24,
+   "license_plate": "CL228091",
+   "vehicle_brand": "KIA",
+   "unit_description": "Bongo",
+   "weight_capacity": 0,
+   "volumetric_capacity": 0,
+   "carrier_id": 38,
+   "state": 1
+  }
+ ],
+ "orders": [
+  {
+   "trip_id": 1001,
+   "order_number": "MOCK-00003",
+   "customer_id": "C0003",
+   "customer_name": "Almacén Maipú",
+   "delivery_address": "Calle Central 450, Alajuela",
+   "delivery_latitude": "10.0162",
+   "delivery_longitude": "-84.2116",
+   "route_code": "01",
+   "total_weight": 450,
+   "total_volume": 2.5,
+   "priority": 1,
+   "expedition_type": "N"
+  },
+  {
+   "trip_id": 1001,
+   "order_number": "MOCK-00004",
+   "customer_id": "C0004",
+   "customer_name": "Distribuidora Norte",
+   "delivery_address": "Av. Reyes Católicos 1020, Heredia",
+   "delivery_latitude": "9.9989",
+   "delivery_longitude": "-84.1174",
+   "route_code": "01",
+   "total_weight": 210,
+   "total_volume": 1.4,
+   "priority": 1,
+   "expedition_type": "N"
+  },
+  {
+   "trip_id": 1001,
+   "order_number": "MOCK-00015",
+   "customer_id": "C0015",
+   "customer_name": "Minisuper Belén",
+   "delivery_address": "Calle Ribera, 50m sur de la iglesia, Belén",
+   "delivery_latitude": "9.9822",
+   "delivery_longitude": "-84.1811",
+   "route_code": "01",
+   "total_weight": 205,
+   "total_volume": 1.3,
+   "priority": 1,
+   "expedition_type": "N"
+  },
+  {
+   "trip_id": 1001,
+   "order_number": "MOCK-00016",
+   "customer_id": "C0016",
+   "customer_name": "Ferretería Grecia",
+   "delivery_address": "Av. 2, contiguo al parque central, Grecia",
+   "delivery_latitude": "10.0703",
+   "delivery_longitude": "-84.3164",
+   "route_code": "01",
+   "total_weight": 395,
+   "total_volume": 2.2,
+   "priority": 1,
+   "expedition_type": "N"
+  },
+  {
+   "trip_id": 1001,
+   "order_number": "MOCK-00017",
+   "customer_id": "C0017",
+   "customer_name": "Distribuidora Atenas",
+   "delivery_address": "Calle Principal, 200m oeste del parque, Atenas",
+   "delivery_latitude": "9.9789",
+   "delivery_longitude": "-84.3808",
+   "route_code": "01",
+   "total_weight": 175,
+   "total_volume": 1,
+   "priority": 1,
+   "expedition_type": "N"
+  },
+  {
+   "trip_id": 1002,
+   "order_number": "MOCK-00005",
+   "customer_id": "C0005",
+   "customer_name": "Comercial Sur",
+   "delivery_address": "Av. Vicuña Mackenna 6100, Cartago",
+   "delivery_latitude": "9.8644",
+   "delivery_longitude": "-83.9194",
+   "route_code": "02",
+   "total_weight": 380,
+   "total_volume": 2.1,
+   "priority": 1,
+   "expedition_type": "N"
+  },
+  {
+   "trip_id": 1002,
+   "order_number": "MOCK-00006",
+   "customer_id": "C0006",
+   "customer_name": "Bodega Curridabat",
+   "delivery_address": "Calle 41, 200m sur, Curridabat",
+   "delivery_latitude": "9.9167",
+   "delivery_longitude": "-84.0333",
+   "route_code": "02",
+   "total_weight": 275,
+   "total_volume": 1.6,
+   "priority": 1,
+   "expedition_type": "N"
+  },
+  {
+   "trip_id": 1002,
+   "order_number": "MOCK-00007",
+   "customer_id": "C0007",
+   "customer_name": "Ferretería Desamparados",
+   "delivery_address": "Av. Central, frente a la iglesia, Desamparados",
+   "delivery_latitude": "9.8983",
+   "delivery_longitude": "-84.0633",
+   "route_code": "02",
+   "total_weight": 520,
+   "total_volume": 3,
+   "priority": 1,
+   "expedition_type": "N"
+  },
+  {
+   "trip_id": 1002,
+   "order_number": "MOCK-00013",
+   "customer_id": "C0013",
+   "customer_name": "Bazar Tres Ríos",
+   "delivery_address": "Av. Central, frente al mercado, Tres Ríos",
+   "delivery_latitude": "9.9038",
+   "delivery_longitude": "-83.9694",
+   "route_code": "02",
+   "total_weight": 330,
+   "total_volume": 2,
+   "priority": 1,
+   "expedition_type": "N"
+  },
+  {
+   "trip_id": 1002,
+   "order_number": "MOCK-00014",
+   "customer_id": "C0014",
+   "customer_name": "Distribuidora Paraíso",
+   "delivery_address": "Calle Real, contiguo a la iglesia, Paraíso",
+   "delivery_latitude": "9.8378",
+   "delivery_longitude": "-83.8664",
+   "route_code": "02",
+   "total_weight": 480,
+   "total_volume": 2.8,
+   "priority": 1,
+   "expedition_type": "N"
+  },
+  {
+   "trip_id": 1003,
+   "order_number": "MOCK-00001",
+   "customer_id": "C0001",
+   "customer_name": "Supermercado Central",
+   "delivery_address": "Calle Huérfanos 1178, San José",
+   "delivery_latitude": "9.9333",
+   "delivery_longitude": "-84.0833",
+   "route_code": "03",
+   "total_weight": 320,
+   "total_volume": 1.8,
+   "priority": 1,
+   "expedition_type": "N"
+  },
+  {
+   "trip_id": 1003,
+   "order_number": "MOCK-00002",
+   "customer_id": "C0002",
+   "customer_name": "Minimarket Las Condes",
+   "delivery_address": "Av. Vitacura 2939, Escazú",
+   "delivery_latitude": "9.9189",
+   "delivery_longitude": "-84.1436",
+   "route_code": "03",
+   "total_weight": 185.5,
+   "total_volume": 1.2,
+   "priority": 1,
+   "expedition_type": "N"
+  },
+  {
+   "trip_id": 1003,
+   "order_number": "MOCK-00009",
+   "customer_id": "C0009",
+   "customer_name": "Farmacia Moravia",
+   "delivery_address": "Av. Central, 100m norte del parque, Moravia",
+   "delivery_latitude": "9.9611",
+   "delivery_longitude": "-84.0489",
+   "route_code": "03",
+   "total_weight": 95,
+   "total_volume": 0.6,
+   "priority": 1,
+   "expedition_type": "N"
+  },
+  {
+   "trip_id": 1003,
+   "order_number": "MOCK-00010",
+   "customer_id": "C0010",
+   "customer_name": "Panadería Tibás",
+   "delivery_address": "Calle 6, San Juan, Tibás",
+   "delivery_latitude": "9.95",
+   "delivery_longitude": "-84.0833",
+   "route_code": "03",
+   "total_weight": 160,
+   "total_volume": 1.1,
+   "priority": 1,
+   "expedition_type": "N"
+  },
+  {
+   "trip_id": 1003,
+   "order_number": "MOCK-00020",
+   "customer_id": "C0020",
+   "customer_name": "Pulpería Coronado",
+   "delivery_address": "Av. Central, San Isidro, Coronado",
+   "delivery_latitude": "10",
+   "delivery_longitude": "-84.0333",
+   "route_code": "03",
+   "total_weight": 130,
+   "total_volume": 0.8,
+   "priority": 1,
+   "expedition_type": "N"
+  },
+  {
+   "trip_id": 1004,
+   "order_number": "MOCK-00011",
+   "customer_id": "C0011",
+   "customer_name": "Repuestos Goicoechea",
+   "delivery_address": "Av. 8, Guadalupe, Guadalupe",
+   "delivery_latitude": "9.9486",
+   "delivery_longitude": "-84.0492",
+   "route_code": "04",
+   "total_weight": 610,
+   "total_volume": 3.4,
+   "priority": 1,
+   "expedition_type": "N"
+  },
+  {
+   "trip_id": 1004,
+   "order_number": "MOCK-00012",
+   "customer_id": "C0012",
+   "customer_name": "Ferretería San Pedro",
+   "delivery_address": "Calle de la Amargura, 300m este, San Pedro",
+   "delivery_latitude": "9.9347",
+   "delivery_longitude": "-84.0503",
+   "route_code": "04",
+   "total_weight": 240,
+   "total_volume": 1.5,
+   "priority": 1,
+   "expedition_type": "N"
+  },
+  {
+   "trip_id": 1004,
+   "order_number": "MOCK-00018",
+   "customer_id": "C0018",
+   "customer_name": "Bodega Santa Ana",
+   "delivery_address": "Radial Santa Ana-Belén, 300m sur, Santa Ana",
+   "delivery_latitude": "9.9283",
+   "delivery_longitude": "-84.1828",
+   "route_code": "04",
+   "total_weight": 290,
+   "total_volume": 1.7,
+   "priority": 1,
+   "expedition_type": "N"
+  },
+  {
+   "trip_id": 1004,
+   "order_number": "MOCK-00019",
+   "customer_id": "C0019",
+   "customer_name": "Comercial Alajuelita",
+   "delivery_address": "Calle Ancha, frente a la escuela, Alajuelita",
+   "delivery_latitude": "9.9022",
+   "delivery_longitude": "-84.1272",
+   "route_code": "04",
+   "total_weight": 355,
+   "total_volume": 2.3,
+   "priority": 1,
+   "expedition_type": "N"
+  },
+  {
+   "trip_id": 1004,
+   "order_number": "MOCK-00008",
+   "customer_id": "C0008",
+   "customer_name": "Pulpería San Rafael",
+   "delivery_address": "Calle Real 80, San Rafael",
+   "delivery_latitude": "10.05",
+   "delivery_longitude": "-84.0833",
+   "route_code": "04",
+   "total_weight": 140,
+   "total_volume": 0.9,
+   "priority": 1,
+   "expedition_type": "N"
+  }
+ ],
+ "trips": [
+  {
+   "trip_id": 1001,
+   "route_code": "01",
+   "driver_id": 4,
+   "vehicle_id": 2,
+   "dock": "PUERTA-01"
+  },
+  {
+   "trip_id": 1002,
+   "route_code": "02",
+   "driver_id": 12,
+   "vehicle_id": 4,
+   "dock": "PUERTA-02"
+  },
+  {
+   "trip_id": 1003,
+   "route_code": "03",
+   "driver_id": 22,
+   "vehicle_id": 6,
+   "dock": "PUERTA-03"
+  },
+  {
+   "trip_id": 1004,
+   "route_code": "04",
+   "driver_id": null,
+   "vehicle_id": null,
+   "dock": "PUERTA-04"
+  }
+ ],
+ "route_days": [
+  {
+   "route_code": "01",
+   "route_name": "CASCO CENTRAL",
+   "day_ids": "1,3,5",
+   "promesa_horas": 24
+  },
+  {
+   "route_code": "02",
+   "route_name": "DESAMPARADOS SAN JOSÉ SUR-OESTE",
+   "day_ids": "2,4,6",
+   "promesa_horas": 24
+  },
+  {
+   "route_code": "03",
+   "route_name": "GUADALUPE SAN JOSÉ NORTE-OESTE",
+   "day_ids": "1,3,5",
+   "promesa_horas": 24
+  },
+  {
+   "route_code": "04",
+   "route_name": "ALAJUELA",
+   "day_ids": "2,4,6",
+   "promesa_horas": 24
+  },
+  {
+   "route_code": "05",
+   "route_name": "HEREDIA",
+   "day_ids": "1,3,5",
+   "promesa_horas": 24
+  },
+  {
+   "route_code": "06",
+   "route_name": "CARTAGO",
+   "day_ids": "2,4,6",
+   "promesa_horas": 24
+  },
+  {
+   "route_code": "07",
+   "route_name": "CARRETERA",
+   "day_ids": "1,3,5",
+   "promesa_horas": 48
+  },
+  {
+   "route_code": "08",
+   "route_name": "SAN CARLOS",
+   "day_ids": "2,4,6",
+   "promesa_horas": 48
+  },
+  {
+   "route_code": "09",
+   "route_name": "LIMÓN",
+   "day_ids": "1,3,5",
+   "promesa_horas": 48
+  },
+  {
+   "route_code": "10",
+   "route_name": "GUANACASTE ALTURA",
+   "day_ids": "2,4,6",
+   "promesa_horas": 48
+  },
+  {
+   "route_code": "11",
+   "route_name": "GUANACASTE BAJURA",
+   "day_ids": "1,3,5",
+   "promesa_horas": 48
+  },
+  {
+   "route_code": "12",
+   "route_name": "ZONA SUR",
+   "day_ids": "2,4,6",
+   "promesa_horas": 48
+  },
+  {
+   "route_code": "13",
+   "route_name": "PUNTARENAS",
+   "day_ids": "1,3,5",
+   "promesa_horas": 48
+  },
+  {
+   "route_code": "15",
+   "route_name": "TURRIALBA",
+   "day_ids": "2,4,6",
+   "promesa_horas": 48
+  },
+  {
+   "route_code": "16",
+   "route_name": "CORRALILLO",
+   "day_ids": "1,3,5",
+   "promesa_horas": 48
+  }
+ ]
+}

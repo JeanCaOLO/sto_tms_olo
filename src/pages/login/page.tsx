@@ -202,51 +202,6 @@ export default function Login() {
               )}
             </button>
           </form>
-
-          {/* Credenciales demo */}
-          <div className="mt-8 p-4 bg-slate-50 rounded-xl border border-slate-200">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-4 h-4 flex items-center justify-center">
-                <i className="ri-information-line text-slate-500 text-sm"></i>
-              </div>
-              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Accesos de demostración</p>
-            </div>
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => { setEmail('jalvarez@ologistics.com'); setPassword('Demo1234!'); setError(null); }}
-                className="w-full flex items-center justify-between p-2.5 bg-white rounded-lg border border-slate-200 hover:border-teal-300 hover:bg-teal-50 transition-all cursor-pointer group"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 flex items-center justify-center bg-teal-100 rounded-full">
-                    <i className="ri-shield-star-line text-teal-600 text-sm"></i>
-                  </div>
-                  <div className="text-left">
-                    <p className="text-xs font-semibold text-slate-800">jalvarez@ologistics.com</p>
-                    <p className="text-xs text-slate-500">SuperUsuario</p>
-                  </div>
-                </div>
-                <i className="ri-arrow-right-line text-slate-400 group-hover:text-teal-500 text-sm"></i>
-              </button>
-              <button
-                type="button"
-                onClick={() => { setEmail('arojas@ologistics.com'); setPassword('Demo1234!'); setError(null); }}
-                className="w-full flex items-center justify-between p-2.5 bg-white rounded-lg border border-slate-200 hover:border-teal-300 hover:bg-teal-50 transition-all cursor-pointer group"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 flex items-center justify-center bg-amber-100 rounded-full">
-                    <i className="ri-user-settings-line text-amber-600 text-sm"></i>
-                  </div>
-                  <div className="text-left">
-                    <p className="text-xs font-semibold text-slate-800">arojas@ologistics.com</p>
-                    <p className="text-xs text-slate-500">Admin</p>
-                  </div>
-                </div>
-                <i className="ri-arrow-right-line text-slate-400 group-hover:text-teal-500 text-sm"></i>
-              </button>
-            </div>
-            <p className="text-xs text-slate-400 mt-2.5 text-center">Contraseña demo: <span className="font-mono font-semibold text-slate-600">Demo1234!</span></p>
-          </div>
         </div>
       </div>
     </div>

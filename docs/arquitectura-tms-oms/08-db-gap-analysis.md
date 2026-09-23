@@ -110,7 +110,7 @@ La corrección mínima y segura para esta fase es:
   formularios mientras no hay decisión, usar un campo de texto libre
   (equivalente al ya existente `delivery_zone`) en vez de un `<select>`
   contra una tabla que no existe. Esto **arregla el bug reportado en
-  `ANALISIS_SISTEMA_TMS.md` §5.3 sin inventar semántica nueva.**
+  `../reference/analisis-sistema-tms.md` §5.3 sin inventar semántica nueva.**
 - **Decisión de negocio pendiente (no bloquea Fase 1, se registra para
   Fase 4/9):** ¿el concepto #2 (zona tarifaria del kernel de Tarifas) es el
   mismo concepto que debía usar el selector de Tiendas/Tipos de Ruta, o son

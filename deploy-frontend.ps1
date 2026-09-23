@@ -13,10 +13,13 @@
     URL base del API desplegado (API Gateway del backend). Sin barra final.
     Default: el stack dev actual.
 
+.PARAMETER Mock
+    Solo para demos sin base de datos: buildea CON mock auth (entra como
+    SuperUsuario sin login). Por defecto el login es REAL (VITE_MOCK_AUTH=false),
+    con los usuarios de Aurora (Configuración -> Usuarios).
+
 .PARAMETER NoMock
-    Si se pasa, buildea SIN mock auth (mostrará el login real de Supabase).
-    Por defecto el mock está ON (VITE_MOCK_AUTH=true) -> entra como SuperUsuario
-    sin login.
+    Obsoleto: el login real ya es el default. Se acepta para no romper comandos viejos.
 
 .PARAMETER AppId / Branch
     App y rama de Amplify (deploy manual). Default: la app de prueba dev.
@@ -24,10 +27,11 @@
 .EXAMPLE
     ./deploy-frontend.ps1
     ./deploy-frontend.ps1 -ApiBase "https://xxxx.execute-api.us-east-1.amazonaws.com/qa"
-    ./deploy-frontend.ps1 -NoMock
+    ./deploy-frontend.ps1 -Mock      # solo demo sin BD
 #>
 param(
     [string]$ApiBase = "https://fm2mrqtsu1.execute-api.us-east-1.amazonaws.com/dev",
+    [switch]$Mock,
     [switch]$NoMock,
     [string]$AppId = "d200vkxzilg7v5",
     [string]$Branch = "planificacion",
@@ -47,7 +51,7 @@ $env:AWS_PROFILE = $AwsProfile
 # 1. Build
 # -----------------------------------------------------------------------------
 $env:VITE_API_BASE = $ApiBase.TrimEnd('/')
-$env:VITE_MOCK_AUTH = if ($NoMock) { "false" } else { "true" }
+$env:VITE_MOCK_AUTH = if ($Mock) { "true" } else { "false" }
 Write-Host ">>> Build  (VITE_API_BASE=$($env:VITE_API_BASE), VITE_MOCK_AUTH=$($env:VITE_MOCK_AUTH))" -ForegroundColor Cyan
 Push-Location $root
 try {

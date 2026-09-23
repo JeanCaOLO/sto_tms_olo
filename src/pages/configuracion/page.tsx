@@ -271,7 +271,7 @@ export default function ConfiguracionPage() {
           )}
 
           {activeTab === 'users' && appUser?.organization_id && (
-            <UsersTab organizationId={appUser.organization_id} />
+            <UsersTab />
           )}
 
           {activeTab === 'roles' && (

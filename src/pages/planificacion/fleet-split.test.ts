@@ -16,7 +16,7 @@ function pedido(over: Partial<Pedido> = {}): Pedido {
     total_weight: 100,
     total_volume: 1,
     status: 'pending',
-    order_date: '2026-01-01',
+    order_date: '2026-01-01', delivery_date: '2026-01-02',
     ...over,
   };
 }
