@@ -2,11 +2,13 @@ import { BrowserRouter, Navigate, useLocation } from 'react-router-dom';
 import { Suspense } from 'react';
 import { AppRoutes } from './router';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import { PermissionsProvider } from './hooks/usePermissions';
 import { OperationalContextProvider } from './hooks/useOperationalContext';
 import { SidebarProvider, useSidebar } from './hooks/useSidebar';
 import { ToastProvider } from './hooks/useToast';
 import Sidebar from './components/feature/Sidebar';
 import Header from './components/feature/Header';
+import RouteGuard from './components/feature/RouteGuard';
 
 function AppLayout() {
   const { session, loading } = useAuth();
@@ -48,6 +50,7 @@ function AppLayout() {
   }
 
   return (
+    <PermissionsProvider>
     <OperationalContextProvider>
       <div className="min-h-screen bg-slate-50">
         <Sidebar />
@@ -58,11 +61,14 @@ function AppLayout() {
               <i className="ri-loader-4-line animate-spin text-teal-600 text-2xl"></i>
             </div>
           }>
-            <AppRoutes />
+            <RouteGuard>
+              <AppRoutes />
+            </RouteGuard>
           </Suspense>
         </main>
       </div>
     </OperationalContextProvider>
+    </PermissionsProvider>
   );
 }
 

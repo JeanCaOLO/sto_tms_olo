@@ -8,6 +8,7 @@ import { deleteRole, type AdminRole } from '../admin/admin-api';
 import { useAdminRoles } from '../admin/use-admin-roles';
 import Notice, { type NoticeMessage } from './Notice';
 import RoleModal from './RoleModal';
+import PermissionsModal from './PermissionsModal';
 import RowActions from './RowActions';
 
 const NOTICE_MS = 3000;
@@ -41,6 +42,7 @@ const COLUMNS: DataTableColumn<AdminRole>[] = [
 export default function RolesTab() {
   const { roles, loading, error, reload } = useAdminRoles();
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [permsRole, setPermsRole] = useState<AdminRole | null>(null);
   const [notice, setNotice] = useState<NoticeMessage | null>(null);
   const totalUsers = roles.reduce((sum, role) => sum + role.user_count, 0);
 
@@ -97,10 +99,18 @@ export default function RolesTab() {
             onEdit={() => setDialog({ role })}
             onDelete={() => void handleDelete(role)}
             canDelete={role.user_count === 0}
+            extra={[{ icon: 'ri-shield-keyhole-line', title: 'Permisos', onClick: () => setPermsRole(role) }]}
           />
         )}
       />
       {dialog && <RoleModal role={dialog.role} onClose={() => setDialog(null)} onSaved={handleSaved} />}
+      {permsRole && (
+        <PermissionsModal
+          role={permsRole}
+          onClose={() => setPermsRole(null)}
+          onSaved={(text) => { setPermsRole(null); flash({ type: 'success', text }); }}
+        />
+      )}
     </div>
   );
 }

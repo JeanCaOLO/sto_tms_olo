@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import type { MenuGroup } from './sidebar-nav-items';
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
 
 export default function SidebarNavGroup({ item, isActive, collapsed, open, onToggle }: Props) {
   const location = useLocation();
+  const { t } = useTranslation();
 
   return (
     <div>
@@ -19,12 +21,12 @@ export default function SidebarNavGroup({ item, isActive, collapsed, open, onTog
         className={`w-full flex items-center gap-3 px-3 py-2.5 mb-1 rounded-lg transition-all cursor-pointer group ${
           isActive ? 'bg-teal-600/20 text-teal-400' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
         }`}
-        title={collapsed ? item.label : undefined}
+        title={collapsed ? t(item.i18nKey) : undefined}
       >
         <i className={`${item.icon} text-lg w-5 h-5 flex items-center justify-center`}></i>
         {!collapsed && (
           <>
-            <span className="text-sm font-medium flex-1 text-left">{item.label}</span>
+            <span className="text-sm font-medium flex-1 text-left">{t(item.i18nKey)}</span>
             <i className={`ri-arrow-${open ? 'up' : 'down'}-s-line text-sm transition-transform`}></i>
           </>
         )}
@@ -41,7 +43,7 @@ export default function SidebarNavGroup({ item, isActive, collapsed, open, onTog
               }`}
             >
               <i className={`${child.icon} text-base w-4 h-4 flex items-center justify-center`}></i>
-              <span className="text-sm font-medium">{child.label}</span>
+              <span className="text-sm font-medium">{t(child.i18nKey)}</span>
             </Link>
           ))}
         </div>
@@ -53,7 +55,7 @@ export default function SidebarNavGroup({ item, isActive, collapsed, open, onTog
             <Link
               key={child.path}
               to={child.path}
-              title={child.label}
+              title={t(child.i18nKey)}
               className={`w-10 h-9 flex items-center justify-center rounded-lg transition-all cursor-pointer ${
                 location.pathname === child.path ? 'bg-teal-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
               }`}

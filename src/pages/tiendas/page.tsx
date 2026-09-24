@@ -6,6 +6,7 @@ import DataTable, { type DataTableColumn } from '../../components/base/DataTable
 import DeliveryPointModal, { type DeliveryPointForm } from './components/DeliveryPointModal';
 import { buildDeliveryPointRequest } from './delivery-point-payload';
 import DeleteConfirmModal from './components/DeleteConfirmModal';
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface DeliveryPoint {
   id: string;
@@ -53,6 +54,10 @@ export default function TiendasPage() {
   const [selectedPoint, setSelectedPoint] = useState<DeliveryPoint | null>(null);
   const [pointToDelete, setPointToDelete] = useState<DeliveryPoint | null>(null);
   const [saveError, setSaveError] = useState<string>('');
+  const { can } = usePermissions();
+  const canCreate = can('puntos_entrega', 'create');
+  const canEdit = can('puntos_entrega', 'edit');
+  const canDelete = can('puntos_entrega', 'delete');
 
   useEffect(() => { fetchPoints(); }, []);
 
@@ -213,9 +218,11 @@ export default function TiendasPage() {
           <h1 className="text-2xl font-bold text-slate-900">Puntos de Entrega</h1>
           <p className="text-sm text-slate-500 mt-0.5">Puntos de entrega de cada cliente, ligados a su cuenta</p>
         </div>
-        <Button variant="primary" onClick={openNew} icon={<i className="ri-add-line"></i>}>
-          Nuevo Punto de Entrega
-        </Button>
+        {canCreate && (
+          <Button variant="primary" onClick={openNew} icon={<i className="ri-add-line"></i>}>
+            Nuevo Punto de Entrega
+          </Button>
+        )}
       </div>
 
       {saveError && (
@@ -252,24 +259,28 @@ export default function TiendasPage() {
         exportFileName="puntos_de_entrega"
         emptyMessage="No se encontraron puntos de entrega"
         pageSize={25}
-        actions={(p) => (
+        actions={(canEdit || canDelete) ? (p) => (
           <>
-            <button
-              onClick={() => openEdit(p)}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer"
-              title="Editar"
-            >
-              <i className="ri-edit-line"></i>
-            </button>
-            <button
-              onClick={() => openDelete(p)}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-              title="Eliminar"
-            >
-              <i className="ri-delete-bin-line"></i>
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => openEdit(p)}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer"
+                title="Editar"
+              >
+                <i className="ri-edit-line"></i>
+              </button>
+            )}
+            {canDelete && (
+              <button
+                onClick={() => openDelete(p)}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                title="Eliminar"
+              >
+                <i className="ri-delete-bin-line"></i>
+              </button>
+            )}
           </>
-        )}
+        ) : undefined}
       />
 
       <DeliveryPointModal

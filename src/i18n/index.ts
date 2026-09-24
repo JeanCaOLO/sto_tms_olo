@@ -7,8 +7,10 @@ i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
-    lng: 'en',
-    fallbackLng: 'en',
+    // Sin `lng` fijo: el LanguageDetector resuelve el idioma (localStorage →
+    // navegador). Español por defecto cuando no hay preferencia ni traducción.
+    fallbackLng: 'es',
+    supportedLngs: ['es', 'en'],
     debug: false,
     resources: messages,
     interpolation: {

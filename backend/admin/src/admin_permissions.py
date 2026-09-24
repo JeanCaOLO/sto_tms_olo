@@ -36,7 +36,8 @@ def _matrix(role_id: str) -> dict:
                for key, actions in perms.role_modules(role_id).items()}
     countries = [] if role["all_countries"] else [
         str(row["country_id"]) for row in pg.query(perms.ROLE_COUNTRIES_SQL, [role_id])]
-    return {"modules": modules, "all_countries": bool(role["all_countries"]), "country_ids": countries}
+    return {"modules": modules, "all_countries": bool(role["all_countries"]), "country_ids": countries,
+            "is_admin": role["name"] in perms.ADMIN_ROLES}
 
 
 def _valid_modules(raw: object) -> list[tuple[str, str]]:

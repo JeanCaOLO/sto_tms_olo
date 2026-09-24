@@ -166,7 +166,7 @@ def test_put_replaces_the_whole_matrix_in_one_transaction(matrix):
                           "country_ids": ["cr"]})
     assert response["statusCode"] == 200
     assert body_of(response)["data"] == {"modules": {"pedidos": ["view"]}, "all_countries": False,
-                                         "country_ids": ["cr"]}
+                                         "country_ids": ["cr"], "is_admin": False}
     statements = [(sql.split()[0], params) for sql, params in db.writes]
     assert statements == [("DELETE", ["role-1"]), ("INSERT", ["role-1", "pedidos", "view"]),
                           ("INSERT", ["role-1", "pedidos", "edit"]), ("DELETE", ["role-1"]),
@@ -190,6 +190,8 @@ def test_admin_role_matrix_is_not_editable(matrix):
     app, db = matrix
     db.role_name = "SuperAdministrador"
     assert _put(app, {"modules": {}})["statusCode"] == 409
+    matrix_of = app.handler(http_event("GET /api/v1/admin/roles/{id}/permissions", path={"id": "r"}, user=USER), None)
+    assert body_of(matrix_of)["data"]["is_admin"] is True
 
 
 def test_me_permissions_returns_the_caller_matrix(matrix, caller_permissions):

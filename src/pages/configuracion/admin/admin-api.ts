@@ -83,6 +83,35 @@ export const deleteUser = (id: string) => call<{ id: string }>(`${ADMIN}/users/$
 export const resetPassword = (id: string, password: string) =>
   call<{ id: string }>(`${ADMIN}/users/${id}/password`, send('POST', { password }));
 
+// --- Permisos por rol (matriz módulos × acciones + países) ---
+
+export type PermAction = 'view' | 'create' | 'edit' | 'delete' | 'export';
+
+export interface MyPermissions {
+  role: { id: string; name: string } | null;
+  is_admin: boolean;
+  modules: Record<string, PermAction[]>;
+  countries: { all: boolean; ids: string[] };
+}
+
+export interface PermissionCatalog {
+  modules: { key: string; group: string | null; path: string }[];
+  actions: PermAction[];
+}
+
+export interface RolePermissions {
+  modules: Record<string, PermAction[]>;
+  all_countries: boolean;
+  country_ids: string[];
+}
+
+export const getMyPermissions = () => call<MyPermissions>('/v1/me/permissions');
+export const getPermissionCatalog = () => call<PermissionCatalog>(`${ADMIN}/permissions/catalog`);
+export const getRolePermissions = (roleId: string) =>
+  call<RolePermissions>(`${ADMIN}/roles/${roleId}/permissions`);
+export const putRolePermissions = (roleId: string, payload: RolePermissions) =>
+  call<RolePermissions>(`${ADMIN}/roles/${roleId}/permissions`, send('PUT', payload));
+
 export const listRoles = () => call<AdminRole[]>(`${ADMIN}/roles`);
 export const createRole = (payload: RolePayload) => call<AdminRole>(`${ADMIN}/roles`, send('POST', payload));
 export const updateRole = (id: string, payload: RolePayload) =>

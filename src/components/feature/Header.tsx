@@ -4,6 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useSidebar } from '../../hooks/useSidebar';
 import ContextSelector from './ContextSelector';
 import NotificationsMenu from './NotificationsMenu';
+import LanguageSwitcher from './LanguageSwitcher';
 
 const roleColors: Record<string, string> = {
   SuperUsuario: 'bg-teal-100 text-teal-700',
@@ -80,6 +81,9 @@ export default function Header() {
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Selector de idioma */}
+        <LanguageSwitcher />
+
         {/* Notificaciones */}
         <div className="relative" ref={notifRef}>
           <NotificationsMenu

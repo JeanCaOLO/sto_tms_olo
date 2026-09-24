@@ -1,16 +1,28 @@
 import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useSidebar } from '../../hooks/useSidebar';
-import { isGroup, navItems } from './sidebar-nav-items';
+import { usePermissions } from '../../hooks/usePermissions';
+import { isGroup, navItems, type NavItem } from './sidebar-nav-items';
 import SidebarNavGroup from './SidebarNavGroup';
 import SidebarNavLink from './SidebarNavLink';
 
 export default function Sidebar() {
   const location = useLocation();
   const { collapsed, toggleCollapsed, mobileOpen, setMobileOpen } = useSidebar();
+  const { can } = usePermissions();
+
+  // Solo se muestran los módulos con `view` (los "Coming Soon" quedan visibles
+  // pero apagados; se controla en el render, no acá). Un grupo aparece si al
+  // menos un hijo es visible.
+  const canSee = (permKey?: string) => !permKey || can(permKey, 'view');
+  const visibleItems: NavItem[] = navItems
+    .map((item) =>
+      isGroup(item) ? { ...item, children: item.children.filter((c) => canSee(c.permKey)) } : item,
+    )
+    .filter((item) => (isGroup(item) ? item.children.length > 0 : canSee(item.permKey)));
 
   // Grupos abiertos por label; arranca con el grupo cuyo hijo coincide con la ruta actual.
-  const initialOpen = navItems
+  const initialOpen = visibleItems
     .filter(isGroup)
     .filter((group) => group.children.some((child) => child.path === location.pathname))
     .map((group) => group.label);
@@ -55,7 +67,7 @@ export default function Sidebar() {
         </div>
 
         <nav className="p-3 overflow-y-auto overflow-x-hidden h-[calc(100vh-80px)] scrollbar-dark">
-          {navItems.map((item) =>
+          {visibleItems.map((item) =>
             isGroup(item) ? (
               <SidebarNavGroup
                 key={item.label}

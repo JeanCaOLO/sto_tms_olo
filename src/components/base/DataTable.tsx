@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import * as XLSX from 'xlsx';
 
 export interface DataTableColumn<T> {
@@ -55,6 +56,7 @@ function ColumnFilterMenu<T>({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState('');
+  const { t } = useTranslation();
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -94,15 +96,15 @@ function ColumnFilterMenu<T>({
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Buscar valor..."
+        placeholder={t('table.searchValue')}
         className="w-full px-2 py-1 text-xs border border-slate-200 rounded mb-2 focus:outline-none focus:ring-1 focus:ring-teal-500"
       />
       <div className="flex justify-between text-xs text-teal-600 mb-1.5 px-0.5">
         <button className="hover:underline cursor-pointer" onClick={() => onChange(null)}>
-          Seleccionar todo
+          {t('table.selectAll')}
         </button>
         <button className="hover:underline cursor-pointer" onClick={() => onChange(null)}>
-          Limpiar
+          {t('table.clear')}
         </button>
       </div>
       <div className="max-h-48 overflow-y-auto space-y-1">
@@ -118,7 +120,7 @@ function ColumnFilterMenu<T>({
           </label>
         ))}
         {filteredValues.length === 0 && (
-          <p className="text-xs text-slate-400 px-0.5 py-1">Sin coincidencias</p>
+          <p className="text-xs text-slate-400 px-0.5 py-1">{t('table.noMatches')}</p>
         )}
       </div>
     </div>
@@ -129,17 +131,18 @@ export default function DataTable<T>({
   data,
   columns,
   getRowId,
-  searchPlaceholder = 'Buscar...',
+  searchPlaceholder,
   exportFileName = 'exportado',
   actions,
   actionsHeader = 'Acciones',
-  emptyMessage = 'No hay registros para mostrar.',
+  emptyMessage,
   loading = false,
   onRowClick,
   pageSize: initialPageSize,
   pageSizeOptions = [10, 25, 50, 100],
   selectedRowId = null,
 }: DataTableProps<T>) {
+  const { t } = useTranslation();
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<{ key: string; direction: SortDirection } | null>(null);
   const [columnFilters, setColumnFilters] = useState<Record<string, Set<string> | null>>({});
@@ -237,7 +240,7 @@ export default function DataTable<T>({
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={searchPlaceholder}
+            placeholder={searchPlaceholder ?? t('table.search')}
             className="w-full pl-10 pr-4 py-2 text-sm bg-white/80 backdrop-blur border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
           />
         </div>
@@ -247,17 +250,17 @@ export default function DataTable<T>({
               onClick={() => setColumnFilters({})}
               className="text-xs text-teal-600 hover:underline cursor-pointer whitespace-nowrap"
             >
-              Limpiar {activeFilterCount} filtro{activeFilterCount > 1 ? 's' : ''}
+              {t('table.clearFilters')}
             </button>
           )}
-          <span className="text-xs text-slate-400 whitespace-nowrap">{sorted.length} registro{sorted.length !== 1 ? 's' : ''}</span>
+          <span className="text-xs text-slate-400 whitespace-nowrap">{t('table.records', { count: sorted.length })}</span>
           <button
             onClick={handleExport}
             disabled={sorted.length === 0}
             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
           >
             <i className="ri-file-excel-2-line"></i>
-            Exportar Excel
+            {t('table.export')}
           </button>
         </div>
       </div>
@@ -324,7 +327,7 @@ export default function DataTable<T>({
             ) : sorted.length === 0 ? (
               <tr>
                 <td colSpan={columns.length + (actions ? 1 : 0)} className="px-4 py-10 text-center text-slate-400 text-sm">
-                  {emptyMessage}
+                  {emptyMessage ?? t('table.empty')}
                 </td>
               </tr>
             ) : (
@@ -359,7 +362,7 @@ export default function DataTable<T>({
       {paginated && sorted.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 border-t border-slate-100">
           <div className="flex items-center gap-2 text-sm text-slate-600">
-            <span>Mostrar</span>
+            <span>{t('table.rowsPerPage')}</span>
             <select
               value={pageSize}
               onChange={(e) => setPageSize(Number(e.target.value))}
@@ -370,7 +373,7 @@ export default function DataTable<T>({
                 <option key={n} value={n}>{n}</option>
               ))}
             </select>
-            <span>por página · {sorted.length} registro{sorted.length !== 1 ? 's' : ''}</span>
+            <span>{t('table.perPage')} · {t('table.records', { count: sorted.length })}</span>
           </div>
 
           <div className="flex items-center gap-2 text-sm text-slate-600">
@@ -386,7 +389,7 @@ export default function DataTable<T>({
               <i className="ri-arrow-left-s-line"></i>
             </button>
             <div className="flex items-center gap-1.5">
-              <span>Página</span>
+              <span>{t('table.page')}</span>
               <input
                 type="number"
                 min={1}
@@ -396,7 +399,7 @@ export default function DataTable<T>({
                 className="w-14 px-2 py-1 text-sm text-center border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
                 aria-label="Número de página"
               />
-              <span>de {totalPages}</span>
+              <span>{t('table.of')} {totalPages}</span>
             </div>
             <button
               onClick={() => goToPage(currentPage + 1)}

@@ -1,0 +1,32 @@
+// Claves transversales: "Coming Soon", acciones genéricas y textos del DataTable
+// (buscador, paginación, filtros, exportar). Claves planas con prefijo de área.
+export default {
+  'common.comingSoon': 'Coming Soon',
+  'common.comingSoonTitle': 'Próximamente',
+  'common.comingSoonBody': 'Este módulo todavía no está disponible. Estamos trabajando en él.',
+  'common.noAccessTitle': 'Sin acceso',
+  'common.noAccessBody': 'No tenés permiso para ver este módulo. Consultá con un administrador.',
+  'common.new': 'Nuevo',
+  'common.edit': 'Editar',
+  'common.delete': 'Eliminar',
+  'common.export': 'Exportar',
+  'common.save': 'Guardar',
+  'common.cancel': 'Cancelar',
+  'common.search': 'Buscar...',
+  'common.language': 'Idioma',
+
+  'table.search': 'Buscar...',
+  'table.export': 'Exportar Excel',
+  'table.clearFilters': 'Quitar filtro',
+  'table.selectAll': 'Seleccionar todo',
+  'table.clear': 'Limpiar',
+  'table.searchValue': 'Buscar valor...',
+  'table.noMatches': 'Sin coincidencias',
+  'table.empty': 'No hay registros para mostrar.',
+  'table.records_one': '{{count}} registro',
+  'table.records_other': '{{count}} registros',
+  'table.rowsPerPage': 'Mostrar',
+  'table.perPage': 'por página',
+  'table.page': 'Página',
+  'table.of': 'de',
+};

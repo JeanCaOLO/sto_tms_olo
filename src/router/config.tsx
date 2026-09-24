@@ -22,8 +22,9 @@ const NotFoundPage = lazy(() => import('../pages/NotFound'));
 const DevolucionesPage = lazy(() => import('../pages/devoluciones/page'));
 const GuiasPage = lazy(() => import('../pages/guias/page'));
 const TrackingPage = lazy(() => import('../pages/tracking/page'));
-const ReportesPage = lazy(() => import('../pages/reportes/page'));
-const ContratosPage = lazy(() => import('../pages/contratos/page'));
+// Contratos y Reportes están "Coming Soon": la ruta muestra el placeholder en
+// vez del módulo (las páginas reales siguen en el repo para cuando se habiliten).
+const ComingSoonPage = lazy(() => import('../pages/ComingSoon'));
 const OmsPanelPage = lazy(() => import('../pages/oms/panel/page'));
 const OmsColaPage = lazy(() => import('../pages/oms/cola/page'));
 const OmsReglasPage = lazy(() => import('../pages/oms/reglas/page'));
@@ -114,11 +115,11 @@ const routes: RouteObject[] = [
   },
   {
     path: '/contratos',
-    element: <ContratosPage />,
+    element: <ComingSoonPage title="Contratos" />,
   },
   {
     path: '/reportes',
-    element: <ReportesPage />,
+    element: <ComingSoonPage title="Reportes" />,
   },
   {
     path: '/oms',

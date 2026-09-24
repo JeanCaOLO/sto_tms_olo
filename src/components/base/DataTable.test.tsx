@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { afterEach, describe, it, expect } from 'vitest';
+import { render, screen, fireEvent, within, cleanup } from '@testing-library/react';
 import DataTable, { type DataTableColumn } from './DataTable';
+
+afterEach(cleanup);
 
 interface Row { id: string; customer: string; }
 
@@ -39,5 +41,41 @@ describe('DataTable filtro por columna', () => {
     const body = document.querySelector('tbody')!;
     expect(within(body).queryByText('Cofersa')).toBeNull();
     expect(within(body).getByText('EPA')).toBeTruthy();
+  });
+});
+
+// Caso Puntos de Entrega: accessor anidado (cliente vía final_customer.customer.name),
+// render distinto del accessor y paginación activada — reproduce el filtro por Cliente real.
+interface Point { id: string; name: string; final_customer: { customer: { name: string } | null } | null; }
+
+const points: Point[] = [
+  { id: '1', name: 'P1', final_customer: { customer: { name: 'Cofersa' } } },
+  { id: '2', name: 'P2', final_customer: { customer: { name: 'EPA' } } },
+  { id: '3', name: 'P3', final_customer: { customer: { name: 'Cofersa' } } },
+];
+
+const pointCols: DataTableColumn<Point>[] = [
+  { key: 'name', header: 'Punto', accessor: (p) => p.name },
+  {
+    key: 'customer', header: 'Cliente', filterable: true,
+    accessor: (p) => p.final_customer?.customer?.name ?? '',
+    render: (p) => <span>{p.final_customer?.customer?.name} · extra</span>,
+  },
+];
+
+describe('DataTable filtro Cliente con accessor anidado + paginación', () => {
+  it('marcar EPA deja solo la fila del punto EPA', () => {
+    render(<DataTable data={points} columns={pointCols} getRowId={(p) => p.id} pageSize={25} />);
+    // Ícono de filtro de la columna Cliente (única filterable).
+    const filterIcon = document.querySelector('.ri-filter-3-fill')!.closest('button') as HTMLElement;
+    fireEvent.click(filterIcon);
+    const menu = document.querySelector('.absolute.z-20') as HTMLElement;
+    expect(menu).not.toBeNull();
+    const epaLabel = within(menu).getByText('EPA').closest('label')!;
+    fireEvent.click(within(epaLabel).getByRole('checkbox'));
+    const body = document.querySelector('tbody')!;
+    expect(within(body).getByText('P2')).toBeTruthy();
+    expect(within(body).queryByText('P1')).toBeNull();
+    expect(within(body).queryByText('P3')).toBeNull();
   });
 });
