@@ -23,6 +23,10 @@ Las **migraciones de BD** (`sql/NN_*.sql`) van aparte y siempre con el runner:
 `node --env-file=.env.local scripts/run-migration.mjs sql/NN_x.sql` (simulación) y luego `--execute`.
 La base Aurora `tms_olo` es la misma para local y sandbox.
 
+**Inventario:** todo lo que existe en AWS para el TMS está en
+[`../reference/aws-inventario-tms.md`](../reference/aws-inventario-tms.md), con el diagrama de arquitectura. Cada
+recurso que se cree, cambie o borre se registra ahí en el mismo cambio.
+
 ## Qué hace cada script
 
 - `scripts/sandbox/deploy_backend.py`

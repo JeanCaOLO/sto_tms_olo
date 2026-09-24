@@ -96,6 +96,7 @@ def main() -> None:
     build(base)
     url = deploy(app_id, zip_out())
     print(f"\nFrontend del sandbox listo: {url}  (región {REGION})")
+    print("Registrá lo creado o cambiado en docs/reference/aws-inventario-tms.md (bitácora de cambios).")
 
 
 if __name__ == "__main__":

@@ -208,6 +208,8 @@ Qué hace el script, cómo verificarlo y cómo funciona el canal: [`docs/guides/
 | Decisiones de arquitectura (ADR) | [`docs/decisions/`](docs/decisions/README.md) |
 | Historial de cambios significativos | [`docs/work/`](docs/work/README.md) |
 | Backend Lambda (estructura, despliegue, secretos) | [`backend/README.md`](backend/README.md) |
+| Qué hay en AWS para el TMS + diagrama de arquitectura | [`docs/reference/aws-inventario-tms.md`](docs/reference/aws-inventario-tms.md) |
+| Desplegar al sandbox | [`docs/guides/despliegue-sandbox.md`](docs/guides/despliegue-sandbox.md) |
 | Coordinación Kiro ↔ Claude Code / Orca | [`docs/guides/coordinacion-claude-kiro.md`](docs/guides/coordinacion-claude-kiro.md) |
 
 > **Mantenimiento:** este README y la documentación se actualizan **en el mismo cambio que el código** que los afecta (regla de `docs/MAINTAINING.md`). Si cambiás cómo se levanta, se corre o se despliega el proyecto, actualizá este archivo en el mismo PR.

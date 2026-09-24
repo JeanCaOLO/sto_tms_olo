@@ -5,11 +5,20 @@
       "Sid": "CloudFormationStacksDelTms",
       "Effect": "Allow",
       "Action": [
-        "cloudformation:CreateStack", "cloudformation:UpdateStack", "cloudformation:DeleteStack",
-        "cloudformation:CreateChangeSet", "cloudformation:ExecuteChangeSet", "cloudformation:DeleteChangeSet",
-        "cloudformation:DescribeChangeSet", "cloudformation:DescribeStacks", "cloudformation:DescribeStackEvents",
-        "cloudformation:DescribeStackResources", "cloudformation:ListStackResources", "cloudformation:GetTemplate",
-        "cloudformation:GetTemplateSummary", "cloudformation:TagResource"
+        "cloudformation:CreateStack",
+        "cloudformation:UpdateStack",
+        "cloudformation:DeleteStack",
+        "cloudformation:CreateChangeSet",
+        "cloudformation:ExecuteChangeSet",
+        "cloudformation:DeleteChangeSet",
+        "cloudformation:DescribeChangeSet",
+        "cloudformation:DescribeStacks",
+        "cloudformation:DescribeStackEvents",
+        "cloudformation:DescribeStackResources",
+        "cloudformation:ListStackResources",
+        "cloudformation:GetTemplate",
+        "cloudformation:GetTemplateSummary",
+        "cloudformation:TagResource"
       ],
       "Resource": [
         "arn:aws:cloudformation:us-east-2:758837481569:stack/dev-tms-*/*",
@@ -19,7 +28,11 @@
     {
       "Sid": "CloudFormationGlobal",
       "Effect": "Allow",
-      "Action": ["cloudformation:ValidateTemplate", "cloudformation:ListExports", "cloudformation:ListStacks"],
+      "Action": [
+        "cloudformation:ValidateTemplate",
+        "cloudformation:ListExports",
+        "cloudformation:ListStacks"
+      ],
       "Resource": "*"
     },
     {
@@ -28,17 +41,26 @@
       "Action": "lambda:*",
       "Resource": [
         "arn:aws:lambda:us-east-2:758837481569:function:dev-tms-*",
-        "arn:aws:lambda:us-east-2:758837481569:layer:dev-tms-*",
-        "arn:aws:lambda:us-east-2:758837481569:layer:dev-tms-*:*"
+        "arn:aws:lambda:us-east-2:758837481569:layer:dev-tms-*"
       ]
     },
     {
       "Sid": "RolesDeLasLambdasDelTms",
       "Effect": "Allow",
       "Action": [
-        "iam:CreateRole", "iam:DeleteRole", "iam:GetRole", "iam:UpdateAssumeRolePolicy", "iam:TagRole", "iam:UntagRole",
-        "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:GetRolePolicy",
-        "iam:ListRolePolicies", "iam:ListAttachedRolePolicies"
+        "iam:CreateRole",
+        "iam:DeleteRole",
+        "iam:GetRole",
+        "iam:UpdateAssumeRolePolicy",
+        "iam:TagRole",
+        "iam:UntagRole",
+        "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:PutRolePolicy",
+        "iam:DeleteRolePolicy",
+        "iam:GetRolePolicy",
+        "iam:ListRolePolicies",
+        "iam:ListAttachedRolePolicies"
       ],
       "Resource": "arn:aws:iam::758837481569:role/dev-tms-*"
     },
@@ -47,50 +69,97 @@
       "Effect": "Allow",
       "Action": "iam:PassRole",
       "Resource": "arn:aws:iam::758837481569:role/dev-tms-*",
-      "Condition": {"StringEquals": {"iam:PassedToService": ["lambda.amazonaws.com", "scheduler.amazonaws.com"]}}
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": [
+            "lambda.amazonaws.com",
+            "scheduler.amazonaws.com"
+          ]
+        }
+      }
     },
     {
       "Sid": "ApiGatewayHttp",
       "Effect": "Allow",
-      "Action": ["apigateway:GET", "apigateway:POST", "apigateway:PUT", "apigateway:PATCH", "apigateway:DELETE",
-                 "apigateway:TagResource", "apigateway:UntagResource"],
-      "Resource": ["arn:aws:apigateway:us-east-2::/apis", "arn:aws:apigateway:us-east-2::/apis/*",
-                   "arn:aws:apigateway:us-east-2::/tags/*"]
+      "Action": [
+        "apigateway:GET",
+        "apigateway:POST",
+        "apigateway:PUT",
+        "apigateway:PATCH",
+        "apigateway:DELETE"
+      ],
+      "Resource": [
+        "arn:aws:apigateway:us-east-2::/apis",
+        "arn:aws:apigateway:us-east-2::/apis/*",
+        "arn:aws:apigateway:us-east-2::/tags/*"
+      ]
     },
     {
       "Sid": "LogsDeLasLambdasDelTms",
       "Effect": "Allow",
-      "Action": ["logs:CreateLogGroup", "logs:DeleteLogGroup", "logs:PutRetentionPolicy", "logs:TagResource",
-                 "logs:TagLogGroup", "logs:UntagResource"],
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:DeleteLogGroup",
+        "logs:PutRetentionPolicy",
+        "logs:TagResource",
+        "logs:TagLogGroup",
+        "logs:UntagResource"
+      ],
       "Resource": "arn:aws:logs:us-east-2:758837481569:log-group:/aws/lambda/dev-tms-*"
     },
     {
       "Sid": "MantenimientoMensualDeLaBitacora",
       "Effect": "Allow",
-      "Action": ["scheduler:CreateSchedule", "scheduler:UpdateSchedule", "scheduler:DeleteSchedule",
-                 "scheduler:GetSchedule", "scheduler:TagResource"],
+      "Action": [
+        "scheduler:CreateSchedule",
+        "scheduler:UpdateSchedule",
+        "scheduler:DeleteSchedule",
+        "scheduler:GetSchedule",
+        "scheduler:TagResource"
+      ],
       "Resource": "arn:aws:scheduler:us-east-2:758837481569:schedule/default/dev-tms-*"
     },
     {
       "Sid": "ParametrosDeRedDelTms",
       "Effect": "Allow",
-      "Action": ["ssm:PutParameter", "ssm:AddTagsToResource"],
+      "Action": [
+        "ssm:PutParameter",
+        "ssm:AddTagsToResource"
+      ],
       "Resource": "arn:aws:ssm:us-east-2:758837481569:parameter/dev/tms/*"
     },
     {
       "Sid": "EndpointVpcDeSecretsManager",
       "Effect": "Allow",
-      "Action": ["ec2:CreateVpcEndpoint", "ec2:ModifyVpcEndpoint", "ec2:CreateTags"],
+      "Action": [
+        "ec2:CreateVpcEndpoint",
+        "ec2:ModifyVpcEndpoint",
+        "ec2:CreateTags"
+      ],
       "Resource": "*",
-      "Condition": {"StringEquals": {"aws:RequestedRegion": "us-east-2"}}
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "us-east-2"
+        }
+      }
     },
     {
       "Sid": "FrontendEnAmplify",
       "Effect": "Allow",
-      "Action": ["amplify:CreateApp", "amplify:GetApp", "amplify:UpdateApp", "amplify:ListApps",
-                 "amplify:CreateBranch", "amplify:GetBranch", "amplify:UpdateBranch",
-                 "amplify:CreateDeployment", "amplify:StartDeployment", "amplify:GetJob", "amplify:ListJobs",
-                 "amplify:TagResource"],
+      "Action": [
+        "amplify:CreateApp",
+        "amplify:GetApp",
+        "amplify:UpdateApp",
+        "amplify:ListApps",
+        "amplify:CreateBranch",
+        "amplify:GetBranch",
+        "amplify:UpdateBranch",
+        "amplify:CreateDeployment",
+        "amplify:StartDeployment",
+        "amplify:GetJob",
+        "amplify:ListJobs",
+        "amplify:TagResource"
+      ],
       "Resource": "arn:aws:amplify:us-east-2:758837481569:apps*"
     }
   ]

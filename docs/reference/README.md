@@ -6,6 +6,7 @@ Documentos de referencia de larga vida: contexto del proyecto, planes de módulo
 |-----------|--------|
 | [`contexto-proyecto-tms.md`](contexto-proyecto-tms.md) | **Contexto de negocio del proyecto** (kickoff): módulos, equipo, reglas de negocio, diferencias CR/VE. El resto de documentos de esta carpeta lo citan como base. |
 | [`analisis-sistema-tms.md`](analisis-sistema-tms.md) | **Fuente de verdad del estado actual del sistema** (2026-09-21): arquitectura real (Express + AWS Aurora, `supabase.ts` como shim), mapa de módulos por ruta, alcance de integración WMS/EFLOW y ERP/EPRAC, roturas de flujo conocidas. |
+| [`aws-inventario-tms.md`](aws-inventario-tms.md) | **Inventario vivo de AWS del TMS** + diagrama de arquitectura: qué existe (Aurora, red, bastión, secretos, IAM), qué se crea al desplegar al sandbox y qué hay en la cuenta que NO es del TMS. Todo recurso nuevo se registra ahí. |
 | [`plan-modulo-oms.md`](plan-modulo-oms.md) | Plan de construcción del módulo OMS (priorización de pedidos, no FIFO). Fase Levantamiento + Discovery. Dueño: Eduardo. |
 | [`agentes-ia-kiro.md`](agentes-ia-kiro.md) | Cómo se montan los "agentes" propuestos en las reuniones usando features reales de Kiro (Steering, Skills, Hooks, Specs, MCP). |
 | [`estructura-costos-transporte.md`](estructura-costos-transporte.md) | Estudio de costeo de última milla (Costa Rica): costos fijos, 40 componentes variables, depreciación. Versión legible; la ejecutable es [`../../sql/04_costeo_base_costa_rica.sql`](../../sql/04_costeo_base_costa_rica.sql). |

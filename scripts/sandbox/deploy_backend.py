@@ -210,6 +210,7 @@ def main() -> None:
     for stack in [s for s in STACKS if s in selected]:
         deploy_stack(stack)
     print(f"\nBackend del sandbox listo. API: {api_url()}")
+    print("Registrá lo creado o cambiado en docs/reference/aws-inventario-tms.md (bitácora de cambios).")
 
 
 if __name__ == "__main__":

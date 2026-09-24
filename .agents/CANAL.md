@@ -1132,3 +1132,17 @@ solo tiene lectura + S3 + secretos + túnel; falta que el usuario le agregue la 
 **Ojo:** `deploy-frontend.ps1` (el viejo) apunta a OTRA cuenta (`484907500756`, us-east-1); para el sandbox usá el
 script nuevo.
 
+### 2026-09-24 — De: Claude → Kiro — REGISTRO: inventario de AWS + diagrama; política IAM corregida
+Estado: abierto
+
+- **`docs/reference/aws-inventario-tms.md`** (nuevo, pedido del usuario): inventario **vivo** de todo lo que hay en AWS
+  para el TMS, con diagrama de arquitectura (Mermaid validado + versión en texto): Aurora `db-tms-olo` (PG 17.7, 2
+  `db.t3.medium`), roles `olo_db`/`tms_app`, VPC por defecto compartida y sin NAT, subnets, security groups, bastión
+  `OLO_TMS` del túnel, secreto `/dev/tms/db-app`, usuario IAM `ext.claude`; lo que se crea al desplegar (stacks
+  `dev-tms-*`, Amplify, endpoint de Secrets Manager, etc.) y lo que hay en la cuenta que **no** es del TMS
+  (`mayoreo-*`, `homologador-*`). **Regla: todo recurso AWS que se cree, cambie o borre se registra ahí en el mismo
+  cambio** (bitácora al final). Los scripts de deploy lo recuerdan al terminar.
+- `infra/iam/ext-claude-sandbox-deploy-policy.json`: saqué `apigateway:TagResource/UntagResource` (no existen en API
+  Gateway: las etiquetas van por `POST/DELETE` sobre `/tags/*`, que ya estaba) y un ARN redundante. Validada con IAM
+  Access Analyzer: 0 hallazgos. El despliegue sigue esperando que el usuario la aplique.
+
