@@ -1,9 +1,14 @@
 // @vitest-environment jsdom
 import { afterEach, describe, it, expect } from 'vitest';
 import { render, screen, fireEvent, within, cleanup } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import type { ReactElement } from 'react';
 import DataTable, { type DataTableColumn } from './DataTable';
 
 afterEach(cleanup);
+
+// DataTable usa useLocation (para auditar el export por ruta), así que necesita un Router.
+const renderWithRouter = (ui: ReactElement) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
 interface Row { id: string; customer: string; }
 
@@ -18,7 +23,7 @@ const columns: DataTableColumn<Row>[] = [
 ];
 
 function renderTable() {
-  return render(<DataTable data={rows} columns={columns} getRowId={(r) => r.id} />);
+  return renderWithRouter(<DataTable data={rows} columns={columns} getRowId={(r) => r.id} />);
 }
 
 describe('DataTable filtro por columna', () => {
@@ -65,7 +70,7 @@ const pointCols: DataTableColumn<Point>[] = [
 
 describe('DataTable filtro Cliente con accessor anidado + paginación', () => {
   it('marcar EPA deja solo la fila del punto EPA', () => {
-    render(<DataTable data={points} columns={pointCols} getRowId={(p) => p.id} pageSize={25} />);
+    renderWithRouter(<DataTable data={points} columns={pointCols} getRowId={(p) => p.id} pageSize={25} />);
     // Ícono de filtro de la columna Cliente (única filterable).
     const filterIcon = document.querySelector('.ri-filter-3-fill')!.closest('button') as HTMLElement;
     fireEvent.click(filterIcon);

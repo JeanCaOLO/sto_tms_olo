@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useLocation } from 'react-router-dom';
 import * as XLSX from 'xlsx';
+import { permKeyForPath } from '../feature/module-routes';
+import { postAuditEvent } from '../../pages/auditoria/audit-api';
 
 export interface DataTableColumn<T> {
   key: string;
@@ -147,6 +150,7 @@ export default function DataTable<T>({
   onExport,
 }: DataTableProps<T>) {
   const { t } = useTranslation();
+  const location = useLocation();
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<{ key: string; direction: SortDirection } | null>(null);
   const [columnFilters, setColumnFilters] = useState<Record<string, Set<string> | null>>({});
@@ -230,7 +234,14 @@ export default function DataTable<T>({
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Datos');
     const stamp = new Date().toISOString().slice(0, 10);
     XLSX.writeFile(workbook, `${exportFileName}-${stamp}.xlsx`);
-    onExport?.(rows.length);
+    // Auditoría del export: automática por ruta. Si la pantalla pasa onExport,
+    // ese override manda (y se hace cargo de auditar por su cuenta).
+    if (onExport) {
+      onExport(rows.length);
+    } else {
+      const permKey = permKeyForPath(location.pathname);
+      if (permKey) postAuditEvent('export', permKey, { rows: rows.length, format: 'xlsx' });
+    }
   };
 
   const activeFilterCount = Object.values(columnFilters).filter((v) => v !== undefined && v !== null).length;

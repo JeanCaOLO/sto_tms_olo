@@ -83,6 +83,12 @@ export default function AuditoriaPage() {
 
       <AuditFiltersBar value={filters} onApply={setFilters} />
 
+      {!filters.from && (
+        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-700 text-sm rounded-lg px-4 py-2.5">
+          <i className="ri-information-line"></i>{t('audit.last3Months')}
+        </div>
+      )}
+
       {error && (
         <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
           <i className="ri-error-warning-line"></i>{error}

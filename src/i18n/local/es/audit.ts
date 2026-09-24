@@ -26,6 +26,7 @@ export default {
   'audit.filterAll': 'Todos',
   'audit.apply': 'Aplicar',
   'audit.clear': 'Limpiar',
+  'audit.last3Months': 'Sin fecha "desde": se muestran los últimos 3 meses. Indicá una fecha para ver más atrás.',
 
   // Tipo de actor
   'audit.actorUser': 'Usuario',

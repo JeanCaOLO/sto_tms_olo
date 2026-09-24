@@ -24,6 +24,7 @@ export default {
   'audit.filterAll': 'All',
   'audit.apply': 'Apply',
   'audit.clear': 'Clear',
+  'audit.last3Months': 'No "from" date: showing the last 3 months. Set a date to look further back.',
 
   'audit.actorUser': 'User',
   'audit.actorSystem': 'System',
