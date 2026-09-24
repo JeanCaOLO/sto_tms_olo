@@ -11,6 +11,10 @@ interface PermissionsContextType {
   can: (modulo: string, accion: PermAction) => boolean;
   countries: { all: boolean; ids: string[] };
   permissions: MyPermissions | null;
+  // Falló la carga de permisos: fail-closed (menú vacío) PERO con aviso + reintento,
+  // en vez de un menú vacío mudo.
+  error: boolean;
+  reload: () => void;
 }
 
 const ADMIN_ALL: MyPermissions = {
@@ -26,6 +30,9 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth();
   const [permissions, setPermissions] = useState<MyPermissions | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const reload = () => setReloadKey((k) => k + 1);
 
   useEffect(() => {
     if (MOCK_AUTH_ENABLED) {
@@ -40,12 +47,13 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
     }
     let cancelled = false;
     setLoading(true);
+    setError(false);
     getMyPermissions()
       .then((data) => { if (!cancelled) setPermissions(data); })
-      .catch(() => { if (!cancelled) setPermissions(null); })
+      .catch(() => { if (!cancelled) { setPermissions(null); setError(true); } })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [session]);
+  }, [session, reloadKey]);
 
   const isAdmin = permissions?.is_admin ?? false;
 
@@ -57,7 +65,7 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
   const countries = permissions?.countries ?? { all: false, ids: [] };
 
   return (
-    <PermissionsContext.Provider value={{ loading, isAdmin, can, countries, permissions }}>
+    <PermissionsContext.Provider value={{ loading, isAdmin, can, countries, permissions, error, reload }}>
       {children}
     </PermissionsContext.Provider>
   );

@@ -4,6 +4,8 @@ export default {
   'common.comingSoonBody': 'This module is not available yet. We are working on it.',
   'common.noAccessTitle': 'No access',
   'common.noAccessBody': 'You do not have permission to view this module. Ask an administrator.',
+  'common.permError': 'Could not load your permissions.',
+  'common.retry': 'Retry',
   'common.new': 'New',
   'common.edit': 'Edit',
   'common.delete': 'Delete',

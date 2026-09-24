@@ -103,13 +103,19 @@ export interface RolePermissions {
   modules: Record<string, PermAction[]>;
   all_countries: boolean;
   country_ids: string[];
+  // Rol administrador: tiene todo por código. La matriz se muestra marcada y
+  // bloqueada; el PUT devolvería 409. Puede faltar en la respuesta del PUT.
+  is_admin?: boolean;
 }
+
+// El PUT no devuelve is_admin (solo el estado guardado); lo omitimos del payload.
+export type RolePermissionsInput = Omit<RolePermissions, 'is_admin'>;
 
 export const getMyPermissions = () => call<MyPermissions>('/v1/me/permissions');
 export const getPermissionCatalog = () => call<PermissionCatalog>(`${ADMIN}/permissions/catalog`);
 export const getRolePermissions = (roleId: string) =>
   call<RolePermissions>(`${ADMIN}/roles/${roleId}/permissions`);
-export const putRolePermissions = (roleId: string, payload: RolePermissions) =>
+export const putRolePermissions = (roleId: string, payload: RolePermissionsInput) =>
   call<RolePermissions>(`${ADMIN}/roles/${roleId}/permissions`, send('PUT', payload));
 
 export const listRoles = () => call<AdminRole[]>(`${ADMIN}/roles`);

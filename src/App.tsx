@@ -9,6 +9,7 @@ import { ToastProvider } from './hooks/useToast';
 import Sidebar from './components/feature/Sidebar';
 import Header from './components/feature/Header';
 import RouteGuard from './components/feature/RouteGuard';
+import PermissionsErrorBanner from './components/feature/PermissionsErrorBanner';
 
 function AppLayout() {
   const { session, loading } = useAuth();
@@ -56,6 +57,7 @@ function AppLayout() {
         <Sidebar />
         <Header />
         <main className={`${collapsed ? 'lg:ml-20' : 'lg:ml-64'} mt-16 p-4 lg:p-6 min-w-0 transition-all duration-300`}>
+          <PermissionsErrorBanner />
           <Suspense fallback={
             <div className="flex items-center justify-center h-64">
               <i className="ri-loader-4-line animate-spin text-teal-600 text-2xl"></i>

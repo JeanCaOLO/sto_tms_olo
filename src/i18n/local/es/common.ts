@@ -6,6 +6,8 @@ export default {
   'common.comingSoonBody': 'Este módulo todavía no está disponible. Estamos trabajando en él.',
   'common.noAccessTitle': 'Sin acceso',
   'common.noAccessBody': 'No tenés permiso para ver este módulo. Consultá con un administrador.',
+  'common.permError': 'No se pudieron cargar tus permisos.',
+  'common.retry': 'Reintentar',
   'common.new': 'Nuevo',
   'common.edit': 'Editar',
   'common.delete': 'Eliminar',
