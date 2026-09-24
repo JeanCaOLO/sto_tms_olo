@@ -51,8 +51,8 @@ Decisión del usuario: **la bitácora crece sin límite (no se borra nada), con 
 
 La app debe conectarse como **`tms_app`**, no como el dueño `olo_db`: `tms_app` lee y escribe datos en `public` (también en tablas futuras), en `audit.events` solo puede **leer e insertar**, no es dueño de nada (no puede hacer DDL ni deshabilitar triggers) y ejecuta `audit.ensure_partitions` (SECURITY DEFINER). Las migraciones siguen con el dueño (`TMS_DB_ADMIN_*` en `.env.local`, que `scripts/run-migration.mjs` usa si existen).
 
-**Pendiente de activar:** el rol existe, pero todavía **sin contraseña**. Falta fijarla (`ALTER ROLE tms_app PASSWORD ...` como `olo_db`), guardarla en Secrets Manager (`/<env>/tms/db` debe tener `username: tms_app`) y en `.env.local` (`TMS_DB_USER=tms_app`, más `TMS_DB_ADMIN_USER/PASSWORD` = `olo_db`).
+**Activado (2026-09-24):** `backend/local/activar_rol_tms_app.py` generó la contraseña, la guardó en Secrets Manager (`/dev/tms/db-app`, us-east-2), se la asignó a `tms_app` y dejó `.env.local` con `TMS_DB_USER=tms_app` y `TMS_DB_ADMIN_*` = dueño. Verificado: `tms_app` lee/escribe y queda auditado, y no puede `ALTER`/`TRUNCATE`/`DELETE` sobre `audit.events` ni crear tablas. Re-correr el script rota la contraseña. Al desplegar, el secreto `/<env>/tms/db` de `backend/secrets` debe llevar esta credencial (`username: tms_app`), no la del dueño.
 
 ## Open coordination points
 
-- **Privilegios**: resuelto con `tms_app` (sql/18); falta activarlo (ver arriba). El usuario IAM `ext.claude` no tiene `secretsmanager:CreateSecret`, así que el secreto lo tiene que crear alguien con permiso (o Intelix al desplegar `backend/secrets`).
+- **Privilegios**: resuelto y activo con `tms_app` (sql/18). Falta que Intelix, al desplegar, cargue esa credencial en `/<env>/tms/db`.
