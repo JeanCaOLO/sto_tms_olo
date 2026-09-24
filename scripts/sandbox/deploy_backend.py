@@ -47,14 +47,17 @@ LAMBDA_SUBNETS = ["subnet-0bb5505fe97ac8064", "subnet-0f1b05bea67e94ebe", "subne
 LAMBDA_SG = "sg-06b3986a1f95d2f19"  # default de la VPC: permite 5432 a Aurora y todo el tráfico interno
 SSM_SUBNETS = f"/{ENV}/tms/network/subnets"
 SSM_LAMBDA_SG = f"/{ENV}/tms/network/lambda-sg"
+AWS_CLI = shutil.which("aws") or "aws"
 PIP_PLATFORM = ["--platform", "manylinux2014_x86_64", "--python-version", "3.13",
-                "--implementation", "cp", "--only-binary=:all:"]
+                "--implementation", "cp", "--only-binary=:all:", "--no-compile"]
+SSM_LAYER_ARN = f"/{ENV}/tms/common-layer-arn"
+FIXED_MTIME = 946684800  # 2000-01-01 (zip no admite < 1980 en hora local): zips deterministas, la Layer solo cambia si cambia su código
 
 
 def aws(*args: str, check: bool = True, capture: bool = True) -> subprocess.CompletedProcess:
     env = {**os.environ, "MSYS_NO_PATHCONV": "1"}
-    result = subprocess.run(["aws", *args, "--region", REGION], capture_output=capture, text=True,
-                            env=env, shell=os.name == "nt")
+    # Sin shell: en Windows, cmd interpretaría <, > y | de los argumentos (p. ej. la regla SPA de Amplify).
+    result = subprocess.run([AWS_CLI, *args, "--region", REGION], capture_output=capture, text=True, env=env)
     if check and result.returncode != 0:
         raise SystemExit(f"FALLÓ: aws {' '.join(args[:3])}…\n{(result.stderr or '').strip()[:800]}")
     return result
@@ -134,9 +137,18 @@ def pip_install(requirements: Path, target: Path) -> None:
                         str(target), *PIP_PLATFORM, "--upgrade"], check=True)
 
 
+def _normalize(target: Path) -> None:
+    """Sin __pycache__ y con fechas fijas: mismo código → mismo zip → CloudFormation no publica versión nueva."""
+    for cache in list(target.rglob("__pycache__")):
+        shutil.rmtree(cache, ignore_errors=True)
+    for path in target.rglob("*"):
+        os.utime(path, (FIXED_MTIME, FIXED_MTIME))
+
+
 def build_dir(source: Path, target: Path) -> Path:
     shutil.copytree(source, target, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "tests"))
     pip_install(source / "requirements.txt", target)
+    _normalize(target)
     return target
 
 
@@ -154,6 +166,7 @@ def build_stack(stack: str) -> Path:
             layer = out / name
             build_dir(stack_dir / rel, layer / "python")
             (layer / "python" / "requirements.txt").unlink(missing_ok=True)
+            _normalize(layer)
             target = layer
         else:
             target = out / name
@@ -194,6 +207,17 @@ def deploy_stack(stack: str) -> None:
     print(f"    {name} OK")
 
 
+def sync_layer_parameter() -> None:
+    """Los módulos toman la Layer de este parámetro (el export bloqueaba publicar versiones nuevas)."""
+    arn = aws("cloudformation", "describe-stacks", "--stack-name", f"{ENV}-tms-common-services", "--query",
+              "Stacks[0].Outputs[?OutputKey=='CommonLayerArn'].OutputValue", "--output", "text").stdout.strip()
+    current = aws("ssm", "get-parameter", "--name", SSM_LAYER_ARN, "--query", "Parameter.Value", "--output", "text",
+                  check=False)
+    if current.returncode != 0 or current.stdout.strip() != arn:
+        aws("ssm", "put-parameter", "--name", SSM_LAYER_ARN, "--type", "String", "--value", arn, "--overwrite")
+        print(f"    {SSM_LAYER_ARN} = {arn}")
+
+
 def api_url() -> str:
     return aws("cloudformation", "describe-stacks", "--stack-name", f"{ENV}-tms-common-services", "--query",
                "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue", "--output", "text").stdout.strip()
@@ -208,6 +232,8 @@ def main() -> None:
     ensure_network()
     ensure_bucket()
     for stack in [s for s in STACKS if s in selected]:
+        if stack != "common-services":
+            sync_layer_parameter()
         deploy_stack(stack)
     print(f"\nBackend del sandbox listo. API: {api_url()}")
     print("Registrá lo creado o cambiado en docs/reference/aws-inventario-tms.md (bitácora de cambios).")

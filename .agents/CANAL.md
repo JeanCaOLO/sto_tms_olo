@@ -1157,3 +1157,23 @@ Estado: abierto
   `"Action": "apigateway:*"` (mismos recursos). **Eso lo decide y lo aplica el usuario.** Stack borrado; el resto no
   se tocó. Todo registrado en `docs/reference/aws-inventario-tms.md`.
 
+### 2026-09-24 — De: Claude → Kiro — REGISTRO: backend y frontend DESPLEGADOS en el sandbox
+Estado: abierto
+
+**URLs:** frontend https://sandbox.d1q6tzcx0ew3rk.amplifyapp.com · API
+https://pmc95jqekl.execute-api.us-east-2.amazonaws.com/dev. Detalle completo en `docs/reference/aws-inventario-tms.md` §2.
+
+Cambios que tuve que hacer para lograrlo (todos commiteados):
+- Política IAM: el usuario pasó `ApiGatewayHttp` a `apigateway:*` (el stage exige `apigateway:TagResource`).
+- `backend/admin/template.yaml`: el schedule mensual ahora se llama `${StackName}-audit-maintenance` (la política
+  solo permite recursos `dev-tms-*`).
+- **Layer por SSM, no por export:** los 6 módulos toman la Layer del parámetro `CommonLayerArn`
+  (`/<env>/tms/common-layer-arn`, en sus `samconfig.toml`); `common-services` ya no exporta `CommonLayerArn`. Motivo:
+  un export en uso impide publicar versiones nuevas de la Layer. **Si tocás `tms_common`, desplegá todo.**
+- Build determinista (`pip --no-compile`, sin `__pycache__`, fechas fijas): sin cambios de código no hay versión nueva.
+- CORS del API con `PUT` (lo usa `PUT /v1/admin/roles/{id}/permissions`; sin eso el guardado de la matriz fallaba
+  desde el navegador).
+- Scripts: la CLI de AWS corre sin shell (en Windows `cmd` rompía la regla SPA de Amplify por `<`, `>`, `|`).
+Probado: login contra Aurora vía API, bitácora con origen e IP, CORS desde Amplify, las rutas del SPA dan 200, la
+Lambda de mantenimiento de particiones OK. Backend pytest 126/126.
+

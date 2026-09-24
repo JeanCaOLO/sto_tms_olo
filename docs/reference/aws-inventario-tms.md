@@ -31,6 +31,7 @@ flowchart LR
   authz --> secrets
   dev["Desarrollo local<br/>npm run dev + api:local"] -->|"túnel SSM localhost:15432"| bastion --> aurora
   deploy["scripts/sandbox/*.py"] -->|"cloudformation package/deploy"| s3art["S3 tms-sandbox-artifacts"]
+  lambdas -.->|"Layer vigente vía SSM"| ssm["SSM /dev/tms/common-layer-arn"]
 ```
 
 **Versión en texto** (por si el diagrama no se ve):
@@ -87,23 +88,34 @@ flowchart LR
 | Parámetros SSM | `/dev/tms/network/subnets`, `/dev/tms/network/lambda-sg` | Subnets de Aurora y `sg-06b3986a1f95d2f19` para las Lambdas. Creados 2026-09-24. |
 | Endpoint VPC | `vpce-0b54105ec48f87b0a` (`dev-tms-secretsmanager`) | Interface a Secrets Manager en las 3 subnets de Aurora, SG default, DNS privado. Aprox. USD 22/mes. Creado 2026-09-24. |
 | Bucket S3 | `tms-sandbox-artifacts-758837481569` | Código empaquetado de las Lambdas. Creado 2026-09-24. |
-| Layer Lambda (restos) | `dev-tms-common-services-tms-common` v1 y v2 | Quedaron de dos intentos fallidos de `common-services` (la plantilla retiene las versiones). No molestan; se pueden borrar. |
 | Usuario IAM | `ext.claude` | Grupo `CP-Mayoreo-Sandbox-Devs` (`ReadOnlyAccess`) + `AmazonS3FullAccess` + inline `AllowSSMTunnelToTMSBastion`, `SSM-SessionAccess-ExtClaude`, `claude-secrets-policy.json` (secretos `/dev/tms/*`). Para desplegar necesita además `infra/iam/ext-claude-sandbox-deploy-policy.json`. |
 
-## 2. Lo que se CREA al desplegar (pendiente: la política necesita `apigateway:*`)
+## 2. Aplicación desplegada en el sandbox (2026-09-24)
 
-Lo crea `npm run deploy:sandbox` (idempotente). Al desplegar, mover cada fila a §1 con su identificador real.
+Lo crea y actualiza `npm run deploy:sandbox` (idempotente; redesplegar sin cambios no toca nada).
 
-| Recurso | Nombre | Lo crea | Para qué |
-|---|---|---|---|
-| Stack | `dev-tms-common-services` | CloudFormation | API Gateway HTTP (stage `dev`), authorizer JWT, Layer `tms_common`, rol de las Lambdas. Output `ApiUrl`. |
-| Stack | `dev-tms-auth` | CloudFormation | `/api/auth/*`: login, signup, sesión, logout. |
-| Stack | `dev-tms-data` | CloudFormation | `/api/data/{table}`: API genérica con permisos y auditoría. |
-| Stack | `dev-tms-context` | CloudFormation | `/api/v1/*`: jerarquía país→almacén→cliente, puntos de entrega. |
-| Stack | `dev-tms-eflow` | CloudFormation | Lectura de EFLOW (modo mock). |
-| Stack | `dev-tms-admin` | CloudFormation | Usuarios, roles, matriz de permisos, auditoría + Lambda y schedule mensual de particiones. |
-| Stack | `dev-tms-planning` | CloudFormation | `/api/v1/planificacion/pedidos`. |
-| App Amplify | `dev-tms-frontend`, rama `sandbox` | `deploy_frontend.py` | Frontend. URL `https://sandbox.<appId>.amplifyapp.com`. |
+**URLs**
+- **Frontend:** https://sandbox.d1q6tzcx0ew3rk.amplifyapp.com
+- **API:** https://pmc95jqekl.execute-api.us-east-2.amazonaws.com/dev (el frontend llama a `…/dev/api/...`)
+
+| Recurso | Identificador | Detalle |
+|---|---|---|
+| Stack | `dev-tms-common-services` | API Gateway HTTP `dev-tms-common-services-http-api` (`pmc95jqekl`, stage `dev`, CORS `*` con GET/POST/PUT/PATCH/DELETE), authorizer JWT, Layer, rol de las Lambdas. |
+| Lambda | `dev-tms-common-services-jwt-authorizer` | 256 MB, 5 s, **fuera de VPC**. Valida el Bearer token con `/dev/tms/jwt`. |
+| Layer | `dev-tms-common-services-tms-common` | Versión vigente **5** (v1–4 retenidas de intentos anteriores; se pueden borrar). Su ARN se publica en el parámetro SSM `/dev/tms/common-layer-arn`, que leen los módulos. |
+| Stack + Lambda | `dev-tms-auth` / `dev-tms-auth-auth-api` | 512 MB, 15 s. Login, signup, sesión, logout. |
+| Stack + Lambda | `dev-tms-data` / `dev-tms-data-data-api` | 512 MB, 29 s. API genérica con permisos y auditoría. |
+| Stack + Lambda | `dev-tms-context` / `dev-tms-context-context-api` | 512 MB, 15 s. Jerarquía país→almacén→cliente y puntos de entrega. |
+| Stack + Lambda | `dev-tms-eflow` / `dev-tms-eflow-eflow-api` | 512 MB, 29 s. EFLOW en **mock**. |
+| Stack + Lambda | `dev-tms-admin` / `dev-tms-admin-admin-api` | 512 MB, 15 s. Usuarios, roles, permisos, auditoría. |
+| Lambda + schedule | `dev-tms-admin-audit-maintenance` | 256 MB, 30 s. Schedule `dev-tms-admin-audit-maintenance` (ENABLED): día 1 de cada mes 06:00 hora de Costa Rica. Probado a mano: OK. |
+| Stack + Lambda | `dev-tms-planning` / `dev-tms-planning-planning-api` | 512 MB, 15 s. Pedidos para Planificación. |
+| Parámetro SSM | `/dev/tms/common-layer-arn` | ARN de la versión vigente de la Layer (lo mantiene el script). |
+| App Amplify | `dev-tms-frontend` (`d1q6tzcx0ew3rk`), rama `sandbox` | Deploy manual por zip, regla SPA (toda ruta → `index.html`). |
+
+Todas las Lambdas de módulo corren en las 3 subnets privadas de Aurora con el SG `sg-06b3986a1f95d2f19`, leen
+`/dev/tms/db-app` por el endpoint VPC y entran a Aurora como `tms_app`. Probado: login contra Aurora, bitácora
+registrando el origen (`dev-tms-auth-auth-api POST /api/auth/login`) y la IP, CORS desde el dominio de Amplify.
 
 ## 3. En la cuenta pero NO son del TMS (no tocar)
 
@@ -133,3 +145,5 @@ Lo crea `npm run deploy:sandbox` (idempotente). Al desplegar, mover cada fila a 
 | 2026-09-24 | Documentado este inventario. Despliegue al sandbox preparado; pendiente de la política IAM. | Claude |
 | 2026-09-24 | Política `ext-claude-sandbox-deploy-policy.json` adjunta a `ext.claude` (administrada). | Usuario |
 | 2026-09-24 | Primer despliegue: creados `/dev/tms/jwt`, `/dev/tms/eflow`, parámetros SSM de red, endpoint `vpce-0b54105ec48f87b0a` y bucket de artefactos. `dev-tms-common-services` falló dos veces (el stage de API Gateway exige `apigateway:TagResource`, que la política no da); stack borrado, quedan 2 versiones de la Layer. | Claude |
+| 2026-09-24 | Política: `ApiGatewayHttp` pasa a `apigateway:*` (el stage exige `apigateway:TagResource`). | Usuario |
+| 2026-09-24 | **Backend y frontend desplegados en el sandbox** (§2). Cambios para lograrlo: schedule con nombre `dev-tms-*`; la Layer se publica por SSM (`/dev/tms/common-layer-arn`) en vez de export (un export en uso bloquea versiones nuevas); build determinista; CORS con `PUT`. | Claude |

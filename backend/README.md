@@ -4,7 +4,7 @@ API del TMS migrada desde el Express de `server/` al estándar Intelix: **Python
 
 Decisión y cambios de comportamiento: [`docs/decisions/0002-backend-lambdas-python-sam.md`](../docs/decisions/0002-backend-lambdas-python-sam.md).
 
-> **Despliegue: solo Intelix.** Este README documenta cómo se despliega, pero nadie fuera de Intelix corre `sam deploy`.
+> **Despliegue:** al **sandbox** (cuenta `758837481569`) lo sube `npm run deploy:sandbox` cuando el usuario lo indica ([guía](../docs/guides/despliegue-sandbox.md), [inventario](../docs/reference/aws-inventario-tms.md)); a producción lo lleva Intelix. Los módulos toman la Layer `tms_common` del parámetro SSM `/<env>/tms/common-layer-arn` (no de un export de CloudFormation: un export en uso impide publicar versiones nuevas), así que tras `sam deploy` de `common-services` hay que actualizar ese parámetro con el output `CommonLayerArn` antes de desplegar los módulos.
 
 ## Estructura
 

@@ -32,7 +32,7 @@ Resources:
       ProtocolType: HTTP
       CorsConfiguration:
         AllowOrigins: [!Ref CorsAllowOrigin]
-        AllowMethods: [GET, POST, PATCH, DELETE, OPTIONS]
+        AllowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
         AllowHeaders: [Authorization, Content-Type]
         MaxAge: 600
 
@@ -142,9 +142,10 @@ Outputs:
   JwtAuthorizerId:
     Value: !Ref JwtAuthorizer
     Export: { Name: !Sub "${AWS::StackName}-JwtAuthorizerId" }
+  # Sin Export a propósito: cada versión nueva de la Layer cambia el ARN y un export en uso no se puede
+  # cambiar. El script de deploy lo copia al parámetro SSM /<env>/tms/common-layer-arn, que leen los módulos.
   CommonLayerArn:
     Value: !Ref TmsCommonLayer
-    Export: { Name: !Sub "${AWS::StackName}-CommonLayerArn" }
   LambdaRoleArn:
     Value: !GetAtt TmsApiLambdaRole.Arn
     Export: { Name: !Sub "${AWS::StackName}-LambdaRoleArn" }

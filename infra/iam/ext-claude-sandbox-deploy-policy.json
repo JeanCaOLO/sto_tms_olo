@@ -81,13 +81,7 @@
     {
       "Sid": "ApiGatewayHttp",
       "Effect": "Allow",
-      "Action": [
-        "apigateway:GET",
-        "apigateway:POST",
-        "apigateway:PUT",
-        "apigateway:PATCH",
-        "apigateway:DELETE"
-      ],
+      "Action": "apigateway:*",
       "Resource": [
         "arn:aws:apigateway:us-east-2::/apis",
         "arn:aws:apigateway:us-east-2::/apis/*",

@@ -9,6 +9,9 @@ Parameters:
   CommonStackName:
     Type: String
     Description: Stack de common-services del mismo ambiente (ej. dev-tms-common-services)
+  CommonLayerArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: Parámetro SSM con el ARN de la versión vigente de la Layer tms_common (lo actualiza scripts/sandbox/deploy_backend.py). Reemplaza el export de common-services, que bloqueaba publicar versiones nuevas.
   SubnetIds:
     Type: AWS::SSM::Parameter::Value<List<String>>
   SecurityGroupId:
@@ -38,7 +41,7 @@ Resources:
       Role:
         Fn::ImportValue: !Sub ${CommonStackName}-LambdaRoleArn
       Layers:
-        - Fn::ImportValue: !Sub ${CommonStackName}-CommonLayerArn
+        - !Ref CommonLayerArn
       VpcConfig:
         SubnetIds: !Ref SubnetIds
         SecurityGroupIds: [!Ref SecurityGroupId]
@@ -72,7 +75,7 @@ Resources:
       Role:
         Fn::ImportValue: !Sub ${CommonStackName}-LambdaRoleArn
       Layers:
-        - Fn::ImportValue: !Sub ${CommonStackName}-CommonLayerArn
+        - !Ref CommonLayerArn
       VpcConfig:
         SubnetIds: !Ref SubnetIds
         SecurityGroupIds: [!Ref SecurityGroupId]
@@ -88,6 +91,7 @@ Resources:
         Monthly:
           Type: ScheduleV2
           Properties:
+            Name: !Sub ${AWS::StackName}-audit-maintenance
             ScheduleExpression: cron(0 6 1 * ? *)
             ScheduleExpressionTimezone: America/Costa_Rica
 
