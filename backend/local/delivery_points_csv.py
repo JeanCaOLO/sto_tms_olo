@@ -83,7 +83,8 @@ def parse_row(record: dict) -> DeliveryPointRow:
 
 def read_rows(path: Path) -> list[DeliveryPointRow]:
     with path.open(encoding="utf-8-sig", newline="") as handle:
-        rows = [parse_row(record) for record in csv.DictReader(handle) if (record.get("Codigo") or "").strip()]
+        parsed = [parse_row(record) for record in csv.DictReader(handle) if (record.get("Codigo") or "").strip()]
+    rows = [row for row in parsed if row.name]  # un punto sin nombre no se carga (decisión 2026-09-24)
     codes = [row.code for row in rows]
     duplicated = {code for code in codes if codes.count(code) > 1}
     if duplicated:

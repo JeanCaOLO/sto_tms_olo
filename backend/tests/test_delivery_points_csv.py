@@ -46,3 +46,10 @@ def test_read_rows_rejects_codes_duplicated_after_normalizing(tmp_path):
                         encoding="utf-8")
     with pytest.raises(ValueError, match="repetidos"):
         read_rows(csv_file)
+
+
+def test_read_rows_skips_points_without_name(tmp_path):
+    csv_file = tmp_path / "puntos.csv"
+    csv_file.write_text('Codigo,Cliente,Zona,Ruta,Latitud,Longitud\nCO0190," ",Z190,21,0,0\nCO0191,FERRETERIA,Z1,1,0,0\n',
+                        encoding="utf-8")
+    assert [row.code for row in read_rows(csv_file)] == ["CO0191"]

@@ -142,7 +142,7 @@ export default function TiendasPage() {
     },
     {
       key: 'zone',
-      header: 'Zona / Ruta',
+      header: 'Zona',
       accessor: (p) => p.zone?.name ?? '',
       sortable: true,
       filterable: true,
