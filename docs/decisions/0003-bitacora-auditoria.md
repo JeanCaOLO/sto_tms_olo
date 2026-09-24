@@ -44,7 +44,7 @@ Decisión del usuario: **la bitácora crece sin límite (no se borra nada), con 
 
 - `audit.events` está **particionada por mes** (`audit.events_YYYY_MM`, rango sobre `occurred_at`). Una consulta con rango de fechas solo lee esos meses, y cada mes tiene sus propios índices chicos.
 - `GET /api/v1/admin/audit` **sin `from` mira los últimos 3 meses**; para ir más atrás hay que pedir `from` (sigue todo disponible, solo lee más particiones).
-- Particiones creadas hasta 2027-12. `audit.ensure_partitions(meses)` crea las que falten; la Lambda `AuditMaintenanceFunction` (stack `admin`) la corre el día 1 de cada mes. Si no corriera, nada se pierde: las filas caen en `audit.events_default`.
+- Particiones creadas hasta 2027-12. `audit.ensure_partitions(meses)` crea las que falten; la Lambda `AuditMaintenanceFunction` (stack `admin`) la corre cada día hábil a las 06:00 CR (idempotente; Aurora se apaga fuera de horario y un día 1 en fin de semana fallaría). Si no corriera, nada se pierde: las filas caen en `audit.events_default`.
 - Si algún día el volumen lo pide, los meses viejos se pueden **desadjuntar y archivar** (`DETACH PARTITION`, p. ej. a S3) sin tocar los recientes. Hoy no se archiva nada.
 
 ## Rol de la aplicación (sql/18, 2026-09-24)

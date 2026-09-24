@@ -60,7 +60,7 @@ Resources:
       LogGroupName: !Sub /aws/lambda/${AWS::StackName}-audit-maintenance
       RetentionInDays: !If [IsProduction, 30, 7]
 
-  # Crea cada mes las particiones de los próximos meses de audit.events (sql/17).
+  # Crea las particiones de los próximos meses de audit.events (sql/17). Idempotente: corre cada día hábil.
   AuditMaintenanceFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -92,7 +92,7 @@ Resources:
           Type: ScheduleV2
           Properties:
             Name: !Sub ${AWS::StackName}-audit-maintenance
-            ScheduleExpression: cron(0 6 1 * ? *)
+            ScheduleExpression: cron(0 6 ? * MON-FRI *)  # días hábiles: Aurora se apaga fuera de horario (infra/horarios)
             ScheduleExpressionTimezone: America/Costa_Rica
 
   AdminApiIntegration:

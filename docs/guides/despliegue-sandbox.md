@@ -43,6 +43,12 @@ recurso que se cree, cambie o borre se registra ahí en el mismo cambio.
   `VITE_API_BASE`, y publica en Amplify (app `dev-tms-frontend`, rama `sandbox`; la crea si no existe, con la regla
   de SPA).
 
+## Horario de servidores
+
+Aurora y el bastión están encendidos **lunes a viernes de 04:45 a 17:00 hora de Costa Rica** (stack
+`dev-tms-horarios`). Fuera de ese horario no hay base de datos ni en el sandbox ni en local. Detalle y cómo encender a
+mano: inventario §2b.
+
 ## Permisos
 
 El usuario IAM `ext.claude` necesita la política `infra/iam/ext-claude-sandbox-deploy-policy.json` (acotada a

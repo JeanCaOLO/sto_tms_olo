@@ -37,7 +37,9 @@ REGION = "us-east-2"
 ACCOUNT = "758837481569"
 ENV = "dev"
 ARTIFACTS_BUCKET = f"tms-sandbox-artifacts-{ACCOUNT}"
-STACKS = ["common-services", "auth", "data", "context", "eflow", "admin", "planning"]
+STACKS = ["common-services", "auth", "data", "context", "eflow", "admin", "planning", "horarios"]
+# Stacks de infraestructura sin código (template en infra/<nombre>/, sin samconfig).
+INFRA_STACKS = {"horarios": ROOT / "infra" / "horarios"}
 # El secreto de BD del sandbox es el del rol de la app (sql/18), no el del dueño.
 PARAM_OVERRIDES = {"DbSecretName": "/dev/tms/db-app"}
 
@@ -190,7 +192,19 @@ def dev_parameters(stack: str) -> tuple[str, list[str], list[str]]:
     return params["stack_name"], [f"{k}={v}" for k, v in overrides.items()], params.get("tags", [])
 
 
+def deploy_infra_stack(stack: str) -> None:
+    step(f"Stack {stack} (infraestructura)")
+    name = f"{ENV}-tms-{stack}"
+    aws("cloudformation", "deploy", "--template-file", str(INFRA_STACKS[stack] / "template.yaml"), "--stack-name", name,
+        "--capabilities", "CAPABILITY_IAM", "--no-fail-on-empty-changeset",
+        "--tags", "Project=TMS", "Environment=DEV", f"Name={name}", capture=False)
+    print(f"    {name} OK")
+
+
 def deploy_stack(stack: str) -> None:
+    if stack in INFRA_STACKS:
+        deploy_infra_stack(stack)
+        return
     step(f"Stack {stack}")
     template = build_stack(stack)
     packaged = template.with_name("packaged.yaml")
@@ -232,7 +246,7 @@ def main() -> None:
     ensure_network()
     ensure_bucket()
     for stack in [s for s in STACKS if s in selected]:
-        if stack != "common-services":
+        if stack not in ("common-services", *INFRA_STACKS):
             sync_layer_parameter()
         deploy_stack(stack)
     print(f"\nBackend del sandbox listo. API: {api_url()}")

@@ -1177,3 +1177,16 @@ Cambios que tuve que hacer para lograrlo (todos commiteados):
 Probado: login contra Aurora vía API, bitácora con origen e IP, CORS desde Amplify, las rutas del SPA dan 200, la
 Lambda de mantenimiento de particiones OK. Backend pytest 126/126.
 
+### 2026-09-24 — De: Claude → Kiro — REGISTRO: horario de servidores (Aurora se apaga 17:00 CR) + capas viejas borradas
+Estado: abierto
+
+- **Decisión del usuario, para ahorrar costos:** Aurora `db-tms-olo` y el bastión del túnel se **encienden lunes a
+  viernes 04:45 y se apagan 17:00 hora de Costa Rica** (stack `dev-tms-horarios`, `infra/horarios/template.yaml`).
+  **Fuera de ese horario y los fines de semana no hay base de datos**: `api:local`, el túnel, las migraciones y el
+  sandbox fallan por conexión. No es un bug. Encender a mano: consola RDS → `db-tms-olo` → Start (y EC2 → bastión).
+  Ahorro estimado ~USD 80/mes. Lambdas, API Gateway y Amplify no se apagan (cobran por uso).
+- El mantenimiento de particiones de la bitácora pasó de "día 1 del mes" a **cada día hábil 06:00** (un día 1 en fin de
+  semana encontraría Aurora apagada).
+- Borradas las versiones 1–4 de la Layer `tms_common`; queda la 5 (en uso).
+- Todo registrado en `docs/reference/aws-inventario-tms.md` §2b (con el diagrama actualizado).
+

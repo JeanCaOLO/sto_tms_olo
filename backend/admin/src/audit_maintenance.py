@@ -1,5 +1,6 @@
 """Mantenimiento mensual de la bitácora (sql/17): crea las particiones de los
-próximos meses de audit.events. Lo dispara EventBridge el día 1 de cada mes.
+próximos meses de audit.events. Lo dispara EventBridge cada día hábil a las 06:00 CR
+(idempotente; no el día 1 del mes, que puede caer en fin de semana con Aurora apagada).
 
 Si nunca corriera, nada se pierde: las filas caen en audit.events_default.
 """

@@ -17,7 +17,9 @@ flowchart LR
   user -->|"HTTPS + JWT"| apigw["API Gateway HTTP<br/>dev-tms-common-services-http-api<br/>stage dev"]
   apigw -->|"valida token"| authz["Lambda jwt-authorizer<br/>fuera de VPC"]
   apigw --> lambdas["Lambdas por módulo<br/>auth, data, context, eflow,<br/>admin, planning"]
-  sched["EventBridge Scheduler<br/>día 1 de cada mes"] --> maint["Lambda audit-maintenance"]
+  sched["EventBridge Scheduler<br/>días hábiles 06:00 CR"] --> maint["Lambda audit-maintenance"]
+  horarios["EventBridge Scheduler<br/>dev-tms-horarios<br/>L-V 04:45 enciende / 17:00 apaga"] -.->|"start/stop"| aurora
+  horarios -.->|"start/stop"| bastion
   subgraph vpc["VPC vpc-0a8252dbb12741364 - subnets privadas, sin NAT"]
     lambdas
     maint
@@ -44,10 +46,11 @@ flowchart LR
    (Secrets Manager para sus credenciales, S3 gateway).
 4. Las Lambdas se conectan a **Aurora** (`db-tms-olo`, BD `tms_olo`) como el rol **`tms_app`**: lee y escribe datos,
    pero no puede alterar la bitácora de auditoría (`audit.events`) ni la estructura.
-5. Cada escritura queda en `audit.events` (trigger de BD). El **Scheduler** dispara cada mes la Lambda
+5. Cada escritura queda en `audit.events` (trigger de BD). El **Scheduler** dispara cada día hábil la Lambda
    `audit-maintenance`, que crea las particiones mensuales siguientes.
 6. En desarrollo local, el backend corre en la máquina y llega a Aurora por el **túnel SSM** a través del bastión
    `OLO_TMS`. Las migraciones se aplican con el dueño (`olo_db`) mediante `scripts/run-migration.mjs`.
+7. **Horario de servidores:** Aurora y el bastión están encendidos **lunes a viernes de 04:45 a 17:00 hora de Costa Rica** (stack `dev-tms-horarios`); fuera de ese horario el sandbox y el desarrollo local no tienen base de datos.
 
 ## 1. Lo que EXISTE hoy (2026-09-24)
 
@@ -102,13 +105,13 @@ Lo crea y actualiza `npm run deploy:sandbox` (idempotente; redesplegar sin cambi
 |---|---|---|
 | Stack | `dev-tms-common-services` | API Gateway HTTP `dev-tms-common-services-http-api` (`pmc95jqekl`, stage `dev`, CORS `*` con GET/POST/PUT/PATCH/DELETE), authorizer JWT, Layer, rol de las Lambdas. |
 | Lambda | `dev-tms-common-services-jwt-authorizer` | 256 MB, 5 s, **fuera de VPC**. Valida el Bearer token con `/dev/tms/jwt`. |
-| Layer | `dev-tms-common-services-tms-common` | Versión vigente **5** (v1–4 retenidas de intentos anteriores; se pueden borrar). Su ARN se publica en el parámetro SSM `/dev/tms/common-layer-arn`, que leen los módulos. |
+| Layer | `dev-tms-common-services-tms-common` | Versión vigente **5** (las anteriores se borraron). Su ARN se publica en el parámetro SSM `/dev/tms/common-layer-arn`, que leen los módulos. |
 | Stack + Lambda | `dev-tms-auth` / `dev-tms-auth-auth-api` | 512 MB, 15 s. Login, signup, sesión, logout. |
 | Stack + Lambda | `dev-tms-data` / `dev-tms-data-data-api` | 512 MB, 29 s. API genérica con permisos y auditoría. |
 | Stack + Lambda | `dev-tms-context` / `dev-tms-context-context-api` | 512 MB, 15 s. Jerarquía país→almacén→cliente y puntos de entrega. |
 | Stack + Lambda | `dev-tms-eflow` / `dev-tms-eflow-eflow-api` | 512 MB, 29 s. EFLOW en **mock**. |
 | Stack + Lambda | `dev-tms-admin` / `dev-tms-admin-admin-api` | 512 MB, 15 s. Usuarios, roles, permisos, auditoría. |
-| Lambda + schedule | `dev-tms-admin-audit-maintenance` | 256 MB, 30 s. Schedule `dev-tms-admin-audit-maintenance` (ENABLED): día 1 de cada mes 06:00 hora de Costa Rica. Probado a mano: OK. |
+| Lambda + schedule | `dev-tms-admin-audit-maintenance` | 256 MB, 30 s. Schedule `dev-tms-admin-audit-maintenance` (ENABLED): lunes a viernes 06:00 hora de Costa Rica (idempotente; no el día 1 porque puede caer en fin de semana con Aurora apagada). Probado a mano: OK. |
 | Stack + Lambda | `dev-tms-planning` / `dev-tms-planning-planning-api` | 512 MB, 15 s. Pedidos para Planificación. |
 | Parámetro SSM | `/dev/tms/common-layer-arn` | ARN de la versión vigente de la Layer (lo mantiene el script). |
 | App Amplify | `dev-tms-frontend` (`d1q6tzcx0ew3rk`), rama `sandbox` | Deploy manual por zip, regla SPA (toda ruta → `index.html`). |
@@ -116,6 +119,29 @@ Lo crea y actualiza `npm run deploy:sandbox` (idempotente; redesplegar sin cambi
 Todas las Lambdas de módulo corren en las 3 subnets privadas de Aurora con el SG `sg-06b3986a1f95d2f19`, leen
 `/dev/tms/db-app` por el endpoint VPC y entran a Aurora como `tms_app`. Probado: login contra Aurora, bitácora
 registrando el origen (`dev-tms-auth-auth-api POST /api/auth/login`) y la IP, CORS desde el dominio de Amplify.
+
+## 2b. Horario de encendido (ahorro de costos, 2026-09-24)
+
+Decisión del usuario: los servidores del TMS funcionan **lunes a viernes de 05:00 a 17:00 hora de Costa Rica**.
+Stack `dev-tms-horarios` (`infra/horarios/template.yaml`, se despliega con `deploy_backend.py horarios`).
+
+| Schedule | Cuándo (America/Costa_Rica) | Qué hace |
+|---|---|---|
+| `dev-tms-horarios-encender-aurora` | L-V 04:45 | `rds:StartDBCluster db-tms-olo` (tarda unos minutos: lista a las 05:00) |
+| `dev-tms-horarios-encender-bastion` | L-V 04:45 | `ec2:StartInstances i-062fc98e8e26c0f79` |
+| `dev-tms-horarios-apagar-aurora` | L-V 17:00 | `rds:StopDBCluster db-tms-olo` (escritora y lectora) |
+| `dev-tms-horarios-apagar-bastion` | L-V 17:00 | `ec2:StopInstances i-062fc98e8e26c0f79` |
+
+- Rol `dev-tms-horarios-SchedulerRole-ZQvdSz2CG4Fb`: solo puede encender/apagar **ese** cluster y **ese** bastión
+  (verificado: sobre `mayoreo-sac` le da denegado).
+- **No se apagan** (cobran por uso, no por hora): Lambdas, API Gateway, Amplify, Secrets Manager. El endpoint VPC de
+  Secrets Manager cobra por hora pero no se puede apagar (solo borrar).
+- **Ahorro estimado:** Aurora 2 × `db.t3.medium` pasa de ~730 h/mes a ~265 h/mes → de ~USD 120 a ~USD 44 al mes
+  (el almacenamiento se sigue cobrando). Bastión `t2.micro`: ~USD 5 menos al mes.
+- **Fuera de horario** Aurora está apagada: el sandbox, `npm run api:local`, el túnel y las migraciones no funcionan.
+  Para trabajar fuera de horario hay que encenderla a mano (consola RDS → `db-tms-olo` → Start, o
+  `aws rds start-db-cluster --db-cluster-identifier db-tms-olo --region us-east-2`) y el bastión (EC2 → Start). Se
+  vuelve a apagar sola a las 17:00 del siguiente día hábil. `ext.claude` hoy no tiene permiso para encenderla a mano.
 
 ## 3. En la cuenta pero NO son del TMS (no tocar)
 
@@ -147,3 +173,4 @@ registrando el origen (`dev-tms-auth-auth-api POST /api/auth/login`) y la IP, CO
 | 2026-09-24 | Primer despliegue: creados `/dev/tms/jwt`, `/dev/tms/eflow`, parámetros SSM de red, endpoint `vpce-0b54105ec48f87b0a` y bucket de artefactos. `dev-tms-common-services` falló dos veces (el stage de API Gateway exige `apigateway:TagResource`, que la política no da); stack borrado, quedan 2 versiones de la Layer. | Claude |
 | 2026-09-24 | Política: `ApiGatewayHttp` pasa a `apigateway:*` (el stage exige `apigateway:TagResource`). | Usuario |
 | 2026-09-24 | **Backend y frontend desplegados en el sandbox** (§2). Cambios para lograrlo: schedule con nombre `dev-tms-*`; la Layer se publica por SSM (`/dev/tms/common-layer-arn`) en vez de export (un export en uso bloquea versiones nuevas); build determinista; CORS con `PUT`. | Claude |
+| 2026-09-24 | Borradas las versiones 1–4 de la Layer (queda la 5, en uso). Horario de servidores: stack `dev-tms-horarios` (Aurora y bastión L-V 04:45–17:00 CR). Mantenimiento de la bitácora pasa a días hábiles 06:00. | Claude |
