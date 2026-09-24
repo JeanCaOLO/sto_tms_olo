@@ -3,7 +3,7 @@
 POINT_SQL = """
 SELECT dp.id, dp.external_code, dp.name, dp.route_code, dp.wms_zone_code, dp.zone_id, dp.is_default, dp.active,
        dp.delivery_instructions, fc.id AS final_customer_id, fc.customer_id,
-       a.id AS address_id, a.line1, a.line2, a.city, a.state, a.latitude, a.longitude, a.geocoding_status
+       a.id AS address_id, a.country_id, a.line1, a.line2, a.city, a.state, a.latitude, a.longitude, a.geocoding_status
 FROM delivery_points dp
 JOIN final_customers fc ON fc.id = dp.final_customer_id
 LEFT JOIN addresses a ON a.id = dp.address_id

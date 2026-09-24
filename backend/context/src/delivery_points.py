@@ -2,11 +2,12 @@
 
 Un punto toca tres tablas (final_customers, addresses, delivery_points): desde
 el navegador por /api/data serían tres escrituras sueltas. Aquí van en una
-transacción y con la autorización por scope del cliente dueño.
+transacción, con la acción del módulo `puntos_entrega` de la matriz de
+permisos (sql/15) y la autorización por scope del cliente dueño.
 La LISTA sigue por la API genérica (ver backend/README.md).
 """
 
-from tms_common import pg
+from tms_common import permissions, pg
 from tms_common.errors import HttpError
 from tms_common.event import auth_user, json_body, path_param
 from tms_common.responses import json_response
@@ -18,6 +19,15 @@ ADDRESS_FIELDS = ("line1", "line2", "city", "state")
 POINT_FIELDS = ("name", "delivery_instructions", "zone_id", "route_code", "active")
 GEO_OK, GEO_PENDING = "OK", "PENDING"
 LAT_RANGE, LON_RANGE = (-90.0, 90.0), (-180.0, 180.0)
+MODULE = "puntos_entrega"
+
+
+def _require(event: dict, action: str, country_id: object = None) -> None:
+    caller = permissions.for_event(event)
+    caller.require(MODULE, action)
+    allowed = caller.country_filter
+    if allowed is not None and country_id is not None and str(country_id) not in allowed:
+        raise HttpError(403, "Tu rol no tiene acceso a ese país.")
 
 
 def _ok(row: dict) -> dict:
@@ -79,6 +89,7 @@ def create_point(event: dict) -> dict:
     code, name = _required(body, "external_code", "El código"), _required(body, "name", "El nombre")
     address = _address_values(body.get("address") or {})
     country = pg.query(sql.CUSTOMER_COUNTRY_SQL, [customer_id])[0]["country_id"]
+    _require(event, "create", country)
     with pg.transaction() as run:
         fc_id = _final_customer(run, customer_id, code, name)
         if run(sql.POINT_EXISTS_SQL, [fc_id, code]):
@@ -89,14 +100,15 @@ def create_point(event: dict) -> dict:
     return _ok(_point(str(point_id)))
 
 
-def _authorized_point(event: dict) -> dict:
+def _authorized_point(event: dict, action: str) -> dict:
     point = _point(path_param(event, "id"))
+    _require(event, action, point.get("country_id"))
     authorize(auth_user(event), customer_id=str(point["customer_id"]))
     return point
 
 
 def update_point(event: dict) -> dict:
-    point, body = _authorized_point(event), _body(event)
+    point, body = _authorized_point(event, "edit"), _body(event)
     fields = {key: (body[key] or None) if key != "active" else bool(body[key]) for key in POINT_FIELDS if key in body}
     if "name" in fields and not fields["name"]:
         raise HttpError(400, "El nombre es obligatorio")
@@ -111,7 +123,7 @@ def update_point(event: dict) -> dict:
 
 
 def delete_point(event: dict) -> dict:
-    point = _authorized_point(event)
+    point = _authorized_point(event, "delete")
     with pg.transaction() as run:
         run(sql.DELETE_POINT_SQL, [point["id"]])
         if point["address_id"]:

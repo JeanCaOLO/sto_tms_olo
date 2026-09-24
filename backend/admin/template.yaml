@@ -71,6 +71,50 @@ Resources:
         - ApiId:
             Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
 
+  PermissionsCatalogRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/v1/admin/permissions/catalog
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${AdminApiIntegration}
+
+  RolePermissionsGetRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/v1/admin/roles/{id}/permissions
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${AdminApiIntegration}
+
+  RolePermissionsPutRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: PUT /api/v1/admin/roles/{id}/permissions
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${AdminApiIntegration}
+
+  MyPermissionsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/v1/me/permissions
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${AdminApiIntegration}
+
   UsersListRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:

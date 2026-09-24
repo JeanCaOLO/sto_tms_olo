@@ -18,7 +18,7 @@ backend/
   data/             /api/data/{table}   CRUD genérico (lista blanca de tablas y columnas)
   context/          /api/v1/...         Jerarquía país → almacén → cliente, filtrada por scope
   eflow/            /api/health, /api/viajes..., /api/catalogos/...   Lectura de EFLOW por país (modo mock por defecto)
-  admin/            /api/v1/admin/users|roles   CRUD de usuarios, alcances y roles (solo administradores)
+  admin/            /api/v1/admin/users|roles|permissions, /api/v1/me/permissions   Usuarios, roles y matriz de permisos
   planning/         /api/v1/planificacion/pedidos   Pedidos alistados por fecha de entrega (insumo de Planificación)
   local/            serve.py (Lambdas locales en :4000) y create_admin.py (primer administrador)
   tests/            pytest (sin AWS ni BD: todo con dobles)
@@ -42,6 +42,7 @@ Cada módulo es un stack SAM propio (`template.yaml` + `samconfig.toml` con dev/
 
 - El login usa `auth_credentials` (bcrypt) + `app_users` en Aurora. Un usuario con `is_active = false` no puede entrar (403); la API lo expone como `status: inactive`.
 - **Administración** (`/api/v1/admin/*`, pantalla Configuración → Usuarios / Roles): crear un usuario escribe credencial + `app_users` + `user_scopes` en **una transacción**; borrar elimina las tres cosas. Solo pueden usarla los roles `SuperAdministrador`, `SuperUsuario`, `Administrador` y `Admin` (`admin/src/admin_access.py`). Un admin no puede borrarse ni desactivarse a sí mismo, y un rol asignado no se puede borrar.
+- **Matriz de permisos** (`sql/15`, `tms_common/permissions.py`): cada rol tiene módulo × acción (`view, create, edit, delete, export`; un módulo por ítem del menú, tabla `app_modules`) y los países que ve (`roles.all_countries` o `role_countries`). Los roles administradores tienen todo por código. Endpoints: `GET /api/v1/me/permissions` (cualquier usuario: su matriz efectiva), `GET /api/v1/admin/permissions/catalog`, `GET|PUT /api/v1/admin/roles/{id}/permissions` (solo administradores; el PUT reemplaza la matriz completa en una transacción). **Enforcement:** la API genérica exige `create`/`edit`/`delete` del módulo dueño de la tabla (`data/src/table_modules.py`; tabla sin módulo → solo administradores) y filtra las lecturas por los países del rol en `countries` y en las tablas con `country_id` (las filas sin país son compartidas y se ven). No filtra todavía las tablas embebidas ni exige `view` para leer (las pantallas leen catálogos de otros módulos para sus selectores): eso lo cubre el frontend ocultando los módulos sin `view`.
 - Alcance: `Global` (fila de `user_scopes` sin país/almacén/cliente) o una o más combinaciones país › almacén › cliente.
 - La API genérica `/api/data` **ya no permite escribir** `app_users`, `roles` ni `user_scopes` (403): cualquier usuario logueado podía cambiarse el rol.
 - **Primer administrador** (la API exige ya ser admin):
@@ -73,7 +74,7 @@ Mientras no haya red desde AWS hacia los SQL Server de EFLOW, el stack `eflow` s
 
 Modelo: cliente (`customers`) → cliente final (`final_customers`) → punto (`delivery_points`) → dirección (`addresses`).
 La lista va por la API genérica; **alta/edición/baja** van por `POST /api/v1/delivery-points`,
-`PATCH|DELETE /api/v1/delivery-points/{id}` (módulo `context`, atómico y autorizado por el scope del cliente).
+`PATCH|DELETE /api/v1/delivery-points/{id}` (módulo `context`, atómico, con la acción del módulo `puntos_entrega` de la matriz y autorizado por el scope del cliente).
 `stores` queda solo para la bodega de origen (`CD-CR`).
 
 ## Carga de puntos de entrega desde el WMS

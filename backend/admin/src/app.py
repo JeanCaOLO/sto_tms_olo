@@ -7,6 +7,7 @@ usuario + alcances) y solo la puede hacer un administrador.
 
 from tms_common.handler import tms_handler
 
+import admin_permissions as permissions
 import admin_roles as roles
 import admin_users as users
 
@@ -20,6 +21,10 @@ ROUTES = {
     "POST /api/v1/admin/roles": roles.create_role,
     "PATCH /api/v1/admin/roles/{id}": roles.update_role,
     "DELETE /api/v1/admin/roles/{id}": roles.delete_role,
+    "GET /api/v1/admin/permissions/catalog": permissions.catalog,
+    "GET /api/v1/admin/roles/{id}/permissions": permissions.get_role_permissions,
+    "PUT /api/v1/admin/roles/{id}/permissions": permissions.put_role_permissions,
+    "GET /api/v1/me/permissions": permissions.my_permissions,
 }
 
 handler = tms_handler(ROUTES)

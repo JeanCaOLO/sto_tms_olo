@@ -76,10 +76,35 @@ def _limit_value(limit: Any) -> int:
     return int(text)
 
 
-def build_list_query(table: str, select: str | None, filters: list | None,
-                     order: dict | None = None, limit: Any = None) -> tuple[str, list]:
-    fields = build_field_list(table, parse_select(select), ROOT_ALIAS, count())
+def _country_clause(table: str, alias: str, country_ids: tuple[str, ...] | None, params: list) -> str | None:
+    """Países que ve el rol (sql/15). None = todos. Las filas sin país son compartidas y se ven."""
+    if country_ids is None:
+        return None
+    if table == "countries":
+        column, keep_null = "id", False
+    elif "country_id" in table_columns(table):
+        column, keep_null = "country_id", True
+    else:
+        return None
+    ref = f"{alias}.{quote(column)}"
+    null_clause = f"{ref} IS NULL" if keep_null else "FALSE"
+    if not country_ids:
+        return null_clause
+    params.extend(country_ids)
+    return f"({ref} IN ({','.join(['%s'] * len(country_ids))}) OR {null_clause})"
+
+
+def _scoped_where(table: str, filters: list | None, country_ids: tuple[str, ...] | None) -> tuple[str, list]:
     clause, params = build_where(table, ROOT_ALIAS, filters)
+    country = _country_clause(table, ROOT_ALIAS, country_ids, params)
+    return " AND ".join(c for c in (clause, country) if c), params
+
+
+def build_list_query(table: str, select: str | None, filters: list | None,
+                     order: dict | None = None, limit: Any = None,
+                     country_ids: tuple[str, ...] | None = None) -> tuple[str, list]:
+    fields = build_field_list(table, parse_select(select), ROOT_ALIAS, count())
+    clause, params = _scoped_where(table, filters, country_ids)
     sql = f"SELECT {', '.join(fields)} FROM {quote(table)} {ROOT_ALIAS}"
     if clause:
         sql += f" WHERE {clause}"
@@ -92,8 +117,9 @@ def build_list_query(table: str, select: str | None, filters: list | None,
     return sql, params
 
 
-def build_count_query(table: str, filters: list | None) -> tuple[str, list]:
-    clause, params = build_where(table, ROOT_ALIAS, filters)
+def build_count_query(table: str, filters: list | None,
+                      country_ids: tuple[str, ...] | None = None) -> tuple[str, list]:
+    clause, params = _scoped_where(table, filters, country_ids)
     sql = f"SELECT count(*)::int AS count FROM {quote(table)} {ROOT_ALIAS}"
     if clause:
         sql += f" WHERE {clause}"

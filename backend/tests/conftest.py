@@ -19,7 +19,7 @@ STACK_SOURCES = {
     "admin": BACKEND / "admin" / "src",
     "planning": BACKEND / "planning" / "src",
 }
-STACK_MODULES = {"app", "relations", "schema", "select_parser", "select_query", "mutations",
+STACK_MODULES = {"app", "table_modules", "admin_permissions", "relations", "schema", "select_parser", "select_query", "mutations",
                  "scopes", "context_queries", "eflow_queries", "live_source", "mock_source",
                  "admin_access", "admin_payload", "admin_sql", "admin_users", "admin_roles", "planning_sql", "delivery_points", "delivery_points_sql"}
 
@@ -72,3 +72,28 @@ def fake_columns():
     }
     yield schema
     schema._columns = None
+
+
+def make_permissions(modules=None, *, is_admin=False, countries=None):
+    """Permisos de prueba. countries=None → todos los países; tupla → solo esos."""
+    from tms_common.permissions import ACTIONS, Permissions
+    grants = {key: frozenset(ACTIONS if actions == "*" else actions) for key, actions in (modules or {}).items()}
+    return Permissions("app-user", "role-1", "Admin" if is_admin else "Operaciones", is_admin, grants,
+                       countries is None, tuple(countries or ()))
+
+
+@pytest.fixture(autouse=True)
+def caller_permissions(monkeypatch):
+    """Por defecto quien llama es administrador; un test lo cambia con .set(...)."""
+    from tms_common import permissions
+
+    class Holder:
+        value = make_permissions(is_admin=True)
+
+        def set(self, value):
+            self.value = value
+
+    holder = Holder()
+    monkeypatch.setattr(permissions, "for_event", lambda event: holder.value)
+    return holder
+

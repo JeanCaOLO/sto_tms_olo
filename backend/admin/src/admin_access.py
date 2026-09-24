@@ -5,8 +5,7 @@ from dataclasses import dataclass
 from tms_common import pg
 from tms_common.errors import HttpError
 from tms_common.event import auth_user
-
-ADMIN_ROLES = frozenset({"SuperAdministrador", "SuperUsuario", "Administrador", "Admin"})
+from tms_common.permissions import ADMIN_ROLES
 
 CALLER_SQL = """
 SELECT u.id, u.organization_id, COALESCE(u.is_active, true) AS is_active, r.name AS role_name
