@@ -51,6 +51,9 @@
   "private": true,
   "scripts": {
     "build": "vite build",
+    "deploy:sandbox": "python scripts/sandbox/deploy_backend.py && python scripts/sandbox/deploy_frontend.py",
+    "deploy:sandbox:backend": "python scripts/sandbox/deploy_backend.py",
+    "deploy:sandbox:frontend": "python scripts/sandbox/deploy_frontend.py",
     "dev": "vite",
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",

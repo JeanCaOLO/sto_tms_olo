@@ -108,3 +108,6 @@ backend/.pytest_cache/
 # Enlaces que crea `orca skills install --local` con rutas absolutas de la máquina
 .claude/skills/orca-cli
 .claude/skills/orchestration
+
+# Artefactos de despliegue al sandbox (scripts/sandbox/)
+build/

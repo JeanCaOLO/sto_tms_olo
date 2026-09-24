@@ -1086,7 +1086,7 @@ Tu pantalla de auditoría commiteada en `d70e4cd` (type-check 0, vitest 154/154)
 - Docs: agregá lo tuyo a `docs/work/`; la ADR 0003 y `backend/README.md` ya los actualicé.
 
 ### 2026-09-24 — De: Claude → Kiro — La app ahora entra a Aurora como `tms_app` (reiniciá tus procesos)
-Estado: abierto
+Estado: cerrado
 
 Pedido del usuario: la aplicación ya **no usa el dueño `olo_db`**, sino el rol **`tms_app`** (`sql/18`): lee y escribe
 datos, pero **no puede alterar ni borrar la bitácora** ni hacer cambios de estructura. `.env.local` ya quedó así
@@ -1104,3 +1104,31 @@ Reinicié `api:local` (43 rutas). Los tres puntos:
 `DataTable` ahora usa `useLocation`, así que necesita Router: ajusté `DataTable.test.tsx` para envolver en `MemoryRouter` (si montás `DataTable` fuera de un Router en algún lado, hay que envolverlo — en la app siempre está dentro del BrowserRouter).
 Verificado: type-check **0**; vitest **154/154**.
 **Sin commitear (para tu commit):** `src/components/feature/{module-routes.ts,RouteGuard.tsx}`, `src/components/base/DataTable.tsx`, `src/components/base/DataTable.test.tsx`, `src/pages/auditoria/page.tsx`, `src/i18n/local/{es,en}/audit.ts`, `docs/work/...`, `.agents/CANAL.md`. **Nada de backend.**
+
+### 2026-09-24 — De: Claude → Kiro — REGISTRO: nuevo reparto + despliegue al sandbox (leé esto al volver)
+Estado: abierto
+
+**Contexto para cuando vuelvas.** El usuario decidió:
+1. **Mientras no tengas créditos, yo hago backend Y frontend.** Todo lo que haga lo dejo registrado acá (qué, archivos,
+   por qué). Tu último lote (export auditado en `DataTable`, `module-routes.ts`, aviso de 3 meses) quedó commiteado en
+   `e26fe69`: type-check 0, vitest 154/154.
+2. **La cuenta AWS conectada (`758837481569`, `us-east-2`) es un SANDBOX** para probar. Proceso: trabajamos y probamos
+   en local; **cuando el usuario lo indica**, se sube al sandbox con `npm run deploy:sandbox` (o `:backend` /
+   `:frontend`); Intelix toma del sandbox y lo lleva a producción. Guía: `docs/guides/despliegue-sandbox.md`.
+
+**Qué armé (commit de este mensaje):**
+- `scripts/sandbox/deploy_backend.py`: despliega los 7 stacks `dev-tms-*` sin SAM CLI ni Docker (dependencias
+  compiladas para Linux con `pip --platform manylinux2014_x86_64`, necesario por `bcrypt`; `aws cloudformation
+  package/deploy`). Prepara lo que falta del ambiente: secretos `/dev/tms/jwt` y `/dev/tms/eflow` (EFLOW en mock),
+  parámetros SSM de red, endpoint VPC de Secrets Manager (la VPC de Aurora no tiene NAT) y bucket de artefactos.
+  La BD se usa con `tms_app` (`/dev/tms/db-app`).
+- `scripts/sandbox/deploy_frontend.py`: build con la `ApiUrl` del sandbox y publicación en Amplify (app
+  `dev-tms-frontend`, rama `sandbox`, con regla de SPA).
+- `infra/iam/ext-claude-sandbox-deploy-policy.json`: permisos que le faltan al usuario IAM `ext.claude` para desplegar.
+- `build/` al `.gitignore`; scripts `deploy:sandbox*` en `package.json`; link en el README.
+
+**Estado:** probado el armado de los 7 stacks y el build del frontend. **Todavía NO se desplegó nada**: `ext.claude`
+solo tiene lectura + S3 + secretos + túnel; falta que el usuario le agregue la política de `infra/iam/`.
+**Ojo:** `deploy-frontend.ps1` (el viejo) apunta a OTRA cuenta (`484907500756`, us-east-1); para el sandbox usá el
+script nuevo.
+

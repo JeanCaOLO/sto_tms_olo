@@ -107,6 +107,8 @@ Nunca commitear credenciales. `.env` y `.env.local` están en `.gitignore`. Plan
 
 ## Despliegue
 
+> **Sandbox de AWS** (cuenta `758837481569`, `us-east-2`): se trabaja en local y, cuando se indica, `npm run deploy:sandbox` sube backend y frontend. Intelix toma del sandbox y despliega a producción. Guía: [`docs/guides/despliegue-sandbox.md`](docs/guides/despliegue-sandbox.md).
+
 ### Frontend → AWS Amplify
 
 Build de Vite (`out/`) servido en Amplify como SPA.
