@@ -51,6 +51,46 @@ Resources:
           TMS_DB_SECRET_NAME:
             Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName
 
+  AuditMaintenanceLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-audit-maintenance
+      RetentionInDays: !If [IsProduction, 30, 7]
+
+  # Crea cada mes las particiones de los próximos meses de audit.events (sql/17).
+  AuditMaintenanceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-audit-maintenance
+      Description: TMS - ADMIN | Particiones mensuales de la bitácora de auditoría
+      CodeUri: src/
+      Handler: audit_maintenance.handler
+      Runtime: python3.13
+      Architectures: [x86_64]
+      Timeout: 30
+      MemorySize: 256
+      Role:
+        Fn::ImportValue: !Sub ${CommonStackName}-LambdaRoleArn
+      Layers:
+        - Fn::ImportValue: !Sub ${CommonStackName}-CommonLayerArn
+      VpcConfig:
+        SubnetIds: !Ref SubnetIds
+        SecurityGroupIds: [!Ref SecurityGroupId]
+      LoggingConfig:
+        LogFormat: JSON
+        LogGroup: !Ref AuditMaintenanceLogGroup
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+          TMS_DB_SECRET_NAME:
+            Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName
+      Events:
+        Monthly:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: cron(0 6 1 * ? *)
+            ScheduleExpressionTimezone: America/Costa_Rica
+
   AdminApiIntegration:
     Type: AWS::ApiGatewayV2::Integration
     Properties:

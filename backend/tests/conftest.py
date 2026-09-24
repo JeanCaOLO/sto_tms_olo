@@ -19,7 +19,7 @@ STACK_SOURCES = {
     "admin": BACKEND / "admin" / "src",
     "planning": BACKEND / "planning" / "src",
 }
-STACK_MODULES = {"app", "table_modules", "admin_permissions", "admin_audit", "relations", "schema", "select_parser", "select_query", "mutations",
+STACK_MODULES = {"app", "table_modules", "admin_permissions", "admin_audit", "audit_maintenance", "relations", "schema", "select_parser", "select_query", "mutations",
                  "scopes", "context_queries", "eflow_queries", "live_source", "mock_source",
                  "admin_access", "admin_payload", "admin_sql", "admin_users", "admin_roles", "planning_sql", "delivery_points", "delivery_points_sql"}
 

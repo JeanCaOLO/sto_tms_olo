@@ -14,6 +14,8 @@ MODULE = "auditoria"
 DEFAULT_LIMIT, MAX_LIMIT = 50, 200
 CLIENT_ACTIONS = frozenset({"view", "export", "print", "download"})
 MAX_METADATA_BYTES = 4096
+# Sin "from": últimos 3 meses (acceso rápido: solo se leen esas particiones, sql/17).
+DEFAULT_WINDOW = "occurred_at >= now() - interval '3 months'"
 
 LIST_COLUMNS = ("id, occurred_at, actor_type, app_user_id, actor_email, role_name, source, action, module_key, "
                 "entity_table, entity_id, changes, request_id, ip")
@@ -59,6 +61,8 @@ def _where(params: dict) -> tuple[str, list]:
         if raw not in (None, ""):
             clauses.append(clause)
             args.append(_value(name, str(raw), kind))
+    if params.get("from") in (None, ""):
+        clauses.insert(0, DEFAULT_WINDOW)
     return (" WHERE " + " AND ".join(clauses)) if clauses else "", args
 
 
@@ -70,7 +74,8 @@ def _limit(params: dict) -> int:
 
 
 def list_events(event: dict) -> dict:
-    """Más reciente primero; paginación por cursor: next_cursor → ?before_id=."""
+    """Más reciente primero; paginación por cursor: next_cursor → ?before_id=.
+    Sin `from` mira los últimos 3 meses; para más atrás hay que pedir `from`."""
     perms.for_event(event).require(MODULE, "view")
     params = query_params(event)
     where, args = _where(params)

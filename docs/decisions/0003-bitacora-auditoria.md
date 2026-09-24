@@ -29,7 +29,7 @@ Dos caminos complementarios que escriben en una sola tabla `audit.events`:
 ## Consequences
 
 - **Positive**: ninguna escritura se escapa, venga de donde venga; la persona queda identificada cuando la acción viene de la app; lo automático queda marcado como `system` con su origen; la bitácora no se puede alterar desde la aplicación.
-- **Negative**: una fila extra de auditoría por fila escrita (una ingesta de 1576 puntos = 1576 eventos) y dos consultas extra (`set_config`) por request que escribe. La tabla crece sin límite: hará falta particionar por mes y definir retención cuando el volumen lo pida.
+- **Negative**: una fila extra de auditoría por fila escrita (una ingesta de 1576 puntos = 1576 eventos) y dos consultas extra (`set_config`) por request que escribe.
 - **Neutral**: una tabla nueva **no se audita sola**: hay que registrarla en `audit.tracked_tables` y volver a correr el bloque que crea los triggers (está al final de `sql/16`).
 
 ## Migration notes
@@ -38,7 +38,21 @@ Dos caminos complementarios que escriben en una sola tabla `audit.events`:
 - Las escrituras que pasan por el Express legado (`server/`) quedan como `system` (no fija actor). Motivo más para retirarlo.
 - Los scripts nuevos que escriban en Aurora deben fijar su origen: `SELECT set_config('tms.audit_actor', '{"type":"system","source":"<script>"}', false)`.
 
+## Retención y rendimiento (sql/17, 2026-09-24)
+
+Decisión del usuario: **la bitácora crece sin límite (no se borra nada), con acceso rápido a por lo menos los últimos 3 meses.**
+
+- `audit.events` está **particionada por mes** (`audit.events_YYYY_MM`, rango sobre `occurred_at`). Una consulta con rango de fechas solo lee esos meses, y cada mes tiene sus propios índices chicos.
+- `GET /api/v1/admin/audit` **sin `from` mira los últimos 3 meses**; para ir más atrás hay que pedir `from` (sigue todo disponible, solo lee más particiones).
+- Particiones creadas hasta 2027-12. `audit.ensure_partitions(meses)` crea las que falten; la Lambda `AuditMaintenanceFunction` (stack `admin`) la corre el día 1 de cada mes. Si no corriera, nada se pierde: las filas caen en `audit.events_default`.
+- Si algún día el volumen lo pide, los meses viejos se pueden **desadjuntar y archivar** (`DETACH PARTITION`, p. ej. a S3) sin tocar los recientes. Hoy no se archiva nada.
+
+## Rol de la aplicación (sql/18, 2026-09-24)
+
+La app debe conectarse como **`tms_app`**, no como el dueño `olo_db`: `tms_app` lee y escribe datos en `public` (también en tablas futuras), en `audit.events` solo puede **leer e insertar**, no es dueño de nada (no puede hacer DDL ni deshabilitar triggers) y ejecuta `audit.ensure_partitions` (SECURITY DEFINER). Las migraciones siguen con el dueño (`TMS_DB_ADMIN_*` en `.env.local`, que `scripts/run-migration.mjs` usa si existen).
+
+**Pendiente de activar:** el rol existe, pero todavía **sin contraseña**. Falta fijarla (`ALTER ROLE tms_app PASSWORD ...` como `olo_db`), guardarla en Secrets Manager (`/<env>/tms/db` debe tener `username: tms_app`) y en `.env.local` (`TMS_DB_USER=tms_app`, más `TMS_DB_ADMIN_USER/PASSWORD` = `olo_db`).
+
 ## Open coordination points
 
-- **Retención y partición** de `audit.events`: definir con el negocio cuánto tiempo se guarda.
-- **Privilegios**: la app usa el dueño de la tabla (`olo_db`), que técnicamente podría deshabilitar el trigger. Para auditoría fuerte, Intelix debería separar un rol de BD de la aplicación sin permisos de DDL sobre `audit`.
+- **Privilegios**: resuelto con `tms_app` (sql/18); falta activarlo (ver arriba). El usuario IAM `ext.claude` no tiene `secretsmanager:CreateSecret`, así que el secreto lo tiene que crear alguien con permiso (o Intelix al desplegar `backend/secrets`).

@@ -50,8 +50,10 @@ const sql = rawSql
 const pool = new pg.Pool({
   host: process.env.TMS_DB_HOST || 'localhost',
   port: Number(process.env.TMS_DB_PORT) || 5432,
-  user: process.env.TMS_DB_USER,
-  password: process.env.TMS_DB_PASSWORD,
+  // Las migraciones hacen DDL: van con el DUEÑO de las tablas (TMS_DB_ADMIN_*).
+  // La app usa tms_app (sql/18), que no puede hacer DDL. Sin ADMIN_* cae al usuario de la app.
+  user: process.env.TMS_DB_ADMIN_USER || process.env.TMS_DB_USER,
+  password: process.env.TMS_DB_ADMIN_PASSWORD || process.env.TMS_DB_PASSWORD,
   database: process.env.TMS_DB_NAME || 'tms_olo',
   ssl: { rejectUnauthorized: false },
   // Origen en audit.events (sql/16) de lo que cambie una migración.

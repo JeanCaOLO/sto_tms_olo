@@ -156,3 +156,20 @@ def test_client_event_is_recorded_and_validated(admin_app, audit_calls):
     state["module_exists"] = False
     bad_module = app.handler(_event("POST /api/v1/audit/events", body={"action": "view", "module_key": "x"}), None)
     assert bad_action["statusCode"] == bad_module["statusCode"] == 400
+
+
+def test_list_defaults_to_the_last_three_months(admin_app):
+    app, calls, _ = admin_app
+    app.handler(_event("GET /api/v1/admin/audit"), None)
+    app.handler(_event("GET /api/v1/admin/audit", query={"from": "2025-01-01T00:00:00Z"}), None)
+    assert "occurred_at >= now() - interval '3 months'" in calls[0][0]
+    assert "interval '3 months'" not in calls[1][0]
+
+
+def test_maintenance_creates_the_next_months(monkeypatch):
+    calls = []
+    monkeypatch.setattr(pg, "query", lambda sql, params=(): calls.append((sql, params)) or [{"created": 2}])
+    maintenance = load_stack_module("admin", "audit_maintenance")
+    assert maintenance.handler({}, None) == {"created": 2}
+    assert calls == [("SELECT audit.ensure_partitions(%s) AS created", [3])]
+
