@@ -14,7 +14,7 @@ capacidad no asigne camiones con datos inventados.
 
 import re
 
-from tms_common import pg
+from tms_common import permissions, pg
 from tms_common.errors import HttpError
 from tms_common.event import auth_user, query_params
 from tms_common.handler import tms_handler
@@ -46,6 +46,7 @@ def _organization(event: dict) -> str:
 
 
 def list_orders(event: dict) -> dict:
+    permissions.for_event(event).require("planificacion", "view")
     date_sql, date_params = _date_filter(query_params(event))
     rows = pg.query(ORDERS_SQL.format(delivery_date=date_sql), [_organization(event), *date_params])
     return json_response(200, {"data": rows, "error": None})

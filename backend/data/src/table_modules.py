@@ -1,7 +1,9 @@
-"""Módulo de la matriz de permisos (sql/15) dueño de cada tabla de la API genérica.
+"""Módulos de la matriz de permisos (sql/15) para cada tabla de la API genérica.
 
-Crear/editar/borrar en una tabla exige esa acción en su módulo. Una tabla sin
-módulo solo la escribe un administrador (fail-closed).
+Escribir: crear/editar/borrar exige esa acción en el módulo DUEÑO de la tabla.
+Leer: exige `view` en alguno de los módulos cuyas pantallas leen la tabla
+(READ_MODULES, sacado del uso real en src/pages/**; si no figura, el dueño).
+Una tabla sin módulo solo la usa un administrador (fail-closed).
 """
 
 TABLE_MODULES: dict[str, str] = {
@@ -29,3 +31,32 @@ TABLE_MODULES: dict[str, str] = {
 
 def module_for(table: str) -> str | None:
     return TABLE_MODULES.get(table)
+
+
+OMS_MODULES = ("oms.panel", "oms.cola", "oms.reglas", "oms.simulador", "oms.rutas", "oms.auditoria")
+
+# Catálogos de referencia: los lee cualquier usuario (igual se filtran por sus países).
+SHARED_READ = frozenset({"countries", "zones"})
+
+# Quien no tenga `view` en estos módulos solo lee su propia fila de app_users (la usa el login).
+APP_USERS_READERS = ("conductores", "transportistas", "paises", "configuracion")
+
+READ_MODULES: dict[str, tuple[str, ...]] = {
+    "customers": ("clientes", "puntos_entrega"),
+    "carriers": ("conductores", "tarifas", "transportistas", "vehiculos"),
+    "drivers": ("conductores", "tarifas", "transportistas"),
+    "driver_license_types": ("conductores", "licencias"),
+    "vehicles": ("tarifas", "transportistas", "vehiculos"),
+    "dispatch_guides": ("dashboard", "guias", "tarifas", "tracking"),
+    "orders": ("dashboard", "devoluciones", "guias", "pedidos", "reportes"),
+    "returns": ("dashboard", "devoluciones", "tarifas", "reportes"),
+    "routes": ("dashboard", "guias", "tarifas", "reportes", "tracking"),
+    "stores": ("tarifas", "paises", "puntos_entrega"),
+    "wms_expediciones": (*OMS_MODULES, "planificacion"),
+}
+
+
+def read_modules(table: str) -> tuple[str, ...]:
+    owner = module_for(table)
+    return READ_MODULES.get(table) or ((owner,) if owner else ())
+

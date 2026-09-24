@@ -105,7 +105,7 @@ def test_write_to_a_country_the_role_does_not_see_is_403(data_app, caller_permis
 
 def test_reads_are_filtered_by_the_role_countries(data_app, caller_permissions):
     app, calls = data_app
-    caller_permissions.set(make_permissions(countries=("cr",)))
+    caller_permissions.set(make_permissions({"conductores": ["view"]}, countries=("cr",)))
     for table in ("carriers", "countries", "drivers"):
         app.handler(http_event("GET /api/data/{table}", path={"table": table}, user=USER), None)
     carriers, countries, drivers = calls
@@ -199,3 +199,41 @@ def test_me_permissions_returns_the_caller_matrix(matrix, caller_permissions):
     caller_permissions.set(make_permissions({"tracking": ["view"]}))
     response = app.handler(http_event("GET /api/v1/me/permissions", user=USER), None)
     assert body_of(response)["data"]["modules"] == {"tracking": ["view"]}
+
+
+# --- lectura: `view` en algún módulo que lea la tabla ----------------------------
+
+def _read(app, table):
+    return app.handler(http_event("GET /api/data/{table}", path={"table": table}, user=USER), None)
+
+
+def test_read_needs_view_in_some_module_that_reads_the_table(data_app, caller_permissions):
+    app, calls = data_app
+    caller_permissions.set(make_permissions({"tracking": ["view"]}))
+    assert _read(app, "drivers")["statusCode"] == 403 and not calls
+    caller_permissions.set(make_permissions({"dashboard": ["view"]}))
+    assert _read(app, "orders")["statusCode"] == 200  # el dashboard lee pedidos sin tener el módulo pedidos
+
+
+def test_reference_catalogs_are_readable_by_any_role(data_app, caller_permissions):
+    app, _ = data_app
+    caller_permissions.set(make_permissions())
+    assert _read(app, "countries")["statusCode"] == 200
+
+
+def test_app_users_is_limited_to_the_own_row_without_a_reader_module(data_app, caller_permissions):
+    app, calls = data_app
+    caller_permissions.set(make_permissions({"tracking": ["view"]}))
+    assert _read(app, "app_users")["statusCode"] == 200
+    assert '"auth_user_id" = %s' in calls[0][0] and calls[0][1] == [USER["id"]]
+    caller_permissions.set(make_permissions({"conductores": ["view"]}))
+    _read(app, "app_users")
+    assert "WHERE" not in calls[1][0]
+
+
+def test_planning_orders_need_planificacion_view(monkeypatch, caller_permissions):
+    monkeypatch.setattr(pg, "query", lambda sql, params=(): [{"organization_id": "org"}])
+    app = load_stack_module("planning")
+    caller_permissions.set(make_permissions({"tracking": ["view"]}))
+    denied = app.handler(http_event("GET /api/v1/planificacion/pedidos", user=USER), None)
+    assert denied["statusCode"] == 403

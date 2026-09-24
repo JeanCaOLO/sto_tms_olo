@@ -68,7 +68,8 @@ def fake_columns():
         "carriers": {"id", "name", "country_id"},
         "countries": {"id", "name"},
         "roles": {"id", "name"},
-        "app_users": {"id", "full_name", "role_id", "organization_id"},
+        "app_users": {"id", "full_name", "role_id", "organization_id", "auth_user_id"},
+        "orders": {"id", "status"},
     }
     yield schema
     schema._columns = None

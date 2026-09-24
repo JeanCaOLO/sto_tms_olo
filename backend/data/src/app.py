@@ -7,14 +7,14 @@ server/tms-routes.mjs, consumido por src/lib/supabase.ts. Requiere el JWT
 
 from tms_common import permissions, pg
 from tms_common.errors import HttpError
-from tms_common.event import json_body, parse_json_param, path_param, query_params
+from tms_common.event import auth_user, json_body, parse_json_param, path_param, query_params
 from tms_common.handler import tms_handler
 from tms_common.responses import json_response
 
 from mutations import build_delete_query, build_insert_query, build_update_query
 from schema import assert_table
 from select_query import build_count_query, build_list_query
-from table_modules import module_for
+from table_modules import APP_USERS_READERS, SHARED_READ, module_for, read_modules
 
 
 # Solo se escriben por /api/v1/admin (atómico y restringido a administradores);
@@ -48,6 +48,19 @@ def _require_allowed_countries(caller: permissions.Permissions, values: object) 
             raise HttpError(403, "Tu rol no tiene acceso a ese país.")
 
 
+def _readable(event: dict, table: str, caller: permissions.Permissions, filters: list) -> list:
+    """Devuelve los filtros a aplicar; 403 si el rol no ve ningún módulo que lea la tabla."""
+    if caller.is_admin or table in SHARED_READ:
+        return filters
+    if table == "app_users":
+        if any(caller.can(m, "view") for m in APP_USERS_READERS):
+            return filters
+        return [*filters, ["auth_user_id", "eq", auth_user(event)["id"]]]
+    if not any(caller.can(m, "view") for m in read_modules(table)):
+        raise HttpError(403, f'Tu rol no tiene permiso para ver "{table}".')
+    return filters
+
+
 def _body(event: dict) -> dict:
     body = json_body(event)
     return body if isinstance(body, dict) else {}
@@ -70,8 +83,9 @@ def _shape(rows: list[dict], params: dict) -> dict:
 def list_rows(event: dict) -> dict:
     table = _table(event)
     params = query_params(event)
-    filters = parse_json_param(params.get("filters"), "filters") or []
-    countries = permissions.for_event(event).country_filter
+    caller = permissions.for_event(event)
+    filters = _readable(event, table, caller, parse_json_param(params.get("filters"), "filters") or [])
+    countries = caller.country_filter
     if params.get("head") == "true":
         sql, args = build_count_query(table, filters, countries)
         total = pg.query(sql, args)[0]["count"]
