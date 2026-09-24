@@ -14,6 +14,7 @@ from .config import db_config
 from .errors import HttpError
 
 SOCKET_TIMEOUT_SECONDS = 25
+APPLICATION_NAME = "tms-api"  # origen en audit.events de lo que se escriba sin actor
 
 _connection = None
 
@@ -37,6 +38,7 @@ def _connect():
         database=cfg.get("dbname") or "tms_olo",
         ssl_context=_ssl_context(),
         timeout=SOCKET_TIMEOUT_SECONDS,
+        application_name=APPLICATION_NAME,
     )
     connection.autocommit = True
     return connection

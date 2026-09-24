@@ -54,6 +54,8 @@ const pool = new pg.Pool({
   password: process.env.TMS_DB_PASSWORD,
   database: process.env.TMS_DB_NAME || 'tms_olo',
   ssl: { rejectUnauthorized: false },
+  // Origen en audit.events (sql/16) de lo que cambie una migración.
+  application_name: `run-migration ${name}`,
 });
 
 async function ensureMigrationsTable(client) {

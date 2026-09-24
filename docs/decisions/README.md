@@ -45,4 +45,6 @@ Add new ADRs to this list with their status:
 
 | # | Title | Status |
 |---|-------|--------|
-| - | - | - |
+| 0001 | Margen de seguridad de capacidad y prioridades de optimización del ruteo | Accepted |
+| 0002 | Correr el backend del TMS en Lambdas Python con SAM | Accepted |
+| 0003 | Bitácora de auditoría: triggers de BD + actor por request | Accepted |

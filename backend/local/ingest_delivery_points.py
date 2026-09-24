@@ -16,6 +16,7 @@ Lee la conexión de .env.local y requiere el túnel a Aurora (scripts/tunel-auro
 """
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -26,7 +27,7 @@ from serve import load_env_files  # noqa: E402
 
 load_env_files()
 
-from tms_common import pg  # noqa: E402
+from tms_common import audit, pg  # noqa: E402
 
 from delivery_points_csv import DeliveryPointRow, read_rows  # noqa: E402
 from ingest_delivery_points_sql import (CREATE_STAGE_SQL, CUSTOMER_SQL, INSERT_FINAL_CUSTOMERS_SQL,  # noqa: E402
@@ -81,6 +82,8 @@ def main() -> None:
     args = parser.parse_args()
     rows = read_rows(args.csv)
     report: dict = {}
+    # Acción automática: en audit.events queda como `system` con este origen (sql/16).
+    pg.query(audit.SET_ACTOR_SQL, [json.dumps({"type": "system", "source": f"ingest_delivery_points {args.customer}"})])
     try:
         with pg.transaction() as run:
             report = ingest(run, args.customer, rows)

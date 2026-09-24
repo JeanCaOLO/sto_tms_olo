@@ -6,7 +6,7 @@ Los hashes existentes de bcryptjs ($2a$) son compatibles con `bcrypt`.
 
 from uuid import uuid4
 
-from tms_common import pg
+from tms_common import audit, pg
 from tms_common.config import jwt_secret
 from tms_common.errors import HttpError
 from tms_common.event import auth_user, json_body
@@ -38,11 +38,16 @@ def login(event: dict) -> dict:
     rows = pg.query(LOGIN_SQL, [email])
     credential = rows[0] if rows else None
     if not credential or not verify_password(password, credential["password_hash"]):
+        audit.record(event, "login_failed", email=email, actor_type="anonymous",
+                     metadata={"reason": "invalid_credentials"})
         body = {"error": "invalid_credentials", "message": "Correo o contraseña incorrectos."}
         return json_response(401, body)
+    user_id = str(credential["auth_user_id"])
     if credential.get("is_active") is False:
+        audit.record(event, "login_blocked", email=email, auth_user_id=user_id, metadata={"reason": "inactive_user"})
         return json_response(403, {"error": "inactive_user", "message": "Tu usuario está desactivado."})
-    session = sign_session(str(credential["auth_user_id"]), credential["email"], jwt_secret())
+    session = sign_session(user_id, credential["email"], jwt_secret())
+    audit.record(event, "login", email=credential["email"], auth_user_id=user_id)
     return json_response(200, {"data": session, "error": None})
 
 
@@ -68,7 +73,9 @@ def session(event: dict) -> dict:
     return json_response(200, {"data": {"user": auth_user(event)}, "error": None})
 
 
-def sign_out(_event: dict) -> dict:
+def sign_out(event: dict) -> dict:
+    if audit.actor(event)["auth_user_id"]:
+        audit.record(event, "logout")
     return empty_response(204)
 
 

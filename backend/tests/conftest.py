@@ -19,7 +19,7 @@ STACK_SOURCES = {
     "admin": BACKEND / "admin" / "src",
     "planning": BACKEND / "planning" / "src",
 }
-STACK_MODULES = {"app", "table_modules", "admin_permissions", "relations", "schema", "select_parser", "select_query", "mutations",
+STACK_MODULES = {"app", "table_modules", "admin_permissions", "admin_audit", "relations", "schema", "select_parser", "select_query", "mutations",
                  "scopes", "context_queries", "eflow_queries", "live_source", "mock_source",
                  "admin_access", "admin_payload", "admin_sql", "admin_users", "admin_roles", "planning_sql", "delivery_points", "delivery_points_sql"}
 
@@ -97,4 +97,20 @@ def caller_permissions(monkeypatch):
     holder = Holder()
     monkeypatch.setattr(permissions, "for_event", lambda event: holder.value)
     return holder
+
+
+@pytest.fixture(autouse=True)
+def audit_calls(monkeypatch):
+    """La bitácora no toca la BD en los tests: bind/clear/record quedan registrados aquí.
+    Los originales quedan en .real para los tests del propio módulo de auditoría."""
+    from tms_common import audit
+
+    class Calls(list):
+        real = {"bind": audit.bind, "clear": audit.clear, "record": audit.record}
+
+    calls = Calls()
+    monkeypatch.setattr(audit, "bind", lambda event: calls.append(("bind", event["routeKey"])))
+    monkeypatch.setattr(audit, "clear", lambda: calls.append(("clear",)))
+    monkeypatch.setattr(audit, "record", lambda event, action, **kw: calls.append(("record", action, kw)))
+    return calls
 

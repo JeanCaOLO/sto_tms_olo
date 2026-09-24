@@ -2,6 +2,7 @@ import logging
 from functools import wraps
 from typing import Callable
 
+from . import audit
 from .errors import HttpError
 from .event import route_key
 from .responses import json_response
@@ -16,7 +17,22 @@ def dispatch(routes: dict[str, Route], event: dict) -> dict:
     route = routes.get(route_key(event))
     if route is None:
         raise HttpError(404, f"Ruta no soportada: {route_key(event)}")
-    return route(event)
+    if not audit.is_write(event):
+        return route(event)
+    # Las rutas que escriben le dicen a la BD quién es el actor (trigger de sql/16).
+    audit.bind(event)
+    try:
+        return route(event)
+    finally:
+        _clear_actor(event)
+
+
+def _clear_actor(event: dict) -> None:
+    try:
+        audit.clear()
+    except Exception:
+        # La conexión se cayó: la próxima request reconecta y el actor no persiste.
+        logger.exception("No se pudo limpiar el actor de auditoría en %s", route_key(event))
 
 
 def _tms_error(status: int, message: str) -> dict:

@@ -7,6 +7,7 @@ usuario + alcances) y solo la puede hacer un administrador.
 
 from tms_common.handler import tms_handler
 
+import admin_audit as audit_log
 import admin_permissions as permissions
 import admin_roles as roles
 import admin_users as users
@@ -25,6 +26,9 @@ ROUTES = {
     "GET /api/v1/admin/roles/{id}/permissions": permissions.get_role_permissions,
     "PUT /api/v1/admin/roles/{id}/permissions": permissions.put_role_permissions,
     "GET /api/v1/me/permissions": permissions.my_permissions,
+    "GET /api/v1/admin/audit": audit_log.list_events,
+    "GET /api/v1/admin/audit/{id}": audit_log.get_event,
+    "POST /api/v1/audit/events": audit_log.record_client_event,
 }
 
 handler = tms_handler(ROUTES)

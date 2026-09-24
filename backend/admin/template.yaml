@@ -115,6 +115,39 @@ Resources:
         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
       Target: !Sub integrations/${AdminApiIntegration}
 
+  AuditListRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/v1/admin/audit
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${AdminApiIntegration}
+
+  AuditGetRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/v1/admin/audit/{id}
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${AdminApiIntegration}
+
+  AuditClientEventRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/v1/audit/events
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${AdminApiIntegration}
+
   UsersListRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
