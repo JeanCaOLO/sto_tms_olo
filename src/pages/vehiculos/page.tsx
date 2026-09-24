@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import Card from '../../components/base/Card';
@@ -9,6 +10,7 @@ import VehicleModal from './components/VehicleModal';
 import VehicleTypeModal from './components/VehicleTypeModal';
 import VehicleTypeDeleteModal from './components/VehicleTypeDeleteModal';
 import CsvImportModal from '../../components/feature/CsvImportModal';
+import { useModulePermissions } from '../../hooks/use-module-permissions';
 
 type Tab = 'vehiculos' | 'tipos';
 
@@ -30,6 +32,8 @@ const VehiculosPage = () => {
   const [isTypeModalOpen, setIsTypeModalOpen] = useState(false);
   const [isTypeDeleteModalOpen, setIsTypeDeleteModalOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<any>(null);
+  const { canCreate, canEdit, canDelete } = useModulePermissions('vehiculos');
+  const { t } = useTranslation();
 
   const csvFields = [
     { key: 'plate', label: 'Placa', required: true },
@@ -130,9 +134,9 @@ const VehiculosPage = () => {
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case 'activo': return 'Activo';
-      case 'mantenimiento': return 'Mantenimiento';
-      case 'inactivo': return 'Inactivo';
+      case 'activo': return t('vehicles.statusActive');
+      case 'mantenimiento': return t('vehicles.statusMaintenance');
+      case 'inactivo': return t('vehicles.statusInactive');
       default: return status;
     }
   };
@@ -162,7 +166,7 @@ const VehiculosPage = () => {
   const vehicleColumns: DataTableColumn<any>[] = [
     {
       key: 'plate',
-      header: 'Vehículo',
+      header: t('vehicles.colVehicle'),
       accessor: (v) => v.plate,
       sortable: true,
       render: (v) => (
@@ -179,21 +183,21 @@ const VehiculosPage = () => {
     },
     {
       key: 'vehicle_type',
-      header: 'Tipo',
+      header: t('vehicles.colType'),
       accessor: (v) => getVehicleTypeName(v.vehicle_type),
       sortable: true,
       filterable: true,
     },
     {
       key: 'carrier',
-      header: 'Transportista',
+      header: t('vehicles.colCarrier'),
       accessor: (v) => v.carrier?.name ?? '',
       sortable: true,
       filterable: true,
     },
     {
       key: 'capacity',
-      header: 'Capacidad',
+      header: t('vehicles.colCapacity'),
       accessor: (v) => v.capacity_weight,
       render: (v) => (
         <>
@@ -204,7 +208,7 @@ const VehiculosPage = () => {
     },
     {
       key: 'status',
-      header: 'Estado',
+      header: t('vehicles.colStatus'),
       accessor: (v) => getStatusLabel(v.status),
       filterable: true,
       render: (v) => <Badge className={getStatusColor(v.status)}>{getStatusLabel(v.status)}</Badge>,
@@ -214,41 +218,41 @@ const VehiculosPage = () => {
   const typeColumns: DataTableColumn<any>[] = [
     {
       key: 'name',
-      header: 'Tipo',
-      accessor: (t) => t.name,
+      header: t('vehicles.colType'),
+      accessor: (row) => row.name,
       sortable: true,
-      render: (t) => (
+      render: (row) => (
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 flex items-center justify-center bg-teal-100 rounded-lg">
-            <i className={`${t.icon || 'ri-truck-line'} text-xl text-teal-600`}></i>
+            <i className={`${row.icon || 'ri-truck-line'} text-xl text-teal-600`}></i>
           </div>
-          <span className="font-medium text-gray-900">{t.name}</span>
+          <span className="font-medium text-gray-900">{row.name}</span>
         </div>
       ),
     },
-    { key: 'description', header: 'Descripción', accessor: (t) => t.description ?? '—' },
+    { key: 'description', header: t('vehicles.colDescription'), accessor: (row) => row.description ?? '—' },
     {
       key: 'count',
-      header: 'Vehículos',
-      accessor: (t) => vehicles.filter((v) => v.vehicle_type === t.id).length,
+      header: t('vehicles.colVehicles'),
+      accessor: (row) => vehicles.filter((v) => v.vehicle_type === row.id).length,
       sortable: true,
-      render: (t) => {
-        const count = vehicles.filter((v) => v.vehicle_type === t.id).length;
+      render: (row) => {
+        const count = vehicles.filter((v) => v.vehicle_type === row.id).length;
         return (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
-            {count} vehículo{count !== 1 ? 's' : ''}
+            {t('vehicles.count', { count })}
           </span>
         );
       },
     },
     {
       key: 'status',
-      header: 'Estado',
-      accessor: (t) => (t.status === 'activo' ? 'Activo' : 'Inactivo'),
+      header: t('vehicles.colStatus'),
+      accessor: (row) => (row.status === 'activo' ? t('vehicles.typeActive') : t('vehicles.typeInactive')),
       filterable: true,
-      render: (t) => (
-        <Badge className={t.status === 'activo' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
-          {t.status === 'activo' ? 'Activo' : 'Inactivo'}
+      render: (row) => (
+        <Badge className={row.status === 'activo' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
+          {row.status === 'activo' ? t('vehicles.typeActive') : t('vehicles.typeInactive')}
         </Badge>
       ),
     },
@@ -260,24 +264,24 @@ const VehiculosPage = () => {
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Vehículos</h1>
-          <p className="text-sm text-gray-600 mt-1">Gestiona la flota y los tipos de vehículos</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('vehicles.title')}</h1>
+          <p className="text-sm text-gray-600 mt-1">{t('vehicles.subtitle')}</p>
         </div>
-        {activeTab === 'vehiculos' ? (
+        {canCreate && (activeTab === 'vehiculos' ? (
           <div className="flex items-center gap-3">
             <Button
               onClick={() => setIsCsvModalOpen(true)}
               className="px-4 py-2 bg-teal-50 text-teal-700 border border-teal-200 rounded-lg hover:bg-teal-100 flex items-center gap-2 whitespace-nowrap"
             >
               <i className="ri-file-excel-line"></i>
-              Importar CSV
+              {t('vehicles.importCsv')}
             </Button>
             <Button
               onClick={() => { setSelectedVehicle(null); setIsModalOpen(true); }}
               className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 whitespace-nowrap"
             >
               <i className="ri-add-line"></i>
-              Nuevo Vehículo
+              {t('vehicles.new')}
             </Button>
           </div>
         ) : (
@@ -286,9 +290,9 @@ const VehiculosPage = () => {
             className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 flex items-center gap-2 whitespace-nowrap"
           >
             <i className="ri-add-line"></i>
-            Nuevo Tipo
+            {t('vehicles.newType')}
           </Button>
-        )}
+        ))}
       </div>
 
       {/* Tabs */}
@@ -302,7 +306,7 @@ const VehiculosPage = () => {
           }`}
         >
           <i className="ri-truck-line mr-2"></i>
-          Vehículos
+          {t('vehicles.tabVehicles')}
         </button>
         <button
           onClick={() => setActiveTab('tipos')}
@@ -313,7 +317,7 @@ const VehiculosPage = () => {
           }`}
         >
           <i className="ri-list-settings-line mr-2"></i>
-          Tipos de Vehículo
+          {t('vehicles.tabTypes')}
         </button>
       </div>
 
@@ -325,7 +329,7 @@ const VehiculosPage = () => {
             <Card className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Total Vehículos</p>
+                  <p className="text-sm text-gray-600">{t('vehicles.kpiTotal')}</p>
                   <p className="text-2xl font-bold text-gray-900 mt-1">{stats.total}</p>
                 </div>
                 <div className="w-12 h-12 flex items-center justify-center bg-teal-100 rounded-lg">
@@ -336,7 +340,7 @@ const VehiculosPage = () => {
             <Card className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Activos</p>
+                  <p className="text-sm text-gray-600">{t('vehicles.kpiActive')}</p>
                   <p className="text-2xl font-bold text-green-600 mt-1">{stats.active}</p>
                 </div>
                 <div className="w-12 h-12 flex items-center justify-center bg-green-100 rounded-lg">
@@ -347,7 +351,7 @@ const VehiculosPage = () => {
             <Card className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Mantenimiento</p>
+                  <p className="text-sm text-gray-600">{t('vehicles.kpiMaintenance')}</p>
                   <p className="text-2xl font-bold text-amber-600 mt-1">{stats.maintenance}</p>
                 </div>
                 <div className="w-12 h-12 flex items-center justify-center bg-amber-100 rounded-lg">
@@ -358,7 +362,7 @@ const VehiculosPage = () => {
             <Card className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Inactivos</p>
+                  <p className="text-sm text-gray-600">{t('vehicles.kpiInactive')}</p>
                   <p className="text-2xl font-bold text-gray-600 mt-1">{stats.inactive}</p>
                 </div>
                 <div className="w-12 h-12 flex items-center justify-center bg-gray-100 rounded-lg">
@@ -373,17 +377,21 @@ const VehiculosPage = () => {
             columns={vehicleColumns}
             getRowId={(v) => v.id}
             loading={loadingVehicles}
-            searchPlaceholder="Buscar por placa, marca, modelo..."
+            searchPlaceholder={t('vehicles.search')}
             exportFileName="vehiculos"
-            emptyMessage="No hay vehículos"
+            emptyMessage={t('vehicles.empty')}
             actions={(v) => (
               <>
-                <button onClick={() => { setSelectedVehicle(v); setIsModalOpen(true); }} className="w-8 h-8 flex items-center justify-center text-teal-600 hover:bg-teal-50 rounded-lg cursor-pointer">
-                  <i className="ri-edit-line"></i>
-                </button>
-                <button onClick={() => handleDeleteVehicle(v.id)} className="w-8 h-8 flex items-center justify-center text-red-600 hover:bg-red-50 rounded-lg cursor-pointer">
-                  <i className="ri-delete-bin-line"></i>
-                </button>
+                {canEdit && (
+                  <button onClick={() => { setSelectedVehicle(v); setIsModalOpen(true); }} className="w-8 h-8 flex items-center justify-center text-teal-600 hover:bg-teal-50 rounded-lg cursor-pointer">
+                    <i className="ri-edit-line"></i>
+                  </button>
+                )}
+                {canDelete && (
+                  <button onClick={() => handleDeleteVehicle(v.id)} className="w-8 h-8 flex items-center justify-center text-red-600 hover:bg-red-50 rounded-lg cursor-pointer">
+                    <i className="ri-delete-bin-line"></i>
+                  </button>
+                )}
               </>
             )}
           />
@@ -397,7 +405,7 @@ const VehiculosPage = () => {
             <Card className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Total Tipos</p>
+                  <p className="text-sm text-gray-600">{t('vehicles.kpiTotalTypes')}</p>
                   <p className="text-2xl font-bold text-gray-900 mt-1">{vehicleTypes.length}</p>
                 </div>
                 <div className="w-12 h-12 flex items-center justify-center bg-teal-100 rounded-lg">
@@ -408,8 +416,8 @@ const VehiculosPage = () => {
             <Card className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Activos</p>
-                  <p className="text-2xl font-bold text-green-600 mt-1">{vehicleTypes.filter(t => t.status === 'activo').length}</p>
+                  <p className="text-sm text-gray-600">{t('vehicles.kpiActive')}</p>
+                  <p className="text-2xl font-bold text-green-600 mt-1">{vehicleTypes.filter(vt => vt.status === 'activo').length}</p>
                 </div>
                 <div className="w-12 h-12 flex items-center justify-center bg-green-100 rounded-lg">
                   <i className="ri-checkbox-circle-line text-2xl text-green-600"></i>
@@ -419,8 +427,8 @@ const VehiculosPage = () => {
             <Card className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Inactivos</p>
-                  <p className="text-2xl font-bold text-gray-600 mt-1">{vehicleTypes.filter(t => t.status === 'inactivo').length}</p>
+                  <p className="text-sm text-gray-600">{t('vehicles.kpiInactive')}</p>
+                  <p className="text-2xl font-bold text-gray-600 mt-1">{vehicleTypes.filter(vt => vt.status === 'inactivo').length}</p>
                 </div>
                 <div className="w-12 h-12 flex items-center justify-center bg-gray-100 rounded-lg">
                   <i className="ri-close-circle-line text-2xl text-gray-600"></i>
@@ -432,25 +440,29 @@ const VehiculosPage = () => {
           <DataTable
             data={vehicleTypes}
             columns={typeColumns}
-            getRowId={(t) => t.id}
+            getRowId={(row) => row.id}
             loading={loadingTypes}
-            searchPlaceholder="Buscar tipo de vehículo..."
+            searchPlaceholder={t('vehicles.searchTypes')}
             exportFileName="tipos_vehiculo"
-            emptyMessage="No hay tipos de vehículo"
-            actions={(t) => (
+            emptyMessage={t('vehicles.emptyTypes')}
+            actions={(row) => (
               <>
-                <button
-                  onClick={() => { setSelectedType(t); setIsTypeModalOpen(true); }}
-                  className="w-8 h-8 flex items-center justify-center text-teal-600 hover:bg-teal-50 rounded-lg cursor-pointer"
-                >
-                  <i className="ri-edit-line"></i>
-                </button>
-                <button
-                  onClick={() => { setSelectedType(t); setIsTypeDeleteModalOpen(true); }}
-                  className="w-8 h-8 flex items-center justify-center text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
-                >
-                  <i className="ri-delete-bin-line"></i>
-                </button>
+                {canEdit && (
+                  <button
+                    onClick={() => { setSelectedType(row); setIsTypeModalOpen(true); }}
+                    className="w-8 h-8 flex items-center justify-center text-teal-600 hover:bg-teal-50 rounded-lg cursor-pointer"
+                  >
+                    <i className="ri-edit-line"></i>
+                  </button>
+                )}
+                {canDelete && (
+                  <button
+                    onClick={() => { setSelectedType(row); setIsTypeDeleteModalOpen(true); }}
+                    className="w-8 h-8 flex items-center justify-center text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
+                  >
+                    <i className="ri-delete-bin-line"></i>
+                  </button>
+                )}
               </>
             )}
           />
@@ -485,7 +497,7 @@ const VehiculosPage = () => {
       <CsvImportModal
         isOpen={isCsvModalOpen}
         onClose={() => setIsCsvModalOpen(false)}
-        onSuccess={loadVehicles}
+        onImportComplete={loadVehicles}
         fields={csvFields}
         tableName="vehicles"
         templateFileName="plantilla_vehiculos.csv"

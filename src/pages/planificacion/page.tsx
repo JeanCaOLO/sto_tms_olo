@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
 import PaisSelector from './components/PaisSelector';
 import PlanAutomatico from './components/PlanAutomatico';
@@ -10,6 +11,7 @@ import { getPais, setPais, type Pais } from './eflow-api';
 // los viajes asignando vehículo por capacidad. Sin armado manual de viajes —
 // el planificador solo revisa/confirma la propuesta del motor.
 export default function PlanificacionPage() {
+  const { t } = useTranslation();
   const { appUser } = useAuth();
   const [pais, setPaisState] = useState<Pais>(getPais());
   const { vehiculos, conductores, loading } = useCatalogos(appUser, pais);
@@ -31,9 +33,9 @@ export default function PlanificacionPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl lg:text-2xl font-bold text-slate-800">Planificación de Rutas</h1>
+          <h1 className="text-xl lg:text-2xl font-bold text-slate-800">{t('planning.title')}</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Los pedidos con entrega para mañana se agrupan por destino y se asignan a la flota por capacidad, automáticamente.
+            {t('planning.subtitle')}
           </p>
         </div>
         <div className="flex-shrink-0">

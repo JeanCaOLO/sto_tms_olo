@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 import Card from '../../components/base/Card';
 import Button from '../../components/base/Button';
 import Badge from '../../components/base/Badge';
 import DataTable, { type DataTableColumn } from '../../components/base/DataTable';
 import CustomerModal from './components/CustomerModal';
+import { useModulePermissions } from '../../hooks/use-module-permissions';
 
 interface Country {
   id: string;
@@ -41,6 +43,8 @@ export default function ClientesPage() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const { canCreate, canEdit, canDelete } = useModulePermissions('clientes');
+  const { t } = useTranslation();
 
   useEffect(() => {
     loadData();
@@ -96,7 +100,7 @@ export default function ClientesPage() {
   const columns: DataTableColumn<Customer>[] = [
     {
       key: 'name',
-      header: 'Cliente',
+      header: t('customers.colCustomer'),
       accessor: (c) => c.name,
       sortable: true,
       render: (c) => (
@@ -106,10 +110,10 @@ export default function ClientesPage() {
         </div>
       ),
     },
-    { key: 'document_number', header: 'Documento', accessor: (c) => c.document_number, sortable: true },
+    { key: 'document_number', header: t('customers.colDocument'), accessor: (c) => c.document_number, sortable: true },
     {
       key: 'contact',
-      header: 'Contacto',
+      header: t('customers.colContact'),
       accessor: (c) => c.email,
       render: (c) => (
         <div className="space-y-1">
@@ -126,7 +130,7 @@ export default function ClientesPage() {
     },
     {
       key: 'location',
-      header: 'Ubicación',
+      header: t('customers.colLocation'),
       accessor: (c) => c.city ?? '',
       sortable: true,
       render: (c) => (
@@ -144,14 +148,14 @@ export default function ClientesPage() {
     },
     {
       key: 'delivery_zone',
-      header: 'Zona',
+      header: t('customers.colZone'),
       accessor: (c) => c.delivery_zone ?? '',
       filterable: true,
       render: (c) => <Badge variant="info">{c.delivery_zone}</Badge>,
     },
     {
       key: 'country',
-      header: 'País',
+      header: t('customers.colCountry'),
       accessor: (c) => c.countries?.name ?? '',
       sortable: true,
       filterable: true,
@@ -164,10 +168,10 @@ export default function ClientesPage() {
     },
     {
       key: 'status',
-      header: 'Estado',
-      accessor: (c) => (c.is_active ? 'Activo' : 'Inactivo'),
+      header: t('customers.colStatus'),
+      accessor: (c) => (c.is_active ? t('customers.active') : t('customers.inactive')),
       filterable: true,
-      render: (c) => <Badge variant={c.is_active ? 'success' : 'default'}>{c.is_active ? 'Activo' : 'Inactivo'}</Badge>,
+      render: (c) => <Badge variant={c.is_active ? 'success' : 'default'}>{c.is_active ? t('customers.active') : t('customers.inactive')}</Badge>,
     },
   ];
 
@@ -184,18 +188,20 @@ export default function ClientesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Clientes</h1>
-          <p className="text-sm text-slate-500 mt-1">Gestiona la información de tus clientes</p>
+          <h1 className="text-2xl font-bold text-slate-800">{t('customers.title')}</h1>
+          <p className="text-sm text-slate-500 mt-1">{t('customers.subtitle')}</p>
         </div>
-        <Button
-          onClick={() => {
-            setSelectedCustomer(null);
-            setIsModalOpen(true);
-          }}
-        >
-          <i className="ri-add-line mr-2"></i>
-          Nuevo Cliente
-        </Button>
+        {canCreate && (
+          <Button
+            onClick={() => {
+              setSelectedCustomer(null);
+              setIsModalOpen(true);
+            }}
+          >
+            <i className="ri-add-line mr-2"></i>
+            {t('customers.new')}
+          </Button>
+        )}
       </div>
 
       {/* KPIs */}
@@ -203,7 +209,7 @@ export default function ClientesPage() {
         <Card className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-slate-500">Total Clientes</p>
+              <p className="text-sm text-slate-500">{t('customers.kpiTotal')}</p>
               <p className="text-2xl font-bold text-slate-800 mt-1">{totalCustomers}</p>
             </div>
             <div className="w-12 h-12 flex items-center justify-center bg-teal-100 rounded-lg">
@@ -215,7 +221,7 @@ export default function ClientesPage() {
         <Card className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-slate-500">Clientes Activos</p>
+              <p className="text-sm text-slate-500">{t('customers.kpiActive')}</p>
               <p className="text-2xl font-bold text-teal-600 mt-1">{activeCustomers}</p>
             </div>
             <div className="w-12 h-12 flex items-center justify-center bg-teal-100 rounded-lg">
@@ -227,7 +233,7 @@ export default function ClientesPage() {
         <Card className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-slate-500">Clientes Inactivos</p>
+              <p className="text-sm text-slate-500">{t('customers.kpiInactive')}</p>
               <p className="text-2xl font-bold text-slate-400 mt-1">{inactiveCustomers}</p>
             </div>
             <div className="w-12 h-12 flex items-center justify-center bg-slate-100 rounded-lg">
@@ -241,30 +247,34 @@ export default function ClientesPage() {
         data={customers}
         columns={columns}
         getRowId={(c) => c.id}
-        searchPlaceholder="Buscar por nombre, código, RUT o email..."
+        searchPlaceholder={t('customers.search')}
         exportFileName="clientes"
-        emptyMessage="No se encontraron clientes"
-        actions={(c) => (
+        emptyMessage={t('customers.empty')}
+        actions={(canEdit || canDelete) ? (c) => (
           <>
-            <button
-              onClick={() => {
-                setSelectedCustomer(c);
-                setIsModalOpen(true);
-              }}
-              className="w-8 h-8 flex items-center justify-center text-slate-600 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors cursor-pointer"
-              title="Editar"
-            >
-              <i className="ri-edit-line"></i>
-            </button>
-            <button
-              onClick={() => handleDelete(c.id)}
-              className="w-8 h-8 flex items-center justify-center text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-              title="Eliminar"
-            >
-              <i className="ri-delete-bin-line"></i>
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => {
+                  setSelectedCustomer(c);
+                  setIsModalOpen(true);
+                }}
+                className="w-8 h-8 flex items-center justify-center text-slate-600 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors cursor-pointer"
+                title="Editar"
+              >
+                <i className="ri-edit-line"></i>
+              </button>
+            )}
+            {canDelete && (
+              <button
+                onClick={() => handleDelete(c.id)}
+                className="w-8 h-8 flex items-center justify-center text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                title="Eliminar"
+              >
+                <i className="ri-delete-bin-line"></i>
+              </button>
+            )}
           </>
-        )}
+        ) : undefined}
       />
 
       {/* Modal */}

@@ -18,6 +18,7 @@ interface RouteCardProps {
   onClick: () => void;
   onChangeStatus: (routeId: string, newStatus: string) => void;
   updatingStatus: boolean;
+  canEdit?: boolean;
 }
 
 function getStatusVariant(status: string): 'default' | 'success' | 'warning' | 'danger' | 'info' {
@@ -79,7 +80,7 @@ function getNextStatus(current: string): { label: string; value: string; icon: s
   }
 }
 
-export const RouteCard = ({ route, isSelected, onClick, onChangeStatus, updatingStatus }: RouteCardProps) => {
+export const RouteCard = ({ route, isSelected, onClick, onChangeStatus, updatingStatus, canEdit = true }: RouteCardProps) => {
   const progress =
     route.total_stops > 0
       ? Math.round((route.completed_stops / route.total_stops) * 100)
@@ -165,7 +166,7 @@ export const RouteCard = ({ route, isSelected, onClick, onChangeStatus, updating
       </div>
 
       {/* Botón cambiar estado */}
-      {nextStatus && (
+      {canEdit && nextStatus && (
         <button
           onClick={(e) => {
             e.stopPropagation();

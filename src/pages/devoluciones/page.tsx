@@ -6,6 +6,7 @@ import Button from '../../components/base/Button';
 import Input from '../../components/base/Input';
 import DataTable, { type DataTableColumn } from '../../components/base/DataTable';
 import ReturnModal from './components/ReturnModal';
+import { useModulePermissions } from '../../hooks/use-module-permissions';
 
 interface Return {
   id: string;
@@ -46,6 +47,7 @@ export default function DevolucionesPage() {
   const [dateFilter, setDateFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedReturn, setSelectedReturn] = useState<Return | null>(null);
+  const { canCreate, canEdit } = useModulePermissions('devoluciones');
 
   const [stats, setStats] = useState({
     total: 0,
@@ -164,10 +166,12 @@ export default function DevolucionesPage() {
           <h1 className="text-2xl font-bold text-gray-900">Devoluciones</h1>
           <p className="text-sm text-gray-600 mt-1">Gestiona las devoluciones de productos y pedidos</p>
         </div>
-        <Button onClick={() => { setSelectedReturn(null); setIsModalOpen(true); }}>
-          <i className="ri-add-line mr-2"></i>
-          Nueva Devolución
-        </Button>
+        {canCreate && (
+          <Button onClick={() => { setSelectedReturn(null); setIsModalOpen(true); }}>
+            <i className="ri-add-line mr-2"></i>
+            Nueva Devolución
+          </Button>
+        )}
       </div>
 
       {/* KPIs */}
@@ -212,7 +216,7 @@ export default function DevolucionesPage() {
               >
                 <i className="ri-eye-line text-base"></i>
               </button>
-              {returnItem.status === 'pending' && (
+              {canEdit && returnItem.status === 'pending' && (
                 <>
                   <button
                     onClick={() => handleStatusChange(returnItem.id, 'approved')}
@@ -230,7 +234,7 @@ export default function DevolucionesPage() {
                   </button>
                 </>
               )}
-              {returnItem.status === 'approved' && (
+              {canEdit && returnItem.status === 'approved' && (
                 <button
                   onClick={() => handleStatusChange(returnItem.id, 'completed')}
                   className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-teal-600 hover:bg-teal-50 rounded-md transition-colors"

@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import Card from '../../../components/base/Card';
 import Badge from '../../../components/base/Badge';
 import Select from '../../../components/base/Select';
@@ -7,13 +9,14 @@ import { omsApi } from '../api/omsApi';
 import { TIER_LABEL } from '../types';
 import type { AuditEntry, Company, Country } from '../types';
 
-const tierChange = (e: AuditEntry) =>
-  `${e.tierFrom === 'sin asignar' ? 'sin asignar' : TIER_LABEL[e.tierFrom]} → ${TIER_LABEL[e.tierTo]}`;
+const tierChange = (e: AuditEntry, t: TFunction) =>
+  `${e.tierFrom === 'sin asignar' ? t('omsAudit.unassigned') : TIER_LABEL[e.tierFrom]} → ${TIER_LABEL[e.tierTo]}`;
 
 // Pantalla Auditoría de Priorización (FR7): registro inmutable, solo lectura.
 // Lista en DataTable (estándar del sistema: búsqueda, filtros por columna, orden,
 // paginación y export .xlsx integrados).
 export default function OmsAuditoriaPage() {
+  const { t } = useTranslation();
   const country: Country = 'CR';
   const [companies, setCompanies] = useState<Company[]>([]);
   const [company, setCompany] = useState<string>('');
@@ -33,7 +36,7 @@ export default function OmsAuditoriaPage() {
         setCompany((prev) => prev || c[0]?.id || '');
         setEntries(rows);
       })
-      .catch(() => { if (!cancelled) setError('No se pudo cargar la auditoría.'); })
+      .catch(() => { if (!cancelled) setError(t('omsAudit.loadError')); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);
@@ -41,48 +44,48 @@ export default function OmsAuditoriaPage() {
   const rows = entries.filter((e) => typeFilter === 'todos' || e.changeType === typeFilter);
 
   const columns: DataTableColumn<AuditEntry>[] = [
-    { key: 'timestamp', header: 'Fecha', accessor: (e) => e.timestamp, sortable: true, render: (e) => <span className="text-slate-500">{e.timestamp}</span> },
-    { key: 'orderId', header: 'Pedido', accessor: (e) => e.orderId, sortable: true, render: (e) => <span className="font-medium text-slate-900">{e.orderId}</span> },
+    { key: 'timestamp', header: t('omsAudit.colDate'), accessor: (e) => e.timestamp, sortable: true, render: (e) => <span className="text-slate-500">{e.timestamp}</span> },
+    { key: 'orderId', header: t('omsAudit.colOrder'), accessor: (e) => e.orderId, sortable: true, render: (e) => <span className="font-medium text-slate-900">{e.orderId}</span> },
     {
       key: 'changeType',
-      header: 'Tipo',
-      accessor: (e) => (e.changeType === 'manual' ? 'Manual' : 'Automático'),
+      header: t('omsAudit.colType'),
+      accessor: (e) => (e.changeType === 'manual' ? t('omsAudit.typeManual') : t('omsAudit.typeAuto')),
       filterable: true,
       render: (e) => (
         <Badge variant={e.changeType === 'manual' ? 'warning' : 'default'} size="sm">
-          {e.changeType === 'manual' ? 'Manual' : 'Automático'}
+          {e.changeType === 'manual' ? t('omsAudit.typeManual') : t('omsAudit.typeAuto')}
         </Badge>
       ),
     },
     {
       key: 'tier',
-      header: 'Tier',
+      header: t('omsAudit.colTier'),
       accessor: (e) => e.tierTo,
-      render: (e) => <>{tierChange(e)}</>,
+      render: (e) => <>{tierChange(e, t)}</>,
     },
     {
       key: 'score',
-      header: 'Score',
+      header: t('omsAudit.colScore'),
       accessor: (e) => e.scoreTo,
       sortable: true,
       render: (e) => <>{e.scoreFrom ?? '—'} → {e.scoreTo}</>,
     },
-    { key: 'actor', header: 'Actor', accessor: (e) => e.actor, sortable: true, filterable: true },
-    { key: 'detail', header: 'Detalle', accessor: (e) => e.detail },
+    { key: 'actor', header: t('omsAudit.colActor'), accessor: (e) => e.actor, sortable: true, filterable: true },
+    { key: 'detail', header: t('omsAudit.colDetail'), accessor: (e) => e.detail },
   ];
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Auditoría de Priorización</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{t('omsAudit.title')}</h1>
           <p className="text-sm text-slate-600 mt-1">
-            Registro inmutable de cambios de prioridad (solo lectura)
+            {t('omsAudit.subtitle')}
           </p>
         </div>
         <div className="w-full sm:w-56">
           <Select
-            label="Compañía"
+            label={t('omsAudit.company')}
             value={company}
             onChange={(e) => setCompany(e.target.value)}
             options={companies.map((c) => ({ value: c.id, label: c.name }))}
@@ -92,15 +95,15 @@ export default function OmsAuditoriaPage() {
 
       <Card padding={false}>
         <div className="flex items-center gap-2 p-4">
-          {(['todos', 'automatico', 'manual'] as const).map((t) => (
+          {(['todos', 'automatico', 'manual'] as const).map((tf) => (
             <button
-              key={t}
-              onClick={() => setTypeFilter(t)}
+              key={tf}
+              onClick={() => setTypeFilter(tf)}
               className={`px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors ${
-                typeFilter === t ? 'bg-teal-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                typeFilter === tf ? 'bg-teal-600 text-white' : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
-              {t === 'todos' ? 'Todos' : t === 'automatico' ? 'Automáticos' : 'Manuales'}
+              {tf === 'todos' ? t('omsAudit.filterAll') : tf === 'automatico' ? t('omsAudit.filterAuto') : t('omsAudit.filterManual')}
             </button>
           ))}
         </div>
@@ -115,9 +118,9 @@ export default function OmsAuditoriaPage() {
           getRowId={(e) => e.id}
           loading={loading}
           pageSize={25}
-          searchPlaceholder="Buscar por pedido, actor o detalle..."
+          searchPlaceholder={t('omsAudit.search')}
           exportFileName="auditoria_priorizacion"
-          emptyMessage="No hay registros para estos criterios."
+          emptyMessage={t('omsAudit.empty')}
         />
       )}
     </div>

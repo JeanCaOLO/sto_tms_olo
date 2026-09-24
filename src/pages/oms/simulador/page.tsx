@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import Card from '../../../components/base/Card';
 import Button from '../../../components/base/Button';
 import Select from '../../../components/base/Select';
@@ -28,6 +29,7 @@ const nowStamp = () => new Date().toISOString().slice(0, 16).replace('T', ' ');
 // registra una entrada en el HISTORIAL de ejecuciones (al final).
 // PROTOTIPO: datos y persistencia mock (localStorage vía omsApi).
 export default function OmsSimuladorPage() {
+  const { t } = useTranslation();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [companyId, setCompanyId] = useState('');
   const [rules, setRules] = useState<EngineRule[]>([]);
@@ -102,49 +104,49 @@ export default function OmsSimuladorPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Simulador de Priorización</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{t('omsSimulator.title')}</h1>
           <p className="text-sm text-slate-600 mt-1">
-            Define, previsualiza y aplica simulaciones de priorización por compañía
+            {t('omsSimulator.subtitle')}
           </p>
         </div>
         <div className="flex items-end gap-3">
           <div className="w-full sm:w-48">
             <Select
-              label="Compañía"
+              label={t('omsSimulator.company')}
               value={companyId}
               onChange={(e) => setCompanyId(e.target.value)}
               options={companies.map((c) => ({ value: c.id, label: c.name }))}
             />
           </div>
           <Button icon={<i className="ri-add-line"></i>} onClick={openNew} disabled={loading || companyRules.length === 0}>
-            Nueva simulación
+            {t('omsSimulator.new')}
           </Button>
         </div>
       </div>
 
       {/* Catálogo de simulaciones guardadas */}
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-slate-900">Simulaciones guardadas</h2>
+        <h2 className="text-sm font-semibold text-slate-900">{t('omsSimulator.savedSims')}</h2>
         {sims.length > 0 && <ViewToggle view={catalogView.view} onChange={catalogView.setView} />}
       </div>
       <Card padding={false}>
         {sims.length === 0 ? (
           <div className="text-center py-12 text-slate-500">
             <i className="ri-flask-line text-3xl"></i>
-            <p className="mt-2 text-sm">No hay simulaciones guardadas para esta compañía.</p>
+            <p className="mt-2 text-sm">{t('omsSimulator.emptySims')}</p>
           </div>
         ) : catalogView.view === 'table' ? (
           <div className="overflow-x-auto">
             <table className="w-full whitespace-nowrap">
               <thead>
                 <tr className="border-b border-slate-200">
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Nombre</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Reglas</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Situaciones</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Modo</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Hora corte</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Estado</th>
-                  <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">Acciones</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colName')}</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colRules')}</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colSituations')}</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colMode')}</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colCutoff')}</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colStatus')}</th>
+                  <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colActions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -156,7 +158,7 @@ export default function OmsSimuladorPage() {
                     <td className="py-3 px-4 text-sm text-slate-700">{APPLY_MODE_LABEL[s.applyMode]}</td>
                     <td className="py-3 px-4 text-sm text-slate-700">{s.applyMode === 'manual' ? '—' : s.cutoffTime}</td>
                     <td className="py-3 px-4">
-                      <Badge variant={s.active ? 'success' : 'default'} size="sm">{s.active ? 'Activa' : 'Inactiva'}</Badge>
+                      <Badge variant={s.active ? 'success' : 'default'} size="sm">{s.active ? t('omsSimulator.active') : t('omsSimulator.inactive')}</Badge>
                     </td>
                     <td className="py-3 px-4 text-right text-sm whitespace-nowrap">
                       <SimActions sim={s} onActivate={onActivate} onEdit={openEdit} onPreview={onPreview} />
@@ -172,13 +174,13 @@ export default function OmsSimuladorPage() {
               <div key={s.id} className={`rounded-lg border p-4 ${s.active ? 'border-teal-400 bg-teal-50' : 'border-slate-200'}`}>
                 <div className="flex items-center justify-between gap-2 mb-3">
                   <span className="font-semibold text-slate-900">{s.name}</span>
-                  <Badge variant={s.active ? 'success' : 'default'} size="sm">{s.active ? 'Activa' : 'Inactiva'}</Badge>
+                  <Badge variant={s.active ? 'success' : 'default'} size="sm">{s.active ? t('omsSimulator.active') : t('omsSimulator.inactive')}</Badge>
                 </div>
                 <div className="text-sm space-y-1.5">
-                  <div className="flex justify-between gap-3"><span className="text-slate-500">Reglas</span><span className="text-slate-900">{s.ruleIds.length}</span></div>
-                  <div className="flex justify-between gap-3"><span className="text-slate-500">Situaciones</span><span className="text-slate-900">{s.situations.join(', ')}</span></div>
-                  <div className="flex justify-between gap-3"><span className="text-slate-500">Modo</span><span className="text-slate-900">{APPLY_MODE_LABEL[s.applyMode]}</span></div>
-                  <div className="flex justify-between gap-3"><span className="text-slate-500">Hora corte</span><span className="text-slate-900">{s.applyMode === 'manual' ? '—' : s.cutoffTime}</span></div>
+                  <div className="flex justify-between gap-3"><span className="text-slate-500">{t('omsSimulator.colRules')}</span><span className="text-slate-900">{s.ruleIds.length}</span></div>
+                  <div className="flex justify-between gap-3"><span className="text-slate-500">{t('omsSimulator.colSituations')}</span><span className="text-slate-900">{s.situations.join(', ')}</span></div>
+                  <div className="flex justify-between gap-3"><span className="text-slate-500">{t('omsSimulator.colMode')}</span><span className="text-slate-900">{APPLY_MODE_LABEL[s.applyMode]}</span></div>
+                  <div className="flex justify-between gap-3"><span className="text-slate-500">{t('omsSimulator.colCutoff')}</span><span className="text-slate-900">{s.applyMode === 'manual' ? '—' : s.cutoffTime}</span></div>
                 </div>
                 <div className="flex justify-end mt-3 pt-3 border-t border-slate-100">
                   <SimActions sim={s} onActivate={onActivate} onEdit={openEdit} onPreview={onPreview} />
@@ -194,7 +196,7 @@ export default function OmsSimuladorPage() {
         <>
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-900">
-              Previsualización · {preview.sim.name} <span className="text-slate-400 font-normal">({preview.rows.length} pedidos)</span>
+              {t('omsSimulator.previewTitle', { name: preview.sim.name })} <span className="text-slate-400 font-normal">{t('omsSimulator.ordersCount', { count: preview.rows.length })}</span>
             </h2>
             <ViewToggle view={previewView.view} onChange={previewView.setView} />
           </div>
@@ -204,26 +206,26 @@ export default function OmsSimuladorPage() {
                 <table className="w-full whitespace-nowrap">
                   <thead>
                     <tr className="border-b border-slate-200">
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Prioridad</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Pedido</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">ID Almacén</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">ID Compañía</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">ID Sucursal</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Tipo de Orden</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Cliente</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Ruta</th>
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">Monto Total</th>
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">Peso (kg)</th>
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">Volumen (m³)</th>
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">N.º artículos</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Observaciones</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Fecha Despacho</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Fecha creación</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Fecha Alisto</th>
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">Score base</th>
-                      <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">Score simulado</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Estado</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Situación</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colPriority')}</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colOrder')}</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colWarehouseId')}</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colCompanyId')}</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colBranchId')}</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colOrderType')}</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colCustomer')}</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colRoute')}</th>
+                      <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colTotalAmount')}</th>
+                      <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colWeight')}</th>
+                      <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colVolume')}</th>
+                      <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colItemCount')}</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colObservations')}</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colDispatchDate')}</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colCreatedDate')}</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colReadyDate')}</th>
+                      <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colBaseScore')}</th>
+                      <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colSimScore')}</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colStatus')}</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colSituation')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -253,7 +255,7 @@ export default function OmsSimuladorPage() {
                     ))}
                   </tbody>
                 </table>
-                <Pagination {...previewPg} shown={previewPg.pageItems.length} noun="pedidos" />
+                <Pagination {...previewPg} shown={previewPg.pageItems.length} noun={t('omsSimulator.ordersNoun')} />
               </div>
             ) : (
               <div>
@@ -265,18 +267,18 @@ export default function OmsSimuladorPage() {
                       <PriorityBadge tier={o.tier} />
                     </div>
                     <div className="text-sm space-y-1.5">
-                      <div className="flex justify-between gap-3"><span className="text-slate-500">Cliente</span><span className="text-slate-900 text-right truncate">{o.customer}</span></div>
-                      <div className="flex justify-between gap-3"><span className="text-slate-500">Ruta</span><span className="text-slate-900 text-right">{o.route}</span></div>
-                      <div className="flex justify-between gap-3"><span className="text-slate-500">Almacén / Cía / Suc.</span><span className="text-slate-900 text-right">{o.warehouseId} / {o.companyId} / {o.branchId}</span></div>
-                      <div className="flex justify-between gap-3"><span className="text-slate-500">Monto Total</span><span className="text-slate-900 text-right">{money(o.totalAmount)}</span></div>
-                      <div className="flex justify-between gap-3"><span className="text-slate-500">Peso / Volumen</span><span className="text-slate-900 text-right">{o.weight.toFixed(1)} kg · {o.volume.toFixed(1)} m³</span></div>
-                      <div className="flex justify-between gap-3"><span className="text-slate-500">Score base → sim.</span><span className="text-slate-900 text-right">{o.baseScore} → <span className="font-semibold">{o.simScore}</span></span></div>
-                      <div className="flex justify-between gap-3"><span className="text-slate-500">Estado / Situación</span><span className="text-slate-900 text-right">{o.status} · {o.situation}</span></div>
+                      <div className="flex justify-between gap-3"><span className="text-slate-500">{t('omsSimulator.colCustomer')}</span><span className="text-slate-900 text-right truncate">{o.customer}</span></div>
+                      <div className="flex justify-between gap-3"><span className="text-slate-500">{t('omsSimulator.colRoute')}</span><span className="text-slate-900 text-right">{o.route}</span></div>
+                      <div className="flex justify-between gap-3"><span className="text-slate-500">{t('omsSimulator.cardWhCoBr')}</span><span className="text-slate-900 text-right">{o.warehouseId} / {o.companyId} / {o.branchId}</span></div>
+                      <div className="flex justify-between gap-3"><span className="text-slate-500">{t('omsSimulator.colTotalAmount')}</span><span className="text-slate-900 text-right">{money(o.totalAmount)}</span></div>
+                      <div className="flex justify-between gap-3"><span className="text-slate-500">{t('omsSimulator.cardWeightVolume')}</span><span className="text-slate-900 text-right">{o.weight.toFixed(1)} kg · {o.volume.toFixed(1)} m³</span></div>
+                      <div className="flex justify-between gap-3"><span className="text-slate-500">{t('omsSimulator.cardScoreBaseSim')}</span><span className="text-slate-900 text-right">{o.baseScore} → <span className="font-semibold">{o.simScore}</span></span></div>
+                      <div className="flex justify-between gap-3"><span className="text-slate-500">{t('omsSimulator.cardStatusSituation')}</span><span className="text-slate-900 text-right">{o.status} · {o.situation}</span></div>
                     </div>
                   </div>
                 ))}
               </div>
-              <Pagination {...previewPg} shown={previewPg.pageItems.length} noun="pedidos" />
+              <Pagination {...previewPg} shown={previewPg.pageItems.length} noun={t('omsSimulator.ordersNoun')} />
               </div>
             )}
           </Card>
@@ -285,21 +287,21 @@ export default function OmsSimuladorPage() {
 
       {/* Historial de ejecuciones — al final */}
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-slate-900">Historial de ejecuciones</h2>
+        <h2 className="text-sm font-semibold text-slate-900">{t('omsSimulator.historyTitle')}</h2>
         {executions.length > 0 && <ViewToggle view={historyView.view} onChange={historyView.setView} />}
       </div>
       <Card padding={false}>
         {executions.length === 0 ? (
-          <p className="p-4 text-sm text-slate-500">Sin ejecuciones registradas para esta compañía.</p>
+          <p className="p-4 text-sm text-slate-500">{t('omsSimulator.emptyHistory')}</p>
         ) : historyView.view === 'table' ? (
           <div className="overflow-x-auto">
             <table className="w-full whitespace-nowrap">
               <thead>
                 <tr className="border-b border-slate-200">
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Fecha</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Simulación</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Origen</th>
-                  <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">Pedidos</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colDate')}</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colSimulation')}</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colOrigin')}</th>
+                  <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colOrders')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -307,7 +309,7 @@ export default function OmsSimuladorPage() {
                   <tr key={e.id} className="border-b border-slate-100">
                     <td className="py-3 px-4 text-sm text-slate-500">{e.executedAt}</td>
                     <td className="py-3 px-4 text-sm font-medium text-slate-900">{e.simulationName || '—'}</td>
-                    <td className="py-3 px-4 text-sm text-slate-700">{e.trigger === 'manual' ? 'Manual' : 'Automático'}</td>
+                    <td className="py-3 px-4 text-sm text-slate-700">{e.trigger === 'manual' ? t('omsSimulator.triggerManual') : t('omsSimulator.triggerAuto')}</td>
                     <td className="py-3 px-4 text-sm text-slate-700 text-right">{e.affectedCount}</td>
                   </tr>
                 ))}
@@ -320,11 +322,11 @@ export default function OmsSimuladorPage() {
               <div key={e.id} className="rounded-lg border border-slate-200 p-4">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <span className="font-semibold text-slate-900">{e.simulationName || '—'}</span>
-                  <span className="text-xs text-slate-500">{e.trigger === 'manual' ? 'Manual' : 'Automático'}</span>
+                  <span className="text-xs text-slate-500">{e.trigger === 'manual' ? t('omsSimulator.triggerManual') : t('omsSimulator.triggerAuto')}</span>
                 </div>
                 <div className="text-sm space-y-1.5">
-                  <div className="flex justify-between gap-3"><span className="text-slate-500">Fecha</span><span className="text-slate-900">{e.executedAt}</span></div>
-                  <div className="flex justify-between gap-3"><span className="text-slate-500">Pedidos</span><span className="text-slate-900">{e.affectedCount}</span></div>
+                  <div className="flex justify-between gap-3"><span className="text-slate-500">{t('omsSimulator.colDate')}</span><span className="text-slate-900">{e.executedAt}</span></div>
+                  <div className="flex justify-between gap-3"><span className="text-slate-500">{t('omsSimulator.colOrders')}</span><span className="text-slate-900">{e.affectedCount}</span></div>
                 </div>
               </div>
             ))}
@@ -352,14 +354,15 @@ function SimActions({ sim, onActivate, onEdit, onPreview }: {
   onEdit: (sim: Simulation) => void;
   onPreview: (sim: Simulation) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <span className="inline-flex items-center gap-3">
-      <button onClick={() => onPreview(sim)} className="text-teal-600 hover:text-teal-700 cursor-pointer">Previsualizar</button>
-      <button onClick={() => onEdit(sim)} className="text-slate-600 hover:text-slate-800 cursor-pointer">Editar</button>
+      <button onClick={() => onPreview(sim)} className="text-teal-600 hover:text-teal-700 cursor-pointer">{t('omsSimulator.actionPreview')}</button>
+      <button onClick={() => onEdit(sim)} className="text-slate-600 hover:text-slate-800 cursor-pointer">{t('omsSimulator.actionEdit')}</button>
       {sim.active ? (
-        <span className="text-slate-400">Activa</span>
+        <span className="text-slate-400">{t('omsSimulator.active')}</span>
       ) : (
-        <button onClick={() => onActivate(sim.id)} className="text-slate-600 hover:text-slate-800 cursor-pointer">Activar</button>
+        <button onClick={() => onActivate(sim.id)} className="text-slate-600 hover:text-slate-800 cursor-pointer">{t('omsSimulator.actionActivate')}</button>
       )}
     </span>
   );
@@ -374,6 +377,7 @@ function SimulationModal({ sim, companyRules, ruleName, onSave, onCancel }: {
   onSave: (sim: Simulation) => void;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation();
   const [name, setName] = useState(sim.name);
   const [ruleIds, setRuleIds] = useState<string[]>(sim.ruleIds);
   const [situations, setSituations] = useState<OrderSituation[]>(sim.situations);
@@ -390,41 +394,41 @@ function SimulationModal({ sim, companyRules, ruleName, onSave, onCancel }: {
   const submit = () => onSave({ ...sim, name: name.trim(), ruleIds, situations, applyMode, cutoffTime });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40" role="dialog" aria-modal="true" aria-label="Configurar simulación">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40" role="dialog" aria-modal="true" aria-label={t('omsSimulator.modalConfigAria')}>
       <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto scrollbar-hide">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-slate-900">{sim.name ? 'Editar simulación' : 'Nueva simulación'}</h3>
-          <button onClick={onCancel} className="text-slate-400 hover:text-slate-600 cursor-pointer" aria-label="Cerrar">
+          <h3 className="text-lg font-semibold text-slate-900">{sim.name ? t('omsSimulator.modalEdit') : t('omsSimulator.modalNew')}</h3>
+          <button onClick={onCancel} className="text-slate-400 hover:text-slate-600 cursor-pointer" aria-label={t('omsSimulator.close')}>
             <i className="ri-close-line text-xl"></i>
           </button>
         </div>
 
         <div className="mb-4">
-          <Input label="Nombre" placeholder="p. ej. Cofersa — diaria T-1" value={name} onChange={(e) => setName(e.target.value)} />
+          <Input label={t('omsSimulator.name')} placeholder={t('omsSimulator.namePlaceholder')} value={name} onChange={(e) => setName(e.target.value)} />
         </div>
 
         <div className="mb-5">
           <div className="flex items-center justify-between mb-2">
-            <h4 className="text-sm font-semibold text-slate-900">Reglas incluidas</h4>
+            <h4 className="text-sm font-semibold text-slate-900">{t('omsSimulator.includedRules')}</h4>
             <button
               onClick={() => setRuleIds(allSelected ? [] : companyRules.map((r) => r.id))}
               className="text-xs text-teal-600 hover:text-teal-700 cursor-pointer"
             >
-              {allSelected ? 'Deseleccionar todas' : 'Seleccionar todas'}
+              {allSelected ? t('omsSimulator.deselectAll') : t('omsSimulator.selectAll')}
             </button>
           </div>
           <div className="space-y-1.5">
             {companyRules.map((r) => (
               <label key={r.id} className="flex items-start gap-2 text-sm cursor-pointer">
                 <input type="checkbox" checked={ruleIds.includes(r.id)} onChange={() => toggleRule(r.id)} className="mt-1 accent-teal-600" />
-                <span><span className="font-medium text-slate-900">{r.name}</span> <span className="text-slate-400">· peso {r.weight}{r.active ? '' : ' · inactiva'}</span></span>
+                <span><span className="font-medium text-slate-900">{r.name}</span> <span className="text-slate-400">{r.active ? t('omsSimulator.ruleWeight', { weight: r.weight }) : t('omsSimulator.ruleWeightInactive', { weight: r.weight })}</span></span>
               </label>
             ))}
           </div>
         </div>
 
         <div className="mb-5">
-          <h4 className="text-sm font-semibold text-slate-900 mb-2">Filtro de pedidos por situación</h4>
+          <h4 className="text-sm font-semibold text-slate-900 mb-2">{t('omsSimulator.situationFilter')}</h4>
           <div className="flex gap-2">
             {SITUATION_OPTIONS.map((s) => (
               <button
@@ -442,7 +446,7 @@ function SimulationModal({ sim, companyRules, ruleName, onSave, onCancel }: {
 
         <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Select
-            label="Modo de aplicación"
+            label={t('omsSimulator.applyMode')}
             value={applyMode}
             onChange={(e) => setApplyMode(e.target.value as ApplyMode)}
             options={[
@@ -452,13 +456,13 @@ function SimulationModal({ sim, companyRules, ruleName, onSave, onCancel }: {
             ]}
           />
           {needsCutoff && (
-            <Input label="Hora de corte" type="time" value={cutoffTime} onChange={(e) => setCutoffTime(e.target.value)} />
+            <Input label={t('omsSimulator.cutoffTime')} type="time" value={cutoffTime} onChange={(e) => setCutoffTime(e.target.value)} />
           )}
         </div>
 
         <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onCancel}>Cancelar</Button>
-          <Button variant="primary" icon={<i className="ri-save-line"></i>} onClick={submit} disabled={!canSave}>Guardar</Button>
+          <Button variant="secondary" onClick={onCancel}>{t('omsSimulator.cancel')}</Button>
+          <Button variant="primary" icon={<i className="ri-save-line"></i>} onClick={submit} disabled={!canSave}>{t('omsSimulator.save')}</Button>
         </div>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 import Button from '../../components/base/Button';
 import Badge from '../../components/base/Badge';
@@ -6,6 +7,7 @@ import DataTable, { type DataTableColumn } from '../../components/base/DataTable
 import CountryModal from './components/CountryModal';
 import DeleteConfirmModal from './components/DeleteConfirmModal';
 import CsvImportModal from '../../components/feature/CsvImportModal';
+import { useModulePermissions } from '../../hooks/use-module-permissions';
 
 interface Country {
   id: string;
@@ -35,6 +37,8 @@ export default function PaisesPage() {
   const [organizationId, setOrganizationId] = useState<string>('');
   const [storeCounts, setStoreCounts] = useState<Record<string, number>>({});
   const [deleteError, setDeleteError] = useState<string>('');
+  const { canCreate, canEdit, canDelete } = useModulePermissions('paises');
+  const { t } = useTranslation();
 
   const csvFields = [
     { key: 'name', label: 'name', required: true, type: 'text' as const },
@@ -166,7 +170,7 @@ export default function PaisesPage() {
   const columns: DataTableColumn<Country>[] = [
     {
       key: 'name',
-      header: 'País',
+      header: t('countries.colCountry'),
       accessor: (c) => c.name,
       sortable: true,
       render: (c) => (
@@ -183,7 +187,7 @@ export default function PaisesPage() {
     },
     {
       key: 'codes',
-      header: 'Códigos',
+      header: t('countries.colCodes'),
       accessor: (c) => c.code,
       sortable: true,
       render: (c) => (
@@ -193,10 +197,10 @@ export default function PaisesPage() {
         </div>
       ),
     },
-    { key: 'capital', header: 'Capital', accessor: (c) => c.capital ?? '', sortable: true },
+    { key: 'capital', header: t('countries.colCapital'), accessor: (c) => c.capital ?? '', sortable: true },
     {
       key: 'currency',
-      header: 'Moneda / Tel.',
+      header: t('countries.colCurrency'),
       accessor: (c) => c.currency,
       sortable: true,
       filterable: true,
@@ -209,14 +213,14 @@ export default function PaisesPage() {
     },
     {
       key: 'timezone',
-      header: 'Zona Horaria',
+      header: t('countries.colTimezone'),
       accessor: (c) => c.timezone,
       filterable: true,
       render: (c) => <span className="text-xs text-slate-600 bg-slate-100 px-2 py-1 rounded-md">{c.timezone}</span>,
     },
     {
       key: 'stores',
-      header: 'Tiendas',
+      header: t('countries.colStores'),
       accessor: (c) => storeCounts[c.id] || 0,
       sortable: true,
       render: (c) => (
@@ -228,12 +232,12 @@ export default function PaisesPage() {
     },
     {
       key: 'status',
-      header: 'Estado',
-      accessor: (c) => (c.status === 'active' ? 'Activo' : 'Inactivo'),
+      header: t('countries.colStatus'),
+      accessor: (c) => (c.status === 'active' ? t('countries.active') : t('countries.inactive')),
       filterable: true,
       render: (c) => (
         <Badge variant={c.status === 'active' ? 'success' : 'danger'} size="sm">
-          {c.status === 'active' ? 'Activo' : 'Inactivo'}
+          {c.status === 'active' ? t('countries.active') : t('countries.inactive')}
         </Badge>
       ),
     },
@@ -244,7 +248,7 @@ export default function PaisesPage() {
       <div className="flex items-center justify-center h-full min-h-[400px]">
         <div className="text-center">
           <i className="ri-loader-4-line text-4xl text-teal-600 animate-spin"></i>
-          <p className="mt-2 text-slate-600 text-sm">Cargando países...</p>
+          <p className="mt-2 text-slate-600 text-sm">{t('countries.loading')}</p>
         </div>
       </div>
     );
@@ -255,34 +259,36 @@ export default function PaisesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Países</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Gestiona los países de operación de tu red logística</p>
+          <h1 className="text-2xl font-bold text-slate-900">{t('countries.title')}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{t('countries.subtitle')}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="secondary"
-            onClick={() => setIsCsvImportOpen(true)}
-            icon={<i className="ri-file-upload-line"></i>}
-          >
-            Importar CSV
-          </Button>
-          <Button
-            variant="primary"
-            onClick={() => { setSelectedCountry(null); setIsModalOpen(true); }}
-            icon={<i className="ri-add-line"></i>}
-          >
-            Nuevo País
-          </Button>
-        </div>
+        {canCreate && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setIsCsvImportOpen(true)}
+              icon={<i className="ri-file-upload-line"></i>}
+            >
+              {t('countries.importCsv')}
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => { setSelectedCountry(null); setIsModalOpen(true); }}
+              icon={<i className="ri-add-line"></i>}
+            >
+              {t('countries.new')}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Países', value: countries.length, icon: 'ri-global-line', color: 'bg-teal-50 text-teal-600', border: 'border-teal-100' },
-          { label: 'Activos', value: activeCount, icon: 'ri-checkbox-circle-line', color: 'bg-emerald-50 text-emerald-600', border: 'border-emerald-100' },
-          { label: 'Inactivos', value: inactiveCount, icon: 'ri-close-circle-line', color: 'bg-red-50 text-red-600', border: 'border-red-100' },
-          { label: 'Tiendas Totales', value: totalStores, icon: 'ri-store-2-line', color: 'bg-amber-50 text-amber-600', border: 'border-amber-100' },
+          { label: t('countries.kpiTotal'), value: countries.length, icon: 'ri-global-line', color: 'bg-teal-50 text-teal-600', border: 'border-teal-100' },
+          { label: t('countries.kpiActive'), value: activeCount, icon: 'ri-checkbox-circle-line', color: 'bg-emerald-50 text-emerald-600', border: 'border-emerald-100' },
+          { label: t('countries.kpiInactive'), value: inactiveCount, icon: 'ri-close-circle-line', color: 'bg-red-50 text-red-600', border: 'border-red-100' },
+          { label: t('countries.kpiStores'), value: totalStores, icon: 'ri-store-2-line', color: 'bg-amber-50 text-amber-600', border: 'border-amber-100' },
         ].map((kpi) => (
           <div key={kpi.label} className={`bg-white rounded-xl border ${kpi.border} p-4 flex items-center gap-4`}>
             <div className={`w-11 h-11 flex items-center justify-center rounded-lg ${kpi.color}`}>
@@ -300,27 +306,31 @@ export default function PaisesPage() {
         data={countries}
         columns={columns}
         getRowId={(c) => c.id}
-        searchPlaceholder="Buscar por nombre, código, capital..."
+        searchPlaceholder={t('countries.search')}
         exportFileName="paises"
-        emptyMessage="No se encontraron países"
-        actions={(c) => (
+        emptyMessage={t('countries.empty')}
+        actions={(canEdit || canDelete) ? (c) => (
           <>
-            <button
-              onClick={() => openEdit(c)}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer"
-              title="Editar"
-            >
-              <i className="ri-edit-line"></i>
-            </button>
-            <button
-              onClick={() => openDelete(c)}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-              title="Eliminar"
-            >
-              <i className="ri-delete-bin-line"></i>
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => openEdit(c)}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer"
+                title="Editar"
+              >
+                <i className="ri-edit-line"></i>
+              </button>
+            )}
+            {canDelete && (
+              <button
+                onClick={() => openDelete(c)}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                title="Eliminar"
+              >
+                <i className="ri-delete-bin-line"></i>
+              </button>
+            )}
           </>
-        )}
+        ) : undefined}
       />
 
       <CountryModal

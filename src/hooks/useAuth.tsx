@@ -74,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => { subscription.unsubscribe(); };
   }, []);
 
   const signIn = async (email: string, password: string): Promise<{ error: string | null }> => {

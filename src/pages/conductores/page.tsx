@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 import Button from '../../components/base/Button';
 import Badge from '../../components/base/Badge';
@@ -6,6 +7,7 @@ import Card from '../../components/base/Card';
 import DataTable, { type DataTableColumn } from '../../components/base/DataTable';
 import DriverModal from './components/DriverModal';
 import CsvImportModal from '../../components/feature/CsvImportModal';
+import { useModulePermissions } from '../../hooks/use-module-permissions';
 
 interface Driver {
   id: string;
@@ -33,6 +35,8 @@ export default function ConductoresPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
+  const { canCreate, canEdit, canDelete } = useModulePermissions('conductores');
+  const { t } = useTranslation();
 
   useEffect(() => {
     loadDrivers();
@@ -80,9 +84,9 @@ export default function ConductoresPage() {
       on_leave: 'warning'
     };
     const labels: Record<string, string> = {
-      active: 'Activo',
-      inactive: 'Inactivo',
-      on_leave: 'En Licencia'
+      active: t('drivers.active'),
+      inactive: t('drivers.inactive'),
+      on_leave: t('drivers.onLeave')
     };
     return <Badge variant={variants[status] || 'success'}>{labels[status] || status}</Badge>;
   };
@@ -110,7 +114,7 @@ export default function ConductoresPage() {
   const columns: DataTableColumn<Driver>[] = [
     {
       key: 'full_name',
-      header: 'Conductor',
+      header: t('drivers.colDriver'),
       accessor: (d) => d.full_name,
       sortable: true,
       render: (d) => (
@@ -125,10 +129,10 @@ export default function ConductoresPage() {
         </div>
       ),
     },
-    { key: 'document', header: 'Documento', accessor: (d) => d.document, sortable: true },
+    { key: 'document', header: t('drivers.colDocument'), accessor: (d) => d.document, sortable: true },
     {
       key: 'contact',
-      header: 'Contacto',
+      header: t('drivers.colContact'),
       accessor: (d) => d.phone,
       render: (d) => (
         <>
@@ -139,19 +143,19 @@ export default function ConductoresPage() {
     },
     {
       key: 'license',
-      header: 'Licencia de conducir',
+      header: t('drivers.colLicense'),
       accessor: (d) => d.license_type,
       filterable: true,
       render: (d) => (
         <>
-          <div className="text-sm text-gray-900 font-medium">Clase {d.license_type}</div>
+          <div className="text-sm text-gray-900 font-medium">{t('drivers.licenseClass', { type: d.license_type })}</div>
           <div className="text-xs text-gray-500">{d.license_number}</div>
         </>
       ),
     },
     {
       key: 'license_expiry',
-      header: 'Vencimiento',
+      header: t('drivers.colExpiry'),
       accessor: (d) => d.license_expiry,
       sortable: true,
       render: (d) => (
@@ -159,24 +163,24 @@ export default function ConductoresPage() {
           <div className={`text-sm ${isLicenseExpired(d.license_expiry) ? 'text-red-600 font-semibold' : isLicenseExpiringSoon(d.license_expiry) ? 'text-amber-600 font-semibold' : 'text-gray-600'}`}>
             {new Date(d.license_expiry).toLocaleDateString('es-CL')}
           </div>
-          {isLicenseExpired(d.license_expiry) && <div className="text-xs text-red-600 font-medium">VENCIDA</div>}
+          {isLicenseExpired(d.license_expiry) && <div className="text-xs text-red-600 font-medium">{t('drivers.expired')}</div>}
           {isLicenseExpiringSoon(d.license_expiry) && !isLicenseExpired(d.license_expiry) && (
-            <div className="text-xs text-amber-600 font-medium">Por vencer</div>
+            <div className="text-xs text-amber-600 font-medium">{t('drivers.expiringSoon')}</div>
           )}
         </>
       ),
     },
     {
       key: 'carrier',
-      header: 'Transportista',
+      header: t('drivers.colCarrier'),
       accessor: (d) => d.carriers?.name ?? '',
       sortable: true,
       filterable: true,
     },
     {
       key: 'status',
-      header: 'Estado',
-      accessor: (d) => ({ active: 'Activo', inactive: 'Inactivo', on_leave: 'En Licencia' }[d.status] ?? d.status),
+      header: t('drivers.colStatus'),
+      accessor: (d) => ({ active: t('drivers.active'), inactive: t('drivers.inactive'), on_leave: t('drivers.onLeave') }[d.status] ?? d.status),
       filterable: true,
       render: (d) => getStatusBadge(d.status),
     },
@@ -187,7 +191,7 @@ export default function ConductoresPage() {
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Cargando conductores...</p>
+          <p className="text-gray-600">{t('drivers.loading')}</p>
         </div>
       </div>
     );
@@ -197,29 +201,31 @@ export default function ConductoresPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Conductores</h1>
-          <p className="text-gray-600 mt-1">Gestiona los conductores de tu flota</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('drivers.title')}</h1>
+          <p className="text-gray-600 mt-1">{t('drivers.subtitle')}</p>
         </div>
-        <div className="flex gap-3">
-          <Button
-            variant="secondary"
-            onClick={() => setIsCsvModalOpen(true)}
-          >
-            <i className="ri-file-excel-line mr-2"></i>
-            Importar CSV
-          </Button>
-          <Button onClick={() => { setSelectedDriver(null); setIsModalOpen(true); }}>
-            <i className="ri-add-line mr-2"></i>
-            Nuevo Conductor
-          </Button>
-        </div>
+        {canCreate && (
+          <div className="flex gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => setIsCsvModalOpen(true)}
+            >
+              <i className="ri-file-excel-line mr-2"></i>
+              {t('drivers.importCsv')}
+            </Button>
+            <Button onClick={() => { setSelectedDriver(null); setIsModalOpen(true); }}>
+              <i className="ri-add-line mr-2"></i>
+              {t('drivers.new')}
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Total Conductores</p>
+              <p className="text-sm text-gray-600">{t('drivers.kpiTotal')}</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">{stats.total}</p>
             </div>
             <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center">
@@ -231,7 +237,7 @@ export default function ConductoresPage() {
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Activos</p>
+              <p className="text-sm text-gray-600">{t('drivers.kpiActive')}</p>
               <p className="text-2xl font-bold text-green-600 mt-1">{stats.active}</p>
             </div>
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
@@ -243,7 +249,7 @@ export default function ConductoresPage() {
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Inactivos</p>
+              <p className="text-sm text-gray-600">{t('drivers.kpiInactive')}</p>
               <p className="text-2xl font-bold text-red-600 mt-1">{stats.inactive}</p>
             </div>
             <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
@@ -255,7 +261,7 @@ export default function ConductoresPage() {
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Licencias por Vencer</p>
+              <p className="text-sm text-gray-600">{t('drivers.kpiExpiring')}</p>
               <p className="text-2xl font-bold text-amber-600 mt-1">{stats.expiringSoon}</p>
             </div>
             <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
@@ -269,27 +275,31 @@ export default function ConductoresPage() {
         data={drivers}
         columns={columns}
         getRowId={(d) => d.id}
-        searchPlaceholder="Buscar por nombre, código, documento o licencia..."
+        searchPlaceholder={t('drivers.search')}
         exportFileName="conductores"
-        emptyMessage="No se encontraron conductores"
-        actions={(d) => (
+        emptyMessage={t('drivers.empty')}
+        actions={(canEdit || canDelete) ? (d) => (
           <>
-            <button
-              onClick={() => { setSelectedDriver(d); setIsModalOpen(true); }}
-              className="p-2 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
-              title="Editar"
-            >
-              <i className="ri-edit-line"></i>
-            </button>
-            <button
-              onClick={() => handleDelete(d.id)}
-              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              title="Eliminar"
-            >
-              <i className="ri-delete-bin-line"></i>
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => { setSelectedDriver(d); setIsModalOpen(true); }}
+                className="p-2 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
+                title="Editar"
+              >
+                <i className="ri-edit-line"></i>
+              </button>
+            )}
+            {canDelete && (
+              <button
+                onClick={() => handleDelete(d.id)}
+                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                title="Eliminar"
+              >
+                <i className="ri-delete-bin-line"></i>
+              </button>
+            )}
           </>
-        )}
+        ) : undefined}
       />
 
       <DriverModal
@@ -305,17 +315,17 @@ export default function ConductoresPage() {
         tableName="drivers"
         templateFileName="plantilla_conductores.csv"
         fields={[
-          { name: 'full_name', label: 'Nombre Completo', required: true, type: 'text' },
-          { name: 'document', label: 'Documento', required: true, type: 'text' },
-          { name: 'document_type', label: 'Tipo Documento', required: true, type: 'text' },
-          { name: 'license_number', label: 'Número Licencia', required: true, type: 'text' },
-          { name: 'license_type', label: 'Tipo Licencia', required: true, type: 'text' },
-          { name: 'license_expiry', label: 'Vencimiento Licencia (YYYY-MM-DD)', required: true, type: 'text' },
-          { name: 'phone', label: 'Teléfono', required: true, type: 'text' },
-          { name: 'email', label: 'Email', required: true, type: 'email' },
-          { name: 'carrier_code', label: 'Código Transportista', required: true, type: 'text' },
-          { name: 'status', label: 'Estado (active/inactive/on_leave)', required: true, type: 'text' },
-          { name: 'notes', label: 'Notas', required: false, type: 'text' }
+          { key: 'full_name', label: 'Nombre Completo', required: true, type: 'text' },
+          { key: 'document', label: 'Documento', required: true, type: 'text' },
+          { key: 'document_type', label: 'Tipo Documento', required: true, type: 'text' },
+          { key: 'license_number', label: 'Número Licencia', required: true, type: 'text' },
+          { key: 'license_type', label: 'Tipo Licencia', required: true, type: 'text' },
+          { key: 'license_expiry', label: 'Vencimiento Licencia (YYYY-MM-DD)', required: true, type: 'text' },
+          { key: 'phone', label: 'Teléfono', required: true, type: 'text' },
+          { key: 'email', label: 'Email', required: true, type: 'email' },
+          { key: 'carrier_code', label: 'Código Transportista', required: true, type: 'text' },
+          { key: 'status', label: 'Estado (active/inactive/on_leave)', required: true, type: 'text' },
+          { key: 'notes', label: 'Notas', required: false, type: 'text' }
         ]}
         transformRow={async (row: any) => {
           // Resolver carrier_code -> carrier_id
@@ -356,7 +366,7 @@ export default function ConductoresPage() {
             organization_id: appUser?.organization_id
           };
         }}
-        onSuccess={loadDrivers}
+        onImportComplete={loadDrivers}
       />
     </div>
   );

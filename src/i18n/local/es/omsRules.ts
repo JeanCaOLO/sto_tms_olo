@@ -1,0 +1,18 @@
+export default {
+  'omsRules.title': 'Motor de Reglas',
+  'omsRules.subtitle': 'Catálogo de reglas del OMS — "Activa" indica que la lógica ya existe en código (src/pages/oms/engine/priorityEngine.ts); "Inactiva" es una regla todavía sin implementar. Peso y parámetros son de referencia/planificación, editables acá pero no conectados aún al motor real.',
+  'omsRules.company': 'Compañía',
+  'omsRules.colRule': 'Regla',
+  'omsRules.colDescription': 'Descripción',
+  'omsRules.colStatus': 'Estado',
+  'omsRules.colWeight': 'Peso/Score',
+  'omsRules.colParams': 'Parámetros',
+  'omsRules.firstDelivery': 'Primera entrega',
+  'omsRules.deactivate': 'Desactivar regla',
+  'omsRules.activate': 'Activar regla',
+  'omsRules.active': 'Activa',
+  'omsRules.inactive': 'Inactiva',
+  'omsRules.weightAria': 'Peso de {{name}}',
+  'omsRules.params': 'Parámetros',
+  'omsRules.footer': 'No se crean reglas nuevas desde la interfaz: cada fila mapea a una regla real (o pendiente) del código. El switch y los parámetros de esta pantalla son de referencia — no persisten ni cambian el comportamiento real del motor todavía.',
+};

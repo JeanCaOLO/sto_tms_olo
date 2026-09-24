@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import Card from '../../components/base/Card';
@@ -20,6 +21,7 @@ interface Organization {
 type TabType = 'organization' | 'users' | 'roles' | 'preferences';
 
 export default function ConfiguracionPage() {
+  const { t } = useTranslation();
   const { appUser } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('organization');
   const [loading, setLoading] = useState(false);
@@ -88,9 +90,9 @@ export default function ConfiguracionPage() {
       .eq('id', appUser.organization_id);
 
     if (error) {
-      setMessage({ type: 'error', text: 'Error al guardar los cambios' });
+      setMessage({ type: 'error', text: t('settings.saveError') });
     } else {
-      setMessage({ type: 'success', text: 'Cambios guardados correctamente' });
+      setMessage({ type: 'success', text: t('settings.saveSuccess') });
       setTimeout(() => setMessage(null), 3000);
     }
 
@@ -103,16 +105,16 @@ export default function ConfiguracionPage() {
 
     localStorage.setItem('app_preferences', JSON.stringify(preferences));
 
-    setMessage({ type: 'success', text: 'Preferencias guardadas correctamente' });
+    setMessage({ type: 'success', text: t('settings.prefsSuccess') });
     setTimeout(() => setMessage(null), 3000);
     setSaving(false);
   };
 
   const tabs = [
-    { id: 'organization' as TabType, label: 'Organización', icon: 'ri-building-line' },
-    { id: 'users' as TabType, label: 'Usuarios', icon: 'ri-user-line' },
-    { id: 'roles' as TabType, label: 'Roles', icon: 'ri-shield-user-line' },
-    { id: 'preferences' as TabType, label: 'Preferencias', icon: 'ri-settings-3-line' }
+    { id: 'organization' as TabType, label: t('settings.tabOrganization'), icon: 'ri-building-line' },
+    { id: 'users' as TabType, label: t('settings.tabUsers'), icon: 'ri-user-line' },
+    { id: 'roles' as TabType, label: t('settings.tabRoles'), icon: 'ri-shield-user-line' },
+    { id: 'preferences' as TabType, label: t('settings.tabPreferences'), icon: 'ri-settings-3-line' }
   ];
 
   if (loading) {
@@ -128,8 +130,8 @@ export default function ConfiguracionPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-800">Configuración</h1>
-          <p className="text-sm text-slate-500 mt-1">Gestiona la configuración de tu organización</p>
+          <h1 className="text-2xl font-semibold text-slate-800">{t('settings.title')}</h1>
+          <p className="text-sm text-slate-500 mt-1">{t('settings.subtitle')}</p>
         </div>
       </div>
 
@@ -172,68 +174,68 @@ export default function ConfiguracionPage() {
             <Card className="p-6">
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-800">Información de la Organización</h2>
-                  <p className="text-sm text-slate-500 mt-1">Actualiza los datos de tu empresa</p>
+                  <h2 className="text-lg font-semibold text-slate-800">{t('settings.orgInfoTitle')}</h2>
+                  <p className="text-sm text-slate-500 mt-1">{t('settings.orgInfoSubtitle')}</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-6">
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Nombre de la Organización
+                      {t('settings.orgName')}
                     </label>
                     <Input
                       value={organization.name}
                       onChange={(e) => setOrganization({ ...organization, name: e.target.value })}
-                      placeholder="Ej: Transportes ABC"
+                      placeholder={t('settings.orgNamePlaceholder')}
                     />
                   </div>
 
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Dirección
+                      {t('settings.orgAddress')}
                     </label>
                     <Input
                       value={organization.address}
                       onChange={(e) => setOrganization({ ...organization, address: e.target.value })}
-                      placeholder="Ej: Av. Principal 123, Santiago"
+                      placeholder={t('settings.orgAddressPlaceholder')}
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Teléfono
+                      {t('settings.orgPhone')}
                     </label>
                     <Input
                       value={organization.phone}
                       onChange={(e) => setOrganization({ ...organization, phone: e.target.value })}
-                      placeholder="Ej: +56 9 1234 5678"
+                      placeholder={t('settings.orgPhonePlaceholder')}
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Email
+                      {t('settings.orgEmail')}
                     </label>
                     <Input
                       type="email"
                       value={organization.email}
                       onChange={(e) => setOrganization({ ...organization, email: e.target.value })}
-                      placeholder="Ej: contacto@empresa.com"
+                      placeholder={t('settings.orgEmailPlaceholder')}
                     />
                   </div>
 
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                      URL del Logo
+                      {t('settings.orgLogoUrl')}
                     </label>
                     <Input
                       value={organization.logo_url || ''}
                       onChange={(e) => setOrganization({ ...organization, logo_url: e.target.value })}
-                      placeholder="Ej: https://ejemplo.com/logo.png"
+                      placeholder={t('settings.orgLogoPlaceholder')}
                     />
                     {organization.logo_url && (
                       <div className="mt-3 p-4 bg-slate-50 rounded-lg">
-                        <p className="text-xs text-slate-500 mb-2">Vista previa:</p>
+                        <p className="text-xs text-slate-500 mb-2">{t('settings.logoPreview')}</p>
                         <img 
                           src={organization.logo_url} 
                           alt="Logo" 
@@ -256,12 +258,12 @@ export default function ConfiguracionPage() {
                     {saving ? (
                       <>
                         <i className="ri-loader-4-line animate-spin"></i>
-                        <span>Guardando...</span>
+                        <span>{t('settings.saving')}</span>
                       </>
                     ) : (
                       <>
                         <i className="ri-save-line"></i>
-                        <span>Guardar Cambios</span>
+                        <span>{t('settings.saveChanges')}</span>
                       </>
                     )}
                   </Button>
@@ -282,14 +284,14 @@ export default function ConfiguracionPage() {
             <Card className="p-6">
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-lg font-semibold text-slate-800">Preferencias del Sistema</h2>
-                  <p className="text-sm text-slate-500 mt-1">Configura las opciones generales de la aplicación</p>
+                  <h2 className="text-lg font-semibold text-slate-800">{t('settings.prefsTitle')}</h2>
+                  <p className="text-sm text-slate-500 mt-1">{t('settings.prefsSubtitle')}</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Zona Horaria
+                      {t('settings.timezone')}
                     </label>
                     <Select
                       value={preferences.timezone}
@@ -306,7 +308,7 @@ export default function ConfiguracionPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Moneda
+                      {t('settings.currency')}
                     </label>
                     <Select
                       value={preferences.currency}
@@ -325,7 +327,7 @@ export default function ConfiguracionPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Idioma
+                      {t('settings.language')}
                     </label>
                     <Select
                       value={preferences.language}
@@ -339,7 +341,7 @@ export default function ConfiguracionPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Formato de Fecha
+                      {t('settings.dateFormat')}
                     </label>
                     <Select
                       value={preferences.dateFormat}
@@ -353,14 +355,14 @@ export default function ConfiguracionPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">
-                      Formato de Hora
+                      {t('settings.timeFormat')}
                     </label>
                     <Select
                       value={preferences.timeFormat}
                       onChange={(e) => setPreferences({ ...preferences, timeFormat: e.target.value })}
                     >
-                      <option value="24h">24 horas</option>
-                      <option value="12h">12 horas (AM/PM)</option>
+                      <option value="24h">{t('settings.time24h')}</option>
+                      <option value="12h">{t('settings.time12h')}</option>
                     </Select>
                   </div>
                 </div>
@@ -374,12 +376,12 @@ export default function ConfiguracionPage() {
                     {saving ? (
                       <>
                         <i className="ri-loader-4-line animate-spin"></i>
-                        <span>Guardando...</span>
+                        <span>{t('settings.saving')}</span>
                       </>
                     ) : (
                       <>
                         <i className="ri-save-line"></i>
-                        <span>Guardar Preferencias</span>
+                        <span>{t('settings.savePreferences')}</span>
                       </>
                     )}
                   </Button>

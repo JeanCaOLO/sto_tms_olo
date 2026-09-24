@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import Card from '../../../components/base/Card';
 import Badge from '../../../components/base/Badge';
 import Button from '../../../components/base/Button';
@@ -17,6 +18,7 @@ export default function OmsReglasPage() {
     toggleRule, setWeight,
     editingId, setEditingId, editingRule, saveParams,
   } = useReglasController();
+  const { t } = useTranslation();
 
   // Edición local del peso por fila (buffer para el input numérico).
   const [weightDraft, setWeightDraft] = useState<Record<string, string>>({});
@@ -25,16 +27,14 @@ export default function OmsReglasPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Motor de Reglas</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{t('omsRules.title')}</h1>
           <p className="text-sm text-slate-600 mt-1">
-            Catálogo de reglas del OMS — "Activa" indica que la lógica ya existe en código
-            (src/pages/oms/engine/priorityEngine.ts); "Inactiva" es una regla todavía sin implementar.
-            Peso y parámetros son de referencia/planificación, editables acá pero no conectados aún al motor real.
+            {t('omsRules.subtitle')}
           </p>
         </div>
         <div className="w-full sm:w-56">
           <Select
-            label="Compañía"
+            label={t('omsRules.company')}
             value={company}
             onChange={(e) => setCompany(e.target.value)}
             options={companies.map((c) => ({ value: c.id, label: c.name }))}
@@ -55,11 +55,11 @@ export default function OmsReglasPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-200">
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Regla</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Descripción</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Estado</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Peso/Score</th>
-                  <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">Parámetros</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsRules.colRule')}</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsRules.colDescription')}</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsRules.colStatus')}</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsRules.colWeight')}</th>
+                  <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">{t('omsRules.colParams')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -71,7 +71,7 @@ export default function OmsReglasPage() {
                         <span className="text-sm font-medium text-slate-900">{r.name}</span>
                       </div>
                       {r.firstDelivery && (
-                        <Badge variant="info" size="sm">Primera entrega</Badge>
+                        <Badge variant="info" size="sm">{t('omsRules.firstDelivery')}</Badge>
                       )}
                     </td>
                     <td className="py-3 px-4 text-sm text-slate-600 max-w-md">{r.description}</td>
@@ -79,14 +79,14 @@ export default function OmsReglasPage() {
                       <button
                         onClick={() => toggleRule(r.id)}
                         className="cursor-pointer"
-                        aria-label={r.active ? 'Desactivar regla' : 'Activar regla'}
+                        aria-label={r.active ? t('omsRules.deactivate') : t('omsRules.activate')}
                         aria-pressed={r.active}
                       >
                         <span className={`inline-flex items-center h-6 w-11 rounded-full transition-colors ${r.active ? 'bg-teal-600' : 'bg-slate-300'}`}>
                           <span className={`inline-block w-5 h-5 bg-white rounded-full shadow transform transition-transform ${r.active ? 'translate-x-5' : 'translate-x-0.5'}`}></span>
                         </span>
                       </button>
-                      <div className="text-xs text-slate-500 mt-1">{r.active ? 'Activa' : 'Inactiva'}</div>
+                      <div className="text-xs text-slate-500 mt-1">{r.active ? t('omsRules.active') : t('omsRules.inactive')}</div>
                     </td>
                     <td className="py-3 px-4">
                       <input
@@ -97,12 +97,12 @@ export default function OmsReglasPage() {
                         onChange={(e) => setWeightDraft((d) => ({ ...d, [r.id]: e.target.value }))}
                         onBlur={(e) => setWeight(r.id, Number(e.target.value) || 0)}
                         className="w-20 px-2 py-1 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                        aria-label={`Peso de ${r.name}`}
+                        aria-label={t('omsRules.weightAria', { name: r.name })}
                       />
                     </td>
                     <td className="py-3 px-4 text-right">
                       <Button variant="ghost" size="sm" icon={<i className="ri-settings-3-line"></i>} onClick={() => setEditingId(r.id)}>
-                        Parámetros
+                        {t('omsRules.params')}
                       </Button>
                     </td>
                   </tr>
@@ -112,8 +112,7 @@ export default function OmsReglasPage() {
           </div>
           <p className="px-4 py-3 text-xs text-slate-500 border-t border-slate-100">
             <i className="ri-lock-2-line mr-1"></i>
-            No se crean reglas nuevas desde la interfaz: cada fila mapea a una regla real (o pendiente) del código.
-            El switch y los parámetros de esta pantalla son de referencia — no persisten ni cambian el comportamiento real del motor todavía.
+            {t('omsRules.footer')}
           </p>
         </Card>
       )}

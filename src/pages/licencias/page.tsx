@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import Button from '../../components/base/Button';
@@ -6,6 +7,7 @@ import Badge from '../../components/base/Badge';
 import DataTable, { type DataTableColumn } from '../../components/base/DataTable';
 import LicenciaModal from './components/LicenciaModal';
 import DeleteConfirmModal from '../paises/components/DeleteConfirmModal';
+import { useModulePermissions } from '../../hooks/use-module-permissions';
 
 interface Licencia {
   id: string;
@@ -28,6 +30,8 @@ export default function LicenciasPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [toDelete, setToDelete] = useState<Licencia | null>(null);
   const [deleteError, setDeleteError] = useState('');
+  const { canCreate, canEdit, canDelete } = useModulePermissions('licencias');
+  const { t } = useTranslation();
 
   useEffect(() => {
     load();
@@ -68,7 +72,7 @@ export default function LicenciasPage() {
   const columns: DataTableColumn<Licencia>[] = [
     {
       key: 'code',
-      header: 'Código',
+      header: t('licenses.colCode'),
       accessor: (l) => l.code,
       sortable: true,
       render: (l) => (
@@ -80,10 +84,10 @@ export default function LicenciasPage() {
         </div>
       ),
     },
-    { key: 'name', header: 'Nombre', accessor: (l) => l.name, sortable: true },
+    { key: 'name', header: t('licenses.colName'), accessor: (l) => l.name, sortable: true },
     {
       key: 'country',
-      header: 'País',
+      header: t('licenses.colCountry'),
       accessor: (l) => l.country?.name ?? '',
       sortable: true,
       filterable: true,
@@ -91,10 +95,10 @@ export default function LicenciasPage() {
     },
     {
       key: 'activo',
-      header: 'Estado',
-      accessor: (l) => (l.activo ? 'Activo' : 'Inactivo'),
+      header: t('licenses.colStatus'),
+      accessor: (l) => (l.activo ? t('licenses.active') : t('licenses.inactive')),
       filterable: true,
-      render: (l) => <Badge variant={l.activo ? 'success' : 'default'}>{l.activo ? 'Activo' : 'Inactivo'}</Badge>,
+      render: (l) => <Badge variant={l.activo ? 'success' : 'default'}>{l.activo ? t('licenses.active') : t('licenses.inactive')}</Badge>,
     },
   ];
 
@@ -110,19 +114,21 @@ export default function LicenciasPage() {
     <div className="p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Licencias de Conducir</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Catálogo de tipos de licencia por país (alimenta el formulario de conductores)</p>
+          <h1 className="text-2xl font-bold text-slate-900">{t('licenses.title')}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{t('licenses.subtitle')}</p>
         </div>
-        <Button onClick={() => { setSelected(null); setIsModalOpen(true); }} icon={<i className="ri-add-line"></i>}>
-          Nueva Licencia
-        </Button>
+        {canCreate && (
+          <Button onClick={() => { setSelected(null); setIsModalOpen(true); }} icon={<i className="ri-add-line"></i>}>
+            {t('licenses.new')}
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         {[
-          { label: 'Total Licencias', value: licencias.length, icon: 'ri-bank-card-line', color: 'bg-teal-50 text-teal-600' },
-          { label: 'Activas', value: activas, icon: 'ri-checkbox-circle-line', color: 'bg-emerald-50 text-emerald-600' },
-          { label: 'Inactivas', value: licencias.length - activas, icon: 'ri-close-circle-line', color: 'bg-red-50 text-red-600' },
+          { label: t('licenses.kpiTotal'), value: licencias.length, icon: 'ri-bank-card-line', color: 'bg-teal-50 text-teal-600' },
+          { label: t('licenses.kpiActive'), value: activas, icon: 'ri-checkbox-circle-line', color: 'bg-emerald-50 text-emerald-600' },
+          { label: t('licenses.kpiInactive'), value: licencias.length - activas, icon: 'ri-close-circle-line', color: 'bg-red-50 text-red-600' },
         ].map((kpi) => (
           <div key={kpi.label} className="bg-white rounded-xl border border-slate-100 p-4 flex items-center gap-4">
             <div className={`w-11 h-11 flex items-center justify-center rounded-lg ${kpi.color}`}>
@@ -140,27 +146,31 @@ export default function LicenciasPage() {
         data={licencias}
         columns={columns}
         getRowId={(l) => l.id}
-        searchPlaceholder="Buscar licencia..."
+        searchPlaceholder={t('licenses.search')}
         exportFileName="licencias"
-        emptyMessage="No hay licencias"
-        actions={(l) => (
+        emptyMessage={t('licenses.empty')}
+        actions={(canEdit || canDelete) ? (l) => (
           <>
-            <button
-              onClick={() => { setSelected(l); setIsModalOpen(true); }}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer"
-              title="Editar"
-            >
-              <i className="ri-edit-line"></i>
-            </button>
-            <button
-              onClick={() => { setToDelete(l); setDeleteError(''); setIsDeleteOpen(true); }}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-              title="Eliminar"
-            >
-              <i className="ri-delete-bin-line"></i>
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => { setSelected(l); setIsModalOpen(true); }}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer"
+                title="Editar"
+              >
+                <i className="ri-edit-line"></i>
+              </button>
+            )}
+            {canDelete && (
+              <button
+                onClick={() => { setToDelete(l); setDeleteError(''); setIsDeleteOpen(true); }}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                title="Eliminar"
+              >
+                <i className="ri-delete-bin-line"></i>
+              </button>
+            )}
           </>
-        )}
+        ) : undefined}
       />
 
       <LicenciaModal

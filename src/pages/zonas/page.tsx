@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import Button from '../../components/base/Button';
@@ -6,6 +7,7 @@ import Badge from '../../components/base/Badge';
 import DataTable, { type DataTableColumn } from '../../components/base/DataTable';
 import ZonaModal from './components/ZonaModal';
 import DeleteConfirmModal from '../paises/components/DeleteConfirmModal';
+import { useModulePermissions } from '../../hooks/use-module-permissions';
 
 interface Zona {
   id: string;
@@ -29,6 +31,8 @@ export default function ZonasPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [toDelete, setToDelete] = useState<Zona | null>(null);
   const [deleteError, setDeleteError] = useState('');
+  const { canCreate, canEdit, canDelete } = useModulePermissions('zonas');
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (appUser?.organization_id) load();
@@ -70,7 +74,7 @@ export default function ZonasPage() {
   const columns: DataTableColumn<Zona>[] = [
     {
       key: 'name',
-      header: 'Zona',
+      header: t('zones.colZone'),
       accessor: (z) => z.name,
       sortable: true,
       render: (z) => (
@@ -87,7 +91,7 @@ export default function ZonasPage() {
     },
     {
       key: 'country',
-      header: 'País',
+      header: t('zones.colCountry'),
       accessor: (z) => z.country?.name ?? '',
       sortable: true,
       filterable: true,
@@ -95,10 +99,10 @@ export default function ZonasPage() {
     },
     {
       key: 'status',
-      header: 'Estado',
-      accessor: (z) => (z.status === 'active' ? 'Activo' : 'Inactivo'),
+      header: t('zones.colStatus'),
+      accessor: (z) => (z.status === 'active' ? t('zones.active') : t('zones.inactive')),
       filterable: true,
-      render: (z) => <Badge variant={z.status === 'active' ? 'success' : 'default'}>{z.status === 'active' ? 'Activo' : 'Inactivo'}</Badge>,
+      render: (z) => <Badge variant={z.status === 'active' ? 'success' : 'default'}>{z.status === 'active' ? t('zones.active') : t('zones.inactive')}</Badge>,
     },
   ];
 
@@ -114,19 +118,21 @@ export default function ZonasPage() {
     <div className="p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Catálogo de Zonas</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Zonas de entrega por país de tu red logística</p>
+          <h1 className="text-2xl font-bold text-slate-900">{t('zones.title')}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{t('zones.subtitle')}</p>
         </div>
-        <Button onClick={() => { setSelected(null); setIsModalOpen(true); }} icon={<i className="ri-add-line"></i>}>
-          Nueva Zona
-        </Button>
+        {canCreate && (
+          <Button onClick={() => { setSelected(null); setIsModalOpen(true); }} icon={<i className="ri-add-line"></i>}>
+            {t('zones.new')}
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         {[
-          { label: 'Total Zonas', value: zonas.length, icon: 'ri-map-2-line', color: 'bg-teal-50 text-teal-600' },
-          { label: 'Activas', value: activas, icon: 'ri-checkbox-circle-line', color: 'bg-emerald-50 text-emerald-600' },
-          { label: 'Inactivas', value: zonas.length - activas, icon: 'ri-close-circle-line', color: 'bg-red-50 text-red-600' },
+          { label: t('zones.kpiTotal'), value: zonas.length, icon: 'ri-map-2-line', color: 'bg-teal-50 text-teal-600' },
+          { label: t('zones.kpiActive'), value: activas, icon: 'ri-checkbox-circle-line', color: 'bg-emerald-50 text-emerald-600' },
+          { label: t('zones.kpiInactive'), value: zonas.length - activas, icon: 'ri-close-circle-line', color: 'bg-red-50 text-red-600' },
         ].map((kpi) => (
           <div key={kpi.label} className="bg-white rounded-xl border border-slate-100 p-4 flex items-center gap-4">
             <div className={`w-11 h-11 flex items-center justify-center rounded-lg ${kpi.color}`}>
@@ -144,27 +150,31 @@ export default function ZonasPage() {
         data={zonas}
         columns={columns}
         getRowId={(z) => z.id}
-        searchPlaceholder="Buscar zona..."
+        searchPlaceholder={t('zones.search')}
         exportFileName="zonas"
-        emptyMessage="No hay zonas"
-        actions={(z) => (
+        emptyMessage={t('zones.empty')}
+        actions={(canEdit || canDelete) ? (z) => (
           <>
-            <button
-              onClick={() => { setSelected(z); setIsModalOpen(true); }}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer"
-              title="Editar"
-            >
-              <i className="ri-edit-line"></i>
-            </button>
-            <button
-              onClick={() => { setToDelete(z); setDeleteError(''); setIsDeleteOpen(true); }}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
-              title="Eliminar"
-            >
-              <i className="ri-delete-bin-line"></i>
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => { setSelected(z); setIsModalOpen(true); }}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer"
+                title="Editar"
+              >
+                <i className="ri-edit-line"></i>
+              </button>
+            )}
+            {canDelete && (
+              <button
+                onClick={() => { setToDelete(z); setDeleteError(''); setIsDeleteOpen(true); }}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                title="Eliminar"
+              >
+                <i className="ri-delete-bin-line"></i>
+              </button>
+            )}
           </>
-        )}
+        ) : undefined}
       />
 
       <ZonaModal

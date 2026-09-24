@@ -213,8 +213,8 @@ export default function ContratosPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Total Contratos" value={total} icon="ri-file-paper-2-line" color="teal" />
-        <StatCard title="Activos" value={active} icon="ri-check-double-line" color="green" />
-        <StatCard title="Por Vencer (30d)" value={expiringSoon} icon="ri-alarm-warning-line" color="yellow" />
+        <StatCard title="Activos" value={active} icon="ri-check-double-line" color="emerald" />
+        <StatCard title="Por Vencer (30d)" value={expiringSoon} icon="ri-alarm-warning-line" color="amber" />
         <StatCard title="Vencidos" value={expired} icon="ri-time-line" color="red" />
       </div>
 

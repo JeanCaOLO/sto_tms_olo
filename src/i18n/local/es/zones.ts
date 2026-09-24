@@ -1,0 +1,15 @@
+export default {
+  'zones.title': 'Catálogo de Zonas',
+  'zones.subtitle': 'Zonas de entrega por país de tu red logística',
+  'zones.new': 'Nueva Zona',
+  'zones.kpiTotal': 'Total Zonas',
+  'zones.kpiActive': 'Activas',
+  'zones.kpiInactive': 'Inactivas',
+  'zones.colZone': 'Zona',
+  'zones.colCountry': 'País',
+  'zones.colStatus': 'Estado',
+  'zones.search': 'Buscar zona...',
+  'zones.empty': 'No hay zonas',
+  'zones.active': 'Activo',
+  'zones.inactive': 'Inactivo',
+};

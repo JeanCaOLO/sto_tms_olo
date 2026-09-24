@@ -9,6 +9,7 @@ import Badge from '../../components/base/Badge';
 import StatCard from '../../components/feature/StatCard';
 import DataTable, { type DataTableColumn } from '../../components/base/DataTable';
 import SettlementModal from './components/SettlementModal';
+import { useModulePermissions } from '../../hooks/use-module-permissions';
 import {
   deleteSnapshot, listSnapshots, type SettlementSnapshot,
 } from '../../lib/tarifas/localData/settlementSnapshots';
@@ -39,6 +40,7 @@ export default function LiquidacionesPage() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedSettlement, setSelectedSettlement] = useState<any>(null);
+  const { canCreate, canEdit, canDelete } = useModulePermissions('tarifas');
 
   // Filtros que no calzan bien en el filtro de columna estilo Excel (rangos / fuente externa)
   const [marginFilter, setMarginFilter] = useState('');
@@ -282,7 +284,8 @@ export default function LiquidacionesPage() {
         <select
           value={s.status}
           onChange={(e) => handleStatusChange(s, e.target.value)}
-          className={`text-xs font-medium rounded-full px-2.5 py-1 border-0 cursor-pointer focus:ring-2 focus:ring-teal-500 ${STATUS_SELECT_CLASSES[s.status] || 'bg-slate-100 text-slate-700'}`}
+          disabled={!canEdit}
+          className={`text-xs font-medium rounded-full px-2.5 py-1 border-0 cursor-pointer focus:ring-2 focus:ring-teal-500 disabled:opacity-60 disabled:cursor-not-allowed ${STATUS_SELECT_CLASSES[s.status] || 'bg-slate-100 text-slate-700'}`}
         >
           <option value="Borrador">Borrador</option>
           <option value="En Revisión">En Revisión</option>
@@ -301,10 +304,12 @@ export default function LiquidacionesPage() {
           <h1 className="text-2xl font-bold text-slate-800">Tarifas</h1>
           <p className="text-sm text-slate-500 mt-1">Gestión de tarifas de viajes</p>
         </div>
-        <Button onClick={() => setIsModalOpen(true)}>
-          <i className="ri-add-line mr-2"></i>
-          Nueva Tarifa
-        </Button>
+        {canCreate && (
+          <Button onClick={() => setIsModalOpen(true)}>
+            <i className="ri-add-line mr-2"></i>
+            Nueva Tarifa
+          </Button>
+        )}
       </div>
 
       {/* KPIs */}
@@ -359,24 +364,28 @@ export default function LiquidacionesPage() {
         searchPlaceholder="Buscar por número, ruta, conductor..."
         exportFileName="liquidaciones"
         emptyMessage="No hay tarifas"
-        actions={(settlement) => (
+        actions={(canEdit || canDelete) ? (settlement) => (
           <>
-            <button
-              onClick={() => handleEdit(settlement)}
-              className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer"
-              title="Editar"
-            >
-              <i className="ri-edit-line text-base"></i>
-            </button>
-            <button
-              onClick={() => handleDelete(settlement.id)}
-              className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
-              title="Eliminar"
-            >
-              <i className="ri-delete-bin-line text-base"></i>
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => handleEdit(settlement)}
+                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer"
+                title="Editar"
+              >
+                <i className="ri-edit-line text-base"></i>
+              </button>
+            )}
+            {canDelete && (
+              <button
+                onClick={() => handleDelete(settlement.id)}
+                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
+                title="Eliminar"
+              >
+                <i className="ri-delete-bin-line text-base"></i>
+              </button>
+            )}
           </>
-        )}
+        ) : undefined}
       />
 
       <SettlementModal

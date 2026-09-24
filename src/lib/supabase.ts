@@ -80,8 +80,11 @@ class QueryBuilder implements PromiseLike<PgResult> {
   private insertValues: unknown = null;
   private updateValues: Record<string, unknown> | null = null;
   private wantReturning = false;
+  private table: string;
 
-  constructor(private table: string) {}
+  constructor(table: string) {
+    this.table = table;
+  }
 
   select(columns: string = "*", opts?: { count?: string; head?: boolean }) {
     if (this.mode !== "select") {

@@ -8,6 +8,7 @@ import StatCard from '../../components/feature/StatCard';
 import DataTable, { type DataTableColumn } from '../../components/base/DataTable';
 import GuideModal from './components/GuideModal';
 import GuideDetailModal from './components/GuideDetailModal';
+import { useModulePermissions } from '../../hooks/use-module-permissions';
 
 // dispatch_guides es una guía POR PARADA (una fila = un pedido de una ruta,
 // con sequence_number, recipient_name, planned/actual_*_time - ver
@@ -43,6 +44,7 @@ export default function GuiasPage() {
   const [showModal, setShowModal] = useState(false);
   const [selectedGuide, setSelectedGuide] = useState<DispatchGuide | null>(null);
   const [detailGuide, setDetailGuide] = useState<DispatchGuide | null>(null);
+  const { canCreate, canEdit } = useModulePermissions('guias');
 
   useEffect(() => {
     fetchGuides();
@@ -163,10 +165,12 @@ export default function GuiasPage() {
             Gestiona y monitorea todas las guías de despacho
           </p>
         </div>
-        <Button onClick={() => setShowModal(true)}>
-          <i className="ri-add-line mr-2"></i>
-          Nueva Guía
-        </Button>
+        {canCreate && (
+          <Button onClick={() => setShowModal(true)}>
+            <i className="ri-add-line mr-2"></i>
+            Nueva Guía
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -209,13 +213,15 @@ export default function GuiasPage() {
             >
               <i className="ri-eye-line text-base"></i>
             </button>
-            <button
-              onClick={() => handleEdit(guide)}
-              className="w-8 h-8 flex items-center justify-center text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer"
-              title="Editar"
-            >
-              <i className="ri-edit-line text-base"></i>
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => handleEdit(guide)}
+                className="w-8 h-8 flex items-center justify-center text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer"
+                title="Editar"
+              >
+                <i className="ri-edit-line text-base"></i>
+              </button>
+            )}
           </>
         )}
       />

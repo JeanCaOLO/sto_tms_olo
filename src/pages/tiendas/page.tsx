@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { supabase, apiFetch } from '../../lib/supabase';
 import Button from '../../components/base/Button';
 import Badge from '../../components/base/Badge';
@@ -6,7 +7,7 @@ import DataTable, { type DataTableColumn } from '../../components/base/DataTable
 import DeliveryPointModal, { type DeliveryPointForm } from './components/DeliveryPointModal';
 import { buildDeliveryPointRequest } from './delivery-point-payload';
 import DeleteConfirmModal from './components/DeleteConfirmModal';
-import { usePermissions } from '../../hooks/usePermissions';
+import { useModulePermissions } from '../../hooks/use-module-permissions';
 
 interface DeliveryPoint {
   id: string;
@@ -34,10 +35,10 @@ interface DeliveryPoint {
   zone: { id: string; code: string; name: string } | null;
 }
 
-const GEO_CONFIG: Record<string, { label: string; variant: 'success' | 'warning' | 'danger' }> = {
-  OK: { label: 'Geocodificado', variant: 'success' },
-  PENDING: { label: 'Sin coordenadas', variant: 'warning' },
-  FAILED: { label: 'Geocodificación fallida', variant: 'danger' },
+const GEO_CONFIG: Record<string, { key: string; variant: 'success' | 'warning' | 'danger' }> = {
+  OK: { key: 'deliveryPoints.geoOk', variant: 'success' },
+  PENDING: { key: 'deliveryPoints.geoPending', variant: 'warning' },
+  FAILED: { key: 'deliveryPoints.geoFailed', variant: 'danger' },
 };
 
 const LIST_SELECT =
@@ -54,10 +55,8 @@ export default function TiendasPage() {
   const [selectedPoint, setSelectedPoint] = useState<DeliveryPoint | null>(null);
   const [pointToDelete, setPointToDelete] = useState<DeliveryPoint | null>(null);
   const [saveError, setSaveError] = useState<string>('');
-  const { can } = usePermissions();
-  const canCreate = can('puntos_entrega', 'create');
-  const canEdit = can('puntos_entrega', 'edit');
-  const canDelete = can('puntos_entrega', 'delete');
+  const { canCreate, canEdit, canDelete } = useModulePermissions('puntos_entrega');
+  const { t } = useTranslation();
 
   useEffect(() => { fetchPoints(); }, []);
 
@@ -107,7 +106,7 @@ export default function TiendasPage() {
   const columns: DataTableColumn<DeliveryPoint>[] = [
     {
       key: 'name',
-      header: 'Punto de Entrega',
+      header: t('deliveryPoints.colPoint'),
       accessor: (p) => p.name,
       sortable: true,
       render: (p) => (
@@ -120,7 +119,7 @@ export default function TiendasPage() {
               <span className="font-semibold text-slate-900 text-sm">{p.name}</span>
               {p.is_default && (
                 <span className="inline-flex items-center gap-0.5 text-xs bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full font-medium">
-                  <i className="ri-star-fill text-xs"></i> Principal
+                  <i className="ri-star-fill text-xs"></i> {t('deliveryPoints.default')}
                 </span>
               )}
             </div>
@@ -131,7 +130,7 @@ export default function TiendasPage() {
     },
     {
       key: 'customer',
-      header: 'Cliente',
+      header: t('deliveryPoints.colCustomer'),
       accessor: (p) => p.final_customer?.customer?.name ?? '',
       sortable: true,
       filterable: true,
@@ -147,20 +146,20 @@ export default function TiendasPage() {
     },
     {
       key: 'zone',
-      header: 'Zona',
+      header: t('deliveryPoints.colZone'),
       accessor: (p) => p.zone?.name ?? '',
       sortable: true,
       filterable: true,
       render: (p) => (
         <>
           <div className="text-sm text-slate-700">{p.zone?.name ?? <span className="text-slate-300">—</span>}</div>
-          {p.route_code && <div className="text-xs text-slate-400">Ruta {p.route_code}</div>}
+          {p.route_code && <div className="text-xs text-slate-400">{p.route_code}</div>}
         </>
       ),
     },
     {
       key: 'address',
-      header: 'Dirección',
+      header: t('deliveryPoints.colAddress'),
       accessor: (p) => p.address?.line1 ?? '',
       render: (p) => (
         <>
@@ -175,25 +174,25 @@ export default function TiendasPage() {
     },
     {
       key: 'geocoding',
-      header: 'Geocodificación',
+      header: t('deliveryPoints.colGeocoding'),
       accessor: (p) => p.address?.geocoding_status ?? '',
       filterable: true,
       render: (p) => {
         const status = p.address?.geocoding_status ?? '';
         const conf = GEO_CONFIG[status];
         return conf
-          ? <Badge variant={conf.variant} size="sm">{conf.label}</Badge>
+          ? <Badge variant={conf.variant} size="sm">{t(conf.key)}</Badge>
           : <span className="text-slate-300 text-sm">—</span>;
       },
     },
     {
       key: 'active',
-      header: 'Estado',
-      accessor: (p) => (p.active ? 'Activo' : 'Inactivo'),
+      header: t('deliveryPoints.colStatus'),
+      accessor: (p) => (p.active ? t('deliveryPoints.active') : t('deliveryPoints.inactive')),
       filterable: true,
       render: (p) => (
         <Badge variant={p.active ? 'success' : 'danger'} size="sm">
-          {p.active ? 'Activo' : 'Inactivo'}
+          {p.active ? t('deliveryPoints.active') : t('deliveryPoints.inactive')}
         </Badge>
       ),
     },
@@ -204,7 +203,7 @@ export default function TiendasPage() {
       <div className="flex items-center justify-center h-full min-h-[400px]">
         <div className="text-center">
           <i className="ri-loader-4-line text-4xl text-teal-600 animate-spin"></i>
-          <p className="mt-2 text-slate-600 text-sm">Cargando puntos de entrega...</p>
+          <p className="mt-2 text-slate-600 text-sm">{t('deliveryPoints.title')}...</p>
         </div>
       </div>
     );
@@ -215,12 +214,12 @@ export default function TiendasPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Puntos de Entrega</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Puntos de entrega de cada cliente, ligados a su cuenta</p>
+          <h1 className="text-2xl font-bold text-slate-900">{t('deliveryPoints.title')}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{t('deliveryPoints.subtitle')}</p>
         </div>
         {canCreate && (
           <Button variant="primary" onClick={openNew} icon={<i className="ri-add-line"></i>}>
-            Nuevo Punto de Entrega
+            {t('deliveryPoints.new')}
           </Button>
         )}
       </div>
@@ -234,10 +233,10 @@ export default function TiendasPage() {
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Puntos', value: points.length, icon: 'ri-map-pin-2-line', color: 'bg-teal-50 text-teal-600', border: 'border-teal-100' },
-          { label: 'Activos', value: activeCount, icon: 'ri-checkbox-circle-line', color: 'bg-emerald-50 text-emerald-600', border: 'border-emerald-100' },
-          { label: 'Clientes', value: customerNames.size, icon: 'ri-building-line', color: 'bg-violet-50 text-violet-600', border: 'border-violet-100' },
-          { label: 'Geocodificados', value: geocodedCount, icon: 'ri-map-pin-user-line', color: 'bg-amber-50 text-amber-600', border: 'border-amber-100' },
+          { label: t('deliveryPoints.kpiTotal'), value: points.length, icon: 'ri-map-pin-2-line', color: 'bg-teal-50 text-teal-600', border: 'border-teal-100' },
+          { label: t('deliveryPoints.kpiActive'), value: activeCount, icon: 'ri-checkbox-circle-line', color: 'bg-emerald-50 text-emerald-600', border: 'border-emerald-100' },
+          { label: t('deliveryPoints.kpiCustomers'), value: customerNames.size, icon: 'ri-building-line', color: 'bg-violet-50 text-violet-600', border: 'border-violet-100' },
+          { label: t('deliveryPoints.kpiGeocoded'), value: geocodedCount, icon: 'ri-map-pin-user-line', color: 'bg-amber-50 text-amber-600', border: 'border-amber-100' },
         ].map((kpi) => (
           <div key={kpi.label} className={`bg-white rounded-xl border ${kpi.border} p-4 flex items-center gap-4`}>
             <div className={`w-11 h-11 flex items-center justify-center rounded-lg ${kpi.color}`}>
@@ -255,9 +254,9 @@ export default function TiendasPage() {
         data={points}
         columns={columns}
         getRowId={(p) => p.id}
-        searchPlaceholder="Buscar por nombre, código, cliente..."
+        searchPlaceholder={t('deliveryPoints.search')}
         exportFileName="puntos_de_entrega"
-        emptyMessage="No se encontraron puntos de entrega"
+        emptyMessage={t('deliveryPoints.empty')}
         pageSize={25}
         actions={(canEdit || canDelete) ? (p) => (
           <>

@@ -1,0 +1,18 @@
+export default {
+  'omsRules.title': 'Rules Engine',
+  'omsRules.subtitle': 'OMS rules catalog — "Active" means the logic already exists in code (src/pages/oms/engine/priorityEngine.ts); "Inactive" is a rule not yet implemented. Weight and parameters are for reference/planning, editable here but not yet connected to the real engine.',
+  'omsRules.company': 'Company',
+  'omsRules.colRule': 'Rule',
+  'omsRules.colDescription': 'Description',
+  'omsRules.colStatus': 'Status',
+  'omsRules.colWeight': 'Weight/Score',
+  'omsRules.colParams': 'Parameters',
+  'omsRules.firstDelivery': 'First delivery',
+  'omsRules.deactivate': 'Deactivate rule',
+  'omsRules.activate': 'Activate rule',
+  'omsRules.active': 'Active',
+  'omsRules.inactive': 'Inactive',
+  'omsRules.weightAria': 'Weight of {{name}}',
+  'omsRules.params': 'Parameters',
+  'omsRules.footer': 'New rules are not created from the interface: each row maps to a real (or pending) rule in the code. The switch and parameters on this screen are for reference — they do not persist or change the engine\'s actual behavior yet.',
+};
