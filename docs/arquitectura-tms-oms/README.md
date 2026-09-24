@@ -61,10 +61,12 @@ y se detalla con opciones concretas en `02-to-be.md` §2 y `03-modelo-datos-erd.
    solo para Planificación, sin credenciales en este entorno) ni con EPRAC
    (cero código de integración).
 3. La tabla `zones` no existe pero el frontend la referencia (bug reproducible
-   ya documentado en `../reference/analisis-sistema-tms.md`).
+   ya documentado en `../reference/analisis-sistema-tms.md`). **Resuelto 2026-09-24:** `zones` existe (`sql/09`).
 4. No existe jerarquía País → Almacén → Cliente → Cliente Final en el modelo
    de datos; "Puntos de Entrega" (`stores`) mezcla conceptos de almacén de
-   origen y punto de entrega de destino en una sola tabla.
+   origen y punto de entrega de destino en una sola tabla. **Resuelto 2026-09-24:** los puntos de entrega
+   viven en `delivery_points` ligados a `final_customers → customers` (Cofersa 1576 + EPA 6); `stores`
+   queda solo para el CD de origen.
 5. El motor de costeo real (`src/lib/tarifas/`) no está conectado a las
    tablas `rates`/`carriers`/`settlements` de Aurora — vive en datos locales
    en memoria del navegador.

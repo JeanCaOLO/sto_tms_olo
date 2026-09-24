@@ -37,7 +37,7 @@ Fuente: `src/router/config.tsx`. Cada hoja es una página real y navegable.
 /vehiculos                         Vehículos + Tipos de Vehículo
 /conductores                       Conductores (+ catálogo de licencias)
 /clientes                          Clientes (catálogo)
-/tiendas                           Tiendas / puntos de entrega
+/tiendas                           Puntos de entrega (`delivery_points`, cada uno ligado a su cliente)
 /paises                            Países
 /transportistas                    Transportistas (carriers)
 /reglas-tarifa                     Tarifario — zonas, FX, plantillas, costos, bitácora
@@ -179,6 +179,11 @@ credenciales QA y cargarlas en `.env.local` como `EFLOW_QA_HOST/PORT/USER/PASSWO
 `EFLOW_CR_*`).
 
 ### 5.3 Rotura #2 — tabla `zones` referenciada pero inexistente
+
+> **Resuelto (2026-09-24):** `zones` existe desde `sql/09` (es la antigua `route_types` renombrada) y está en la
+> whitelist del backend. `StoreModal.tsx` ya no existe: `/tiendas` lee y escribe `delivery_points`
+> (`delivery_points → final_customers → customers`, zona por `delivery_points.zone_id`, `sql/12`) con
+> `DeliveryPointModal.tsx` y los endpoints atómicos `/v1/delivery-points`. Lo que sigue es el diagnóstico original.
 
 `StoreModal.tsx` (`/tiendas`) y `RouteTypeModal.tsx` (`/rutas`, pestaña Tipos de Ruta)
 hacen `supabase.from('zones')...` para poblar un selector de zona. La tabla `zones`:

@@ -1,299 +1,194 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, apiFetch } from '../../lib/supabase';
 import Button from '../../components/base/Button';
 import Badge from '../../components/base/Badge';
 import DataTable, { type DataTableColumn } from '../../components/base/DataTable';
-import StoreModal from './components/StoreModal';
+import DeliveryPointModal, { type DeliveryPointForm } from './components/DeliveryPointModal';
+import { buildDeliveryPointRequest } from './delivery-point-payload';
 import DeleteConfirmModal from './components/DeleteConfirmModal';
-import CsvImportModal from '../../components/feature/CsvImportModal';
 
-interface Country {
+interface DeliveryPoint {
   id: string;
+  external_code: string;
   name: string;
-  code: string;
-  flag_emoji: string;
+  route_code: string | null;
+  wms_zone_code: string | null;
+  active: boolean;
+  is_default: boolean;
+  delivery_instructions: string | null;
+  final_customer: {
+    external_code: string;
+    name: string;
+    customer: { id: string; code: string; name: string } | null;
+  } | null;
+  address: {
+    line1: string | null;
+    line2: string | null;
+    city: string | null;
+    state: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    geocoding_status: string | null;
+  } | null;
+  zone: { id: string; code: string; name: string } | null;
 }
 
-interface Store {
-  id: string;
-  name: string;
-  code: string;
-  country_id: string;
-  store_type: string;
-  manager_name: string;
-  status: string;
-  is_origin: boolean;
-  address: string;
-  city: string;
-  state: string;
-  postal_code: string;
-  latitude: number | null;
-  longitude: number | null;
-  opening_hours: string;
-  capacity: number | null;
-  area_m2: number | null;
-  delivery_zone: string;
-  notes: string;
-  phone: string;
-  email: string;
-  contact_name: string;
-  contact_phone: string;
-  contact_email: string;
-  created_at: string;
-  countries?: { id: string; name: string; code: string; flag_emoji: string };
-}
-
-const STORE_TYPE_CONFIG: Record<string, { label: string; icon: string; color: string; bg: string }> = {
-  store: { label: 'Tienda', icon: 'ri-store-2-line', color: 'text-teal-600', bg: 'bg-teal-50' },
-  warehouse: { label: 'Bodega', icon: 'ri-building-line', color: 'text-amber-600', bg: 'bg-amber-50' },
-  distribution_center: { label: 'C. Distribución', icon: 'ri-truck-line', color: 'text-violet-600', bg: 'bg-violet-50' },
+const GEO_CONFIG: Record<string, { label: string; variant: 'success' | 'warning' | 'danger' }> = {
+  OK: { label: 'Geocodificado', variant: 'success' },
+  PENDING: { label: 'Sin coordenadas', variant: 'warning' },
+  FAILED: { label: 'Geocodificación fallida', variant: 'danger' },
 };
 
+const LIST_SELECT =
+  'id,external_code,name,route_code,wms_zone_code,active,is_default,delivery_instructions,' +
+  'final_customer:final_customers(external_code,name,customer:customers(id,code,name)),' +
+  'address:addresses(line1,line2,city,state,latitude,longitude,geocoding_status),' +
+  'zone:zones(id,code,name)';
+
 export default function TiendasPage() {
-  const [stores, setStores] = useState<Store[]>([]);
+  const [points, setPoints] = useState<DeliveryPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isCsvImportOpen, setIsCsvImportOpen] = useState(false);
-  const [selectedStore, setSelectedStore] = useState<Store | null>(null);
-  const [storeToDelete, setStoreToDelete] = useState<Store | null>(null);
-  const [organizationId, setOrganizationId] = useState<string>('');
-  const [countries, setCountries] = useState<Country[]>([]);
+  const [selectedPoint, setSelectedPoint] = useState<DeliveryPoint | null>(null);
+  const [pointToDelete, setPointToDelete] = useState<DeliveryPoint | null>(null);
+  const [saveError, setSaveError] = useState<string>('');
 
-  useEffect(() => { fetchOrganizationAndData(); }, []);
+  useEffect(() => { fetchPoints(); }, []);
 
-  const fetchOrganizationAndData = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: userData } = await supabase
-        .from('app_users').select('organization_id').eq('auth_user_id', user.id).maybeSingle();
-      if (userData) {
-        setOrganizationId(userData.organization_id);
-        await Promise.all([
-          fetchStores(userData.organization_id),
-          fetchCountries(userData.organization_id),
-        ]);
-      }
-    } catch (error) {
-      console.error('Error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchStores = async (orgId: string) => {
+  const fetchPoints = async () => {
+    setLoading(true);
     const { data, error } = await supabase
-      .from('stores')
-      .select('*, countries(id, name, code, flag_emoji)')
-      .eq('organization_id', orgId)
+      .from('delivery_points')
+      .select(LIST_SELECT)
       .order('name', { ascending: true });
-    if (!error) setStores(data || []);
+    if (!error) setPoints((data as DeliveryPoint[]) || []);
+    setLoading(false);
   };
 
-  const fetchCountries = async (orgId: string) => {
-    const { data } = await supabase
-      .from('countries').select('id, name, code, flag_emoji')
-      .eq('organization_id', orgId).eq('status', 'active').order('name');
-    setCountries(data || []);
-  };
-
-  const handleSaveStore = async (storeData: any) => {
-    try {
-      const payload = {
-        name: storeData.name, code: storeData.code, country_id: storeData.country_id,
-        address: storeData.address, city: storeData.city, state: storeData.state,
-        postal_code: storeData.postal_code, latitude: storeData.latitude, longitude: storeData.longitude,
-        phone: storeData.phone, email: storeData.email, store_type: storeData.store_type,
-        manager_name: storeData.manager_name, status: storeData.status, is_origin: storeData.is_origin,
-        opening_hours: storeData.opening_hours, capacity: storeData.capacity, area_m2: storeData.area_m2,
-        delivery_zone: storeData.delivery_zone, zone_id: storeData.zone_id || null, notes: storeData.notes,
-        contact_name: storeData.contact_name, contact_phone: storeData.contact_phone,
-        contact_email: storeData.contact_email, updated_at: new Date().toISOString(),
-      };
-      if (storeData.id) {
-        const { error } = await supabase.from('stores').update(payload).eq('id', storeData.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('stores').insert([{ ...payload, organization_id: organizationId }]);
-        if (error) throw error;
-      }
-      await fetchStores(organizationId);
-      setIsModalOpen(false);
-      setSelectedStore(null);
-    } catch (error) {
-      console.error('Error al guardar tienda:', error);
+  const handleSavePoint = async (form: DeliveryPointForm) => {
+    setSaveError('');
+    const { method, path, body: payload } = buildDeliveryPointRequest(form);
+    const { ok, body } = await apiFetch(path, { method, body: JSON.stringify(payload) });
+    if (!ok) {
+      setSaveError(body?.error?.message ?? 'No se pudo guardar el punto de entrega');
+      return;
     }
+    await fetchPoints();
+    setIsModalOpen(false);
+    setSelectedPoint(null);
   };
 
-  const handleDeleteStore = async () => {
-    if (!storeToDelete) return;
-    try {
-      const { error } = await supabase.from('stores').delete().eq('id', storeToDelete.id);
-      if (error) throw error;
-      await fetchStores(organizationId);
-      setIsDeleteModalOpen(false);
-      setStoreToDelete(null);
-    } catch (error) {
-      console.error('Error al eliminar tienda:', error);
+  const handleDeletePoint = async () => {
+    if (!pointToDelete) return;
+    const { ok, body } = await apiFetch(`/v1/delivery-points/${pointToDelete.id}`, { method: 'DELETE' });
+    if (!ok) {
+      setSaveError(body?.error?.message ?? 'No se pudo eliminar el punto de entrega');
+      return;
     }
+    await fetchPoints();
+    setIsDeleteModalOpen(false);
+    setPointToDelete(null);
   };
 
-  const openEdit = (store: Store) => { setSelectedStore(store); setIsModalOpen(true); };
-  const openDelete = (store: Store) => { setStoreToDelete(store); setIsDeleteModalOpen(true); };
+  const openNew = () => { setSelectedPoint(null); setSaveError(''); setIsModalOpen(true); };
+  const openEdit = (p: DeliveryPoint) => { setSelectedPoint(p); setSaveError(''); setIsModalOpen(true); };
+  const openDelete = (p: DeliveryPoint) => { setPointToDelete(p); setIsDeleteModalOpen(true); };
 
-  const activeCount = stores.filter(s => s.status === 'active').length;
-  const warehouseCount = stores.filter(s => s.store_type === 'warehouse').length;
-  const originCount = stores.filter(s => s.is_origin).length;
+  const customerNames = new Set(points.map(p => p.final_customer?.customer?.name).filter(Boolean));
+  const activeCount = points.filter(p => p.active).length;
+  const geocodedCount = points.filter(p => p.address?.geocoding_status === 'OK').length;
 
-  const csvFields = [
-    { key: 'name', label: 'name', required: true, type: 'text' as const },
-    { key: 'code', label: 'code', required: true, type: 'text' as const },
-    { key: 'country_code', label: 'country_code', required: true, type: 'text' as const },
-    { key: 'store_type', label: 'store_type', required: true, type: 'text' as const },
-    { key: 'address', label: 'address', required: true, type: 'text' as const },
-    { key: 'city', label: 'city', required: true, type: 'text' as const },
-    { key: 'state', label: 'state', required: false, type: 'text' as const },
-    { key: 'postal_code', label: 'postal_code', required: false, type: 'text' as const },
-    { key: 'latitude', label: 'latitude', required: false, type: 'number' as const },
-    { key: 'longitude', label: 'longitude', required: false, type: 'number' as const },
-    { key: 'opening_hours', label: 'opening_hours', required: false, type: 'text' as const },
-    { key: 'capacity', label: 'capacity', required: false, type: 'number' as const },
-    { key: 'area_m2', label: 'area_m2', required: false, type: 'number' as const },
-    { key: 'delivery_zone', label: 'delivery_zone', required: false, type: 'text' as const },
-    { key: 'phone', label: 'phone', required: false, type: 'text' as const },
-    { key: 'email', label: 'email', required: false, type: 'email' as const },
-    { key: 'manager_name', label: 'manager_name', required: false, type: 'text' as const },
-    { key: 'status', label: 'status', required: true, type: 'text' as const },
-    { key: 'is_origin', label: 'is_origin', required: false, type: 'boolean' as const },
-  ];
-
-  const transformStoreRow = async (row: any) => {
-    // Resolver country_code → country_id
-    const { data: country } = await supabase
-      .from('countries')
-      .select('id')
-      .eq('code', row.country_code)
-      .eq('organization_id', organizationId)
-      .single();
-
-    if (!country) {
-      throw new Error(`País con código "${row.country_code}" no encontrado`);
-    }
-
-    const transformed = { ...row };
-    transformed.country_id = country.id;
-    delete transformed.country_code;
-
-    return transformed;
-  };
-
-  const columns: DataTableColumn<Store>[] = [
+  const columns: DataTableColumn<DeliveryPoint>[] = [
     {
       key: 'name',
-      header: 'Ubicación',
-      accessor: (s) => s.name,
+      header: 'Punto de Entrega',
+      accessor: (p) => p.name,
       sortable: true,
-      render: (s) => {
-        const typeConf = STORE_TYPE_CONFIG[s.store_type] || STORE_TYPE_CONFIG.store;
-        return (
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${typeConf.bg}`}>
-              <i className={`${typeConf.icon} text-lg ${typeConf.color}`}></i>
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-semibold text-slate-900 text-sm">{s.name}</span>
-                {s.is_origin && (
-                  <span className="inline-flex items-center gap-0.5 text-xs bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full font-medium">
-                    <i className="ri-map-pin-2-fill text-xs"></i> Origen
-                  </span>
-                )}
-              </div>
-              <div className="text-xs text-slate-400 font-mono">{s.code}</div>
-            </div>
+      render: (p) => (
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-teal-50">
+            <i className="ri-map-pin-2-line text-lg text-teal-600"></i>
           </div>
-        );
-      },
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="font-semibold text-slate-900 text-sm">{p.name}</span>
+              {p.is_default && (
+                <span className="inline-flex items-center gap-0.5 text-xs bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded-full font-medium">
+                  <i className="ri-star-fill text-xs"></i> Principal
+                </span>
+              )}
+            </div>
+            <div className="text-xs text-slate-400 font-mono">{p.external_code}</div>
+          </div>
+        </div>
+      ),
     },
     {
-      key: 'store_type',
-      header: 'Tipo',
-      accessor: (s) => (STORE_TYPE_CONFIG[s.store_type] || STORE_TYPE_CONFIG.store).label,
-      filterable: true,
-      render: (s) => {
-        const typeConf = STORE_TYPE_CONFIG[s.store_type] || STORE_TYPE_CONFIG.store;
-        return (
-          <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${typeConf.bg} ${typeConf.color}`}>
-            <i className={typeConf.icon}></i>
-            {typeConf.label}
-          </span>
-        );
-      },
-    },
-    {
-      key: 'country',
-      header: 'País / Ciudad',
-      accessor: (s) => s.countries?.name ?? '',
+      key: 'customer',
+      header: 'Cliente',
+      accessor: (p) => p.final_customer?.customer?.name ?? '',
       sortable: true,
       filterable: true,
-      render: (s) => (
+      render: (p) => {
+        const customer = p.final_customer?.customer;
+        return customer ? (
+          <div>
+            <div className="text-sm font-medium text-slate-700">{customer.name}</div>
+            <div className="text-xs text-slate-400 font-mono">{customer.code}</div>
+          </div>
+        ) : <span className="text-slate-300 text-sm">—</span>;
+      },
+    },
+    {
+      key: 'zone',
+      header: 'Zona / Ruta',
+      accessor: (p) => p.zone?.name ?? '',
+      sortable: true,
+      filterable: true,
+      render: (p) => (
         <>
-          <div className="text-sm text-slate-700">{s.countries?.flag_emoji} {s.countries?.name}</div>
-          <div className="text-xs text-slate-400">{s.city}{s.state ? `, ${s.state}` : ''}</div>
+          <div className="text-sm text-slate-700">{p.zone?.name ?? <span className="text-slate-300">—</span>}</div>
+          {p.route_code && <div className="text-xs text-slate-400">Ruta {p.route_code}</div>}
         </>
       ),
     },
     {
       key: 'address',
       header: 'Dirección',
-      accessor: (s) => s.address ?? '',
-      render: (s) => (
+      accessor: (p) => p.address?.line1 ?? '',
+      render: (p) => (
         <>
-          <div className="text-sm text-slate-700 truncate max-w-[200px]">{s.address || <span className="text-slate-300">—</span>}</div>
-          {s.delivery_zone && (
-            <div className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-              <i className="ri-map-pin-line"></i>{s.delivery_zone}
-            </div>
+          <div className="text-sm text-slate-700 truncate max-w-[220px]">
+            {p.address?.line1 || <span className="text-slate-300">—</span>}
+          </div>
+          {(p.address?.city || p.address?.state) && (
+            <div className="text-xs text-slate-400">{[p.address?.city, p.address?.state].filter(Boolean).join(', ')}</div>
           )}
         </>
       ),
     },
     {
-      key: 'capacity',
-      header: 'Capacidad',
-      accessor: (s) => s.capacity ?? 0,
-      sortable: true,
-      render: (s) =>
-        s.capacity ? (
-          <div>
-            <div className="text-sm font-semibold text-slate-800">{s.capacity.toLocaleString()}</div>
-            {s.area_m2 && <div className="text-xs text-slate-400">{s.area_m2} m²</div>}
-          </div>
-        ) : (
-          <span className="text-slate-300 text-sm">—</span>
-        ),
-    },
-    {
-      key: 'manager_name',
-      header: 'Responsable',
-      accessor: (s) => s.manager_name ?? '',
-      sortable: true,
-      render: (s) => (
-        <>
-          <div className="text-sm text-slate-700">{s.manager_name || <span className="text-slate-300">—</span>}</div>
-          {s.phone && <div className="text-xs text-slate-400">{s.phone}</div>}
-        </>
-      ),
-    },
-    {
-      key: 'status',
-      header: 'Estado',
-      accessor: (s) => (s.status === 'active' ? 'Activo' : 'Inactivo'),
+      key: 'geocoding',
+      header: 'Geocodificación',
+      accessor: (p) => p.address?.geocoding_status ?? '',
       filterable: true,
-      render: (s) => (
-        <Badge variant={s.status === 'active' ? 'success' : 'danger'} size="sm">
-          {s.status === 'active' ? 'Activo' : 'Inactivo'}
+      render: (p) => {
+        const status = p.address?.geocoding_status ?? '';
+        const conf = GEO_CONFIG[status];
+        return conf
+          ? <Badge variant={conf.variant} size="sm">{conf.label}</Badge>
+          : <span className="text-slate-300 text-sm">—</span>;
+      },
+    },
+    {
+      key: 'active',
+      header: 'Estado',
+      accessor: (p) => (p.active ? 'Activo' : 'Inactivo'),
+      filterable: true,
+      render: (p) => (
+        <Badge variant={p.active ? 'success' : 'danger'} size="sm">
+          {p.active ? 'Activo' : 'Inactivo'}
         </Badge>
       ),
     },
@@ -316,33 +211,26 @@ export default function TiendasPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Puntos de Entrega</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Gestiona los puntos de entrega, bodegas y centros de distribución</p>
+          <p className="text-sm text-slate-500 mt-0.5">Puntos de entrega de cada cliente, ligados a su cuenta</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="secondary"
-            onClick={() => setIsCsvImportOpen(true)}
-            icon={<i className="ri-file-upload-line"></i>}
-          >
-            Importar CSV
-          </Button>
-          <Button
-            variant="primary"
-            onClick={() => { setSelectedStore(null); setIsModalOpen(true); }}
-            icon={<i className="ri-add-line"></i>}
-          >
-            Nuevo Punto de Entrega
-          </Button>
-        </div>
+        <Button variant="primary" onClick={openNew} icon={<i className="ri-add-line"></i>}>
+          Nuevo Punto de Entrega
+        </Button>
       </div>
+
+      {saveError && (
+        <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+          <i className="ri-error-warning-line"></i>{saveError}
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Ubicaciones', value: stores.length, icon: 'ri-store-2-line', color: 'bg-teal-50 text-teal-600', border: 'border-teal-100' },
-          { label: 'Activas', value: activeCount, icon: 'ri-checkbox-circle-line', color: 'bg-emerald-50 text-emerald-600', border: 'border-emerald-100' },
-          { label: 'Bodegas', value: warehouseCount, icon: 'ri-building-line', color: 'bg-amber-50 text-amber-600', border: 'border-amber-100' },
-          { label: 'Puntos de Origen', value: originCount, icon: 'ri-map-pin-2-line', color: 'bg-violet-50 text-violet-600', border: 'border-violet-100' },
+          { label: 'Total Puntos', value: points.length, icon: 'ri-map-pin-2-line', color: 'bg-teal-50 text-teal-600', border: 'border-teal-100' },
+          { label: 'Activos', value: activeCount, icon: 'ri-checkbox-circle-line', color: 'bg-emerald-50 text-emerald-600', border: 'border-emerald-100' },
+          { label: 'Clientes', value: customerNames.size, icon: 'ri-building-line', color: 'bg-violet-50 text-violet-600', border: 'border-violet-100' },
+          { label: 'Geocodificados', value: geocodedCount, icon: 'ri-map-pin-user-line', color: 'bg-amber-50 text-amber-600', border: 'border-amber-100' },
         ].map((kpi) => (
           <div key={kpi.label} className={`bg-white rounded-xl border ${kpi.border} p-4 flex items-center gap-4`}>
             <div className={`w-11 h-11 flex items-center justify-center rounded-lg ${kpi.color}`}>
@@ -357,23 +245,24 @@ export default function TiendasPage() {
       </div>
 
       <DataTable
-        data={stores}
+        data={points}
         columns={columns}
-        getRowId={(s) => s.id}
-        searchPlaceholder="Buscar por nombre, código, ciudad..."
+        getRowId={(p) => p.id}
+        searchPlaceholder="Buscar por nombre, código, cliente..."
         exportFileName="puntos_de_entrega"
         emptyMessage="No se encontraron puntos de entrega"
-        actions={(s) => (
+        pageSize={25}
+        actions={(p) => (
           <>
             <button
-              onClick={() => openEdit(s)}
+              onClick={() => openEdit(p)}
               className="w-8 h-8 flex items-center justify-center rounded-lg text-teal-600 hover:bg-teal-50 transition-colors cursor-pointer"
               title="Editar"
             >
               <i className="ri-edit-line"></i>
             </button>
             <button
-              onClick={() => openDelete(s)}
+              onClick={() => openDelete(p)}
               className="w-8 h-8 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
               title="Eliminar"
             >
@@ -383,33 +272,20 @@ export default function TiendasPage() {
         )}
       />
 
-      <StoreModal
+      <DeliveryPointModal
         isOpen={isModalOpen}
-        onClose={() => { setIsModalOpen(false); setSelectedStore(null); }}
-        onSave={handleSaveStore}
-        store={selectedStore}
-        organizationId={organizationId}
-        countries={countries}
+        onClose={() => { setIsModalOpen(false); setSelectedPoint(null); }}
+        onSave={handleSavePoint}
+        point={selectedPoint}
+        error={saveError}
       />
 
       <DeleteConfirmModal
         isOpen={isDeleteModalOpen}
-        onClose={() => { setIsDeleteModalOpen(false); setStoreToDelete(null); }}
-        onConfirm={handleDeleteStore}
+        onClose={() => { setIsDeleteModalOpen(false); setPointToDelete(null); }}
+        onConfirm={handleDeletePoint}
         title="Eliminar Punto de Entrega"
-        description={`¿Estás seguro de que deseas eliminar el punto de entrega "${storeToDelete?.name}"? Esta acción no se puede deshacer.`}
-      />
-
-      <CsvImportModal
-        isOpen={isCsvImportOpen}
-        onClose={() => setIsCsvImportOpen(false)}
-        onImportComplete={() => fetchStores(organizationId)}
-        fields={csvFields}
-        tableName="stores"
-        templateFileName="plantilla_tiendas.csv"
-        organizationId={organizationId}
-        transformRow={transformStoreRow}
-        title="Importar Puntos de Entrega desde CSV"
+        description={`¿Estás seguro de que deseas eliminar el punto de entrega "${pointToDelete?.name}"? Esta acción no se puede deshacer.`}
       />
     </div>
   );

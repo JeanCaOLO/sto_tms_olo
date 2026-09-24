@@ -74,13 +74,15 @@ function ColumnFilterMenu<T>({
   }, [data, column]);
 
   const filteredValues = uniqueValues.filter((v) => v.toLowerCase().includes(query.toLowerCase()));
-  const activeSelection = selected ?? new Set(uniqueValues);
+  // Sin filtro (selected null) = nada marcado. Marcar un valor = mostrar solo ese;
+  // marcar más = sumarlos. Desmarcar el último vuelve a "sin filtro" (null).
+  const activeSelection = selected ?? new Set<string>();
 
   const toggleValue = (value: string) => {
     const next = new Set(activeSelection);
     if (next.has(value)) next.delete(value);
     else next.add(value);
-    onChange(next.size === uniqueValues.length ? null : next);
+    onChange(next.size === 0 ? null : next);
   };
 
   return (
@@ -99,7 +101,7 @@ function ColumnFilterMenu<T>({
         <button className="hover:underline cursor-pointer" onClick={() => onChange(null)}>
           Seleccionar todo
         </button>
-        <button className="hover:underline cursor-pointer" onClick={() => onChange(new Set())}>
+        <button className="hover:underline cursor-pointer" onClick={() => onChange(null)}>
           Limpiar
         </button>
       </div>

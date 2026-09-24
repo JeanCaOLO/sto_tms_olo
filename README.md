@@ -12,7 +12,7 @@ Es una suite de módulos (catálogos, planificación de rutas, liquidación/tari
 
 | Capa | Tecnología |
 |------|-----------|
-| Frontend | React 19 · TypeScript · Vite 7 · Tailwind CSS 3 · React Router 7 |
+| Frontend | React 19 · TypeScript 5.8 · Vite 7 · Tailwind CSS 3 · React Router 7 |
 | Estado / datos | Hooks propios + `src/lib/supabase.ts` (**shim** con interfaz tipo supabase-js, habla con el backend Express — no es Supabase real) |
 | Dinero / cálculo | `decimal.js` (nunca `number` de JS para montos) |
 | Mapas | Leaflet + React-Leaflet |
@@ -149,6 +149,8 @@ El `server/` (Express) queda solo para desarrollo local hasta que el deploy de `
 
 - Frontend: páginas por módulo en `src/pages/<modulo>/`, ruteadas en `src/router/config.tsx`. Patrón `Page → useController → Api`.
 - Componentes base reutilizables en `src/components/base/` (design system: `Card`, `Button`, `Badge`, `Input`, `Select`...). No mezclar kits de UI.
+- Todo listado de registros usa `DataTable` (`src/components/base/DataTable.tsx`). Filtro por columna: sin filtro no hay nada marcado; marcar un valor muestra solo las filas con ese valor (p. ej. Cliente = EPA en Puntos de Entrega).
+- `tsconfig.app.json` no puede tener opciones deprecadas: TypeScript 6 las rechaza y TypeScript 7 las elimina. `alwaysStrict` va en `true` aunque `strict` siga en `false`.
 - El módulo **OMS** (`src/pages/oms/`) hoy corre 100% sobre datos mock en memoria (`mockData.ts`) — es una maqueta a la espera de construcción real.
 - Mapa de módulos por ruta, integraciones WMS/ERP y roturas conocidas: [`docs/reference/analisis-sistema-tms.md`](docs/reference/analisis-sistema-tms.md).
 
