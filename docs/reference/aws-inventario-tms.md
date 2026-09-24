@@ -82,19 +82,20 @@ flowchart LR
 |---|---|---|
 | Bastión | `i-062fc98e8e26c0f79` (`OLO_TMS`) | `t2.micro`, encendido. Solo para el túnel SSM a Aurora (`scripts/tunel-aurora.ps1`, `localhost:15432`). |
 | Secreto | `/dev/tms/db-app` | Credencial de `tms_app` (host, puerto, usuario, clave, BD). Creado 2026-09-24 por `backend/local/activar_rol_tms_app.py`. |
+| Secreto | `/dev/tms/jwt` | Clave de firma de sesiones del sandbox (aleatoria). Creado 2026-09-24 por `deploy_backend.py`. |
+| Secreto | `/dev/tms/eflow` | Placeholder `{"cr":{},"ve":{}}`: EFLOW en modo mock. Creado 2026-09-24 por `deploy_backend.py`. |
+| Parámetros SSM | `/dev/tms/network/subnets`, `/dev/tms/network/lambda-sg` | Subnets de Aurora y `sg-06b3986a1f95d2f19` para las Lambdas. Creados 2026-09-24. |
+| Endpoint VPC | `vpce-0b54105ec48f87b0a` (`dev-tms-secretsmanager`) | Interface a Secrets Manager en las 3 subnets de Aurora, SG default, DNS privado. Aprox. USD 22/mes. Creado 2026-09-24. |
+| Bucket S3 | `tms-sandbox-artifacts-758837481569` | Código empaquetado de las Lambdas. Creado 2026-09-24. |
+| Layer Lambda (restos) | `dev-tms-common-services-tms-common` v1 y v2 | Quedaron de dos intentos fallidos de `common-services` (la plantilla retiene las versiones). No molestan; se pueden borrar. |
 | Usuario IAM | `ext.claude` | Grupo `CP-Mayoreo-Sandbox-Devs` (`ReadOnlyAccess`) + `AmazonS3FullAccess` + inline `AllowSSMTunnelToTMSBastion`, `SSM-SessionAccess-ExtClaude`, `claude-secrets-policy.json` (secretos `/dev/tms/*`). Para desplegar necesita además `infra/iam/ext-claude-sandbox-deploy-policy.json`. |
 
-## 2. Lo que se CREA al desplegar (pendiente: falta la política de despliegue)
+## 2. Lo que se CREA al desplegar (pendiente: la política necesita `apigateway:*`)
 
 Lo crea `npm run deploy:sandbox` (idempotente). Al desplegar, mover cada fila a §1 con su identificador real.
 
 | Recurso | Nombre | Lo crea | Para qué |
 |---|---|---|---|
-| Secreto | `/dev/tms/jwt` | `deploy_backend.py` | Clave de firma de las sesiones (aleatoria). |
-| Secreto | `/dev/tms/eflow` | `deploy_backend.py` | Credenciales EFLOW por país. Placeholder: EFLOW corre en **mock** en el sandbox. |
-| Parámetros SSM | `/dev/tms/network/subnets`, `/dev/tms/network/lambda-sg` | `deploy_backend.py` | Red de las Lambdas (los leen las plantillas). |
-| Endpoint VPC | `dev-tms-secretsmanager` | `deploy_backend.py` | Secrets Manager desde la VPC sin NAT. Interface en 3 AZ (costo aprox. USD 22/mes). |
-| Bucket S3 | `tms-sandbox-artifacts-758837481569` | `deploy_backend.py` | Código empaquetado de las Lambdas. |
 | Stack | `dev-tms-common-services` | CloudFormation | API Gateway HTTP (stage `dev`), authorizer JWT, Layer `tms_common`, rol de las Lambdas. Output `ApiUrl`. |
 | Stack | `dev-tms-auth` | CloudFormation | `/api/auth/*`: login, signup, sesión, logout. |
 | Stack | `dev-tms-data` | CloudFormation | `/api/data/{table}`: API genérica con permisos y auditoría. |
@@ -130,3 +131,5 @@ Lo crea `npm run deploy:sandbox` (idempotente). Al desplegar, mover cada fila a 
 | 2026-09-24 | Rol de BD `tms_app` (`sql/18`) y secreto `/dev/tms/db-app`. | Claude |
 | 2026-09-24 | Esquema `audit` y particiones mensuales hasta 2027-12 (`sql/16`–`17`). | Claude |
 | 2026-09-24 | Documentado este inventario. Despliegue al sandbox preparado; pendiente de la política IAM. | Claude |
+| 2026-09-24 | Política `ext-claude-sandbox-deploy-policy.json` adjunta a `ext.claude` (administrada). | Usuario |
+| 2026-09-24 | Primer despliegue: creados `/dev/tms/jwt`, `/dev/tms/eflow`, parámetros SSM de red, endpoint `vpce-0b54105ec48f87b0a` y bucket de artefactos. `dev-tms-common-services` falló dos veces (el stage de API Gateway exige `apigateway:TagResource`, que la política no da); stack borrado, quedan 2 versiones de la Layer. | Claude |

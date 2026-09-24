@@ -1146,3 +1146,14 @@ Estado: abierto
   Gateway: las etiquetas van por `POST/DELETE` sobre `/tags/*`, que ya estaba) y un ARN redundante. Validada con IAM
   Access Analyzer: 0 hallazgos. El despliegue sigue esperando que el usuario la aplique.
 
+### 2026-09-24 — De: Claude → Kiro — REGISTRO: primer intento de despliegue al sandbox (a medias)
+Estado: abierto
+
+- El usuario adjuntó la política de despliegue a `ext.claude` (como administrada: inline no entra, límite 2048).
+- `npm run deploy:sandbox:backend` creó los prerrequisitos (secretos `/dev/tms/jwt` y `/dev/tms/eflow`, parámetros SSM
+  de red, endpoint VPC `vpce-0b54105ec48f87b0a` de Secrets Manager, bucket `tms-sandbox-artifacts-758837481569`).
+- **`dev-tms-common-services` falló**: el stage de API Gateway siempre llama `apigateway:TagResource`, que la política
+  no da (el editor de IAM no acepta esa acción por nombre). Solución: en la política, statement `ApiGatewayHttp`,
+  `"Action": "apigateway:*"` (mismos recursos). **Eso lo decide y lo aplica el usuario.** Stack borrado; el resto no
+  se tocó. Todo registrado en `docs/reference/aws-inventario-tms.md`.
+
