@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 import type { PermAction, PermissionCatalog } from '../admin/admin-api';
-import type { Matrix } from '../admin/use-role-permissions';
+import type { Matrix } from '../admin/use-permission-matrix';
 
 const ACTION_LABEL: Record<PermAction, string> = {
   view: 'Ver', create: 'Crear', edit: 'Editar', delete: 'Eliminar', export: 'Exportar',

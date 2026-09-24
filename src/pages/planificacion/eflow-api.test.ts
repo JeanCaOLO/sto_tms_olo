@@ -115,17 +115,30 @@ describe('fetch + fallback', () => {
     expect(pedidos[0].tipo).toBeUndefined(); // sin señal real de devolución
   });
 
+  // Reloj fijo: getFallbackPedidos sella order_date con new Date().toISOString(),
+  // así que las dos llamadas (la del fetch y la del expect) deben ver el mismo
+  // instante o difieren en 1 ms. vi.useFakeTimers() elimina ese race.
   it('fetchPedidosDeViaje cae al mock cuando el viaje no trae filas reales', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ([]) })));
-    const pedidos = await fetchPedidosDeViaje('1', 'eflow-rt-01');
-    expect(pedidos).toEqual(getFallbackPedidos('eflow-rt-01'));
-    expect(pedidos.length).toBeGreaterThan(0);
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ([]) })));
+      const pedidos = await fetchPedidosDeViaje('1', 'eflow-rt-01');
+      expect(pedidos).toEqual(getFallbackPedidos('eflow-rt-01'));
+      expect(pedidos.length).toBeGreaterThan(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('fetchPedidosDeViaje cae al mock cuando /api no responde', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('network down'); }));
-    const pedidos = await fetchPedidosDeViaje('1', 'eflow-rt-01');
-    expect(pedidos).toEqual(getFallbackPedidos('eflow-rt-01'));
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('network down'); }));
+      const pedidos = await fetchPedidosDeViaje('1', 'eflow-rt-01');
+      expect(pedidos).toEqual(getFallbackPedidos('eflow-rt-01'));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
