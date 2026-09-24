@@ -61,6 +61,7 @@ export const navItems: NavItem[] = [
   },
   { icon: 'ri-file-paper-line', label: 'Contratos', i18nKey: 'menu.contratos', path: '/contratos', comingSoon: true, permKey: 'contratos' },
   { icon: 'ri-bar-chart-line', label: 'Reportes', i18nKey: 'menu.reportes', path: '/reportes', comingSoon: true, permKey: 'reportes' },
+  { icon: 'ri-history-line', label: 'Auditoría del Sistema', i18nKey: 'menu.auditoria', path: '/auditoria', permKey: 'auditoria' },
   { icon: 'ri-settings-line', label: 'Configuración', i18nKey: 'menu.configuracion', path: '/configuracion', permKey: 'configuracion' },
 ];
 

@@ -24,5 +24,6 @@ export default {
   'menu.puntosEntrega': 'Delivery Points',
   'menu.contratos': 'Contracts',
   'menu.reportes': 'Reports',
+  'menu.auditoria': 'System Audit Log',
   'menu.configuracion': 'Settings',
 };

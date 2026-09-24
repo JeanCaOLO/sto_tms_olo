@@ -24,5 +24,6 @@ export default {
   'menu.puntosEntrega': 'Puntos de Entrega',
   'menu.contratos': 'Contratos',
   'menu.reportes': 'Reportes',
+  'menu.auditoria': 'Auditoría del Sistema',
   'menu.configuracion': 'Configuración',
 };

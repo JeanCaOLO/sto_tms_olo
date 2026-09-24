@@ -32,6 +32,9 @@ interface DataTableProps<T> {
   pageSize?: number;
   pageSizeOptions?: number[];
   selectedRowId?: string | null;
+  // Opcional: se llama tras exportar (para auditar el evento export). Recibe el
+  // número de filas exportadas.
+  onExport?: (rows: number) => void;
 }
 
 type SortDirection = 'asc' | 'desc';
@@ -141,6 +144,7 @@ export default function DataTable<T>({
   pageSize: initialPageSize,
   pageSizeOptions = [10, 25, 50, 100],
   selectedRowId = null,
+  onExport,
 }: DataTableProps<T>) {
   const { t } = useTranslation();
   const [search, setSearch] = useState('');
@@ -226,6 +230,7 @@ export default function DataTable<T>({
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Datos');
     const stamp = new Date().toISOString().slice(0, 10);
     XLSX.writeFile(workbook, `${exportFileName}-${stamp}.xlsx`);
+    onExport?.(rows.length);
   };
 
   const activeFilterCount = Object.values(columnFilters).filter((v) => v !== undefined && v !== null).length;
