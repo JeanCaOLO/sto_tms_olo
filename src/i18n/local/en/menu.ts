@@ -1,5 +1,9 @@
 export default {
   'menu.dashboard': 'Dashboard',
+  'menu.sectionDemand': 'Demand Management',
+  'menu.sectionExecution': 'Operations',
+  'menu.sectionFinance': 'Finance & Commercial',
+  'menu.sectionAdmin': 'Administration & Analytics',
   'menu.pedidos': 'Orders',
   'menu.devoluciones': 'Returns',
   'menu.guias': 'Dispatch Notes',
