@@ -39,6 +39,8 @@ function stopDe(pedido: Pedido, stopOrder: number): PlanStop {
     customer_name: pedido.customer_name ?? null,
     delivery_city: pedido.delivery_city ?? null,
     delivery_zone: pedido.delivery_zone ?? null,
+    delivery_latitude: pedido.delivery_latitude ?? null,
+    delivery_longitude: pedido.delivery_longitude ?? null,
     total_weight: pedido.total_weight ?? null,
     total_volume: pedido.total_volume ?? null,
   };

@@ -21,6 +21,13 @@ const ESTADO_LABEL: Record<PlanStatus, string> = {
   cancelled: 'Cancelado',
 };
 
+// "2026-09-22" -> "lunes, 22 de septiembre" (mediodía local para evitar corrimiento de zona).
+function formatearDia(fecha: string): string {
+  const d = new Date(`${fecha}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return fecha;
+  return d.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
 // Vista "Generar plan": botón que arma y persiste el draft (POST /planes),
 // render de los viajes con sus paradas en secuencia, edición (mover pedidos
 // entre viajes → PUT) y confirmación (draft→confirmed). Solo editable en draft.
@@ -37,19 +44,29 @@ export default function PlanEditor({ fecha, pedidosCount, vehiculosCount, ctx, d
 
   return (
     <div className="space-y-5">
-      <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="bg-white rounded-xl border border-slate-200 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <p className="text-xs text-slate-500">
-            <strong>{pedidosCount}</strong> {t('planning.ordersWord')} · <strong>{vehiculosCount}</strong> {t('planning.vehiclesWord')}
+          <p className="text-lg font-bold text-slate-800 capitalize flex items-center gap-2">
+            <i className="ri-calendar-event-line text-teal-600"></i>
+            {formatearDia(fecha)}
           </p>
-          {plan && (
-            <p className="text-sm font-semibold text-slate-800 mt-1">
-              {t('planning.planStatus')}: <span className="text-teal-700">{ESTADO_LABEL[plan.status]}</span>
-            </p>
-          )}
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-teal-50 text-teal-700 text-xs font-semibold">
+              <i className="ri-shopping-bag-3-line"></i>{pedidosCount} {t('planning.ordersWord')}
+            </span>
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold">
+              <i className="ri-truck-line"></i>{vehiculosCount} {t('planning.vehiclesWord')}
+            </span>
+            {plan && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-semibold">
+                <i className="ri-flag-line"></i>{ESTADO_LABEL[plan.status]}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <button
+            data-testid="generar-plan"
             onClick={generar}
             disabled={generando || disabled || pedidosCount === 0}
             className="px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-300 text-white text-sm font-semibold rounded-lg cursor-pointer flex items-center gap-2"
@@ -59,6 +76,7 @@ export default function PlanEditor({ fecha, pedidosCount, vehiculosCount, ctx, d
           </button>
           {editable && (
             <button
+              data-testid="confirmar-plan"
               onClick={confirmarPlan}
               disabled={guardando}
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 text-white text-sm font-semibold rounded-lg cursor-pointer flex items-center gap-2"
@@ -71,6 +89,18 @@ export default function PlanEditor({ fecha, pedidosCount, vehiculosCount, ctx, d
 
       {disabled && (
         <p className="text-center text-sm text-slate-400 py-6">{t('planning.selectContext')}</p>
+      )}
+
+      {!disabled && pedidosCount === 0 && !plan && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+          <i className="ri-inbox-line text-amber-500 text-xl mt-0.5"></i>
+          <div>
+            <p className="text-sm font-semibold text-amber-800">No hay pedidos para este día</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              No se puede generar un plan sin pedidos. Elegí otro día en el selector de arriba.
+            </p>
+          </div>
+        </div>
       )}
 
       {plan && plan.trips.length > 0 && (
@@ -91,7 +121,7 @@ export default function PlanEditor({ fecha, pedidosCount, vehiculosCount, ctx, d
         </div>
       )}
 
-      {plan && plan.unassigned_order_numbers.length > 0 && (
+      {plan && (plan.unassigned_order_numbers?.length ?? 0) > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
           <p className="text-sm font-semibold text-amber-800 flex items-center gap-2">
             <i className="ri-alert-line"></i>
