@@ -83,11 +83,11 @@ Estas no son diferencias de texto entre ramas, sino choques entre **nuestras dec
 **arquitectura nueva** (`docs/arquitectura-tms-oms/`). Requieren decisión humana y, si cambian
 algo firme, un `DECIDED` nuevo que lo **SUPERSEDE** vía §13.
 
-| # | Nuestra decisión (vigente en `project.md`) | Lo que propone la base nueva | Acción |
+| # | Nuestra decisión (vigente en `project.md`) | Lo que hay en la base nueva | Acción |
 |---|---|---|---|
-| C1 — Backend | `DECIDED` 2026-09-03: **Python + Lambdas + SAM** | Código y despliegue reales en **Express (modular monolith)** — aunque su `ADR-002` dice Python/Lambdas | **REVISAR → SUPERSEDE** si el objetivo real es Express. Bloquea el resto. |
-| C2 — Motor de reglas | domain-design (backup): `CalculadorScore` propio del OMS | **Un motor compartido** OMS+TMS generalizando `src/lib/tarifas/` (AST versionado). Reforzado por D-JC1 (motor de costo/tarifa). | **REVISAR** al reconciliar domain-design |
-| C3 — Multi-compañía | `DECIDED` 2026-09-14: **una Lambda por compañía** | **Reglas con `scope`** CUSTOMER→WAREHOUSE→COUNTRY→GLOBAL | **REVISAR → SUPERSEDE** (depende de C1: si es monolito, "una Lambda por compañía" pierde sentido) |
+| C1 — Backend | `DECIDED` 2026-09-03/04: **Python + Lambdas + SAM** + `common-services` | ✅ **COINCIDE.** Verificado contra el código: `backend/` está en **Python + Lambdas + SAM** (módulos por función + `common-services`), migrado desde el Express legacy de `server/`. También es su `ADR-002`. | **MANTENER** (no hay contradicción — corrección del 2026-09-29; el "Express" del `02-to-be` no se siguió) |
+| C2 — Motor de reglas | domain-design (backup): `CalculadorScore` propio del OMS | El `02-to-be` propone **un motor compartido** OMS+TMS generalizando `src/lib/tarifas/` (AST versionado). Aún **no hay** módulo de reglas en `backend/`. Reforzado por D-JC1. | **REVISAR** al reconciliar domain-design |
+| C3 — Multi-compañía | `DECIDED` 2026-09-14: **una Lambda por compañía** | El código actual organiza los Lambdas **por función** (no por compañía) y filtra por `scope` país→almacén→cliente. | **REVISAR → SUPERSEDE** (definir: ¿Lambda por compañía o reglas con scope en Lambdas compartidas?) |
 
 ---
 
@@ -98,8 +98,8 @@ algo firme, un `DECIDED` nuevo que lo **SUPERSEDE** vía §13.
 3. Fijar las fechas de L1/L2 a la real (unificar 09-15/09-16).
 4. Añadir las decisiones del pivote de reemplazo del WMH (D1–D4 de
    `2026-09-29-pivote-reemplazo-wmh.md`).
-5. Registrar C1–C3 como **decisiones pendientes** (o `SUPERSEDE` cuando el equipo resuelva),
-   nunca en silencio.
+5. C1 (backend) **queda confirmado como coincidencia** (Python/Lambdas/SAM). Registrar **C2–C3**
+   como decisiones pendientes (o `SUPERSEDE` cuando el equipo resuelva), nunca en silencio.
 6. A nivel de artefactos: recuperar `stories.md` completo, `domain-design/` y
    `units-generation/` del backup, y reconciliarlos con `02-to-be` al re-correr los stages.
 
