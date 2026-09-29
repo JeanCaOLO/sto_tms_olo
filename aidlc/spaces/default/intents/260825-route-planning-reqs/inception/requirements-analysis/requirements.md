@@ -263,7 +263,10 @@ al recorrido óptimo, para minimizar distancia y tiempo de entrega sin tener que
 a mano.
 
 - FR4.1 El sistema aplica Nearest-Neighbor sobre la matriz de distancias real (FR5) para
-  producir la secuencia.
+  producir una secuencia inicial, y luego la refina con una pasada de **2-opt** sobre ruta
+  abierta (sin retorno al depósito): mientras encuentre un cruce, invierte el segmento
+  entre dos aristas si acorta el recorrido. Mejora típica ~10-15 % sobre el
+  Nearest-Neighbor solo.
 - FR4.2 Pedidos sin coordenadas (excepciones, ver Glosario) se colocan al final de la
   secuencia, nunca se descartan.
 - FR4.3 El planificador puede reordenar manualmente por arrastre después de la
@@ -274,8 +277,11 @@ Acceptance (BDD):
   Then aparece como última parada de la secuencia, con su dirección real visible (no la
   registrada del cliente).
 
-*Estado: Implementado.* Fuente: `optimize-stops.ts`; techo documentado ADR-0001 (~25 % más
-largo que el óptimo teórico — Nearest-Neighbor, no VRP exacto); verificado end-to-end.
+*Estado: Implementado.* Fuente: `optimize-stops.ts` (`optimizarParadas` = Nearest-Neighbor;
+`dosOpt` = mejora local 2-opt, acotada a 30 pasadas, O(n²) por pasada, apta para ≤50
+paradas); techo documentado ADR-0001 (Nearest-Neighbor + 2-opt, no VRP exacto); verificado
+end-to-end y en `optimize-stops.test.ts` (el 2-opt se añadió el 2026-09-17, ver
+`docs/work/2026-09/2026-09-17-2opt-paradas-compartidas-capacidad.md`).
 
 ### FR5 — Matriz de distancias real (OSRM)
 
@@ -519,6 +525,58 @@ el escenario de recolección al pie de camión (FR16.4 específicamente — FR16
 independientes de esa definición y podrían diseñarse antes). Fuente: página de Notion de
 la Reunión 2026-08-24 (link arriba, bajo "TMS OLO — Documentación del Proyecto") y
 transcripción de reunión Ana↔Jesús, 2026-08-31.
+
+### FR17 — Geocodificación de clientes sin coordenadas (capa Nominatim)
+
+Como **Planificador de Rutas**, quiero que los pedidos de clientes que el WMS no trae
+georreferenciados igual entren al mapa y al optimizador, para no perder paradas ni dejarlas
+siempre al final por falta de coordenadas.
+
+- FR17.1 Al cargar los pedidos de un viaje, si un pedido no trae lat/lng, el sistema las
+  rellena desde una capa de coordenadas pre-geocodificadas por cliente (clave
+  `<pais>:<customerId>`) y marca el pedido `geo_approx`.
+- FR17.2 Un pedido que ya trae coordenadas propias no se toca.
+- FR17.3 La precisión es `admin` (centroide de distrito/ciudad, no puerta): varios clientes
+  del mismo pueblo pueden compartir punto.
+
+*Estado: Implementado como capa offline.* Las coordenadas se generan por fuera de la app
+con Nominatim self-hosted (`scripts/geocode-clientes.py`) y se embeben en `geocode.json`
+(~900 entradas CR+VE); **no** hay llamada en vivo a Nominatim desde el frontend. Fuente:
+`geocode.ts` (`geocodeCliente`), `eflow-api.ts` (`conGeocode`), `geocode.json`, `types.ts`
+(`geo_approx`); ver `docs/work/2026-09/2026-09-16-geocoding-nominatim.md`.
+
+### FR18 — Días de ruta por transportista/país
+
+Como **Planificador de Rutas**, quiero ver qué días de la semana sale cada ruta según el
+sistema del transportista/país, para saber qué rutas aplican al día que planifico.
+
+- FR18.1 Los sistemas de días de ruta se declaran en un registro config-driven; agregar
+  uno nuevo es una entrada más de datos, sin tocar el componente ni la página.
+- FR18.2 **EFLOW** (`RUTA_DIA_AB`) se lee en vivo por país y marca los días en que la ruta
+  sale (no distingue carga/entrega).
+- FR18.3 **COFERSA** se lee de un JSON estático y expande su calendario con reglas de
+  negocio: cita previa a nivel de fila, GAM sin split explícito = lunes–viernes "ambos",
+  resto por split carga/entrega. El parseo de días tolera texto libre (listas y rangos "X
+  a Y", sin acentos).
+
+*Estado: Implementado.* Fuente: `route-systems/registry.ts` (`ROUTE_SYSTEMS`),
+`route-systems/eflow-dias.ts` (`cargarRutasDias`), `route-systems/cofersa-dias.ts`
+(`toCofersaDia`, `rutasActivas`), `route-systems/parse.ts` (`expandirDiasCofersa`,
+`parseDias`); cubierto por `cofersa-dias.test.ts`, `parse.test.ts`.
+
+### FR19 — Modo demo con datos perfectos
+
+Como **Planificador de Rutas**, quiero un modo demo con datos ficticios completos
+(direcciones, pesos, volúmenes, capacidades), para presentar el módulo al cliente aunque la
+data real de EFLOW no traiga esos campos.
+
+- FR19.1 Un toggle en el header activa el modo demo, que recarga los hooks del módulo.
+- FR19.2 Con demo activo, viajes, pedidos y catálogos se sirven desde una capa de datos
+  ficticios en vez de EFLOW/Supabase, rebanados por país y compañía activas.
+
+*Estado: Implementado.* Fuente: `demo.ts` (`demoViajes`, `demoCatalogos`,
+`demoPedidosDeViaje`, `slices`/`merge`), `demo-data.json`, `eflow-api.ts` (guards
+`if (demoActual)`), `page.tsx` (`cambiarDemo`); cubierto por `demo.test.ts`.
 
 ## Requerimientos no funcionales
 
