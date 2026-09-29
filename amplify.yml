@@ -1,3 +1,7 @@
+# Build spec para AWS Amplify Hosting (CI/CD nativo) cuando la app está conectada
+# a GitHub. En cada push a la rama conectada, Amplify corre esto: instala con
+# pnpm, buildea con Vite (salida en out/) y publica. Las variables VITE_* se
+# definen en la consola de Amplify (App settings -> Environment variables), no aquí.
 version: 1
 frontend:
   phases:

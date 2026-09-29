@@ -30,6 +30,21 @@ describe('optimize-stops — el tipo de parada no altera el orden (FR16, BR1.3 s
     expect(conDevolucion).toEqual(sinTipo);
   });
 
+  it('NN + 2-opt reordena un input disperso a la secuencia óptima (monótona) sin perder paradas', () => {
+    // Puntos colineales dados en orden zig-zag; el óptimo es recorrerlos en orden.
+    const zig = optimizarParadas([
+      p('P0', 9.90, -84.0),
+      p('P4', 9.98, -84.0),
+      p('P1', 9.92, -84.0),
+      p('P3', 9.96, -84.0),
+      p('P2', 9.94, -84.0),
+    ]);
+    expect(zig).toHaveLength(5); // no se pierde ninguna parada
+    const lats = zig.map((x) => x.delivery_latitude!);
+    const monotona = lats.every((v, i) => i === 0 || v >= lats[i - 1]) || lats.every((v, i) => i === 0 || v <= lats[i - 1]);
+    expect(monotona).toBe(true);
+  });
+
   it('la secuencia conserva todas las paradas de devolución', () => {
     const orden = withStopNumbers(optimizarParadas([
       p('A', 9.93, -84.08, 'devolucion'),

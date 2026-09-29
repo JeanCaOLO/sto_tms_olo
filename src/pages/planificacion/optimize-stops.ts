@@ -52,8 +52,33 @@ export function optimizarParadas(pedidos: Pedido[], matriz?: MatrizDistancias): 
     actual = siguiente;
   }
 
-  // Pedidos con dirección de excepción sin geocodificar quedan fuera del
-  // cálculo de ruta óptima (Reunión 2026-08-18) — se listan al final, no se
-  // descartan.
-  return [...resultado, ...sinCoords];
+  // Vecino más cercano deja una ruta "usable" pero no óptima; 2-opt la mejora
+  // (~10-15% típico). Pedidos con dirección de excepción sin geocodificar quedan
+  // fuera del cálculo (Reunión 2026-08-18) — se listan al final, no se descartan.
+  return [...dosOpt(resultado, distancia), ...sinCoords];
+}
+
+// Mejora local 2-opt sobre una ruta ABIERTA (sin volver al depósito): mientras
+// encuentre un cruce, invierte el segmento entre dos aristas si acorta la ruta.
+// Estándar práctico junto al vecino más cercano (Croes 1958; ver LKH para el
+// tope de calidad). O(n²) por pasada, acotado — suficiente para ≤50 paradas.
+function dosOpt(ruta: Pedido[], distancia: (a: Pedido, b: Pedido) => number): Pedido[] {
+  const n = ruta.length;
+  if (n < 4) return ruta;
+  let best = ruta;
+  let mejora = true;
+  for (let pasada = 0; mejora && pasada < 30; pasada++) {
+    mejora = false;
+    for (let i = 1; i < n - 1; i++) {
+      for (let j = i; j < n - 1; j++) {
+        const antes = distancia(best[i - 1], best[i]) + distancia(best[j], best[j + 1]);
+        const despues = distancia(best[i - 1], best[j]) + distancia(best[i], best[j + 1]);
+        if (despues + 1e-9 < antes) {
+          best = [...best.slice(0, i), ...best.slice(i, j + 1).reverse(), ...best.slice(j + 1)];
+          mejora = true;
+        }
+      }
+    }
+  }
+  return best;
 }

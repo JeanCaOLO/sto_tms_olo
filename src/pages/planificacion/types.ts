@@ -48,6 +48,9 @@ export interface Viaje {
   trip_date: string;
   status: 'despachado' | 'planificado' | 'en_ruta' | 'completado' | 'anulado';
   pedidos: Pedido[];
+  // Días de la semana (1=Lun … 7=Dom) en que la ruta del viaje sale. Solo lo
+  // trae la data demo/perfecta; en la real el calendario sale de COFERSA/EFLOW.
+  dias?: number[];
 }
 
 export interface PedidoSeleccionado extends Pedido {

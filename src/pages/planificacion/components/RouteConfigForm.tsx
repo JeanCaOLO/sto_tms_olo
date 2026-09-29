@@ -75,6 +75,12 @@ export default function RouteConfigForm({
   const diaSemana = fechaRuta ? DIA_POR_GETDAY[new Date(fechaRuta + 'T00:00').getDay()] : undefined;
   const esDomingo = fechaRuta ? new Date(fechaRuta + 'T00:00').getDay() === 0 : false;
 
+  // Data demo/perfecta: los viajes traen `dias` (ISO 1=Lun…7=Dom) → se muestran
+  // solo los viajes cuya ruta sale el día elegido (ignora el calendario COFERSA).
+  const diaIso = fechaRuta ? new Date(fechaRuta + 'T00:00').getDay() || 7 : undefined;
+  const porDias = viajes.some((v) => v.dias && v.dias.length > 0);
+  const viajesDelDia = porDias && diaIso ? viajes.filter((v) => v.dias?.includes(diaIso)) : viajes;
+
   // Agrupa los viajes por su relación con el calendario COFERSA de ese día.
   // Sin fecha (o COFERSA no cargado) → lista plana como antes.
   const agrupar = Boolean(fechaRuta) && cofersaStatus === 'ready';
@@ -96,9 +102,11 @@ export default function RouteConfigForm({
   const nProgramados = grupos.programados.length;
   const ayuda = !fechaRuta
     ? ''
-    : nProgramados > 0
-      ? `${etiquetaDia} — ${nProgramados} ruta${nProgramados === 1 ? '' : 's'} COFERSA programada${nProgramados === 1 ? '' : 's'}.`
-      : `${esDomingo ? NOMBRE_DOMINGO : etiquetaDia} — sin rutas COFERSA programadas ese día.`;
+    : porDias
+      ? `${etiquetaDia} — ${viajesDelDia.length} viaje${viajesDelDia.length === 1 ? '' : 's'} que sale${viajesDelDia.length === 1 ? '' : 'n'} ese día.`
+      : nProgramados > 0
+        ? `${etiquetaDia} — ${nProgramados} ruta${nProgramados === 1 ? '' : 's'} COFERSA programada${nProgramados === 1 ? '' : 's'}.`
+        : `${esDomingo ? NOMBRE_DOMINGO : etiquetaDia} — sin rutas COFERSA programadas ese día.`;
 
   const opt = (v: Viaje) => (
     <option key={v.id} value={v.id}>
@@ -116,7 +124,9 @@ export default function RouteConfigForm({
           required
         >
           <option value="">Seleccionar viaje despachado</option>
-          {agrupar ? (
+          {porDias ? (
+            viajesDelDia.map(opt)
+          ) : agrupar ? (
             <>
               {grupos.programados.length > 0 && (
                 <optgroup label={`Programados este ${etiquetaDia.toLowerCase()}`}>
