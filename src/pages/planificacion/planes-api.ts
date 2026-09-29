@@ -61,11 +61,11 @@ export async function listarPlanes(status?: PlanStatus, fecha?: string): Promise
   try {
     const { ok, body } = await apiFetch(`${BASE}${suffix}`);
     const data = body?.data as RoutePlan[] | undefined;
-    // Mezcla resultados reales con los del mock (los que se generaron en la
-    // sesión sin backend) para que la pestaña no quede vacía en modo mock.
-    const mock = listarMock(status, fecha);
-    if (ok && Array.isArray(data) && data.length > 0) return data;
-    return mock;
+    // Si el backend respondió, esa es la verdad — una lista vacía es válida (no
+    // caer a mock, que dejaba planes stale tras completar/cancelar). El mock
+    // solo aplica cuando el backend NO respondió.
+    if (ok && Array.isArray(data)) return data;
+    return listarMock(status, fecha);
   } catch {
     return listarMock(status, fecha);
   }

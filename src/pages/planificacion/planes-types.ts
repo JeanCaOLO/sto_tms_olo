@@ -26,6 +26,9 @@ export interface PlanStop {
   customer_name: string | null;
   delivery_city: string | null;
   delivery_zone: string | null;
+  // Coords del punto de entrega (para el mapa) — el backend las embebe.
+  delivery_latitude: number | null;
+  delivery_longitude: number | null;
   total_weight: number | null;
   total_volume: number | null;
 }

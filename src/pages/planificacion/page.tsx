@@ -44,8 +44,8 @@ export default function PlanificacionPage() {
       </div>
 
       <div className="flex gap-1 border-b border-slate-200">
-        <TabButton active={tab === 'generar'} onClick={() => setTab('generar')} label={t('planning.tabGenerate')} />
-        <TabButton active={tab === 'planes'} onClick={() => setTab('planes')} label={t('planning.tabPlans')} />
+        <TabButton active={tab === 'generar'} onClick={() => setTab('generar')} label={t('planning.tabGenerate')} testId="tab-generar" />
+        <TabButton active={tab === 'planes'} onClick={() => setTab('planes')} label={t('planning.tabPlans')} testId="tab-planes" />
       </div>
 
       {tab === 'generar' ? (
@@ -69,9 +69,10 @@ export default function PlanificacionPage() {
   );
 }
 
-function TabButton({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
+function TabButton({ active, onClick, label, testId }: { active: boolean; onClick: () => void; label: string; testId?: string }) {
   return (
     <button
+      data-testid={testId}
       onClick={onClick}
       className={`px-4 py-2 text-sm font-medium -mb-px border-b-2 cursor-pointer ${
         active ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700'
