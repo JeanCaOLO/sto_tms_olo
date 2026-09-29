@@ -67,6 +67,18 @@ REDISEÑO completo del flujo (pedido → TMS → OMS → WMS) FUERA del alcance 
 reemplazo del WMH desde la salida, ese rediseño ENTRA en alcance. (2026-09-29)
 ```
 
+### D5 — Eliminación del Calendario de Rutas del OMS
+```
+DECIDED (Calendario de Rutas del OMS — ELIMINADO): la vista/funcionalidad de "Calendario de
+Rutas" del OMS (`/oms/rutas-despacho`) YA NO es necesaria, porque las rutas dejan de ser FIJAS:
+se generan dinámicamente (ruteo dinámico multi-fuente, "la ruta manda"). Supera los DECIDED
+previos "vista Calendario de Rutas ACOTADO — solo consulta" (2026-09-15) y "la fuente de verdad
+del calendario de rutas es el TMS, el OMS lo consume, CRUD gated a admin" (2026-09-02) en lo que
+respecta a mantener esa vista en el OMS. Consecuencia en artefactos: retirar/deprecar FR12, la
+épica E8 (US28–US29) y sus referencias en domain-design. Coherente con D-JC1 (ruteo dinámico
+multi-fuente del mandato de Jean Carlo). (2026-09-29)
+```
+
 ### Referencia — Ciclo de priorización del OMS (Figura 7, se mantiene)
 El núcleo funcional del OMS **no cambia** con el pivote:
 `Ingreso de pedidos → Enriquecimiento de datos → Evaluación de reglas → Priorización →

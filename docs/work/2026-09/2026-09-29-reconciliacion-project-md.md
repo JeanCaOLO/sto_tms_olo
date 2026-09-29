@@ -96,8 +96,9 @@ algo firme, un `DECIDED` nuevo que lo **SUPERSEDE** vía §13.
 1. Partir del `project.md` de **`main`** (ya trae D-JC1, D-JC2, L4).
 2. **Recuperar del backup** el learning L3 (`ARTIFACT_UPDATED`).
 3. Fijar las fechas de L1/L2 a la real (unificar 09-15/09-16).
-4. Añadir las decisiones del pivote de reemplazo del WMH (D1–D4 de
-   `2026-09-29-pivote-reemplazo-wmh.md`).
+4. Añadir las decisiones del pivote de reemplazo del WMH (D1–D5 de
+   `2026-09-29-pivote-reemplazo-wmh.md`, incluida **D5 — eliminación del Calendario de Rutas
+   del OMS** por ruteo dinámico; retirar/deprecar FR12, épica E8 / US28–US29 y sus referencias).
 5. C1 (backend) **queda confirmado como coincidencia** (Python/Lambdas/SAM). Registrar **C2–C3**
    como decisiones pendientes (o `SUPERSEDE` cuando el equipo resuelva), nunca en silencio.
 6. A nivel de artefactos: recuperar `stories.md` completo, `domain-design/` y
