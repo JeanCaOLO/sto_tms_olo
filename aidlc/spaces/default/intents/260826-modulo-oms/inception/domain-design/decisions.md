@@ -167,3 +167,5 @@
 - No hay ciclos en el grafo de dependencias (verificado): el motor depende de las
   reglas, el score, los adaptadores y la auditoría; el Simulador depende del motor;
   ninguna regla depende del motor.
+
+<!-- Confirmado y aprobado en el gate (2026-09-16). Review advisory: READY. -->

@@ -35,8 +35,8 @@ Los 4 roles del OMS ya están cerrados (ver Adenda del documento de la reunión)
 
 ## Execution Plan Summary
 - **Total Stages**: 26
-- **Completed**: 6
-- **In Progress**: domain-design
+- **Completed**: 7
+- **In Progress**: units-generation
 
 ## Runtime State
 - **Revision Count**: 1
@@ -73,8 +73,8 @@ Los 4 roles del OMS ya están cerrados (ver Adenda del documento de la reunión)
 - [x] requirements-analysis — EXECUTE
 - [x] user-stories — EXECUTE
 - [S] refined-mockups — EXECUTE
-- [-] domain-design — EXECUTE
-- [ ] units-generation — EXECUTE
+- [x] domain-design — EXECUTE
+- [-] units-generation — EXECUTE
 - [ ] contract-design — EXECUTE
 - [ ] delivery-planning — EXECUTE
 
@@ -99,12 +99,12 @@ Per unit: [TBD]
 
 ## Current Status
 - **Lifecycle Phase**: INCEPTION
-- **Current Stage**: domain-design
-- **Next Stage**: units-generation
+- **Current Stage**: units-generation
+- **Next Stage**: contract-design
 - **Status**: Running
-- **Last Updated**: 2026-09-16T16:41:33Z
+- **Last Updated**: 2026-09-18T16:22:32Z
 
 ## Session Resume Point
-- **Last Completed Stage**: user-stories
-- **Next Action**: Execute Domain Design
+- **Last Completed Stage**: domain-design
+- **Next Action**: Execute Units Generation
 - **Pending Artifacts**: none

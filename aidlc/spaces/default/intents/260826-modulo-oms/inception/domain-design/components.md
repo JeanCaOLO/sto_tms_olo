@@ -631,3 +631,5 @@ override+auditoría fusionados (Q6-B).
   cuando difiera) es tema de **Units Generation / Deployment**, no de esta capa
   lógica. Domain Design deja el modelo genérico + config-por-compañía; Units
   decide cómo se materializa por compañía sin que la especificidad se pierda.
+
+<!-- Confirmado y aprobado en el gate (2026-09-16). Review advisory: READY. -->

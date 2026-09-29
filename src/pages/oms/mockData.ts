@@ -217,6 +217,31 @@ export const queueOrders: QueueOrder[] = [
     appliedRules: [{ name: 'Cliente retira', weight: 940 }],
     history: [{ at: '2026-08-28 11:10', from: 'sin asignar', to: 1, type: 'automatico' }],
   },
+  // Pedidos con situación GENE (generada): ya priorizados, siguen disponibles (DISP).
+  {
+    id: 'PED-10486', ref: 'ERP-CF-88286', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
+    customer: 'Ferretería Nicoya', route: '17 Nicoya', country: 'CR', tier: 1, score: 915,
+    totalAmount: 512_000, weight: 128.0, volume: 1.0, itemCount: 9, observations: 'Generada — lista para picking',
+    dispatchDate: '2026-08-29', createdDate: '2026-08-27', readyToPrepDate: '2026-08-28', status: 'DISP', situation: 'GENE', intakeTime: '11:22',
+    appliedRules: [{ name: 'Fecha de despacho vencida', weight: 600 }, { name: 'Día de ruta próximo', weight: 315 }],
+    history: [{ at: '2026-08-28 11:22', from: 'sin asignar', to: 1, type: 'automatico' }],
+  },
+  {
+    id: 'PED-10487', ref: 'ERP-CF-88287', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
+    customer: 'Distribuidora Grecia', route: '21 Grecia', country: 'CR', tier: 2, score: 620,
+    totalAmount: 738_400, weight: 190.0, volume: 1.5, itemCount: 13, observations: '—',
+    dispatchDate: '2026-08-30', createdDate: '2026-08-28', readyToPrepDate: '2026-08-29', status: 'DISP', situation: 'GENE', intakeTime: '11:35',
+    appliedRules: [{ name: 'Día de ruta próximo', weight: 620 }],
+    history: [{ at: '2026-08-28 11:35', from: 'sin asignar', to: 2, type: 'automatico' }],
+  },
+  {
+    id: 'PED-10488', ref: 'ERP-CF-88288', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
+    customer: 'Comercial Atenas', route: '22 Atenas', country: 'CR', tier: 3, score: 305,
+    totalAmount: 1_105_000, weight: 355.0, volume: 2.7, itemCount: 22, observations: 'Generada — coordinar bajada',
+    dispatchDate: '2026-08-31', createdDate: '2026-08-28', readyToPrepDate: '2026-08-30', status: 'DISP', situation: 'GENE', intakeTime: '11:48',
+    appliedRules: [{ name: 'Día de ruta a 2 días', weight: 305 }],
+    history: [{ at: '2026-08-28 11:48', from: 'sin asignar', to: 3, type: 'automatico' }],
+  },
 ];
 
 // FR4 — alertas activas del Panel (incluye tipos derivados de FR8 y FR9.6).

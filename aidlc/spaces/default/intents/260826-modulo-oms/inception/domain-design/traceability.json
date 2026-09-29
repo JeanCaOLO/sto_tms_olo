@@ -1,6 +1,7 @@
 {
   "stage": "domain-design",
   "intent": "260826-modulo-oms",
+  "gate_confirmed": "2026-09-16",
   "note": "stories.md existe: se enumera cada US (US1..US33 + US11b) y se mapea al componente o entidad de components.md que lo realiza. Domain Design solo define componentes y entidades; métodos y contratos se pinan en Contract/Functional Design.",
   "upstream_ids": [
     "US1", "US2", "US3", "US4", "US5", "US6",
