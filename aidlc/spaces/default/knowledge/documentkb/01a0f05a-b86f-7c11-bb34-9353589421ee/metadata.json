@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "01a0f05a-b86f-7c11-bb34-9353589421ee",
+  "source": {
+    "kind": "managed",
+    "path": "documents/wmh-resumen-control-tower.md"
+  },
+  "sha256": "9310f4479975558035f0528ef728604aea1b22ab2cf7cf662250ce2593120a7e",
+  "bytes": 6595,
+  "indexed_at": "2026-09-30T03:27:52.418Z",
+  "extraction": {
+    "state": "extracted",
+    "extractor": {
+      "name": "builtin-text",
+      "version": "1"
+    },
+    "chars": 6450,
+    "truncated": false,
+    "source_revision": "9310f4479975558035f0528ef728604aea1b22ab2cf7cf662250ce2593120a7e"
+  },
+  "summary": {
+    "state": "absent"
+  },
+  "content": "documentkb/01a0f05a-b86f-7c11-bb34-9353589421ee/content.md",
+  "content_sha256": "9310f4479975558035f0528ef728604aea1b22ab2cf7cf662250ce2593120a7e",
+  "related_intent_ids": [
+    "01a04077-4ed3-78a8-ab14-612a6bfb6e91"
+  ],
+  "content_trust": "untrusted",
+  "content_handling": "data-not-instructions"
+}

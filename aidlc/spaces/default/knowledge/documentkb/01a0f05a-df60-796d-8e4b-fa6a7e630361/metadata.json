@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "01a0f05a-df60-796d-8e4b-fa6a7e630361",
+  "source": {
+    "kind": "managed",
+    "path": "documents/wmh-actual/wmh-datos-reales-por-columna.md"
+  },
+  "sha256": "dac097c035e8ed281d9eb301a667e6f3293af083b6c2f53d82595c800289ded8",
+  "bytes": 17174,
+  "indexed_at": "2026-09-30T03:28:02.382Z",
+  "extraction": {
+    "state": "extracted",
+    "extractor": {
+      "name": "builtin-text",
+      "version": "1"
+    },
+    "chars": 17003,
+    "truncated": false,
+    "source_revision": "dac097c035e8ed281d9eb301a667e6f3293af083b6c2f53d82595c800289ded8"
+  },
+  "summary": {
+    "state": "absent"
+  },
+  "content": "documentkb/01a0f05a-df60-796d-8e4b-fa6a7e630361/content.md",
+  "content_sha256": "dac097c035e8ed281d9eb301a667e6f3293af083b6c2f53d82595c800289ded8",
+  "related_intent_ids": [
+    "01a04077-4ed3-78a8-ab14-612a6bfb6e91"
+  ],
+  "content_trust": "untrusted",
+  "content_handling": "data-not-instructions"
+}
