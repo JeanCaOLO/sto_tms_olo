@@ -17,6 +17,9 @@ export interface ParadaMapa {
 interface Props {
   paradas: ParadaMapa[];
   alturaClase?: string;
+  // Emite el id de la parada al clickear su pin. El componente queda "tonto":
+  // la lógica de la modal vive en el padre (PlanTripCard).
+  onParadaClick?: (stopId: string) => void;
 }
 
 const COLOR = '#0d9488'; // teal (entrega)
@@ -43,7 +46,7 @@ function AjustarBounds({ paradas }: { paradas: ParadaMapa[] }) {
 
 // Mapa de un viaje: paradas numeradas + ruta real por calles (OSRM). Cae a
 // segmentos rectos si OSRM no responde (route-geometry ya maneja el fallback).
-export default function TripMapa({ paradas, alturaClase = 'h-[220px]' }: Props) {
+export default function TripMapa({ paradas, alturaClase = 'h-[220px]', onParadaClick }: Props) {
   const ordenadas = useMemo(
     () => [...paradas].sort((a, b) => a.stop_number - b.stop_number),
     [paradas],
@@ -103,7 +106,12 @@ export default function TripMapa({ paradas, alturaClase = 'h-[220px]' }: Props) 
           />
         ))}
         {ordenadas.map((p) => (
-          <Marker key={p.id} position={[p.delivery_latitude, p.delivery_longitude]} icon={iconoParada(p.stop_number)} />
+          <Marker
+            key={p.id}
+            position={[p.delivery_latitude, p.delivery_longitude]}
+            icon={iconoParada(p.stop_number)}
+            eventHandlers={{ click: () => onParadaClick?.(p.id) }}
+          />
         ))}
         <AjustarBounds paradas={ordenadas} />
       </MapContainer>

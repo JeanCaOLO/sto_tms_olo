@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import CapacityBar from './CapacityBar';
 import TripMapa, { type ParadaMapa } from './TripMapa';
-import type { PlanTrip } from '../planes-types';
+import ParadaModal from './ParadaModal';
+import type { PlanStop, PlanTrip } from '../planes-types';
 
 interface Props {
   trip: PlanTrip;
@@ -21,6 +22,7 @@ interface Props {
 // En draft, cada parada se puede mover a otra ruta.
 export default function PlanTripCard({ trip, indice, zonaNombre, editable, destinos, onMover }: Props) {
   const { t } = useTranslation();
+  const [paradaSel, setParadaSel] = useState<PlanStop | null>(null);
   const titulo = zonaNombre || trip.delivery_zone;
   const mostrarCodigo = zonaNombre && zonaNombre !== trip.delivery_zone;
   const hayPeso = trip.total_weight != null;
@@ -82,14 +84,29 @@ export default function PlanTripCard({ trip, indice, zonaNombre, editable, desti
 
       {/* Mapa de la ruta por calles (OSRM) con las paradas numeradas. */}
       <div className="p-3">
-        <TripMapa paradas={paradasMapa} />
+        <TripMapa
+          paradas={paradasMapa}
+          onParadaClick={(id) => setParadaSel(trip.stops.find((s) => s.order_id === id) ?? null)}
+        />
       </div>
 
       <ol className="px-4 pb-4 space-y-1.5">
         {trip.stops.map((s) => {
           const nombre = s.customer_name || s.order_number || s.order_id.slice(0, 8);
           return (
-            <li key={s.id || s.order_id} className="flex items-center gap-2 text-xs text-slate-600">
+            <li
+              key={s.id || s.order_id}
+              role="button"
+              tabIndex={0}
+              onClick={() => setParadaSel(s)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setParadaSel(s);
+                }
+              }}
+              className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer rounded hover:bg-slate-50 px-1 -mx-1 py-0.5"
+            >
               <span className="w-5 h-5 flex items-center justify-center bg-teal-50 text-teal-700 rounded-full font-semibold shrink-0">
                 {s.stop_order}
               </span>
@@ -102,6 +119,7 @@ export default function PlanTripCard({ trip, indice, zonaNombre, editable, desti
                   aria-label={`Mover ${nombre}`}
                   className="text-[11px] border border-slate-200 rounded px-1 py-0.5 bg-white cursor-pointer shrink-0"
                   value=""
+                  onClick={(e) => e.stopPropagation()}
                   onChange={(e) => e.target.value && onMover(s.order_id, e.target.value)}
                 >
                   <option value="">{t('planning.moveTo')}</option>
@@ -117,6 +135,8 @@ export default function PlanTripCard({ trip, indice, zonaNombre, editable, desti
           <li className="text-xs text-slate-400 italic py-1">{t('planning.noStops')}</li>
         )}
       </ol>
+
+      <ParadaModal parada={paradaSel} onClose={() => setParadaSel(null)} />
     </div>
   );
 }
