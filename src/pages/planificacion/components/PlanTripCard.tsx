@@ -3,8 +3,9 @@ import { useTranslation } from 'react-i18next';
 import CapacityBar from './CapacityBar';
 import TripMapa, { type ParadaMapa } from './TripMapa';
 import ParadaModal from './ParadaModal';
+import ViajePedidosModal from './ViajePedidosModal';
 import { coloresPorPunto } from '../colores-parada';
-import { cancelarViaje, completarViaje } from '../planes-api';
+import { cancelarViaje, completarViaje, reabrirViaje } from '../planes-api';
 import type { PlanStop, PlanTrip, TripStatus } from '../planes-types';
 
 interface Props {
@@ -42,12 +43,15 @@ export default function PlanTripCard({
 }: Props) {
   const { t } = useTranslation();
   const [paradaSel, setParadaSel] = useState<PlanStop | null>(null);
+  const [verPedidos, setVerPedidos] = useState(false);
   const [procesando, setProcesando] = useState(false);
 
-  async function transicionarViaje(accion: 'completar' | 'cancelar') {
+  const ACCIONES = { completar: completarViaje, cancelar: cancelarViaje, reabrir: reabrirViaje };
+
+  async function transicionarViaje(accion: keyof typeof ACCIONES) {
     setProcesando(true);
     try {
-      const r = accion === 'completar' ? await completarViaje(trip.id) : await cancelarViaje(trip.id);
+      const r = await ACCIONES[accion](trip.id);
       if (r) await onViajeActualizado?.();
     } finally {
       setProcesando(false);
@@ -98,11 +102,19 @@ export default function PlanTripCard({
               )}
             </p>
           </div>
-          <span className="text-xs bg-teal-50 text-teal-700 font-semibold px-2.5 py-1 rounded-full shrink-0 text-center leading-tight">
-            {puntos} {puntos === 1 ? t('planning.pointWord') : t('planning.pointsWord')}
-            <br />
-            {trip.stops.length} {t('planning.ordersWord')}
-          </span>
+          <button
+            type="button"
+            onClick={() => setVerPedidos(true)}
+            className="text-xs bg-teal-50 hover:bg-teal-100 text-teal-700 font-semibold px-2.5 py-1 rounded-full shrink-0 text-center leading-tight cursor-pointer inline-flex items-center gap-1"
+          >
+            <i className="ri-list-check-2"></i>
+            <span>
+              {t('planning.viewOrders')}
+              <br />
+              {puntos} {puntos === 1 ? t('planning.pointWord') : t('planning.pointsWord')} · {trip.stops.length}{' '}
+              {t('planning.ordersWord')}
+            </span>
+          </button>
         </div>
 
         {(hayPeso || hayVolumen) && (
@@ -124,22 +136,35 @@ export default function PlanTripCard({
           <span className={`inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full ${ESTADO_VIAJE[trip.status]}`}>
             {t(`planning.status.${trip.status}`)}
           </span>
-          {!editable && trip.status === 'pending' && (
+          {!editable && (
             <div className="flex items-center gap-1.5 ml-auto">
-              <button
-                onClick={() => transicionarViaje('completar')}
-                disabled={procesando}
-                className="text-[11px] px-2 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg cursor-pointer inline-flex items-center gap-1"
-              >
-                <i className="ri-check-double-line"></i>{t('planning.complete')}
-              </button>
-              <button
-                onClick={() => transicionarViaje('cancelar')}
-                disabled={procesando}
-                className="text-[11px] px-2 py-1 bg-white border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 rounded-lg cursor-pointer inline-flex items-center gap-1"
-              >
-                <i className="ri-close-line"></i>{t('planning.cancel')}
-              </button>
+              {trip.status !== 'completed' && (
+                <button
+                  onClick={() => transicionarViaje('completar')}
+                  disabled={procesando}
+                  className="text-[11px] px-2 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg cursor-pointer inline-flex items-center gap-1"
+                >
+                  <i className="ri-check-double-line"></i>{t('planning.complete')}
+                </button>
+              )}
+              {trip.status !== 'cancelled' && (
+                <button
+                  onClick={() => transicionarViaje('cancelar')}
+                  disabled={procesando}
+                  className="text-[11px] px-2 py-1 bg-white border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 rounded-lg cursor-pointer inline-flex items-center gap-1"
+                >
+                  <i className="ri-close-line"></i>{t('planning.cancel')}
+                </button>
+              )}
+              {trip.status !== 'pending' && (
+                <button
+                  onClick={() => transicionarViaje('reabrir')}
+                  disabled={procesando}
+                  className="text-[11px] px-2 py-1 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 rounded-lg cursor-pointer inline-flex items-center gap-1"
+                >
+                  <i className="ri-refresh-line"></i>{t('planning.reopen')}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -204,6 +229,7 @@ export default function PlanTripCard({
       </ol>
 
       <ParadaModal parada={paradaSel} onClose={() => setParadaSel(null)} />
+      {verPedidos && <ViajePedidosModal trip={trip} onClose={() => setVerPedidos(false)} />}
     </div>
   );
 }

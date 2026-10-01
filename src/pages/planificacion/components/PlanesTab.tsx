@@ -27,7 +27,7 @@ function fmt(iso: string): string {
 export default function PlanesTab() {
   const { t } = useTranslation();
   const [filtro, setFiltro] = useState<PlanStatus | 'all'>('all');
-  const { planes, cargando, completar, cancelar, recargar } = usePlanesList(filtro);
+  const { planes, cargando, recargar } = usePlanesList(filtro);
 
   return (
     <div className="space-y-4">
@@ -62,7 +62,7 @@ export default function PlanesTab() {
       ) : (
         <div className="space-y-3">
           {planes.map((p) => (
-            <PlanCard key={p.id} plan={p} onCompletar={completar} onCancelar={cancelar} onViajeActualizado={recargar} />
+            <PlanCard key={p.id} plan={p} onViajeActualizado={recargar} />
           ))}
         </div>
       )}
@@ -72,13 +72,9 @@ export default function PlanesTab() {
 
 function PlanCard({
   plan,
-  onCompletar,
-  onCancelar,
   onViajeActualizado,
 }: {
   plan: RoutePlan;
-  onCompletar: (id: string) => void;
-  onCancelar: (id: string) => void;
   onViajeActualizado: () => void | Promise<void>;
 }) {
   const { t } = useTranslation();
@@ -118,22 +114,6 @@ function PlanCard({
             <span className={`w-1.5 h-1.5 rounded-full ${ui.dot}`}></span>
             {t(`planning.status.${plan.status}`)}
           </span>
-          {plan.status === 'confirmed' && (
-            <button
-              onClick={() => onCompletar(plan.id)}
-              className="text-xs px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer inline-flex items-center gap-1"
-            >
-              <i className="ri-check-double-line"></i>{t('planning.complete')}
-            </button>
-          )}
-          {(plan.status === 'draft' || plan.status === 'confirmed') && (
-            <button
-              onClick={() => onCancelar(plan.id)}
-              className="text-xs px-2.5 py-1 bg-white border border-red-200 text-red-600 hover:bg-red-50 rounded-lg cursor-pointer inline-flex items-center gap-1"
-            >
-              <i className="ri-close-line"></i>{t('planning.cancel')}
-            </button>
-          )}
         </div>
       </div>
 

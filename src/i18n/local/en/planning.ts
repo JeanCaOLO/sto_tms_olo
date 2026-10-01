@@ -9,6 +9,8 @@ export default {
   'planning.confirm': 'Confirm',
   'planning.complete': 'Complete',
   'planning.cancel': 'Cancel',
+  'planning.reopen': 'Reopen',
+  'planning.viewOrders': 'View orders',
   'planning.planStatus': 'Plan status',
   'planning.ordersWord': 'orders',
   'planning.vehiclesWord': 'vehicles',

@@ -25,6 +25,28 @@ export interface ColoresParada {
   puntos: number; // cantidad de puntos de entrega únicos
 }
 
+// Un punto de entrega con sus pedidos (para listar/agrupar en el modal).
+export interface GrupoPunto {
+  color: string;
+  stops: PlanStop[];
+}
+
+// Agrupa las paradas por punto de entrega (coordenadas), en orden de aparición.
+export function gruposPorPunto(stops: PlanStop[]): GrupoPunto[] {
+  const { colorDe } = coloresPorPunto(stops);
+  const porClave = new Map<string, GrupoPunto>();
+  const orden: string[] = [];
+  for (const s of stops) {
+    const k = claveDe(s) ?? `sin-coords-${s.order_id}`;
+    if (!porClave.has(k)) {
+      porClave.set(k, { color: colorDe.get(s.order_id) as string, stops: [] });
+      orden.push(k);
+    }
+    porClave.get(k)?.stops.push(s);
+  }
+  return orden.map((k) => porClave.get(k) as GrupoPunto);
+}
+
 // Asigna un color por punto de entrega, en orden de aparición de las paradas.
 export function coloresPorPunto(stops: PlanStop[]): ColoresParada {
   const colorDeClave = new Map<string, string>();

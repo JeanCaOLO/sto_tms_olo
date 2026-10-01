@@ -110,7 +110,7 @@ export const cancelarPlan = (id: string) => transicionar(id, 'cancelar', 'cancel
 
 // Transición de un VIAJE (plan_trip), independiente del plan. Devuelve el plan
 // actualizado (con el viaje en su nuevo estado) o null si el backend no respondió.
-async function transicionarViaje(tripId: string, accion: 'completar' | 'cancelar'): Promise<RoutePlan | null> {
+async function transicionarViaje(tripId: string, accion: 'completar' | 'cancelar' | 'reabrir'): Promise<RoutePlan | null> {
   try {
     const { ok, body } = await apiFetch(`/v1/planificacion/viajes/${tripId}/${accion}`, { method: 'POST' });
     if (ok && esPlan(body?.data)) return body.data;
@@ -122,3 +122,4 @@ async function transicionarViaje(tripId: string, accion: 'completar' | 'cancelar
 
 export const completarViaje = (tripId: string) => transicionarViaje(tripId, 'completar');
 export const cancelarViaje = (tripId: string) => transicionarViaje(tripId, 'cancelar');
+export const reabrirViaje = (tripId: string) => transicionarViaje(tripId, 'reabrir');
