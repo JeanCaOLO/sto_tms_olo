@@ -1,171 +1,147 @@
-# Decisiones de arquitectura (ADR) — Domain Design, Módulo OMS
+# Decisiones de arquitectura (ADR) — Domain Design, Módulo OMS (rebanada delgada)
 
-> Intent: `260826-modulo-oms`. Registro durable de las decisiones significativas
-> de descomposición del OMS. Complementa la tabla Racional de `components.md`.
-> Cada ADR: Contexto, Decisión, Consecuencias, Alternativas rechazadas.
+> Intent: `260826-modulo-oms`. Re-corrida por el pivote WMH (2026-09-30),
+> **acotada a la rebanada delgada de 1ª entrega**. Cada ADR: Contexto, Decisión,
+> Consecuencias, Alternativas rechazadas.
 
-## ADR-001: Descomposición del motor en reglas ejecutables + orquestador + adaptadores
+## ADR-001: Motor de reglas del OMS propio y nuevo (C2 RESUELTO)
 
-- **Contexto**: El corazón del OMS lee la cola, calcula prioridad (T-1 + score),
-  aplica el umbral de inyección y escribe `situación=GENERADA`+prioridad. Puede
-  modelarse como un monolito o descomponerse por responsabilidad. Los invariantes
-  firmes (no fechas, solo WMS/EFLOW, prioridad numérica invertida por score) y la
-  necesidad de probar cada regla obligan a pensar la frontera.
-- **Decisión**: Descomponer en `ColaCandidatos` (lectura), `MotorPriorizacion`
-  (orquestación + override + umbral), `ReglaFecha`, `AnalizadorObservaciones`
-  (reglas ejecutables), `EscritorEflow` (escritura atómica). El motor orquesta;
-  cada regla es un bloque con su propia lógica y peso.
-- **Consecuencias**: (+) cada regla y el orquestador se prueban aislados; (+) los
-  invariantes de lectura/escritura quedan encapsulados en un solo adaptador cada
-  lado; (+) añadir una regla futura (Regla 4/5) no toca el orquestador. (−) más
-  bloques que coordinar; el contrato motor↔regla debe ser estable.
-- **Alternativas rechazadas**: `MotorOMS` monolítico (Q1-B) — menos testable por
-  regla y mezcla los invariantes de escritura con la lógica de negocio.
+- **Contexto**: El OMS necesita un motor de reglas que priorice pedidos. Existe un
+  motor maduro en TypeScript de frontend (`src/lib/tarifas/`, AST versionado) y el
+  02-to-be/ADR-003 recomendaba un **motor compartido OMS+TMS** generalizando ese
+  AST. C2 estaba abierto.
+- **Decisión** (C2-RESUELTO, project.md 2026-09-30): el motor de reglas del OMS se
+  construye **NUEVO, desde cero, propio del OMS, en el backend (Python/Lambda)**.
+  NO se porta el AST de `src/lib/tarifas/`, NO se comparte motor con el TMS, NO se
+  toca Liquidaciones ni ningún módulo del TMS. OMS y TMS son módulos separados que
+  se comunican.
+- **Consecuencias**: (+) el OMS avanza sin depender de refactorizar el motor de
+  tarifas del TMS; (+) cero riesgo de regresión en Liquidaciones (ya en
+  producción); (+) el motor se diseña para el vocabulario del OMS (prioridad de
+  pedido), no un AST genérico. (−) no se reutiliza la madurez del AST TS existente;
+  (−) dos motores de reglas en la organización (OMS y TMS) a mantener por separado
+  — aceptado: son módulos separados.
+- **Alternativas rechazadas**: motor compartido OMS+TMS portando el AST TS→Python
+  (02-to-be/ADR-003) — rechazado por acoplar el OMS a Liquidaciones y arriesgar
+  regresión; motor de reglas en el frontend TS — rechazado (US9 escribe a
+  Aurora+EFLOW, imposible desde el cliente).
 
-## ADR-002: CalculadorScore como componente puro propio
+## ADR-002: Handoff de dos escrituras OMS→Planificación (D6)
 
-- **Contexto**: El score ponderado (suma de pesos → prioridad numérica invertida)
-  entra desde la primera entrega (DECIDED 2026-09-14) y una regla firme de
-  Testing Posture (project.md, 2026-08-28) exige extraer el cálculo de prioridad
-  a módulos puros testeables sin montar React ni el resto del motor.
-- **Decisión**: `CalculadorScore` es un componente/módulo PURO propio (sin
-  efectos), separado del `MotorPriorizacion`. Dado un pedido y las reglas
-  aplicables con sus pesos, produce score, prioridad numérica invertida y el
-  desempate estable.
-- **Consecuencias**: (+) el cálculo se prueba con asserts sobre entradas/salidas,
-  sin orquestación ni I/O; (+) reutilizable por el Simulador vía el motor; (+)
-  cumple la regla de testing firme. (−) un salto de indirección más entre motor y
-  cálculo.
-- **Alternativas rechazadas**: score embebido en `MotorPriorizacion` (Q1-A) —
-  choca con la regla de Testing Posture y con la responsabilidad distinta del
-  orquestador.
+- **Contexto**: El OMS deja el pedido "alistado" y Planificación arma el viaje.
+  Antes (v2) el OMS "cambiaba campos en el WMS y hasta ahí llegaba". D6 refina: el
+  OMS persiste además en su propia tabla, que es la superficie de handoff.
+- **Decisión**: `HandoffPedidosOMS` hace **dos escrituras, dos propósitos**:
+  (1) persiste el pedido priorizado en la **tabla propia del OMS** (esquema OMS de
+  `logistica_olo`) — handoff que lee Planificación; (2) voltea la `situación` en el
+  **WMS/EFLOW** — dispara el picking. Orden: escritura 1 ANTES de la 2. Fallo
+  parcial: si la 2 falla tras la 1, el registro OMS queda "disparo pendiente" y se
+  reintenta idempotente sin re-crear el handoff. Idempotencia de corrida por clave
+  `pedido+almacén+compañía+sucursal`.
+- **Consecuencias**: (+) Planificación tiene una superficie de handoff clara (tabla
+  del OMS), desacoplada del WMS; (+) el picking se dispara sin que Planificación
+  dependa del WMS. (−) dos stores (Aurora + SQL Server EFLOW) sin transacción
+  distribuida → consistencia por orden + reintento idempotente, no 2PC
+  (`ponytail:` techo = reintento; upgrade = outbox/reconciliación). (−) estado
+  intermedio "disparo pendiente" que la UI deberá representar (diferido).
+- **Alternativas rechazadas**: una sola escritura al WMS (v2) — rechazada por D6
+  (Planificación necesita leer de una tabla del OMS, no del WMS); transacción
+  distribuida 2PC entre Aurora y SQL Server — rechazada por complejidad/fragilidad.
 
-## ADR-003: Separar la configuración de reglas de su lógica ejecutable
+## ADR-003: Parámetros de ruta por scope (duración estimada, no ruta real)
 
-- **Contexto**: El Motor de Reglas es semi-configurable: estado/peso/parámetros
-  por compañía se editan y persisten, pero la lógica (y los prompts de IA) vive
-  en código y no se toca desde la UI (FR5.4/C6). Un solo componente mezclaría lo
-  editable con lo inmutable.
-- **Decisión**: `CatalogoReglas` es dueño de la CONFIGURACIÓN persistida por
-  compañía (entidad `ConfiguracionRegla`); las reglas ejecutables (`ReglaFecha`,
-  `AnalizadorObservaciones`) LEEN esa configuración al correr.
-- **Consecuencias**: (+) frontera nítida entre "lo que la UI puede tocar" y "la
-  lógica que no"; (+) impide por diseño el alta de reglas desde la UI; (+) la
-  config por compañía es un dato con dueño único. (−) el motor debe resolver la
-  config activa antes de invocar cada regla.
-- **Alternativas rechazadas**: `MotorReglas` único catálogo+ejecutor (Q2-B) —
-  difumina la frontera lógica/configuración y arriesga exponer lógica en la UI.
+- **Contexto**: La regla T-1 (`ReglaFecha`) necesita días de salida, horas de
+  corte y duración de ruta. El Calendario de Rutas del OMS fue eliminado (D5,
+  ruteo dinámico). ¿De dónde salen esos datos?
+- **Decisión**: son **parámetros de configuración de la regla, resueltos por
+  scope** (CUSTOMER→WAREHOUSE→COUNTRY→GLOBAL, C3), NO una constante global ni un
+  componente de calendario. Además, como las rutas son DINÁMICAS y Planificación
+  las arma DESPUÉS de que el OMS prioriza, el OMS **no conoce la duración real** de
+  la ruta al priorizar → la "duración de ruta" del T-1 es un **estimado** (parámetro
+  por cliente/zona), no la ruta real. Contrato explícito de `ReglaFecha`.
+- **Consecuencias**: (+) coherente con D5 (sin calendario fijo); (+) la
+  especificidad por cliente se preserva vía scope; (+) el motor no depende de que
+  Planificación haya corrido. (−) el T-1 usa un estimado, no la duración real — el
+  ajuste fino con la ruta real (si se quisiera) sería trabajo posterior y
+  probablemente de Planificación, no del OMS.
+- **Alternativas rechazadas**: componente CalendarioRutas (eliminado por D5);
+  constante global de duración (rechazada: debe ser por scope); leer la ruta real
+  del TMS al priorizar (imposible: la ruta no existe aún en ese momento).
 
-## ADR-004: El Simulador reusa el MotorPriorizacion (no duplica el cálculo)
+## ADR-004: Alcance acotado a la rebanada delgada de 1ª entrega
 
-- **Contexto**: El Simulador (FR9) define/persiste/programa/aplica simulaciones
-  (entidad `Simulacion`, una aplicada por compañía). Puede reusar el motor
-  productivo o llevar su propia copia del cálculo.
-- **Decisión**: `Simulador` es un componente propio (dueño de `Simulacion` y
-  `ConfiguracionSimulacion`) que INVOCA al `MotorPriorizacion` con un subconjunto
-  de reglas/pedidos y persiste el resultado; al aplicar escribe vía
-  `EscritorEflow`.
-- **Consecuencias**: (+) una sola fuente de verdad del cálculo (motor); (+) no hay
-  riesgo de divergencia simulación↔producción; (+) reusa el mismo camino de
-  escritura al aplicar. (−) el motor debe soportar corridas acotadas (subconjunto
-  de reglas/pedidos) sin efectos hasta que se aplique.
-- **Alternativas rechazadas**: Simulador con cálculo propio (Q3-B) — aislado pero
-  con riesgo real de divergir del motor productivo.
+- **Contexto**: Decisión de secuencia de negocio: tener primer código demostrable
+  (esqueleto del motor en Lambda) cuanto antes, resolviendo C2/D6/OQ en paralelo.
+- **Decisión**: esta corrida de domain-design detalla **solo los 5 componentes de
+  la rebanada** (MotorReglasOMS, ReglaFecha, AnalizadorObservaciones,
+  ColaCandidatos, HandoffPedidosOMS). El resto (CatalogoReglas, Simulador,
+  Auditoría completa, override, Panel, todas las UI) queda **DIFERIDO** (listado,
+  no eliminado). `CalendarioRutas` queda **ELIMINADO** (D5). Units Generation y
+  Code Generation arrancan por el esqueleto del `MotorReglasOMS`.
+- **Consecuencias**: (+) camino corto a código demostrable; (+) el diseño diferido
+  no se pierde (queda listado); (−) habrá corridas posteriores de domain-design
+  para los componentes diferidos (aceptado — es la secuencia pedida).
+- **Alternativas rechazadas**: diseñar los 15 componentes de una vez (modelo del
+  backup) — rechazado por la decisión de secuencia (rebanada primero); eliminar los
+  diferidos — rechazado (solo se difieren, el alcance del OMS no cambia).
 
-## ADR-005: Núcleo del TMS y EFLOW como dependencias externas; lectura/escritura como adaptadores del OMS
+## ADR-005: El cálculo de score como submódulo puro del motor
 
-- **Contexto**: El TMS es dueño del núcleo (pedido, ruta, chofer, camión, viaje,
-  calendario); el OMS lo consume y sus tablas propias son las de prioridad,
-  configuración, simulaciones, auditoría y schedule. El OMS LEE y ESCRIBE en
-  EFLOW/WMS. Hay que decidir qué es componente del OMS y qué es dependencia.
-- **Decisión**: Modelar `EFLOW_OLO` (réplica), `MaestroCompañías` (Capa X),
-  `TMS/Rutas` y Amazon Bedrock como **dependencias externas**. El acceso a EFLOW
-  se encapsula en dos componentes del OMS: `ColaCandidatos` (lado LECTURA:
-  `expedición_cabecera` con `fecha_de_cierre IS NULL` + `DISP` sin `NUMEROVIAJEWMH`,
-  contra la réplica) y `EscritorEflow` (lado ESCRITURA: DISP→GENERADA + prioridad,
-  atómica, solo WMS/EFLOW). No se crean adaptadores propios adicionales por cada
-  dependencia.
-- **Consecuencias**: (+) el esquema de EFLOW queda aislado en dos puntos; (+) los
-  invariantes de lectura y de escritura tienen un dueño cada uno; (+) el resto del
-  dominio no conoce EFLOW. (−) esos dos componentes cargan el acoplamiento al
-  esquema externo (aceptable: es su razón de ser).
-- **Alternativas rechazadas**: un componente-adaptador del OMS por cada
-  dependencia externa (Q4-B) — bloques extra sin lógica de negocio propia.
+- **Contexto**: La regla Testing Posture (project.md 2026-08-28) exige que el
+  cálculo de prioridad se pueda probar sin montar el resto del motor. En el diseño
+  previo (v2) `CalculadorScore` era un componente separado.
+- **Decisión**: en el motor nuevo, el cálculo de score (suma ponderada → prioridad
+  numérica invertida + desempate estable) es un **submódulo PURO dentro de
+  `MotorReglasOMS`**, sin efectos, testeable aislado. No se modela como componente
+  separado en esta rebanada (simplicidad), pero mantiene la propiedad de pureza/
+  testabilidad que la regla exige.
+- **Consecuencias**: (+) cumple Testing Posture; (+) un componente menos que
+  coordinar en la rebanada. (−) menos granularidad que el v2; si creciera, podría
+  extraerse a componente propio.
+- **Alternativas rechazadas**: `CalculadorScore` como componente separado (v2) —
+  innecesario para la rebanada; cálculo embebido impuro — rechazado por Testing
+  Posture.
 
-## ADR-006: UI por área funcional, 1:1 con el backend
+## ADR-006: Aterrizaje de los contratos al DDL real del WMS/EFLOW
 
-- **Contexto**: El OMS tiene 6 pantallas ya materializadas en el prototipo React
-  `src/pages/oms/`. A nivel de dominio hay que decidir la granularidad de los
-  bloques de UI.
-- **Decisión**: Un componente de UI por área (`UICola`, `UIPanelAuditoria`,
-  `UICatalogoReglas`, `UISimulador`, `UICalendarioRutas`), cada uno 1:1 con el
-  componente de dominio que consume.
-- **Consecuencias**: (+) trazabilidad directa UI→dominio; (+) coincide con el
-  prototipo y el design system real del repo; (+) cada pantalla evoluciona
-  aislada. (−) cinco bloques de UI en vez de uno (coordinación de navegación en la
-  SPA, ya resuelta por el prototipo).
-- **Alternativas rechazadas**: `UI-OMS` monolítico (Q5-B) — pierde la trazabilidad
-  1:1 y agranda el bloque.
-
-## ADR-007: Auditoria como dueño único del registro auditable; override escribe en ella
-
-- **Contexto**: El override manual (FR4) y la Auditoría de solo lectura
-  (FR11.3/FR14.3) están acoplados: todo override se registra y la auditoría
-  también registra las priorizaciones automáticas.
-- **Decisión**: `Auditoria` es un componente propio, dueño de `RegistroAuditoria`
-  (solo lectura, distingue auto/manual + usuario/motivo). El override es una
-  operación del `MotorPriorizacion` que ESCRIBE en `Auditoria`.
-- **Consecuencias**: (+) un solo dueño del registro auditable e inmutable; (+) el
-  criterio negativo de solo-lectura (NFR6) se concentra en un componente; (+) el
-  Panel lee KPIs de la misma fuente. (−) el motor depende de Auditoria para cerrar
-  cada corrida.
-- **Alternativas rechazadas**: `OverrideYAuditoria` fusionado (Q6-B) — mezcla una
-  operación de escritura de prioridad con el registro de solo lectura.
-
-## ADR-008: Frontera detección/efecto de "cliente retira" y partición multi-compañía
-
-- **Contexto**: Dos precisiones de frontera confirmadas en el gate, para que se
-  arrastren a Functional Design / Units sin ambigüedad. (a) "cliente retira" es
-  un subconjunto de observaciones que da prioridad máxima + viaje/cliente dummy
-  (DECIDED); (b) la multi-compañía es "una Lambda por compañía, la regla
-  identifica la compañía, no se parametriza en código" (DECIDED).
-- **Decisión**: (a) `AnalizadorObservaciones` solo DETECTA/clasifica; el EFECTO
-  tiene dueño explícito: la prioridad máxima la aporta `CalculadorScore` (mayor
-  peso) vía `MotorPriorizacion`, y la marca de agrupación en viaje/cliente
-  "dummy" la fija `MotorPriorizacion` sobre `RegistroPrioridad` (atributos
-  `clienteRetira`, `grupoViajeDummy`); el viaje real lo abre el TMS. (b) El
-  modelo lógico de reglas es GENÉRICO con configuración por compañía en
-  `CatalogoReglas`; la partición por compañía (Lambda/unidad por compañía con su
-  lógica específica) es tema de **Units Generation / Deployment**, no de esta
-  capa lógica — la especificidad por compañía no se colapsa en una regla genérica.
-- **Consecuencias**: (+) Functional Design sabe qué componente aplica el efecto
-  cliente-retira y sobre qué entidad; (+) Units Generation sabe que debe
-  materializar la partición por compañía preservando la lógica específica.
-  (−) El acople detección↔efecto exige un contrato claro AnalizadorObservaciones→
-  MotorPriorizacion (la marca viaja en el resultado de la clasificación).
-- **Alternativas rechazadas**: que `AnalizadorObservaciones` aplicara el efecto
-  (mezclaría clasificación con priorización/agrupación); colapsar la lógica
-  por compañía en una sola regla genérica parametrizada en código (contradice la
-  DECIDED de Lambda por compañía).
+- **Contexto**: Se obtuvo el DDL real (SQL Server) de EXPEDICIONESCABECERA,
+  EXPEDICIONESDETALLE y ALMACENMOVIMIENTOS_CARCAM
+  (`docs/wms-eflow/EFLOW_OLO-ddl.sql`, 2026-10-01). Los contratos de la rebanada
+  usaban nombres provisionales (`expedición_cabecera`, estado/situación genéricos,
+  "fecha nula").
+- **Decisión**: aterrizar los contratos a los nombres reales. (1) **Estado =
+  `TPEXES`, situación = `TPEXSI`** (varchar(6), FK TIPOSINTEGRACION; DISP/GENE); la
+  Cola filtra sobre ellos; la escritura 2 del handoff hace `TPEXSI → 'GENE'` y
+  **`TPEXES` permanece `'DISP'`** (solo cambia la situación). (2) El fallback de
+  ReglaFecha se dispara por **valor centinela/default**, no por NULL
+  (`FECHAEXPEDICIONPLANIFICADA` es datetime NOT NULL). (3) Clave de idempotencia =
+  **PK (IDALMACEN, IDCOMPANIA, IDSUCURSAL, IDEXPEDICION)**. (4) `PRIORIDAD` int NOT
+  NULL es el campo que escribe el OMS. (5) `OBSERVACIONESEXPEDICION` varchar(500) es
+  el texto que lee AnalizadorObservaciones. (6) OQ-8: `PESOPEDIDO_TOTAL`/
+  `CUBICAJEPEDIDO_TOTAL` (float NULL) existen en cabecera → el handoff puede
+  cargarlos (OQ-8 informada, no cerrada).
+- **Consecuencias**: (+) code-generation parte de nombres reales, menos ambigüedad;
+  (+) la semántica "situación cambia, estado permanece" queda fijada. (−) depende de
+  catálogos aún no entregados (TIPOSINTEGRACION, CLIENTES/ALMACENCOMPANIA) — pendiente
+  no bloqueante, a pedir antes del code-generation en vivo.
+- **Alternativas rechazadas**: mantener nombres provisionales — rechazado (code-
+  generation los necesita reales); disparar el fallback por NULL — rechazado (el
+  campo es NOT NULL, nunca sería NULL).
 
 ## Sources
 
 - `aidlc/spaces/default/intents/260826-modulo-oms/inception/domain-design/components.md`.
-- `aidlc/spaces/default/intents/260826-modulo-oms/inception/domain-design/domain-design-questions.md`
-  (Q1=C, Q2–Q6=A).
-- `aidlc/spaces/default/memory/project.md` (`## Decided`, `## Corrections`,
-  Testing Posture).
-- `aidlc/spaces/default/intents/260826-modulo-oms/inception/requirements-analysis/requirements.md`.
+- `docs/wms-eflow/EFLOW_OLO-ddl.sql` (DDL real del WMS/EFLOW, 2026-10-01).
+- `aidlc/spaces/default/memory/project.md` (`## Decided`: C2-RESUELTO, D6, D5, C3-SUPERSEDE; Testing Posture).
+- `aidlc/spaces/default/intents/260826-modulo-oms/inception/requirements-analysis/requirements.md` (v3).
 
 ## Assumptions & Open Questions
 
-- Implicaciones de seguridad (guardrail de fase): el aislamiento multi-compañía/
-  país (NFR5) se realiza por las columnas `compañía`/`país` en toda entidad del
-  OMS y por la Lambda por compañía; los niveles de acceso (FR14) se resuelven en
-  la capa de seguridad transversal del TMS. El detalle de autorización por acción
-  es de NFR/Functional Design, no de esta etapa.
-- No hay ciclos en el grafo de dependencias (verificado): el motor depende de las
-  reglas, el score, los adaptadores y la auditoría; el Simulador depende del motor;
-  ninguna regla depende del motor.
-
-<!-- Confirmado y aprobado en el gate (2026-09-16). Review advisory: READY. -->
+- Seguridad/aislamiento (guardrail de fase): la resolución de reglas por scope y el
+  aislamiento multi-tenant se apoyan en `user_scopes` del backend (fail-closed);
+  el detalle de autorización por acción es de NFR/Functional Design.
+- Grafo acíclico verificado: MotorReglasOMS depende de los otros 4; ninguno de los
+  4 depende del motor (ColaCandidatos/ReglaFecha/AnalizadorObservaciones/
+  HandoffPedidosOMS son hojas desde la perspectiva de la orquestación).
+- Consistencia del handoff (D6): sin 2PC; orden + reintento idempotente. El estado
+  "disparo pendiente" se materializa en `PedidoOMS.estadoHandoff`.

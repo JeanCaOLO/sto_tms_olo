@@ -114,3 +114,18 @@ Confirma el `kind` propuesto por unit (service/spec/ui/packaging/library):
   dependencias externas / parámetros; no cambian la topología de units.
 - El orden de construcción y el critical path NO se deciden aquí (son de Delivery
   Planning 2.9); esta etapa solo entrega el DAG de dependencias.
+
+## Consolidated Summary Confirmation
+
+Re-corrida ACOTADA a la rebanada delgada (2026-10-01). Units Generation produjo
+una descomposición mínima de 2 unidades: U1 `motor-reglas-oms` (kind service — los
+5 componentes de la rebanada como módulos internos de una Lambda Python propia del
+OMS) y U2 `esquema-pedidos-oms` (kind spec — la tabla propia del OMS, superficie de
+handoff). DAG: U1 → U2 (acíclico, edge-block YAML válido). Historias de la rebanada
+(US1, US7, US8, US9, US10, US11b, US12, US13) mapeadas a U1 (US9 también a U2);
+diferidas y retiradas no se asignan en esta corrida. Units no aportó decisiones de
+diseño nuevas (solo topología). Sensores: required-sections PASS (edge_block=ok),
+upstream-coverage PASS; traceability = falso positivo advisory conocido. Secuencia:
+code-generation arranca por el esqueleto de U1 (MotorReglasOMS en Lambda).
+
+[Answer]: Looks correct

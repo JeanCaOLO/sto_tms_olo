@@ -1,635 +1,363 @@
-# Catálogo de componentes — Módulo OMS
+# Catálogo de componentes — Módulo OMS (rebanada delgada de 1ª entrega)
 
-> Intent: `260826-modulo-oms`. Etapa: Domain Design (Inception). Lead: arquitecto;
-> apoyo: plataforma AWS, diseño. Deriva de `requirements.md` v2 (14 FR),
-> `stories.md` (34 historias, US1–US33 + US11b) y las decisiones firmes de
-> `project.md` (`## Decided`). Decisiones de descomposición: ver
-> `domain-design-questions.md` (Q1=C, Q2–Q6=A) y `decisions.md` (ADRs).
+> Intent: `260826-modulo-oms`. Etapa: Domain Design (Inception, **re-corrida por
+> el pivote WMH, 2026-09-30**). Lead: arquitecto; apoyo: plataforma AWS, diseño.
+> Deriva de `requirements.md` v3 (FR12 retirado), `stories.md` v3 y las
+> decisiones firmes de `project.md` (`## Decided` D1–D6, C3-SUPERSEDE, C2-RESUELTO).
 >
-> **Alcance de esta etapa**: bloques lógicos de software (componentes con lógica,
-> entidades y ciclo de vida propios). NO topología de despliegue (Units
-> Generation), NO stack, NO NFR. La captura de entidades es a nivel
-> **propiedad + forma** (dueño, identificador, atributos, referencias); el
+> **ALCANCE ACOTADO (decisión de secuencia del usuario)**: esta corrida detalla
+> **solo los 5 componentes de la rebanada delgada de 1ª entrega** (motor propio
+> del OMS + 2 reglas + lectura de cola + handoff de dos escrituras), para que
+> Code Generation arranque por el **esqueleto del `MotorReglasOMS` en Lambda**. El
+> resto del OMS queda **DIFERIDO** (listado abajo, no eliminado). `CalendarioRutas`
+> queda **ELIMINADO** (D5). La captura de entidades es a nivel propiedad+forma; el
 > esquema completo es de Functional Design.
 >
-> **Invariantes firmes que gobiernan el diseño** (project.md): el OMS termina en
-> "alistado"; NO escribe fechas; escribe solo a nivel WMS/EFLOW (nunca WMH ni
-> intermedias); prioridad numérica invertida (menor = más urgente) por score
-> ponderado; el viaje lo crea el TMS/Planificación; el motor de reglas es un
-> catálogo (lógica en código); todas las tablas del OMS llevan `compañía`/`país`.
+> **Invariantes firmes** (project.md): el OMS lee del WMS/EFLOW; **no escribe
+> fechas**; prioridad numérica invertida por score ponderado; motor de reglas
+> **propio del OMS, nuevo, en Lambda Python** (C2-RESUELTO: no portar AST, no
+> motor compartido, no tocar Liquidaciones); multi-compañía **por scope**
+> CUSTOMER→WAREHOUSE→COUNTRY→GLOBAL (C3-SUPERSEDE, no Lambda por compañía);
+> **dos escrituras** en el handoff (D6: tabla propia del OMS + situación WMS); el
+> viaje lo arma Planificación DESPUÉS (ruteo dinámico, D5).
 
 ## Parte A — Catálogo (fuente de verdad)
 
 ```yaml
 components:
-  - name: ColaCandidatos
-    summary: Resuelve la cola de pedidos candidatos a priorizar leyendo la réplica de EFLOW/WMS.
+  - name: MotorReglasOMS
+    summary: Motor de reglas propio del OMS (NUEVO, Lambda Python) que orquesta la corrida de priorización.
     behaviour: >
-      Encapsula el lado LECTURA del OMS sobre EFLOW (FR1). Resuelve la cola en
-      `expedición_cabecera`: pedidos con `fecha_de_cierre IS NULL` y
-      estado/situación = `DISP` y sin `NUMEROVIAJEWMH` (sin viaje asignado) —
-      equivale al anti-join con `almacén_movimiento_carcam` (los no procesados).
-      Cruza con `expedición_detalle` y `almacén_movimiento_carcam` por
-      `pedido+almacén+compañía+sucursal` para progreso/detalle. Lee siempre contra
-      la RÉPLICA de EFLOW_OLO (NFR9), nunca el transaccional. Resuelve el NOMBRE de
-      la compañía contra el maestro (Capa X), no consultando EFLOW en cada lectura.
-      Es el adaptador de lectura: aísla el esquema de EFLOW del resto del OMS.
+      Núcleo automático del OMS (FR2, FR3, FR6, NFR1), construido NUEVO y propio
+      del OMS en Lambda Python (C2-RESUELTO: no se porta el AST de
+      src/lib/tarifas/, no se comparte motor con el TMS, no se toca Liquidaciones;
+      OMS y TMS son módulos separados que se comunican). Por cada corrida: toma los
+      candidatos de ColaCandidatos, resuelve las reglas aplicables POR SCOPE
+      (CUSTOMER→WAREHOUSE→COUNTRY→GLOBAL, la más específica gana), invoca las reglas
+      ejecutables (ReglaFecha, AnalizadorObservaciones), calcula el SCORE PONDERADO
+      (submódulo puro de cálculo: suma de pesos → prioridad numérica INVERTIDA
+      menor=más urgente, con desempate estable fecha→hora→id), aplica el UMBRAL DE
+      INYECCIÓN (FR3.4/NFR4) y ordena a HandoffPedidosOMS generar los que pasan.
+      Aplica el EFECTO "cliente retira" (marca de agrupación en viaje/cliente dummy
+      + prioridad máxima vía el peso). Corre ≥1 vez/día y en horas de corte,
+      revisitando prioridades. NO escribe fechas. NO arma viajes (eso es de
+      Planificación). El cálculo de score se mantiene como submódulo PURO testeable
+      sin montar el motor (regla Testing Posture, project.md 2026-08-28).
     responsibilities:
-      - Filtrar y devolver los pedidos candidatos (contrato de la query de la cola)
-      - Aislar el esquema de EFLOW/WMS del dominio del OMS (adaptador de lectura)
-      - Resolver el nombre de compañía vía el maestro de Capa X
-    depends_on: []
-    dependents:
-      - component: MotorPriorizacion
-        interaction: le pide el conjunto de pedidos candidatos de una compañía para priorizar
-        style: sync
-      - component: Simulador
-        interaction: le pide el subconjunto de pedidos (por situación) para una corrida de simulación
-        style: sync
-      - component: UICola
-        interaction: alimenta la tabla de la Cola (con filtros, columnas por usuario)
-        style: sync
-    external_dependencies:
-      - name: EFLOW_OLO (réplica de lectura)
-        kind: database
-        purpose: origen de los pedidos (expedición_cabecera/detalle, almacén_movimiento_carcam); réplica aún inexistente (OQ-2)
-      - name: MaestroCompañías (Capa X)
-        kind: third-party-api
-        purpose: resolver el nombre de compañía a partir del código
-    entities:
-      - name: PedidoCandidato
-        identifier: pedido+almacén+compañía+sucursal
-        attributes: [pedido, almacén, compañía, país, sucursal, situación, estado, fechaDeCierre, fechaExpediciónPlanificada, numeroViajeWmh, observaciones]
-        references:
-          - entity: RegistroPrioridad
-            owned_by: MotorPriorizacion
-            relationship: cada PedidoCandidato priorizado obtiene un RegistroPrioridad
-
-  - name: MotorPriorizacion
-    summary: Orquesta la corrida de priorización — reglas activas, score, umbral de inyección y orden.
-    behaviour: >
-      Núcleo automático del OMS (FR2, FR3, NFR1). Por cada corrida: toma los
-      candidatos de ColaCandidatos, consulta la configuración activa en
-      CatalogoReglas, invoca las reglas ejecutables (ReglaFecha,
-      AnalizadorObservaciones), pide a CalculadorScore el score ponderado de cada
-      pedido, ordena por prioridad numérica invertida (menor = más urgente) con
-      desempate estable (fecha entrega, hora entrada, id), aplica el UMBRAL DE
-      INYECCIÓN (solo prepara pedidos hasta cierta prioridad; el resto espera,
-      NFR4/FR3.4) y ordena a EscritorEflow generar los que pasan. Corre al menos
-      1 vez/día y en las horas de corte, revisitando prioridades (lo no alcanzado
-      hoy sube mañana). El override manual (FR4) es una operación de este
-      componente: cambia la prioridad de un pedido puntual (rol autorizado, motivo
-      obligatorio) y registra en Auditoria como manual. NO escribe fechas
-      (invariante). NO crea viajes (eso es del TMS).
-    responsibilities:
-      - Orquestar la corrida de priorización (reglas → score → umbral → orden)
+      - Orquestar la corrida (resolver reglas por scope → invocar reglas → score → umbral → orden)
+      - Calcular el score ponderado y la prioridad numérica invertida (submódulo puro)
       - Aplicar el umbral de inyección (corte por capacidad)
-      - Ejecutar el override manual (única intervención humana sobre el cálculo)
-      - Aplicar el EFECTO "cliente retira" (marca de agrupación en viaje/cliente dummy sobre RegistroPrioridad; la prioridad máxima proviene del peso vía CalculadorScore)
-      - Emitir el registro de cada priorización (auto/manual) a Auditoria
+      - Aplicar el efecto "cliente retira" (marca de agrupación en viaje/cliente dummy)
+      - Ordenar el handoff de los pedidos que pasan el umbral
     depends_on:
       - component: ColaCandidatos
         interaction: obtiene los pedidos candidatos a priorizar
         style: sync
-      - component: CatalogoReglas
-        interaction: lee qué reglas están activas y con qué peso/parámetros por compañía
-        style: sync
       - component: ReglaFecha
-        interaction: evalúa la regla T-1 sobre cada pedido
+        interaction: evalúa la regla T-1 sobre cada pedido (con parámetros de ruta por scope)
         style: sync
       - component: AnalizadorObservaciones
         interaction: clasifica las observaciones (cliente retira) por lote
         style: sync
-      - component: CalculadorScore
-        interaction: obtiene el score ponderado y la prioridad numérica de cada pedido
+      - component: HandoffPedidosOMS
+        interaction: ordena las dos escrituras (tabla OMS + situación WMS) de los pedidos que pasan el umbral
         style: sync
-      - component: EscritorEflow
-        interaction: ordena la escritura DISP→GENERADA + prioridad de los pedidos que pasan el umbral
-        style: sync
-      - component: Auditoria
-        interaction: registra cada priorización ejecutada (auto y override manual)
-        style: sync
-    dependents:
-      - component: Simulador
-        interaction: el Simulador invoca la misma orquestación de cálculo con un subconjunto de reglas/pedidos
-        style: sync
-      - component: UICola
-        interaction: dispara override manual desde el detalle del pedido
-        style: sync
-    external_dependencies: []
+    dependents: []
+    external_dependencies:
+      - name: ConfiguracionReglas (parámetros por scope)
+        kind: other
+        purpose: >
+          Pesos, umbral de inyección y PARÁMETROS DE RUTA (días de salida, horas de
+          corte, duración estimada) resueltos POR SCOPE (CUSTOMER→WAREHOUSE→COUNTRY→
+          GLOBAL). En la rebanada se consumen como configuración/parámetros del
+          motor (no hay componente CatalogoReglas-UI todavía — DIFERIDO); su edición
+          desde UI es trabajo posterior.
     entities:
       - name: RegistroPrioridad
         identifier: pedido+almacén+compañía+sucursal+corrida
-        attributes: [pedido, compañía, país, prioridad, score, tipoOrigen, umbralAplicado, corrida, clienteRetira, grupoViajeDummy]
+        attributes: [pedido, almacén, compañía, país, sucursal, prioridad, score, tipoOrigen, umbralAplicado, corrida, clienteRetira, grupoViajeDummy]
         references:
-          - entity: ConfiguracionRegla
-            owned_by: CatalogoReglas
-            relationship: cada RegistroPrioridad se calcula con las reglas activas de su compañía
-
-  - name: CalculadorScore
-    summary: Calcula el score ponderado y la prioridad numérica invertida de un pedido (módulo puro).
-    behaviour: >
-      Componente de cálculo PURO y sin efectos (FR3.2). Dado un pedido y el
-      conjunto de reglas aplicables con sus pesos, suma los pesos (mayor peso =
-      cliente retira, luego fecha) para producir el SCORE, y deriva la PRIORIDAD
-      NUMÉRICA INVERTIDA (menor número = mayor urgencia). Incluye el desempate
-      estable. Entra en el alcance DESDE la primera entrega. Se aísla como módulo
-      propio por ser responsabilidad distinta del orquestador y para poder
-      probarse sin montar el resto del motor (regla firme Testing Posture,
-      project.md 2026-08-28).
-    responsibilities:
-      - Sumar pesos de reglas aplicables → score
-      - Derivar la prioridad numérica invertida a partir del score
-      - Aplicar el desempate estable determinista
-    depends_on: []
-    dependents:
-      - component: MotorPriorizacion
-        interaction: le pide el score/prioridad de cada pedido durante la corrida
-        style: sync
-    external_dependencies: []
-    entities: []
+          - entity: PedidoCandidato
+            owned_by: ColaCandidatos
+            relationship: cada RegistroPrioridad corresponde a un PedidoCandidato leído de la cola
 
   - name: ReglaFecha
-    summary: Regla T-1 — decide si un pedido debe prepararse hoy según su fecha de entrega.
+    summary: Regla T-1 — decide cuándo preparar un pedido según su fecha de entrega (regla 1 de 1ª entrega).
     behaviour: >
-      Regla ejecutable 1 (FR2/FR6.1, primera entrega). Usa la
-      `fecha de expedición planificada` (fecha de entrega del cliente) como
-      INSUMO y NO la modifica. Calcula T-1 = entrega − 1 día, ajustado por
-      duración de la ruta y horas de corte (FR2.2/FR2.3). Fallback (FR2.5): si la
-      compañía no envía la fecha (caso Cofersa hoy), aplica la regla de ruta (día
-      de salida por ruta) leída de CalendarioRutas. Aporta su peso al score. NO
-      escribe nada (solo evalúa).
+      Regla ejecutable 1 (FR2/FR6.1). Usa como fecha base el campo
+      **`FECHAEXPEDICIONPLANIFICADA` de EXPEDICIONESCABECERA** (datetime **NOT NULL**;
+      la fecha de entrega que envía el cliente) — la lee como INSUMO y NO la modifica
+      (invariante: no escribe fechas). Cálculo: listo = fecha de entrega − 1 día,
+      **ajustado por la duración de ruta (ESTIMADA) y las horas de corte**. CONTRATO
+      EXPLÍCITO: como las rutas son DINÁMICAS y Planificación las arma DESPUÉS de que
+      el OMS prioriza, el OMS **no conoce la duración real de la ruta** al priorizar →
+      la "duración de ruta" del T-1 es un **estimado/parámetro de configuración por
+      cliente/zona**, resuelto por scope (CUSTOMER→WAREHOUSE→COUNTRY→GLOBAL, C3), NO
+      una constante global ni la ruta real. Aporta su peso al score. NO escribe nada
+      (solo evalúa). FALLBACK (US8, nombres DDL confirmados 2026-10-01): como
+      `FECHAEXPEDICIONPLANIFICADA` es NOT NULL, el fallback por ruta **NO se dispara
+      por NULL** sino por **valor por defecto/centinela** (caso "el cliente no envía
+      fecha y se llena por default", p. ej. Cofersa). El contrato define el
+      disparador como "fecha = centinela/default conocido", no "fecha nula".
     responsibilities:
-      - Evaluar la regla T-1 (con ajuste por ruta y cortes)
-      - Aplicar el fallback por ruta cuando falta la fecha de entrega
-    depends_on:
-      - component: CalendarioRutas
-        interaction: lee días de salida y horas de corte por ruta para el ajuste y el fallback
-        style: sync
+      - Evaluar la regla T-1 con FECHAEXPEDICIONPLANIFICADA como insumo (sin modificarla)
+      - Ajustar por duración de ruta ESTIMADA (parámetro por scope) y horas de corte
+      - Disparar el fallback por ruta (US8) ante fecha = centinela/default (no por NULL)
+    depends_on: []
     dependents:
-      - component: MotorPriorizacion
+      - component: MotorReglasOMS
         interaction: el motor invoca la regla durante la corrida
         style: sync
     external_dependencies: []
     entities: []
 
   - name: AnalizadorObservaciones
-    summary: Interpreta el texto libre de observaciones con IA (Bedrock) para clasificar "cliente retira".
+    summary: Interpreta observaciones con IA (Bedrock) para clasificar "cliente retira" (reglas 2-3 de 1ª entrega).
     behaviour: >
-      Regla ejecutable 2/3 (FR6.2/FR6.3/FR7, primera entrega). Interpreta el
-      texto libre de `observaciones` con un modelo nativo de Amazon Bedrock
-      (ultraligero); la primera salida a implementar es "cliente retira" (patrón →
-      prioridad más alta + viaje/cliente dummy). Invoca POR LOTE (una corrida
-      sobre las ~400 observaciones/día), no una llamada por pedido (FR7.4). El
-      prompt vive en el código (Lambda), NO es editable desde la UI (FR7.2).
-      Degrada sin bloquear: si Bedrock falla/timeout, el pedido se prioriza por
-      las demás reglas. Aporta su peso al score. FRONTERA: este componente solo
-      DETECTA/clasifica (produce la marca "cliente retira"); el EFECTO no es suyo.
-      La prioridad máxima la aplica CalculadorScore (mayor peso) vía
-      MotorPriorizacion, y la marca de agrupación en el viaje/cliente "dummy" la
-      fija MotorPriorizacion sobre el RegistroPrioridad (el viaje real lo abre el
-      TMS, no el OMS).
+      Reglas ejecutables 2/3 (FR6.2/FR6.3/FR7). Interpreta el texto libre de
+      `OBSERVACIONESEXPEDICION` (varchar(500), nivel cabecera) con un modelo nativo
+      de Amazon Bedrock (ultraligero); la
+      primera salida a implementar es "cliente retira". Invoca POR LOTE (una corrida
+      sobre las ~400 observaciones/día), no una llamada por pedido (FR7.4). El prompt
+      vive en el código de la Lambda, NO es editable desde la UI (FR7.2). Degrada
+      sin bloquear: si Bedrock falla/timeout, el pedido se prioriza por las demás
+      reglas. FRONTERA: solo DETECTA/clasifica (produce la marca "cliente retira");
+      el EFECTO (prioridad máxima vía peso + marca de agrupación en viaje/cliente
+      dummy) lo aplica MotorReglasOMS. Testabilidad: la clasificación se prueba con
+      clasificador STUB en unitarios; la integración real con Bedrock es test de
+      contrato aparte.
     responsibilities:
       - Clasificar las observaciones por lote (cliente retira como primera salida)
-      - Degradar sin bloquear el motor ante fallo de Bedrock
-      - (NO es responsabilidad suya el efecto: prioridad máxima y viaje/cliente dummy)
+      - Degradar sin bloquear el motor ante fallo/timeout de Bedrock
+      - (NO aplica el efecto; eso es de MotorReglasOMS)
     depends_on: []
     dependents:
-      - component: MotorPriorizacion
+      - component: MotorReglasOMS
         interaction: el motor invoca la clasificación por lote durante la corrida
         style: sync
     external_dependencies:
       - name: Amazon Bedrock
         kind: third-party-api
-        purpose: clasificación del texto libre de observaciones (modelo ultraligero, prompt en código)
+        purpose: clasificación del texto libre de observaciones (modelo ultraligero, prompt en código; hoy no integrado — a construir)
     entities: []
 
-  - name: EscritorEflow
-    summary: Escribe el resultado en EFLOW/WMS — situación DISP→GENERADA y prioridad, de forma atómica.
+  - name: ColaCandidatos
+    summary: Lee del WMS/EFLOW los pedidos candidatos a priorizar (borde de ENTRADA, adaptador de lectura).
     behaviour: >
-      Encapsula el lado ESCRITURA del OMS sobre EFLOW (FR8). Para cada pedido que
-      el motor decide generar: escribe `estado=DISP` + `situación=GENERADA` + la
-      prioridad calculada, en una ESCRITURA ATÓMICA (nunca GENERADA sin
-      prioridad). NO escribe fechas (invariante NFR7): la
-      `fecha de expedición planificada` queda intacta. Escribe SOLO a nivel
-      WMS/EFLOW; NO toca el WMH ni las tablas intermedias (invariante C1/FR8.2).
-      Tras dejar GENERADA, el pedido sale del alcance del OMS ("alistado"). Es el
-      adaptador de escritura: aísla el esquema de EFLOW del dominio.
+      Encapsula el lado LECTURA del OMS sobre EFLOW (FR1). Resuelve la cola en
+      `EFLOW_OLO.dbo.EXPEDICIONESCABECERA` (SQL Server). Filtro real (nombres DDL
+      confirmados 2026-10-01): `FECHACIERRE IS NULL` (datetime NULL) + estado
+      `TPEXES = 'DISP'` + situación `TPEXSI = 'DISP'` (ambos varchar(6), FK
+      TIPOSINTEGRACION) + `NUMEROVIAJEWMH IS NULL` (bigint NULL = sin viaje). Equivale
+      al anti-join de "no procesados" con `ALMACENMOVIMIENTOS_CARCAM` por
+      `IDALMACEN+IDCOMPANIA+IDSUCURSAL+IDEXPEDICION`. Mantiene el filtro de almacén.
+      Expone `FECHAEXPEDICIONPLANIFICADA` (datetime NOT NULL) y `OBSERVACIONESEXPEDICION`
+      (varchar(500)) como insumos de las reglas. Lee sobre la réplica de EFLOW_OLO
+      (NFR9; hoy EFLOW en mock, réplica inexistente OQ-2). Aísla el esquema del WMS
+      del dominio del OMS (adaptador de lectura).
     responsibilities:
-      - Escribir atómicamente situación+prioridad en EFLOW
-      - Garantizar los invariantes de escritura (no fechas, solo WMS/EFLOW)
+      - Filtrar y devolver los candidatos (TPEXES/TPEXSI='DISP', FECHACIERRE IS NULL, NUMEROVIAJEWMH IS NULL)
+      - Exponer FECHAEXPEDICIONPLANIFICADA y OBSERVACIONESEXPEDICION como insumos de las reglas
+      - Aislar el esquema del WMS/EFLOW del dominio del OMS (adaptador de lectura)
     depends_on: []
     dependents:
-      - component: MotorPriorizacion
-        interaction: el motor ordena la escritura de los pedidos que pasan el umbral
-        style: sync
-      - component: Simulador
-        interaction: al "aplicar" una simulación, escribe por esta misma vía
+      - component: MotorReglasOMS
+        interaction: le pide el conjunto de pedidos candidatos de un scope para priorizar
         style: sync
     external_dependencies:
-      - name: EFLOW_OLO (réplica / escritura)
+      - name: EFLOW_OLO / WMS (réplica de lectura, SQL Server)
         kind: database
-        purpose: destino de la escritura situación+prioridad a nivel WMS/EFLOW
-    entities: []
+        purpose: origen de los pedidos (EXPEDICIONESCABECERA, ALMACENMOVIMIENTOS_CARCAM); hoy mock, réplica inexistente (OQ-2)
+    entities:
+      - name: PedidoCandidato
+        identifier: IDALMACEN+IDCOMPANIA+IDSUCURSAL+IDEXPEDICION (PK de EXPEDICIONESCABECERA)
+        attributes: [IDEXPEDICION, IDALMACEN, IDCOMPANIA, IDSUCURSAL, TPEXES, TPEXSI, FECHACIERRE, FECHAEXPEDICIONPLANIFICADA, NUMEROVIAJEWMH, OBSERVACIONESEXPEDICION, PRIORIDAD, PESOPEDIDO_TOTAL, CUBICAJEPEDIDO_TOTAL]
+        references: []
 
-  - name: CatalogoReglas
-    summary: Catálogo semi-configurable de reglas por compañía — dueño de la configuración persistida.
+  - name: HandoffPedidosOMS
+    summary: Borde de SALIDA (D6) — dos escrituras — tabla propia del OMS (handoff) + situación en el WMS (dispara picking).
     behaviour: >
-      Catálogo de las reglas IMPLEMENTADAS (FR5). Por regla y por compañía:
-      estado (on/off), peso/score y parámetros editables (días de T-1, horas de
-      corte, umbral de inyección, patrón/prioridad/ventana de cliente retira).
-      NO es un constructor dinámico: no se crean reglas nuevas desde la UI; la
-      lógica y los prompts viven en código (FR5.4/C6). Un selector de compañía
-      cambia la lista (una Lambda por compañía). Es dueño de la CONFIGURACIÓN; las
-      reglas ejecutables (ReglaFecha, AnalizadorObservaciones) la LEEN al correr.
+      Encapsula el lado ESCRITURA del OMS (FR8, D6) con DOS ESCRITURAS, DOS
+      PROPÓSITOS. **Escritura 1 (handoff)**: persiste el pedido priorizado en la
+      TABLA DE PEDIDOS PROPIA DEL OMS (esquema OMS de `logistica_olo`, Aurora) con la
+      `PRIORIDAD` (int) + status + situación = generada, en escritura ATÓMICA (nunca
+      generada sin prioridad). Esta tabla es la superficie que lee Planificación (no
+      el WMS); puede cargar `PESOPEDIDO_TOTAL`/`CUBICAJEPEDIDO_TOTAL` cuando vengan
+      (OQ-8, informada). **Escritura 2 (disparo de picking)** (nombres DDL
+      confirmados 2026-10-01): actualiza `TPEXSI → 'GENE'` (situación) en
+      `EFLOW_OLO.dbo.EXPEDICIONESCABECERA`; el **estado `TPEXES` PERMANECE en 'DISP'**
+      (solo cambia la situación) para que el WMS genere el picking. ORDEN: escritura
+      1 (Aurora) ANTES de escritura 2 (WMS/SQL Server). FALLO PARCIAL: si la 2 falla
+      tras la 1, el registro OMS queda "disparo pendiente" y se REINTENTA de forma
+      idempotente sin re-crear el handoff. SIN 2PC entre Aurora y SQL Server EFLOW
+      (ponytail: dos stores, orden + reintento idempotente; upgrade = outbox/
+      reconciliación). IDEMPOTENCIA de corrida por la **PK (IDALMACEN, IDCOMPANIA,
+      IDSUCURSAL, IDEXPEDICION)**: re-correr no duplica el handoff ni re-dispara el
+      picking. NO escribe fechas (invariante). NO toca el WMH.
     responsibilities:
-      - Persistir la configuración de reglas por compañía (on/off, peso, parámetros)
-      - Servir la configuración activa al MotorPriorizacion y a las reglas
-      - Impedir la creación de reglas nuevas desde la UI (solo configurar las existentes)
+      - Escritura 1 — persistir el pedido priorizado (PRIORIDAD int + status + situación) en la tabla propia del OMS (atómica, handoff)
+      - Escritura 2 — actualizar TPEXSI='GENE' en EXPEDICIONESCABECERA (TPEXES permanece 'DISP') para disparar picking
+      - Garantizar orden, reintento idempotente de la 2, e idempotencia de corrida por la PK
+      - Garantizar invariantes de escritura (no fechas, no WMH)
     depends_on: []
     dependents:
-      - component: MotorPriorizacion
-        interaction: lee la configuración activa para orquestar la corrida
-        style: sync
-      - component: UICatalogoReglas
-        interaction: edita estado/peso/parámetros por compañía
-        style: sync
-    external_dependencies: []
-    entities:
-      - name: ConfiguracionRegla
-        identifier: reglaId+compañía
-        attributes: [reglaId, nombre, descripción, compañía, país, activa, peso, parámetros]
-        references: []
-
-  - name: Simulador
-    summary: Configurador de simulaciones — define, persiste, programa y aplica simulaciones de priorización.
-    behaviour: >
-      Configurador de simulaciones (FR9). Un modal previo trae las reglas activas
-      y permite elegir un subconjunto y filtrar pedidos por situación (incluido
-      re-simular sobre prioridades ya asignadas). INVOCA a MotorPriorizacion (no
-      duplica el cálculo): el motor es la única fuente del score. El resultado se
-      muestra como tabla-Cola. La Simulación es una ENTIDAD PERSISTIDA (bitácora:
-      fecha, autor, reglas, filtro, estado simulada/aplicada, compañía); puede
-      haber varias simuladas pero solo UNA aplicada por compañía. Aplicación
-      manual/automática/mixta (con hora de corte). Config por compañía: nº de
-      simulaciones/día, frecuencia, filtro, modo. Al "aplicar" escribe vía
-      EscritorEflow.
-    responsibilities:
-      - Configurar y persistir simulaciones y su configuración por compañía
-      - Invocar el motor para calcular una corrida acotada
-      - Garantizar "una aplicada por compañía" y aplicar (manual/auto/mixta)
-    depends_on:
-      - component: MotorPriorizacion
-        interaction: invoca la orquestación de cálculo con un subconjunto de reglas/pedidos
-        style: sync
-      - component: ColaCandidatos
-        interaction: obtiene el subconjunto de pedidos por situación para la corrida
-        style: sync
-      - component: EscritorEflow
-        interaction: al aplicar una simulación, escribe la priorización resultante
-        style: sync
-    dependents:
-      - component: UISimulador
-        interaction: configura, ejecuta, revisa y aplica simulaciones
-        style: sync
-    external_dependencies: []
-    entities:
-      - name: Simulacion
-        identifier: simulacionId
-        attributes: [simulacionId, compañía, país, fecha, autor, reglasUsadas, filtro, estado, resultado]
-        references: []
-      - name: ConfiguracionSimulacion
-        identifier: compañía
-        attributes: [compañía, país, numeroSimulacionesDia, frecuencia, horarios, filtroSituación, modoAplicacion]
-        references: []
-
-  - name: Auditoria
-    summary: Registro de solo lectura de las priorizaciones ejecutadas — distingue auto vs. manual.
-    behaviour: >
-      Dueño único del registro auditable (FR11.3, FR14.3, NFR6). Registra cada
-      priorización ejecutada distinguiendo automático vs. manual (en manual:
-      usuario y motivo). Toda acción de escritura del OMS registra el id del
-      usuario. Es de SOLO LECTURA (no se edita ni borra, criterio negativo NFR6);
-      retención de métricas ~3–5 meses. También sirve los datos para los
-      indicadores del Panel (p. ej. % de override en ventana configurable).
-    responsibilities:
-      - Persistir el registro auditable (auto/manual, usuario, motivo) inmutable
-      - Servir consultas de solo lectura al Panel y a la Auditoría
-    depends_on: []
-    dependents:
-      - component: MotorPriorizacion
-        interaction: escribe el registro de cada priorización (auto y override manual)
-        style: sync
-      - component: UIPanelAuditoria
-        interaction: lee registros y KPIs (salud del motor, % override en ventana)
-        style: sync
-    external_dependencies: []
-    entities:
-      - name: RegistroAuditoria
-        identifier: registroId
-        attributes: [registroId, pedido, compañía, país, tipoOrigen, usuario, motivo, prioridadAnterior, prioridadNueva, timestamp]
-        references: []
-
-  - name: CalendarioRutas
-    summary: Consulta/mantiene el calendario de rutas y días de despacho por compañía (fuente de verdad TMS).
-    behaviour: >
-      El OMS CONSUME el calendario de rutas cuya fuente de verdad es el TMS
-      (FR12). Ofrece el CRUD gated a rol administrador (implementación de UI de
-      alta diferida — DECIDED), pero su verdad vive en el TMS/Rutas. El calendario
-      es por cliente/compañía (acuerdos Olo↔cliente con implicación tarifaria) y
-      soporta calendarios por país. ReglaFecha lo lee para el ajuste T-1 y el
-      fallback por ruta.
-    responsibilities:
-      - Servir días de salida y horas de corte por ruta/compañía (consumo)
-      - Ofrecer el CRUD gated (verdad en el TMS)
-    depends_on: []
-    dependents:
-      - component: ReglaFecha
-        interaction: lee días de salida y horas de corte para T-1 y fallback
-        style: sync
-      - component: UICalendarioRutas
-        interaction: consulta (y CRUD gated) del calendario
+      - component: MotorReglasOMS
+        interaction: el motor ordena las dos escrituras de los pedidos que pasan el umbral
         style: sync
     external_dependencies:
-      - name: TMS/Rutas
-        kind: third-party-api
-        purpose: fuente de verdad del calendario de rutas (el OMS lo consume)
+      - name: PedidosOMS (tabla propia, esquema OMS de logistica_olo, Aurora)
+        kind: database
+        purpose: superficie de handoff que lee Planificación (escritura 1); puede cargar peso/volumen (OQ-8)
+      - name: EFLOW_OLO / WMS — EXPEDICIONESCABECERA (SQL Server)
+        kind: database
+        purpose: actualizar TPEXSI='GENE' (TPEXES permanece 'DISP') para disparar el picking (escritura 2); hoy mock
     entities:
-      - name: RutaDespacho
-        identifier: rutaId+compañía
-        attributes: [rutaId, compañía, país, díasSalida, horasCorte, tipo]
-        references: []
-
-  - name: UICola
-    summary: Pantalla de la Cola de Priorización (React).
-    behaviour: >
-      Área de UI de la Cola (FR10). Entra filtrada en DISP + fecha_de_cierre IS
-      NULL; mantiene el filtro de almacén; ofrece selector/filtro de compañía (no
-      por perfil); muestra el nombre de la compañía; columnas elegibles por
-      usuario (persistidas en User Preference JSON); detalle del pedido en MODAL;
-      desde el detalle se dispara el override (rol autorizado). 5 estados de UX
-      (vacío/carga/éxito/parcial/error), focus-trap en el modal.
-    responsibilities:
-      - Presentar la cola con filtros, columnas por usuario y detalle en modal
-      - Disparar el override manual desde el detalle
-    depends_on:
-      - component: ColaCandidatos
-        interaction: obtiene los pedidos de la cola
-        style: sync
-      - component: MotorPriorizacion
-        interaction: ejecuta el override manual
-        style: sync
-    dependents: []
-    external_dependencies: []
-    entities: []
-
-  - name: UIPanelAuditoria
-    summary: Pantalla de Panel (salud del motor + KPIs) y Auditoría (React).
-    behaviour: >
-      Área de UI del Panel y la Auditoría (FR11). Panel: salud del motor e
-      indicadores (pedidos generados hoy, % override con VENTANA CONFIGURABLE
-      24h/12h/semana, pedidos en proceso ~capacidad). Auditoría: registro de solo
-      lectura de las priorizaciones (auto/manual, usuario/motivo).
-    responsibilities:
-      - Presentar KPIs del Panel con ventana configurable
-      - Presentar la Auditoría de solo lectura
-    depends_on:
-      - component: Auditoria
-        interaction: lee registros y KPIs
-        style: sync
-    dependents: []
-    external_dependencies: []
-    entities: []
-
-  - name: UICatalogoReglas
-    summary: Pantalla del Motor de Reglas (catálogo semi-configurable) con selector de compañía (React).
-    behaviour: >
-      Área de UI del catálogo de reglas (FR5). Lista las reglas implementadas de
-      la compañía seleccionada (nombre, descripción, estado, peso, parámetros);
-      permite activar/desactivar, ajustar peso y editar parámetros; NO permite
-      crear reglas nuevas. Selector de compañía cambia la lista.
-    responsibilities:
-      - Presentar y editar la configuración de reglas por compañía
-      - Impedir el alta de reglas desde la UI (solo configurar)
-    depends_on:
-      - component: CatalogoReglas
-        interaction: lee y edita la configuración de reglas por compañía
-        style: sync
-    dependents: []
-    external_dependencies: []
-    entities: []
-
-  - name: UISimulador
-    summary: Pantalla del Simulador-configurador (React).
-    behaviour: >
-      Área de UI del Simulador (FR9). Modal previo de configuración (reglas
-      activas + filtro de situación); resultado como tabla-Cola; aplicar
-      (manual/auto/mixta) con confirmación de alto impacto ("sustituye la
-      priorización vigente de {compañía}"); configuración de simulaciones por
-      compañía.
-    responsibilities:
-      - Configurar, ejecutar, revisar y aplicar simulaciones
-      - Confirmar la acción de alto impacto al aplicar
-    depends_on:
-      - component: Simulador
-        interaction: configura/ejecuta/aplica simulaciones
-        style: sync
-    dependents: []
-    external_dependencies: []
-    entities: []
-
-  - name: UICalendarioRutas
-    summary: Pantalla del Calendario de rutas (consulta + CRUD gated) (React).
-    behaviour: >
-      Área de UI del calendario (FR12). Consulta rutas y días de salida por
-      compañía/país; CRUD gated a rol administrador (alta de UI diferida por
-      decisión). Recuerda que la fuente de verdad es el TMS.
-    responsibilities:
-      - Consultar el calendario por compañía/país
-      - Ofrecer el CRUD gated (alta diferida)
-    depends_on:
-      - component: CalendarioRutas
-        interaction: consulta (y CRUD gated) del calendario
-        style: sync
-    dependents: []
-    external_dependencies: []
-    entities: []
+      - name: PedidoOMS
+        identifier: IDALMACEN+IDCOMPANIA+IDSUCURSAL+IDEXPEDICION (misma PK que EXPEDICIONESCABECERA)
+        attributes: [IDEXPEDICION, IDALMACEN, IDCOMPANIA, IDSUCURSAL, prioridad, status, situacion, estadoHandoff, pesoTotal, cubicajeTotal, corrida]
+        references:
+          - entity: RegistroPrioridad
+            owned_by: MotorReglasOMS
+            relationship: cada PedidoOMS materializa el RegistroPrioridad calculado por el motor
 ```
 
 ## Parte B — Vista humana
 
-### Diagrama de componentes
+### Diagrama de componentes (rebanada delgada)
 
 ```mermaid
 flowchart TD
-  subgraph ui["UI (React, por área)"]
-    uicola["UICola"]
-    uipanel["UIPanelAuditoria"]
-    uireglas["UICatalogoReglas"]
-    uisim["UISimulador"]
-    uical["UICalendarioRutas"]
-  end
-
-  subgraph dominio["Dominio OMS"]
-    cola["ColaCandidatos"]
-    motor["MotorPriorizacion"]
-    score["CalculadorScore"]
-    rfecha["ReglaFecha"]
+  subgraph oms["OMS — rebanada de 1ª entrega (Lambda Python)"]
+    motor["MotorReglasOMS (NUEVO)"]
+    rfecha["ReglaFecha (T-1)"]
     robs["AnalizadorObservaciones"]
-    escr["EscritorEflow"]
-    cat["CatalogoReglas"]
-    sim["Simulador"]
-    aud["Auditoria"]
-    cal["CalendarioRutas"]
+    cola["ColaCandidatos (entrada)"]
+    handoff["HandoffPedidosOMS (salida, D6)"]
   end
 
   subgraph ext["Dependencias externas"]
-    eflow["EFLOW_OLO (réplica)"]
-    maestro["MaestroCompañías (Capa X)"]
+    eflow["EFLOW_OLO / WMS (mock)"]
     bedrock["Amazon Bedrock"]
-    tmsrutas["TMS/Rutas"]
+    pedidosoms[("PedidosOMS\n(esquema OMS logistica_olo)")]
+    cfg["ConfiguracionReglas\n(parámetros por scope)"]
   end
 
-  uicola --> cola
-  uicola --> motor
-  uipanel --> aud
-  uireglas --> cat
-  uisim --> sim
-  uical --> cal
+  plan["Planificación (lee la tabla del OMS)"]
 
   motor --> cola
-  motor --> cat
   motor --> rfecha
   motor --> robs
-  motor --> score
-  motor --> escr
-  motor --> aud
-  rfecha --> cal
-  sim --> motor
-  sim --> cola
-  sim --> escr
-
+  motor --> handoff
+  motor -. parámetros por scope .-> cfg
   cola --> eflow
-  cola --> maestro
   robs --> bedrock
-  escr --> eflow
-  cal --> tmsrutas
+  handoff -->|escritura 1 handoff| pedidosoms
+  handoff -->|escritura 2 situación| eflow
+  pedidosoms --> plan
 ```
 
-**Fallback en texto.** Las 5 áreas de UI consumen 1:1 su componente de dominio:
-`UICola`→`ColaCandidatos` (+ `MotorPriorizacion` para el override),
-`UIPanelAuditoria`→`Auditoria`, `UICatalogoReglas`→`CatalogoReglas`,
-`UISimulador`→`Simulador`, `UICalendarioRutas`→`CalendarioRutas`. El
-`MotorPriorizacion` orquesta: toma candidatos de `ColaCandidatos`, lee
-`CatalogoReglas`, invoca `ReglaFecha` y `AnalizadorObservaciones`, pide score a
-`CalculadorScore`, aplica el umbral, ordena escribir a `EscritorEflow` y registra
-en `Auditoria`. `ReglaFecha` lee `CalendarioRutas`. `Simulador` reusa
-`MotorPriorizacion`, `ColaCandidatos` y `EscritorEflow`. `ColaCandidatos` lee de
-la réplica `EFLOW_OLO` y del maestro de compañías (Capa X); `AnalizadorObservaciones`
-usa Amazon Bedrock; `EscritorEflow` escribe en `EFLOW_OLO`; `CalendarioRutas`
-consume `TMS/Rutas`.
+**Fallback en texto.** `MotorReglasOMS` (nuevo, Lambda Python) orquesta: toma
+candidatos de `ColaCandidatos` (que lee EFLOW/WMS), invoca `ReglaFecha` (T-1 con
+parámetros de ruta por scope) y `AnalizadorObservaciones` (Bedrock, cliente
+retira), calcula el score internamente, aplica el umbral y ordena a
+`HandoffPedidosOMS` las dos escrituras: (1) la tabla propia `PedidosOMS` (handoff,
+que lee Planificación) y (2) la situación en el WMS (dispara picking). Los
+parámetros de reglas (pesos, umbral, días/cortes/duración estimada de ruta) se
+resuelven por scope CUSTOMER→WAREHOUSE→COUNTRY→GLOBAL.
 
-### Resumen de componentes
+### Resumen de componentes (en alcance)
 
 | Componente | Propósito | Depende de | Dependientes | Entidades propias |
 |---|---|---|---|---|
-| ColaCandidatos | Resuelve la cola leyendo la réplica EFLOW | — | MotorPriorizacion, Simulador, UICola | PedidoCandidato |
-| MotorPriorizacion | Orquesta la corrida (reglas→score→umbral→orden) + override | ColaCandidatos, CatalogoReglas, ReglaFecha, AnalizadorObservaciones, CalculadorScore, EscritorEflow, Auditoria | Simulador, UICola | RegistroPrioridad |
-| CalculadorScore | Score ponderado + prioridad numérica (módulo puro) | — | MotorPriorizacion | — |
-| ReglaFecha | Regla T-1 (con ajuste por ruta y fallback) | CalendarioRutas | MotorPriorizacion | — |
-| AnalizadorObservaciones | Clasifica observaciones con IA (cliente retira) | — | MotorPriorizacion | — |
-| EscritorEflow | Escritura atómica DISP→GENERADA + prioridad | — | MotorPriorizacion, Simulador | — |
-| CatalogoReglas | Config de reglas por compañía (catálogo, no builder) | — | MotorPriorizacion, UICatalogoReglas | ConfiguracionRegla |
-| Simulador | Configurador de simulaciones (reusa el motor) | MotorPriorizacion, ColaCandidatos, EscritorEflow | UISimulador | Simulacion, ConfiguracionSimulacion |
-| Auditoria | Registro de solo lectura (auto/manual) | — | MotorPriorizacion, UIPanelAuditoria | RegistroAuditoria |
-| CalendarioRutas | Calendario de rutas (verdad en TMS, el OMS consume) | — | ReglaFecha, UICalendarioRutas | RutaDespacho |
-| UICola | Pantalla Cola de Priorización | ColaCandidatos, MotorPriorizacion | — | — |
-| UIPanelAuditoria | Pantalla Panel + Auditoría | Auditoria | — | — |
-| UICatalogoReglas | Pantalla Motor de Reglas | CatalogoReglas | — | — |
-| UISimulador | Pantalla Simulador-configurador | Simulador | — | — |
-| UICalendarioRutas | Pantalla Calendario de rutas | CalendarioRutas | — | — |
+| MotorReglasOMS | Motor propio del OMS (orquesta + score + umbral + efecto cliente-retira) | ColaCandidatos, ReglaFecha, AnalizadorObservaciones, HandoffPedidosOMS | — | RegistroPrioridad |
+| ReglaFecha | Regla T-1 (fecha de entrega − 1, ajuste por ruta estimada/scope + cortes) | — | MotorReglasOMS | — |
+| AnalizadorObservaciones | Clasifica observaciones con IA (cliente retira) | — | MotorReglasOMS | — |
+| ColaCandidatos | Lectura de EFLOW/WMS (adaptador de entrada) | — | MotorReglasOMS | PedidoCandidato |
+| HandoffPedidosOMS | Dos escrituras: tabla OMS (handoff) + situación WMS (picking) | — | MotorReglasOMS | PedidoOMS |
 
-### Propiedad de entidades
+### Propiedad de entidades (en alcance)
 
 | Entidad | Componente dueño | Identificador | Atributos | Referencias |
 |---|---|---|---|---|
-| PedidoCandidato | ColaCandidatos | pedido+almacén+compañía+sucursal | pedido, almacén, compañía, país, sucursal, situación, estado, fechaDeCierre, fechaExpediciónPlanificada, numeroViajeWmh, observaciones | → RegistroPrioridad (MotorPriorizacion) |
-| RegistroPrioridad | MotorPriorizacion | pedido+almacén+compañía+sucursal+corrida | pedido, compañía, país, prioridad, score, tipoOrigen, umbralAplicado, corrida, clienteRetira, grupoViajeDummy | → ConfiguracionRegla (CatalogoReglas) |
-| ConfiguracionRegla | CatalogoReglas | reglaId+compañía | reglaId, nombre, descripción, compañía, país, activa, peso, parámetros | — |
-| Simulacion | Simulador | simulacionId | simulacionId, compañía, país, fecha, autor, reglasUsadas, filtro, estado, resultado | — |
-| ConfiguracionSimulacion | Simulador | compañía | compañía, país, numeroSimulacionesDia, frecuencia, horarios, filtroSituación, modoAplicacion | — |
-| RegistroAuditoria | Auditoria | registroId | registroId, pedido, compañía, país, tipoOrigen, usuario, motivo, prioridadAnterior, prioridadNueva, timestamp | — |
-| RutaDespacho | CalendarioRutas | rutaId+compañía | rutaId, compañía, país, díasSalida, horasCorte, tipo | — |
+| PedidoCandidato | ColaCandidatos | IDALMACEN+IDCOMPANIA+IDSUCURSAL+IDEXPEDICION (PK) | IDEXPEDICION, IDALMACEN, IDCOMPANIA, IDSUCURSAL, TPEXES, TPEXSI, FECHACIERRE, FECHAEXPEDICIONPLANIFICADA, NUMEROVIAJEWMH, OBSERVACIONESEXPEDICION, PRIORIDAD, PESOPEDIDO_TOTAL, CUBICAJEPEDIDO_TOTAL | — |
+| RegistroPrioridad | MotorReglasOMS | PK + corrida | IDEXPEDICION, IDALMACEN, IDCOMPANIA, IDSUCURSAL, prioridad, score, tipoOrigen, umbralAplicado, corrida, clienteRetira, grupoViajeDummy | → PedidoCandidato (ColaCandidatos) |
+| PedidoOMS | HandoffPedidosOMS | IDALMACEN+IDCOMPANIA+IDSUCURSAL+IDEXPEDICION (PK) | IDEXPEDICION, IDALMACEN, IDCOMPANIA, IDSUCURSAL, prioridad, status, situacion, estadoHandoff, pesoTotal, cubicajeTotal, corrida | → RegistroPrioridad (MotorReglasOMS) |
 
-### Dependencias externas
+### Dependencias externas (en alcance)
 
 | Componente | Dependencia | Tipo | Propósito |
 |---|---|---|---|
-| ColaCandidatos | EFLOW_OLO (réplica lectura) | database | Origen de pedidos (réplica inexistente, OQ-2) |
-| ColaCandidatos | MaestroCompañías (Capa X) | third-party-api | Resolver nombre de compañía |
-| AnalizadorObservaciones | Amazon Bedrock | third-party-api | Clasificación IA de observaciones |
-| EscritorEflow | EFLOW_OLO (escritura) | database | Escritura situación+prioridad a nivel WMS/EFLOW |
-| CalendarioRutas | TMS/Rutas | third-party-api | Fuente de verdad del calendario |
+| ColaCandidatos | EFLOW_OLO / WMS (réplica lectura) | database | Origen de pedidos (hoy mock, réplica OQ-2) |
+| AnalizadorObservaciones | Amazon Bedrock | third-party-api | Clasificación IA (a construir) |
+| HandoffPedidosOMS | PedidosOMS (esquema OMS) | database | Tabla propia = superficie de handoff (escritura 1) |
+| HandoffPedidosOMS | EFLOW_OLO / WMS | database | Voltear situación → picking (escritura 2) |
+| MotorReglasOMS | ConfiguracionReglas (por scope) | other | Pesos, umbral, parámetros de ruta por scope |
 
 ### Racional (por qué cada bloque es separado)
 
 | Componente | Por qué es un bloque distinto |
 |---|---|
-| ColaCandidatos | Distinta concern (adaptador de lectura); aísla el esquema de EFLOW del dominio; contrato de query estable |
-| MotorPriorizacion | Distinta concern (orquestación); dueño del ciclo de corrida y del override |
-| CalculadorScore | Distinta concern (cálculo puro); testable sin montar el motor (regla Testing Posture); score desde 1ª entrega |
-| ReglaFecha | Distinta lógica de negocio (T-1); cambia con las reglas de fecha/cortes |
-| AnalizadorObservaciones | Distinta concern (IA/Bedrock); distinto ritmo de cambio (prompt/modelo) y degradación propia |
-| EscritorEflow | Distinta concern (adaptador de escritura); dueño de los invariantes de escritura |
-| CatalogoReglas | Distinta data ownership (configuración persistida); separar config editable de lógica en código |
-| Simulador | Distinto ciclo de vida (entidad Simulacion persistida, programación); reusa el motor sin duplicarlo |
-| Auditoria | Distinta data ownership (registro inmutable de solo lectura); un solo dueño del auditable |
-| CalendarioRutas | Distinta data ownership (consume verdad del TMS); frontera con el núcleo compartido |
-| UI* (5) | Distinta concern (presentación); una por área funcional, 1:1 con su backend, como el prototipo |
+| MotorReglasOMS | Núcleo del OMS; propio y nuevo (C2); dueño del ciclo de corrida y del score (submódulo puro testeable) |
+| ReglaFecha | Lógica T-1 con contrato propio (fecha como insumo, duración estimada por scope); cambia con reglas de fecha/cortes |
+| AnalizadorObservaciones | Concern distinta (IA/Bedrock); ritmo de cambio propio (prompt/modelo), degradación propia; solo detecta |
+| ColaCandidatos | Adaptador de lectura; aísla el esquema del WMS del dominio |
+| HandoffPedidosOMS | Adaptador de escritura con los invariantes D6 (dos escrituras, orden, idempotencia); dueño de la tabla propia del OMS |
 
-**Alternativas rechazadas** (detalle en `decisions.md`): motor monolítico (Q1-B);
-score dentro del orquestador (Q1-A, rechazado por regla de testing); catálogo y
-ejecutor fusionados (Q2-B); Simulador con cálculo propio (Q3-B); adaptadores
-propios por dependencia externa (Q4-B); UI monolítica (Q5-B);
-override+auditoría fusionados (Q6-B).
+## Componentes DIFERIDOS (fuera de esta corrida acotada — no eliminados)
+
+Se detallarán en corridas posteriores de domain-design cuando se amplíe el
+alcance más allá de la rebanada de 1ª entrega:
+
+- **CatalogoReglas** (UI + persistencia de config de reglas por scope): en la
+  rebanada, los parámetros se consumen como configuración; su edición desde UI es
+  posterior.
+- **Simulador** (configurador de simulaciones, entidad persistida): reusará el
+  MotorReglasOMS.
+- **Auditoría completa** (registro de solo lectura auto/manual, FR11.3/FR14.3): en
+  la rebanada basta el registro mínimo del motor; la Auditoría como componente
+  con su entidad y consultas es posterior.
+- **Override manual** (FR4) y su UI: posterior.
+- **Panel OMS** (FR11) y **todas las UI** (Cola, Reglas, Simulador, Panel): la
+  rebanada es backend; la UI va después (refined-mockups fue saltada).
+
+## Componente ELIMINADO (D5)
+
+- **CalendarioRutas** — eliminado. Con el ruteo dinámico ("la ruta manda"), las
+  rutas dejan de ser fijas; no hay calendario de rutas que el OMS mantenga o
+  consulte. Los días de salida / horas de corte / duración que `ReglaFecha`
+  necesita son **parámetros de configuración por scope** (estimados), no un
+  calendario navegable.
 
 ## Sources
 
-- `aidlc/spaces/default/intents/260826-modulo-oms/inception/requirements-analysis/requirements.md`
-  (FR1–FR14, NFR1–NFR9, restricciones C1–C7).
-- `aidlc/spaces/default/intents/260826-modulo-oms/inception/user-stories/stories.md`
-  (US1–US33 + US11b).
-- `aidlc/spaces/default/memory/project.md` (`## Decided`: alcance WMS/EFLOW,
-  invariantes del motor, catálogo de reglas, Simulador-configurador,
-  multi-compañía, Capa X, BD `logistica_olo`).
-- `aidlc/spaces/default/codekb/sto_tms_olo/component-inventory.md`,
-  `architecture.md` — componentes existentes y design system (el §6 "lago de
-  datos" del architecture.md es codekb stale, no target).
-- `aidlc/spaces/default/intents/260826-modulo-oms/inception/domain-design/domain-design-questions.md`
-  (Q1=C, Q2–Q6=A).
+- `aidlc/spaces/default/intents/260826-modulo-oms/inception/requirements-analysis/requirements.md` (v3, FR1–FR14 con FR12 retirado, D6).
+- `aidlc/spaces/default/intents/260826-modulo-oms/inception/user-stories/stories.md` (v3; US7/US9/US10/US12/US13 de 1ª entrega; US9 dos escrituras).
+- `aidlc/spaces/default/memory/project.md` (`## Decided`: D1–D6, C3-SUPERSEDE, C2-RESUELTO).
+- `aidlc/spaces/default/codekb/sto_tms_olo/architecture.md`, `component-inventory.md` (backend real Python/SAM; multi-tenancy por scope; EFLOW mock; wms_expediciones).
+- `docs/wms-eflow/EFLOW_OLO-ddl.sql` — DDL real del WMS/EFLOW (SQL Server): nombres de tabla/columna/PK confirmados (EXPEDICIONESCABECERA, TPEXES/TPEXSI, FECHAEXPEDICIONPLANIFICADA, PRIORIDAD, OBSERVACIONESEXPEDICION, PESOPEDIDO_TOTAL/CUBICAJEPEDIDO_TOTAL, ALMACENMOVIMIENTOS_CARCAM).
 
 ## Assumptions & Open Questions
 
-- Las OQ-1..OQ-7 (`requirements.md`) se tratan como dependencias externas /
-  parámetros, no como fronteras de componentes: BD oficial (OQ-1), réplica EFLOW
-  inexistente (OQ-2), fecha de Cofersa (OQ-3 → fallback en ReglaFecha), tabla de
-  prioridades (OQ-4 → parámetro de CalculadorScore/CatalogoReglas), score-vs-filtro
-  y umbral (OQ-5 → parámetro del MotorPriorizacion), cortes (OQ-6 → CalendarioRutas),
-  viaje cliente retira (OQ-7 → contexto de AnalizadorObservaciones/TMS). No bloquean
-  el diseño de dominio.
-- La topología de despliegue (una Lambda por compañía, agrupación en unidades
-  desplegables) la decide **Units Generation**, no esta etapa. Aquí "una Lambda
-  por compañía" se refleja como un invariante de comportamiento, no como frontera
-  de componente.
-- **Partición multi-compañía (arrastrar a Units/Deployment)**: el modelo lógico
-  de las reglas (ReglaFecha, AnalizadorObservaciones) es GENÉRICO y su
-  configuración por compañía vive en CatalogoReglas (`ConfiguracionRegla` por
-  `reglaId+compañía`). La DECIDED "una Lambda por compañía; la regla identifica su
-  compañía; no se parametriza en código" NO significa colapsar la lógica
-  específica de cada compañía en una única regla genérica: la partición por
-  compañía (una Lambda/unidad desplegable por compañía, con su lógica específica
-  cuando difiera) es tema de **Units Generation / Deployment**, no de esta capa
-  lógica. Domain Design deja el modelo genérico + config-por-compañía; Units
-  decide cómo se materializa por compañía sin que la especificidad se pierda.
-
-<!-- Confirmado y aprobado en el gate (2026-09-16). Review advisory: READY. -->
+- Esta corrida es ACOTADA a la rebanada de 1ª entrega; los componentes diferidos
+  se detallan en corridas posteriores. Units Generation y Code Generation arrancan
+  por el **esqueleto del MotorReglasOMS en Lambda**.
+- OQ abiertas que afinan (no bloquean): réplica EFLOW inexistente/mock (OQ-2),
+  fecha de Cofersa por default/centinela → fallback por ruta (OQ-3), tabla de
+  prioridades del cliente (OQ-4), score-vs-filtro + umbral (OQ-5), cortes/duración
+  estimada de ruta por scope (OQ-6), nomenclatura viaje cliente retira (OQ-7).
+- **OQ-8 (peso/volumen) — INFORMADA, no cerrada**: `PESOPEDIDO_TOTAL` y
+  `CUBICAJEPEDIDO_TOTAL` (float NULL) **sí existen** en EXPEDICIONESCABECERA → el
+  handoff PUEDE cargarlos cuando vengan. Sigue abierta porque pueden venir null y es
+  dependencia de Planificación, no del cálculo de prioridad del OMS.
+- La "duración de ruta" del T-1 es ESTIMADA (parámetro por scope), no la ruta real
+  (que Planificación arma después) — contrato explícito de ReglaFecha.
+- **Nombres reales del WMS/EFLOW confirmados** (DDL `docs/wms-eflow/EFLOW_OLO-ddl.sql`,
+  2026-10-01): PK (IDALMACEN, IDCOMPANIA, IDSUCURSAL, IDEXPEDICION); estado=`TPEXES`,
+  situación=`TPEXSI` (varchar(6), FK TIPOSINTEGRACION; DISP/GENE); `PRIORIDAD` int
+  NOT NULL (lo escribe el OMS; también `NOMBREPRIORIDAD`); `FECHAEXPEDICIONPLANIFICADA`
+  datetime NOT NULL; `FECHACIERRE` datetime NULL; `NUMEROVIAJEWMH` bigint NULL;
+  `OBSERVACIONESEXPEDICION` varchar(500); anti-join con `ALMACENMOVIMIENTOS_CARCAM`
+  por la PK.
+- **Pendiente (no bloquea, pedir catálogos antes de code-generation en vivo)**:
+  `TIPOSINTEGRACION` (códigos reales de estado/situación) y `CLIENTES`/
+  `ALMACENCOMPANIA` (maestro cliente/compañía para nombre + scope).

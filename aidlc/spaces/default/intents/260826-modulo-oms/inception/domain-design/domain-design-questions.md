@@ -147,14 +147,20 @@ priorizaciones automáticas.
 
 ## Consolidated Summary Confirmation
 
-Resumen de Domain Design presentado y confirmado en conversación: 10 componentes
-de dominio (ColaCandidatos, MotorPriorizacion, CalculadorScore, ReglaFecha,
-AnalizadorObservaciones, EscritorEflow, CatalogoReglas, Simulador, Auditoria,
-CalendarioRutas) + 5 de UI por área; 7 entidades con dueño único; 8 ADRs; grafo
-acíclico. Decisiones Q1=C, Q2–Q6=A. Precisiones del gate incorporadas (ADR-008):
-dueño explícito del EFECTO "cliente retira" (MotorPriorizacion/CalculadorScore,
-no AnalizadorObservaciones) y nota de partición multi-compañía (Units/Deployment,
-sin colapsar la lógica por compañía). Sensores: required-sections PASS,
-upstream-coverage PASS, traceability = falso positivo advisory conocido.
+Re-corrida 2026-09-30 (pivote WMH), ACOTADA a la rebanada delgada de 1ª entrega.
+5 componentes en alcance: MotorReglasOMS (NUEVO, C2-RESUELTO: motor propio del OMS
+desde cero en Lambda/Python, no portar AST, no tocar Liquidaciones), ReglaFecha
+(T-1; fecha base FECHAEXPEDICIONPLANIFICADA de EXPEDICIONESCABECERA como insumo,
+ruta ESTIMADA por scope, fallback de fecha nula US8), AnalizadorObservaciones
+(cliente retira/Bedrock, solo detecta), ColaCandidatos (lectura EFLOW/WMS), y
+HandoffPedidosOMS (NUEVO, D6: dos escrituras — tabla propia del OMS + situación
+WMS, orden/fallo parcial idempotente/sin 2PC/idempotencia por clave). Resto
+DIFERIDO (CatalogoReglas, Simulador, Auditoría completa, override, Panel, UI);
+CalendarioRutas ELIMINADO (D5). 5 ADRs; 3 entidades en alcance; grafo acíclico;
+confirmación de nombres reales (EXPEDICIONESCABECERA/FECHAEXPEDICIONPLANIFICADA)
+que resuelve el [verificar]. Sensores: required-sections PASS, upstream-coverage
+PASS, traceability = falso positivo advisory conocido. Secuencia: → Units →
+code-generation del esqueleto del MotorReglasOMS. (La confirmación de la corrida
+previa 2026-09-16 fue "Looks correct".)
 
 [Answer]: Looks correct
