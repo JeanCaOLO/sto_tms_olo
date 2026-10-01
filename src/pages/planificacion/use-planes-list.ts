@@ -1,35 +1,26 @@
 import { useCallback, useEffect, useState } from 'react';
-import { cancelarPlan, completarPlan, listarPlanes } from './planes-api';
-import type { PlanStatus, RoutePlan } from './planes-types';
+import { listarPlanes } from './planes-api';
+import type { RoutePlan } from './planes-types';
 
-// Lista de planes filtrada por estado para la pestaña "Planificaciones", con
-// las acciones de transición (completar/cancelar). Recarga tras cada acción.
-export function usePlanesList(status: PlanStatus | 'all') {
+// Trae TODOS los planes de la compañía activa (el filtro por estado se aplica en
+// la pestaña, sobre el estado de los VIAJES, no del plan). Recarga tras cada
+// cambio de estado de un viaje.
+export function usePlanesList() {
   const [planes, setPlanes] = useState<RoutePlan[]>([]);
   const [cargando, setCargando] = useState(true);
 
   const cargar = useCallback(async () => {
     setCargando(true);
     try {
-      setPlanes(await listarPlanes(status === 'all' ? undefined : status));
+      setPlanes(await listarPlanes());
     } finally {
       setCargando(false);
     }
-  }, [status]);
+  }, []);
 
   useEffect(() => {
     cargar();
   }, [cargar]);
 
-  const completar = useCallback(async (id: string) => {
-    await completarPlan(id);
-    await cargar();
-  }, [cargar]);
-
-  const cancelar = useCallback(async (id: string) => {
-    await cancelarPlan(id);
-    await cargar();
-  }, [cargar]);
-
-  return { planes, cargando, completar, cancelar, recargar: cargar };
+  return { planes, cargando, recargar: cargar };
 }

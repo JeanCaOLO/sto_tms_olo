@@ -27,7 +27,17 @@ function fmt(iso: string): string {
 export default function PlanesTab() {
   const { t } = useTranslation();
   const [filtro, setFiltro] = useState<PlanStatus | 'all'>('all');
-  const { planes, cargando, recargar } = usePlanesList(filtro);
+  const { planes, cargando, recargar } = usePlanesList();
+
+  // El filtro opera sobre el estado de los VIAJES (completar/cancelar es por
+  // viaje): un plan entra en "Completadas"/"Canceladas" si tiene ≥1 viaje en ese
+  // estado. "Borrador"/"Confirmado" siguen siendo el ciclo de vida del plan.
+  const visibles = planes.filter((p) => {
+    if (filtro === 'all') return true;
+    if (filtro === 'completed') return p.trips.some((t) => t.status === 'completed');
+    if (filtro === 'cancelled') return p.trips.some((t) => t.status === 'cancelled');
+    return p.status === filtro;
+  });
 
   return (
     <div className="space-y-4">
@@ -54,14 +64,14 @@ export default function PlanesTab() {
         <div className="flex items-center justify-center h-32 text-slate-500">
           <i className="ri-loader-4-line animate-spin text-2xl"></i>
         </div>
-      ) : planes.length === 0 ? (
+      ) : visibles.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200 py-14 flex flex-col items-center gap-2 text-slate-400">
           <i className="ri-inbox-line text-3xl"></i>
           <p className="text-sm">{t('planning.noPlans')}</p>
         </div>
       ) : (
         <div className="space-y-3">
-          {planes.map((p) => (
+          {visibles.map((p) => (
             <PlanCard key={p.id} plan={p} onViajeActualizado={recargar} />
           ))}
         </div>
@@ -83,6 +93,8 @@ function PlanCard({
 
   const ui = ESTADO_UI[plan.status];
   const paradas = plan.trips.reduce((acc, trip) => acc + trip.stops.length, 0);
+  const completados = plan.trips.filter((tr) => tr.status === 'completed').length;
+  const cancelados = plan.trips.filter((tr) => tr.status === 'cancelled').length;
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -100,6 +112,16 @@ function PlanCard({
             <p className="text-xs text-slate-500 mt-0.5 flex flex-wrap items-center gap-x-2">
               <span><i className="ri-route-line mr-1"></i>{plan.trips.length} {t('planning.routesWord')}</span>
               <span><i className="ri-map-pin-line mr-1"></i>{paradas} {t('planning.stopsWord')}</span>
+              {completados > 0 && (
+                <span className="text-emerald-600">
+                  <i className="ri-check-double-line mr-1"></i>{completados} {t('planning.status.completed').toLowerCase()}
+                </span>
+              )}
+              {cancelados > 0 && (
+                <span className="text-red-600">
+                  <i className="ri-close-line mr-1"></i>{cancelados} {t('planning.status.cancelled').toLowerCase()}
+                </span>
+              )}
               {plan.unassigned_order_numbers.length > 0 && (
                 <span className="text-amber-600">
                   <i className="ri-alert-line mr-1"></i>{plan.unassigned_order_numbers.length} {t('planning.unassignedShort')}
