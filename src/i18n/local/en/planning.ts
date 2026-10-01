@@ -38,6 +38,7 @@ export default {
   'planning.selectContext': 'Select a country and warehouse in the context to plan.',
   'planning.noPlans': 'No plans for this status.',
   'planning.status.all': 'All',
+  'planning.status.pending': 'Pending',
   'planning.status.draft': 'Draft',
   'planning.status.confirmed': 'Confirmed',
   'planning.status.completed': 'Completed',

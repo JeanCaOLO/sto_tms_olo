@@ -38,6 +38,7 @@ export default {
   'planning.selectContext': 'Seleccioná país y almacén en el contexto para planificar.',
   'planning.noPlans': 'No hay planificaciones para este estado.',
   'planning.status.all': 'Todas',
+  'planning.status.pending': 'Pendiente',
   'planning.status.draft': 'Borrador',
   'planning.status.confirmed': 'Confirmado',
   'planning.status.completed': 'Completado',

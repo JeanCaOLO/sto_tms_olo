@@ -4,7 +4,8 @@ import CapacityBar from './CapacityBar';
 import TripMapa, { type ParadaMapa } from './TripMapa';
 import ParadaModal from './ParadaModal';
 import { coloresPorPunto } from '../colores-parada';
-import type { PlanStop, PlanTrip } from '../planes-types';
+import { cancelarViaje, completarViaje } from '../planes-api';
+import type { PlanStop, PlanTrip, TripStatus } from '../planes-types';
 
 interface Props {
   trip: PlanTrip;
@@ -14,16 +15,44 @@ interface Props {
   // Otros viajes a los que se puede mover un pedido (id + etiqueta).
   destinos: { id: string; label: string }[];
   onMover: (orderId: string, toTripId: string) => void;
+  // Recargar tras completar/cancelar un viaje (solo en la vista de planes guardados).
+  onViajeActualizado?: () => void | Promise<void>;
 }
+
+// Pill de estado del viaje (independiente del plan).
+const ESTADO_VIAJE: Record<TripStatus, string> = {
+  pending: 'bg-slate-100 text-slate-600',
+  completed: 'bg-emerald-50 text-emerald-700',
+  cancelled: 'bg-red-50 text-red-700',
+};
 
 // Tarjeta de una ruta: zona (identidad), vehículo, mapa (OSRM), barras de
 // capacidad y la secuencia de paradas. Las coords salen directo de la parada
 // (stop.delivery_latitude/longitude, que el backend embebe), así el mismo
 // componente sirve en PlanEditor y en PlanesTab sin depender de pedidos cargados.
 // En draft, cada parada se puede mover a otra ruta.
-export default function PlanTripCard({ trip, indice, zonaNombre, editable, destinos, onMover }: Props) {
+export default function PlanTripCard({
+  trip,
+  indice,
+  zonaNombre,
+  editable,
+  destinos,
+  onMover,
+  onViajeActualizado,
+}: Props) {
   const { t } = useTranslation();
   const [paradaSel, setParadaSel] = useState<PlanStop | null>(null);
+  const [procesando, setProcesando] = useState(false);
+
+  async function transicionarViaje(accion: 'completar' | 'cancelar') {
+    setProcesando(true);
+    try {
+      const r = accion === 'completar' ? await completarViaje(trip.id) : await cancelarViaje(trip.id);
+      if (r) await onViajeActualizado?.();
+    } finally {
+      setProcesando(false);
+    }
+  }
   const titulo = zonaNombre || trip.delivery_zone;
   const mostrarCodigo = zonaNombre && zonaNombre !== trip.delivery_zone;
   const hayPeso = trip.total_weight != null;
@@ -88,6 +117,32 @@ export default function PlanTripCard({ trip, indice, zonaNombre, editable, desti
             )}
           </div>
         )}
+
+        {/* Estado del viaje + acciones (completar/cancelar). Las acciones solo
+            en planes guardados (no editable) y mientras el viaje está pendiente. */}
+        <div className="flex items-center gap-2 mt-3">
+          <span className={`inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full ${ESTADO_VIAJE[trip.status]}`}>
+            {t(`planning.status.${trip.status}`)}
+          </span>
+          {!editable && trip.status === 'pending' && (
+            <div className="flex items-center gap-1.5 ml-auto">
+              <button
+                onClick={() => transicionarViaje('completar')}
+                disabled={procesando}
+                className="text-[11px] px-2 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg cursor-pointer inline-flex items-center gap-1"
+              >
+                <i className="ri-check-double-line"></i>{t('planning.complete')}
+              </button>
+              <button
+                onClick={() => transicionarViaje('cancelar')}
+                disabled={procesando}
+                className="text-[11px] px-2 py-1 bg-white border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 rounded-lg cursor-pointer inline-flex items-center gap-1"
+              >
+                <i className="ri-close-line"></i>{t('planning.cancel')}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Mapa de la ruta por calles (OSRM) con las paradas numeradas. */}

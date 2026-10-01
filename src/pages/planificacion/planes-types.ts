@@ -34,8 +34,12 @@ export interface PlanStop {
 }
 
 // Un viaje = un camión dentro del plan (plan_trips).
+// Estado de un viaje (plan_trip), independiente del estado del plan.
+export type TripStatus = 'pending' | 'completed' | 'cancelled';
+
 export interface PlanTrip {
   id: string;
+  status: TripStatus;
   vehicle_id: string;
   driver_id: string | null;
   delivery_zone: string;

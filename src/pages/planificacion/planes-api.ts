@@ -107,3 +107,18 @@ async function transicionar(id: string, accion: string, destino: PlanStatus): Pr
 export const confirmarPlan = (id: string) => transicionar(id, 'confirmar', 'confirmed');
 export const completarPlan = (id: string) => transicionar(id, 'completar', 'completed');
 export const cancelarPlan = (id: string) => transicionar(id, 'cancelar', 'cancelled');
+
+// Transición de un VIAJE (plan_trip), independiente del plan. Devuelve el plan
+// actualizado (con el viaje en su nuevo estado) o null si el backend no respondió.
+async function transicionarViaje(tripId: string, accion: 'completar' | 'cancelar'): Promise<RoutePlan | null> {
+  try {
+    const { ok, body } = await apiFetch(`/v1/planificacion/viajes/${tripId}/${accion}`, { method: 'POST' });
+    if (ok && esPlan(body?.data)) return body.data;
+  } catch {
+    // sin backend no hay transición de viaje (el mock no modela estado por viaje)
+  }
+  return null;
+}
+
+export const completarViaje = (tripId: string) => transicionarViaje(tripId, 'completar');
+export const cancelarViaje = (tripId: string) => transicionarViaje(tripId, 'cancelar');

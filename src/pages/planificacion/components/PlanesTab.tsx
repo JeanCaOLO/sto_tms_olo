@@ -27,7 +27,7 @@ function fmt(iso: string): string {
 export default function PlanesTab() {
   const { t } = useTranslation();
   const [filtro, setFiltro] = useState<PlanStatus | 'all'>('all');
-  const { planes, cargando, completar, cancelar } = usePlanesList(filtro);
+  const { planes, cargando, completar, cancelar, recargar } = usePlanesList(filtro);
 
   return (
     <div className="space-y-4">
@@ -62,7 +62,7 @@ export default function PlanesTab() {
       ) : (
         <div className="space-y-3">
           {planes.map((p) => (
-            <PlanCard key={p.id} plan={p} onCompletar={completar} onCancelar={cancelar} />
+            <PlanCard key={p.id} plan={p} onCompletar={completar} onCancelar={cancelar} onViajeActualizado={recargar} />
           ))}
         </div>
       )}
@@ -74,10 +74,12 @@ function PlanCard({
   plan,
   onCompletar,
   onCancelar,
+  onViajeActualizado,
 }: {
   plan: RoutePlan;
   onCompletar: (id: string) => void;
   onCancelar: (id: string) => void;
+  onViajeActualizado: () => void | Promise<void>;
 }) {
   const { t } = useTranslation();
   const { nombreDe } = useZonasNombre();
@@ -150,6 +152,7 @@ function PlanCard({
                   editable={false}
                   destinos={[]}
                   onMover={() => {}}
+                  onViajeActualizado={onViajeActualizado}
                 />
               ))}
             </div>
