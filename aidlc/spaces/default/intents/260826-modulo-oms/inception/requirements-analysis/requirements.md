@@ -36,11 +36,14 @@ pedidos** que hoy realiza manualmente la Torre de Control (WMH). Con el pivote d
 alcance, el OMS —junto con Planificación— **reemplaza al WMH desde la salida**,
 no de forma progresiva (D1). El OMS es el eslabón que se posiciona entre los
 pedidos del WMS/EFLOW y su preparación: **lee** los pedidos, **aplica reglas de
-negocio** para decidir cuáles se preparan y con qué prioridad, y **escribe de
-vuelta en el WMS/EFLOW** cambiando el `estado`/`situación` del pedido (de `DISP`
-a `situación = GENERADA`) y su **prioridad**. Con eso, el WMS genera
-automáticamente las tareas de picking, y el pedido queda **"alistado"** para que
-**Planificación** arme el viaje.
+negocio** para decidir cuáles se preparan y con qué prioridad, y hace **dos
+escrituras con dos propósitos** (D6): (a) persiste el registro del pedido en su
+**tabla de pedidos PROPIA** (esquema OMS de `logistica_olo`) con prioridad,
+status y `situación = GENERADA` — esta es la **superficie de handoff a
+Planificación**; y (b) cambia el campo de `situación` del pedido **en el WMS/
+EFLOW** para que el WMS/EFLOW continúe con el picking. Con eso el pedido queda
+**"alistado"**, y **Planificación** lee de la **tabla propia del OMS** (no del
+WMS) para armar el viaje.
 
 Lo que el OMS **busca lograr**:
 
@@ -57,18 +60,27 @@ Ingreso de pedidos (WMS/réplica) → Enriquecimiento de datos → Evaluación d
 reglas → Priorización → Handoff a Planificación (situación `GENERADA`) →
 Auditoría.
 
-**Alcance del OMS**: el OMS **lee** los pedidos del WMS/EFLOW, aplica las reglas
-y **cambia ciertos campos de esos registros a nivel del WMS** (`estado`/
-`situación` + prioridad). **Hasta ahí llega el OMS.** El WMS/EFLOW genera las
-tareas de picking cuando la situación queda en `GENERADA`; a partir de ahí el
-pedido pasa a **Planificación** (armado del viaje).
+**Alcance del OMS** (D6): el OMS **lee** los pedidos del WMS/EFLOW, aplica las
+reglas, **persiste el pedido priorizado en su tabla propia** (esquema OMS, con
+prioridad + status + `situación = GENERADA`) y **cambia la `situación` del pedido
+en el WMS/EFLOW** para disparar el picking. El armado del viaje NO es del OMS: lo
+hace Planificación leyendo la tabla del OMS.
 
-**Frontera OMS ↔ Planificación** (handoff): el OMS deja el pedido **alistado**
-(`situación = GENERADA`, sin viaje asignado) en la base intermedia que consume
-Planificación (hoy `wms_expediciones` en Aurora). **Planificación** —módulo
-aparte, con su propio intent `260825-route-planning-reqs`— lo toma para armar los
-viajes (ruteo dinámico multi-fuente). Este requirements cubre **solo el OMS**; no
-absorbe los FR de Planificación.
+**Frontera OMS ↔ Planificación** (handoff, D6): la superficie de handoff es la
+**tabla de pedidos propia del OMS** (esquema OMS de `logistica_olo`), no el WMS.
+El OMS deja ahí el pedido **alistado** (prioridad + `situación = GENERADA`, sin
+viaje asignado); **Planificación** —módulo aparte, intent
+`260825-route-planning-reqs`— lee **de esa tabla del OMS** para armar los viajes
+(ruteo dinámico multi-fuente). La escritura de `situación` en el WMS es un efecto
+aparte, solo para que el WMS/EFLOW genere el picking. Este requirements cubre
+**solo el OMS**; no absorbe los FR de Planificación.
+
+> **Nota (D6 SUPERSEDE)**: queda superado el punto de v2 de que el OMS "cambia
+> campos a nivel del WMS y HASTA AHÍ LLEGA / no toma nada de las tablas
+> intermedias". Ahora el OMS **también persiste en su propia tabla de pedidos**,
+> coherente con el reemplazo del WMH (D4) y la Figura 7. Sin cambio: lectura
+> desde WMS/EFLOW, no escribe fecha de alisto, prioridad numérica invertida, y el
+> WMS genera el picking con `situación = GENERADA`.
 
 **Fuera de alcance** (de otros módulos o a futuro): creación/asignación del
 **viaje** y el **armado de rutas / "Nuevo Viaje"** (Planificación/TMS — su propio
@@ -99,8 +111,12 @@ El OMS **no** modifica el WMH ni lee las tablas intermedias.
 
 ## Glosario
 
-- **OMS**: módulo que lee pedidos del WMS/EFLOW, calcula prioridad y cambia su
-  `estado`/`situación` para dejarlos "alistados" (listos para picking).
+- **OMS**: módulo que lee pedidos del WMS/EFLOW, calcula prioridad, **persiste el
+  pedido priorizado en su tabla propia** (handoff a Planificación) y **cambia la
+  `situación` del pedido en el WMS/EFLOW** para disparar el picking (D6).
+- **tabla de pedidos del OMS**: tabla propia del OMS (esquema OMS de
+  `logistica_olo`) donde persiste el pedido priorizado (prioridad, status,
+  `situación = GENERADA`); es la **superficie de handoff** que lee Planificación.
 - **WMS / EFLOW**: sistema de gestión de almacén; genera las tareas de picking
   cuando la situación pasa a `GENERADA`. Fuente de los pedidos.
 - **WMH (Control Tower / Torre de Control)**: sistema actual (v4.18.4.4,
@@ -148,8 +164,10 @@ Como sistema, el OMS obtiene de EFLOW los pedidos candidatos a priorizar.
 - **FR1.1** La cola se resuelve sobre `expedición_cabecera`: pedidos con
   `fecha_de_cierre IS NULL` y `estado`/`situación` = `DISP` (y sin
   `NUMEROVIAJEWMH`, es decir sin viaje asignado). Equivale al anti-join con
-  `almacén_movimiento_carcam` (los no procesados). En el código actual, el puente
-  hacia Planificación es la tabla staging `wms_expediciones` (situación `GENE`).
+  `almacén_movimiento_carcam` (los no procesados). (Nota: en el código actual la
+  tabla staging `wms_expediciones` cumple hoy el rol de superficie de handoff;
+  con D6 esa superficie es la **tabla de pedidos propia del OMS** — reconciliar el
+  nombre/estructura en domain-design.)
 - **FR1.2** Para progreso/detalle, el OMS puede cruzar con `expedición_detalle`
   y `almacén_movimiento_carcam` por `pedido + almacén + compañía + sucursal`.
 - **FR1.3** `Journey_Orders` es **opcional** (solo para ver a qué viaje está
@@ -268,21 +286,28 @@ crear reglas nuevas desde la UI** (su lógica vive en código).
 - **FR7.5** Ante fallo/timeout de Bedrock, el pedido se prioriza por las demás
   reglas (degrada sin bloquear el motor).
 
-### FR8 — Escritura de estado/situación y prioridad en el WMS/EFLOW
+### FR8 — Escritura del pedido priorizado (dos escrituras, dos propósitos)
 
-Como sistema, el OMS deja el pedido "alistado" cambiando sus campos en EFLOW.
+Como sistema, el OMS deja el pedido "alistado" con **dos escrituras** (D6).
 
-- **FR8.1** El OMS escribe en el registro del pedido en EFLOW: `estado = DISP`,
-  `situación = GENERADA` y la **prioridad** calculada, en una **escritura
-  atómica** (nunca `GENERADA` sin prioridad). **No escribe fechas.** La
-  `fecha de expedición planificada` queda intacta.
-- **FR8.2** El OMS **no** escribe en el WMH ni en las tablas intermedias; su
-  escritura llega **solo** al nivel del WMS/EFLOW.
-- **FR8.3** Tras dejar la situación en `GENERADA`, el pedido queda **alistado** y
-  pasa a **Planificación** (handoff). El armado del viaje NO es del OMS.
+- **FR8.1 (tabla propia del OMS — handoff)** El OMS **persiste el registro del
+  pedido en su tabla de pedidos propia** (esquema OMS de `logistica_olo`) con la
+  **prioridad** calculada, el `status` y `situación = GENERADA`, en una
+  **escritura atómica** (nunca `GENERADA` sin prioridad). Esta tabla es la
+  **superficie de handoff** que consume Planificación.
+- **FR8.2 (situación en el WMS — disparo de picking)** Además, el OMS **cambia el
+  campo `situación` del pedido en el WMS/EFLOW** a `GENERADA` para que el
+  WMS/EFLOW genere el picking. Esta escritura llega **solo** al nivel del
+  WMS/EFLOW; el OMS **no** escribe en el WMH.
+- **FR8.3 No escribe fechas.** La `fecha de expedición planificada` queda intacta
+  en ambos lados (invariante NFR7); no existe "fecha de alisto".
+- **FR8.4 Handoff a Planificación.** Tras las dos escrituras, el pedido queda
+  **alistado**; **Planificación lee de la tabla del OMS** (no del WMS) para armar
+  el viaje. El armado del viaje NO es del OMS.
 
-> **Corrección de v2 mantenida**: se elimina por completo el antiguo
-> requerimiento de "inserción al Lago de Datos". El OMS escribe a nivel WMS/EFLOW.
+> **Correcciones mantenidas**: se elimina el antiguo "Lago de Datos". Y
+> **(D6 SUPERSEDE)**: el alcance ya no es "solo cambiar campos en el WMS y hasta
+> ahí"; el OMS **persiste su propia tabla de pedidos** como superficie de handoff.
 
 ### FR9 — Simulador (configurador de simulaciones)
 
@@ -405,11 +430,12 @@ simulaciones de priorización, manual o automáticamente.
 
 ## Restricciones
 
-- **C1 — Alcance WMS/EFLOW**: el OMS lee y escribe **solo** a nivel del
-  WMS/EFLOW (estado/situación + prioridad). No toca el WMH ni las intermedias;
-  termina en "alistado".
+- **C1 — Doble escritura (D6)**: el OMS **lee** del WMS/EFLOW, **persiste** el
+  pedido priorizado en su **tabla propia** (esquema OMS — superficie de handoff) y
+  **cambia la `situación` en el WMS/EFLOW** (disparo de picking). No toca el WMH.
 - **C2 — El OMS no arma el viaje**: el armado del viaje/ruta es de
-  Planificación/TMS; el OMS deja el pedido alistado y hace el handoff.
+  Planificación/TMS, que lee la **tabla del OMS**; el OMS deja el pedido alistado
+  y hace el handoff.
 - **C3 — El OMS no escribe fechas**: usa la fecha de entrega como insumo.
 - **C4 — Stack oficial Intelix**: AWS (serverless), **Python + Lambdas** (backend),
   **React** (frontend), **PostgreSQL/Aurora**, plantillas SAM. Solo Intelix
@@ -497,3 +523,10 @@ prioridades, score-vs-filtro, cortes, viaje cliente retira, gap peso/volumen) y 
 bloquea la aprobación de estos requerimientos. **C2** (dónde vive el motor de
 reglas: portar el AST TS→Python para un motor compartido OMS+TMS, o motor nuevo en
 Python, con tests de regresión sobre Liquidaciones) se resuelve en Domain Design.
+
+**Consecuencia de D6 para Domain Design**: la **tabla de pedidos propia del OMS**
+(esquema OMS de `logistica_olo`) pasa a ser una entidad/tabla explícita del OMS
+—superficie de handoff a Planificación—, además de las que ya figuraban
+(`route_dispatch_schedule`, `order_priority_*`). Reconciliar su nombre, columnas
+(prioridad, status, situación, referencia al pedido del WMS) y su relación con
+`wms_expediciones` en Domain Design.

@@ -4,15 +4,12 @@
 > 2026-08-26 (ver `requirements.md` → Actores) más el actor no-humano
 > **Sistema/Motor OMS** para las capacidades automáticas.
 
-## P1 — Operador de Despacho
+## P1 — Operador de Despacho `[RETIRADO del alcance del OMS por D5]`
 
-- **Quién es**: usuario operativo que mantiene el calendario de rutas y días de
-  despacho.
-- **Objetivo**: que el motor tenga una fuente fiable de cuándo despacha cada
-  ruta.
-- **Contexto**: el calendario es por cliente/compañía; su **fuente de verdad es
-  el TMS**, el OMS lo consume (CRUD gated).
-- **Dolor**: hoy el ruteo/calendario se maneja manualmente y disperso.
+> **Persona retirada del OMS.** Sostenía el Calendario de Rutas (E8/US28–US29),
+> eliminado por D5 (ruteo dinámico multi-fuente: las rutas dejan de ser fijas).
+> El manejo de rutas pasa a **Planificación** (intent `260825-route-planning-reqs`),
+> no al OMS. Se conserva aquí solo como marca de deprecación.
 
 ## P2 — Administrador de Módulo
 

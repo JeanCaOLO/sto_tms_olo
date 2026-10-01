@@ -112,3 +112,18 @@ corregido?
   del handoff a Planificación.
 - C2 (motor de reglas: portar AST TS→Python vs. motor nuevo) NO se decide aquí;
   es de domain-design.
+
+## Consolidated Summary Confirmation
+
+Resumen del requirements.md v3 (re-corrida por el pivote WMH), confirmado en
+conversación: reemplazo del WMH desde la salida (D1); FR12 y rol Operador de
+Despacho retirados, E8/US28–US29 fuera (D5); multi-compañía por scope
+CUSTOMER→WAREHOUSE→COUNTRY→GLOBAL en Lambdas compartidas (C3-SUPERSEDE); rediseño
+del flujo en alcance (D4); stack Python/Lambdas confirmado (C1); flujo de dos
+escrituras OMS→Planificación con tabla de pedidos propia del OMS como superficie
+de handoff (D6). C2 (motor de reglas compartido OMS+TMS) diferido a domain-design;
+OQ-8 (gap peso/volumen) abierta. Petición de secuencia anotada: rebanada delgada
+de las 2 reglas de 1ª entrega en domain-design. Sensores: required-sections PASS,
+upstream-coverage PASS.
+
+[Answer]: Looks correct
