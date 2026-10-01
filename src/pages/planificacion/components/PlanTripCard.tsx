@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import CapacityBar from './CapacityBar';
 import TripMapa, { type ParadaMapa } from './TripMapa';
 import ParadaModal from './ParadaModal';
+import { coloresPorPunto } from '../colores-parada';
 import type { PlanStop, PlanTrip } from '../planes-types';
 
 interface Props {
@@ -28,6 +29,10 @@ export default function PlanTripCard({ trip, indice, zonaNombre, editable, desti
   const hayPeso = trip.total_weight != null;
   const hayVolumen = trip.total_volume != null;
 
+  // Color por punto de entrega: pedidos que van a la misma parada (mismas
+  // coordenadas) comparten color, tanto en la lista como en los pines del mapa.
+  const { colorDe, puntos } = useMemo(() => coloresPorPunto(trip.stops), [trip.stops]);
+
   // Paradas ubicadas para el mapa (solo las que tienen coordenadas).
   const paradasMapa = useMemo<ParadaMapa[]>(
     () =>
@@ -38,8 +43,9 @@ export default function PlanTripCard({ trip, indice, zonaNombre, editable, desti
           delivery_latitude: s.delivery_latitude as number,
           delivery_longitude: s.delivery_longitude as number,
           stop_number: s.stop_order,
+          color: colorDe.get(s.order_id),
         })),
-    [trip.stops],
+    [trip.stops, colorDe],
   );
 
   return (
@@ -63,8 +69,10 @@ export default function PlanTripCard({ trip, indice, zonaNombre, editable, desti
               )}
             </p>
           </div>
-          <span className="text-xs bg-teal-50 text-teal-700 font-semibold px-2.5 py-1 rounded-full shrink-0">
-            {trip.stops.length} {trip.stops.length === 1 ? t('planning.stopWord') : t('planning.stopsWord')}
+          <span className="text-xs bg-teal-50 text-teal-700 font-semibold px-2.5 py-1 rounded-full shrink-0 text-center leading-tight">
+            {puntos} {puntos === 1 ? t('planning.pointWord') : t('planning.pointsWord')}
+            <br />
+            {trip.stops.length} {t('planning.ordersWord')}
           </span>
         </div>
 
@@ -107,7 +115,11 @@ export default function PlanTripCard({ trip, indice, zonaNombre, editable, desti
               }}
               className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer rounded hover:bg-slate-50 px-1 -mx-1 py-0.5"
             >
-              <span className="w-5 h-5 flex items-center justify-center bg-teal-50 text-teal-700 rounded-full font-semibold shrink-0">
+              <span
+                className="w-5 h-5 flex items-center justify-center text-white rounded-full font-semibold shrink-0"
+                style={{ backgroundColor: colorDe.get(s.order_id) }}
+                title={t('planning.samePointHint')}
+              >
                 {s.stop_order}
               </span>
               <span className="truncate flex-1">

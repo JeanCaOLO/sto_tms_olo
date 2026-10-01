@@ -12,6 +12,7 @@ export interface ParadaMapa {
   delivery_longitude: number;
   stop_number: number;
   label?: string;
+  color?: string; // color del punto de entrega (pedidos del mismo punto = mismo color)
 }
 
 interface Props {
@@ -25,10 +26,10 @@ interface Props {
 const COLOR = '#0d9488'; // teal (entrega)
 const GEOMETRY_DEBOUNCE_MS = 350;
 
-const iconoParada = (numero: number) =>
+const iconoParada = (numero: number, color: string = COLOR) =>
   L.divIcon({
     className: '',
-    html: `<div style="width:22px;height:22px;border-radius:9999px;background:${COLOR};color:#fff;
+    html: `<div style="width:22px;height:22px;border-radius:9999px;background:${color};color:#fff;
       display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;
       border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.4);">${numero}</div>`,
     iconSize: [22, 22],
@@ -109,7 +110,7 @@ export default function TripMapa({ paradas, alturaClase = 'h-[220px]', onParadaC
           <Marker
             key={p.id}
             position={[p.delivery_latitude, p.delivery_longitude]}
-            icon={iconoParada(p.stop_number)}
+            icon={iconoParada(p.stop_number, p.color)}
             eventHandlers={{ click: () => onParadaClick?.(p.id) }}
           />
         ))}
