@@ -34,6 +34,9 @@ yarn-error.log*
 .env.*.local
 *.local
 
+# Buffer local de traspaso de mensajes a Kiro (scratch de sesión, no es artefacto del proyecto)
+/mensajes para kiro.md
+
 # OS / editor
 .DS_Store
 Thumbs.db
