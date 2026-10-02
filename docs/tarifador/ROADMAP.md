@@ -881,10 +881,12 @@ se arregla.** Es lo que evita que una corrección tape un síntoma en vez de la 
 
 # 8 · Liquidador automatizado sobre Aurora (diseño, 2026-10-02)
 
-> **Estado: DISEÑO PROPUESTO, PENDIENTE DE IMPLEMENTAR.** Cambia el modelo de las secciones 2.3, 2.4,
-> 2.13, 4.5 y 4.9: el liquidador deja de tener ruta, conductor y compañía propios y pasa a
-> **consumir** los viajes completados de guía de despacho. Las secciones anteriores describen el
-> estado previo y se reescriben al cerrar la implementación.
+> **Estado (2026-10-02): IMPLEMENTADO en `src/lib/tarifas` (ORM, borde y motor) y en
+> `backend/tarifas`; migración `sql/19` ESCRITA SIN APLICAR; backend SIN DESPLEGAR; pantallas
+> PENDIENTES (Kiro).** Ver §8.8 para retomar. Cambia el modelo de las secciones 2.3, 2.4, 2.13, 4.5
+> y 4.9: el liquidador deja de tener ruta, conductor y compañía propios y pasa a **consumir** los
+> viajes completados de guía de despacho. Las secciones anteriores describen el estado previo y se
+> reescriben cuando la UI esté hecha.
 
 ## 8.1 Qué cambia y por qué
 
@@ -932,7 +934,7 @@ Se declaran en `schema.ts` con `external: true`: el ORM las lee, **rechaza** ins
 | `partyVehicleType` | **Se elimina.** Tipo de camión = `vehicles.vehicle_type`; capacidad = `vehicles.capacity_*` |
 | `settlementParty` | Pasa a **perfil de cálculo**: `id`, `carrier_id uuid` (único), `status`, `notes`. Pierde nombre, NIT, contacto y clasificación (se leen de `carriers`). Se crea al configurar por primera vez un transportista |
 | `zoneGroup` | Se queda. Gana `zone_codes jsonb` (códigos de `zones` que agrupa), porque la zona ya no tiene `zone_group_id` |
-| `settlement` | Gana `trip_id uuid` (→ `routes.id`), `trip_edits jsonb` (valores PER_TRIP y devoluciones cargados), `superseded_by text`. Pierde `route_id`, `driver_id`, `truck_type_id` (están en `trip`). Índice **único parcial** `trip_id WHERE status <> 'Anulado'` |
+| `settlement` | Gana `trip_id uuid` (→ `routes.id`), `trip_info jsonb` (foto del viaje al emitir), `trip_edits jsonb` (`{ customVars }` cargadas; las devoluciones siguen en `returns`), `superseded_by text`. Pierde `route_id`, `driver_id`, `truck_type_id` (están en `trip_info`). `trip_number` y `settlement_date` salen del viaje. Índice **único parcial** `trip_id WHERE status <> 'Anulado'` |
 | Todas las `tarifas_*` | `country_id` pasa a `uuid` referenciando `countries` |
 
 ## 8.4 La vista `tarifas_v_viajes`
@@ -945,9 +947,11 @@ capacity_weight, capacity_volume, dest_zone_code, total_distance, total_stops, c
 total_weight, total_volume, actual_start_time, actual_end_time, duration_hours, guide_count,
 return_count, settlement_id (vigente, nulo si no está liquidado)`.
 
-El estado se normaliza en la vista (`lower(status) IN ('completada','completed','completado')` →
-`completed`): en la base real hoy solo existe `completada`, pero el resto del código usa otras
-variantes.
+El estado se normaliza en la vista (`completada`/`completed`/`completado` → `completed`;
+`planificada`… → `planned`; `en_ruta`… → `in_progress`; `anulado`… → `cancelled`): en la base real
+hoy solo existen `completada`, `planificada` y `en_ruta`, pero el resto del código usa otras
+variantes. También expone `dest_zone_id` y `dest_zone_name`. La vista hermana
+`tarifas_v_devoluciones` agrega `route_id` a `returns` (que apunta a la guía, no al viaje).
 
 ## 8.5 Del viaje al motor (`tripContext.ts`, reemplaza `routeTrip.ts`)
 
@@ -986,3 +990,55 @@ verdad. Externas → solo `GET` (405 si se escribe). FK → 409. Permiso: módul
 - **Liquidar viaje:** datos del viaje en solo lectura + variables PER_TRIP + devoluciones; proforma; emitir / re-liquidar.
 - **Flota propia / externa:** lista de `carriers`; solo variables, estructura de costos y tarifarios.
 - **Probador:** "desde un viaje" en vez de "desde una ruta".
+
+El contrato exacto (funciones, firmas, qué quitar) está en el mensaje del 2026-10-02 en
+`.agents/CANAL.md` ("Liquidador: viajes completados de guía de despacho vía ORM").
+
+## 8.8 Estado y cómo retomar (2026-10-02)
+
+**Hecho y commiteado en `dylan-tarifas` (sin push):** `738f5ca` ORM · `02ca4b2` borde y motor ·
+`d31e2c0` backend · `9bfd027` migración + registro de trabajo · `8ff7d2e` pedido a Kiro ·
+y el cierre de documentación. Detalle de cambios: `docs/work/2026-10/2026-10-02-tarifador-aurora-viajes.md`.
+
+**Puntos de entrada del código nuevo** (`src/lib/tarifas/`):
+
+| Para | Usar |
+|---|---|
+| Calcular un viaje | `tripSettlement.ts` → `calculateTrip(trip, edits, opts)` |
+| Bandeja / detalle de viajes | `tripsDataSource.ts` → `listLiquidableTrips`, `listTrips`, `getTrip`, `listTripGuides`, `listTripReturns` |
+| Emitir / re-liquidar / historial | `settlementsDataSource.ts` → `emitSettlement`, `reliquidateSettlement`, `listSettlements`, `listTripSettlements`, `updateSettlementStatus` |
+| Transportistas + perfil de cálculo | `partiesDataSource.ts` → `listCarrierProfiles`, `ensurePartyProfile` |
+| Zonas, grupos, países, costos | `localRulesDataSource.ts` |
+| Tipos de camión | `vehiclesDataSource.ts` → `listTruckTypes` |
+| Esquema (única fuente) | `data/schema.ts` → `npm run tarifas:ddl` + `npm run tarifas:manifest` |
+
+**Pendiente, en orden:**
+
+1. **Pantallas (Kiro).** 17 archivos de `src/pages` / `src/components` no compilan contra el modelo
+   nuevo. Contrato en CANAL. Verificación: `npx tsc --noEmit --project tsconfig.app.json` sin errores.
+2. **Aplicar la migración** (con autorización del usuario; Aurora encendido L–V 04:45–17:00 CR,
+   túnel `scripts/tunel-aurora.ps1`):
+   `node --env-file=.env.local scripts/run-migration.mjs sql/19_tarifas_aurora.sql --execute`.
+   Ya pasó dry-run y una verificación de las vistas contra la base real con ROLLBACK.
+3. **Desplegar `backend/tarifas`** (solo Intelix): `npm run tarifas:manifest`, luego
+   `cd backend/tarifas && sam build && sam deploy --config-env dev`. Local: `npm run api:local`.
+4. **Activar Aurora en el front:** `VITE_TARIFAS_DATASOURCE=postgres` (URL por defecto
+   `${VITE_API_BASE}/api`).
+5. **Configurar Costa Rica en el liquidador** (datos de negocio, no los inventamos):
+   parámetros de costo de flota propia (sin ellos el liquidador no calcula y lo avisa), reglas y
+   tarifarios con clave por **`destZone`** (el viaje no trae origen), y variables personalizadas
+   por transportista (`custom:peajes`, `custom:recolectas`…). La migración solo siembra redondeo
+   (2, HALF_UP), pernocta (24 h) y política de margen.
+6. **Datos del catálogo** (se corrigen en Catálogos, no en el liquidador):
+   - zona "Rural" sin `code`: sus viajes quedan bloqueados ("la zona de destino no existe");
+   - Costa Rica figura con moneda **USD**: se liquida en la moneda del catálogo (decisión del usuario);
+   - Venezuela tiene código `VN` (la semilla local usa `VE`; no afecta a Aurora).
+7. **Decisiones** de §8.1 a proponer para `aidlc/spaces/default/memory/project.md ## Decided`
+   (solo con aprobación del usuario).
+8. **Reescribir §2.3, §2.4, §2.13, §4.5 y §4.9** de esta guía cuando la UI esté hecha.
+
+**Abiertos sin decidir:** multi-tenancy (las `tarifas_*` no tienen `organization_id`, ver D4);
+si la flota propia necesita un costo distinto por vehículo (hoy: estructura de costos del perfil
+o parámetros del país); qué hacer con un viaje que vuelve de `completed` a otro estado teniendo
+una liquidación vigente (hoy la liquidación queda; no se puede re-liquidar hasta que vuelva a
+completado).
