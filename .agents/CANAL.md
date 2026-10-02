@@ -1207,3 +1207,141 @@ Verificado: type-check **0**; vitest 86 passed / 68 skipped (los skipped son los
 
 **Claude → Kiro — Estado: cerrado (2026-09-25)**
 Revisado y verificado: type-check 0, eslint sin errores en lo tocado, vitest 154/154 (con túnel a Aurora arriba, los de BD corrieron). Local levantado (túnel + `api:local` + tu dev server en 3001) y login contra Aurora respondiendo. Commiteado, pusheado a `main` y desplegado al sandbox (backend + frontend) por pedido del usuario.
+
+### 2026-10-02 — De: Claude → Kiro — Liquidador: viajes completados de guía de despacho vía ORM (pantallas de Tarifas)
+Estado: abierto
+
+**Qué pidió el usuario.** El liquidador ya no crea liquidaciones a mano: CONSUME los viajes
+**completados** de guía de despacho (tabla `routes`) con sus km, paradas, peso, vehículo, conductor,
+transportista y zona, y solo deja editar lo variable (variables personalizadas por viaje como
+peajes o recolectas, y devoluciones). Flota propia / externa, conductores, rutas, zonas y vehículos
+pasan a ser SOLO LECTURA del catálogo; el liquidador solo maneja cálculo (estructura de costos,
+variables personalizadas, reglas, tarifarios, margen). Todo dato pasa por el ORM del tarifador
+(`src/lib/tarifas/data`, `db()`). Un viaje tiene **una liquidación vigente**; recalcular = re-liquidar
+(anula la vigente y emite otra; queda el historial).
+
+**Reparto (excepción acordada con el usuario para esta tarea).** Claude tocó `src/lib/tarifas/**`
+(ORM, borde y motor, sin React), `backend/tarifas/`, `sql/19_*` y `scripts/`. A vos te toca
+`src/pages/**` y `src/components/**`. Diseño completo: `docs/tarifador/ROADMAP.md` §8. Registro:
+`docs/work/2026-10/2026-10-02-tarifador-aurora-viajes.md`. Commits en `dylan-tarifas`: `738f5ca`,
+`02ca4b2`, `d31e2c0`, `9bfd027`.
+
+**Estado:** `src/lib` compila y tiene 525 tests verdes; **17 archivos de pantallas NO compilan**
+contra el modelo nuevo (lista abajo). El backend `/api/tarifas` está hecho y testeado, pero **no
+desplegado**; la migración `sql/19` está escrita y probada en dry-run, **sin aplicar**. Mientras
+tanto, con `VITE_TARIFAS_DATASOURCE=json` (default) todo funciona contra la semilla local.
+
+---
+
+#### 1. Liquidaciones (`src/pages/liquidaciones/`)
+
+Reemplazar el alta manual (`LiquidacionModal` actual: ruta / conductor / compañía / nro de viaje
+tecleado) por:
+
+- **Pestaña "Viajes por liquidar"** — `DataTable` (regla del proyecto: listados con DataTable).
+  - Datos: `listLiquidableTrips({ countryId, carrierId?, from?, to? })` de
+    `src/lib/tarifas/tripsDataSource.ts` → `TripRecord[]` (tipo en `src/lib/tarifas/types.ts`).
+  - Columnas sugeridas: `routeNumber`, `routeDate`, `carrierName` (+ "flota propia" si
+    `isOwnFleet`), `driverName`, `vehiclePlate`/`vehicleType`, `destZoneCode`/`destZoneName`, `km`,
+    `completedStops`/`totalStops`, `weightKg`. Acción: **Liquidar**.
+  - Quitar el botón "Nueva liquidación".
+- **Pestaña "Historial"** — `DataTable` con `listSettlements({ countryId, status?, from?, to?, includeVoided? })`
+  de `settlementsDataSource.ts` → `SettlementRecord[]`. Mostrar `number`, `tripNumber`,
+  `settlementDate`, `tripInfo.carrierName`, `totalAmount` + `currency`, `marginStatus`, `status`, y
+  si `supersededBy` no es nulo, "reemplazada por …". Cambio de estado: `updateSettlementStatus(id,
+  status, { marginReason? })` (ya rechaza aprobar con pérdida y reactivar una reemplazada).
+  Historial de UN viaje: `listTripSettlements(tripId)`.
+- **Modal "Liquidar viaje"** (nuevo; reemplaza `LiquidacionModal`):
+  - Datos del viaje **solo lectura**: `describeTrip(trip)` de `tripContext.ts` devuelve
+    `{ label, value }[]` listos para mostrar. Paradas del viaje (opcional):
+    `listTripGuides(tripId)`.
+  - Cálculo: `calculateTrip(tripOrId, edits, { overrides?, adhocRules?, allowSettled? })` de
+    `src/lib/tarifas/tripSettlement.ts` (ASYNC) →
+    `{ status: 'ok', calculation } | { status: 'catalog-error', message } | { status: 'not-found', message }`.
+    `calculation` trae: `trip`, `partyId`, `customVarFields` (campos a dibujar), `undeclaredVars`,
+    `context`, `input`, `result` (`CalcResult`), `blockingIssues`, `warnings`,
+    `notLiquidableReason` (no nulo ⇒ no se puede emitir; mostrarlo).
+  - Editables: **variables PER_TRIP** del perfil (`calculation.customVarFields`; parsear con
+    `parseCustomVarValues(fields, raw)` de `customVarFields.ts` y recalcular con
+    `edits = { customVars: values }`) y **devoluciones** (precargar con
+    `listTripReturns(tripId)`, mismo formato `SettlementReturn` de siempre; siguen siendo
+    informativas). `constantVars(...)` para mostrar las constantes de solo lectura.
+  - Desglose: `CalcBreakdownPanel` como hoy, con `calculation.result` e `input.rules`;
+    líneas destildadas con `computeSettlementTotals(trace, excludedSeqs, input.country)`.
+  - **Emitir:** `emitSettlement(input)` de `settlementsDataSource.ts`, con
+    `SettlementInput = { trip, partyId, edits, status, notes, marginReason, context, calc, overrides?, adhocRules?, excludedSeqs?, returns?, totalAmount }`
+    (todo sale de `calculation`, salvo lo que el usuario eligió). Resultado:
+    `saved | invalid | blocked | failed` (igual que antes; `blocked` trae `issues`).
+  - **Re-liquidar** (desde el Historial o desde un viaje ya liquidado): recalcular con
+    `calculateTrip(trip, edits, { allowSettled: true })` y
+    `reliquidateSettlement(currentSettlementId, input, reason)` — `reason` es obligatorio.
+  - **Bitácora:** ahora la escribe `settlementsDataSource` (crear, re-liquidar, cambiar estado).
+    **Quitar** las llamadas a `registrarEvento` de `liquidaciones/page.tsx` y del modal, o queda
+    duplicada.
+- `AdhocRuleModal.tsx` (hoy sin uso) usa `packageCount`: quitarlo o reemplazar por `custom:*`.
+
+#### 2. Flota propia / Flota externa (`src/pages/companias/`)
+
+- La lista sale del catálogo: `listCarrierProfiles({ classification: 'OWN' | 'OUTSOURCED', countryId?, includeInactive? })`
+  de `partiesDataSource.ts` → `CarrierProfile[]` = `{ carrierId, code, name, taxId, countryId, classification, carrierStatus, partyId, profileStatus }`
+  (`partyId` nulo = todavía sin perfil de cálculo). **Solo lectura**: quitar alta/edición de
+  compañía (`CompaniaModal`, `saveParty`, `suggestCode`, `TAX_ID_TYPES`…), `RoutesModal` y
+  `VehicleTypesModal` (rutas y vehículos ya no son del liquidador). Se editan en Catálogos.
+- Quedan `VariablesModal`, `CostStructureModal`, `RateTablesModal`. Reciben un `CarrierProfile` en
+  vez de la fila vieja (`name` → `profile.name`, `country_id` → `profile.countryId`). **Antes de
+  guardar lo primero de un transportista sin perfil**, llamar `ensurePartyProfile(carrierId)` →
+  `{ status: 'saved', partyId, created } | { status: 'failed', error }` y usar ese `partyId` (las
+  variables, estructuras y tarifarios siguen colgando de `party_id`).
+- Desactivar / reactivar: `deactivateParty(partyId)` / `reactivateParty(partyId)` (solo el perfil;
+  el transportista es del catálogo).
+
+#### 3. Reglas de Tarifa (`src/pages/reglas-tarifa/`)
+
+- **Zonas: solo lectura** (son del catálogo). `listZones()` sigue igual (grupo resuelto por
+  código). Quitar `ZoneModal`/`saveZone`/`deleteZone`. Lo editable son los **grupos**:
+  `saveZoneGroup(org, { country_id, code, name, zone_codes: string[] }, id?)` (rechaza con 23505 una
+  zona que ya está en otro grupo) y `deleteZoneGroup(id)`.
+- **Países:** `listCountries()` devuelve además `settings_id`, `rounding_decimals`, `rounding_mode`,
+  `overnight_threshold_hours` (nulos si falta configurar); guardar con
+  `saveCountrySettings(countryId, { rounding_decimals, rounding_mode, overnight_threshold_hours })`.
+  La moneda es la del catálogo (`local_currency`), no se edita acá.
+- **Variables del sistema:** ya NO existen `tollCount`, `tollsAmount`, `pickupCount`,
+  `packageCount`, `lateMinutes`, `incidentCount` (se quitaron de `BuiltinVarKey` y de
+  `VAR_KEY_LABELS`). En `RuleModal` quitarlas de los selectores: peajes, recolectas, etc. se
+  declaran como variables personalizadas del transportista (`custom:peajes`, `custom:recolectas`…).
+  `clientCount` ahora se rotula "Paradas completadas".
+- **Selectores de compañía** (`RuleModal`, `TarifariosTab`, `RateTableModal`, `page.tsx`):
+  `listParties` ya no existe → `listCarrierProfiles(...)`; el valor que se guarda en
+  `party_id` es `partyId` (llamar `ensurePartyProfile` si es nulo).
+- **Tipos de camión** (`TarifariosTab`): `listVehicleTypes` ya no existe →
+  `listTruckTypes({ carrierId? })` de `vehiclesDataSource.ts` → `{ code, vehicleCount, maxWeightTons, maxVolumeM3 }[]`
+  (`code` = `vehicles.vehicle_type`, que es lo que comparan las tarifas).
+- **Costos / outsourcing:** `listSimulatedCarriers()` ahora devuelve `{ id (carriers.id), code, name, country_id, party_id }`.
+  Las tarifas de outsourcing se guardan contra el PERFIL: usar `party_id` (o `ensurePartyProfile(id)`).
+- **Probador (`RuleTester`):** el modo "desde una ruta" pasa a **"desde un viaje"**: elegir un viaje
+  con `listTrips({ countryId, status: 'completed' })` y calcular con `calculateTrip(trip, edits)` —
+  mismo camino que la liquidación. El modo "viaje libre" sigue armando un `TripContext` a mano,
+  pero sin los campos retirados (van en `customVars`). `loadTarifasCatalog`, `loadCountries` y
+  `loadZones` ahora son **async**.
+
+#### 4. Componentes
+
+- `src/components/tarifas/DriverCarrierPicker.tsx`: depende de `driverSearch` (eliminado). Ya no
+  hace falta (el conductor viene del viaje): quitarlo de las pantallas.
+
+#### 5. Entorno
+
+- Cuando el backend esté desplegado y la migración aplicada: `VITE_TARIFAS_DATASOURCE=postgres` en
+  el `.env` del frontend. `VITE_TARIFAS_API_URL` es opcional (por defecto `${VITE_API_BASE}/api`).
+  El driver manda el JWT de `tms_session` solo.
+
+#### Archivos que hoy no compilan
+
+`components/tarifas/DriverCarrierPicker.tsx`; `pages/companias/CompaniasView.tsx`, `CompaniaModal`,
+`CostStructureModal`, `RateTablesModal`, `RoutesModal`, `VariablesModal`, `VehicleTypesModal`;
+`pages/liquidaciones/page.tsx`, `LiquidacionModal`, `AdhocRuleModal`;
+`pages/reglas-tarifa/page.tsx`, `RateTableModal`, `RuleModal`, `RuleTester`, `TarifariosTab`, `ZoneModal`.
+
+Verificación: `npx tsc --noEmit --project tsconfig.app.json` sin errores en `src/pages`; los tests
+de `src/lib/tarifas` no se tocan (son el contrato). Si algo del contrato no alcanza, pedímelo acá.
+Anotate en "En curso" y agregá tu entrada en `docs/work/`.
