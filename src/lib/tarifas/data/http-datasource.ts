@@ -40,6 +40,26 @@ export interface HttpDataSourceOptions {
   fetchImpl?: typeof fetch;
 }
 
+/**
+ * Lee el error de la API. El backend (`tms_handler`) responde `{ data: null, error: { message, code? } }`;
+ * se aceptan también `{ error: "texto", code }` y `{ detail }` por compatibilidad.
+ */
+async function readError(response: Response, fallback: string): Promise<{ message: string; code?: string }> {
+  try {
+    const body = (await response.json()) as {
+      detail?: string;
+      code?: string;
+      error?: string | { message?: string; code?: string } | null;
+    };
+    const error = body.error;
+    const message = typeof error === 'string' ? error : error?.message ?? body.detail ?? fallback;
+    const code = (typeof error === 'object' && error ? error.code : undefined) ?? body.code;
+    return { message, ...(code ? { code } : {}) };
+  } catch {
+    return { message: fallback };
+  }
+}
+
 interface TxOperation {
   op: 'insert' | 'update' | 'delete';
   table: string;
@@ -97,13 +117,7 @@ export class HttpDataSource implements DataSource {
   }
 
   private async errorBody(response: Response, entity: EntityName): Promise<{ message: string; code?: string }> {
-    const fallback = `${entityDef(entity).label}: la API respondió ${response.status}.`;
-    try {
-      const body = (await response.json()) as { detail?: string; error?: string; code?: string };
-      return { message: body.detail ?? body.error ?? fallback, code: body.code };
-    } catch {
-      return { message: fallback };
-    }
+    return readError(response, `${entityDef(entity).label}: la API respondió ${response.status}.`);
   }
 
   private assertWritable(entity: EntityName, operation: string): void {
@@ -178,15 +192,10 @@ export class HttpDataSource implements DataSource {
       });
       if (!response.ok) {
         // Mismo mapeo de errores que una escritura suelta: la UI distingue "en uso" de "duplicado".
-        let body: { detail?: string; error?: string; code?: string } = {};
-        try {
-          body = await response.json();
-        } catch {
-          // cuerpo vacío o no JSON: queda el mensaje genérico
-        }
-        const message = `${body.detail ?? body.error ?? `La API respondió ${response.status}`}. No se guardó nada.`;
+        const { message: detalle, code } = await readError(response, `La API respondió ${response.status}`);
+        const message = `${detalle} No se guardó nada.`;
         if (response.status === 409) {
-          throw body.code === '23505' ? new UniqueViolationError(message) : new ForeignKeyError(message);
+          throw code === '23505' ? new UniqueViolationError(message) : new ForeignKeyError(message);
         }
         throw new Error(`La transacción falló: ${message}`);
       }

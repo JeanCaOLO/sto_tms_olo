@@ -59,6 +59,20 @@ describe('HttpDataSource', () => {
     await expect(uq.insert('settlement', {})).rejects.toThrow('liquidación vigente');
   });
 
+  it('entiende la forma de error del backend: { data: null, error: { message, code } }', async () => {
+    const uq = new HttpDataSource({
+      baseUrl: 'https://api',
+      fetchImpl: fakeFetch(409, { data: null, error: { message: 'duplicate key value violates unique constraint', code: '23505' } }),
+    });
+    await expect(uq.insert('settlement', {})).rejects.toThrow(UniqueViolationError);
+
+    const tx = new HttpDataSource({
+      baseUrl: 'https://api',
+      fetchImpl: fakeFetch(409, { data: null, error: { message: 'viola la FK', code: '23503' } }),
+    });
+    await expect(tx.transaction(async (t) => { await t.delete('rateTable', 'x'); })).rejects.toThrow(ForeignKeyError);
+  });
+
   it('una transacción manda todas las escrituras juntas a /tarifas/tx', async () => {
     const fetchImpl = fakeFetch(200, []);
     const ds = new HttpDataSource({ baseUrl: 'https://api', fetchImpl });

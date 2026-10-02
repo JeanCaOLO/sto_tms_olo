@@ -63,8 +63,10 @@ def _database_error(err: pg8000.dbapi.DatabaseError) -> HttpError:
     detail = err.args[0] if err.args else None
     if not isinstance(detail, dict):
         return HttpError(500, str(err))
-    status = 409 if str(detail.get("C", "")).startswith(INTEGRITY_CLASS) else 500
-    return HttpError(status, detail.get("M", str(err)))
+    sqlstate = str(detail.get("C", ""))
+    if sqlstate.startswith(INTEGRITY_CLASS):
+        return HttpError(409, detail.get("M", str(err)), code=sqlstate)
+    return HttpError(500, detail.get("M", str(err)))
 
 
 def _live_connection():

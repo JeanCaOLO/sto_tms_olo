@@ -20,11 +20,12 @@ backend/
   eflow/            /api/health, /api/viajes..., /api/catalogos/...   Lectura de EFLOW por país (modo mock por defecto)
   admin/            /api/v1/admin/users|roles|permissions, /api/v1/me/permissions   Usuarios, roles y matriz de permisos
   planning/         /api/v1/planificacion/pedidos   Pedidos alistados por fecha de entrega (insumo de Planificación)
+  tarifas/          /api/tarifas/{table}[/{id}], /api/tarifas/tx   Backend del ORM del liquidador (viajes a liquidar + datos de cálculo)
   local/            serve.py (Lambdas locales en :4000) y create_admin.py (primer administrador)
   tests/            pytest (sin AWS ni BD: todo con dobles)
 ```
 
-Cada módulo es un stack SAM propio (`template.yaml` + `samconfig.toml` con dev/qa/prod) y cuelga sus rutas del API de `common-services` con `Fn::ImportValue`. Stacks: `<env>-tms-secrets`, `<env>-tms-common-services`, `<env>-tms-auth`, `<env>-tms-data`, `<env>-tms-context`, `<env>-tms-eflow`.
+Cada módulo es un stack SAM propio (`template.yaml` + `samconfig.toml` con dev/qa/prod) y cuelga sus rutas del API de `common-services` con `Fn::ImportValue`. Stacks: `<env>-tms-secrets`, `<env>-tms-common-services`, `<env>-tms-auth`, `<env>-tms-data`, `<env>-tms-context`, `<env>-tms-eflow`, `<env>-tms-admin`, `<env>-tms-planning`, `<env>-tms-tarifas`.
 
 ## Mapa Express → Lambda
 
@@ -71,6 +72,24 @@ Mientras no haya red desde AWS hacia los SQL Server de EFLOW, el stack `eflow` s
 ## Planificación: pedidos a planificar
 
 `GET /api/v1/planificacion/pedidos?fecha_entrega=YYYY-MM-DD` (sin parámetro = mañana, hora de Costa Rica). Devuelve los pedidos de `wms_expediciones` con `situacion = 'GENE'` (alistados por el OMS), sin viaje WMH, cuya `fecha_planificada` (fecha de entrega comprometida) es esa fecha. `delivery_zone` = código de ruta del WMS. **Gap:** `wms_expediciones` no trae peso ni volumen (vienen de `EXPEDICIONESCABECERA` en EFLOW): se devuelven `null` con `capacity_known: false`, nunca 0. Dirección y coordenadas salen del punto de entrega por defecto del cliente final, si existe.
+
+## Tarifas / liquidador
+
+`backend/tarifas/` es el backend del ORM del tarifador (`src/lib/tarifas/data`, driver `HttpDataSource`): el frontend no habla SQL ni usa `/api/data` para el liquidador; todo lo que lee o escribe pasa por este contrato ([ROADMAP §8](../docs/tarifador/ROADMAP.md)).
+
+| Ruta | Respuesta |
+|---|---|
+| `GET /api/tarifas/{table}?q={where,orderBy,limit,offset}` | `Row[]` (tope 5000 filas) |
+| `GET /api/tarifas/{table}/{id}` | `Row` o 404 |
+| `POST /api/tarifas/{table}` | `Row` (genera el id `<prefijo>_…` si no viene) |
+| `PATCH /api/tarifas/{table}/{id}` | `Row` (el id no se cambia) |
+| `DELETE /api/tarifas/{table}/{id}` | 204 |
+| `POST /api/tarifas/tx` `{ops:[{op,table,id?,values?}]}` | `Row[]`, todo o nada |
+
+- **Lista blanca:** `tarifas/src/schema_manifest.json`, GENERADO desde `src/lib/tarifas/data/schema.ts` con `npm run tarifas:manifest` (un test del frontend falla si quedó desactualizado). No se edita a mano.
+- **Entidades externas** (vista `tarifas_v_viajes` = viajes de guía de despacho, `carriers`, `drivers`, `vehicles`, `zones`, `countries`, `dispatch_guides`, vista `tarifas_v_devoluciones`): solo `GET`; escribir es **405**. `tarifas_audit_log` es append-only (update/delete → 405).
+- **Permisos:** módulo `tarifas` (`view` para leer; `create`/`edit`/`delete` para escribir). Filtra por los países del rol en toda tabla con `country_id`; las filas sin país (p. ej. un transportista sin país) se ven.
+- **Errores de integridad:** 409 con `error.code` = SQLSTATE (`23503` FK, `23505` unicidad: p. ej. "el viaje ya tiene una liquidación vigente"). `tms_common` propaga ahora ese código en todos los módulos.
 
 ## Puntos de entrega
 
@@ -127,6 +146,7 @@ cd ../context && sam build && sam deploy --config-env dev
 cd ../eflow   && sam build && sam deploy --config-env dev
 cd ../admin   && sam build --use-container && sam deploy --config-env dev
 cd ../planning && sam build && sam deploy --config-env dev
+cd ../tarifas  && sam build && sam deploy --config-env dev   # antes: npm run tarifas:manifest
 ```
 
 El output `ApiUrl` de `common-services` es el valor de `VITE_API_BASE` del frontend (`deploy-frontend.ps1 -ApiBase <ApiUrl>`). En qa/prod, cambiar `CorsAllowOrigin` al dominio de Amplify en `common-services/samconfig.toml`.
