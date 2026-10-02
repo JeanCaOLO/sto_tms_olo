@@ -34,7 +34,8 @@ export async function fetchPedidosParaPlanificar(
   try {
     const { ok, body } = await apiFetch(`/v1/planificacion/pedidos?fecha_entrega=${fechaEntrega}`);
     const data = body?.data as PedidoRow[] | undefined;
-    if (!ok || !Array.isArray(data) || data.length === 0) {
+    // Solo cae a mock si el backend no respondió; un día real sin pedidos = 0 (no mock).
+    if (!ok || !Array.isArray(data)) {
       return getFallbackPedidosParaPlanificar(fechaEntrega);
     }
     return data.map(normalizar);
