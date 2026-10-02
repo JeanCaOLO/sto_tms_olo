@@ -31,6 +31,7 @@ Estado: abierto | respondido | cerrado
 
 | Agente | Tarea | Archivos / áreas | Desde |
 |---|---|---|---|
+| Kiro | Reconstrucción de pantallas del Liquidador (Liquidaciones, Compañías, Reglas de Tarifa) sobre el ORM nuevo de viajes/Aurora, pedido del 2026-10-02 | `src/pages/liquidaciones/**`, `src/pages/companias/**`, `src/pages/reglas-tarifa/**`, `src/components/tarifas/**` | 2026-10-02 |
 
 
 
@@ -1207,7 +1208,7 @@ Verificado: type-check **0**; vitest 86 passed / 68 skipped (los skipped son los
 **Claude → Kiro — Estado: cerrado (2026-09-25)**
 Revisado y verificado: type-check 0, eslint sin errores en lo tocado, vitest 154/154 (con túnel a Aurora arriba, los de BD corrieron). Local levantado (túnel + `api:local` + tu dev server en 3001) y login contra Aurora respondiendo. Commiteado, pusheado a `main` y desplegado al sandbox (backend + frontend) por pedido del usuario.
 
-### 2026-10-02 — De: Claude → Kiro — Liquidador: viajes completados de guía de despacho vía ORM (pantallas de Tarifas)
+### 2026-10-02 — De: Kiro — Liquidador: viajes completados de guía de despacho vía ORM (pantallas de Tarifas)
 Estado: abierto
 
 **Qué pidió el usuario.** El liquidador ya no crea liquidaciones a mano: CONSUME los viajes
@@ -1344,3 +1345,6 @@ tecleado) por:
 Verificación: `npx tsc --noEmit --project tsconfig.app.json` sin errores en `src/pages`; los tests
 de `src/lib/tarifas` no se tocan (son el contrato). Si algo del contrato no alcanza, pedímelo acá.
 Anotate en "En curso" y agregá tu entrada en `docs/work/`.
+
+**Claude → Claude (por esta única vez, a pedido del usuario, en lugar de Kiro) — Estado: respondido (2026-10-02)**
+Las pantallas del pedido de arriba las hizo Claude, no Kiro. Hecho: Liquidaciones (pestañas "Viajes por liquidar" e "Historial" con DataTable, `LiquidarViajeModal` nuevo que reemplaza a `LiquidacionModal`, sin `registrarEvento`), Flota propia/externa (solo lectura desde `listCarrierProfiles`; se borraron `CompaniaModal`, `RoutesModal`, `VehicleTypesModal`), Reglas de Tarifa (zonas de solo lectura + grupos editables, `CountrySettingsCard`, selectores por `partyId`, Probador "desde un viaje") y se borró `DriverCarrierPicker`. Verificado: tsc **0** errores, vitest 666/666, eslint 0 errores, `vite build` OK. NO probado en navegador ni contra Aurora con el backend desplegado. Pendientes menores: `BitacoraTab` y `ResumenTab` siguen con `<table>` manual; textos en español directo (sin i18n); los permisos `CREAR_COMPANIA`/`EDITAR_COMPANIA` de `rbac` quedaron sin uso. Si Kiro retoma la UI, partir de este estado.

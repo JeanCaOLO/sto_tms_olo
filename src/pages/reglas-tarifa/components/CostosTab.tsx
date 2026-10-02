@@ -3,12 +3,15 @@ import Card from '../../../components/base/Card';
 import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
+import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
 import HelpButton from './HelpButton';
 import ImportRatesModal from './ImportRatesModal';
 import {
   listOwnCostParams, listOutsourcedCostRates, listSimulatedCarriers,
   saveOwnCostParams, saveOutsourcedCostRate, deleteOutsourcedCostRate,
 } from '../../../lib/tarifas/localRulesDataSource';
+import { ensurePartyProfile } from '../../../lib/tarifas/partiesDataSource';
+import { listTruckTypes, type TruckTypeOption } from '../../../lib/tarifas/vehiclesDataSource';
 
 interface CostosTabProps {
   organizationId: string;
@@ -29,6 +32,8 @@ export default function CostosTab({ organizationId, country }: CostosTabProps) {
   const [ownParams, setOwnParams] = useState<any[]>([]);
   const [outsourcedRates, setOutsourcedRates] = useState<any[]>([]);
   const [carriers, setCarriers] = useState<any[]>([]);
+  const [truckTypes, setTruckTypes] = useState<TruckTypeOption[]>([]);
+  const [error, setError] = useState('');
 
   const [ownForm, setOwnForm] = useState(emptyOwnForm);
   const [ownSaving, setOwnSaving] = useState(false);
@@ -37,15 +42,24 @@ export default function CostosTab({ organizationId, country }: CostosTabProps) {
 
   const load = async () => {
     setLoading(true);
-    const [own, outsourced, testCarriers] = await Promise.all([
-      listOwnCostParams(organizationId),
-      listOutsourcedCostRates(organizationId),
-      listSimulatedCarriers(organizationId),
-    ]);
-    setOwnParams(own);
-    setOutsourcedRates(outsourced);
-    setCarriers(testCarriers);
-    setLoading(false);
+    setError('');
+    try {
+      const [own, outsourced, testCarriers, trucks] = await Promise.all([
+        listOwnCostParams(organizationId),
+        listOutsourcedCostRates(organizationId),
+        listSimulatedCarriers(organizationId),
+        listTruckTypes(),
+      ]);
+      setOwnParams(own);
+      setOutsourcedRates(outsourced);
+      setCarriers(testCarriers);
+      setTruckTypes(trucks);
+    } catch (e) {
+      console.error('Error cargando costos:', e);
+      setError('No se pudieron cargar los costos. Reintentá en unos segundos.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -72,32 +86,78 @@ export default function CostosTab({ organizationId, country }: CostosTabProps) {
   const currentOwnParams = ownParams.find((p) => p.country_id === countryId);
   const countryOutsourcedRates = outsourcedRates.filter((r) => r.country_id === countryId);
 
-  const carrierLabel = (id: string) => carriers.find((c) => c.id === id)?.name || id;
+  // Las tarifas de outsourcing cuelgan del PERFIL de cálculo (`party_id`), no del transportista.
+  const carrierLabel = (partyId: string) => carriers.find((c) => c.party_id === partyId)?.name || partyId;
+  const countryCarriers = carriers.filter((c) => !c.country_id || c.country_id === countryId);
 
   const handleSaveOwn = async () => {
     if (!countryId) return;
     setOwnSaving(true);
-    await saveOwnCostParams(organizationId, {
-      country_id: countryId,
-      cost_per_km: ownForm.cost_per_km,
-      depreciation_per_km: ownForm.depreciation_per_km,
-      driver_daily: ownForm.driver_daily,
-    }, currentOwnParams?.id);
-    setOwnSaving(false);
-    await load();
+    setError('');
+    try {
+      const { error: saveError } = await saveOwnCostParams(organizationId, {
+        country_id: countryId,
+        cost_per_km: ownForm.cost_per_km,
+        depreciation_per_km: ownForm.depreciation_per_km,
+        driver_daily: ownForm.driver_daily,
+      }, currentOwnParams?.id);
+      if (saveError) throw saveError;
+      await load();
+    } catch (e) {
+      console.error('Error guardando costos de flota propia:', e);
+      setError('No se pudieron guardar los costos de flota propia.');
+    } finally {
+      setOwnSaving(false);
+    }
   };
 
   const handleAddOutsourced = async () => {
     if (!countryId || !outsourcedForm.carrierId || !outsourcedForm.truckTypeId) return;
-    await saveOutsourcedCostRate(organizationId, {
-      country_id: countryId,
-      carrier_id: outsourcedForm.carrierId,
-      truck_type_id: outsourcedForm.truckTypeId,
-      flat_rate: outsourcedForm.flatRate,
-    });
-    setOutsourcedForm(emptyOutsourcedForm);
-    await load();
+    setError('');
+    try {
+      const carrier = carriers.find((c) => c.id === outsourcedForm.carrierId);
+      let partyId: string | null = carrier?.party_id ?? null;
+      if (!partyId) {
+        const ensured = await ensurePartyProfile(outsourcedForm.carrierId);
+        if (ensured.status === 'failed') throw new Error(ensured.error.message);
+        partyId = ensured.partyId;
+      }
+      const { error: saveError } = await saveOutsourcedCostRate(organizationId, {
+        country_id: countryId,
+        carrier_id: partyId,
+        truck_type_id: outsourcedForm.truckTypeId,
+        flat_rate: outsourcedForm.flatRate,
+      });
+      if (saveError) throw saveError;
+      setOutsourcedForm(emptyOutsourcedForm);
+      await load();
+    } catch (e) {
+      console.error('Error guardando tarifa de outsourcing:', e);
+      setError(`No se pudo guardar la tarifa: ${e instanceof Error ? e.message : 'error inesperado'}`);
+    }
   };
+
+  const handleDeleteOutsourced = async (id: string) => {
+    setError('');
+    try {
+      const { error: deleteError } = await deleteOutsourcedCostRate(id);
+      if (deleteError) throw deleteError;
+      await load();
+    } catch (e) {
+      console.error('Error eliminando tarifa de outsourcing:', e);
+      setError('No se pudo eliminar la tarifa.');
+    }
+  };
+
+  const rateColumns: DataTableColumn<any>[] = [
+    { key: 'carrier', header: 'Transportista', accessor: (r) => carrierLabel(r.carrier_id), sortable: true, filterable: true },
+    { key: 'truck', header: 'Vehículo', accessor: (r) => r.truck_type_id, sortable: true, filterable: true },
+    {
+      key: 'rate', header: 'Tarifa', align: 'right', sortable: true,
+      accessor: (r) => Number(r.flat_rate),
+      render: (r) => <span>{r.flat_rate} {currency}</span>,
+    },
+  ];
 
   if (loading) {
     return <Card><div className="text-center py-14 text-slate-500"><i className="ri-loader-4-line animate-spin text-2xl"></i></div></Card>;
@@ -105,6 +165,9 @@ export default function CostosTab({ organizationId, country }: CostosTabProps) {
 
   return (
     <div className="space-y-6">
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">{error}</div>
+      )}
       <Card>
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-slate-700">Costos de {country?.name ?? 'este país'}</h3>
@@ -153,32 +216,30 @@ export default function CostosTab({ organizationId, country }: CostosTabProps) {
             label="Transportista"
             value={outsourcedForm.carrierId}
             onChange={(e) => setOutsourcedForm({ ...outsourcedForm, carrierId: e.target.value })}
-            options={[{ value: '', label: 'Elegir...' }, ...carriers.map((c) => ({ value: c.id, label: c.name }))]}
+            options={[{ value: '', label: 'Elegir...' }, ...countryCarriers.map((c) => ({ value: c.id, label: c.name }))]}
           />
-          <Input label="Tipo de vehículo" value={outsourcedForm.truckTypeId} onChange={(e) => setOutsourcedForm({ ...outsourcedForm, truckTypeId: e.target.value })} placeholder="Ej: TT-350" />
+          <div>
+            <Input label="Tipo de vehículo" value={outsourcedForm.truckTypeId} onChange={(e) => setOutsourcedForm({ ...outsourcedForm, truckTypeId: e.target.value })} placeholder="Ej: TT-350" list="costos-truck-types" />
+            <datalist id="costos-truck-types">
+              {truckTypes.map((t) => <option key={t.code} value={t.code} />)}
+            </datalist>
+          </div>
           <Input label="Tarifa plana" value={outsourcedForm.flatRate} onChange={(e) => setOutsourcedForm({ ...outsourcedForm, flatRate: e.target.value })} placeholder="420.00" />
           <Button variant="secondary" onClick={handleAddOutsourced}><i className="ri-add-line"></i>Agregar</Button>
         </div>
-        <table className="w-full text-sm">
-          <thead><tr className="border-b border-slate-200"><th className="text-left py-2">Transportista</th><th className="text-left py-2">Vehículo</th><th className="text-left py-2">Tarifa</th><th></th></tr></thead>
-          <tbody>
-            {countryOutsourcedRates.map((r) => (
-              <tr key={r.id} className="border-b border-slate-100">
-                <td className="py-2">{carrierLabel(r.carrier_id)}</td>
-                <td className="py-2">{r.truck_type_id}</td>
-                <td className="py-2">
-                  {r.flat_rate} {currency}
-                </td>
-                <td className="py-2 text-right">
-                  <button onClick={async () => { await deleteOutsourcedCostRate(r.id); await load(); }} className="text-red-500 hover:bg-red-50 rounded-lg p-1">
-                    <i className="ri-delete-bin-line"></i>
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {countryOutsourcedRates.length === 0 && <tr><td colSpan={4} className="py-3 text-center text-slate-400">Sin tarifas de outsourcing configuradas para este país.</td></tr>}
-          </tbody>
-        </table>
+        <DataTable
+          data={countryOutsourcedRates}
+          columns={rateColumns}
+          getRowId={(r) => String(r.id)}
+          searchPlaceholder="Buscar tarifa..."
+          exportFileName="tarifas_outsourcing"
+          emptyMessage="Sin tarifas de outsourcing configuradas para este país."
+          actions={(r) => (
+            <button onClick={() => void handleDeleteOutsourced(r.id)} className="text-red-500 hover:bg-red-50 rounded-lg p-1" title="Eliminar">
+              <i className="ri-delete-bin-line"></i>
+            </button>
+          )}
+        />
       </Card>
 
       <ImportRatesModal
@@ -187,7 +248,7 @@ export default function CostosTab({ organizationId, country }: CostosTabProps) {
         countryId={countryId}
         countryName={country?.name ?? ''}
         currency={currency}
-        carriers={carriers.map((c) => ({ id: c.id, name: c.name }))}
+        carriers={countryCarriers.map((c) => ({ id: c.id, name: c.name, partyId: c.party_id ?? null }))}
         onClose={() => setIsImportOpen(false)}
         onImported={() => { void load(); }}
       />

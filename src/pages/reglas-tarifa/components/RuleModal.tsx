@@ -30,10 +30,10 @@ import { evaluateExpr } from '../../../lib/tarifas/evaluator';
 import { puede } from '../../../lib/liquidador/rbac';
 import type { LiquidadorRole } from '../../../lib/liquidador/rbac';
 import { registrarEvento } from '../../../lib/liquidador/auditLog';
-import { listParties } from '../../../lib/tarifas/partiesDataSource';
+import { ensurePartyProfile, listCarrierProfiles } from '../../../lib/tarifas/partiesDataSource';
 import { listRateTables } from '../../../lib/tarifas/rateTablesDataSource';
 import { labelsOf, listPartyVariables } from '../../../lib/tarifas/partyVariablesDataSource';
-import type { SettlementPartyRow } from '../../../lib/tarifas/parties';
+import type { CarrierProfile } from '../../../lib/tarifas/parties';
 
 interface RuleModalProps {
   isOpen: boolean;
@@ -51,7 +51,7 @@ const STAGE_OPTIONS: { value: Stage; label: string }[] = [
   { value: 'BASE', label: 'Base (precio base de la ruta)' },
   { value: 'VARIABLE', label: 'Variable (cliente / kg / bulto)' },
   { value: 'MODIFIER', label: 'Modificador (ajuste por servicio)' },
-  { value: 'SURCHARGE', label: 'Recargo (pernocta, peajes, incidentes)' },
+  { value: 'SURCHARGE', label: 'Recargo (pernocta, peajes y otros variables propios)' },
   { value: 'ADJUSTMENT', label: 'Ajuste (descuentos/penalidades)' },
   { value: 'TAX', label: 'Impuesto' },
 ];
@@ -79,8 +79,7 @@ const TIER_MODE_OPTIONS: { value: TierMode; label: string }[] =
 
 // Variables del sistema que sirven como unidad de cálculo (multiplicar, contar en bloques).
 const BUILTIN_NUMERIC_VARS: NumericVarKey[] = [
-  'km', 'clientCount', 'packageCount', 'weightKg', 'durationHours', 'tollsAmount', 'tollCount',
-  'pickupCount', 'truckVolumeM3', 'truckWeightTons', 'lateMinutes', 'incidentCount',
+  'km', 'clientCount', 'weightKg', 'durationHours', 'truckVolumeM3', 'truckWeightTons',
   'overnightNights', 'weekday',
 ];
 
@@ -91,7 +90,7 @@ type Tab = 'simple' | 'advanced';
 type BaseType = 'STAGE_SUBTOTAL' | 'RUNNING_SUBTOTAL' | 'RULE';
 
 const emptyBuilder = (): RuleBuilderForm => ({
-  variable: 'tollCount',
+  variable: 'clientCount',
   operator: 'TIMES',
   value: '0',
   effect: 'INCREASE',
@@ -108,7 +107,8 @@ export default function RuleModal({
   const [errorMsg, setErrorMsg] = useState('');
   const [tab, setTab] = useState<Tab>('simple');
 
-  const [parties, setParties] = useState<SettlementPartyRow[]>([]);
+  const [parties, setParties] = useState<CarrierProfile[]>([]);
+  const [carrierPick, setCarrierPick] = useState<string | null>(null);
   const [partyVariables, setPartyVariables] = useState<PartyVariable[]>([]);
   const [rateTables, setRateTables] = useState<RateTable[]>([]);
 
@@ -146,7 +146,10 @@ export default function RuleModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    void listParties().then(setParties).catch(() => setParties([]));
+    void listCarrierProfiles({ includeInactive: true }).then(setParties).catch((err) => {
+      console.error('Error cargando compañías:', err);
+      setParties([]);
+    });
   }, [isOpen]);
 
   // Tarifarios del país, para que el operador "Tarifa de tabla" ofrezca los que existen en vez de
@@ -171,6 +174,7 @@ export default function RuleModal({
     setErrorMsg('');
     setProbeResult(null);
     setBuilderErrors({});
+    setCarrierPick(null);
 
     if (rule) {
       setFormData({
@@ -238,6 +242,10 @@ export default function RuleModal({
   }, [isOpen, rule]);
 
   // ── Derivados ───────────────────────────────────────────────────────────────────────────────
+
+  const selectedCarrierId = carrierPick
+    ?? parties.find((p) => p.partyId && p.partyId === formData.party_id)?.carrierId
+    ?? '';
 
   const customLabels = useMemo(() => labelsOf(partyVariables), [partyVariables]);
 
@@ -352,7 +360,7 @@ export default function RuleModal({
       setErrorMsg('Tu rol simulado actual no tiene permiso para esta acción. Cambiá a "Jefe de transporte" en el selector de rol.');
       return;
     }
-    if (formData.scope === 'PARTY' && !formData.party_id) {
+    if (formData.scope === 'PARTY' && !selectedCarrierId) {
       setErrorMsg('Elegí a qué compañía pertenece la regla, o cambiá su alcance a "Todas las compañías del país".');
       return;
     }
@@ -397,11 +405,24 @@ export default function RuleModal({
       return;
     }
 
+    let partyId: string | null = null;
+    if (formData.scope === 'PARTY') {
+      partyId = formData.party_id || null;
+      if (!partyId) {
+        const ensured = await ensurePartyProfile(selectedCarrierId);
+        if (ensured.status === 'failed') {
+          setErrorMsg(`No se pudo crear el perfil de cálculo de la compañía: ${ensured.error.message}`);
+          return;
+        }
+        partyId = ensured.partyId;
+      }
+    }
+
     const candidate = {
       id: rule?.id || 'draft',
       countryId: formData.country_id || 'draft',
       scope: formData.scope,
-      partyId: formData.scope === 'PARTY' ? formData.party_id : null,
+      partyId,
       code: formData.code.trim().toUpperCase(),
       name: formData.name,
       stage: formData.stage,
@@ -536,7 +557,7 @@ export default function RuleModal({
               <Select
                 label="Alcance *"
                 value={formData.scope}
-                onChange={(e) => setFormData({ ...formData, scope: e.target.value as 'COUNTRY' | 'PARTY', party_id: '' })}
+                onChange={(e) => { setCarrierPick(null); setFormData({ ...formData, scope: e.target.value as 'COUNTRY' | 'PARTY', party_id: '' }); }}
                 options={[
                   { value: 'COUNTRY', label: 'Todas las compañías del país' },
                   { value: 'PARTY', label: 'Solo una compañía' },
@@ -545,13 +566,17 @@ export default function RuleModal({
               {formData.scope === 'PARTY' && (
                 <Select
                   label="Compañía *"
-                  value={formData.party_id}
-                  onChange={(e) => setFormData({ ...formData, party_id: e.target.value })}
+                  value={selectedCarrierId}
+                  onChange={(e) => {
+                    const carrier = parties.find((p) => p.carrierId === e.target.value);
+                    setCarrierPick(e.target.value);
+                    setFormData({ ...formData, party_id: carrier?.partyId ?? '' });
+                  }}
                   options={[
                     { value: '', label: 'Elegir compañía...' },
                     ...parties
-                      .filter((p) => p.country_id === formData.country_id)
-                      .map((p) => ({ value: p.id, label: `${p.name} (${p.classification === 'OWN' ? 'propia' : 'tercero'})` })),
+                      .filter((p) => p.countryId === formData.country_id)
+                      .map((p) => ({ value: p.carrierId, label: `${p.name} (${p.classification === 'OWN' ? 'propia' : 'tercero'})` })),
                   ]}
                 />
               )}

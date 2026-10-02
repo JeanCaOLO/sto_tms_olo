@@ -3,10 +3,9 @@ import { useAuth } from '../../hooks/useAuth';
 import Card from '../../components/base/Card';
 import Button from '../../components/base/Button';
 import Badge from '../../components/base/Badge';
-import Input from '../../components/base/Input';
-import Select from '../../components/base/Select';
+import DataTable, { type DataTableColumn } from '../../components/base/DataTable';
 import RuleModal from './components/RuleModal';
-import ZoneModal from './components/ZoneModal';
+import ZoneGroupModal from './components/ZoneGroupModal';
 import DeleteConfirmModal from './components/DeleteConfirmModal';
 import RuleTester from './components/RuleTester';
 import PlantillasTab from './components/PlantillasTab';
@@ -14,18 +13,19 @@ import ResumenTab from './components/ResumenTab';
 import TarifariosTab from './components/TarifariosTab';
 import CostosTab from './components/CostosTab';
 import MargenPolicyTab from './components/MargenPolicyTab';
+import CountrySettingsCard from './components/CountrySettingsCard';
 import BitacoraTab from './components/BitacoraTab';
 import HelpButton from './components/HelpButton';
 import {
-  deleteRule, deleteZone, listRules, listZoneGroups, listZones,
+  deleteRule, deleteZoneGroup, listRules, listZoneGroups, listZones,
 } from '../../lib/tarifas/localRulesDataSource';
 import { LIQUIDADOR_ROLES, obtenerRolActivo, establecerRolActivo, puede } from '../../lib/liquidador/rbac';
 import type { LiquidadorRole } from '../../lib/liquidador/rbac';
 import { registrarEvento } from '../../lib/liquidador/auditLog';
-import { listParties } from '../../lib/tarifas/partiesDataSource';
+import { listCarrierProfiles } from '../../lib/tarifas/partiesDataSource';
 import CountryScopeBar from '../../components/feature/CountryScopeBar';
 import { useActiveCountry } from '../../hooks/useActiveCountry';
-import type { SettlementPartyRow } from '../../lib/tarifas/parties';
+import type { CarrierProfile } from '../../lib/tarifas/parties';
 import { useModulePermissions } from '../../hooks/use-module-permissions';
 
 type Tab = 'reglas' | 'zonas' | 'tarifarios' | 'costos' | 'margen' | 'plantillas' | 'resumen' | 'probador' | 'bitacora';
@@ -52,19 +52,17 @@ export default function ReglasTarifaPage() {
   const [selectedRule, setSelectedRule] = useState<any>(null);
   const [ruleToDelete, setRuleToDelete] = useState<any>(null);
   const [ruleDeleteError, setRuleDeleteError] = useState('');
-  const [ruleSearch, setRuleSearch] = useState('');
-  const [ruleStageFilter, setRuleStageFilter] = useState('all');
-  const [ruleScopeFilter, setRuleScopeFilter] = useState('all');
-  const [parties, setParties] = useState<SettlementPartyRow[]>([]);
+  const [loadError, setLoadError] = useState('');
+  const [parties, setParties] = useState<CarrierProfile[]>([]);
 
   // --- Zonas ---
   const [zones, setZones] = useState<any[]>([]);
   const [zoneGroups, setZoneGroups] = useState<any[]>([]);
   const [loadingZones, setLoadingZones] = useState(true);
-  const [isZoneModalOpen, setIsZoneModalOpen] = useState(false);
-  const [selectedZone, setSelectedZone] = useState<any>(null);
-  const [zoneToDelete, setZoneToDelete] = useState<any>(null);
-  const [zoneDeleteError, setZoneDeleteError] = useState('');
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState<any>(null);
+  const [groupToDelete, setGroupToDelete] = useState<any>(null);
+  const [groupDeleteError, setGroupDeleteError] = useState('');
 
   useEffect(() => {
     if (appUser?.organization_id) {
@@ -77,10 +75,12 @@ export default function ReglasTarifaPage() {
   const loadRules = async () => {
     try {
       setLoadingRules(true);
-      setParties(await listParties({ includeInactive: true }));
+      setLoadError('');
+      setParties(await listCarrierProfiles({ includeInactive: true }));
       setRules(await listRules(appUser?.organization_id || ''));
     } catch (error) {
       console.error('Error cargando reglas:', error);
+      setLoadError('No se pudieron cargar las reglas. Reintentá en unos segundos.');
     } finally {
       setLoadingRules(false);
     }
@@ -89,16 +89,23 @@ export default function ReglasTarifaPage() {
   const loadZones = async () => {
     try {
       setLoadingZones(true);
+      setLoadError('');
       setZones(await listZones(appUser?.organization_id || ''));
     } catch (error) {
       console.error('Error cargando zonas:', error);
+      setLoadError('No se pudieron cargar las zonas. Reintentá en unos segundos.');
     } finally {
       setLoadingZones(false);
     }
   };
 
   const loadZoneGroups = async () => {
-    setZoneGroups(await listZoneGroups(appUser?.organization_id || ''));
+    try {
+      setZoneGroups(await listZoneGroups(appUser?.organization_id || ''));
+    } catch (error) {
+      console.error('Error cargando grupos de zonas:', error);
+      setLoadError('No se pudieron cargar los grupos de zonas. Reintentá en unos segundos.');
+    }
   };
 
   const handleDeleteRule = async () => {
@@ -129,35 +136,33 @@ export default function ReglasTarifaPage() {
     }
   };
 
-  const handleDeleteZone = async () => {
-    if (!zoneToDelete) return;
-    setZoneDeleteError('');
+  const handleDeleteGroup = async () => {
+    if (!groupToDelete) return;
+    setGroupDeleteError('');
     if (!puede('ELIMINAR_ZONA', rolActivo)) {
-      setZoneDeleteError('Tu rol simulado actual no tiene permiso para eliminar zonas.');
+      setGroupDeleteError('Tu rol simulado actual no tiene permiso para eliminar grupos de zonas.');
       return;
     }
     try {
-      const { error } = await deleteZone(zoneToDelete.id);
+      const { error } = await deleteZoneGroup(groupToDelete.id);
       if (error) {
-        if (error.code === '23503') {
-          setZoneDeleteError('No se puede eliminar esta zona porque está en uso (tipos de ruta, tiendas o tarifas por zona). Primero reasigna esos registros.');
-          return;
-        }
-        throw error;
+        setGroupDeleteError(`No se pudo eliminar el grupo: ${error.message}`);
+        return;
       }
       await registrarEvento({
-        entidad: 'zones', entidadId: zoneToDelete.id, accion: 'DELETE',
-        usuario: usuarioActivo, rol: rolActivo, antes: zoneToDelete, despues: null,
+        entidad: 'zone_groups', entidadId: groupToDelete.id, accion: 'DELETE',
+        usuario: usuarioActivo, rol: rolActivo, antes: groupToDelete, despues: null,
       });
+      await loadZoneGroups();
       await loadZones();
-      setZoneToDelete(null);
+      setGroupToDelete(null);
     } catch (error) {
-      console.error('Error al eliminar zona:', error);
-      setZoneDeleteError('Ocurrió un error inesperado al intentar eliminar la zona.');
+      console.error('Error al eliminar grupo de zonas:', error);
+      setGroupDeleteError('Ocurrió un error inesperado al intentar eliminar el grupo.');
     }
   };
 
-  const partyName = (id: string | null) => parties.find((p) => p.id === id)?.name ?? id ?? '';
+  const partyName = (id: string | null) => parties.find((p) => p.partyId === id)?.name ?? id ?? '';
 
   // Acotado al país activo. Las reglas SIN país son globales: aplican también acá, así que se
   // muestran — esconderlas daría una lista incompleta de lo que va a correr al liquidar.
@@ -170,22 +175,6 @@ export default function ReglasTarifaPage() {
   const overriddenCountryCodes = new Set(
     countryRules.filter((r) => r.scope === 'PARTY').map((r) => r.code),
   );
-
-  const filteredRules = countryRules.filter((r) => {
-    const matchesSearch = !ruleSearch
-      || r.code?.toLowerCase().includes(ruleSearch.toLowerCase())
-      || r.name?.toLowerCase().includes(ruleSearch.toLowerCase())
-      || partyName(r.party_id).toLowerCase().includes(ruleSearch.toLowerCase())
-      || (r.description ?? '').toLowerCase().includes(ruleSearch.toLowerCase());
-    const matchesStage = ruleStageFilter === 'all' || r.stage === ruleStageFilter;
-    const matchesScope =
-      ruleScopeFilter === 'all'
-        ? true
-        : ruleScopeFilter === 'COUNTRY'
-          ? r.scope !== 'PARTY'
-          : r.party_id === ruleScopeFilter;
-    return matchesSearch && matchesStage && matchesScope;
-  });
 
   const stackingBadge = (stacking: string) => {
     const variant = stacking === 'EXCLUSIVE' ? 'warning' : stacking === 'MAX' ? 'info' : 'default';
@@ -236,6 +225,78 @@ export default function ReglasTarifaPage() {
     );
   };
 
+  const vigenciaEstado = (rule: any) => {
+    const desde: string | null = rule.effective_from || null;
+    const hasta: string | null = rule.effective_to || null;
+    if (!desde && !hasta) return 'Sin límite';
+    const hoy = new Date().toISOString().slice(0, 10);
+    return hasta && hoy > hasta ? 'Vencida' : desde && hoy < desde ? 'Futura' : 'Vigente';
+  };
+
+  const ruleColumns: DataTableColumn<any>[] = [
+    {
+      key: 'code', header: 'Código', accessor: (r) => r.code, sortable: true,
+      render: (r) => <span className="font-mono text-sm text-teal-700">{r.code}</span>,
+    },
+    {
+      key: 'name', header: 'Nombre', accessor: (r) => r.name, sortable: true,
+      render: (r) => (
+        <div>
+          <div>{r.name}</div>
+          {r.description && <div className="text-xs text-slate-500 mt-0.5 max-w-md">{r.description}</div>}
+          {r.reason && <div className="text-[11px] text-slate-400 mt-0.5 italic">Motivo: {r.reason}</div>}
+        </div>
+      ),
+      exportValue: (r) => r.name ?? '',
+    },
+    {
+      key: 'scope', header: 'Alcance', sortable: true, filterable: true,
+      accessor: (r) => (r.scope === 'PARTY' ? partyName(r.party_id) : 'Todo el país'),
+      render: (r) => scopeBadge(r),
+    },
+    { key: 'stage', header: 'Etapa', accessor: (r) => r.stage, sortable: true, filterable: true },
+    {
+      key: 'stacking', header: 'Competencia', accessor: (r) => r.stacking, sortable: true, filterable: true,
+      render: (r) => stackingBadge(r.stacking),
+    },
+    { key: 'priority', header: 'Prioridad', accessor: (r) => r.priority, sortable: true },
+    {
+      key: 'vigencia', header: 'Vigencia', accessor: (r) => vigenciaEstado(r), sortable: true, filterable: true,
+      render: (r) => vigenciaBadge(r),
+    },
+    {
+      key: 'active', header: 'Estado', accessor: (r) => (r.active ? 'Activa' : 'Inactiva'), sortable: true, filterable: true,
+      render: (r) => <Badge variant={r.active ? 'success' : 'default'}>{r.active ? 'Activa' : 'Inactiva'}</Badge>,
+    },
+  ];
+
+  const zoneColumns: DataTableColumn<any>[] = [
+    {
+      key: 'code', header: 'Código', accessor: (z) => z.code, sortable: true,
+      render: (z) => <span className="font-mono text-sm text-teal-700">{z.code}</span>,
+    },
+    { key: 'name', header: 'Nombre', accessor: (z) => z.name, sortable: true },
+    { key: 'group', header: 'Grupo', accessor: (z) => z.zone_groups?.name || '—', sortable: true, filterable: true },
+    { key: 'country', header: 'País', accessor: (z) => z.countries?.name || '—', sortable: true },
+    {
+      key: 'status', header: 'Estado', accessor: (z) => (z.status === 'active' ? 'Activa' : 'Inactiva'), sortable: true, filterable: true,
+      render: (z) => <Badge variant={z.status === 'active' ? 'success' : 'default'}>{z.status === 'active' ? 'Activa' : 'Inactiva'}</Badge>,
+    },
+  ];
+
+  const groupColumns: DataTableColumn<any>[] = [
+    {
+      key: 'code', header: 'Código', accessor: (g) => g.code, sortable: true,
+      render: (g) => <span className="font-mono text-sm text-teal-700">{g.code}</span>,
+    },
+    { key: 'name', header: 'Nombre', accessor: (g) => g.name, sortable: true },
+    {
+      key: 'zones', header: 'Zonas', accessor: (g) => (g.zone_codes ?? []).join(', '),
+      render: (g) => <span className="font-mono text-xs text-slate-600">{(g.zone_codes ?? []).join(', ') || '—'}</span>,
+    },
+    { key: 'count', header: 'Cantidad', align: 'right', accessor: (g) => (g.zone_codes ?? []).length, sortable: true },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -246,7 +307,7 @@ export default function ReglasTarifaPage() {
               title="¿Qué es esto?"
               steps={[
                 'Reglas: definen cómo se calcula lo que se le cobra al transportista/cliente por una liquidación (base, por km, recargos, descuentos).',
-                'Zonas: agrupan tiendas/tipos de ruta para poder condicionar reglas y tarifas por "de dónde a dónde" sin declarar una regla por cada ruta puntual.',
+                'Zonas: son del catálogo (solo lectura). Acá se agrupan en grupos de zonas para condicionar reglas y tarifas por "de dónde a dónde" sin declarar una regla por cada zona.',
                 'Costos y Margen: cuánto le cuesta a la empresa ese viaje (flota propia o transportista) y qué tan buen negocio fue, comparado contra lo cobrado.',
                 'Plantillas: viajes frecuentes guardados para no tipear los mismos datos cada vez en el Probador.',
                 'Resumen: una vista de solo lectura con todo lo configurado, para auditar de un vistazo.',
@@ -281,12 +342,12 @@ export default function ReglasTarifaPage() {
           )}
           {canCreate && activeTab === 'zonas' && (
             <Button
-              onClick={() => { setSelectedZone(null); setIsZoneModalOpen(true); }}
+              onClick={() => { setSelectedGroup(null); setIsGroupModalOpen(true); }}
               disabled={!puede('CREAR_ZONA', rolActivo)}
-              title={!puede('CREAR_ZONA', rolActivo) ? 'Tu rol simulado actual no puede crear zonas' : undefined}
+              title={!puede('CREAR_ZONA', rolActivo) ? 'Tu rol simulado actual no puede crear grupos de zonas' : undefined}
             >
               <i className="ri-add-line mr-2"></i>
-              Nueva Zona
+              Nuevo Grupo de Zonas
             </Button>
           )}
         </div>
@@ -367,197 +428,108 @@ export default function ReglasTarifaPage() {
         </button>
       </div>
 
+      {loadError && (
+        <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+          <i className="ri-error-warning-line mt-0.5 shrink-0"></i>
+          <span>{loadError}</span>
+        </div>
+      )}
+
       {activeTab === 'reglas' && (
         <Card>
-          <div className="space-y-4">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
-                <Input placeholder="Buscar por código o nombre..." value={ruleSearch} onChange={(e) => setRuleSearch(e.target.value)} icon="ri-search-line" />
-              </div>
-              <div className="w-56">
-                <Select
-                  value={ruleStageFilter}
-                  onChange={(e) => setRuleStageFilter(e.target.value)}
-                  options={[
-                    { value: 'all', label: 'Todas las etapas' },
-                    { value: 'BASE', label: 'Base' },
-                    { value: 'VARIABLE', label: 'Variable' },
-                    { value: 'MODIFIER', label: 'Modificador' },
-                    { value: 'SURCHARGE', label: 'Recargo' },
-                    { value: 'ADJUSTMENT', label: 'Ajuste' },
-                    { value: 'TAX', label: 'Impuesto' },
-                  ]}
-                />
-              </div>
-              <div className="w-full md:w-64">
-                <Select
-                  value={ruleScopeFilter}
-                  onChange={(e) => setRuleScopeFilter(e.target.value)}
-                  options={[
-                    { value: 'all', label: 'Todos los alcances' },
-                    { value: 'COUNTRY', label: 'Solo reglas de país' },
-                    ...parties.map((p) => ({ value: p.id, label: `Solo ${p.name}` })),
-                  ]}
-                />
-              </div>
-            </div>
-
-            {loadingRules ? (
-              <div className="text-center py-14 text-slate-500">
-                <i className="ri-loader-4-line animate-spin text-2xl"></i>
-              </div>
-            ) : filteredRules.length === 0 ? (
-              <div className="text-center py-14">
-                <div className="w-16 h-16 flex items-center justify-center bg-slate-100 rounded-full mx-auto mb-4">
-                  <i className="ri-price-tag-3-line text-2xl text-slate-400"></i>
-                </div>
-                <h3 className="text-lg font-medium text-slate-700 mb-1">
-                  {rules.length === 0 ? 'No hay reglas registradas' : 'Sin resultados'}
-                </h3>
-                <p className="text-sm text-slate-500">Crea tu primera regla para empezar a tarifar liquidaciones</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-slate-200">
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Código</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Nombre</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Alcance</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Etapa</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Competencia</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Prioridad</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Vigencia</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Estado</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredRules.map((rule) => (
-                      <tr key={rule.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td className="py-3 px-4 font-mono text-sm text-teal-700">{rule.code}</td>
-                        <td className="py-3 px-4 text-sm text-slate-800">
-                          <div>{rule.name}</div>
-                          {rule.description && (
-                            <div className="text-xs text-slate-500 mt-0.5 max-w-md">{rule.description}</div>
-                          )}
-                          {rule.reason && (
-                            <div className="text-[11px] text-slate-400 mt-0.5 italic">Motivo: {rule.reason}</div>
-                          )}
-                        </td>
-                        <td className="py-3 px-4">{scopeBadge(rule)}</td>
-                        <td className="py-3 px-4 text-sm text-slate-600">{rule.stage}</td>
-                        <td className="py-3 px-4">{stackingBadge(rule.stacking)}</td>
-                        <td className="py-3 px-4 text-sm text-slate-600">{rule.priority}</td>
-                        <td className="py-3 px-4">{vigenciaBadge(rule)}</td>
-                        <td className="py-3 px-4">
-                          <Badge variant={rule.active ? 'success' : 'default'}>{rule.active ? 'Activa' : 'Inactiva'}</Badge>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-1">
-                            {canEdit && (
-                              <button
-                                onClick={() => { setSelectedRule(rule); setIsRuleModalOpen(true); }}
-                                disabled={!puede('EDITAR_REGLA', rolActivo)}
-                                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                                title={puede('EDITAR_REGLA', rolActivo) ? 'Editar' : 'Tu rol simulado actual no puede editar reglas'}
-                              >
-                                <i className="ri-edit-line text-base"></i>
-                              </button>
-                            )}
-                            {canDelete && (
-                              <button
-                                onClick={() => { setRuleToDelete(rule); setRuleDeleteError(''); }}
-                                disabled={!puede('ELIMINAR_REGLA', rolActivo)}
-                                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                                title={puede('ELIMINAR_REGLA', rolActivo) ? 'Eliminar' : 'Tu rol simulado actual no puede eliminar reglas'}
-                              >
-                                <i className="ri-delete-bin-line text-base"></i>
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+          <DataTable
+            data={countryRules}
+            columns={ruleColumns}
+            getRowId={(r) => String(r.id)}
+            loading={loadingRules}
+            searchPlaceholder="Buscar por código, nombre o compañía..."
+            exportFileName="reglas_tarifa"
+            emptyMessage="No hay reglas registradas. Creá tu primera regla para empezar a tarifar liquidaciones."
+            actions={(rule) => (
+              <>
+                {canEdit && (
+                  <button
+                    onClick={() => { setSelectedRule(rule); setIsRuleModalOpen(true); }}
+                    disabled={!puede('EDITAR_REGLA', rolActivo)}
+                    className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                    title={puede('EDITAR_REGLA', rolActivo) ? 'Editar' : 'Tu rol simulado actual no puede editar reglas'}
+                  >
+                    <i className="ri-edit-line text-base"></i>
+                  </button>
+                )}
+                {canDelete && (
+                  <button
+                    onClick={() => { setRuleToDelete(rule); setRuleDeleteError(''); }}
+                    disabled={!puede('ELIMINAR_REGLA', rolActivo)}
+                    className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                    title={puede('ELIMINAR_REGLA', rolActivo) ? 'Eliminar' : 'Tu rol simulado actual no puede eliminar reglas'}
+                  >
+                    <i className="ri-delete-bin-line text-base"></i>
+                  </button>
+                )}
+              </>
             )}
-          </div>
+          />
         </Card>
       )}
 
       {activeTab === 'zonas' && (
         <div className="space-y-6">
-        <Card>
-          {loadingZones ? (
-            <div className="text-center py-14 text-slate-500">
-              <i className="ri-loader-4-line animate-spin text-2xl"></i>
-            </div>
-          ) : countryZones.length === 0 ? (
-            <div className="text-center py-14">
-              <div className="w-16 h-16 flex items-center justify-center bg-slate-100 rounded-full mx-auto mb-4">
-                <i className="ri-map-pin-line text-2xl text-slate-400"></i>
-              </div>
-              <h3 className="text-lg font-medium text-slate-700 mb-1">No hay zonas registradas</h3>
-              <p className="text-sm text-slate-500">
-                Crea zonas y asígnalas a Tipos de Ruta (destino) y Puntos de Entrega de origen (bodegas) para usarlas en reglas.
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-200">
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Código</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Nombre</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Grupo</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">País</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Estado</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {countryZones.map((zone) => (
-                    <tr key={zone.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                      <td className="py-3 px-4 font-mono text-sm text-teal-700">{zone.code}</td>
-                      <td className="py-3 px-4 text-sm text-slate-800">{zone.name}</td>
-                      <td className="py-3 px-4 text-sm text-slate-600">{zone.zone_groups?.name || '—'}</td>
-                      <td className="py-3 px-4 text-sm text-slate-600">{zone.countries?.name || '—'}</td>
-                      <td className="py-3 px-4">
-                        <Badge variant={zone.status === 'active' ? 'success' : 'default'}>{zone.status === 'active' ? 'Activa' : 'Inactiva'}</Badge>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1">
-                          {canEdit && (
-                            <button
-                              onClick={() => { setSelectedZone(zone); setIsZoneModalOpen(true); }}
-                              disabled={!puede('EDITAR_ZONA', rolActivo)}
-                              className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                              title={puede('EDITAR_ZONA', rolActivo) ? 'Editar' : 'Tu rol simulado actual no puede editar zonas'}
-                            >
-                              <i className="ri-edit-line text-base"></i>
-                            </button>
-                          )}
-                          {canDelete && (
-                            <button
-                              onClick={() => { setZoneToDelete(zone); setZoneDeleteError(''); }}
-                              disabled={!puede('ELIMINAR_ZONA', rolActivo)}
-                              className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                              title={puede('ELIMINAR_ZONA', rolActivo) ? 'Eliminar' : 'Tu rol simulado actual no puede eliminar zonas'}
-                            >
-                              <i className="ri-delete-bin-line text-base"></i>
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
+          <Card>
+            <h3 className="text-sm font-semibold text-slate-700 mb-1">Zonas</h3>
+            <p className="text-xs text-slate-500 mb-3">
+              Las zonas son del catálogo y son de solo lectura: se crean y editan en Catálogos.
+            </p>
+            <DataTable
+              data={countryZones}
+              columns={zoneColumns}
+              getRowId={(z) => String(z.id)}
+              loading={loadingZones}
+              searchPlaceholder="Buscar zona..."
+              exportFileName="zonas"
+              emptyMessage="No hay zonas registradas en este país. Se dan de alta en Catálogos."
+            />
+          </Card>
+
+          <Card>
+            <h3 className="text-sm font-semibold text-slate-700 mb-1">Grupos de zonas</h3>
+            <p className="text-xs text-slate-500 mb-3">
+              Lo que se edita acá: qué zonas forman cada grupo. Una zona solo puede estar en un grupo por país.
+            </p>
+            <DataTable
+              data={countryZoneGroups}
+              columns={groupColumns}
+              getRowId={(g) => String(g.id)}
+              loading={loadingZones}
+              searchPlaceholder="Buscar grupo..."
+              exportFileName="grupos_de_zonas"
+              emptyMessage="No hay grupos de zonas en este país."
+              actions={(group) => (
+                <>
+                  {canEdit && (
+                    <button
+                      onClick={() => { setSelectedGroup(group); setIsGroupModalOpen(true); }}
+                      disabled={!puede('EDITAR_ZONA', rolActivo)}
+                      className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                      title={puede('EDITAR_ZONA', rolActivo) ? 'Editar' : 'Tu rol simulado actual no puede editar grupos de zonas'}
+                    >
+                      <i className="ri-edit-line text-base"></i>
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button
+                      onClick={() => { setGroupToDelete(group); setGroupDeleteError(''); }}
+                      disabled={!puede('ELIMINAR_ZONA', rolActivo)}
+                      className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                      title={puede('ELIMINAR_ZONA', rolActivo) ? 'Eliminar' : 'Tu rol simulado actual no puede eliminar grupos de zonas'}
+                    >
+                      <i className="ri-delete-bin-line text-base"></i>
+                    </button>
+                  )}
+                </>
+              )}
+            />
+          </Card>
         </div>
       )}
 
@@ -574,7 +546,10 @@ export default function ReglasTarifaPage() {
       )}
 
       {activeTab === 'margen' && (
-        <MargenPolicyTab organizationId={appUser?.organization_id || ''} countryId={countryId} />
+        <div className="space-y-6">
+          <MargenPolicyTab organizationId={appUser?.organization_id || ''} countryId={countryId} />
+          <CountrySettingsCard countryId={countryId} currency={activeCountry?.local_currency} />
+        </div>
       )}
 
       {activeTab === 'plantillas' && (
@@ -602,14 +577,14 @@ export default function ReglasTarifaPage() {
         usuarioActivo={usuarioActivo}
       />
 
-      <ZoneModal
-        isOpen={isZoneModalOpen}
-        onClose={() => { setIsZoneModalOpen(false); setSelectedZone(null); }}
-        onSuccess={loadZones}
-        zone={selectedZone}
+      <ZoneGroupModal
+        isOpen={isGroupModalOpen}
+        onClose={() => { setIsGroupModalOpen(false); setSelectedGroup(null); }}
+        onSuccess={() => { void loadZoneGroups(); void loadZones(); }}
+        group={selectedGroup}
         organizationId={appUser?.organization_id || ''}
         countryId={countryId}
-        zoneGroups={countryZoneGroups}
+        zones={countryZones}
         rolActivo={rolActivo}
         usuarioActivo={usuarioActivo}
       />
@@ -624,12 +599,12 @@ export default function ReglasTarifaPage() {
       />
 
       <DeleteConfirmModal
-        isOpen={!!zoneToDelete}
-        onClose={() => setZoneToDelete(null)}
-        onConfirm={handleDeleteZone}
-        title="Eliminar zona"
-        description={`¿Seguro que querés eliminar la zona "${zoneToDelete?.code}"? Esta acción no se puede deshacer.`}
-        errorMessage={zoneDeleteError}
+        isOpen={!!groupToDelete}
+        onClose={() => setGroupToDelete(null)}
+        onConfirm={handleDeleteGroup}
+        title="Eliminar grupo de zonas"
+        description={`¿Seguro que querés eliminar el grupo "${groupToDelete?.code}"? Las zonas siguen existiendo en el catálogo; solo dejan de estar agrupadas.`}
+        errorMessage={groupDeleteError}
       />
     </div>
   );

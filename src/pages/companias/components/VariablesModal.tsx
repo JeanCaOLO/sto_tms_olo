@@ -14,12 +14,15 @@ import {
   type PartyVariableInput, type VariableErrors,
 } from '../../../lib/tarifas/partyVariablesDataSource';
 import type { CustomVarOrigin, PartyVariable } from '../../../lib/tarifas/types';
-import type { SettlementPartyRow } from '../../../lib/tarifas/parties';
+import { ensurePartyProfile } from '../../../lib/tarifas/partiesDataSource';
+import type { CarrierProfile } from '../../../lib/tarifas/parties';
 
 interface Props {
   isOpen: boolean;
-  party: SettlementPartyRow | null;
+  party: CarrierProfile | null;
   onClose: () => void;
+  /** Se llama cuando se creó el perfil de cálculo del transportista, para refrescar la lista. */
+  onProfileCreated?: () => void;
 }
 
 const ORIGIN_OPTIONS: { value: CustomVarOrigin; label: string }[] = [
@@ -45,31 +48,40 @@ function emptyForm(partyId: string): PartyVariableInput {
   };
 }
 
-export default function VariablesModal({ isOpen, party, onClose }: Props) {
+export default function VariablesModal({ isOpen, party, onClose, onProfileCreated }: Props) {
   const [variables, setVariables] = useState<PartyVariable[]>([]);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState<PartyVariableInput>(emptyForm(''));
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
   const [errors, setErrors] = useState<VariableErrors>({});
   const [generalError, setGeneralError] = useState('');
+  const [partyId, setPartyId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     if (!party) return;
+    if (!partyId) { setVariables([]); return; }
     setLoading(true);
     try {
-      setVariables(await listPartyVariables(party.id, { includeInactive: true }));
+      setVariables(await listPartyVariables(partyId, { includeInactive: true }));
+    } catch (e) {
+      setGeneralError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [party]);
+  }, [party, partyId]);
 
   useEffect(() => {
     if (!isOpen || !party) return;
-    setForm(emptyForm(party.id));
+    setForm(emptyForm(party.partyId ?? ''));
+    setPartyId(party.partyId);
     setEditingId(undefined);
     setErrors({});
     setGeneralError('');
-    void load();
+  }, [isOpen, party]);
+
+  useEffect(() => {
+    if (isOpen && party) void load();
   }, [isOpen, party, load]);
 
   if (!isOpen || !party) return null;
@@ -97,35 +109,59 @@ export default function VariablesModal({ isOpen, party, onClose }: Props) {
 
   const cancelEdit = () => {
     setEditingId(undefined);
-    setForm(emptyForm(party.id));
+    setForm(emptyForm(partyId ?? ''));
     setErrors({});
   };
 
   const handleSave = async () => {
     setGeneralError('');
-    const result = await savePartyVariable(form, editingId);
+    setSaving(true);
+    try {
+      let targetId = partyId;
+      if (!targetId) {
+        const profile = await ensurePartyProfile(party.carrierId);
+        if (profile.status === 'failed') {
+          setGeneralError(profile.error.message);
+          return;
+        }
+        targetId = profile.partyId;
+        setPartyId(targetId);
+        if (profile.created) onProfileCreated?.();
+      }
 
-    if (result.status === 'invalid') {
-      setErrors(result.errors);
-      return;
+      const result = await savePartyVariable({ ...form, partyId: targetId }, editingId);
+      if (result.status === 'invalid') {
+        setErrors(result.errors);
+        return;
+      }
+      if (result.status === 'failed') {
+        setGeneralError(result.error.message);
+        return;
+      }
+      setEditingId(undefined);
+      setForm(emptyForm(targetId));
+      setErrors({});
+      await load();
+    } catch (e) {
+      setGeneralError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
     }
-    if (result.status === 'failed') {
-      setGeneralError(result.error.message);
-      return;
-    }
-    cancelEdit();
-    await load();
   };
 
   const toggleActive = async (variable: PartyVariable) => {
-    const result = variable.active
-      ? await deactivatePartyVariable(variable.id)
-      : await reactivatePartyVariable(variable.id);
-    if (result.error) {
-      setGeneralError(result.error);
-      return;
+    try {
+      const result = variable.active
+        ? await deactivatePartyVariable(variable.id)
+        : await reactivatePartyVariable(variable.id);
+      if (result.error) {
+        setGeneralError(result.error);
+        return;
+      }
+      await load();
+    } catch (e) {
+      setGeneralError(e instanceof Error ? e.message : String(e));
     }
-    await load();
   };
 
   return (
@@ -213,7 +249,7 @@ export default function VariablesModal({ isOpen, party, onClose }: Props) {
               {editingId && (
                 <Button type="button" variant="secondary" onClick={cancelEdit}>Cancelar</Button>
               )}
-              <Button type="button" onClick={handleSave}>
+              <Button type="button" onClick={handleSave} disabled={saving}>
                 <i className="ri-save-line mr-1"></i>
                 {editingId ? 'Guardar cambios' : 'Agregar variable'}
               </Button>

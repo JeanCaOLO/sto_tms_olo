@@ -3,6 +3,7 @@ import Card from '../../../components/base/Card';
 import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
+import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
 import HelpButton from './HelpButton';
 import { deleteTemplate, listTemplates, saveTemplate } from '../../../lib/tarifas/localRulesDataSource';
 import type { FleetType, ServiceType } from '../../../lib/tarifas/types';
@@ -16,20 +17,28 @@ interface PlantillasTabProps {
 
 const emptyTrip = {
   countryId: '', originZoneId: '', destZoneId: '',
-  km: 100, clientCount: 5, packageCount: 20, weightKg: 500,
+  km: 100, clientCount: 5, weightKg: 500,
   truckTypeId: 'CAMION-1', serviceType: 'STANDARD' as ServiceType, fleetType: 'OWN' as FleetType,
-  carrierId: '', customerId: '', durationHours: 4, tollsAmount: '0', lateMinutes: 0, incidentCount: 0,
+  carrierId: '', customerId: '', durationHours: 4,
 };
 
 export default function PlantillasTab({ organizationId, countryId, zones }: PlantillasTabProps) {
   const [templates, setTemplates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [editing, setEditing] = useState<{ id?: string; name: string; trip: typeof emptyTrip } | null>(null);
 
   const load = async () => {
     setLoading(true);
-    setTemplates(await listTemplates(organizationId));
-    setLoading(false);
+    setError('');
+    try {
+      setTemplates(await listTemplates(organizationId));
+    } catch (e) {
+      console.error('Error cargando plantillas:', e);
+      setError('No se pudieron cargar las plantillas.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -44,33 +53,54 @@ export default function PlantillasTab({ organizationId, countryId, zones }: Plan
     name: t.name,
     trip: {
       countryId: t.country_id, originZoneId: t.trip?.originLocationId ?? '', destZoneId: t.trip?.destLocationId ?? '',
-      km: t.trip?.km ?? 100, clientCount: t.trip?.clientCount ?? 5, packageCount: t.trip?.packageCount ?? 20,
+      km: t.trip?.km ?? 100, clientCount: t.trip?.clientCount ?? 5,
       weightKg: t.trip?.weightKg ?? 500, truckTypeId: t.trip?.truckTypeId ?? 'CAMION-1',
       serviceType: t.trip?.serviceType ?? 'STANDARD', fleetType: t.trip?.fleetType ?? 'OWN',
       carrierId: t.trip?.carrierId ?? '', customerId: t.trip?.customerId ?? '',
-      durationHours: t.trip?.durationHours ?? 4, tollsAmount: t.trip?.tollsAmount ?? '0',
-      lateMinutes: t.trip?.lateMinutes ?? 0, incidentCount: t.trip?.incidentCount ?? 0,
+      durationHours: t.trip?.durationHours ?? 4,
     },
   });
 
   const handleSave = async () => {
     if (!editing || !editing.name.trim() || !editing.trip.countryId) return;
     const { trip, name } = editing;
-    await saveTemplate(organizationId, {
+    setError('');
+    try {
+      const { error: saveError } = await saveTemplate(organizationId, {
       country_id: trip.countryId,
       name: name.trim(),
       trip: {
         originLocationId: trip.originZoneId, destLocationId: trip.destZoneId,
-        km: trip.km, clientCount: trip.clientCount, packageCount: trip.packageCount, weightKg: trip.weightKg,
+        km: trip.km, clientCount: trip.clientCount, weightKg: trip.weightKg,
         truckTypeId: trip.truckTypeId, serviceType: trip.serviceType, fleetType: trip.fleetType,
         carrierId: trip.carrierId || null, customerId: trip.customerId || null,
-        durationHours: trip.durationHours, tollsAmount: trip.tollsAmount,
-        lateMinutes: trip.lateMinutes, incidentCount: trip.incidentCount,
+        durationHours: trip.durationHours,
       },
     }, editing.id);
-    setEditing(null);
-    await load();
+      if (saveError) throw saveError;
+      setEditing(null);
+      await load();
+    } catch (e) {
+      console.error('Error guardando plantilla:', e);
+      setError('No se pudo guardar la plantilla.');
+    }
   };
+
+  const handleDelete = async (id: string) => {
+    setError('');
+    try {
+      const { error: deleteError } = await deleteTemplate(id);
+      if (deleteError) throw deleteError;
+      await load();
+    } catch (e) {
+      console.error('Error eliminando plantilla:', e);
+      setError('No se pudo eliminar la plantilla.');
+    }
+  };
+
+  const columns: DataTableColumn<any>[] = [
+    { key: 'name', header: 'Nombre', accessor: (t) => t.name, sortable: true },
+  ];
 
   const zonesForCountry = (id: string) => zones.filter((z) => z.country_id === id);
 
@@ -96,26 +126,26 @@ export default function PlantillasTab({ organizationId, countryId, zones }: Plan
         </div>
       </Card>
 
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">{error}</div>
+      )}
+
       <Card>
-        {loading ? (
-          <div className="text-center py-10 text-slate-500"><i className="ri-loader-4-line animate-spin text-2xl"></i></div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead><tr className="border-b border-slate-200"><th className="text-left py-2">Nombre</th><th></th></tr></thead>
-            <tbody>
-              {countryTemplates.map((t) => (
-                <tr key={t.id} className="border-b border-slate-100">
-                  <td className="py-2 text-slate-800">{t.name}</td>
-                  <td className="py-2 text-right">
-                    <button onClick={() => startEdit(t)} className="text-slate-500 hover:bg-slate-100 rounded-lg p-1 mr-1"><i className="ri-edit-line"></i></button>
-                    <button onClick={async () => { await deleteTemplate(t.id); await load(); }} className="text-red-500 hover:bg-red-50 rounded-lg p-1"><i className="ri-delete-bin-line"></i></button>
-                  </td>
-                </tr>
-              ))}
-              {countryTemplates.length === 0 && <tr><td colSpan={2} className="py-4 text-center text-slate-400">Sin plantillas guardadas.</td></tr>}
-            </tbody>
-          </table>
-        )}
+        <DataTable
+          data={countryTemplates}
+          columns={columns}
+          getRowId={(t) => String(t.id)}
+          loading={loading}
+          searchPlaceholder="Buscar plantilla..."
+          exportFileName="plantillas_de_viaje"
+          emptyMessage="Sin plantillas guardadas."
+          actions={(t) => (
+            <>
+              <button onClick={() => startEdit(t)} className="text-slate-500 hover:bg-slate-100 rounded-lg p-1" title="Editar"><i className="ri-edit-line"></i></button>
+              <button onClick={() => void handleDelete(t.id)} className="text-red-500 hover:bg-red-50 rounded-lg p-1" title="Eliminar"><i className="ri-delete-bin-line"></i></button>
+            </>
+          )}
+        />
       </Card>
 
       {editing && (
@@ -127,10 +157,9 @@ export default function PlantillasTab({ organizationId, countryId, zones }: Plan
               <Select label="Zona origen" value={editing.trip.originZoneId} onChange={(e) => setEditing({ ...editing, trip: { ...editing.trip, originZoneId: e.target.value } })} options={[{ value: '', label: 'Elegir...' }, ...zonesForCountry(countryId).map((z) => ({ value: z.id, label: z.code }))]} />
               <Select label="Zona destino" value={editing.trip.destZoneId} onChange={(e) => setEditing({ ...editing, trip: { ...editing.trip, destZoneId: e.target.value } })} options={[{ value: '', label: 'Elegir...' }, ...zonesForCountry(countryId).map((z) => ({ value: z.id, label: z.code }))]} />
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               <Input label="Km" type="number" value={editing.trip.km} onChange={(e) => setEditing({ ...editing, trip: { ...editing.trip, km: Number(e.target.value) } })} />
-              <Input label="Paradas" type="number" value={editing.trip.clientCount} onChange={(e) => setEditing({ ...editing, trip: { ...editing.trip, clientCount: Number(e.target.value) } })} />
-              <Input label="Entregas" type="number" value={editing.trip.packageCount} onChange={(e) => setEditing({ ...editing, trip: { ...editing.trip, packageCount: Number(e.target.value) } })} />
+              <Input label="Paradas completadas" type="number" value={editing.trip.clientCount} onChange={(e) => setEditing({ ...editing, trip: { ...editing.trip, clientCount: Number(e.target.value) } })} />
               <Input label="Peso (kg)" type="number" value={editing.trip.weightKg} onChange={(e) => setEditing({ ...editing, trip: { ...editing.trip, weightKg: Number(e.target.value) } })} />
             </div>
             <div className="grid grid-cols-2 gap-3">

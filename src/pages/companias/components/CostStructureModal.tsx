@@ -15,17 +15,20 @@ import {
 } from '../../../lib/tarifas/costStructureDataSource';
 import { COST_DRIVER_LABELS } from '../../../lib/tarifas/cost';
 import type { CostDriver, CostStructure, CostStructureRow } from '../../../lib/tarifas/types';
-import type { SettlementPartyRow } from '../../../lib/tarifas/parties';
+import { ensurePartyProfile } from '../../../lib/tarifas/partiesDataSource';
+import type { CarrierProfile } from '../../../lib/tarifas/parties';
 import { registrarEvento } from '../../../lib/liquidador/auditLog';
 import { obtenerRolActivo } from '../../../lib/liquidador/rbac';
 
 interface Props {
   isOpen: boolean;
-  party: SettlementPartyRow | null;
+  party: CarrierProfile | null;
   /** Moneda local del país de la compañía, para rotular los importes. */
   /** Moneda del país: los importes de la estructura están escritos en ella. */
   currency: string;
   onClose: () => void;
+  /** Se llama cuando se creó el perfil de cálculo del transportista, para refrescar la lista. */
+  onProfileCreated?: () => void;
 }
 
 const DRIVER_OPTIONS = (Object.keys(COST_DRIVER_LABELS) as CostDriver[])
@@ -43,7 +46,7 @@ const emptyRow = (): CostRowInput => ({
 });
 
 export default function CostStructureModal({
-  isOpen, party, currency, onClose,
+  isOpen, party, currency, onClose, onProfileCreated,
 }: Props) {
   const [structure, setStructure] = useState<CostStructure | null>(null);
   const [rows, setRows] = useState<CostStructureRow[]>([]);
@@ -51,6 +54,7 @@ export default function CostStructureModal({
   const [error, setError] = useState('');
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [newRow, setNewRow] = useState<CostRowInput>(emptyRow());
+  const [partyId, setPartyId] = useState<string | null>(null);
 
   const [meta, setMeta] = useState({
     name: 'Estructura de costos',
@@ -59,10 +63,11 @@ export default function CostStructureModal({
 
   const load = useCallback(async () => {
     if (!party) return;
+    if (!partyId) { setStructure(null); setRows([]); return; }
     setLoading(true);
     setError('');
     try {
-      const existing = await activeStructure(party.id);
+      const existing = await activeStructure(partyId);
       setStructure(existing);
       setRows(existing ? await listRows(existing.id) : []);
       if (existing) {
@@ -76,12 +81,16 @@ export default function CostStructureModal({
     } finally {
       setLoading(false);
     }
-  }, [party]);
+  }, [party, partyId]);
 
   useEffect(() => {
     if (!isOpen || !party) return;
     setNewRow(emptyRow());
-    void load();
+    setPartyId(party.partyId);
+  }, [isOpen, party]);
+
+  useEffect(() => {
+    if (isOpen && party) void load();
   }, [isOpen, party, load]);
 
   const currencyLabel = currency;
@@ -102,9 +111,18 @@ export default function CostStructureModal({
   const ensureStructure = async (): Promise<CostStructure | null> => {
     if (structure) return structure;
 
+    let targetId = partyId;
+    if (!targetId) {
+      const profile = await ensurePartyProfile(party.carrierId);
+      if (profile.status === 'failed') { setError(profile.error.message); return null; }
+      targetId = profile.partyId;
+      setPartyId(targetId);
+      if (profile.created) onProfileCreated?.();
+    }
+
     const result = await saveStructure({
-      partyId: party.id,
-      countryId: party.country_id,
+      partyId: targetId,
+      countryId: party.countryId ?? '',
       name: meta.name,
       operatingDaysPerMonth: meta.operatingDaysPerMonth,
       effectiveFrom: null,
@@ -124,19 +142,25 @@ export default function CostStructureModal({
 
   const handleSaveMeta = async () => {
     setError('');
-    const result = await saveStructure({
-      partyId: party.id,
-      countryId: party.country_id,
-      name: meta.name,
-      operatingDaysPerMonth: meta.operatingDaysPerMonth,
-      effectiveFrom: structure?.effectiveFrom ?? null,
-      active: true,
-      notes: structure?.notes ?? null,
-    }, structure?.id);
+    try {
+      const target = structure ?? await ensureStructure();
+      if (!target) return;
+      const result = await saveStructure({
+        partyId: target.partyId,
+        countryId: party.countryId ?? '',
+        name: meta.name,
+        operatingDaysPerMonth: meta.operatingDaysPerMonth,
+        effectiveFrom: target.effectiveFrom ?? null,
+        active: true,
+        notes: target.notes ?? null,
+      }, target.id);
 
-    if (result.status === 'invalid') { setError(Object.values(result.errors).join(' ')); return; }
-    if (result.status === 'failed') { setError(result.error.message); return; }
-    await load();
+      if (result.status === 'invalid') { setError(Object.values(result.errors).join(' ')); return; }
+      if (result.status === 'failed') { setError(result.error.message); return; }
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
   };
 
   const handleAddRow = async () => {

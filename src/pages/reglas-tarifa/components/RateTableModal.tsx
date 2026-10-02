@@ -16,14 +16,15 @@ import {
   type RateTableErrors, type RateTableInput,
 } from '../../../lib/tarifas/rateTablesDataSource';
 import type { RateTable, VarKey } from '../../../lib/tarifas/types';
-import type { SettlementPartyRow } from '../../../lib/tarifas/parties';
+import { ensurePartyProfile } from '../../../lib/tarifas/partiesDataSource';
+import type { CarrierProfile } from '../../../lib/tarifas/parties';
 
 interface Props {
   isOpen: boolean;
   countryId: string;
   /** Tarifario a editar. Null = alta. */
   table: RateTable | null;
-  parties: SettlementPartyRow[];
+  parties: CarrierProfile[];
   /** Moneda del país, para la ayuda en pantalla. */
   currency?: string;
   onClose: () => void;
@@ -48,11 +49,13 @@ export default function RateTableModal({
   const [errors, setErrors] = useState<RateTableErrors>({});
   const [generalError, setGeneralError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [carrierPick, setCarrierPick] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
     setErrors({});
     setGeneralError('');
+    setCarrierPick(null);
     setForm(table
       ? {
         countryId: table.countryId,
@@ -74,6 +77,10 @@ export default function RateTableModal({
   const claveCambiada = !!table
     && (table.keyColumns.length !== form.keyColumns.length
       || table.keyColumns.some((c, i) => c !== form.keyColumns[i]));
+
+  const selectedCarrierId = carrierPick
+    ?? parties.find((p) => p.partyId && p.partyId === form.partyId)?.carrierId
+    ?? '';
 
   if (!isOpen) return null;
 
@@ -103,7 +110,16 @@ export default function RateTableModal({
     setGeneralError('');
     setSaving(true);
     try {
-      const result = await saveRateTable(form, table?.id);
+      let partyId = form.partyId;
+      if (selectedCarrierId && !partyId) {
+        const ensured = await ensurePartyProfile(selectedCarrierId);
+        if (ensured.status === 'failed') {
+          setGeneralError(`No se pudo crear el perfil de cálculo de la compañía: ${ensured.error.message}`);
+          return;
+        }
+        partyId = ensured.partyId;
+      }
+      const result = await saveRateTable({ ...form, partyId: selectedCarrierId ? partyId : null }, table?.id);
       if (result.status === 'invalid') { setErrors(result.errors); return; }
       if (result.status === 'failed') { setGeneralError(result.error.message); return; }
       onSaved();
@@ -160,11 +176,15 @@ export default function RateTableModal({
 
           <Select
             label="Alcance"
-            value={form.partyId ?? ''}
-            onChange={(e) => set('partyId', e.target.value || null)}
+            value={selectedCarrierId}
+            onChange={(e) => {
+              const carrier = parties.find((p) => p.carrierId === e.target.value);
+              setCarrierPick(e.target.value);
+              set('partyId', carrier?.partyId ?? null);
+            }}
             options={[
               { value: '', label: 'Todo el país' },
-              ...parties.map((p) => ({ value: p.id, label: p.name })),
+              ...parties.map((p) => ({ value: p.carrierId, label: p.name })),
             ]}
           />
           <p className="text-xs text-slate-500 -mt-3">

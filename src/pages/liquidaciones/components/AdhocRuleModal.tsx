@@ -25,7 +25,6 @@ const STAGE_OPTIONS: { value: Stage; label: string }[] = [
 const VAR_KEY_OPTIONS: { value: VarKey; label: string }[] = [
   { value: 'km', label: 'Kilómetros' },
   { value: 'clientCount', label: 'Cantidad de paradas/clientes' },
-  { value: 'packageCount', label: 'Cantidad de entregas/bultos' },
   { value: 'weightKg', label: 'Peso (kg)' },
   { value: 'serviceType', label: 'Tipo de servicio' },
   { value: 'fleetType', label: 'Flota (OWN/OUTSOURCED)' },
@@ -34,7 +33,6 @@ const VAR_KEY_OPTIONS: { value: VarKey; label: string }[] = [
 const NUMERIC_VAR_KEY_OPTIONS: { value: NumericVarKey; label: string }[] = [
   { value: 'km', label: 'Kilómetros' },
   { value: 'clientCount', label: 'Cantidad de paradas/clientes' },
-  { value: 'packageCount', label: 'Cantidad de entregas/bultos' },
   { value: 'weightKg', label: 'Peso (kg)' },
 ];
 

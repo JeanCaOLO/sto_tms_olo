@@ -14,6 +14,7 @@ import { readSheets, type LoadedSheet } from '../../../lib/tarifas/sheetReader';
 import { analyzeRateSheet, parseRateRows, type RateColumnMapping } from '../../../lib/tarifas/rateImport';
 import type { NumberFormat } from '../../../lib/tarifas/costSheetParser';
 import { importOutsourcedRates } from '../../../lib/tarifas/localRulesDataSource';
+import { ensurePartyProfile } from '../../../lib/tarifas/partiesDataSource';
 import { registrarEvento } from '../../../lib/liquidador/auditLog';
 import { obtenerRolActivo } from '../../../lib/liquidador/rbac';
 
@@ -24,7 +25,8 @@ interface Props {
   countryName: string;
   /** Moneda del país: los precios del archivo se interpretan en ella. */
   currency: string;
-  carriers: { id: string; name: string }[];
+  /** `id` es el transportista del catálogo; `partyId` su perfil de cálculo (nulo = se crea al importar). */
+  carriers: { id: string; name: string; partyId: string | null }[];
   onClose: () => void;
   onImported: () => void;
 }
@@ -120,10 +122,18 @@ export default function ImportRatesModal({
     setBusy(true);
     setError('');
     try {
+      const carrier = carriers.find((c) => c.id === carrierId);
+      let partyId = carrier?.partyId ?? null;
+      if (!partyId) {
+        const ensured = await ensurePartyProfile(carrierId);
+        if (ensured.status === 'failed') { setError(ensured.error.message); return; }
+        partyId = ensured.partyId;
+      }
+
       const result = await importOutsourcedRates(
         organizationId,
         countryId,
-        carrierId,
+        partyId,
         parsed.rates.map((r) => ({ truckTypeId: r.truckType, flatRate: r.price })),
         onDuplicate,
       );

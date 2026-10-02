@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Card from '../../../components/base/Card';
+import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
 import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Badge from '../../../components/base/Badge';
@@ -21,10 +22,10 @@ import {
   deleteRateRow, deleteRateTable, listRateTableRows, listRateTables, saveRateRow,
   setRateTableActive, type RateRowErrors,
 } from '../../../lib/tarifas/rateTablesDataSource';
-import { listParties } from '../../../lib/tarifas/partiesDataSource';
-import { listVehicleTypes } from '../../../lib/tarifas/partyVehicleTypesDataSource';
+import { listCarrierProfiles } from '../../../lib/tarifas/partiesDataSource';
+import { listTruckTypes } from '../../../lib/tarifas/vehiclesDataSource';
 import { RATE_TABLE_WILDCARD, type RateTable, type RateTableRow, type VarKey } from '../../../lib/tarifas/types';
-import type { SettlementPartyRow } from '../../../lib/tarifas/parties';
+import type { CarrierProfile } from '../../../lib/tarifas/parties';
 
 interface Props {
   /** País activo del módulo. El ámbito es global. */
@@ -46,9 +47,10 @@ const varLabelOf = (key: VarKey) => VAR_KEY_LABELS[key as keyof typeof VAR_KEY_L
 
 export default function TarifariosTab({ countryId, currency, zones, partyId }: Props) {
   const [tables, setTables] = useState<RateTable[]>([]);
-  const [parties, setParties] = useState<SettlementPartyRow[]>([]);
+  const [parties, setParties] = useState<CarrierProfile[]>([]);
   const [truckCodes, setTruckCodes] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [rows, setRows] = useState<RateTableRow[]>([]);
@@ -71,10 +73,14 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
 
   const loadTables = useCallback(async () => {
     setLoading(true);
+    setLoadError('');
     try {
       const todos = await listRateTables(countryId, { includeInactive: true });
       // Dentro de la ficha de una compañía: los suyos MÁS los del país, que también la alcanzan.
       setTables(partyId ? todos.filter((t) => t.partyId === partyId || !t.partyId) : todos);
+    } catch (error) {
+      console.error('Error cargando tarifarios:', error);
+      setLoadError('No se pudieron cargar los tarifarios.');
     } finally {
       setLoading(false);
     }
@@ -84,6 +90,9 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
     setLoadingRows(true);
     try {
       setRows(await listRateTableRows(tableId));
+    } catch (error) {
+      console.error('Error cargando filas del tarifario:', error);
+      setGeneralError('No se pudieron cargar las filas del tarifario.');
     } finally {
       setLoadingRows(false);
     }
@@ -92,8 +101,11 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
   useEffect(() => { void loadTables(); }, [loadTables]);
 
   useEffect(() => {
-    void listParties().then(setParties).catch(() => setParties([]));
-  }, []);
+    void listCarrierProfiles({ countryId, includeInactive: true }).then(setParties).catch((error) => {
+      console.error('Error cargando compañías:', error);
+      setParties([]);
+    });
+  }, [countryId]);
 
   // El tarifario cambió: se limpia el borrador para no arrastrar la clave del anterior.
   useEffect(() => {
@@ -105,15 +117,19 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
     void loadRows(selected.id);
   }, [selected, loadRows]);
 
-  // Códigos de camión de la compañía dueña, para sugerirlos al cargar filas.
+  // Tipos de camión del catálogo de vehículos (los de la compañía dueña si el tarifario es suyo).
   useEffect(() => {
-    if (!selected?.partyId) { setTruckCodes([]); return; }
-    void listVehicleTypes(selected.partyId)
+    if (!selected) { setTruckCodes([]); return; }
+    const carrierId = parties.find((p) => p.partyId && p.partyId === selected.partyId)?.carrierId;
+    void listTruckTypes(carrierId ? { carrierId } : undefined)
       .then((v) => setTruckCodes(v.map((t) => t.code)))
-      .catch(() => setTruckCodes([]));
-  }, [selected]);
+      .catch((error) => {
+        console.error('Error cargando tipos de camión:', error);
+        setTruckCodes([]);
+      });
+  }, [selected, parties]);
 
-  const partyName = (id: string | null) => parties.find((p) => p.id === id)?.name ?? id;
+  const partyName = (id: string | null) => parties.find((p) => p.partyId === id)?.name ?? id;
 
   /**
    * Valores que tienen sentido en una columna. No restringe —un tarifario puede nombrar algo que
@@ -130,7 +146,7 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
       case 'truckTypeId':
         return truckCodes;
       case 'carrierId':
-        return parties.map((p) => p.id);
+        return parties.map((p) => p.carrierId);
       case 'fleetType':
         return ['PROPIA', 'TERCERO'];
       default:
@@ -174,6 +190,98 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
   const comodines = (row: RateTableRow) =>
     row.key.filter((v) => v === RATE_TABLE_WILDCARD).length;
 
+  const handleToggleTable = async (t: RateTable) => {
+    try {
+      await setRateTableActive(t.id, !t.active);
+      await loadTables();
+    } catch (error) {
+      console.error('Error cambiando estado del tarifario:', error);
+      setLoadError('No se pudo cambiar el estado del tarifario.');
+    }
+  };
+
+  const handleDeleteTable = async (t: RateTable) => {
+    if (!window.confirm(
+      `¿Eliminar "${t.code}" y todas sus filas? Las reglas que lo nombren van a usar su importe de respaldo.`,
+    )) return;
+    try {
+      await deleteRateTable(t.id);
+      if (selectedId === t.id) setSelectedId(null);
+      await loadTables();
+    } catch (error) {
+      console.error('Error eliminando tarifario:', error);
+      setLoadError('No se pudo eliminar el tarifario.');
+    }
+  };
+
+  const handleDeleteRow = async (row: RateTableRow) => {
+    if (!selected) return;
+    try {
+      await deleteRateRow(row.id);
+      if (editingRowId === row.id) resetDraft();
+      await loadRows(selected.id);
+    } catch (error) {
+      console.error('Error eliminando fila:', error);
+      setGeneralError('No se pudo eliminar la fila.');
+    }
+  };
+
+  const tableColumns: DataTableColumn<RateTable>[] = [
+    {
+      key: 'code', header: 'Código', accessor: (t) => t.code, sortable: true,
+      render: (t) => <span className="font-mono text-teal-700">{t.code}</span>,
+    },
+    { key: 'name', header: 'Nombre', accessor: (t) => t.name, sortable: true },
+    {
+      key: 'key', header: 'Clave', accessor: (t) => t.keyColumns.map(varLabelOf).join(' · '),
+      render: (t) => <span className="text-xs text-slate-600">{t.keyColumns.map(varLabelOf).join(' · ')}</span>,
+    },
+    {
+      key: 'scope', header: 'Alcance', sortable: true, filterable: true,
+      accessor: (t) => (t.partyId ? String(partyName(t.partyId)) : 'Todo el país'),
+      render: (t) => (t.partyId
+        ? <Badge variant="info">{partyName(t.partyId)}</Badge>
+        : <Badge variant="default">Todo el país</Badge>),
+    },
+    {
+      key: 'active', header: 'Estado', sortable: true, filterable: true,
+      accessor: (t) => (t.active ? 'Activo' : 'Inactivo'),
+      render: (t) => <Badge variant={t.active ? 'success' : 'default'}>{t.active ? 'Activo' : 'Inactivo'}</Badge>,
+    },
+  ];
+
+  const rowColumns: DataTableColumn<RateTableRow>[] = selected ? [
+    ...selected.keyColumns.map((c, i): DataTableColumn<RateTableRow> => ({
+      key: `k${i}`, header: varLabelOf(c), sortable: true, filterable: true,
+      accessor: (r) => r.key[i] ?? RATE_TABLE_WILDCARD,
+      render: (r) => {
+        const value = r.key[i] ?? RATE_TABLE_WILDCARD;
+        return value === RATE_TABLE_WILDCARD
+          ? <span className="text-slate-400 font-mono" title="Cualquier valor">*</span>
+          : <span className="font-mono text-xs text-slate-700">{value}</span>;
+      },
+    })),
+    {
+      key: 'amount', header: 'Importe', align: 'right', sortable: true,
+      accessor: (r) => Number(r.amount),
+      render: (r) => <span className="font-medium text-slate-800">{r.amount}</span>,
+    },
+    {
+      key: 'scope', header: 'Alcance', filterable: true,
+      accessor: (r) => (comodines(r) === 0 ? 'Exacta'
+        : comodines(r) === selected.keyColumns.length ? 'Todos los casos' : 'Parcial'),
+      render: (r) => (comodines(r) === 0 ? (
+        <Badge variant="info">Exacta</Badge>
+      ) : comodines(r) === selected.keyColumns.length ? (
+        <Badge variant="warning">Todos los casos</Badge>
+      ) : (
+        <span className="text-xs text-slate-500">
+          {selected.keyColumns.length - comodines(r)} de {selected.keyColumns.length} columnas
+        </span>
+      )),
+    },
+  ] : [];
+
   return (
     <div className="space-y-6">
       {/* ── Lista de tarifarios ──────────────────────────────────────────────────────────────── */}
@@ -196,95 +304,50 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
           </Button>
         </div>
 
-        {loading ? (
-          <div className="text-center py-10 text-slate-400"><i className="ri-loader-4-line animate-spin text-2xl"></i></div>
-        ) : tables.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 flex items-center justify-center bg-slate-100 rounded-full mx-auto mb-4">
-              <i className="ri-table-line text-2xl text-slate-400"></i>
-            </div>
-            <h3 className="text-lg font-medium text-slate-700 mb-1">No hay tarifarios en este país</h3>
-            <p className="text-sm text-slate-500 max-w-lg mx-auto">
-              Un tarifario reemplaza a un montón de reglas casi iguales: 5 zonas × 4 camiones son 20
-              reglas para mantener, o 20 filas de una planilla.
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-left text-xs font-medium text-slate-500 uppercase">
-                  <th className="py-2 px-3">Código</th>
-                  <th className="py-2 px-3">Nombre</th>
-                  <th className="py-2 px-3">Clave</th>
-                  <th className="py-2 px-3">Alcance</th>
-                  <th className="py-2 px-3">Estado</th>
-                  <th className="py-2 px-3 text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {tables.map((t) => (
-                  <tr
-                    key={t.id}
-                    onClick={() => setSelectedId(t.id === selectedId ? null : t.id)}
-                    className={`cursor-pointer hover:bg-slate-50 ${t.id === selectedId ? 'bg-teal-50/60' : t.active ? '' : 'bg-slate-50/60'}`}
-                  >
-                    <td className="py-2.5 px-3 font-mono text-teal-700">{t.code}</td>
-                    <td className="py-2.5 px-3 text-slate-800">{t.name}</td>
-                    <td className="py-2.5 px-3 text-xs text-slate-600">
-                      {t.keyColumns.map(varLabelOf).join(' · ')}
-                    </td>
-                    <td className="py-2.5 px-3">
-                      {t.partyId
-                        ? <Badge variant="info">{partyName(t.partyId)}</Badge>
-                        : <Badge variant="default">Todo el país</Badge>}
-                    </td>
-                    <td className="py-2.5 px-3">
-                      <Badge variant={t.active ? 'success' : 'default'}>{t.active ? 'Activo' : 'Inactivo'}</Badge>
-                    </td>
-                    <td className="py-2.5 px-3">
-                      <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => { setEditingTable(t); setIsTableModalOpen(true); }}
-                          className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer"
-                          title="Editar"
-                        >
-                          <i className="ri-edit-line"></i>
-                        </button>
-                        <button
-                          onClick={async () => { await setRateTableActive(t.id, !t.active); await loadTables(); }}
-                          className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer"
-                          title={t.active ? 'Desactivar' : 'Reactivar'}
-                        >
-                          <i className={t.active ? 'ri-forbid-line' : 'ri-refresh-line'}></i>
-                        </button>
-                        <button
-                          onClick={async () => {
-                            if (!window.confirm(
-                              `¿Eliminar "${t.code}" y todas sus filas? Las reglas que lo nombren van a usar su importe de respaldo.`,
-                            )) return;
-                            await deleteRateTable(t.id);
-                            if (selectedId === t.id) setSelectedId(null);
-                            await loadTables();
-                          }}
-                          className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
-                          title="Eliminar"
-                        >
-                          <i className="ri-delete-bin-line"></i>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {!selected && (
-              <p className="text-xs text-slate-500 mt-3">
-                <i className="ri-cursor-line mr-1"></i>
-                Tocá un tarifario para ver y cargar sus filas.
-              </p>
-            )}
-          </div>
+        {loadError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 mb-4">{loadError}</div>
+        )}
+        <DataTable
+          data={tables}
+          columns={tableColumns}
+          getRowId={(t) => t.id}
+          loading={loading}
+          searchPlaceholder="Buscar tarifario..."
+          exportFileName="tarifarios"
+          emptyMessage="No hay tarifarios en este país. Un tarifario reemplaza a un montón de reglas casi iguales: 5 zonas x 4 camiones son 20 filas de una planilla."
+          selectedRowId={selectedId}
+          onRowClick={(t) => setSelectedId(t.id === selectedId ? null : t.id)}
+          actions={(t) => (
+            <>
+              <button
+                onClick={() => { setEditingTable(t); setIsTableModalOpen(true); }}
+                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer"
+                title="Editar"
+              >
+                <i className="ri-edit-line"></i>
+              </button>
+              <button
+                onClick={() => void handleToggleTable(t)}
+                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer"
+                title={t.active ? 'Desactivar' : 'Reactivar'}
+              >
+                <i className={t.active ? 'ri-forbid-line' : 'ri-refresh-line'}></i>
+              </button>
+              <button
+                onClick={() => void handleDeleteTable(t)}
+                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
+                title="Eliminar"
+              >
+                <i className="ri-delete-bin-line"></i>
+              </button>
+            </>
+          )}
+        />
+        {!selected && tables.length > 0 && (
+          <p className="text-xs text-slate-500 mt-3">
+            <i className="ri-cursor-line mr-1"></i>
+            Tocá un tarifario para ver y cargar sus filas.
+          </p>
         )}
       </Card>
 
@@ -377,84 +440,34 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
           </div>
 
           {/* Listado */}
-          {loadingRows ? (
-            <div className="text-center py-8 text-slate-400"><i className="ri-loader-4-line animate-spin text-xl"></i></div>
-          ) : rows.length === 0 ? (
-            <div className="text-center py-8">
-              <i className="ri-list-check text-3xl text-slate-300"></i>
-              <p className="mt-2 text-sm text-slate-600 font-medium">Este tarifario no tiene filas</p>
-              <p className="text-xs text-slate-500">
-                Mientras esté vacío, una regla que lo use va a cobrar siempre su importe de respaldo.
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 text-left text-xs font-medium text-slate-500 uppercase">
-                    {selected.keyColumns.map((c) => (
-                      <th key={c} className="py-2 px-3">{varLabelOf(c)}</th>
-                    ))}
-                    <th className="py-2 px-3 text-right">Importe</th>
-                    <th className="py-2 px-3">Alcance</th>
-                    <th className="py-2 px-3 text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {rows.map((row) => (
-                    <tr key={row.id} className={row.id === editingRowId ? 'bg-teal-50/60' : ''}>
-                      {selected.keyColumns.map((c, i) => {
-                        const value = row.key[i] ?? RATE_TABLE_WILDCARD;
-                        return (
-                          <td key={c} className="py-2 px-3">
-                            {value === RATE_TABLE_WILDCARD
-                              ? <span className="text-slate-400 font-mono" title="Cualquier valor">*</span>
-                              : <span className="font-mono text-xs text-slate-700">{value}</span>}
-                          </td>
-                        );
-                      })}
-                      <td className="py-2 px-3 text-right font-medium text-slate-800">{row.amount}</td>
-                      <td className="py-2 px-3">
-                        {/* Cuántas columnas quedan abiertas: dice de un vistazo si la fila es una
-                            excepción puntual o el caso general. */}
-                        {comodines(row) === 0 ? (
-                          <Badge variant="info">Exacta</Badge>
-                        ) : comodines(row) === selected.keyColumns.length ? (
-                          <Badge variant="warning">Todos los casos</Badge>
-                        ) : (
-                          <span className="text-xs text-slate-500">
-                            {selected.keyColumns.length - comodines(row)} de {selected.keyColumns.length} columnas
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2 px-3">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => startEditRow(row)}
-                            className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer"
-                            title="Editar"
-                          >
-                            <i className="ri-edit-line"></i>
-                          </button>
-                          <button
-                            onClick={async () => {
-                              await deleteRateRow(row.id);
-                              if (editingRowId === row.id) resetDraft();
-                              await loadRows(selected.id);
-                            }}
-                            className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
-                            title="Eliminar"
-                          >
-                            <i className="ri-delete-bin-line"></i>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <DataTable
+            data={rows}
+            columns={rowColumns}
+            getRowId={(r) => r.id}
+            loading={loadingRows}
+            searchPlaceholder="Buscar fila..."
+            exportFileName={`tarifario_${selected.code.toLowerCase()}_filas`}
+            emptyMessage="Este tarifario no tiene filas. Mientras esté vacío, una regla que lo use cobra siempre su importe de respaldo."
+            selectedRowId={editingRowId}
+            actions={(row) => (
+              <>
+                <button
+                  onClick={() => startEditRow(row)}
+                  className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer"
+                  title="Editar"
+                >
+                  <i className="ri-edit-line"></i>
+                </button>
+                <button
+                  onClick={() => void handleDeleteRow(row)}
+                  className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
+                  title="Eliminar"
+                >
+                  <i className="ri-delete-bin-line"></i>
+                </button>
+              </>
+            )}
+          />
         </Card>
       )}
 

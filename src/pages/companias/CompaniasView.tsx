@@ -5,24 +5,23 @@
 // componente, en vez de un listado único con un filtro: el objetivo declarado es que el usuario no
 // confunda responsabilidades — administrar recursos internos no es lo mismo que contratar a un
 // tercero.
+//
+// La lista sale del catálogo de transportistas (solo lectura); acá solo se configura el cálculo
+// (variables, estructura de costos, tarifarios) sobre el perfil de cada transportista.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Card from '../../components/base/Card';
 import Button from '../../components/base/Button';
 import Badge from '../../components/base/Badge';
-import Input from '../../components/base/Input';
-import Select from '../../components/base/Select';
-import CompaniaModal from './components/CompaniaModal';
+import DataTable, { type DataTableColumn } from '../../components/base/DataTable';
 import VariablesModal from './components/VariablesModal';
 import CostStructureModal from './components/CostStructureModal';
-import VehicleTypesModal from './components/VehicleTypesModal';
-import RoutesModal from './components/RoutesModal';
 import RateTablesModal from './components/RateTablesModal';
 import { loadZones } from '../../lib/tarifas/catalogLoader';
 import {
-  countOutsourcedRates, deactivateParty, listParties, reactivateParty,
+  countOutsourcedRates, deactivateParty, listCarrierProfiles, reactivateParty,
 } from '../../lib/tarifas/partiesDataSource';
-import type { PartyClassification, SettlementPartyRow } from '../../lib/tarifas/parties';
+import type { CarrierProfile, PartyClassification } from '../../lib/tarifas/parties';
 import { useAuth } from '../../hooks/useAuth';
 import { registrarEvento } from '../../lib/liquidador/auditLog';
 import { obtenerRolActivo, puede } from '../../lib/liquidador/rbac';
@@ -33,7 +32,6 @@ interface Copy {
   title: string;
   subtitle: string;
   icon: string;
-  newLabel: string;
   emptyTitle: string;
   emptyHint: string;
   intro: string;
@@ -44,26 +42,29 @@ const COPY: Record<PartyClassification, Copy> = {
     title: 'Flota Propia',
     subtitle: 'Compañías propias a las que se les liquida el viaje con recursos internos',
     icon: 'ri-home-gear-line',
-    newLabel: 'Nueva compañía propia',
     emptyTitle: 'Todavía no hay compañías propias',
-    emptyHint: 'Creá una por cada país donde operes con flota propia.',
+    emptyHint: 'Se dan de alta en Catálogos → Transportistas, como flota propia.',
     intro:
       'Acá administrás recursos internos: los conductores están en nómina y el costo del viaje se ' +
       'arma con la estructura de costos detallada de la compañía (combustible, depreciación, ' +
-      'salarios, mantenimiento). No se factura contra un tercero.',
+      'salarios, mantenimiento). No se factura contra un tercero. La lista sale del catálogo ' +
+      '(solo lectura): acá solo se configura el cálculo.',
   },
   OUTSOURCED: {
     title: 'Transportistas a Liquidar',
     subtitle: 'Terceros contratados a los que se les paga el viaje',
     icon: 'ri-truck-line',
-    newLabel: 'Nuevo transportista',
     emptyTitle: 'Todavía no hay transportistas cargados',
-    emptyHint: 'Cargá los terceros a los que les liquidás viajes.',
+    emptyHint: 'Se dan de alta en Catálogos → Transportistas, como terceros.',
     intro:
       'Acá solo hace falta con qué cobrarle al tercero: identificación fiscal y sus condiciones de ' +
-      'cobro. No lleva costos internos ni nómina — eso es de la flota propia.',
+      'cobro. No lleva costos internos ni nómina — eso es de la flota propia. La lista sale del ' +
+      'catálogo (solo lectura): acá solo se configura el cálculo.',
   },
 };
+
+const isInactive = (p: CarrierProfile) =>
+  p.carrierStatus === 'inactive' || p.profileStatus === 'inactive';
 
 export default function CompaniasView({ classification }: { classification: PartyClassification }) {
   const copy = COPY[classification];
@@ -77,138 +78,170 @@ export default function CompaniasView({ classification }: { classification: Part
     countries, country: activeCountry, countryId, loading: loadingCountries, setCountry,
   } = useActiveCountry();
 
-  const [parties, setParties] = useState<SettlementPartyRow[]>([]);
+  const [profiles, setProfiles] = useState<CarrierProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
-
-  const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selected, setSelected] = useState<SettlementPartyRow | null>(null);
-  const [variablesFor, setVariablesFor] = useState<SettlementPartyRow | null>(null);
-  const [costsFor, setCostsFor] = useState<SettlementPartyRow | null>(null);
-  const [vehiclesFor, setVehiclesFor] = useState<SettlementPartyRow | null>(null);
-  const [routesFor, setRoutesFor] = useState<SettlementPartyRow | null>(null);
-  const [ratesFor, setRatesFor] = useState<SettlementPartyRow | null>(null);
+  const [variablesFor, setVariablesFor] = useState<CarrierProfile | null>(null);
+  const [costsFor, setCostsFor] = useState<CarrierProfile | null>(null);
+  const [ratesFor, setRatesFor] = useState<CarrierProfile | null>(null);
   const [actionError, setActionError] = useState('');
+  const [zonas, setZonas] = useState<{ id: string; code: string; name: string }[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError('');
     try {
-      setParties(await listParties({ classification, includeInactive: true }));
+      setProfiles(await listCarrierProfiles({
+        classification,
+        countryId: countryId || undefined,
+        includeInactive: true,
+      }));
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
     }
-  }, [classification]);
+  }, [classification, countryId]);
 
   useEffect(() => { void load(); }, [load]);
-
-  const countriesById = useMemo(
-    () => new Map(countries.map((c) => [c.id, c])),
-    [countries],
-  );
 
   const currency = activeCountry?.local_currency ?? 'moneda local';
 
   // Las zonas del país activo, para que el tarifario pueda sugerir códigos en sus columnas.
-  const zonasDelPais = useMemo(
-    () => loadZones(activeCountry?.id).map((z) => ({ id: z.id, code: z.code, name: z.name })),
-    [activeCountry?.id],
+  useEffect(() => {
+    let cancelled = false;
+    loadZones(activeCountry?.id)
+      .then((list) => {
+        if (!cancelled) setZonas(list.map((z) => ({ id: z.id, code: z.code, name: z.name })));
+      })
+      .catch(() => { if (!cancelled) setZonas([]); });
+    return () => { cancelled = true; };
+  }, [activeCountry?.id]);
+
+  const visible = useMemo(
+    () => profiles.filter((p) => showInactive || !isInactive(p)),
+    [profiles, showInactive],
   );
 
-  const visible = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return parties.filter((p) => {
-      if (!showInactive && p.status !== 'active') return false;
-      // Acotado al país activo: el ámbito del módulo es global.
-      if (p.country_id !== countryId) return false;
-      if (!term) return true;
-      return (
-        p.name.toLowerCase().includes(term) ||
-        p.code.toLowerCase().includes(term) ||
-        (p.tax_id ?? '').toLowerCase().includes(term)
-      );
-    });
-  }, [parties, search, countryId, showInactive]);
-
-  const handleSaved = async (party: SettlementPartyRow, wasNew: boolean) => {
-    await registrarEvento({
-      entidad: 'settlement_party',
-      entidadId: party.id,
-      accion: wasNew ? 'CREATE' : 'UPDATE',
-      usuario: usuarioActivo,
-      rol: rolActivo,
-      despues: party,
-    });
-    setIsModalOpen(false);
-    setSelected(null);
-    await load();
-  };
-
-  const handleToggleStatus = async (party: SettlementPartyRow) => {
+  const handleToggleStatus = async (profile: CarrierProfile) => {
+    if (!profile.partyId) return;
     setActionError('');
-    const reactivating = party.status !== 'active';
+    const reactivating = profile.profileStatus === 'inactive';
 
-    if (!reactivating) {
-      const dependientes = await countOutsourcedRates(party.id);
-      const aviso = dependientes > 0
-        ? `\n\nOjo: ${dependientes} tarifa(s) de outsourcing dependen de esta compañía y dejarán de ofrecerse.`
-        : '';
-      const ok = window.confirm(
-        `¿Desactivar "${party.name}"?\n\nNo se borra: sale de los selectores pero las liquidaciones ` +
-        `ya emitidas la conservan intacta, porque el histórico es inmutable.${aviso}`,
-      );
-      if (!ok) return;
+    try {
+      if (!reactivating) {
+        const dependientes = await countOutsourcedRates(profile.partyId);
+        const aviso = dependientes > 0
+          ? `\n\nOjo: ${dependientes} tarifa(s) de outsourcing dependen de esta compañía y dejarán de ofrecerse.`
+          : '';
+        const ok = window.confirm(
+          `¿Desactivar el cálculo de "${profile.name}"?\n\nNo se borra: sale de los selectores pero las ` +
+          `liquidaciones ya emitidas la conservan intacta, porque el histórico es inmutable. ` +
+          `El transportista sigue en el catálogo.${aviso}`,
+        );
+        if (!ok) return;
+      }
+
+      const result = reactivating
+        ? await reactivateParty(profile.partyId)
+        : await deactivateParty(profile.partyId);
+      if (result.error) {
+        setActionError(result.error.message);
+        return;
+      }
+
+      await registrarEvento({
+        entidad: 'settlement_party',
+        entidadId: profile.partyId,
+        accion: 'UPDATE',
+        usuario: usuarioActivo,
+        rol: rolActivo,
+        antes: { status: profile.profileStatus },
+        despues: { status: reactivating ? 'active' : 'inactive' },
+        motivo: reactivating ? 'Reactivación' : 'Baja lógica',
+      });
+      await load();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : String(error));
     }
-
-    const result = reactivating ? await reactivateParty(party.id) : await deactivateParty(party.id);
-    if (result.error) {
-      setActionError(result.error.message);
-      return;
-    }
-
-    await registrarEvento({
-      entidad: 'settlement_party',
-      entidadId: party.id,
-      accion: 'UPDATE',
-      usuario: usuarioActivo,
-      rol: rolActivo,
-      antes: { status: party.status },
-      despues: { status: reactivating ? 'active' : 'inactive' },
-      motivo: reactivating ? 'Reactivación' : 'Baja lógica',
-    });
-    await load();
   };
 
-  const puedeCrear = puede('CREAR_COMPANIA', rolActivo);
-  const puedeEditar = puede('EDITAR_COMPANIA', rolActivo);
   const puedeDesactivar = puede('DESACTIVAR_COMPANIA', rolActivo);
+
+  const countryLabel = (profile: CarrierProfile) => {
+    const country = countries.find((c) => c.id === profile.countryId);
+    return country ? `${country.name} (${country.local_currency})` : 'País no configurado';
+  };
+
+  const columns: DataTableColumn<CarrierProfile>[] = [
+    {
+      key: 'code',
+      header: 'Código',
+      accessor: (p) => p.code,
+      sortable: true,
+      render: (p) => <span className="font-mono text-slate-600">{p.code}</span>,
+    },
+    {
+      key: 'name',
+      header: 'Nombre',
+      accessor: (p) => p.name,
+      sortable: true,
+      render: (p) => <span className="font-medium text-slate-800">{p.name}</span>,
+    },
+    ...(isOutsourced
+      ? [{
+        key: 'taxId',
+        header: 'Identificación fiscal',
+        accessor: (p: CarrierProfile) => p.taxId ?? '',
+        sortable: true,
+        render: (p: CarrierProfile) => (p.taxId
+          ? <span className="text-slate-600">{p.taxId}</span>
+          : <span className="text-amber-600 text-xs">Falta — no se le puede liquidar</span>),
+      } satisfies DataTableColumn<CarrierProfile>]
+      : []),
+    {
+      key: 'country',
+      header: 'País / Moneda',
+      accessor: (p) => countryLabel(p),
+      sortable: true,
+      filterable: true,
+    },
+    {
+      key: 'profile',
+      header: 'Cálculo',
+      accessor: (p) => (p.partyId ? 'Configurado' : 'Sin configurar'),
+      filterable: true,
+      render: (p) => (p.partyId
+        ? <Badge variant="success" size="sm">Configurado</Badge>
+        : <span className="text-xs text-slate-400">Sin configurar</span>),
+    },
+    {
+      key: 'status',
+      header: 'Estado',
+      accessor: (p) => (isInactive(p) ? 'Desactivada' : 'Activa'),
+      sortable: true,
+      filterable: true,
+      render: (p) => (
+        <Badge variant={isInactive(p) ? 'default' : 'success'} size="sm">
+          {isInactive(p) ? 'Desactivada' : 'Activa'}
+        </Badge>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <i className={`${copy.icon} text-2xl text-teal-600`}></i>
-            <h1 className="text-2xl font-bold text-slate-800">{copy.title}</h1>
-            <Badge variant={isOutsourced ? 'warning' : 'info'}>
-              {isOutsourced ? 'Terceros' : 'Recursos internos'}
-            </Badge>
-          </div>
-          <p className="text-sm text-slate-500 mt-1">{copy.subtitle}</p>
+      <div>
+        <div className="flex items-center gap-2">
+          <i className={`${copy.icon} text-2xl text-teal-600`}></i>
+          <h1 className="text-2xl font-bold text-slate-800">{copy.title}</h1>
+          <Badge variant={isOutsourced ? 'warning' : 'info'}>
+            {isOutsourced ? 'Terceros' : 'Recursos internos'}
+          </Badge>
         </div>
-        <Button
-          onClick={() => { setSelected(null); setIsModalOpen(true); }}
-          disabled={!puedeCrear || countries.length === 0}
-          title={!puedeCrear ? 'Tu rol simulado actual no puede crear compañías' : undefined}
-        >
-          <i className="ri-add-line mr-2"></i>
-          {copy.newLabel}
-        </Button>
+        <p className="text-sm text-slate-500 mt-1">{copy.subtitle}</p>
       </div>
 
       <CountryScopeBar
@@ -241,196 +274,80 @@ export default function CompaniasView({ classification }: { classification: Part
       )}
 
       <Card>
-        <div className="flex flex-col md:flex-row md:items-end gap-4 mb-5">
-          <div className="flex-1">
-            <Input
-              label="Buscar"
-              icon="ri-search-line"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Nombre, código o identificación fiscal"
-            />
-          </div>
-          <label className="flex items-center gap-2 text-sm text-slate-600 pb-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={showInactive}
-              onChange={(e) => setShowInactive(e.target.checked)}
-              className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
-            />
-            Ver desactivadas
-          </label>
-        </div>
+        <label className="flex items-center gap-2 text-sm text-slate-600 mb-4 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showInactive}
+            onChange={(e) => setShowInactive(e.target.checked)}
+            className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+          />
+          Ver desactivadas
+        </label>
 
-        {loading ? (
-          <p className="text-sm text-slate-500 py-8 text-center">Cargando…</p>
-        ) : visible.length === 0 ? (
-          <div className="text-center py-12">
-            <i className={`${copy.icon} text-4xl text-slate-300`}></i>
-            <p className="mt-3 text-slate-600 font-medium">{copy.emptyTitle}</p>
-            <p className="text-sm text-slate-500">{copy.emptyHint}</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-200 text-left text-xs font-medium text-slate-500 uppercase">
-                  <th className="px-4 py-3">Código</th>
-                  <th className="px-4 py-3">Nombre</th>
-                  {isOutsourced && <th className="px-4 py-3">Identificación fiscal</th>}
-                  <th className="px-4 py-3">País / Moneda</th>
-                  {isOutsourced && <th className="px-4 py-3">Enlace TMS</th>}
-                  <th className="px-4 py-3">Estado</th>
-                  <th className="px-4 py-3 text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {visible.map((party) => {
-                  const country = countriesById.get(party.country_id);
-                  const inactive = party.status !== 'active';
-                  return (
-                    <tr key={party.id} className={inactive ? 'bg-slate-50/60' : ''}>
-                      <td className="px-4 py-3 text-sm font-mono text-slate-600">{party.code}</td>
-                      <td className="px-4 py-3">
-                        <div className="text-sm font-medium text-slate-800">{party.name}</div>
-                        {party.contact_name && (
-                          <div className="text-xs text-slate-500">{party.contact_name}</div>
-                        )}
-                      </td>
-                      {isOutsourced && (
-                        <td className="px-4 py-3 text-sm text-slate-600">
-                          {party.tax_id
-                            ? <>{party.tax_id} <span className="text-xs text-slate-400">({party.tax_id_type})</span></>
-                            : <span className="text-amber-600 text-xs">Falta — no se le puede liquidar</span>}
-                        </td>
-                      )}
-                      <td className="px-4 py-3 text-sm text-slate-600">
-                        {country ? (
-                          <>
-                            {country.name}{' '}
-                            <span className="text-xs text-slate-400">({country.local_currency})</span>
-                          </>
-                        ) : (
-                          <span className="text-red-600 text-xs">País no configurado</span>
-                        )}
-                      </td>
-                      {isOutsourced && (
-                        <td className="px-4 py-3 text-sm">
-                          {party.carrier_id
-                            ? <Badge variant="success" size="sm">Enlazado</Badge>
-                            : <span className="text-xs text-slate-400">Sin enlazar</span>}
-                        </td>
-                      )}
-                      <td className="px-4 py-3">
-                        <Badge variant={inactive ? 'default' : 'success'} size="sm">
-                          {inactive ? 'Desactivada' : 'Activa'}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => { setSelected(party); setIsModalOpen(true); }}
-                            disabled={!puedeEditar}
-                            title={!puedeEditar ? 'Tu rol simulado actual no puede editar compañías' : 'Editar'}
-                          >
-                            <i className="ri-edit-line"></i>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setCostsFor(party)}
-                            title="Estructura de costos de esta compañía"
-                          >
-                            <i className="ri-table-line"></i>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setVehiclesFor(party)}
-                            title="Vehículos y su capacidad"
-                          >
-                            <i className="ri-truck-line"></i>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setRoutesFor(party)}
-                            title="Rutas que cubre esta compañía"
-                          >
-                            <i className="ri-route-line"></i>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setRatesFor(party)}
-                            title="Tarifarios: el precio de cada ruta"
-                          >
-                            <i className="ri-price-tag-3-line"></i>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setVariablesFor(party)}
-                            title="Variables propias de esta compañía"
-                          >
-                            <i className="ri-code-box-line"></i>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => void handleToggleStatus(party)}
-                            disabled={!puedeDesactivar}
-                            title={inactive ? 'Reactivar' : 'Desactivar'}
-                          >
-                            <i className={inactive ? 'ri-refresh-line' : 'ri-forbid-line'}></i>
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <DataTable
+          data={visible}
+          columns={columns}
+          getRowId={(p) => p.carrierId}
+          loading={loading}
+          searchPlaceholder="Buscar por nombre, código o identificación fiscal..."
+          exportFileName={isOutsourced ? 'transportistas_a_liquidar' : 'flota_propia'}
+          emptyMessage={`${copy.emptyTitle}. ${copy.emptyHint}`}
+          actions={(profile) => (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCostsFor(profile)}
+                title="Estructura de costos de esta compañía"
+              >
+                <i className="ri-table-line"></i>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setRatesFor(profile)}
+                title="Tarifarios: el precio de cada ruta"
+              >
+                <i className="ri-price-tag-3-line"></i>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setVariablesFor(profile)}
+                title="Variables propias de esta compañía"
+              >
+                <i className="ri-code-box-line"></i>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void handleToggleStatus(profile)}
+                disabled={!puedeDesactivar || !profile.partyId}
+                title={!profile.partyId
+                  ? 'Sin cálculo configurado: no hay nada que desactivar'
+                  : profile.profileStatus === 'inactive' ? 'Reactivar cálculo' : 'Desactivar cálculo'}
+              >
+                <i className={profile.profileStatus === 'inactive' ? 'ri-refresh-line' : 'ri-forbid-line'}></i>
+              </Button>
+            </>
+          )}
+        />
       </Card>
-
-      <CompaniaModal
-        isOpen={isModalOpen}
-        classification={classification}
-        party={selected}
-        countries={countries}
-        existing={parties}
-        onClose={() => { setIsModalOpen(false); setSelected(null); }}
-        onSaved={handleSaved}
-      />
 
       <VariablesModal
         isOpen={!!variablesFor}
         party={variablesFor}
         onClose={() => setVariablesFor(null)}
-      />
-
-      <VehicleTypesModal
-        isOpen={!!vehiclesFor}
-        party={vehiclesFor}
-        onClose={() => setVehiclesFor(null)}
-      />
-
-      <RoutesModal
-        isOpen={!!routesFor}
-        party={routesFor}
-        onClose={() => setRoutesFor(null)}
+        onProfileCreated={() => void load()}
       />
 
       <RateTablesModal
         isOpen={!!ratesFor}
         party={ratesFor}
         currency={currency}
-        zones={zonasDelPais}
+        zones={zonas}
         onClose={() => setRatesFor(null)}
+        onProfileCreated={() => void load()}
       />
 
       <CostStructureModal
@@ -438,6 +355,7 @@ export default function CompaniasView({ classification }: { classification: Part
         party={costsFor}
         currency={currency}
         onClose={() => setCostsFor(null)}
+        onProfileCreated={() => void load()}
       />
     </div>
   );

@@ -1015,13 +1015,13 @@ y el cierre de documentación. Detalle de cambios: `docs/work/2026-10/2026-10-02
 **Hecho el 2026-10-02 (sesión 2):**
 - Migración `sql/19_tarifas_aurora.sql` APLICADA en Aurora (dry-run + `--execute`, registrada en `schema_migrations`); 15 tablas `tarifas_*` y 2 vistas verificadas; `tarifas_v_viajes` devuelve 28 viajes (0.8-2.6 ms).
 - Zonas de Costa Rica sin `code` corregidas en Aurora: `GAM` → `GAM`, `Rural` → `RURAL` (dato, sin commit).
+- Pantallas del liquidador reconstruidas sobre el ORM nuevo (tsc 0 errores, antes 101).
 - Auditoría: 526 tests vitest en verde; tsc sin errores en `src/lib` (los 101 son de `src/pages`/`src/components`, de Kiro).
 - `catalogLoader.loadRules` filtra por país en el servidor (2 consultas: país + globales) en vez de traer todas.
 
 **FALTANTE para la próxima sesión, en orden:**
 
-1. **Pantallas (Kiro).** 17 archivos de `src/pages` / `src/components` no compilan contra el modelo
-   nuevo (101 errores tsc). Contrato en CANAL. Verificación: `npx tsc --noEmit --project tsconfig.app.json` sin errores.
+1. **Prueba visual de las pantallas en el navegador** (Liquidaciones, Flota propia/externa, Reglas de Tarifa). Reescritas el 2026-10-02 por Claude en lugar de Kiro (tsc 0, vitest 666, `vite build` OK) pero SIN probar con datos: hacerlo con `VITE_TARIFAS_DATASOURCE=json` y luego con Aurora. Menores: `BitacoraTab`/`ResumenTab` con `<table>` manual; permisos `CREAR_COMPANIA`/`EDITAR_COMPANIA` sin uso.
 2. **Desplegar `backend/tarifas`** (solo Intelix): `npm run tarifas:manifest`, luego
    `cd backend/tarifas && sam build && sam deploy --config-env dev`. Local: `npm run api:local`.
 3. **Activar Aurora en el front:** `VITE_TARIFAS_DATASOURCE=postgres` (URL por defecto
