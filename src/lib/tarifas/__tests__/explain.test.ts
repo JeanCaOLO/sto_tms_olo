@@ -27,7 +27,7 @@ const REGLAS: Rule[] = [
   }),
   makeRule({
     code: 'NUNCA', name: 'Regla que no aplica', stage: 'SURCHARGE',
-    conditions: { p: 'GT', left: 'incidentCount', right: 5 },
+    conditions: { p: 'GT', left: 'km', right: 100000 },
     expression: { op: 'FIXED', amount: '99.00' },
   }),
 ];
@@ -147,7 +147,7 @@ describe('variablesUsadas', () => {
 
     expect(usadas.map((v) => v.key)).toContain('clientCount');
     expect(usadas.find((v) => v.key === 'clientCount')).toMatchObject({
-      label: 'Clientes', value: '40',
+      label: 'Paradas completadas', value: '40',
     });
   });
 

@@ -8,7 +8,7 @@
 
 import { evaluatePred, RuleShapeError } from './evaluator';
 import type {
-  CalculateInput, DiscardedRule, PartyVariable, PartyVehicleType, Rule, Stage, VarBag, VarValue,
+  CalculateInput, DiscardedRule, PartyVariable, Rule, Stage, VarBag, VarValue,
   Zone, ZoneGroup,
 } from './types';
 import { STAGE_ORDER } from './types';
@@ -31,7 +31,12 @@ function findOrThrow<T>(items: T[], pred: (item: T) => boolean, message: string)
   return found;
 }
 
-function zoneGroupCode(zone: Zone, zoneGroups: ZoneGroup[]): string {
+/**
+ * Código del grupo de la zona, o vacío si la zona no pertenece a ningún grupo. Las zonas del
+ * catálogo del TMS no saben de grupos: muchas no tienen uno, y eso no es un error del viaje.
+ */
+function zoneGroupCode(zone: Zone | null, zoneGroups: ZoneGroup[]): string {
+  if (!zone || !zone.zoneGroupId) return '';
   return findOrThrow(
     zoneGroups,
     (g) => g.id === zone.zoneGroupId,
@@ -84,52 +89,36 @@ export function resolveCustomVars(
   return resolved;
 }
 
-/**
- * Capacidad del camión del viaje: lo que venga cargado en el viaje manda, y si no vino, se busca en
- * el catálogo de la compañía por el código del tipo de camión.
- *
- * Ese orden es deliberado: el catálogo es la fuente normal —así nadie tiene que teclear los metros
- * cúbicos en cada liquidación— pero un viaje excepcional puede corregirlo sin tocar el catálogo.
- * Un valor en cero cuenta como "no informado", que es como llegan hoy los viajes reales.
- */
-export function resolveTruckCapacity(
-  truckTypeId: string,
-  tripVolumeM3: number | undefined,
-  tripWeightTons: number | undefined,
-  catalog: PartyVehicleType[],
-): { volumeM3: number; weightTons: number } {
-  const tipo = catalog.find((t) => t.active && t.code === truckTypeId);
-
-  return {
-    volumeM3: tripVolumeM3 || tipo?.volumeM3 || 0,
-    weightTons: tripWeightTons || tipo?.weightTons || 0,
-  };
+/** Zona de una ubicación del viaje. Un id vacío = el viaje no informa esa punta (vale null). */
+function zoneOf(
+  locationId: string,
+  locations: CalculateInput['locations'],
+  zones: Zone[],
+  which: 'origen' | 'destino',
+): Zone | null {
+  if (!locationId) return null;
+  const location = findOrThrow(
+    locations, (l) => l.id === locationId,
+    `Localidad de ${which} no encontrada: ${locationId}`,
+  );
+  return findOrThrow(
+    zones, (z) => z.id === location.zoneId,
+    `Zona no encontrada para la localidad "${location.code}"`,
+  );
 }
 
 export function deriveContext(
   input: Pick<
     CalculateInput,
-    'trip' | 'country' | 'zones' | 'zoneGroups' | 'locations' | 'partyVariables' | 'partyVehicleTypes'
+    'trip' | 'country' | 'zones' | 'zoneGroups' | 'locations' | 'partyVariables'
   >,
 ): DerivedContext {
   const { trip, country, zones, zoneGroups, locations } = input;
 
-  const originLocation = findOrThrow(
-    locations, (l) => l.id === trip.originLocationId,
-    `Localidad de origen no encontrada: ${trip.originLocationId}`,
-  );
-  const destLocation = findOrThrow(
-    locations, (l) => l.id === trip.destLocationId,
-    `Localidad de destino no encontrada: ${trip.destLocationId}`,
-  );
-  const originZone = findOrThrow(
-    zones, (z) => z.id === originLocation.zoneId,
-    `Zona no encontrada para la localidad "${originLocation.code}"`,
-  );
-  const destZone = findOrThrow(
-    zones, (z) => z.id === destLocation.zoneId,
-    `Zona no encontrada para la localidad "${destLocation.code}"`,
-  );
+  // Los viajes de guía de despacho solo traen DESTINO: sin origen, `originZone` vale vacío y una
+  // regla que pregunte por él simplemente no se cumple. El destino sigue siendo obligatorio.
+  const originZone = zoneOf(trip.originLocationId, locations, zones, 'origen');
+  const destZone = zoneOf(trip.destLocationId, locations, zones, 'destino');
 
   const overnightNights = computeOvernightNights(trip.durationHours, country.overnightThresholdHours);
 
@@ -137,7 +126,6 @@ export function deriveContext(
     countryId: trip.countryId,
     km: trip.km,
     clientCount: trip.clientCount,
-    packageCount: trip.packageCount,
     weightKg: trip.weightKg,
     truckTypeId: trip.truckTypeId,
     serviceType: trip.serviceType,
@@ -145,22 +133,11 @@ export function deriveContext(
     carrierId: trip.carrierId ?? '',
     customerId: trip.customerId ?? '',
     durationHours: trip.durationHours,
-    tollsAmount: trip.tollsAmount,
-    tollCount: trip.tollCount ?? 0,
-    pickupCount: trip.pickupCount ?? 0,
-    ...(() => {
-      const capacidad = resolveTruckCapacity(
-        trip.truckTypeId,
-        trip.truckVolumeM3,
-        trip.truckWeightTons,
-        input.partyVehicleTypes ?? [],
-      );
-      return { truckVolumeM3: capacidad.volumeM3, truckWeightTons: capacidad.weightTons };
-    })(),
-    lateMinutes: trip.lateMinutes,
-    incidentCount: trip.incidentCount,
-    originZone: originZone.code,
-    destZone: destZone.code,
+    // La capacidad viene con el viaje (del vehículo del catálogo). 0 = no informada.
+    truckVolumeM3: trip.truckVolumeM3 || 0,
+    truckWeightTons: trip.truckWeightTons || 0,
+    originZone: originZone?.code ?? '',
+    destZone: destZone?.code ?? '',
     originZoneGroup: zoneGroupCode(originZone, zoneGroups),
     destZoneGroup: zoneGroupCode(destZone, zoneGroups),
     overnightNights,
@@ -170,7 +147,7 @@ export function deriveContext(
     ...resolveCustomVars(input.partyVariables ?? [], trip.customVars),
   };
 
-  return { vars, originZoneId: originZone.id, destZoneId: destZone.id, overnightNights };
+  return { vars, originZoneId: originZone?.id ?? '', destZoneId: destZone?.id ?? '', overnightNights };
 }
 
 // ── 2-5. Filtrado, orden y stacking ────────────────────────────────────────────────────────────

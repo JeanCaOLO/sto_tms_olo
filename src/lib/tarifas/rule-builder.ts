@@ -2,7 +2,7 @@
 //
 //   formulario visual          compilar          motor
 //   ─────────────────    ───────────────▶   ───────────
-//   peajes × 20          →  PER_UNIT{tollCount, "20.00"}
+//   peajes × 20          →  PER_UNIT{custom:peajes, "20.00"}
 //   aumenta el costo                                     → se suma al total
 //
 // Módulo PURO: no importa React, ni la capa de datos, ni usa `Date.now()`. Toda la traducción y
@@ -222,7 +222,7 @@ export const CONDITION_ROW_OP_LABELS: Record<ConditionRowOperator, string> = {
 
 /** Tramo inicial de una fila nueva de condición. */
 export function emptyConditionRow(): ConditionRowForm {
-  return { left: 'tollCount', op: 'GT', negate: false, right: '', values: '', from: '', to: '' };
+  return { left: 'km', op: 'GT', negate: false, right: '', values: '', from: '', to: '' };
 }
 
 function coerceValue(raw: string): string | number {

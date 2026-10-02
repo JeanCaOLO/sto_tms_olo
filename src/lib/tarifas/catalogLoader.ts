@@ -1,30 +1,19 @@
 // Todo lo que el motor necesita saber para tarifar un viaje, leído de una vez.
 //
-// Es la mitad IMPURA del armado: acá se toca el almacén y nada más. La mitad pura —combinar esto
-// con un viaje y producir la entrada del motor— vive en `settlementInput.ts`.
+// Es la mitad IMPURA del armado: acá se lee —SIEMPRE por la capa de datos, `db()`— y nada más. La
+// mitad pura —combinar esto con un viaje y producir la entrada del motor— vive en
+// `settlementInput.ts`. Por eso el Probador y la liquidación comparten el armado sin compartir de
+// dónde sale el viaje, que es lo único que legítimamente difiere.
 //
-// Por qué están separadas: hasta ahora el armado entero vivía en `repository.ts`, cuyo contrato
-// exigía una ruta, tiendas y tipos de ruta del TMS. Un viaje inventado no tiene nada de eso, así
-// que el Probador del motor **se escribió aparte** — y desde entonces las dos pantallas divergen.
-// Ya pasó con las zonas (la regla funcionaba en la prueba y nunca en producción) y casi vuelve a
-// pasar con los tarifarios. Partirlo por acá es lo que permite que compartan el armado sin
-// compartir de dónde sale el viaje, que es lo único que legítimamente difiere.
+// Desde 2026-10-02 (ROADMAP §8) el país y las zonas son del catálogo del TMS (entidades externas);
+// lo que el cálculo necesita y el catálogo no tiene —redondeo, umbral de pernocta, grupos de zona—
+// sigue siendo del tarifador. Nada de esto se lee "por fuera" del ORM.
 
-import { loadDatabase } from './localData/store';
+import { db, type Row } from './data';
 import type {
   Country, CostStructure, CostStructureRow, MarginPolicy, OutsourcedCostRate, OwnCostParams,
-  PartyVariable, PartyVehicleType, RateTable, RateTableRow, Rule, Zone, ZoneGroup,
+  PartyVariable, RateTable, RateTableRow, RoundingMode, Rule, Zone, ZoneGroup,
 } from './types';
-
-/** Perfil liquidable, en la forma mínima que necesitan la resolución de compañía y el armado. */
-export interface PartyRef {
-  id: string;
-  countryId: string;
-  classification: 'OWN' | 'OUTSOURCED';
-  carrierId: string | null;
-  status: string;
-  name: string;
-}
 
 export interface TarifasCatalog {
   country: Country;
@@ -36,68 +25,106 @@ export interface TarifasCatalog {
   marginPolicy: MarginPolicy;
   /** Sólo las de la compañía del viaje. Ver abajo por qué. */
   partyVariables: PartyVariable[];
-  partyVehicleTypes: PartyVehicleType[];
   costStructure: CostStructure | null;
   costStructureRows: CostStructureRow[];
   rateTables: RateTable[];
   rateTableRows: RateTableRow[];
 }
 
-// ── Lecturas por país ─────────────────────────────────────────────────────────────────────────
+const eq = (column: string, value: unknown) => ({ column, op: 'eq' as const, value });
 
-export function loadCountry(countryId: string): Country | null {
-  const row = loadDatabase().countries.find((c) => c.id === countryId);
-  if (!row) return null;
+// ── País ──────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * País del catálogo + su configuración de cálculo. Sin configuración no hay país liquidable: los
+ * decimales y el modo de redondeo cambian el total, y adivinarlos daría un número plausible y mal
+ * redondeado.
+ */
+function toCountry(row: Row, settings: Row | undefined): Country | null {
+  if (!settings) return null;
   return {
     id: row.id,
-    iso2: row.iso2,
+    iso2: row.code,
     name: row.name,
-    localCurrency: row.local_currency,
-    roundingDecimals: Number(row.rounding_decimals),
-    roundingMode: row.rounding_mode,
-    overnightThresholdHours: Number(row.overnight_threshold_hours),
-    ...(row.allow_negative_total === undefined ? {} : { allowNegativeTotal: !!row.allow_negative_total }),
+    localCurrency: row.currency,
+    roundingDecimals: Number(settings.rounding_decimals),
+    roundingMode: settings.rounding_mode as RoundingMode,
+    overnightThresholdHours: Number(settings.overnight_threshold_hours),
   };
 }
 
-export function loadCountries(): Country[] {
-  return loadDatabase().countries
-    .map((c) => loadCountry(c.id))
+export async function loadCountry(countryId: string): Promise<Country | null> {
+  const [row, settings] = await Promise.all([
+    db().findOne('country', countryId),
+    db().find('countrySettings', { where: [eq('country_id', countryId)], limit: 1 }),
+  ]);
+  return row ? toCountry(row, settings[0]) : null;
+}
+
+/** Países del catálogo que tienen configuración de cálculo (los liquidables). */
+export async function loadCountries(): Promise<Country[]> {
+  const [rows, settings] = await Promise.all([
+    db().find('country', { orderBy: [{ column: 'name', locale: true }] }),
+    db().find('countrySettings'),
+  ]);
+  const byCountry = new Map(settings.map((s) => [s.country_id, s]));
+  return rows
+    .map((row) => toCountry(row, byCountry.get(row.id)))
     .filter((c): c is Country => c !== null);
 }
 
-export function loadParties(): PartyRef[] {
-  return loadDatabase().settlementParties.map((p) => ({
-    id: p.id,
-    countryId: p.country_id,
-    classification: p.classification,
-    carrierId: p.carrier_id ?? null,
-    status: p.status,
-    name: p.name,
-  }));
+// ── Zonas y grupos ────────────────────────────────────────────────────────────────────────────
+
+function toZoneGroup(row: Row): ZoneGroup {
+  return {
+    id: row.id,
+    countryId: row.country_id ?? '',
+    code: row.code,
+    name: row.name,
+    zoneCodes: Array.isArray(row.zone_codes) ? row.zone_codes.map(String) : [],
+  };
 }
 
-export function loadZones(countryId?: string): Zone[] {
-  return loadDatabase().zones
-    .filter((z) => !countryId || z.country_id === countryId)
+/**
+ * Zonas del catálogo, con su grupo resuelto desde `zoneGroup.zone_codes`. Una zona que no está en
+ * ningún grupo queda con `zoneGroupId: null`; en dos grupos del mismo país, gana el primero por
+ * código (determinista), y eso se considera un error de configuración que la pantalla de grupos
+ * debe impedir.
+ */
+export async function loadZones(countryId?: string): Promise<Zone[]> {
+  const [zones, groups] = await Promise.all([
+    db().find('zone', {
+      ...(countryId ? { where: [eq('country_id', countryId)] } : {}),
+      orderBy: [{ column: 'code', locale: true }],
+    }),
+    loadZoneGroups(countryId),
+  ]);
+  const ordered = [...groups].sort((a, b) => a.code.localeCompare(b.code));
+
+  return zones
+    .filter((z) => z.code)
     .map((row) => ({
       id: row.id,
       countryId: row.country_id ?? '',
-      zoneGroupId: row.zone_group_id ?? null,
-      code: row.code,
+      code: String(row.code),
       name: row.name,
+      zoneGroupId: ordered.find(
+        (g) => g.countryId === row.country_id && (g.zoneCodes ?? []).includes(String(row.code)),
+      )?.id ?? null,
     }));
 }
 
-function loadZoneGroups(): ZoneGroup[] {
-  return loadDatabase().zoneGroups.map((row) => ({
-    id: row.id, countryId: row.country_id ?? '', code: row.code, name: row.name,
-  }));
+export async function loadZoneGroups(countryId?: string): Promise<ZoneGroup[]> {
+  const rows = await db().find('zoneGroup', countryId ? { where: [eq('country_id', countryId)] } : undefined);
+  return rows.map(toZoneGroup);
 }
 
-function loadRules(countryId: string): Rule[] {
-  return loadDatabase().pricingRules
-    .filter((r) => r.active && (r.country_id === countryId || !r.country_id))
+// ── Reglas y parámetros del país ──────────────────────────────────────────────────────────────
+
+async function loadRules(countryId: string): Promise<Rule[]> {
+  const rows = await db().find('pricingRule', { where: [eq('active', true)] });
+  return rows
+    .filter((r) => r.country_id === countryId || !r.country_id)
     .map((row) => ({
       id: row.id,
       // `country_id` nulo = regla global: se estampa el país actual, porque el resolver filtra por
@@ -125,9 +152,8 @@ function loadRules(countryId: string): Rule[] {
     }));
 }
 
-
-function loadOwnCostParams(countryId: string): OwnCostParams | null {
-  const row = loadDatabase().ownCostParams.find((p) => p.country_id === countryId);
+async function loadOwnCostParams(countryId: string): Promise<OwnCostParams | null> {
+  const [row] = await db().find('ownCostParams', { where: [eq('country_id', countryId)], limit: 1 });
   if (!row) return null;
   return {
     id: row.id,
@@ -138,20 +164,19 @@ function loadOwnCostParams(countryId: string): OwnCostParams | null {
   };
 }
 
-function loadOutsourcedCostRates(countryId: string): OutsourcedCostRate[] {
-  return loadDatabase().outsourcedCostRates
-    .filter((r) => r.country_id === countryId)
-    .map((row) => ({
-      id: row.id,
-      countryId,
-      carrierId: row.carrier_id,
-      truckTypeId: row.truck_type_id,
-      flatRate: String(row.flat_rate),
-    }));
+async function loadOutsourcedCostRates(countryId: string): Promise<OutsourcedCostRate[]> {
+  const rows = await db().find('outsourcedCostRate', { where: [eq('country_id', countryId)] });
+  return rows.map((row) => ({
+    id: row.id,
+    countryId,
+    carrierId: row.carrier_id,
+    truckTypeId: row.truck_type_id,
+    flatRate: String(row.flat_rate),
+  }));
 }
 
-function loadMarginPolicy(countryId: string): MarginPolicy | null {
-  const row = loadDatabase().marginPolicies.find((p) => p.country_id === countryId);
+async function loadMarginPolicy(countryId: string): Promise<MarginPolicy | null> {
+  const [row] = await db().find('marginPolicy', { where: [eq('country_id', countryId)], limit: 1 });
   if (!row) return null;
   return {
     countryId,
@@ -162,53 +187,39 @@ function loadMarginPolicy(countryId: string): MarginPolicy | null {
   };
 }
 
-// ── Lecturas por compañía ─────────────────────────────────────────────────────────────────────
-// Sólo las de la compañía del viaje. Mezclar las de otra haría que una regla resolviera con un
-// número que no le corresponde, o que mirara el tarifario de un tercero.
+// ── Lecturas por compañía (perfil de cálculo) ─────────────────────────────────────────────────
+// Sólo las del perfil del viaje. Mezclar las de otro haría que una regla resolviera con un número
+// que no le corresponde, o que mirara el tarifario de un tercero.
 
-function loadPartyVariables(partyId: string | null): PartyVariable[] {
+async function loadPartyVariables(partyId: string | null): Promise<PartyVariable[]> {
   if (!partyId) return [];
-  return loadDatabase().partyVariables
-    .filter((v) => v.party_id === partyId)
-    .map((row) => ({
-      id: row.id,
-      partyId: row.party_id,
-      key: row.key,
-      label: row.label,
-      kind: row.kind,
-      origin: row.origin,
-      defaultValue: row.default_value ?? null,
-      unit: row.unit ?? null,
-      active: !!row.active,
-    }));
+  const rows = await db().find('partyVariable', { where: [eq('party_id', partyId)] });
+  return rows.map((row) => ({
+    id: row.id,
+    partyId: row.party_id,
+    key: row.key,
+    label: row.label,
+    kind: row.kind,
+    origin: row.origin,
+    defaultValue: row.default_value ?? null,
+    unit: row.unit ?? null,
+    active: !!row.active,
+  }));
 }
 
-function loadPartyVehicleTypes(partyId: string | null): PartyVehicleType[] {
-  if (!partyId) return [];
-  return loadDatabase().partyVehicleTypes
-    .filter((v) => v.party_id === partyId && v.active)
-    .map((v) => ({
-      id: v.id,
-      partyId: v.party_id,
-      code: v.code,
-      name: v.name,
-      volumeM3: Number(v.volume_m3) || 0,
-      weightTons: Number(v.weight_tons) || 0,
-      notes: v.notes ?? null,
-      active: !!v.active,
-    }));
-}
-
-function loadCostStructure(partyId: string | null): {
+async function loadCostStructure(partyId: string | null): Promise<{
   structure: CostStructure | null;
   rows: CostStructureRow[];
-} {
+}> {
   if (!partyId) return { structure: null, rows: [] };
 
-  const db = loadDatabase();
-  const row = db.costStructures.find((c) => c.party_id === partyId && c.active);
+  const [row] = await db().find('costStructure', {
+    where: [eq('party_id', partyId), eq('active', true)],
+    limit: 1,
+  });
   if (!row) return { structure: null, rows: [] };
 
+  const rows = await db().find('costStructureRow', { where: [eq('structure_id', row.id)] });
   return {
     structure: {
       id: row.id,
@@ -220,21 +231,19 @@ function loadCostStructure(partyId: string | null): {
       active: !!row.active,
       notes: row.notes ?? null,
     },
-    rows: db.costStructureRows
-      .filter((r) => r.structure_id === row.id)
-      .map((r) => ({
-        id: r.id,
-        structureId: r.structure_id,
-        code: r.code,
-        label: r.label,
-        driver: r.driver,
-        amount: String(r.amount),
-        sign: r.sign,
-        appliesWhen: r.applies_when ?? null,
-        unit: r.unit ?? null,
-        order: Number(r.row_order ?? 0),
-        active: !!r.active,
-      })),
+    rows: rows.map((r) => ({
+      id: r.id,
+      structureId: r.structure_id,
+      code: r.code,
+      label: r.label,
+      driver: r.driver,
+      amount: String(r.amount),
+      sign: r.sign,
+      appliesWhen: r.applies_when ?? null,
+      unit: r.unit ?? null,
+      order: Number(r.row_order ?? 0),
+      active: !!r.active,
+    })),
   };
 }
 
@@ -242,14 +251,13 @@ function loadCostStructure(partyId: string | null): {
  * Tarifarios del país MÁS los de la compañía. Los de otra compañía no se cargan: una regla no
  * debería poder mirar el tarifario de un tercero.
  */
-function loadRateTables(
+async function loadRateTables(
   countryId: string,
   partyId: string | null,
-): { tables: RateTable[]; rows: RateTableRow[] } {
-  const db = loadDatabase();
+): Promise<{ tables: RateTable[]; rows: RateTableRow[] }> {
+  const all = await db().find('rateTable', { where: [eq('country_id', countryId), eq('active', true)] });
 
-  const tables: RateTable[] = db.rateTables
-    .filter((t) => t.country_id === countryId && t.active)
+  const tables: RateTable[] = all
     .filter((t) => !t.party_id || t.party_id === partyId)
     .map((t) => ({
       id: t.id,
@@ -266,19 +274,21 @@ function loadRateTables(
   const codigosDeCompania = new Set(tables.filter((t) => t.partyId).map((t) => t.code));
   const vigentes = tables.filter((t) => t.partyId || !codigosDeCompania.has(t.code));
 
-  const idsVigentes = new Set(vigentes.map((t) => t.id));
+  const ids = vigentes.map((t) => t.id);
+  const rows = ids.length
+    ? await db().find('rateTableRow', { where: [{ column: 'table_id', op: 'in', value: ids }] })
+    : [];
+
   return {
     tables: vigentes,
-    rows: db.rateTableRows
-      .filter((r) => idsVigentes.has(r.table_id))
-      .map((r) => ({
-        id: r.id,
-        tableId: r.table_id,
-        key: r.key ?? [],
-        amount: String(r.amount),
-        order: Number(r.row_order ?? 0),
-        active: !!r.active,
-      })),
+    rows: rows.map((r) => ({
+      id: r.id,
+      tableId: r.table_id,
+      key: r.key ?? [],
+      amount: String(r.amount),
+      order: Number(r.row_order ?? 0),
+      active: !!r.active,
+    })),
   };
 }
 
@@ -287,51 +297,60 @@ function loadRateTables(
 export class CatalogError extends Error {}
 
 /**
- * Carga todo lo necesario para tarifar un viaje de este país y esta compañía.
+ * Carga todo lo necesario para tarifar un viaje de este país y este perfil de cálculo.
  *
- * Lanza cuando falta algo sin lo cual no hay cálculo posible —el país, sus parámetros de costo o su
- * política de margen—, con un mensaje que dice dónde configurarlo. Devolver un catálogo a medias
- * produciría un total plausible calculado sobre huecos.
+ * Lanza cuando falta algo sin lo cual no hay cálculo posible —el país o su configuración, sus
+ * parámetros de costo o su política de margen—, con un mensaje que dice dónde configurarlo.
+ * Devolver un catálogo a medias produciría un total plausible calculado sobre huecos.
  */
-export function loadTarifasCatalog(countryId: string, partyId: string | null): TarifasCatalog {
-  const country = loadCountry(countryId);
+export async function loadTarifasCatalog(countryId: string, partyId: string | null): Promise<TarifasCatalog> {
+  const country = await loadCountry(countryId);
   if (!country) {
     throw new CatalogError(
-      `No hay un país "${countryId}" configurado en Tarifas. Cargalo antes de liquidar.`,
+      `El país "${countryId}" no tiene configuración de cálculo (redondeo, pernocta) en Tarifas. `
+        + 'Cargala antes de liquidar.',
     );
   }
 
-  const ownCostParams = loadOwnCostParams(countryId);
+  const [
+    ownCostParams, marginPolicy, rules, zones, zoneGroups, outsourcedCostRates,
+    partyVariables, cost, rateTables,
+  ] = await Promise.all([
+    loadOwnCostParams(countryId),
+    loadMarginPolicy(countryId),
+    loadRules(countryId),
+    loadZones(countryId),
+    loadZoneGroups(countryId),
+    loadOutsourcedCostRates(countryId),
+    loadPartyVariables(partyId),
+    loadCostStructure(partyId),
+    loadRateTables(countryId, partyId),
+  ]);
+
   if (!ownCostParams) {
     throw new CatalogError(
       `No hay parámetros de costo para ${country.name} en Reglas de Tarifa → Costos. ` +
       'Sin ellos no se puede calcular el margen.',
     );
   }
-
-  const marginPolicy = loadMarginPolicy(countryId);
   if (!marginPolicy) {
     throw new CatalogError(
       `No hay política de margen para ${country.name} en Reglas de Tarifa → Política de Margen.`,
     );
   }
 
-  const { structure, rows: structureRows } = loadCostStructure(partyId);
-  const { tables, rows: tableRows } = loadRateTables(countryId, partyId);
-
   return {
     country,
-    rules: loadRules(countryId),
-    zones: loadZones(),
-    zoneGroups: loadZoneGroups(),
+    rules,
+    zones,
+    zoneGroups,
     ownCostParams,
-    outsourcedCostRates: loadOutsourcedCostRates(countryId),
+    outsourcedCostRates,
     marginPolicy,
-    partyVariables: loadPartyVariables(partyId),
-    partyVehicleTypes: loadPartyVehicleTypes(partyId),
-    costStructure: structure,
-    costStructureRows: structureRows,
-    rateTables: tables,
-    rateTableRows: tableRows,
+    partyVariables,
+    costStructure: cost.structure,
+    costStructureRows: cost.rows,
+    rateTables: rateTables.tables,
+    rateTableRows: rateTables.rows,
   };
 }

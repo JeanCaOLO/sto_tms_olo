@@ -1,4 +1,4 @@
-﻿// Puerto literal de vista-tarifas-fase1/src/kernel/__tests__/evaluator.test.ts.
+// Puerto literal de vista-tarifas-fase1/src/kernel/__tests__/evaluator.test.ts.
 import { describe, expect, it } from 'vitest';
 import { deriveContext, resolveRules } from '../resolver';
 import { evaluateExpr, runChargePipeline } from '../evaluator';
@@ -99,12 +99,12 @@ describe('TIERED â€” bordes de escalÃ³n', () => {
   it('7. evalÃºa el escalÃ³n correcto exactamente en el borde y justo despuÃ©s', () => {
     const country = makeCountryVE();
     const { zoneGroups, zones, locations } = makeGeoVE();
-    const expr = { op: 'TIERED' as const, unit: 'lateMinutes' as const, tiers };
+    const expr = { op: 'TIERED' as const, unit: 'durationHours' as const, tiers };
 
-    const atBorder = deriveContext({ trip: makeTrip({ lateMinutes: 15 }), country, zones, zoneGroups, locations });
-    const justAfter = deriveContext({ trip: makeTrip({ lateMinutes: 16 }), country, zones, zoneGroups, locations });
-    const secondBorder = deriveContext({ trip: makeTrip({ lateMinutes: 30 }), country, zones, zoneGroups, locations });
-    const beyondAll = deriveContext({ trip: makeTrip({ lateMinutes: 31 }), country, zones, zoneGroups, locations });
+    const atBorder = deriveContext({ trip: makeTrip({ durationHours: 15 }), country, zones, zoneGroups, locations });
+    const justAfter = deriveContext({ trip: makeTrip({ durationHours: 16 }), country, zones, zoneGroups, locations });
+    const secondBorder = deriveContext({ trip: makeTrip({ durationHours: 30 }), country, zones, zoneGroups, locations });
+    const beyondAll = deriveContext({ trip: makeTrip({ durationHours: 31 }), country, zones, zoneGroups, locations });
 
     expect(evaluateExpr(expr, makeEvalContext(atBorder.vars)).toFixed(2)).toBe('0.00');
     expect(evaluateExpr(expr, makeEvalContext(justAfter.vars)).toFixed(2)).toBe('-10.00');

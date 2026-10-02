@@ -172,8 +172,9 @@ const DRIVER_HINTS: { pattern: RegExp; driver: CostDriver }[] = [
   { pattern: /mensual|por\s*mes|\/\s*mes/i, driver: 'PER_MONTH_PRORATED' },
   { pattern: /diario|por\s*d[ií]a|\/\s*d[ií]a/i, driver: 'PER_DAY' },
   { pattern: /por\s*hora|\/\s*hora/i, driver: 'PER_HOUR' },
-  { pattern: /por\s*bulto|por\s*entrega/i, driver: 'PER_PACKAGE' },
-  { pattern: /por\s*parada|por\s*cliente/i, driver: 'PER_CLIENT' },
+  // "Por bulto" ya no tiene driver: el viaje no informa bultos (ROADMAP §8). Una fila así cae en
+  // FIXED y la persona la reasigna al confirmar. Una entrega sí es una parada.
+  { pattern: /por\s*parada|por\s*cliente|por\s*entrega/i, driver: 'PER_CLIENT' },
 ];
 
 /** Driver propuesto, mirando títulos y encabezados. La persona lo confirma fila por fila. */

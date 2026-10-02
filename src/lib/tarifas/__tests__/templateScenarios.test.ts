@@ -10,22 +10,25 @@ import {
 } from '../templateScenarios';
 
 describe('normalizeTrip', () => {
-  it('completa lo que la plantilla vieja no traía, con cero', () => {
-    // Una plantilla anterior a las recolectas describe un viaje SIN recolectas: cero es la lectura
+  it('completa lo que la plantilla no traía, con cero', () => {
+    // Una plantilla sin capacidad describe un viaje sin capacidad informada: cero es la lectura
     // correcta, no un dato faltante.
     const trip = normalizeTrip({ originLocationId: 'Z1', destLocationId: 'Z2', km: 100 }, 'VE');
 
     expect(trip).toMatchObject({
       countryId: 'VE',
       km: 100,
-      tollCount: 0,
-      pickupCount: 0,
       truckVolumeM3: 0,
       truckWeightTons: 0,
-      tollsAmount: '0',
       serviceType: 'STANDARD',
       fleetType: 'OWN',
     });
+  });
+
+  it('peajes y recolectas viajan como variables personalizadas, no como campos del viaje', () => {
+    const trip = normalizeTrip({ destLocationId: 'Z2', customVars: { 'custom:peajes': 3 } }, 'VE');
+    expect(trip.customVars).toEqual({ 'custom:peajes': 3 });
+    expect(trip).not.toHaveProperty('tollCount');
   });
 
   it('un viaje totalmente vacío no rompe: queda en ceros', () => {

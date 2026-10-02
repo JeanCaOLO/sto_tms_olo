@@ -4,6 +4,7 @@
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import seed from '../../localData/seed.json';
 import { COLLECTIONS } from '../../localData/store';
@@ -19,7 +20,7 @@ import {
 import { generateDdl } from '../ddl';
 import { generateManifest } from '../manifest';
 
-const ROOT = resolve(__dirname, '..', '..', '..', '..', '..');
+const ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..', '..', '..');
 
 describe('registro de esquema', () => {
   it('cada entidad tiene su colección en la semilla del almacén JSON', () => {

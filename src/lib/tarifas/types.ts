@@ -41,12 +41,15 @@ export interface ZoneGroup {
   countryId: string;
   code: string;
   name: string;
+  /** Códigos de las zonas del catálogo que agrupa. */
+  zoneCodes?: string[];
 }
 
+/** Zona del catálogo del TMS (`zones`). El grupo lo resuelve el liquidador desde `ZoneGroup.zoneCodes`. */
 export interface Zone {
   id: string;
   countryId: string;
-  zoneGroupId: string;
+  zoneGroupId: string | null;
   code: string;
   name: string;
 }
@@ -130,43 +133,33 @@ export interface PartyVariable {
   active: boolean;
 }
 
-/**
- * Tipo de vehículo del catálogo interno de una compañía.
- *
- * Existe para que `truckVolumeM3` y `truckWeightTons` dejen de teclearse viaje por viaje: el código
- * del tipo de camión ya viaja en la liquidación, así que la capacidad se deriva de acá. El `code`
- * es el mismo texto que usa la tarifa por vehículo, así que un tarifario importado de Excel queda
- * conectado con su capacidad sin trabajo extra.
- */
-export interface PartyVehicleType {
-  id: string;
-  partyId: string;
-  /** Igual al `truckTypeId` del viaje y al de la tarifa. Ej: "NPR", "Cabezal T3". */
-  code: string;
-  name: string;
-  volumeM3: number;
-  weightTons: number;
-  notes: string | null;
-  active: boolean;
-}
-
 export type ServiceType = 'STANDARD' | 'EXPRESS' | 'DEDICATED';
 export type FleetType = 'OWN' | 'OUTSOURCED';
 
+/**
+ * El viaje tal como lo ve el motor.
+ *
+ * Trae SOLO lo que el viaje de guía de despacho conoce como dato (ver `tripContext.ts`): distancia,
+ * paradas, peso, duración, vehículo, flota, zona destino. Todo lo demás —peajes, recolectas, bultos,
+ * atrasos, incidencias o lo que cada compañía necesite— es una variable personalizada (`custom:*`)
+ * que se carga al liquidar y llega en `customVars`. Antes eran campos fijos de este tipo; se
+ * retiraron (2026-10-02, ROADMAP §8) porque ningún viaje real los trae.
+ */
 export interface TripContext {
   countryId: string;
   /**
-   * Compañía a la que se le liquida este viaje (`settlementParty`). Es lo que decide QUÉ reglas
-   * aplican además de las del país, y contra qué tarifa de outsourcing se costea.
+   * Perfil de cálculo con el que se liquida este viaje (`settlementParty`). Es lo que decide QUÉ
+   * reglas aplican además de las del país, y contra qué tarifa de outsourcing se costea. Nulo = el
+   * transportista no tiene perfil: se liquida solo con las reglas del país.
    * Distinto de `carrierId`, que es el transportista del TMS y solo sirve como variable de regla.
    */
   partyId: string | null;
   quotedAt: string; // ISO 8601 — nunca Date.now() implícito
+  /** Vacío = el viaje no informa origen (los viajes de guía de despacho solo traen destino). */
   originLocationId: string;
   destLocationId: string;
   km: number;
   clientCount: number;
-  packageCount: number;
   weightKg: number;
   truckTypeId: string;
   serviceType: ServiceType;
@@ -175,19 +168,9 @@ export interface TripContext {
   driverId: string | null;
   customerId: string | null;
   durationHours: number;
-  tollsAmount: Money;
-  /** CANTIDAD de peajes transitados, no su monto. Son dos reglas distintas y hacían falta ambas. */
-  tollCount: number;
-  /** Recolectas atendidas en el viaje. */
-  pickupCount: number;
-  /**
-   * Capacidad del camión. Hoy se informa junto con el viaje; cuando exista el catálogo de tipos de
-   * vehículo por compañía, se derivará de ahí sin tocar el kernel ni las reglas ya escritas.
-   */
+  /** Capacidad del camión del viaje (`vehicles.capacity_*`): m³ y toneladas. 0 = no informada. */
   truckVolumeM3: number;
   truckWeightTons: number;
-  lateMinutes: number;
-  incidentCount: number;
   /**
    * Valores de las variables personalizadas cargadas para ESTE viaje (las de origen PER_TRIP).
    * Las de origen CONSTANT no hace falta repetirlas acá: el motor toma su valor de la declaración.
@@ -210,10 +193,9 @@ export interface DerivedVars {
 // Variables que trae el sistema. Sigue siendo un vocabulario CERRADO: si una regla nombrara una
 // clave que no está acá, no compila.
 export type BuiltinVarKey =
-  | 'countryId' | 'km' | 'clientCount' | 'packageCount' | 'weightKg'
+  | 'countryId' | 'km' | 'clientCount' | 'weightKg'
   | 'truckTypeId' | 'serviceType' | 'fleetType' | 'carrierId' | 'customerId'
-  | 'durationHours' | 'tollsAmount' | 'tollCount' | 'pickupCount'
-  | 'truckVolumeM3' | 'truckWeightTons' | 'lateMinutes' | 'incidentCount'
+  | 'durationHours' | 'truckVolumeM3' | 'truckWeightTons'
   | 'originZone' | 'destZone' | 'originZoneGroup' | 'destZoneGroup'
   | 'overnightNights' | 'weekday';
 
@@ -234,9 +216,8 @@ export type VarBag = Record<BuiltinVarKey, VarValue> & Record<CustomVarKey, VarV
 // Subconjunto de VarKey usable como "unidad" en PER_UNIT/TIERED — multiplicar un rate por un
 // serviceType no tiene sentido, así que el compilador rechaza ese uso.
 export type BuiltinNumericVarKey =
-  | 'km' | 'clientCount' | 'packageCount' | 'weightKg' | 'durationHours'
-  | 'tollsAmount' | 'tollCount' | 'pickupCount' | 'truckVolumeM3' | 'truckWeightTons'
-  | 'lateMinutes' | 'incidentCount' | 'overnightNights' | 'weekday';
+  | 'km' | 'clientCount' | 'weightKg' | 'durationHours'
+  | 'truckVolumeM3' | 'truckWeightTons' | 'overnightNights' | 'weekday';
 
 // Una variable personalizada numérica también sirve como unidad; que lo sea de verdad se valida al
 // guardar la regla (`kind: 'NUMBER'`), porque el compilador no puede saberlo.
@@ -491,62 +472,60 @@ export interface Override {
   reason: string;
 }
 
-// ── Catálogo operativo propio del módulo ──────────────────────────────────────────────────────
-// Ruta, conductor y liquidación viven ACÁ y no en el TMS. El motivo no es ideológico: mientras las
-// rutas venían de otra base, el módulo no podía probarse sin datos cargados allá, y hacía falta un
-// andamiaje entero (catálogo de ubicaciones sintéticas, mapeo de tiendas a zonas, zona comodín,
-// puente de países por código ISO) que existía sólo para cruzar esa frontera.
+// ── Viajes del TMS (solo lectura) ─────────────────────────────────────────────────────────────
+// El liquidador NO crea viajes: consume los de guía de despacho (`routes`), ya armados por la vista
+// `tarifas_v_viajes` con su transportista, conductor, vehículo y zona. Ver ROADMAP §8.
 
-/**
- * La lane comercial de un transportista: `CAR-CCS`, "Carabobo → Caracas Norte".
- *
- * Es la fuente de los datos del viaje al liquidar — zonas, kilómetros, paradas, bultos, peajes—,
- * que hoy se teclean a mano uno por uno.
- *
- * NO lleva importe: la tarifa sale del tarifario de su compañía, con clave (zona origen, zona
- * destino). Dos lugares donde buscar el precio de una ruta es exactamente el problema que costó
- * desarmar cuando las tarifas por zona convivían con los tarifarios.
- */
-export interface RouteDef {
+/** Estado del viaje, normalizado por la vista. Solo 'completed' se liquida. */
+export type TripStatus = 'completed' | 'planned' | 'in_progress' | string;
+
+/** Un viaje de guía de despacho, tal como lo lee el liquidador. */
+export interface TripRecord {
   id: string;
   countryId: string;
-  /** Transportista dueño. Cada compañía cubre sus propias rutas, a sus propios precios. */
-  partyId: string;
-  code: string;
-  name: string;
-  originZoneId: string;
-  destZoneId: string;
+  /** Número del viaje (`routes.route_number`). Es el dato con el que la gente busca. */
+  routeNumber: string;
+  /** 'YYYY-MM-DD'. Resuelve la vigencia de las reglas. */
+  routeDate: string;
+  status: TripStatus;
+  carrierId: string | null;
+  carrierName: string | null;
+  /** `carriers.is_flota_propia`. Nulo = el viaje no tiene transportista asignado. */
+  isOwnFleet: boolean | null;
+  driverId: string | null;
+  driverName: string | null;
+  driverDocument: string | null;
+  vehicleId: string | null;
+  vehiclePlate: string | null;
+  /** `vehicles.vehicle_type`: el "tipo de camión" con el que se buscan las tarifas. */
+  vehicleType: string | null;
+  capacityWeightKg: number;
+  capacityVolumeM3: number;
+  destZoneId: string | null;
+  destZoneCode: string | null;
+  destZoneName: string | null;
   km: number;
-  /** Paradas/clientes atendidos. */
-  stopCount: number;
-  packageCount: number;
+  totalStops: number;
+  completedStops: number;
   weightKg: number;
-  tollCount: number;
-  tollsAmount: Money;
+  volumeM3: number;
+  actualStartTime: string | null;
+  actualEndTime: string | null;
   durationHours: number;
-  notes: string | null;
-  active: boolean;
+  guideCount: number;
+  returnCount: number;
+  /** Liquidación vigente del viaje, o nulo si todavía no se liquidó. */
+  settlementId: string | null;
 }
 
 /**
- * Conductor del tarifador.
- *
- * Existe porque la guía física trae NOMBRE y CÉDULA y casi nunca la compañía: `driverSearch.ts`
- * resuelve esa búsqueda desde hace tiempo, pero la lista se leía del TMS.
+ * Lo variable que se carga a mano al liquidar un viaje (además de las devoluciones, que se guardan
+ * aparte en `SettlementRecord.returns`). Los datos del viaje (km, paradas, vehículo…) son de guía
+ * de despacho y no se editan desde el liquidador.
  */
-export interface DriverDef {
-  id: string;
-  countryId: string;
-  partyId: string;
-  fullName: string;
-  /** Cédula. Se guarda como la tipearon; la comparación normaliza. */
-  document: string | null;
-  phone: string | null;
-  license: string | null;
-  /** 'YYYY-MM-DD'. */
-  licenseExpiresAt: string | null;
-  notes: string | null;
-  active: boolean;
+export interface TripEdits {
+  /** Valores de las variables personalizadas PER_TRIP (peajes, recolectas, horas de espera…). */
+  customVars: Record<string, VarValue>;
 }
 
 export type SettlementStatus = 'Borrador' | 'En Revisión' | 'Aprobado' | 'Pagado' | 'Anulado';
@@ -561,26 +540,33 @@ export interface SettlementReturn {
 }
 
 /**
- * La liquidación emitida, con su desglose completo.
+ * La liquidación emitida de un viaje, con su desglose completo.
  *
  * El desglose se guarda desnormalizado y sin referencia a las reglas, a propósito: una liquidación
  * emitida tiene que poder releerse tal cual se emitió aunque después la regla se edite, se
- * desactive o se borre.
+ * desactive o se borre. Por la misma razón `tripInfo` congela lo que se leyó del viaje: si guía de
+ * despacho lo corrige después, la liquidación vieja sigue diciendo con qué datos se calculó.
  */
 export interface SettlementRecord {
   id: string;
   countryId: string;
-  partyId: string;
-  routeId: string | null;
-  driverId: string | null;
+  /** El viaje liquidado (`routes.id`). */
+  tripId: string;
+  /** Perfil de cálculo con el que se liquidó. Nulo = transportista sin perfil. */
+  partyId: string | null;
   /** Número propio del módulo: 'LIQ-0001'. */
   number: string;
-  /** Nro de viaje de la guía física. Es el dato con el que la gente busca. */
-  tripNumber: string | null;
-  /** 'YYYY-MM-DD'. Es la fecha que resuelve la vigencia de las reglas. */
+  /** Número del viaje (`route_number`), congelado. */
+  tripNumber: string;
+  /** 'YYYY-MM-DD'. Fecha del viaje: es la que resolvió la vigencia de las reglas. */
   settlementDate: string;
-  truckTypeId: string | null;
   status: SettlementStatus;
+  /** Foto del viaje al emitir. */
+  tripInfo: TripRecord;
+  /** Lo cargado a mano al liquidar. */
+  tripEdits: TripEdits;
+  /** Liquidación que reemplazó a esta al re-liquidar. Nulo = sigue vigente (o anulada sin reemplazo). */
+  supersededBy: string | null;
   currency: string;
   totalAmount: Money;
   notes: string | null;
@@ -643,8 +629,6 @@ export type CostDriver =
   | 'PER_MONTH_PRORATED'
   /** Por parada/cliente atendido. */
   | 'PER_CLIENT'
-  /** Por bulto entregado. */
-  | 'PER_PACKAGE'
   /** Por hora de duración del viaje. */
   | 'PER_HOUR';
 
@@ -805,8 +789,6 @@ export interface CalculateInput {
   outsourcedCostRates: OutsourcedCostRate[];
   /** Variables declaradas por la compañía del viaje. Sin esto, sus reglas propias no resuelven. */
   partyVariables?: PartyVariable[];
-  /** Catálogo de vehículos de la compañía, para derivar la capacidad del camión del viaje. */
-  partyVehicleTypes?: PartyVehicleType[];
   /**
    * Estructura de costos de la compañía. Cuando está presente MANDA sobre `ownCostParams`, que
    * queda como respaldo para las compañías que todavía no cargaron la suya.

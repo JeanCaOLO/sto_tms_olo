@@ -28,8 +28,8 @@ async function escenarios(): Promise<TemplateScenario[]> {
   return rows.map((r) => toScenario(r as never));
 }
 
-function calcular(scenario: TemplateScenario) {
-  const catalog = loadTarifasCatalog(scenario.countryId, scenario.trip.partyId);
+async function calcular(scenario: TemplateScenario) {
+  const catalog = await loadTarifasCatalog(scenario.countryId, scenario.trip.partyId);
   const { input, issues } = buildCalculateInput(catalog, scenario.trip);
   return { result: calculate(input), issues };
 }
@@ -45,7 +45,7 @@ describe('escenarios de la semilla', () => {
     const movidos: string[] = [];
 
     for (const scenario of await escenarios()) {
-      const { result } = calcular(scenario);
+      const { result } = await calcular(scenario);
       const check = checkScenario(scenario, result.totalLiquidado);
       if (check.verdict !== 'OK') movidos.push(describeCheck(check));
     }
@@ -56,7 +56,7 @@ describe('escenarios de la semilla', () => {
   it('ninguno queda bloqueado ni con el viaje a medio armar', async () => {
     // Un escenario que no se puede emitir no demuestra el cálculo: demuestra un dato faltante.
     for (const scenario of await escenarios()) {
-      const { result, issues } = calcular(scenario);
+      const { result, issues } = await calcular(scenario);
       expect([scenario.name, ...issues.map((i) => i.message)]).toEqual([scenario.name]);
       expect([scenario.name, ...result.blockingIssues.map((i) => i.message)]).toEqual([scenario.name]);
     }
@@ -72,7 +72,7 @@ describe('lo que demuestra cada escenario', () => {
   const buscar = async (id: string) => {
     const s = (await escenarios()).find((x) => x.id === id);
     if (!s) throw new Error(`falta la plantilla ${id}`);
-    return { scenario: s, ...calcular(s) };
+    return { scenario: s, ...(await calcular(s)) };
   };
 
   it('el escenario de terceros cobra las recolectas y las horas de espera', async () => {
@@ -122,7 +122,7 @@ describe('Fase 8 — lo que demuestran los escenarios nuevos', () => {
   const buscar = async (id: string) => {
     const s = (await escenarios()).find((x) => x.id === id);
     if (!s) throw new Error(`falta la plantilla ${id}`);
-    return { scenario: s, ...calcular(s) };
+    return { scenario: s, ...(await calcular(s)) };
   };
 
   it('TPL_VE_3: una lane sin fila propia resuelve por el comodín "*" del tarifario, no por el respaldo por km', async () => {
@@ -180,11 +180,10 @@ describe('Fase 8 — lo que demuestran los escenarios nuevos', () => {
     expect(Number(vencida.result.totalLiquidado) - Number(vigente.result.totalLiquidado)).toBe(8000);
   });
 
-  it('una compañía sin catálogo de vehículos no rompe el cálculo y avisa (borde C8)', () => {
-    // SP_CO_OWN es flota propia y, a propósito, NO tiene ninguna fila en `partyVehicleTypes` —
-    // el mismo estado en el que queda cualquier compañía nueva antes de cargar su catálogo.
-    const catalog = loadTarifasCatalog('CO', 'SP_CO_OWN');
-    expect(catalog.partyVehicleTypes).toEqual([]);
+  it('un viaje cuyo vehículo no tiene capacidad cargada no rompe el cálculo y avisa (borde C8)', async () => {
+    // La capacidad viene con el viaje, del vehículo del catálogo (ROADMAP §8). Un vehículo sin
+    // capacidad cargada es el mismo estado en el que queda cualquier camión recién dado de alta.
+    const catalog = await loadTarifasCatalog('CO', 'SP_CO_OWN');
 
     const trip = normalizeTrip({
       partyId: 'SP_CO_OWN',
@@ -200,13 +199,11 @@ describe('Fase 8 — lo que demuestran los escenarios nuevos', () => {
     const { input, issues, warnings } = buildCalculateInput(catalog, trip);
     expect(issues).toEqual([]);
 
-    // No revienta, la capacidad del camión queda en 0 —no hay de dónde derivarla— y ahora SÍ avisa:
-    // un catálogo enteramente vacío es indistinguible en sus efectos de un código que no está en el
-    // catálogo, así que `settlementInput.ts` avisa en los dos casos (antes sólo avisaba cuando el
-    // catálogo tenía algo y el código no calzaba).
+    // No revienta, la capacidad del camión queda en 0 y se avisa: en silencio, "toda regla por
+    // volumen valió cero" es indistinguible de "no correspondía".
     expect(() => calculate(input)).not.toThrow();
     expect(input.trip.truckVolumeM3).toBe(0);
     expect(input.trip.truckWeightTons).toBe(0);
-    expect(warnings.some((w) => w.includes('no tiene catálogo de vehículos cargado'))).toBe(true);
+    expect(warnings.some((w) => w.includes('no tiene capacidad cargada'))).toBe(true);
   });
 });

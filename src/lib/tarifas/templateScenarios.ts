@@ -49,10 +49,10 @@ const nullableStr = (v: unknown): string | null => (typeof v === 'string' && v !
 /**
  * Completa un viaje guardado hasta un `TripContext` entero.
  *
- * Las plantillas viejas no traen `tollCount`, `pickupCount` ni capacidad del camión: esos campos no
- * existían cuando se guardaron. Rellenarlos con cero acá es lo correcto —una plantilla anterior a
- * las recolectas describe un viaje sin recolectas— y evita que cada pantalla invente sus propios
- * respaldos, que es como el Probador y la liquidación terminaron divergiendo.
+ * Lo que falta se rellena con cero/vacío acá —una plantilla sin capacidad describe un viaje sin
+ * capacidad informada— para que cada pantalla no invente sus propios respaldos, que es como el
+ * Probador y la liquidación terminaron divergiendo. Peajes, recolectas y demás datos que el viaje
+ * no trae viajan en `customVars` (ROADMAP §8).
  */
 export function normalizeTrip(raw: Record<string, unknown> | null | undefined, countryId: string): TripContext {
   const t = raw ?? {};
@@ -66,7 +66,6 @@ export function normalizeTrip(raw: Record<string, unknown> | null | undefined, c
     destLocationId: str(t.destLocationId, ''),
     km: num(t.km, 0),
     clientCount: num(t.clientCount, 0),
-    packageCount: num(t.packageCount, 0),
     weightKg: num(t.weightKg, 0),
     truckTypeId: str(t.truckTypeId, ''),
     serviceType: (t.serviceType as ServiceType) ?? 'STANDARD',
@@ -75,13 +74,8 @@ export function normalizeTrip(raw: Record<string, unknown> | null | undefined, c
     driverId: nullableStr(t.driverId),
     customerId: nullableStr(t.customerId),
     durationHours: num(t.durationHours, 0),
-    tollsAmount: str(t.tollsAmount, '0'),
-    tollCount: num(t.tollCount, 0),
-    pickupCount: num(t.pickupCount, 0),
     truckVolumeM3: num(t.truckVolumeM3, 0),
     truckWeightTons: num(t.truckWeightTons, 0),
-    lateMinutes: num(t.lateMinutes, 0),
-    incidentCount: num(t.incidentCount, 0),
     ...(t.customVars && typeof t.customVars === 'object'
       ? { customVars: t.customVars as TripContext['customVars'] }
       : {}),

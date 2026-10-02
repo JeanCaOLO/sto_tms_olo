@@ -79,8 +79,6 @@ export function unitsForDriver(
     }
     case 'PER_CLIENT':
       return toDecimal(trip.clientCount);
-    case 'PER_PACKAGE':
-      return toDecimal(trip.packageCount);
     case 'PER_HOUR':
       return toDecimal(trip.durationHours);
   }
@@ -92,7 +90,6 @@ export const COST_DRIVER_LABELS: Record<CostDriver, string> = {
   PER_DAY: 'Por día de viaje',
   PER_MONTH_PRORATED: 'Mensual (prorrateado por día)',
   PER_CLIENT: 'Por parada/cliente',
-  PER_PACKAGE: 'Por bulto',
   PER_HOUR: 'Por hora',
 };
 

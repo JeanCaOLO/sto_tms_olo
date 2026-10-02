@@ -58,7 +58,6 @@ export function makeTrip(overrides: Partial<TripContext> = {}): TripContext {
     destLocationId: 'L_CAR_1',
     km: 180,
     clientCount: 40,
-    packageCount: 40,
     weightKg: 1200,
     truckTypeId: 'TT_350',
     serviceType: 'EXPRESS',
@@ -67,13 +66,8 @@ export function makeTrip(overrides: Partial<TripContext> = {}): TripContext {
     driverId: null,
     customerId: null,
     durationHours: 3,
-    tollsAmount: '0.00',
-    tollCount: 0,
-    pickupCount: 0,
     truckVolumeM3: 0,
     truckWeightTons: 0,
-    lateMinutes: 0,
-    incidentCount: 0,
     ...overrides,
   };
 }

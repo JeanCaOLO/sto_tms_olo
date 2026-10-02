@@ -116,25 +116,25 @@ describe('S4 · MAX con una regla basada en porcentaje', () => {
     makeRule({
       code: 'INC_FIJO', stage: 'SURCHARGE', priority: 10, stacking: 'MAX',
       exclusionGroup: 'incidentes',
-      conditions: { p: 'GT', left: 'incidentCount', right: 0 },
+      conditions: { p: 'GT', left: 'weightKg', right: 0 },
       expression: { op: 'FIXED', amount: '15.00' },
     }),
     makeRule({
       code: 'INC_PCT', stage: 'SURCHARGE', priority: 20, stacking: 'MAX',
       exclusionGroup: 'incidentes',
-      conditions: { p: 'GT', left: 'incidentCount', right: 0 },
+      conditions: { p: 'GT', left: 'weightKg', right: 0 },
       expression: { op: 'PERCENT', pct: '0.10', base: { of: 'STAGE_SUBTOTAL', stage: 'BASE' } },
     }),
   ];
 
   it('debería ganar la que de verdad es mayor: 10% de 1000 = 100 > 15', () => {
-    const result = run(rules, { incidentCount: 2 });
+    const result = run(rules, { weightKg: 2 });
     const aplicadas = result.trace.map((l) => l.ruleCode);
     expect(aplicadas).toContain('INC_PCT');
   });
 
   it('y el descarte del perdedor debe explicar los montos comparados', () => {
-    const result = run(rules, { incidentCount: 2 });
+    const result = run(rules, { weightKg: 2 });
     const perdedora = result.discarded.find((d) => d.ruleCode === 'INC_FIJO');
 
     expect(perdedora?.reason).toBe('LOST_MAX');

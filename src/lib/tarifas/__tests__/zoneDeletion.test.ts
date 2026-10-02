@@ -1,19 +1,13 @@
 // @vitest-environment jsdom
 //
-// Borrar una zona que un tarifario está usando.
-//
-// Esta prueba existe por una regresión que introdujo la absorción de las tarifas zona-a-zona: en el
-// modelo viejo, la tabla guardaba el ID de la zona y el esquema impedía borrar una zona en uso. El
-// tarifario guarda el CÓDIGO —es lo que el motor compara— y un código no es una clave foránea, así
-// que la red del esquema dejó de cubrir este caso.
-//
-// Sin la reposición, borrar una zona dejaba filas apuntando a un código inexistente: filas que no
-// le cobran a nadie y que nadie ve.
+// Zonas: son del catálogo del TMS y el liquidador NO las crea ni las borra (ROADMAP §8). Lo que el
+// liquidador sí administra son los GRUPOS de zona (por código), y lo que hay que vigilar es que un
+// tarifario no nombre una zona que ya no existe: `rowsUsingZone` lo detecta.
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { deleteZone } from '../localRulesDataSource';
-import { rowsUsingZone, saveRateRow, saveRateTable } from '../rateTablesDataSource';
-import { db } from '../data';
+import { listZones, saveZoneGroup } from '../localRulesDataSource';
+import { rowsUsingZone } from '../rateTablesDataSource';
+import { db, ReadOnlyEntityError } from '../data';
 import type { RateTable, RateTableRow } from '../types';
 
 beforeEach(() => { localStorage.clear(); });
@@ -45,8 +39,7 @@ describe('rowsUsingZone', () => {
   });
 
   it('ignora las columnas que no son de zona', () => {
-    // "SJO" en la columna de camión es un código de camión que casualmente se escribe igual: no es
-    // un uso de la zona y bloquear por él sería un falso positivo.
+    // "SJO" en la columna de camión es un código de camión que casualmente se escribe igual.
     expect(rowsUsingZone('SJO', [sinZonas], rows)).toHaveLength(0);
   });
 
@@ -64,49 +57,35 @@ describe('rowsUsingZone', () => {
   });
 });
 
-// ── De punta a punta ──────────────────────────────────────────────────────────────────────────
+// ── Zonas del catálogo y grupos del cálculo ──────────────────────────────────────────────────
 
-describe('deleteZone', () => {
-  async function zonaConTarifario() {
-    const zone = await db().insert('zone', {
-      country_id: 'CR', zone_group_id: null, code: 'PUN', name: 'Puntarenas', status: 'active',
-    });
-    const tabla = await saveRateTable({
-      countryId: 'CR', partyId: null, code: 'PRUEBA', name: 'Prueba',
-      keyColumns: ['originZone', 'destZone'], active: true,
-    });
-    if (tabla.status !== 'saved') throw new Error('no se guardó la tabla');
-    await saveRateRow({ tableId: tabla.table.id, key: ['PUN', 'SJO'], amount: '900', active: true });
-    return { zone, tableId: tabla.table.id };
-  }
-
-  it('rechaza el borrado y explica dónde se usa', async () => {
-    const { zone } = await zonaConTarifario();
-
-    const result = await deleteZone(zone.id);
-
-    expect(result.error?.code).toBe('23503');
-    expect(result.error?.message).toContain('PRUEBA');
-    // Y la zona sigue ahí: el rechazo no puede dejar el borrado a medias.
-    expect(await db().findOne('zone', zone.id)).not.toBeNull();
+describe('zonas del catálogo', () => {
+  it('se leen por la capa de datos y no se pueden crear, editar ni borrar desde el liquidador', async () => {
+    const [zona] = await db().find('zone');
+    await expect(db().insert('zone', { code: 'X' })).rejects.toThrow(ReadOnlyEntityError);
+    await expect(db().update('zone', zona.id, { name: 'X' })).rejects.toThrow(ReadOnlyEntityError);
+    await expect(db().delete('zone', zona.id)).rejects.toThrow(ReadOnlyEntityError);
   });
 
-  it('una vez quitada la fila, la zona se borra', async () => {
-    const { zone, tableId } = await zonaConTarifario();
-    const [fila] = await db().find('rateTableRow', {
-      where: [{ column: 'table_id', op: 'eq', value: tableId }],
-    });
-    await db().delete('rateTableRow', fila!.id);
+  it('la lista muestra el grupo de cada zona, resuelto por código', async () => {
+    const zonas = await listZones('org');
+    expect(zonas.find((z) => z.id === 'Z_VE_CCS')?.zone_groups?.name).toBe('Centro');
+  });
+});
 
-    expect((await deleteZone(zone.id)).error).toBeNull();
-    expect(await db().findOne('zone', zone.id)).toBeNull();
+describe('saveZoneGroup', () => {
+  it('guarda los códigos de zona del grupo', async () => {
+    const result = await saveZoneGroup('org', { country_id: 'CR', code: 'COSTA', name: 'Costa', zone_codes: ['SIN_ZONA_NUEVA'] });
+    expect(result.error).toBeNull();
+    expect((await db().find('zoneGroup')).find((g) => g.code === 'COSTA')?.zone_codes).toEqual(['SIN_ZONA_NUEVA']);
+    expect((await listZones('org')).find((z) => z.code === 'PUN')?.zone_groups?.name).toBe('Guanacaste');
   });
 
-  it('una zona que no usa ningún tarifario se borra sin trabas', async () => {
-    const zone = await db().insert('zone', {
-      country_id: 'CR', zone_group_id: null, code: 'GUA', name: 'Guanacaste', status: 'active',
-    });
-
-    expect((await deleteZone(zone.id)).error).toBeNull();
+  it('rechaza poner una zona en dos grupos del mismo país', async () => {
+    // El motor tomaría uno arbitrario y la regla por grupo cobraría según el orden de carga.
+    // PUN ya está en el grupo Guanacaste de la semilla.
+    const result = await saveZoneGroup('org', { country_id: 'CR', code: 'OTRO', name: 'Otro', zone_codes: ['PUN'] });
+    expect(result.error?.code).toBe('23505');
+    expect(result.error?.message).toContain('Guanacaste');
   });
 });

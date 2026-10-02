@@ -1,5 +1,5 @@
 // El formulario visual: que lo que la persona arma sea exactamente lo que el motor ejecuta, y que
-// la frase que lee describa ese mismo cálculo. Son tests de lógica pura — no montan React.
+// la frase que lee describa ese mismo cÃ¡lculo. Son tests de lÃ³gica pura â€” no montan React.
 
 import { describe, expect, it } from 'vitest';
 import {
@@ -16,7 +16,7 @@ import type {
 } from '../types';
 
 const form = (overrides: Partial<RuleBuilderForm> = {}): RuleBuilderForm => ({
-  variable: 'tollCount',
+  variable: 'clientCount',
   operator: 'TIMES',
   value: '20',
   effect: 'INCREASE',
@@ -25,7 +25,7 @@ const form = (overrides: Partial<RuleBuilderForm> = {}): RuleBuilderForm => ({
 
 const ctx = { varLabel: (k: never) => varLabel(k), currency: 'USD' };
 
-// ── Compilación ───────────────────────────────────────────────────────────────────────────────
+// â”€â”€ CompilaciÃ³n â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('compileBuilder', () => {
   it('monto fijo', () => {
@@ -35,15 +35,15 @@ describe('compileBuilder', () => {
 
   it('por cada unidad', () => {
     expect(compileBuilder(form()))
-      .toEqual({ op: 'PER_UNIT', unit: 'tollCount', rate: '20' });
+      .toEqual({ op: 'PER_UNIT', unit: 'clientCount', rate: '20' });
   });
 
   it('cada N unidades', () => {
     expect(compileBuilder(form({ operator: 'PER_BLOCK', blockSize: 10, value: '15' })))
-      .toEqual({ op: 'PER_BLOCK', unit: 'tollCount', blockSize: 10, amount: '15' });
+      .toEqual({ op: 'PER_BLOCK', unit: 'clientCount', blockSize: 10, amount: '15' });
   });
 
-  it('porcentaje: el usuario escribe 20 y el motor recibe la fracción 0.2', () => {
+  it('porcentaje: el usuario escribe 20 y el motor recibe la fracciÃ³n 0.2', () => {
     const expr = compileBuilder(
       form({ operator: 'PERCENT', value: '20', percentBase: { of: 'STAGE_SUBTOTAL', stage: 'BASE' } }),
     );
@@ -51,7 +51,7 @@ describe('compileBuilder', () => {
   });
 });
 
-describe('el efecto es lo único que pone el signo', () => {
+describe('el efecto es lo Ãºnico que pone el signo', () => {
   it('disminuir invierte el importe fijo', () => {
     expect(compileBuilder(form({ operator: 'FIXED', variable: null, value: '400', effect: 'DECREASE' })))
       .toEqual({ op: 'FIXED', amount: '-400' });
@@ -59,7 +59,7 @@ describe('el efecto es lo único que pone el signo', () => {
 
   it('disminuir invierte la tasa por unidad', () => {
     expect(compileBuilder(form({ effect: 'DECREASE' })))
-      .toEqual({ op: 'PER_UNIT', unit: 'tollCount', rate: '-20' });
+      .toEqual({ op: 'PER_UNIT', unit: 'clientCount', rate: '-20' });
   });
 
   it('disminuir invierte el porcentaje', () => {
@@ -74,13 +74,13 @@ describe('el efecto es lo único que pone el signo', () => {
   });
 });
 
-describe('validación', () => {
+describe('validaciÃ³n', () => {
   it('exige variable salvo en monto fijo', () => {
     expect(validateBuilder(form({ variable: null })).variable).toBeDefined();
     expect(isBuilderValid(validateBuilder(form({ operator: 'FIXED', variable: null, value: '10' })))).toBe(true);
   });
 
-  it('exige tamaño de bloque mayor que cero', () => {
+  it('exige tamaÃ±o de bloque mayor que cero', () => {
     expect(validateBuilder(form({ operator: 'PER_BLOCK', blockSize: 0 })).blockSize).toBeDefined();
     expect(validateBuilder(form({ operator: 'PER_BLOCK', blockSize: 10 })).blockSize).toBeUndefined();
   });
@@ -90,12 +90,12 @@ describe('validación', () => {
   });
 });
 
-// ── Redacción ─────────────────────────────────────────────────────────────────────────────────
+// â”€â”€ RedacciÃ³n â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('describeBuilder', () => {
   it('redacta el ejemplo del requerimiento', () => {
     expect(describeBuilder(form(), ctx))
-      .toBe('Por cada unidad de cantidad de peajes se suma 20 USD.');
+      .toBe('Por cada unidad de paradas completadas se suma 20 USD.');
   });
 
   it('redacta un descuento', () => {
@@ -105,10 +105,10 @@ describe('describeBuilder', () => {
 
   it('redacta bloques', () => {
     expect(describeBuilder(form({ operator: 'PER_BLOCK', blockSize: 10, value: '15' }), ctx))
-      .toBe('Cada 10 de cantidad de peajes se suma 15 USD.');
+      .toBe('Cada 10 de paradas completadas se suma 15 USD.');
   });
 
-  it('incorpora la condición cuando la hay', () => {
+  it('incorpora la condiciÃ³n cuando la hay', () => {
     const texto = describeBuilder(form({ operator: 'FIXED', variable: null, value: '10' }), {
       ...ctx,
       conditionText: 'Cantidad de peajes > 20',
@@ -122,15 +122,15 @@ describe('describeBuilder', () => {
   });
 });
 
-// ── Variables usadas ──────────────────────────────────────────────────────────────────────────
+// â”€â”€ Variables usadas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('collectVarKeys', () => {
-  it('junta las de la condición y las de la expresión, sin repetir', () => {
+  it('junta las de la condiciÃ³n y las de la expresiÃ³n, sin repetir', () => {
     const rule = {
-      conditions: { p: 'GT', left: 'tollCount', right: 20 } as never,
-      expression: { op: 'PER_UNIT', unit: 'tollCount', rate: '20' } as never,
+      conditions: { p: 'GT', left: 'clientCount', right: 20 } as never,
+      expression: { op: 'PER_UNIT', unit: 'clientCount', rate: '20' } as never,
     };
-    expect(collectVarKeys(rule)).toEqual(['tollCount']);
+    expect(collectVarKeys(rule)).toEqual(['clientCount']);
   });
 
   it('entra en condiciones compuestas', () => {
@@ -139,15 +139,15 @@ describe('collectVarKeys', () => {
         p: 'AND',
         args: [
           { p: 'EQ', left: 'truckTypeId', right: 'NPR' },
-          { p: 'NOT', arg: { p: 'GT', left: 'lateMinutes', right: 0 } },
+          { p: 'NOT', arg: { p: 'GT', left: 'weightKg', right: 0 } },
         ],
       } as never,
       expression: { op: 'PER_KM', rate: '1' } as never,
     };
-    expect(collectVarKeys(rule).sort()).toEqual(['km', 'lateMinutes', 'truckTypeId']);
+    expect(collectVarKeys(rule).sort()).toEqual(['km', 'truckTypeId', 'weightKg']);
   });
 
-  it('detecta variables personalizadas que la compañía ya no tiene declaradas', () => {
+  it('detecta variables personalizadas que la compaÃ±Ã­a ya no tiene declaradas', () => {
     const declared: Pick<PartyVariable, 'key' | 'active'>[] = [
       { key: 'custom:horas_espera', active: true },
       { key: 'custom:bono_viejo', active: false },
@@ -168,7 +168,7 @@ describe('customVarKey', () => {
   });
 });
 
-// ── De punta a punta: lo armado en el formulario es lo que cobra el motor ──────────────────────
+// â”€â”€ De punta a punta: lo armado en el formulario es lo que cobra el motor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function runWithBuilder(builderForm: RuleBuilderForm, trip: Partial<TripContext> = {}, partyVariables: PartyVariable[] = []) {
   const country = makeCountryVE();
@@ -197,14 +197,14 @@ function runWithBuilder(builderForm: RuleBuilderForm, trip: Partial<TripContext>
 
 describe('de la forma visual al total', () => {
   it('"por cada peaje, 20" con 3 peajes cobra 60', () => {
-    expect(runWithBuilder(form(), { tollCount: 3 }).totalLiquidado).toBe('60.00');
+    expect(runWithBuilder(form(), { clientCount: 3 }).totalLiquidado).toBe('60.00');
   });
 
   it('el mismo caso marcado como descuento resta', () => {
-    expect(runWithBuilder(form({ effect: 'DECREASE' }), { tollCount: 3 }).totalLiquidado).toBe('-60.00');
+    expect(runWithBuilder(form({ effect: 'DECREASE' }), { clientCount: 3 }).totalLiquidado).toBe('-60.00');
   });
 
-  it('una variable personalizada constante se resuelve desde su declaración', () => {
+  it('una variable personalizada constante se resuelve desde su declaraciÃ³n', () => {
     const variables: PartyVariable[] = [{
       id: 'V1', partyId: 'P1', key: 'custom:horas_espera', label: 'Horas de espera',
       kind: 'NUMBER', origin: 'CONSTANT', defaultValue: '4', unit: 'h', active: true,
@@ -219,7 +219,7 @@ describe('de la forma visual al total', () => {
     expect(result.totalLiquidado).toBe('20.00'); // 4 h x 5
   });
 
-  it('una variable por viaje toma el valor cargado, y el por defecto si no se cargó', () => {
+  it('una variable por viaje toma el valor cargado, y el por defecto si no se cargÃ³', () => {
     const variables: PartyVariable[] = [{
       id: 'V2', partyId: 'P1', key: 'custom:horas_espera', label: 'Horas de espera',
       kind: 'NUMBER', origin: 'PER_TRIP', defaultValue: '1', unit: 'h', active: true,
@@ -233,7 +233,7 @@ describe('de la forma visual al total', () => {
     expect(sinCargar.totalLiquidado).toBe('5.00'); // por defecto 1 x 5
   });
 
-  it('una variable desactivada no aporta valor, avisa, y NO rompe la liquidación', () => {
+  it('una variable desactivada no aporta valor, avisa, y NO rompe la liquidaciÃ³n', () => {
     const variables: PartyVariable[] = [{
       id: 'V3', partyId: 'P1', key: 'custom:bono', label: 'Bono',
       kind: 'NUMBER', origin: 'CONSTANT', defaultValue: '10', unit: null, active: false,
@@ -245,7 +245,7 @@ describe('de la forma visual al total', () => {
     expect(result.warnings.some((w) => w.includes('custom:bono'))).toBe(true);
   });
 
-  it('una regla que apunta a una variable inexistente tampoco rompe el cálculo', () => {
+  it('una regla que apunta a una variable inexistente tampoco rompe el cÃ¡lculo', () => {
     const result = runWithBuilder(form({ variable: 'custom:no_existe', value: '5' }), { partyId: 'P1' });
 
     expect(result.totalLiquidado).toBe('0.00');
@@ -253,20 +253,20 @@ describe('de la forma visual al total', () => {
   });
 });
 
-// ── Fase 9 (A3) — tope y piso sobre el resultado ya calculado ──────────────────────────────────
+// â”€â”€ Fase 9 (A3) â€” tope y piso sobre el resultado ya calculado â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('clamp: tope y piso', () => {
   it('sin bordes, compila igual que antes', () => {
-    expect(compileBuilder(form())).toEqual({ op: 'PER_UNIT', unit: 'tollCount', rate: '20' });
+    expect(compileBuilder(form())).toEqual({ op: 'PER_UNIT', unit: 'clientCount', rate: '20' });
   });
 
-  it('con tope, envuelve la expresión en CLAMP', () => {
+  it('con tope, envuelve la expresiÃ³n en CLAMP', () => {
     expect(compileBuilder(form({ clamp: { max: '100' } })))
-      .toEqual({ op: 'CLAMP', value: { op: 'PER_UNIT', unit: 'tollCount', rate: '20' }, max: '100' });
+      .toEqual({ op: 'CLAMP', value: { op: 'PER_UNIT', unit: 'clientCount', rate: '20' }, max: '100' });
   });
 
   it('con piso y tope, "el recargo no puede pasar de X" con 10 peajes cobra el tope, no 200', () => {
-    const result = runWithBuilder(form({ clamp: { min: '5', max: '100' } }), { tollCount: 10 });
+    const result = runWithBuilder(form({ clamp: { min: '5', max: '100' } }), { clientCount: 10 });
     expect(result.totalLiquidado).toBe('100.00');
   });
 
@@ -275,13 +275,13 @@ describe('clamp: tope y piso', () => {
     expect(validateBuilder(form({ clamp: { min: '5', max: '100' } })).clamp).toBeUndefined();
   });
 
-  it('se redacta en la descripción automática', () => {
+  it('se redacta en la descripciÃ³n automÃ¡tica', () => {
     expect(describeBuilder(form({ operator: 'FIXED', variable: null, value: '400', clamp: { max: '300' } }), ctx))
       .toBe('Se suma 400 USD al total, sin pasar de 300 USD.');
   });
 });
 
-// ── Fase 9 (A1/A2) — condición visual: reabre en formulario, y ahora con O/NO/IN/BETWEEN ────────
+// â”€â”€ Fase 9 (A1/A2) â€” condiciÃ³n visual: reabre en formulario, y ahora con O/NO/IN/BETWEEN â”€â”€â”€â”€â”€â”€â”€â”€
 
 const row = (overrides: Partial<ConditionRowForm> = {}): ConditionRowForm => ({
   ...emptyConditionRow(),
@@ -295,9 +295,9 @@ describe('compileConditions', () => {
 
   it('una sola fila no envuelve en AND', () => {
     const form_: ConditionBuilderForm = {
-      mode: 'rows', combinator: 'AND', rows: [row({ left: 'tollCount', op: 'GT', right: '20' })],
+      mode: 'rows', combinator: 'AND', rows: [row({ left: 'clientCount', op: 'GT', right: '20' })],
     };
-    expect(compileConditions(form_)).toEqual({ p: 'GT', left: 'tollCount', right: 20 });
+    expect(compileConditions(form_)).toEqual({ p: 'GT', left: 'clientCount', right: 20 });
   });
 
   it('A2: combina varias filas con OR, no solo AND', () => {
@@ -320,9 +320,9 @@ describe('compileConditions', () => {
 
   it('A2: NO envuelve la fila en NOT', () => {
     const form_: ConditionBuilderForm = {
-      mode: 'rows', combinator: 'AND', rows: [row({ left: 'lateMinutes', op: 'GT', right: '0', negate: true })],
+      mode: 'rows', combinator: 'AND', rows: [row({ left: 'weightKg', op: 'GT', right: '0', negate: true })],
     };
-    expect(compileConditions(form_)).toEqual({ p: 'NOT', arg: { p: 'GT', left: 'lateMinutes', right: 0 } });
+    expect(compileConditions(form_)).toEqual({ p: 'NOT', arg: { p: 'GT', left: 'weightKg', right: 0 } });
   });
 
   it('A2: IN compila la lista separada por comas', () => {
@@ -332,18 +332,18 @@ describe('compileConditions', () => {
     expect(compileConditions(form_)).toEqual({ p: 'IN', left: 'truckTypeId', values: ['NPR', 'FRR', 'GVR'] });
   });
 
-  it('A2: BETWEEN compila desde y hasta como números', () => {
+  it('A2: BETWEEN compila desde y hasta como nÃºmeros', () => {
     const form_: ConditionBuilderForm = {
       mode: 'rows', combinator: 'AND', rows: [row({ left: 'km', op: 'BETWEEN', from: '100', to: '300' })],
     };
     expect(compileConditions(form_)).toEqual({ p: 'BETWEEN', left: 'km', from: 100, to: 300 });
   });
 
-  it('filas vacías se descartan, no bloquean', () => {
+  it('filas vacÃ­as se descartan, no bloquean', () => {
     const form_: ConditionBuilderForm = {
       mode: 'rows',
       combinator: 'AND',
-      rows: [row({ left: 'tollCount', op: 'GT', right: '' }), row({ left: 'km', op: 'GT', right: '50' })],
+      rows: [row({ left: 'clientCount', op: 'GT', right: '' }), row({ left: 'km', op: 'GT', right: '50' })],
     };
     expect(compileConditions(form_)).toEqual({ p: 'GT', left: 'km', right: 50 });
   });
@@ -357,7 +357,7 @@ describe('validateConditionRows', () => {
     expect(validateConditionRows(form_)[0]).toBeDefined();
   });
 
-  it('sin filas problemáticas, no marca nada', () => {
+  it('sin filas problemÃ¡ticas, no marca nada', () => {
     const form_: ConditionBuilderForm = {
       mode: 'rows', combinator: 'AND', rows: [row({ left: 'km', op: 'BETWEEN', from: '100', to: '300' })],
     };
@@ -373,7 +373,7 @@ describe('validateConditionRows', () => {
 });
 
 describe('A2 de punta a punta: OR e IN deciden si la regla aplica', () => {
-  it('OR de dos tipos de camión aplica con cualquiera de los dos', () => {
+  it('OR de dos tipos de camiÃ³n aplica con cualquiera de los dos', () => {
     const conditions = compileConditions({
       mode: 'rows',
       combinator: 'OR',

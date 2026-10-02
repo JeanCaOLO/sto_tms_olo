@@ -31,11 +31,12 @@ export const CustomVarKeySchema = z
   .string()
   .regex(/^custom:[a-z0-9_]+$/i, 'Variable personalizada inválida: se espera custom:nombre_sin_espacios');
 
+// Peajes, recolectas, bultos, atraso e incidencias NO están: el viaje de guía de despacho no los
+// trae, así que son variables personalizadas de cada compañía (ROADMAP §8).
 export const BuiltinVarKeySchema = z.enum([
-  'countryId', 'km', 'clientCount', 'packageCount', 'weightKg',
+  'countryId', 'km', 'clientCount', 'weightKg',
   'truckTypeId', 'serviceType', 'fleetType', 'carrierId', 'customerId',
-  'durationHours', 'tollsAmount', 'tollCount', 'pickupCount',
-  'truckVolumeM3', 'truckWeightTons', 'lateMinutes', 'incidentCount',
+  'durationHours', 'truckVolumeM3', 'truckWeightTons',
   'originZone', 'destZone', 'originZoneGroup', 'destZoneGroup',
   'overnightNights', 'weekday',
 ]);
@@ -44,9 +45,8 @@ export const VarKeySchema = z.union([BuiltinVarKeySchema, CustomVarKeySchema]);
 
 // Subconjunto válido como `unit` en PER_UNIT/TIERED/PER_BLOCK — ver NumericVarKey en types.ts.
 export const BuiltinNumericVarKeySchema = z.enum([
-  'km', 'clientCount', 'packageCount', 'weightKg', 'durationHours',
-  'tollsAmount', 'tollCount', 'pickupCount', 'truckVolumeM3', 'truckWeightTons',
-  'lateMinutes', 'incidentCount', 'overnightNights', 'weekday',
+  'km', 'clientCount', 'weightKg', 'durationHours',
+  'truckVolumeM3', 'truckWeightTons', 'overnightNights', 'weekday',
 ]);
 
 export const NumericVarKeySchema = z.union([BuiltinNumericVarKeySchema, CustomVarKeySchema]);

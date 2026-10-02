@@ -65,14 +65,13 @@ function costOf(rows: CostStructureRow[], tripOverrides = {}, str = estructura()
 // ── Drivers ───────────────────────────────────────────────────────────────────────────────────
 
 describe('unitsForDriver', () => {
-  const trip = makeTrip({ km: 180, clientCount: 40, packageCount: 55, durationHours: 6 });
+  const trip = makeTrip({ km: 180, clientCount: 40, durationHours: 6 });
 
   it('cada driver toma la magnitud que le corresponde', () => {
     expect(unitsForDriver('FIXED', trip, 1, 30).toString()).toBe('1');
     expect(unitsForDriver('PER_KM', trip, 1, 30).toString()).toBe('180');
     expect(unitsForDriver('PER_DAY', trip, 2, 30).toString()).toBe('2');
     expect(unitsForDriver('PER_CLIENT', trip, 1, 30).toString()).toBe('40');
-    expect(unitsForDriver('PER_PACKAGE', trip, 1, 30).toString()).toBe('55');
     expect(unitsForDriver('PER_HOUR', trip, 1, 30).toString()).toBe('6');
   });
 

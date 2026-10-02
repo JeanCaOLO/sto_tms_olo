@@ -21,7 +21,7 @@ describe('HttpDataSource', () => {
     const rows = await ds.find('trip', { where: [{ column: 'status', op: 'eq', value: 'completed' }] });
 
     expect(rows).toEqual([{ id: 'v1' }]);
-    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, NonNullable<Parameters<typeof fetch>[1]>];
     expect(url.startsWith('https://api/api/tarifas/tarifas_v_viajes?q=')).toBe(true);
     expect(JSON.parse(decodeURIComponent(url.split('?q=')[1]))).toEqual({
       where: [{ column: 'status', op: 'eq', value: 'completed' }],
@@ -69,7 +69,7 @@ describe('HttpDataSource', () => {
     });
 
     expect(fetchImpl).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, NonNullable<Parameters<typeof fetch>[1]>];
     expect(url).toBe('https://api/tarifas/tx');
     expect(JSON.parse(String(init.body)).ops.map((o: { op: string }) => o.op)).toEqual(['update', 'insert']);
   });
