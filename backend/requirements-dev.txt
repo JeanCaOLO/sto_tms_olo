@@ -1,0 +1,4 @@
+-r common-services/layers/tms_common/requirements.txt
+-r auth/src/requirements.txt
+-r admin/src/requirements.txt
+pytest==8.3.3

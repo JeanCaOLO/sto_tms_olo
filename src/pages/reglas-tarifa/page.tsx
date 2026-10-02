@@ -26,6 +26,7 @@ import { listParties } from '../../lib/tarifas/partiesDataSource';
 import CountryScopeBar from '../../components/feature/CountryScopeBar';
 import { useActiveCountry } from '../../hooks/useActiveCountry';
 import type { SettlementPartyRow } from '../../lib/tarifas/parties';
+import { useModulePermissions } from '../../hooks/use-module-permissions';
 
 type Tab = 'reglas' | 'zonas' | 'tarifarios' | 'costos' | 'margen' | 'plantillas' | 'resumen' | 'probador' | 'bitacora';
 
@@ -34,6 +35,7 @@ export default function ReglasTarifaPage() {
   const [activeTab, setActiveTab] = useState<Tab>('reglas');
   const [rolActivo, setRolActivo] = useState<LiquidadorRole>(obtenerRolActivo());
   const usuarioActivo = appUser?.full_name || appUser?.email || 'Usuario simulado';
+  const { canCreate, canEdit, canDelete } = useModulePermissions('tarifas');
 
   const handleRolChange = (rol: LiquidadorRole) => {
     setRolActivo(rol);
@@ -267,7 +269,7 @@ export default function ReglasTarifaPage() {
               ))}
             </select>
           </div>
-          {activeTab === 'reglas' && (
+          {canCreate && activeTab === 'reglas' && (
             <Button
               onClick={() => { setSelectedRule(null); setIsRuleModalOpen(true); }}
               disabled={!puede('CREAR_REGLA', rolActivo)}
@@ -277,7 +279,7 @@ export default function ReglasTarifaPage() {
               Nueva Regla
             </Button>
           )}
-          {activeTab === 'zonas' && (
+          {canCreate && activeTab === 'zonas' && (
             <Button
               onClick={() => { setSelectedZone(null); setIsZoneModalOpen(true); }}
               disabled={!puede('CREAR_ZONA', rolActivo)}
@@ -453,22 +455,26 @@ export default function ReglasTarifaPage() {
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => { setSelectedRule(rule); setIsRuleModalOpen(true); }}
-                              disabled={!puede('EDITAR_REGLA', rolActivo)}
-                              className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                              title={puede('EDITAR_REGLA', rolActivo) ? 'Editar' : 'Tu rol simulado actual no puede editar reglas'}
-                            >
-                              <i className="ri-edit-line text-base"></i>
-                            </button>
-                            <button
-                              onClick={() => { setRuleToDelete(rule); setRuleDeleteError(''); }}
-                              disabled={!puede('ELIMINAR_REGLA', rolActivo)}
-                              className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                              title={puede('ELIMINAR_REGLA', rolActivo) ? 'Eliminar' : 'Tu rol simulado actual no puede eliminar reglas'}
-                            >
-                              <i className="ri-delete-bin-line text-base"></i>
-                            </button>
+                            {canEdit && (
+                              <button
+                                onClick={() => { setSelectedRule(rule); setIsRuleModalOpen(true); }}
+                                disabled={!puede('EDITAR_REGLA', rolActivo)}
+                                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                                title={puede('EDITAR_REGLA', rolActivo) ? 'Editar' : 'Tu rol simulado actual no puede editar reglas'}
+                              >
+                                <i className="ri-edit-line text-base"></i>
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button
+                                onClick={() => { setRuleToDelete(rule); setRuleDeleteError(''); }}
+                                disabled={!puede('ELIMINAR_REGLA', rolActivo)}
+                                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                                title={puede('ELIMINAR_REGLA', rolActivo) ? 'Eliminar' : 'Tu rol simulado actual no puede eliminar reglas'}
+                              >
+                                <i className="ri-delete-bin-line text-base"></i>
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -523,22 +529,26 @@ export default function ReglasTarifaPage() {
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => { setSelectedZone(zone); setIsZoneModalOpen(true); }}
-                            disabled={!puede('EDITAR_ZONA', rolActivo)}
-                            className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                            title={puede('EDITAR_ZONA', rolActivo) ? 'Editar' : 'Tu rol simulado actual no puede editar zonas'}
-                          >
-                            <i className="ri-edit-line text-base"></i>
-                          </button>
-                          <button
-                            onClick={() => { setZoneToDelete(zone); setZoneDeleteError(''); }}
-                            disabled={!puede('ELIMINAR_ZONA', rolActivo)}
-                            className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                            title={puede('ELIMINAR_ZONA', rolActivo) ? 'Eliminar' : 'Tu rol simulado actual no puede eliminar zonas'}
-                          >
-                            <i className="ri-delete-bin-line text-base"></i>
-                          </button>
+                          {canEdit && (
+                            <button
+                              onClick={() => { setSelectedZone(zone); setIsZoneModalOpen(true); }}
+                              disabled={!puede('EDITAR_ZONA', rolActivo)}
+                              className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                              title={puede('EDITAR_ZONA', rolActivo) ? 'Editar' : 'Tu rol simulado actual no puede editar zonas'}
+                            >
+                              <i className="ri-edit-line text-base"></i>
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button
+                              onClick={() => { setZoneToDelete(zone); setZoneDeleteError(''); }}
+                              disabled={!puede('ELIMINAR_ZONA', rolActivo)}
+                              className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                              title={puede('ELIMINAR_ZONA', rolActivo) ? 'Eliminar' : 'Tu rol simulado actual no puede eliminar zonas'}
+                            >
+                              <i className="ri-delete-bin-line text-base"></i>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

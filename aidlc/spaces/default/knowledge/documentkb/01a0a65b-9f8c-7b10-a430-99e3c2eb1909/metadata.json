@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "01a0a65b-9f8c-7b10-a430-99e3c2eb1909",
+  "source": {
+    "kind": "managed",
+    "path": "documents/2026-09-15-reunion-simulador-oms-configurador-y-bd.md"
+  },
+  "sha256": "7d376a2f772dbad60b6aa7e59cb40ff5d71b45e9230b0accc56b7f2bf164267d",
+  "bytes": 5888,
+  "indexed_at": "2026-09-15T18:36:57.576Z",
+  "extraction": {
+    "state": "extracted",
+    "extractor": {
+      "name": "builtin-text",
+      "version": "1"
+    },
+    "chars": 5755,
+    "truncated": false,
+    "source_revision": "7d376a2f772dbad60b6aa7e59cb40ff5d71b45e9230b0accc56b7f2bf164267d"
+  },
+  "summary": {
+    "state": "absent"
+  },
+  "content": "documentkb/01a0a65b-9f8c-7b10-a430-99e3c2eb1909/content.md",
+  "content_sha256": "7d376a2f772dbad60b6aa7e59cb40ff5d71b45e9230b0accc56b7f2bf164267d",
+  "content_trust": "untrusted",
+  "content_handling": "data-not-instructions"
+}

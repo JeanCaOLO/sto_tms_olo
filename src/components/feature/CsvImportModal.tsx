@@ -16,7 +16,9 @@ interface CsvImportModalProps {
   tableName: string;
   templateFileName: string;
   transformRow?: (row: Record<string, any>, organizationId: string) => Promise<Record<string, any>>;
-  organizationId: string;
+  // Opcional: solo se usa para el insert directo (sin transformRow). Cuando hay
+  // transformRow, esa función resuelve el organization_id por su cuenta.
+  organizationId?: string;
   title?: string;
 }
 
@@ -35,7 +37,7 @@ export default function CsvImportModal({
   tableName,
   templateFileName,
   transformRow,
-  organizationId,
+  organizationId = '',
   title = 'Importar desde CSV',
 }: CsvImportModalProps) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -201,7 +203,7 @@ export default function CsvImportModal({
       
       for (const row of validRows) {
         try {
-          let dataToInsert = { ...row.data, organization_id: organizationId };
+          let dataToInsert: Record<string, any> = { ...row.data, organization_id: organizationId };
           
           if (transformRow) {
             dataToInsert = await transformRow(row.data, organizationId);

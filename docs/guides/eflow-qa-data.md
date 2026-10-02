@@ -26,7 +26,7 @@ Devoluciones aún no existe.
 
 ## Snapshot en el prototipo
 
-Ver `MOCKING.md`. En resumen: `fallback-rutas.ts` trae las 15 rutas reales de
+Ver `docs/guides/mocking-planificacion.md`. En resumen: `fallback-rutas.ts` trae las 15 rutas reales de
 `distribution_routes`; `fallback-catalogos.ts` trae 9 transportistas, 12
 vehículos y 18 conductores (nombres/placas/cédulas reales, capacidades
 sintéticas porque QA las tenía en 0). Es una foto fija — para refrescar hay que

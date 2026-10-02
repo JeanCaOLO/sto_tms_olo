@@ -1,14 +1,25 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import Card from '../../../components/base/Card';
 import Badge from '../../../components/base/Badge';
-import OmsPageHeader from '../components/OmsPageHeader';
+import Select from '../../../components/base/Select';
+import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
 import { omsApi } from '../api/omsApi';
 import { TIER_LABEL } from '../types';
-import type { AuditEntry, Country } from '../types';
+import type { AuditEntry, Company, Country } from '../types';
+
+const tierChange = (e: AuditEntry, t: TFunction) =>
+  `${e.tierFrom === 'sin asignar' ? t('omsAudit.unassigned') : TIER_LABEL[e.tierFrom]} → ${TIER_LABEL[e.tierTo]}`;
 
 // Pantalla Auditoría de Priorización (FR7): registro inmutable, solo lectura.
+// Lista en DataTable (estándar del sistema: búsqueda, filtros por columna, orden,
+// paginación y export .xlsx integrados).
 export default function OmsAuditoriaPage() {
-  const [country, setCountry] = useState<Country>('CR');
+  const { t } = useTranslation();
+  const country: Country = 'CR';
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [company, setCompany] = useState<string>('');
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -18,88 +29,100 @@ export default function OmsAuditoriaPage() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    omsApi.getAudit(country)
-      .then((rows) => { if (!cancelled) setEntries(rows); })
-      .catch(() => { if (!cancelled) setError('No se pudo cargar la auditoría.'); })
+    Promise.all([omsApi.getCompanies(), omsApi.getAudit(country)])
+      .then(([c, rows]) => {
+        if (cancelled) return;
+        setCompanies(c);
+        setCompany((prev) => prev || c[0]?.id || '');
+        setEntries(rows);
+      })
+      .catch(() => { if (!cancelled) setError(t('omsAudit.loadError')); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [country]);
+  }, []);
 
   const rows = entries.filter((e) => typeFilter === 'todos' || e.changeType === typeFilter);
 
+  const columns: DataTableColumn<AuditEntry>[] = [
+    { key: 'timestamp', header: t('omsAudit.colDate'), accessor: (e) => e.timestamp, sortable: true, render: (e) => <span className="text-slate-500">{e.timestamp}</span> },
+    { key: 'orderId', header: t('omsAudit.colOrder'), accessor: (e) => e.orderId, sortable: true, render: (e) => <span className="font-medium text-slate-900">{e.orderId}</span> },
+    {
+      key: 'changeType',
+      header: t('omsAudit.colType'),
+      accessor: (e) => (e.changeType === 'manual' ? t('omsAudit.typeManual') : t('omsAudit.typeAuto')),
+      filterable: true,
+      render: (e) => (
+        <Badge variant={e.changeType === 'manual' ? 'warning' : 'default'} size="sm">
+          {e.changeType === 'manual' ? t('omsAudit.typeManual') : t('omsAudit.typeAuto')}
+        </Badge>
+      ),
+    },
+    {
+      key: 'tier',
+      header: t('omsAudit.colTier'),
+      accessor: (e) => e.tierTo,
+      render: (e) => <>{tierChange(e, t)}</>,
+    },
+    {
+      key: 'score',
+      header: t('omsAudit.colScore'),
+      accessor: (e) => e.scoreTo,
+      sortable: true,
+      render: (e) => <>{e.scoreFrom ?? '—'} → {e.scoreTo}</>,
+    },
+    { key: 'actor', header: t('omsAudit.colActor'), accessor: (e) => e.actor, sortable: true, filterable: true },
+    { key: 'detail', header: t('omsAudit.colDetail'), accessor: (e) => e.detail },
+  ];
+
   return (
     <div className="space-y-6">
-      <OmsPageHeader
-        title="Auditoría de Priorización"
-        subtitle="Registro inmutable de cambios de prioridad (solo lectura)"
-        country={country}
-        onCountryChange={setCountry}
-      />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">{t('omsAudit.title')}</h1>
+          <p className="text-sm text-slate-600 mt-1">
+            {t('omsAudit.subtitle')}
+          </p>
+        </div>
+        <div className="w-full sm:w-56">
+          <Select
+            label={t('omsAudit.company')}
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+            options={companies.map((c) => ({ value: c.id, label: c.name }))}
+          />
+        </div>
+      </div>
 
       <Card padding={false}>
         <div className="flex items-center gap-2 p-4">
-          {(['todos', 'automatico', 'manual'] as const).map((t) => (
+          {(['todos', 'automatico', 'manual'] as const).map((tf) => (
             <button
-              key={t}
-              onClick={() => setTypeFilter(t)}
+              key={tf}
+              onClick={() => setTypeFilter(tf)}
               className={`px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors ${
-                typeFilter === t ? 'bg-teal-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                typeFilter === tf ? 'bg-teal-600 text-white' : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
-              {t === 'todos' ? 'Todos' : t === 'automatico' ? 'Automáticos' : 'Manuales'}
+              {tf === 'todos' ? t('omsAudit.filterAll') : tf === 'automatico' ? t('omsAudit.filterAuto') : t('omsAudit.filterManual')}
             </button>
           ))}
         </div>
 
-        {loading && (
-          <div className="flex items-center justify-center h-48">
-            <i className="ri-loader-4-line animate-spin text-teal-600 text-2xl"></i>
-          </div>
-        )}
         {!loading && error && <div className="p-6 text-sm text-red-600">{error}</div>}
-        {!loading && !error && rows.length === 0 && (
-          <div className="text-center py-12 text-slate-500">
-            <i className="ri-history-line text-3xl"></i>
-            <p className="mt-2 text-sm">No hay registros para estos criterios.</p>
-          </div>
-        )}
-        {!loading && !error && rows.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-200">
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Fecha</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Pedido</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Tipo</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Tier</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Score</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Actor</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Detalle</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((e) => (
-                  <tr key={e.id} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="py-3 px-4 text-sm text-slate-500">{e.timestamp}</td>
-                    <td className="py-3 px-4 text-sm font-medium text-slate-900">{e.orderId}</td>
-                    <td className="py-3 px-4">
-                      <Badge variant={e.changeType === 'manual' ? 'warning' : 'default'} size="sm">
-                        {e.changeType === 'manual' ? 'Manual' : 'Automático'}
-                      </Badge>
-                    </td>
-                    <td className="py-3 px-4 text-sm text-slate-700">
-                      {e.tierFrom === 'sin asignar' ? 'sin asignar' : TIER_LABEL[e.tierFrom]} → {TIER_LABEL[e.tierTo]}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-slate-700">{e.scoreFrom ?? '—'} → {e.scoreTo}</td>
-                    <td className="py-3 px-4 text-sm text-slate-700">{e.actor}</td>
-                    <td className="py-3 px-4 text-sm text-slate-600">{e.detail}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </Card>
+
+      {!error && (
+        <DataTable
+          data={rows}
+          columns={columns}
+          getRowId={(e) => e.id}
+          loading={loading}
+          pageSize={25}
+          searchPlaceholder={t('omsAudit.search')}
+          exportFileName="auditoria_priorizacion"
+          emptyMessage={t('omsAudit.empty')}
+        />
+      )}
     </div>
   );
 }

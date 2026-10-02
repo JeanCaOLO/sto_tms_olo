@@ -15,6 +15,8 @@ interface Carrier {
   address: string;
   country_id: string;
   status: string;
+  payment_account: string;
+  softland_code: string;
 }
 
 interface Country {
@@ -40,7 +42,9 @@ export default function CarrierModal({ isOpen, onClose, carrier, onSave }: Carri
     phone: '',
     address: '',
     country_id: '',
-    status: 'active'
+    status: 'active',
+    payment_account: '',
+    softland_code: ''
   });
   const [countries, setCountries] = useState<Country[]>([]);
   const [loading, setLoading] = useState(false);
@@ -217,6 +221,20 @@ export default function CarrierModal({ isOpen, onClose, carrier, onSave }: Carri
                 { value: 'active', label: 'Activo' },
                 { value: 'inactive', label: 'Inactivo' },
               ]}
+            />
+
+            <Input
+              label="Cuenta para pagar"
+              value={formData.payment_account}
+              onChange={(e) => setFormData({ ...formData, payment_account: e.target.value })}
+              placeholder="Cuenta bancaria/contable"
+            />
+
+            <Input
+              label="Código Softland"
+              value={formData.softland_code}
+              onChange={(e) => setFormData({ ...formData, softland_code: e.target.value })}
+              placeholder="Código del transportista en Softland"
             />
           </div>
 

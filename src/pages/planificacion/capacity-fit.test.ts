@@ -17,7 +17,7 @@ function parada(over: Partial<PedidoSeleccionado>): PedidoSeleccionado {
     total_weight: 100,
     total_volume: 1,
     status: 'pending',
-    order_date: '2026-01-01',
+    order_date: '2026-01-01', delivery_date: '2026-01-02',
     delivery_latitude: 9.93 + seq * 0.01,
     delivery_longitude: -84.08 - seq * 0.01,
     stop_number: seq,

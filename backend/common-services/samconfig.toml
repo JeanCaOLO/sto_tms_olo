@@ -1,0 +1,47 @@
+version = 0.1
+# Deploy (solo Intelix): sam build && sam deploy --config-env <dev|qa|prod>
+
+[dev.deploy.parameters]
+stack_name = "dev-tms-common-services"
+region = "us-east-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+resolve_s3 = true
+parameter_overrides = [
+  "Environment=dev",
+  "DbSecretName=/dev/tms/db",
+  "JwtSecretName=/dev/tms/jwt",
+  "EflowSecretName=/dev/tms/eflow",
+  "CorsAllowOrigin=*"
+]
+tags = ["Project=TMS", "Environment=DEV", "Name=dev-tms-common-services"]
+
+[qa.deploy.parameters]
+stack_name = "qa-tms-common-services"
+region = "us-east-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+resolve_s3 = true
+parameter_overrides = [
+  "Environment=qa",
+  "DbSecretName=/qa/tms/db",
+  "JwtSecretName=/qa/tms/jwt",
+  "EflowSecretName=/qa/tms/eflow",
+  "CorsAllowOrigin=*"
+]
+tags = ["Project=TMS", "Environment=QA", "Name=qa-tms-common-services"]
+
+[prod.deploy.parameters]
+stack_name = "prod-tms-common-services"
+region = "us-east-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+resolve_s3 = true
+parameter_overrides = [
+  "Environment=prod",
+  "DbSecretName=/prod/tms/db",
+  "JwtSecretName=/prod/tms/jwt",
+  "EflowSecretName=/prod/tms/eflow",
+  "CorsAllowOrigin=*"
+]
+tags = ["Project=TMS", "Environment=PROD", "Name=prod-tms-common-services"]

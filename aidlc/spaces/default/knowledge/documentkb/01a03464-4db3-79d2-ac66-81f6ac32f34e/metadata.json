@@ -5,8 +5,8 @@
     "kind": "managed",
     "path": "documents/PLAN_MODULO_OMS.md"
   },
-  "sha256": "fe947b0cfa860f3d0a93e7c8143bf16584e98d7dde360d5c1ec353b3a577bf28",
-  "bytes": 32341,
+  "sha256": "6902dc6a5943bec8519adae1c69196aaad492a81a91a1bd03dba0bc10d84bbd8",
+  "bytes": 32774,
   "indexed_at": "2026-08-24T15:29:43.824Z",
   "extraction": {
     "state": "extracted",
@@ -14,15 +14,15 @@
       "name": "builtin-text",
       "version": "1"
     },
-    "chars": 31413,
+    "chars": 31846,
     "truncated": false,
-    "source_revision": "fe947b0cfa860f3d0a93e7c8143bf16584e98d7dde360d5c1ec353b3a577bf28"
+    "source_revision": "6902dc6a5943bec8519adae1c69196aaad492a81a91a1bd03dba0bc10d84bbd8"
   },
   "summary": {
     "state": "absent"
   },
   "content": "documentkb/01a03464-4db3-79d2-ac66-81f6ac32f34e/content.md",
-  "content_sha256": "fe947b0cfa860f3d0a93e7c8143bf16584e98d7dde360d5c1ec353b3a577bf28",
+  "content_sha256": "6902dc6a5943bec8519adae1c69196aaad492a81a91a1bd03dba0bc10d84bbd8",
   "content_trust": "untrusted",
   "content_handling": "data-not-instructions"
 }

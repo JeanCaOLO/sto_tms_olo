@@ -1,0 +1,16 @@
+export default {
+  'licenses.title': "Driver's Licenses",
+  'licenses.subtitle': 'Catalog of license types by country (feeds the drivers form)',
+  'licenses.new': 'New License',
+  'licenses.kpiTotal': 'Total Licenses',
+  'licenses.kpiActive': 'Active',
+  'licenses.kpiInactive': 'Inactive',
+  'licenses.colCode': 'Code',
+  'licenses.colName': 'Name',
+  'licenses.colCountry': 'Country',
+  'licenses.colStatus': 'Status',
+  'licenses.search': 'Search license...',
+  'licenses.empty': 'No licenses',
+  'licenses.active': 'Active',
+  'licenses.inactive': 'Inactive',
+};

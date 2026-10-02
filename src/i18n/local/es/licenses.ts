@@ -1,0 +1,16 @@
+export default {
+  'licenses.title': 'Licencias de Conducir',
+  'licenses.subtitle': 'Catálogo de tipos de licencia por país (alimenta el formulario de conductores)',
+  'licenses.new': 'Nueva Licencia',
+  'licenses.kpiTotal': 'Total Licencias',
+  'licenses.kpiActive': 'Activas',
+  'licenses.kpiInactive': 'Inactivas',
+  'licenses.colCode': 'Código',
+  'licenses.colName': 'Nombre',
+  'licenses.colCountry': 'País',
+  'licenses.colStatus': 'Estado',
+  'licenses.search': 'Buscar licencia...',
+  'licenses.empty': 'No hay licencias',
+  'licenses.active': 'Activo',
+  'licenses.inactive': 'Inactivo',
+};

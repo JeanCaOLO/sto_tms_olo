@@ -5,7 +5,8 @@ const HomePage = lazy(() => import('../pages/home/page'));
 const LoginPage = lazy(() => import('../pages/login/page'));
 const DashboardPage = lazy(() => import('../pages/dashboard/page'));
 const PedidosPage = lazy(() => import('../pages/pedidos/page'));
-const RutasPage = lazy(() => import('../pages/rutas/page'));
+const ZonasPage = lazy(() => import('../pages/zonas/page'));
+const LicenciasPage = lazy(() => import('../pages/licencias/page'));
 const PlanificacionPage = lazy(() => import('../pages/planificacion/page'));
 const VehiculosPage = lazy(() => import('../pages/vehiculos/page'));
 const ConductoresPage = lazy(() => import('../pages/conductores/page'));
@@ -18,12 +19,15 @@ const FlotaPropiaPage = lazy(() => import('../pages/companias/flota-propia/page'
 const TransportistasLiquidarPage = lazy(() => import('../pages/companias/terceros/page'));
 const LiquidacionesPage = lazy(() => import('../pages/liquidaciones/page'));
 const ConfiguracionPage = lazy(() => import('../pages/configuracion/page'));
+const AuditoriaPage = lazy(() => import('../pages/auditoria/page'));
 const SeedPage = lazy(() => import('../pages/seed/page'));
 const NotFoundPage = lazy(() => import('../pages/NotFound'));
 const DevolucionesPage = lazy(() => import('../pages/devoluciones/page'));
 const GuiasPage = lazy(() => import('../pages/guias/page'));
-const ReportesPage = lazy(() => import('../pages/reportes/page'));
-const ContratosPage = lazy(() => import('../pages/contratos/page'));
+const TrackingPage = lazy(() => import('../pages/tracking/page'));
+// Contratos y Reportes están "Coming Soon": la ruta muestra el placeholder en
+// vez del módulo (las páginas reales siguen en el repo para cuando se habiliten).
+const ComingSoonPage = lazy(() => import('../pages/ComingSoon'));
 const OmsPanelPage = lazy(() => import('../pages/oms/panel/page'));
 const OmsColaPage = lazy(() => import('../pages/oms/cola/page'));
 const OmsReglasPage = lazy(() => import('../pages/oms/reglas/page'));
@@ -49,8 +53,12 @@ const routes: RouteObject[] = [
     element: <PedidosPage />
   },
   {
-    path: '/rutas',
-    element: <RutasPage />
+    path: '/zonas',
+    element: <ZonasPage />
+  },
+  {
+    path: '/licencias',
+    element: <LicenciasPage />
   },
   {
     path: '/planificacion',
@@ -101,6 +109,10 @@ const routes: RouteObject[] = [
     element: <ConfiguracionPage />
   },
   {
+    path: '/auditoria',
+    element: <AuditoriaPage />
+  },
+  {
     path: '/seed',
     element: <SeedPage />
   },
@@ -110,25 +122,19 @@ const routes: RouteObject[] = [
   },
   {
     path: '/guias',
-    lazy: async () => {
-      const Component = (await import('../pages/guias/page')).default;
-      return { element: <Component /> };
-    },
+    element: <GuiasPage />,
   },
   {
     path: '/tracking',
-    lazy: async () => {
-      const Component = (await import('../pages/tracking/page')).default;
-      return { element: <Component /> };
-    },
+    element: <TrackingPage />,
   },
   {
     path: '/contratos',
-    element: <ContratosPage />,
+    element: <ComingSoonPage title="Contratos" />,
   },
   {
     path: '/reportes',
-    element: <ReportesPage />,
+    element: <ComingSoonPage title="Reportes" />,
   },
   {
     path: '/oms',

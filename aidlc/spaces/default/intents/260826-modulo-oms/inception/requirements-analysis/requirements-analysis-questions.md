@@ -1,90 +1,82 @@
-# Requirements Analysis — Preguntas de clarificación (Módulo OMS)
+# Requirements Analysis (re-corrida) — Preguntas de clarificación (Módulo OMS)
 
-> La mayor parte del alcance del OMS ya está resuelta en fuentes vigentes
-> (Adenda del 2026-08-26, `business-overview.md`, `PLAN_MODULO_OMS.md`,
-> `kiro-oms-requirements.md`). Estas preguntas NO re-preguntan hechos ya
-> cerrados; solo fijan las decisiones de **alcance de este ciclo** antes de
-> redactar los requerimientos. Los puntos que dependen de terceros
-> (nº de niveles de prioridad, tablas del lago de datos, 3ª regla) NO se
-> preguntan aquí: van como "Open Questions" del artefacto, para resolver más
-> adelante con negocio/datos.
+> Esta re-corrida CORRIGE el `requirements.md` con las decisiones firmes de
+> `project.md` (`## Decided`) y de tres reuniones ya indexadas: funcional con
+> Antonio (2026-09-08), datos/cruce con Calzadilla (2026-09-14) y diseño de
+> solución (2026-09-14). Casi todo el alcance ya está DECIDIDO; estas preguntas
+> solo fijan las pocas decisiones de redacción que aún quedan abiertas. Todas
+> tienen valor por defecto; puedes decir "acepta los valores por defecto".
 >
-> Responde escribiendo tu elección tras cada `[Answer]:` (una letra A–E, o
-> `X` con tu texto). Si prefieres, puedes decir "acepta los valores por
-> defecto" y tomo la opción marcada como (por defecto) en cada una.
+> Lo que ya se aplica como FIRME (no se pregunta): el OMS lee del WMS/EFLOW y
+> escribe estado/situación (DISP→GENERADA) + prioridad a nivel WMS (no toca WMH,
+> no lee intermedias, no hay "lago de datos", termina en "alistado"); prioridad
+> numérica invertida atada a la fecha (T-1) con score ponderado; 5 macro-reglas
+> con 2 en la primera entrega (fecha + cliente retira/observaciones vía IA
+> Bedrock); motor = catálogo semi-configurable; multi-compañía con Lambda por
+> compañía y selector de compañía en la UI; fuente = `expedición_cabecera` con
+> `fecha_de_cierre IS NULL` + `DISP`.
 
 ---
 
-## Q1. Amplitud funcional de este ciclo de requerimientos
+## Q1. Alcance del ciclo de corrección
 
-¿Qué conjunto de requerimientos debe cubrir el `requirements.md` de este ciclo?
-
-- A. **(por defecto)** Los 10 requerimientos vigentes (los 11 del documento de
-  Kiro menos el de aprobación humana, que se elimina), con el flujo de
-  priorización 100 % automático y los 4 roles cerrados. Incluye motor de
-  reglas, cola, panel, simulador, auditoría, inserción al lago, multi-país y
-  seguridad.
-- B. Solo el MVP marcado en `PLAN_MODULO_OMS.md` §5 (submódulos: mantenimiento
-  de rutas/días de despacho, panel, cola, motor de reglas — Regla 1); simulador
-  y auditoría quedan como requerimientos "fuera del MVP".
-- C. Solo la Regla 1 (fecha de despacho + día de salida de la ruta) y su
-  calendario de rutas, como corte mínimo para validar la lógica con datos mock.
+- A. **(por defecto)** Reescribir el `requirements.md` completo alineándolo a
+  las decisiones firmes (posicionamiento WMS/EFLOW, prioridad numérica T-1 +
+  score, 5 macro-reglas con 2 en 1ª entrega, motor catálogo, multi-compañía,
+  fuente de datos), corrigiendo cada FR/NFR/rol/glosario afectado.
+- B. Solo corregir los puntos que contradicen los hechos firmes (posicionamiento
+  y prioridad), dejando el resto como está.
 - X. Other (please specify)
 
 [Answer]: A
+## Q2. Score vs. filtro en el modelo de prioridad
 
-## Q2. Alcance del rol "Responsable del OMS" (única intervención humana)
+Antonio dejó abierto si las reglas deben cumplirse TODAS (filtro) o cada una
+suma peso (score). `project.md` decide **score ponderado desde la 1ª entrega**.
 
-La Adenda fija que la única intervención humana es alterar la prioridad de un
-pedido puntual. ¿Cómo lo reflejo en los requerimientos?
-
-- A. **(por defecto)** Un override manual por pedido individual, con motivo
-  obligatorio y registro en auditoría, sin ningún paso de aprobación de lote.
-  (Reescribe el antiguo REQ 3 y elimina el antiguo REQ 4.)
-- B. Además del override por pedido, permitir "congelar/mantener en espera" un
-  pedido (sin cambiar su tier), como acción operativa adicional.
+- A. **(por defecto)** Redactar el modelo como **score ponderado** (cada regla
+  suma peso → prioridad; mayor peso = cliente retira, luego la fecha), y dejar
+  "score vs. filtro puro" como Open Question a cerrar con el cliente.
+- B. Redactarlo como filtro (todas las reglas deben cumplirse) — contradice
+  `project.md`, no recomendado.
 - X. Other (please specify)
 
 [Answer]: A
+## Q3. Roles del OMS
 
-## Q3. Trigger de inserción al lago de datos (antes atado a la aprobación)
+Los 4 roles de la Adenda (Operador de Despacho, Administrador de Módulo, Jefe de
+Almacén, Responsable del OMS) siguen vigentes.
 
-El antiguo REQ 9 insertaba el pedido "cuando la aprobación humana confirma".
-Sin aprobación, ¿cuál es el disparador?
-
-- A. **(por defecto)** El OMS inserta/actualiza el pedido en el lago de datos
-  automáticamente en cuanto el motor calcula su prioridad (o cuando un override
-  la altera), sin estado intermedio de aprobación.
-- B. El OMS inserta al alcanzar el `ready_to_prep_date` (la fecha calculada de
-  alistamiento), no en el momento del cálculo.
+- A. **(por defecto)** Mantener los 4 roles, ajustando responsabilidades al
+  alcance corregido (el "override manual" lo ejerce un rol autorizado; el
+  Administrador de Módulo configura el catálogo de reglas por compañía; el
+  calendario de rutas es CRUD del OMS pero su fuente de verdad es el TMS).
+- B. Simplificar a 3 niveles de acceso sin nombrar roles de negocio.
 - X. Other (please specify)
 
 [Answer]: A
+## Q4. Regla 4 (asignación de viaje/bajada) en el alcance
 
-## Q4. NFR: ¿fijamos objetivos cuantitativos ahora o los dejamos como marcador?
+El viaje lo abre/asigna el TMS/Planificación; el OMS solo consume el viaje y
+asigna la bajada. La 1ª entrega son 2 reglas (fecha + cliente retira).
 
-El documento de Kiro trae umbrales concretos (recálculo < 60 s, refresco de
-cola < 5 s, inserción < 5 s, simulación ≤ 30 s / 10.000 pedidos). ¿Los adopto?
-
-- A. **(por defecto)** Adoptar esos umbrales como NFR cuantitativos de partida,
-  marcados como "provisionales, a validar con volumen real" (el volumen por país
-  sigue abierto en `PLAN_MODULO_OMS.md` §7.2).
-- B. Dejar los NFR como cualitativos ("cuasi-tiempo-real", "responsivo") y no
-  comprometer números hasta conocer el volumen.
+- A. **(por defecto)** Incluir la Regla 4 como macro-regla del catálogo pero
+  **fuera de la primera entrega** (documentada, inactiva), aclarando que la
+  creación del viaje es de Planificación.
+- B. Omitirla del documento por ahora.
 - X. Other (please specify)
 
 [Answer]: A
+## Q5. NFR cuantitativos
 
-## Q5. Autenticación / RLS
+Los umbrales previos (recálculo ≤60 s, cola ≤5 s, inserción al lago ≤5 s,
+simulador ≤30 s) se inventaron sobre un modelo de "lago" que ya no aplica.
 
-El sistema actual corre sobre Supabase; el OMS delega auth y aislamiento por
-país a la capa RLS/seguridad transversal del TMS.
-
-- A. **(por defecto)** Los requerimientos de seguridad se redactan delegando
-  auth/tokens a la capa RLS transversal (como el antiguo REQ 11), sin diseñar
-  aquí el mecanismo — es una dependencia externa declarada.
-- B. Igual que A, pero además marcar como constraint explícito que el OMS NO
-  gestiona identidades propias (usa las del TMS).
+- A. **(por defecto)** Reemplazarlos por NFR alineados a lo real: el motor corre
+  ≥ 1 vez/día y en las horas de corte; IA de observaciones < $1 USD/mes (~400
+  pedidos/día); volumen de referencia ~400–500 pedidos/día (Cofersa); capacidad
+  operativa ~80 pedidos simultáneos. Marcar todos como provisionales.
+- B. Conservar los umbrales anteriores.
 - X. Other (please specify)
 
 [Answer]: A
@@ -93,38 +85,49 @@ país a la capa RLS/seguridad transversal del TMS.
 
 ## Consolidated Summary Confirmation
 
-Resumen de las decisiones de alcance para el `requirements.md` del OMS:
+Re-corrida de Requirements Analysis del OMS. Decisiones (Q1–Q5 = A) + precisiones:
 
-- **Amplitud (Q1 = A)**: se redactan los 10 requerimientos vigentes (los 11 de
-  Kiro menos el de aprobación humana, eliminado). Cubren motor de reglas, cola
-  de priorización, panel, simulador, auditoría, inserción al lago, multi-país
-  (CR/VE) y seguridad.
-- **Responsable del OMS (Q2 = A)**: la única intervención humana es un override
-  manual por pedido individual, con motivo obligatorio y registro en auditoría;
-  sin ningún paso de aprobación de lote.
-- **Trigger de inserción al lago (Q3 = A)**: automático en cuanto el motor
-  calcula (o un override altera) la prioridad; sin estado intermedio de
-  aprobación.
-- **NFR (Q4 = A)**: se adoptan los umbrales cuantitativos de partida (recálculo
-  < 60 s, refresco de cola < 5 s, inserción < 5 s, simulación ≤ 30 s / 10.000
-  pedidos), marcados como provisionales a validar con volumen real.
-- **Auth/RLS (Q5 = A)**: la seguridad se redacta delegando autenticación y
-  tokens a la capa RLS/seguridad transversal del TMS; es dependencia externa
-  declarada.
+- **Q1 = A** — reescritura completa del `requirements.md` alineada a lo firme,
+  tratando el actual como base a corregir.
+- **Q2 = A** — modelo de prioridad = **score ponderado, desde la primera
+  entrega**. Como Open Question queda SOLO el matiz score vs. filtro estricto
+  (¿toda regla suma peso o alguna es obligatoria?); el score en sí ya está
+  decidido.
+- **Q3 = A** — se mantienen los 4 roles de la Adenda, ajustados al alcance.
+- **Q4 = A** — Regla 4 (asignación de viaje/bajada) incluida como macro-regla
+  **fuera de la 1ª entrega**, explícita: el OMS NO crea ni asigna el viaje (eso
+  es Planificación/TMS); el OMS consume el viaje ya abierto y termina en
+  "alistado". La bajada se documenta como futura con esa nota de propiedad.
+- **Q5 = A** — NFR reemplazados por los reales (motor ≥1/día + horas de corte;
+  IA < $1/mes ~400 pedidos/día; volumen ~400–500/día Cofersa; capacidad ~80
+  simultáneos), marcados provisionales.
 
-Hechos vigentes aplicados directamente (no preguntados): 4 roles cerrados
-(Operador de Despacho, Administrador de Módulo, Jefe de Almacén, Responsable del
-OMS), cálculo de prioridad 100 % automático y ausencia total de paso de
-aprobación humana (Adenda del 2026-08-26). Se corrige la documentación
-desactualizada en ese punto.
+Correcciones firmes que se incorporan (de `project.md` y las reuniones):
+posicionamiento WMS/EFLOW (lee y escribe estado/situación DISP→GENERADA +
+prioridad; no toca WMH ni intermedias; termina en "alistado"); prioridad
+numérica invertida atada a T-1 (el OMS NO escribe fechas; usa la fecha de
+expedición planificada como insumo); fuente = `expedición_cabecera` con
+`fecha_de_cierre IS NULL` + `DISP` (anti-join con `almacén_movimiento_carcam`;
+`Journey_Orders` opcional; réplica `EFLOW_OLO` por solicitar); 5 macro-reglas,
+1ª entrega = 2 (fecha + cliente retira/observaciones vía IA Amazon Bedrock,
+prompt en Lambda no editable); Motor de Reglas = catálogo semi-configurable con
+selector de compañía; **Simulador = configurador de simulaciones** (entidad
+persistida/bitácora, modal previo de reglas activas + filtro de situación,
+aplicación manual/automática/mixta con hora de corte, una aplicada por
+compañía); multi-compañía con Lambda por compañía y compañía como filtro/selector
+en la UI (no perfil); Cola con default `DISP`, filtro de almacén, detalle en
+modal, selección de columnas (User Preference JSON), nombre+selector de compañía;
+Capa X (todas las tablas con compañía/país; nombre de compañía por maestro); BD
+`logistica_olo` con esquemas `OMS` y `TMS`; stack oficial AWS serverless +
+Python/Lambdas + React + PostgreSQL.
 
-Puntos que quedan como Open Questions del artefacto (dependen de terceros):
-número de niveles de prioridad a homologar (WMS/EPA/Cofersa/Mayoreo, con
-Antonio), tablas exactas del lago de datos y sistema de origen (Ana/equipo de
-datos), identidad de la 3ª regla, y contrato exacto de salida hacia
-Planificación.
+Supuestos / Open Questions: BD una-sola con columnas compañía/país (no oficial);
+réplica `EFLOW_OLO` por solicitar (Alfredo); Cofersa no envía la fecha de
+entrega (fallback regla por ruta); tabla de prioridades del cliente pendiente;
+score vs. filtro estricto; umbral de inyección; duración de rutas y horas de
+corte (equipo de transporte).
 
-Does this all look correct before I generate the requirements artifact?
+Does this all look correct before I rewrite the requirements artifact?
 
 - Looks correct
 - Request changes

@@ -5,8 +5,8 @@
     "kind": "managed",
     "path": "documents/2026-09-07-reunion-oms-antonio-flujo-priorizacion.md"
   },
-  "sha256": "85a5373b9403bda6792cdce7bf458faa861c97475c5744d16c0764c8691ffdb7",
-  "bytes": 19823,
+  "sha256": "9178c978c0227b526be6a33de0c8bb5b07f6c6f2c73d3193488a61ef91c08c01",
+  "bytes": 19971,
   "indexed_at": "2026-09-07T19:21:21.607Z",
   "extraction": {
     "state": "extracted",
@@ -14,15 +14,15 @@
       "name": "builtin-text",
       "version": "1"
     },
-    "chars": 19406,
+    "chars": 19554,
     "truncated": false,
-    "source_revision": "85a5373b9403bda6792cdce7bf458faa861c97475c5744d16c0764c8691ffdb7"
+    "source_revision": "9178c978c0227b526be6a33de0c8bb5b07f6c6f2c73d3193488a61ef91c08c01"
   },
   "summary": {
     "state": "absent"
   },
   "content": "documentkb/01a07d51-65d8-7174-a6ce-0547938c8d76/content.md",
-  "content_sha256": "85a5373b9403bda6792cdce7bf458faa861c97475c5744d16c0764c8691ffdb7",
+  "content_sha256": "9178c978c0227b526be6a33de0c8bb5b07f6c6f2c73d3193488a61ef91c08c01",
   "content_trust": "untrusted",
   "content_handling": "data-not-instructions"
 }

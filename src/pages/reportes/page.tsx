@@ -1,5 +1,6 @@
 
 import { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { supabase } from '../../lib/supabase';
 import { StatCard } from '../../components/feature/StatCard';
 import Select from '../../components/base/Select';
@@ -319,8 +320,29 @@ export default function ReportesPage() {
   };
 
   const handleExport = () => {
-    // Funcionalidad visual sin implementación real
-    alert('Función de exportación disponible próximamente');
+    const workbook = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([
+      { Métrica: 'Total Pedidos', Valor: orderStats.total },
+      { Métrica: 'Entregados', Valor: orderStats.delivered },
+      { Métrica: 'Cancelados', Valor: orderStats.cancelled },
+      { Métrica: 'Tasa de Éxito (%)', Valor: orderStats.successRate },
+    ]), 'Pedidos');
+
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(
+      routeStats.routeEfficiency.map((r) => ({ Ruta: r.route, 'Eficiencia (%)': r.efficiency, 'Paradas Totales': r.total }))
+    ), 'Eficiencia por Ruta');
+
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(
+      driverStats.map((d) => ({ Conductor: d.name, Entregas: d.deliveries, 'Distancia (km)': d.distance, 'Tasa de Éxito (%)': d.successRate }))
+    ), 'Ranking Conductores');
+
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(
+      returnStats.chartData.map((r) => ({ Motivo: r.reason, Cantidad: r.count }))
+    ), 'Devoluciones');
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(workbook, `reportes-${period}-${stamp}.xlsx`);
   };
 
   if (loading) {

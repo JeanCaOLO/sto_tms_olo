@@ -126,6 +126,9 @@ export function mapPedido(row: PedidoRow, routeTypeId: string): Pedido {
     total_volume: Number(row.total_volume) || 0,
     status: 'pending',
     order_date: new Date().toISOString(),
+    // EFLOW QA no expone la fecha de entrega comprometida en este contrato;
+    // se deja igual a hoy hasta que el endpoint del OMS la provea (ver CANAL.md).
+    delivery_date: new Date().toISOString().split('T')[0],
     delivery_latitude: toCoord(row.delivery_latitude),
     delivery_longitude: toCoord(row.delivery_longitude),
     customer_name: row.customer_name || undefined,

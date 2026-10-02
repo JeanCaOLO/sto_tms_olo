@@ -12,7 +12,7 @@ interface SeedResult {
 }
 
 export default function SeedPage() {
-  const { session } = useAuth();
+  const { appUser } = useAuth();
   const [seeding, setSeeding] = useState(false);
   const [results, setResults] = useState<SeedResult[]>([]);
 
@@ -734,12 +734,12 @@ export default function SeedPage() {
   };
 
   const executeSeed = async () => {
-    if (!session?.user?.user_metadata?.organization_id) {
+    if (!appUser?.organization_id) {
       alert('No se pudo obtener el ID de organización del usuario');
       return;
     }
 
-    const organizationId = session.user.user_metadata.organization_id;
+    const organizationId = appUser.organization_id;
 
     setSeeding(true);
     setResults([]);

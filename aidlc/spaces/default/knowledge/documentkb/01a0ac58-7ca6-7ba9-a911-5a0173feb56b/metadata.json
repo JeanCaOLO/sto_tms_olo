@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "01a0ac58-7ca6-7ba9-a911-5a0173feb56b",
+  "source": {
+    "kind": "managed",
+    "path": "documents/OMS_ESPECIFICACION_DETALLADA.md"
+  },
+  "sha256": "45ea11c5f47afb0d4f400fe317b4abd180b8595680fd17c98064d1fca81c3c40",
+  "bytes": 13876,
+  "indexed_at": "2026-09-16T22:31:15.335Z",
+  "extraction": {
+    "state": "extracted",
+    "extractor": {
+      "name": "builtin-text",
+      "version": "1"
+    },
+    "chars": 13456,
+    "truncated": false,
+    "source_revision": "45ea11c5f47afb0d4f400fe317b4abd180b8595680fd17c98064d1fca81c3c40"
+  },
+  "summary": {
+    "state": "absent"
+  },
+  "content": "documentkb/01a0ac58-7ca6-7ba9-a911-5a0173feb56b/content.md",
+  "content_sha256": "45ea11c5f47afb0d4f400fe317b4abd180b8595680fd17c98064d1fca81c3c40",
+  "content_trust": "untrusted",
+  "content_handling": "data-not-instructions"
+}

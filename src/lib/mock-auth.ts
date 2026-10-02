@@ -1,4 +1,4 @@
-import type { Session, User } from '@supabase/supabase-js';
+import type { AuthSession as Session, AuthUser as User } from './supabase';
 
 export interface Role {
   id: string;

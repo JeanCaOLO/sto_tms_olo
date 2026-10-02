@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 import StatCard from '../../components/feature/StatCard';
 import Card from '../../components/base/Card';
 import Badge from '../../components/base/Badge';
 
 export default function Dashboard() {
+  const { t } = useTranslation();
   const [stats, setStats] = useState({
     totalOrders: 0,
     activeRoutes: 0,
@@ -53,10 +55,10 @@ export default function Dashboard() {
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { variant: any; label: string }> = {
-      planned: { variant: 'default', label: 'Planificada' },
-      in_progress: { variant: 'info', label: 'En Progreso' },
-      completed: { variant: 'success', label: 'Completada' },
-      cancelled: { variant: 'danger', label: 'Cancelada' }
+      planned: { variant: 'default', label: t('dashboard.statusPlanned') },
+      in_progress: { variant: 'info', label: t('dashboard.statusInProgress') },
+      completed: { variant: 'success', label: t('dashboard.statusCompleted') },
+      cancelled: { variant: 'danger', label: t('dashboard.statusCancelled') }
     };
     const config = statusMap[status] || statusMap.planned;
     return <Badge variant={config.variant}>{config.label}</Badge>;
@@ -67,7 +69,7 @@ export default function Dashboard() {
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
           <i className="ri-loader-4-line text-4xl text-teal-600 animate-spin"></i>
-          <p className="mt-4 text-slate-600">Cargando dashboard...</p>
+          <p className="mt-4 text-slate-600">{t('dashboard.loading')}</p>
         </div>
       </div>
     );
@@ -77,8 +79,8 @@ export default function Dashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-          <p className="text-sm text-slate-600 mt-1">Resumen general del sistema de transportes</p>
+          <h1 className="text-2xl font-bold text-slate-900">{t('dashboard.title')}</h1>
+          <p className="text-sm text-slate-600 mt-1">{t('dashboard.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2 text-sm text-slate-600">
           <i className="ri-calendar-line w-4 h-4 flex items-center justify-center"></i>
@@ -88,28 +90,28 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
-          title="Total Pedidos"
+          title={t('dashboard.kpiTotalOrders')}
           value={stats.totalOrders}
           icon="ri-file-list-3-line"
           color="teal"
           trend={{ value: 12, isPositive: true }}
         />
         <StatCard
-          title="Rutas Activas"
+          title={t('dashboard.kpiActiveRoutes')}
           value={stats.activeRoutes}
           icon="ri-route-line"
           color="blue"
           trend={{ value: 8, isPositive: true }}
         />
         <StatCard
-          title="Entregas Hoy"
+          title={t('dashboard.kpiDeliveredToday')}
           value={stats.deliveredToday}
           icon="ri-checkbox-circle-line"
           color="emerald"
           trend={{ value: 15, isPositive: true }}
         />
         <StatCard
-          title="Devoluciones Pendientes"
+          title={t('dashboard.kpiPendingReturns')}
           value={stats.pendingReturns}
           icon="ri-arrow-go-back-line"
           color="amber"
@@ -120,20 +122,20 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-slate-900">Rutas Recientes</h2>
+            <h2 className="text-lg font-semibold text-slate-900">{t('dashboard.recentRoutes')}</h2>
             <a href="/rutas" className="text-sm text-teal-600 hover:text-teal-700 font-medium cursor-pointer">
-              Ver todas
+              {t('dashboard.viewAll')}
             </a>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-200">
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Ruta</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Conductor</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Vehículo</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Paradas</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Estado</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('dashboard.colRoute')}</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('dashboard.colDriver')}</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('dashboard.colVehicle')}</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('dashboard.colStops')}</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('dashboard.colStatus')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -145,8 +147,8 @@ export default function Dashboard() {
                         <p className="text-xs text-slate-500">{route.store?.name}</p>
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-sm text-slate-700">{route.driver?.full_name || 'Sin asignar'}</td>
-                    <td className="py-3 px-4 text-sm text-slate-700">{route.vehicle?.plate || 'Sin asignar'}</td>
+                    <td className="py-3 px-4 text-sm text-slate-700">{route.driver?.full_name || t('dashboard.unassigned')}</td>
+                    <td className="py-3 px-4 text-sm text-slate-700">{route.vehicle?.plate || t('dashboard.unassigned')}</td>
                     <td className="py-3 px-4 text-sm text-slate-700">
                       {route.completed_stops}/{route.total_stops}
                     </td>
@@ -159,11 +161,11 @@ export default function Dashboard() {
         </Card>
 
         <Card>
-          <h2 className="text-lg font-semibold text-slate-900 mb-6">Rendimiento Semanal</h2>
+          <h2 className="text-lg font-semibold text-slate-900 mb-6">{t('dashboard.weeklyPerformance')}</h2>
           <div className="space-y-4">
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-slate-600">Entregas Completadas</span>
+                <span className="text-sm text-slate-600">{t('dashboard.completedDeliveries')}</span>
                 <span className="text-sm font-semibold text-slate-900">87%</span>
               </div>
               <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -172,7 +174,7 @@ export default function Dashboard() {
             </div>
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-slate-600">Eficiencia de Rutas</span>
+                <span className="text-sm text-slate-600">{t('dashboard.routeEfficiency')}</span>
                 <span className="text-sm font-semibold text-slate-900">92%</span>
               </div>
               <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -181,7 +183,7 @@ export default function Dashboard() {
             </div>
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-slate-600">Satisfacción Cliente</span>
+                <span className="text-sm text-slate-600">{t('dashboard.customerSatisfaction')}</span>
                 <span className="text-sm font-semibold text-slate-900">95%</span>
               </div>
               <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -191,20 +193,20 @@ export default function Dashboard() {
           </div>
 
           <div className="mt-6 pt-6 border-t border-slate-200">
-            <h3 className="text-sm font-semibold text-slate-900 mb-4">Alertas Activas</h3>
+            <h3 className="text-sm font-semibold text-slate-900 mb-4">{t('dashboard.activeAlerts')}</h3>
             <div className="space-y-3">
               <div className="flex items-start gap-3 p-3 bg-amber-50 rounded-lg">
                 <i className="ri-alert-line text-amber-600 w-4 h-4 flex items-center justify-center mt-0.5"></i>
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-amber-900">Retraso en ruta</p>
-                  <p className="text-xs text-amber-700 mt-1">RUT-2024-003 con 15 min de retraso</p>
+                  <p className="text-sm font-medium text-amber-900">{t('dashboard.alertDelayTitle')}</p>
+                  <p className="text-xs text-amber-700 mt-1">{t('dashboard.alertDelayDesc')}</p>
                 </div>
               </div>
               <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg">
                 <i className="ri-error-warning-line text-red-600 w-4 h-4 flex items-center justify-center mt-0.5"></i>
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-red-900">Vehículo en mantenimiento</p>
-                  <p className="text-xs text-red-700 mt-1">ABCD12 requiere revisión</p>
+                  <p className="text-sm font-medium text-red-900">{t('dashboard.alertMaintenanceTitle')}</p>
+                  <p className="text-xs text-red-700 mt-1">{t('dashboard.alertMaintenanceDesc')}</p>
                 </div>
               </div>
             </div>

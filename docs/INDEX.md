@@ -8,6 +8,10 @@ Entry point for all project documentation. If a question maps to a row below, go
 |------------|------------|
 | Understand the project | [`spec.md`](spec.md) |
 | Know where each doc type goes | [`AGENTS.md`](AGENTS.md) |
+| Read the project's business/technical reference docs | [`reference/`](reference/README.md) |
+| Read the development standards (must follow when writing code) | [`standards/`](standards/README.md) |
+| Work on / deploy the backend (Python Lambdas + SAM) | [`../backend/README.md`](../backend/README.md) |
+| Coordinate Kiro ↔ Claude Code (shared channel, Orca setup) | [`guides/coordinacion-claude-kiro.md`](guides/coordinacion-claude-kiro.md) |
 | Understand the delivery process (intent → closure) | [`guides/delivery-circuit.md`](guides/delivery-circuit.md) |
 | Validate an initiative with a non-technical sponsor | [`briefs/`](briefs/README.md) |
 | See functional work items (stories) | [`stories/`](stories/README.md) |
@@ -31,6 +35,8 @@ Entry point for all project documentation. If a question maps to a row below, go
 | `docs/guides/` | Living behavior docs — how things work today | Implementers |
 | `docs/glossary/` | Domain terms, UI tooltip copy | `FA` / `PROD` |
 | `docs/work/` | Immutable history — evidence, never truth | Implementers, at closure |
+| `docs/reference/` | Business & technical reference (project context, module plans, system analysis) | Anyone; long-lived context |
+| `docs/standards/` | Development standards that govern how code is written | Architecture / org |
 | `docs/DEVIATIONS.md` | Accepted deviations from the crew standard | `DOC` audits + owner |
 
 Folder = nature, state = field inside the file, files never move. Full criteria: [`AGENTS.md`](AGENTS.md).

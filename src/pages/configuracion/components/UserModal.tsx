@@ -1,276 +1,119 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '../../../lib/supabase';
+import { useState, type FormEvent } from 'react';
 import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
+import {
+  createUser, updateUser, type AdminRole, type AdminUser, type ScopeInput, type UserPayload, type UserStatus,
+} from '../admin/admin-api';
+import AdminModal from './AdminModal';
+import ScopeEditor from './ScopeEditor';
 
-interface Role {
-  id: string;
-  name: string;
-}
+const MIN_PASSWORD = 8;
 
 interface UserModalProps {
-  isOpen: boolean;
+  user: AdminUser | null;
+  roles: AdminRole[];
   onClose: () => void;
-  onSuccess: () => void;
-  user?: {
-    id: string;
-    full_name: string;
-    email: string;
-    role_id: string;
-    status: string;
-  } | null;
-  organizationId: string;
+  onSaved: (message: string) => void;
 }
 
-export default function UserModal({ isOpen, onClose, onSuccess, user, organizationId }: UserModalProps) {
-  const [loading, setLoading] = useState(false);
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [formData, setFormData] = useState({
-    full_name: '',
-    email: '',
-    password: '',
-    role_id: '',
-    status: 'active'
-  });
+interface FormState {
+  full_name: string;
+  email: string;
+  password: string;
+  role_id: string;
+  status: UserStatus;
+  scopes: ScopeInput[];
+}
+
+function initialForm(user: AdminUser | null, roles: AdminRole[]): FormState {
+  if (!user) return { full_name: '', email: '', password: '', role_id: roles[0]?.id ?? '', status: 'active', scopes: [{}] };
+  const scopes = user.scopes.map(({ country_id, warehouse_id, customer_id }) => ({ country_id, warehouse_id, customer_id }));
+  return { full_name: user.full_name, email: user.email, password: '', role_id: user.role_id ?? '', status: user.status, scopes };
+}
+
+function payloadOf(form: FormState, isNew: boolean): UserPayload {
+  const base = { full_name: form.full_name.trim(), role_id: form.role_id, status: form.status, scopes: form.scopes };
+  return isNew ? { ...base, email: form.email.trim(), password: form.password } : base;
+}
+
+export default function UserModal({ user, roles, onClose, onSaved }: UserModalProps) {
+  const isNew = user === null;
+  const [form, setForm] = useState<FormState>(() => initialForm(user, roles));
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const set = (patch: Partial<FormState>) => setForm((prev) => ({ ...prev, ...patch }));
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchRoles();
-      if (user) {
-        setFormData({
-          full_name: user.full_name,
-          email: user.email,
-          password: '',
-          role_id: user.role_id,
-          status: user.status
-        });
-      } else {
-        setFormData({
-          full_name: '',
-          email: '',
-          password: '',
-          role_id: '',
-          status: 'active'
-        });
-      }
-      setError('');
-    }
-  }, [isOpen, user]);
-
-  const fetchRoles = async () => {
-    const { data } = await supabase
-      .from('roles')
-      .select('id, name')
-      .order('name');
-
-    if (data) {
-      setRoles(data);
-      if (!user && data.length > 0) {
-        setFormData(prev => ({ ...prev, role_id: data[0].id }));
-      }
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setSaving(true);
     setError('');
-
     try {
-      if (user) {
-        // Editar usuario existente
-        const { error: updateError } = await supabase
-          .from('app_users')
-          .update({
-            full_name: formData.full_name,
-            role_id: formData.role_id,
-            status: formData.status
-          })
-          .eq('id', user.id);
-
-        if (updateError) throw updateError;
-      } else {
-        // Crear nuevo usuario
-        if (!formData.password || formData.password.length < 6) {
-          setError('La contraseña debe tener al menos 6 caracteres');
-          setLoading(false);
-          return;
-        }
-
-        // 1. Crear usuario en auth
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: formData.email,
-          password: formData.password,
-          options: {
-            data: {
-              full_name: formData.full_name
-            }
-          }
-        });
-
-        if (authError) throw authError;
-
-        if (authData.user) {
-          // 2. Crear registro en app_users
-          const { error: insertError } = await supabase
-            .from('app_users')
-            .insert({
-              auth_user_id: authData.user.id,
-              organization_id: organizationId,
-              full_name: formData.full_name,
-              email: formData.email,
-              role_id: formData.role_id,
-              status: formData.status
-            });
-
-          if (insertError) throw insertError;
-        }
-      }
-
-      onSuccess();
-      onClose();
-    } catch (err: any) {
-      setError(err.message || 'Error al guardar el usuario');
+      await (isNew ? createUser(payloadOf(form, true)) : updateUser(user.id, payloadOf(form, false)));
+      onSaved(isNew ? 'Usuario creado correctamente' : 'Usuario actualizado correctamente');
+    } catch (err) {
+      setError((err as Error).message);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
-
-  if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-800">
-            {user ? 'Editar Usuario' : 'Nuevo Usuario'}
-          </h2>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
-          >
-            <i className="ri-close-line text-xl"></i>
-          </button>
+    <AdminModal title={isNew ? 'Nuevo Usuario' : 'Editar Usuario'} onClose={onClose} wide>
+      <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        {error && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2 text-sm text-red-700">
+            <i className="ri-error-warning-line text-lg"></i>
+            <span>{error}</span>
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-4">
+          <Input label="Nombre completo *" value={form.full_name} onChange={(e) => set({ full_name: e.target.value })} required />
+          <Input
+            label="Correo *"
+            type="email"
+            value={form.email}
+            onChange={(e) => set({ email: e.target.value })}
+            disabled={!isNew}
+            required
+          />
+          {isNew && (
+            <Input
+              label="Contraseña temporal *"
+              type="password"
+              value={form.password}
+              onChange={(e) => set({ password: e.target.value })}
+              minLength={MIN_PASSWORD}
+              placeholder={`Mínimo ${MIN_PASSWORD} caracteres`}
+              required
+            />
+          )}
+          <Select
+            label="Rol *"
+            value={form.role_id}
+            onChange={(e) => set({ role_id: e.target.value })}
+            options={[{ value: '', label: 'Seleccionar rol' }, ...roles.map((r) => ({ value: r.id, label: r.name }))]}
+            required
+          />
+          <Select
+            label="Estado *"
+            value={form.status}
+            onChange={(e) => set({ status: e.target.value as UserStatus })}
+            options={[{ value: 'active', label: 'Activo' }, { value: 'inactive', label: 'Inactivo' }]}
+          />
         </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-              <i className="ri-error-warning-line text-red-600 text-lg mt-0.5"></i>
-              <span className="text-sm text-red-700">{error}</span>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Nombre Completo *
-            </label>
-            <Input
-              value={formData.full_name}
-              onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-              placeholder="Ej: Juan Pérez"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Email *
-            </label>
-            <Input
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              placeholder="Ej: juan@empresa.com"
-              required
-              disabled={!!user}
-            />
-            {user && (
-              <p className="text-xs text-slate-500 mt-1">El email no se puede modificar</p>
-            )}
-          </div>
-
-          {!user && (
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Contraseña Temporal *
-              </label>
-              <Input
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                placeholder="Mínimo 6 caracteres"
-                required
-                minLength={6}
-              />
-              <p className="text-xs text-slate-500 mt-1">
-                El usuario podrá cambiarla después del primer inicio de sesión
-              </p>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Rol *
-            </label>
-            <Select
-              value={formData.role_id}
-              onChange={(e) => setFormData({ ...formData, role_id: e.target.value })}
-              required
-            >
-              <option value="">Seleccionar rol</option>
-              {roles.map((role) => (
-                <option key={role.id} value={role.id}>
-                  {role.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Estado *
-            </label>
-            <Select
-              value={formData.status}
-              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-              required
-            >
-              <option value="active">Activo</option>
-              <option value="inactive">Inactivo</option>
-            </Select>
-          </div>
-
-          <div className="flex gap-3 pt-4">
-            <Button
-              type="button"
-              onClick={onClose}
-              className="flex-1 bg-slate-100 text-slate-700 hover:bg-slate-200 cursor-pointer whitespace-nowrap"
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              disabled={loading}
-              className="flex-1 cursor-pointer whitespace-nowrap"
-            >
-              {loading ? (
-                <>
-                  <i className="ri-loader-4-line animate-spin"></i>
-                  <span>Guardando...</span>
-                </>
-              ) : (
-                <>
-                  <i className="ri-save-line"></i>
-                  <span>{user ? 'Actualizar' : 'Crear Usuario'}</span>
-                </>
-              )}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div>
+          <p className="block text-sm font-medium text-slate-700 mb-2">Alcance *</p>
+          <ScopeEditor scopes={form.scopes} onChange={(scopes) => set({ scopes })} />
+        </div>
+        <div className="flex gap-3 pt-4">
+          <Button type="button" variant="secondary" onClick={onClose} className="flex-1">Cancelar</Button>
+          <Button type="submit" disabled={saving} className="flex-1">
+            <i className={saving ? 'ri-loader-4-line animate-spin' : 'ri-save-line'}></i>
+            <span>{saving ? 'Guardando...' : isNew ? 'Crear Usuario' : 'Actualizar'}</span>
+          </Button>
+        </div>
+      </form>
+    </AdminModal>
   );
 }

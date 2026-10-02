@@ -2533,6 +2533,184 @@
   ],
   "settlements": [
     {
+      "id": "stl_mu4hgmhx_2g7gkr",
+      "country_id": "VE",
+      "party_id": "CARRIER_VE_1",
+      "route_id": "RT_VE_A1",
+      "driver_id": "DRV_VE_1",
+      "number": "LIQ-0001",
+      "trip_number": "GF-88301",
+      "settlement_date": "2026-09-02",
+      "truck_type_id": "TT-350",
+      "status": "Pagado",
+      "currency": "USD",
+      "total_amount": "672.00",
+      "notes": "Viaje regular, sin novedades.",
+      "margin_reason": null,
+      "margin_status": "OK",
+      "margin_amount": "252.00",
+      "margin_pct": "0.3750",
+      "cost_total": "420.00",
+      "cost_model_id": "OSR_VE_1",
+      "trip": {
+        "countryId": "VE",
+        "partyId": "CARRIER_VE_1",
+        "quotedAt": "2026-09-02T09:00:00.000Z",
+        "originLocationId": "Z_VE_CAR",
+        "destLocationId": "Z_VE_CCS",
+        "km": 180,
+        "clientCount": 40,
+        "packageCount": 120,
+        "weightKg": 1200,
+        "durationHours": 4,
+        "tollCount": 3,
+        "tollsAmount": "18",
+        "truckTypeId": "TT-350",
+        "serviceType": "STANDARD",
+        "fleetType": "OUTSOURCED",
+        "carrierId": "CARRIER_VE_1",
+        "driverId": "DRV_VE_1",
+        "customerId": null,
+        "pickupCount": 2,
+        "lateMinutes": 0,
+        "incidentCount": 0,
+        "truckVolumeM3": 0,
+        "truckWeightTons": 0,
+        "customVars": {
+          "custom:horas_espera": 3
+        }
+      },
+      "trace": [
+        {
+          "seq": 1,
+          "stage": "BASE",
+          "ruleId": "RULE_VE_ZONE_FALLBACK",
+          "ruleCode": "R_ZONE_FALLBACK",
+          "label": "Zona (tarifario ZONAS con respaldo por km)",
+          "inputs": {
+            "tabla": "ZONAS"
+          },
+          "computed": "500.00",
+          "final": "500.00",
+          "runningSubtotal": "500.00",
+          "tableMatch": {
+            "tableCode": "ZONAS",
+            "rowId": "RTR_VE_5",
+            "matchedKey": "CAR | CCS",
+            "specificity": 2
+          }
+        },
+        {
+          "seq": 2,
+          "stage": "VARIABLE",
+          "ruleId": "RULE_VE_R2",
+          "ruleCode": "R2",
+          "label": "Tarifa por cliente",
+          "inputs": {
+            "clientCount": 40,
+            "rate": "2.00"
+          },
+          "computed": "80.00",
+          "final": "80.00",
+          "runningSubtotal": "580.00"
+        },
+        {
+          "seq": 3,
+          "stage": "VARIABLE",
+          "ruleId": "RULE_VE_RECOLECTAS",
+          "ruleCode": "R_RECOLECTAS",
+          "label": "Recolectas (Transporte Andino)",
+          "inputs": {
+            "pickupCount": 2,
+            "rate": "25.00"
+          },
+          "computed": "50.00",
+          "final": "50.00",
+          "runningSubtotal": "630.00"
+        },
+        {
+          "seq": 4,
+          "stage": "VARIABLE",
+          "ruleId": "RULE_VE_ESPERA",
+          "ruleCode": "R_ESPERA",
+          "label": "Horas de espera (Transporte Andino)",
+          "inputs": {
+            "custom:horas_espera": 3,
+            "rate": "8.00"
+          },
+          "computed": "24.00",
+          "final": "24.00",
+          "runningSubtotal": "654.00"
+        },
+        {
+          "seq": 5,
+          "stage": "SURCHARGE",
+          "ruleId": "RULE_VE_TOLLS",
+          "ruleCode": "R_TOLLS",
+          "label": "Peajes",
+          "inputs": {
+            "tollsAmount": "18",
+            "rate": "1"
+          },
+          "computed": "18.00",
+          "final": "18.00",
+          "runningSubtotal": "672.00"
+        }
+      ],
+      "discarded": [
+        {
+          "ruleCode": "R1",
+          "reason": "CONDITION_FALSE",
+          "detail": "La condición de la regla no se cumplió con el contexto actual."
+        },
+        {
+          "ruleCode": "R3",
+          "reason": "CONDITION_FALSE",
+          "detail": "La condición de la regla no se cumplió con el contexto actual."
+        },
+        {
+          "ruleCode": "R_OVERNIGHT",
+          "reason": "CONDITION_FALSE",
+          "detail": "La condición de la regla no se cumplió con el contexto actual."
+        },
+        {
+          "ruleCode": "R_LATE_PENALTY",
+          "reason": "CONDITION_FALSE",
+          "detail": "La condición de la regla no se cumplió con el contexto actual."
+        },
+        {
+          "ruleCode": "R_VOLUME_DISCOUNT",
+          "reason": "CONDITION_FALSE",
+          "detail": "La condición de la regla no se cumplió con el contexto actual."
+        },
+        {
+          "ruleCode": "R_INCIDENT_FIXED",
+          "reason": "CONDITION_FALSE",
+          "detail": "La condición de la regla no se cumplió con el contexto actual."
+        },
+        {
+          "ruleCode": "R_INCIDENT_PER_UNIT",
+          "reason": "CONDITION_FALSE",
+          "detail": "La condición de la regla no se cumplió con el contexto actual."
+        }
+      ],
+      "stage_subtotals": {
+        "BASE": "500.00",
+        "VARIABLE": "154.00",
+        "MODIFIER": "0.00",
+        "SURCHARGE": "18.00",
+        "ADJUSTMENT": "0.00",
+        "TAX": "0.00"
+      },
+      "warnings": [],
+      "overrides": {},
+      "adhoc_rules": [],
+      "excluded_seqs": [],
+      "returns": [],
+      "created_at": "2026-09-16T19:17:54.020Z",
+      "updated_at": "2026-09-16T19:17:54.020Z"
+    },
+    {
       "id": "stl_mu4hgmi5_6j588k",
       "country_id": "VE",
       "party_id": "SP_VE_OWN",

@@ -1,0 +1,110 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  TMS - HORARIOS | Enciende y apaga los servidores del TMS en el sandbox para ahorrar costos:
+  lunes a viernes de 05:00 a 17:00 hora de Costa Rica. Apaga Aurora db-tms-olo (escritora y lectora)
+  y el bastión del túnel. Lambdas, API Gateway y Amplify cobran por uso y no se apagan.
+
+# Decisión del usuario (2026-09-24). Aurora tarda unos minutos en arrancar, por eso se enciende a las
+# 04:45 para estar lista a las 05:00. Viernes 17:00 → lunes 04:45 queda apagado todo el fin de semana
+# (AWS reencendería solo un cluster apagado más de 7 días; aquí nunca pasan más de 3).
+
+Parameters:
+  DbClusterId:
+    Type: String
+    Default: db-tms-olo
+  BastionInstanceId:
+    Type: String
+    Default: i-062fc98e8e26c0f79
+  StartCron:
+    Type: String
+    Default: cron(45 4 ? * MON-FRI *)
+  StopCron:
+    Type: String
+    Default: cron(0 17 ? * MON-FRI *)
+  TimeZone:
+    Type: String
+    Default: America/Costa_Rica
+
+Resources:
+  SchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: scheduler.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals: { "aws:SourceAccount": !Ref AWS::AccountId }
+      Policies:
+        - PolicyName: encender-apagar-servidores-tms
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [rds:StartDBCluster, rds:StopDBCluster]
+                Resource: !Sub arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:cluster:${DbClusterId}
+              - Effect: Allow
+                Action: [ec2:StartInstances, ec2:StopInstances]
+                Resource: !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${BastionInstanceId}
+
+  StartAurora:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: !Sub ${AWS::StackName}-encender-aurora
+      Description: Enciende Aurora db-tms-olo lunes a viernes 04:45 CR
+      ScheduleExpression: !Ref StartCron
+      ScheduleExpressionTimezone: !Ref TimeZone
+      FlexibleTimeWindow: { Mode: "OFF" }
+      Target:
+        Arn: arn:aws:scheduler:::aws-sdk:rds:startDBCluster
+        RoleArn: !GetAtt SchedulerRole.Arn
+        Input: !Sub '{"DbClusterIdentifier": "${DbClusterId}"}'
+        RetryPolicy: { MaximumRetryAttempts: 3, MaximumEventAgeInSeconds: 3600 }
+
+  StopAurora:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: !Sub ${AWS::StackName}-apagar-aurora
+      Description: Apaga Aurora db-tms-olo lunes a viernes 17:00 CR
+      ScheduleExpression: !Ref StopCron
+      ScheduleExpressionTimezone: !Ref TimeZone
+      FlexibleTimeWindow: { Mode: "OFF" }
+      Target:
+        Arn: arn:aws:scheduler:::aws-sdk:rds:stopDBCluster
+        RoleArn: !GetAtt SchedulerRole.Arn
+        Input: !Sub '{"DbClusterIdentifier": "${DbClusterId}"}'
+        RetryPolicy: { MaximumRetryAttempts: 3, MaximumEventAgeInSeconds: 3600 }
+
+  StartBastion:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: !Sub ${AWS::StackName}-encender-bastion
+      Description: Enciende el bastión del túnel lunes a viernes 04:45 CR
+      ScheduleExpression: !Ref StartCron
+      ScheduleExpressionTimezone: !Ref TimeZone
+      FlexibleTimeWindow: { Mode: "OFF" }
+      Target:
+        Arn: arn:aws:scheduler:::aws-sdk:ec2:startInstances
+        RoleArn: !GetAtt SchedulerRole.Arn
+        Input: !Sub '{"InstanceIds": ["${BastionInstanceId}"]}'
+        RetryPolicy: { MaximumRetryAttempts: 3, MaximumEventAgeInSeconds: 3600 }
+
+  StopBastion:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: !Sub ${AWS::StackName}-apagar-bastion
+      Description: Apaga el bastión del túnel lunes a viernes 17:00 CR
+      ScheduleExpression: !Ref StopCron
+      ScheduleExpressionTimezone: !Ref TimeZone
+      FlexibleTimeWindow: { Mode: "OFF" }
+      Target:
+        Arn: arn:aws:scheduler:::aws-sdk:ec2:stopInstances
+        RoleArn: !GetAtt SchedulerRole.Arn
+        Input: !Sub '{"InstanceIds": ["${BastionInstanceId}"]}'
+        RetryPolicy: { MaximumRetryAttempts: 3, MaximumEventAgeInSeconds: 3600 }
+
+Outputs:
+  Horario:
+    Value: "Lunes a viernes 04:45-17:00 America/Costa_Rica (Aurora db-tms-olo y bastión)"

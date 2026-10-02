@@ -15,6 +15,7 @@ import CountryScopeBar from '../../components/feature/CountryScopeBar';
 import LiquidacionModal from './components/LiquidacionModal';
 import DetalleLiquidacionModal from './components/DetalleLiquidacionModal';
 import { useActiveCountry } from '../../hooks/useActiveCountry';
+import { useModulePermissions } from '../../hooks/use-module-permissions';
 import { listSettlements, updateSettlementStatus } from '../../lib/tarifas/settlementsDataSource';
 import { loadParties } from '../../lib/tarifas/catalogLoader';
 import { formatMoney } from '../../lib/tarifas/format';
@@ -41,6 +42,7 @@ const STATUS_CLASSES: Record<string, string> = {
 
 export default function LiquidacionesPage() {
   const { countries, country: activeCountry, countryId, loading: loadingCountries, setCountry } = useActiveCountry();
+  const { canCreate, canEdit } = useModulePermissions('tarifas');
 
   const [settlements, setSettlements] = useState<SettlementRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -130,9 +132,11 @@ export default function LiquidacionesPage() {
             Cuánto se le paga a cada transportista por cada viaje, y por qué.
           </p>
         </div>
-        <Button onClick={() => setIsModalOpen(true)} disabled={!countryId}>
-          <i className="ri-add-line mr-1"></i>Nueva liquidación
-        </Button>
+        {canCreate && (
+          <Button onClick={() => setIsModalOpen(true)} disabled={!countryId}>
+            <i className="ri-add-line mr-1"></i>Nueva liquidación
+          </Button>
+        )}
       </div>
 
       <CountryScopeBar countries={countries} country={activeCountry} onChange={setCountry} />
@@ -223,7 +227,8 @@ export default function LiquidacionesPage() {
                       <select
                         value={s.status}
                         onChange={(e) => void cambiarEstado(s, e.target.value as SettlementStatus)}
-                        className={`text-xs rounded-full px-2.5 py-1 border-0 cursor-pointer ${STATUS_CLASSES[s.status] ?? ''}`}
+                        disabled={!canEdit}
+                        className={`text-xs rounded-full px-2.5 py-1 border-0 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${STATUS_CLASSES[s.status] ?? ''}`}
                       >
                         {ESTADOS.map((e) => <option key={e} value={e}>{e}</option>)}
                       </select>

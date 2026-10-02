@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { omsApi } from '../api/omsApi';
-import type { Country, PriorityTier, QueueOrder } from '../types';
+import type { PriorityTier, QueueOrder } from '../types';
 
 const ALL = 'todos';
 
@@ -22,7 +22,7 @@ const EMPTY_FILTERS: ColaFilters = {
 // Controller de la Cola de Priorización (FR2/FR3). Maneja filtros, selección de
 // pedido y el override manual local (única intervención humana; sin backend).
 export function useColaController() {
-  const [country, setCountry] = useState<Country>('CR');
+  const country = 'CR' as const;
   const [orders, setOrders] = useState<QueueOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,8 +30,6 @@ export function useColaController() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [overrideOpen, setOverrideOpen] = useState(false);
   const [filters, setFilters] = useState<ColaFilters>(EMPTY_FILTERS);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,7 +41,7 @@ export function useColaController() {
       .catch(() => { if (!cancelled) setError('No se pudo cargar la cola.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [country]);
+  }, []);
 
   // Opciones de filtro derivadas de los pedidos cargados.
   const options = useMemo(() => {
@@ -74,19 +72,6 @@ export function useColaController() {
       return true;
     });
   }, [orders, filters]);
-
-  // Reinicia a la página 1 cuando cambian los filtros o el tamaño de página.
-  useEffect(() => { setPage(1); }, [filters, pageSize]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const currentPage = Math.min(page, totalPages);
-  const pageStart = (currentPage - 1) * pageSize;
-  const paginated = filtered.slice(pageStart, pageStart + pageSize);
-
-  const goToPage = (p: number) => {
-    if (Number.isNaN(p)) return;
-    setPage(Math.min(Math.max(1, Math.trunc(p)), totalPages));
-  };
 
   const setFilter = (key: keyof ColaFilters, value: string) =>
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -124,9 +109,11 @@ export function useColaController() {
   };
 
   return {
-    country, setCountry, orders: paginated, filteredCount: filtered.length, totalCount: orders.length, loading, error,
+    // `orders` es el set FILTRADO completo (sin paginar) - DataTable hace su
+    // propia paginación/orden/búsqueda internamente (ver src/components/base/DataTable.tsx);
+    // pasarle un slice ya paginado desde acá rompía su selector de tamaño de página.
+    orders: filtered, totalCount: orders.length, loading, error,
     filters, setFilter, resetFilters, filtersActive, options,
-    page: currentPage, pageSize, setPageSize, goToPage, totalPages, pageStart,
     selectedId, setSelectedId, selected,
     detailOpen, setDetailOpen,
     overrideOpen, setOverrideOpen, applyOverride,

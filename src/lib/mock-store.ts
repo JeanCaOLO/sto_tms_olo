@@ -2,7 +2,7 @@ const PREFIX = 'sto_mock_';
 
 // ponytail: localStorage JSON list, not a real DB — only exists because writes
 // to Supabase are blocked by RLS without a real authenticated session (see
-// MOCKING.md). Swap for real persistence once auth/RLS is wired up.
+// docs/guides/mocking-planificacion.md). Swap for real persistence once auth/RLS is wired up.
 export function readMockList<T>(key: string): T[] {
   try {
     const raw = localStorage.getItem(PREFIX + key);

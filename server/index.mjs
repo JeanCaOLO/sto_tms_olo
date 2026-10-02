@@ -1,9 +1,15 @@
 import express from "express";
 import { query, dbNames, sql } from "./db.mjs";
 import * as q from "./queries.mjs";
+import { tmsRouter } from "./tms-routes.mjs";
+import { tmsContextRouter } from "./tms-context-routes.mjs";
+import { loadSchema } from "./tms-schema.mjs";
 
 const app = express();
 const PORT = Number(process.env.EFLOW_API_PORT) || 4000;
+
+app.use("/api", tmsRouter);
+app.use("/api", express.json({ limit: "1mb" }), tmsContextRouter);
 
 // País de la request: ?pais=cr|ve (default cr). Determina servidor + BDs.
 const PAISES = new Set(["cr", "ve"]);
@@ -75,6 +81,13 @@ app.get("/api/catalogos/vehiculos", wrap(async (req, res) => {
   res.json(await query(p, q.listVehiculos(dbNames(p)), carrierParam(req)));
 }));
 
-app.listen(PORT, () => {
-  console.log(`eflow read-only API on http://localhost:${PORT}  (pais por defecto: cr; ?pais=cr|ve)`);
-});
+loadSchema()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`eflow read-only API + TMS API on http://localhost:${PORT}  (pais por defecto: cr; ?pais=cr|ve)`);
+    });
+  })
+  .catch((err) => {
+    console.error("No se pudo cargar el esquema de tms_olo:", err.message);
+    process.exit(1);
+  });

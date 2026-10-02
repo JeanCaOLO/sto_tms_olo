@@ -230,7 +230,7 @@ export default function ReturnModal({ returnItem, onClose, onSave }: ReturnModal
 
           {/* Botones */}
           <div className="flex items-center justify-end gap-3 mt-8 pt-6 border-t border-gray-200">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="secondary" onClick={onClose}>
               {isViewMode ? 'Cerrar' : 'Cancelar'}
             </Button>
             {!isViewMode && (

@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "01a09fce-3fee-73b8-8539-89e4d12bb7fd",
+  "source": {
+    "kind": "managed",
+    "path": "documents/2026-09-14-reunion-diseno-solucion-oms-mockup-ia-datos.md"
+  },
+  "sha256": "7c91d322a847d2d2217779f6725eb287b5ce190a35a02372469c37cf7abe7236",
+  "bytes": 13827,
+  "indexed_at": "2026-09-14T14:04:12.493Z",
+  "extraction": {
+    "state": "extracted",
+    "extractor": {
+      "name": "builtin-text",
+      "version": "1"
+    },
+    "chars": 13495,
+    "truncated": false,
+    "source_revision": "7c91d322a847d2d2217779f6725eb287b5ce190a35a02372469c37cf7abe7236"
+  },
+  "summary": {
+    "state": "absent"
+  },
+  "content": "documentkb/01a09fce-3fee-73b8-8539-89e4d12bb7fd/content.md",
+  "content_sha256": "7c91d322a847d2d2217779f6725eb287b5ce190a35a02372469c37cf7abe7236",
+  "content_trust": "untrusted",
+  "content_handling": "data-not-instructions"
+}

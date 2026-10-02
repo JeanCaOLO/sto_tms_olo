@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { supabase, type AuthSession as Session, type AuthUser as User } from '../lib/supabase';
 import { MOCK_AUTH_ENABLED, mockAppUser, mockSession, mockUser, type AppUser } from '../lib/mock-auth';
 
 interface AuthContextType {
@@ -20,7 +19,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchAppUser = async (authUserId: string) => {
+  // Reintenta unas pocas veces antes de rendirse: un hiccup transitorio de red
+  // (p. ej. el tunel a la base de datos cayendose un instante) no debe dejar
+  // appUser en null para el resto de la sesion — 9 paginas condicionan su
+  // propia carga a `appUser?.organization_id` y se quedan "cargando" para
+  // siempre si esto nunca se resuelve (ver docs/reference/analisis-sistema-tms.md y el
+  // reporte de paginas colgadas de esta sesion).
+  const fetchAppUser = async (authUserId: string, attempt = 1): Promise<void> => {
     const { data, error } = await supabase
       .from('app_users')
       .select('*, role:roles(id, name)')
@@ -29,7 +34,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!error && data) {
       setAppUser(data as AppUser);
+      return;
     }
+
+    if (attempt < 3) {
+      await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+      return fetchAppUser(authUserId, attempt + 1);
+    }
+
+    console.error('No se pudo cargar app_users tras 3 intentos:', error);
   };
 
   useEffect(() => {
@@ -61,20 +74,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => { subscription.unsubscribe(); };
   }, []);
 
   const signIn = async (email: string, password: string): Promise<{ error: string | null }> => {
     if (MOCK_AUTH_ENABLED) return { error: null };
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      if (error.message.includes('Invalid login credentials')) {
-        return { error: 'Correo o contraseña incorrectos.' };
-      }
-      if (error.message.includes('Email not confirmed')) {
-        return { error: 'Debes confirmar tu correo electrónico antes de ingresar.' };
-      }
-      return { error: 'Error al iniciar sesión. Intenta nuevamente.' };
+      return { error: error.message || 'Error al iniciar sesión. Intenta nuevamente.' };
     }
     return { error: null };
   };

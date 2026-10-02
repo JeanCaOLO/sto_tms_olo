@@ -1,16 +1,42 @@
 import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useSidebar } from '../../hooks/useSidebar';
-import { isGroup, navItems } from './sidebar-nav-items';
+import { usePermissions } from '../../hooks/usePermissions';
+import { useTranslation } from 'react-i18next';
+import { isGroup, isSection, navItems, type NavItem } from './sidebar-nav-items';
 import SidebarNavGroup from './SidebarNavGroup';
 import SidebarNavLink from './SidebarNavLink';
 
 export default function Sidebar() {
   const location = useLocation();
   const { collapsed, toggleCollapsed, mobileOpen, setMobileOpen } = useSidebar();
+  const { can } = usePermissions();
+  const { t } = useTranslation();
+
+  // Solo se muestran los módulos con `view` (los "Coming Soon" quedan visibles
+  // pero apagados; se controla en el render, no acá). Un grupo aparece si al
+  // menos un hijo es visible.
+  const canSee = (permKey?: string) => !permKey || can(permKey, 'view');
+  const filtered: NavItem[] = navItems
+    .map((item) =>
+      isGroup(item) ? { ...item, children: item.children.filter((c) => canSee(c.permKey)) } : item,
+    )
+    .filter((item) =>
+      isSection(item) ? true : isGroup(item) ? item.children.length > 0 : canSee(item.permKey),
+    );
+
+  // Quitar encabezados de sección que quedaron sin ningún ítem visible debajo
+  // (hasta la próxima sección): una sección vacía no debe mostrarse.
+  const visibleItems: NavItem[] = filtered.filter((item, i) => {
+    if (!isSection(item)) return true;
+    const next = filtered.slice(i + 1);
+    const end = next.findIndex(isSection);
+    const between = end === -1 ? next : next.slice(0, end);
+    return between.length > 0;
+  });
 
   // Grupos abiertos por label; arranca con el grupo cuyo hijo coincide con la ruta actual.
-  const initialOpen = navItems
+  const initialOpen = visibleItems
     .filter(isGroup)
     .filter((group) => group.children.some((child) => child.path === location.pathname))
     .map((group) => group.label);
@@ -35,7 +61,7 @@ export default function Sidebar() {
                 <i className="ri-truck-line text-xl"></i>
               </div>
               <div>
-                <h1 className="font-bold text-base">STO</h1>
+                <h1 className="font-bold text-base">TMS</h1>
                 <p className="text-xs text-slate-400">Transportes OLO</p>
               </div>
             </div>
@@ -55,8 +81,19 @@ export default function Sidebar() {
         </div>
 
         <nav className="p-3 overflow-y-auto overflow-x-hidden h-[calc(100vh-80px)] scrollbar-dark">
-          {navItems.map((item) =>
-            isGroup(item) ? (
+          {visibleItems.map((item) =>
+            isSection(item) ? (
+              !collapsed ? (
+                <p
+                  key={`section-${item.i18nKey}`}
+                  className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500 select-none"
+                >
+                  {t(item.i18nKey)}
+                </p>
+              ) : (
+                <div key={`section-${item.i18nKey}`} className="my-2 border-t border-slate-800" />
+              )
+            ) : isGroup(item) ? (
               <SidebarNavGroup
                 key={item.label}
                 item={item}

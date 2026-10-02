@@ -1,9 +1,29 @@
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import Card from '../../../components/base/Card';
 import Badge from '../../../components/base/Badge';
+import Select from '../../../components/base/Select';
 import StatCard from '../../../components/feature/StatCard';
-import OmsPageHeader from '../components/OmsPageHeader';
-import { TIER_LABEL, type PriorityTier } from '../types';
+import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
+import { TIER_LABEL, type PriorityTier, type OmsAlert } from '../types';
 import { usePanelController } from './usePanelController';
+
+const buildAlertColumns = (t: TFunction): DataTableColumn<OmsAlert>[] => [
+  {
+    key: 'severity',
+    header: t('omsPanel.colSeverity'),
+    accessor: (a) => a.severity,
+    filterable: true,
+    render: (a) => (
+      <Badge variant={a.severity === 'critica' ? 'danger' : 'warning'}>
+        {a.severity === 'critica' ? t('omsPanel.severityCritical') : t('omsPanel.severityWarning')}
+      </Badge>
+    ),
+  },
+  { key: 'type', header: t('omsPanel.colType'), accessor: (a) => a.type, sortable: true, filterable: true },
+  { key: 'orderId', header: t('omsPanel.colOrder'), accessor: (a) => a.orderId, sortable: true, render: (a) => <span className="font-medium text-slate-900">{a.orderId}</span> },
+  { key: 'timestamp', header: t('omsPanel.colTimestamp'), accessor: (a) => a.timestamp, sortable: true, render: (a) => <span className="text-slate-500">{a.timestamp}</span> },
+];
 
 // Colores por tier para la distribución (paleta del design system, tema claro).
 const TIER_BAR: Record<PriorityTier, { dot: string; bar: string; text: string }> = {
@@ -15,18 +35,30 @@ const TIER_BAR: Record<PriorityTier, { dot: string; bar: string; text: string }>
 
 // Pantalla Panel OMS — dashboard de salud del motor (FR4).
 export default function OmsPanelPage() {
-  const { country, setCountry, kpis, alerts, distribution, loading, error } = usePanelController();
+  const { t } = useTranslation();
+  const { companies, company, setCompany, kpis, alerts, distribution, loading, error } = usePanelController();
 
+  const alertColumns = buildAlertColumns(t);
   const maxCount = Math.max(1, ...distribution.map((d) => d.count));
 
   return (
     <div className="space-y-6">
-      <OmsPageHeader
-        title="Panel OMS"
-        subtitle="Salud del motor de priorización e indicadores operativos"
-        country={country}
-        onCountryChange={setCountry}
-      />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">{t('omsPanel.title')}</h1>
+          <p className="text-sm text-slate-600 mt-1">
+            {t('omsPanel.subtitle')}
+          </p>
+        </div>
+        <div className="w-full sm:w-56">
+          <Select
+            label={t('omsPanel.company')}
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+            options={companies.map((c) => ({ value: c.id, label: c.name }))}
+          />
+        </div>
+      </div>
 
       {loading && (
         <div className="flex items-center justify-center h-64">
@@ -40,7 +72,7 @@ export default function OmsPanelPage() {
             <i className="ri-wifi-off-line text-xl"></i>
             <div>
               <p className="text-sm font-medium">{error}</p>
-              <p className="text-xs mt-1">Mostrando los últimos datos disponibles. Reintentando…</p>
+              <p className="text-xs mt-1">{t('omsPanel.retryingHint')}</p>
             </div>
           </div>
         </Card>
@@ -49,57 +81,32 @@ export default function OmsPanelPage() {
       {!loading && !error && kpis && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <StatCard title="Pendientes" value={kpis.pendientes} icon="ri-stack-line" color="teal" />
-            <StatCard title="Vencidos" value={kpis.vencidos} icon="ri-alarm-warning-line" color="red" />
-            <StatCard title="% override (24 h)" value={`${kpis.overridePct}%`} icon="ri-hand-coin-line" color="amber" />
-            <StatCard title="Sin ruta configurada" value={kpis.sinRuta} icon="ri-question-line" color="blue" />
+            <StatCard title={t('omsPanel.kpiPending')} value={kpis.pendientes} icon="ri-stack-line" color="teal" />
+            <StatCard title={t('omsPanel.kpiOverdue')} value={kpis.vencidos} icon="ri-alarm-warning-line" color="red" />
+            <StatCard title={t('omsPanel.kpiOverride')} value={`${kpis.overridePct}%`} icon="ri-hand-coin-line" color="amber" />
+            <StatCard title={t('omsPanel.kpiNoRoute')} value={kpis.sinRuta} icon="ri-question-line" color="blue" />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <Card className="lg:col-span-2">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-semibold text-slate-900">Alertas activas</h2>
-                <span className="text-xs text-slate-500">Actualizado hace 12 s · cada 60 s</span>
+                <h2 className="text-lg font-semibold text-slate-900">{t('omsPanel.activeAlerts')}</h2>
+                <span className="text-xs text-slate-500">{t('omsPanel.updatedHint')}</span>
               </div>
-              {alerts.length === 0 ? (
-                <div className="text-center py-10 text-slate-500">
-                  <i className="ri-checkbox-circle-line text-3xl text-emerald-500"></i>
-                  <p className="mt-2 text-sm">Sin alertas activas. El motor opera con normalidad.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-slate-200">
-                        <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Severidad</th>
-                        <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Tipo de alerta</th>
-                        <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Pedido</th>
-                        <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Timestamp</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {alerts.map((a) => (
-                        <tr key={a.id} className="border-b border-slate-100 hover:bg-slate-50">
-                          <td className="py-3 px-4">
-                            <Badge variant={a.severity === 'critica' ? 'danger' : 'warning'}>
-                              {a.severity === 'critica' ? 'Crítica' : 'Atención'}
-                            </Badge>
-                          </td>
-                          <td className="py-3 px-4 text-sm text-slate-700">{a.type}</td>
-                          <td className="py-3 px-4 text-sm font-medium text-slate-900">{a.orderId}</td>
-                          <td className="py-3 px-4 text-sm text-slate-500">{a.timestamp}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <DataTable
+                data={alerts}
+                columns={alertColumns}
+                getRowId={(a) => a.id}
+                searchPlaceholder={t('omsPanel.searchAlert')}
+                exportFileName="alertas_oms"
+                emptyMessage={t('omsPanel.emptyAlerts')}
+              />
             </Card>
 
             <Card>
               <div className="flex items-center gap-2 mb-6">
                 <i className="ri-pie-chart-2-line text-teal-600 text-lg"></i>
-                <h2 className="text-lg font-semibold text-slate-900">Distribución por Prioridad</h2>
+                <h2 className="text-lg font-semibold text-slate-900">{t('omsPanel.distributionTitle')}</h2>
               </div>
               <div className="space-y-4">
                 {distribution.map((d) => {
@@ -120,7 +127,7 @@ export default function OmsPanelPage() {
                 })}
               </div>
               <p className="mt-6 pt-4 border-t border-slate-100 text-xs text-slate-500">
-                Total pedidos: {distribution.reduce((s, d) => s + d.count, 0)}
+                {t('omsPanel.totalOrders', { count: distribution.reduce((s, d) => s + d.count, 0) })}
               </p>
             </Card>
           </div>

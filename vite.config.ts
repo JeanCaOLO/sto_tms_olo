@@ -86,6 +86,12 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+    watch: {
+      // aidlc/ holds the AI-DLC framework's own lock/state files (see
+      // .claude/tools/aidlc-lib.ts). Vite's watcher holding directory handles
+      // there blocks the framework's own rename-based lock release on Windows.
+      ignored: ["**/aidlc/**"],
+    },
   },
   test: {
     environment: "node",

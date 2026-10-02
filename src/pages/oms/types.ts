@@ -140,3 +140,49 @@ export interface AuditEntry {
   actor: string;
   detail: string; // regla causante (auto) o motivo (manual)
 }
+
+// --- Simulador como CONFIGURADOR de simulaciones (DECIDED 2026-09-15) ---
+// PROTOTIPO: entidades mock persistidas en localStorage; sin backend.
+// Una SIMULACIÓN es una CONFIGURACIÓN CON NOMBRE que se guarda (reglas + filtro
+// de situación + su modo de aplicación). Puede haber varias guardadas por
+// compañía pero SOLO UNA activa: la activa es la que se ejecuta. El "preview"
+// (correr esa config sobre los pedidos ahora) es efímero; el HISTORIAL de
+// ejecuciones se registra aparte.
+
+// Situación de pedido usada como filtro (DISP, GENERADA…).
+export type OrderSituation = 'DISP' | 'GENERADA';
+
+export const SITUATION_OPTIONS: OrderSituation[] = ['DISP', 'GENERADA'];
+
+// Modo de aplicación de una simulación. El horario/hora de corte SOLO tiene
+// sentido en 'automatico'/'mixto'; en 'manual' el usuario corre y aplica a mano.
+export type ApplyMode = 'manual' | 'automatico' | 'mixto';
+
+export const APPLY_MODE_LABEL: Record<ApplyMode, string> = {
+  manual: 'Manual',
+  automatico: 'Automática',
+  mixto: 'Mixta (corte)',
+};
+
+// Una simulación guardada: configuración con nombre. Solo una activa por compañía.
+export interface Simulation {
+  id: string;
+  companyId: string;
+  name: string;
+  ruleIds: string[];              // reglas incluidas en esta simulación
+  situations: OrderSituation[];   // filtro de pedidos por situación
+  applyMode: ApplyMode;
+  cutoffTime: string;             // "HH:mm" — solo aplica en automatico/mixto
+  active: boolean;                // la que se ejecuta (una por compañía)
+}
+
+// Registro del historial de ejecuciones (una corrida de una simulación).
+export interface SimulationExecution {
+  id: string;
+  companyId: string;
+  simulationId: string;
+  simulationName: string;         // desnormalizado para el historial
+  executedAt: string;             // "YYYY-MM-DD HH:mm"
+  trigger: 'manual' | 'automatico';
+  affectedCount: number;          // pedidos en el resultado
+}

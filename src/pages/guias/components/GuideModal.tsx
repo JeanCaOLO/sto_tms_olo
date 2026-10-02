@@ -3,6 +3,7 @@ import { supabase } from '../../../lib/supabase';
 import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
+import { useAuth } from '../../../hooks/useAuth';
 
 interface GuideModalProps {
   guide?: any;
@@ -14,59 +15,57 @@ interface Route {
   route_number: string;
 }
 
-interface Driver {
+interface OrderOption {
   id: string;
-  name: string;
+  order_number: string;
 }
 
-interface Vehicle {
-  id: string;
-  plate: string;
-}
-
+// dispatch_guides es una guía POR PARADA (un pedido dentro de una ruta) - no
+// tiene driver_id/vehicle_id/total_stops propios, esos viven en la ruta
+// (routes) seleccionada. Ver la interfaz DispatchGuide en ../page.tsx.
 export default function GuideModal({ guide, onClose }: GuideModalProps) {
+  const { appUser } = useAuth();
   const [formData, setFormData] = useState({
     guide_number: '',
     route_id: '',
-    driver_id: '',
-    vehicle_id: '',
-    dispatch_date: new Date().toISOString().split('T')[0],
-    total_stops: 0,
-    completed_stops: 0,
-    delivery_status: 'pending'
+    order_id: '',
+    sequence_number: 1,
+    planned_arrival_time: '',
+    status: 'pendiente',
+    delivery_status: 'pending',
+    recipient_name: '',
+    notes: '',
   });
   const [routes, setRoutes] = useState<Route[]>([]);
-  const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [orders, setOrders] = useState<OrderOption[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetchData();
+    if (appUser?.organization_id) fetchData();
     if (guide) {
       setFormData({
         guide_number: guide.guide_number || '',
         route_id: guide.route_id || '',
-        driver_id: guide.driver_id || '',
-        vehicle_id: guide.vehicle_id || '',
-        dispatch_date: guide.dispatch_date || new Date().toISOString().split('T')[0],
-        total_stops: guide.total_stops || 0,
-        completed_stops: guide.completed_stops || 0,
-        delivery_status: guide.delivery_status || 'pending'
+        order_id: guide.order_id || '',
+        sequence_number: guide.sequence_number || 1,
+        planned_arrival_time: guide.planned_arrival_time ? guide.planned_arrival_time.slice(0, 16) : '',
+        status: guide.status || 'pendiente',
+        delivery_status: guide.delivery_status || 'pending',
+        recipient_name: guide.recipient_name || '',
+        notes: guide.notes || '',
       });
     }
-  }, [guide]);
+  }, [guide, appUser?.organization_id]);
 
   const fetchData = async () => {
     try {
-      const [routesRes, driversRes, vehiclesRes] = await Promise.all([
-        supabase.from('routes').select('id, route_number').order('route_number'),
-        supabase.from('drivers').select('id, name').order('name'),
-        supabase.from('vehicles').select('id, plate').order('plate')
+      const [routesRes, ordersRes] = await Promise.all([
+        supabase.from('routes').select('id, route_number').eq('organization_id', appUser!.organization_id).order('route_number'),
+        supabase.from('orders').select('id, order_number').eq('organization_id', appUser!.organization_id).order('order_number', { ascending: false }),
       ]);
 
       if (routesRes.data) setRoutes(routesRes.data);
-      if (driversRes.data) setDrivers(driversRes.data);
-      if (vehiclesRes.data) setVehicles(vehiclesRes.data);
+      if (ordersRes.data) setOrders(ordersRes.data);
     } catch (error) {
       console.error('Error al cargar datos:', error);
     }
@@ -74,20 +73,34 @@ export default function GuideModal({ guide, onClose }: GuideModalProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!appUser?.organization_id) return;
     setLoading(true);
 
     try {
+      const payload = {
+        organization_id: appUser.organization_id,
+        guide_number: formData.guide_number,
+        route_id: formData.route_id,
+        order_id: formData.order_id,
+        sequence_number: formData.sequence_number,
+        planned_arrival_time: formData.planned_arrival_time ? new Date(formData.planned_arrival_time).toISOString() : null,
+        status: formData.status,
+        delivery_status: formData.delivery_status,
+        recipient_name: formData.recipient_name || null,
+        notes: formData.notes || null,
+      };
+
       if (guide) {
         const { error } = await supabase
           .from('dispatch_guides')
-          .update(formData)
+          .update(payload)
           .eq('id', guide.id);
 
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from('dispatch_guides')
-          .insert([formData]);
+          .insert([payload]);
 
         if (error) throw error;
       }
@@ -125,7 +138,7 @@ export default function GuideModal({ guide, onClose }: GuideModalProps) {
               <Input
                 value={formData.guide_number}
                 onChange={(e) => setFormData({ ...formData, guide_number: e.target.value })}
-                placeholder="Ej: GD-2024-001"
+                placeholder="Ej: GD-2026-001"
                 required
               />
             </div>
@@ -150,17 +163,17 @@ export default function GuideModal({ guide, onClose }: GuideModalProps) {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
-                Conductor <span className="text-red-500">*</span>
+                Pedido <span className="text-red-500">*</span>
               </label>
               <Select
-                value={formData.driver_id}
-                onChange={(e) => setFormData({ ...formData, driver_id: e.target.value })}
+                value={formData.order_id}
+                onChange={(e) => setFormData({ ...formData, order_id: e.target.value })}
                 required
               >
-                <option value="">Seleccionar conductor</option>
-                {drivers.map((driver) => (
-                  <option key={driver.id} value={driver.id}>
-                    {driver.name}
+                <option value="">Seleccionar pedido</option>
+                {orders.map((order) => (
+                  <option key={order.id} value={order.id}>
+                    {order.order_number}
                   </option>
                 ))}
               </Select>
@@ -168,57 +181,36 @@ export default function GuideModal({ guide, onClose }: GuideModalProps) {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
-                Vehículo <span className="text-red-500">*</span>
-              </label>
-              <Select
-                value={formData.vehicle_id}
-                onChange={(e) => setFormData({ ...formData, vehicle_id: e.target.value })}
-                required
-              >
-                <option value="">Seleccionar vehículo</option>
-                {vehicles.map((vehicle) => (
-                  <option key={vehicle.id} value={vehicle.id}>
-                    {vehicle.plate}
-                  </option>
-                ))}
-              </Select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                Fecha de Despacho <span className="text-red-500">*</span>
+                N.º de parada en la ruta <span className="text-red-500">*</span>
               </label>
               <Input
-                type="date"
-                value={formData.dispatch_date}
-                onChange={(e) => setFormData({ ...formData, dispatch_date: e.target.value })}
+                type="number"
+                value={formData.sequence_number}
+                onChange={(e) => setFormData({ ...formData, sequence_number: parseInt(e.target.value) || 1 })}
+                min="1"
                 required
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
-                Total de Paradas <span className="text-red-500">*</span>
+                Llegada planificada
               </label>
               <Input
-                type="number"
-                value={formData.total_stops}
-                onChange={(e) => setFormData({ ...formData, total_stops: parseInt(e.target.value) || 0 })}
-                min="0"
-                required
+                type="datetime-local"
+                value={formData.planned_arrival_time}
+                onChange={(e) => setFormData({ ...formData, planned_arrival_time: e.target.value })}
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
-                Paradas Completadas
+                Destinatario
               </label>
               <Input
-                type="number"
-                value={formData.completed_stops}
-                onChange={(e) => setFormData({ ...formData, completed_stops: parseInt(e.target.value) || 0 })}
-                min="0"
-                max={formData.total_stops}
+                value={formData.recipient_name}
+                onChange={(e) => setFormData({ ...formData, recipient_name: e.target.value })}
+                placeholder="Quién recibe"
               />
             </div>
 
