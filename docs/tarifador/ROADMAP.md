@@ -1012,30 +1012,38 @@ y el cierre de documentación. Detalle de cambios: `docs/work/2026-10/2026-10-02
 | Tipos de camión | `vehiclesDataSource.ts` → `listTruckTypes` |
 | Esquema (única fuente) | `data/schema.ts` → `npm run tarifas:ddl` + `npm run tarifas:manifest` |
 
-**Pendiente, en orden:**
+**Hecho el 2026-10-02 (sesión 2):**
+- Migración `sql/19_tarifas_aurora.sql` APLICADA en Aurora (dry-run + `--execute`, registrada en `schema_migrations`); 15 tablas `tarifas_*` y 2 vistas verificadas; `tarifas_v_viajes` devuelve 28 viajes (0.8-2.6 ms).
+- Zonas de Costa Rica sin `code` corregidas en Aurora: `GAM` → `GAM`, `Rural` → `RURAL` (dato, sin commit).
+- Auditoría: 526 tests vitest en verde; tsc sin errores en `src/lib` (los 101 son de `src/pages`/`src/components`, de Kiro).
+- `catalogLoader.loadRules` filtra por país en el servidor (2 consultas: país + globales) en vez de traer todas.
+
+**FALTANTE para la próxima sesión, en orden:**
 
 1. **Pantallas (Kiro).** 17 archivos de `src/pages` / `src/components` no compilan contra el modelo
-   nuevo. Contrato en CANAL. Verificación: `npx tsc --noEmit --project tsconfig.app.json` sin errores.
-2. **Aplicar la migración** (con autorización del usuario; Aurora encendido L–V 04:45–17:00 CR,
-   túnel `scripts/tunel-aurora.ps1`):
-   `node --env-file=.env.local scripts/run-migration.mjs sql/19_tarifas_aurora.sql --execute`.
-   Ya pasó dry-run y una verificación de las vistas contra la base real con ROLLBACK.
-3. **Desplegar `backend/tarifas`** (solo Intelix): `npm run tarifas:manifest`, luego
+   nuevo (101 errores tsc). Contrato en CANAL. Verificación: `npx tsc --noEmit --project tsconfig.app.json` sin errores.
+2. **Desplegar `backend/tarifas`** (solo Intelix): `npm run tarifas:manifest`, luego
    `cd backend/tarifas && sam build && sam deploy --config-env dev`. Local: `npm run api:local`.
-4. **Activar Aurora en el front:** `VITE_TARIFAS_DATASOURCE=postgres` (URL por defecto
-   `${VITE_API_BASE}/api`).
-5. **Configurar Costa Rica en el liquidador** (datos de negocio, no los inventamos):
+3. **Activar Aurora en el front:** `VITE_TARIFAS_DATASOURCE=postgres` (URL por defecto
+   `${VITE_API_BASE}/api`), tras el despliegue.
+4. **Costos de flota propia de Costa Rica** (datos de negocio, NO inventar; el usuario aún no los tiene):
    parámetros de costo de flota propia (sin ellos el liquidador no calcula y lo avisa), reglas y
    tarifarios con clave por **`destZone`** (el viaje no trae origen), y variables personalizadas
    por transportista (`custom:peajes`, `custom:recolectas`…). La migración solo siembra redondeo
    (2, HALF_UP), pernocta (24 h) y política de margen.
+5. **Prueba de extremo a extremo:** liquidar un viaje real contra Aurora vía `api:local` (requiere el punto 4) y medir las vistas con volumen real (hoy solo 28 viajes).
 6. **Datos del catálogo** (se corrigen en Catálogos, no en el liquidador):
-   - zona "Rural" sin `code`: sus viajes quedan bloqueados ("la zona de destino no existe");
    - Costa Rica figura con moneda **USD**: se liquida en la moneda del catálogo (decisión del usuario);
    - Venezuela tiene código `VN` (la semilla local usa `VE`; no afecta a Aurora).
 7. **Decisiones** de §8.1 a proponer para `aidlc/spaces/default/memory/project.md ## Decided`
    (solo con aprobación del usuario).
 8. **Reescribir §2.3, §2.4, §2.13, §4.5 y §4.9** de esta guía cuando la UI esté hecha.
+9. **Mejoras opcionales (auditoría 2026-10-02), a coordinar con Intelix:** `Architectures: [arm64]` en
+   `backend/tarifas/template.yaml` (hoy todos los backends y el layer `tms_common` son x86_64: cambiar en bloque,
+   ahorro ~20 % de Lambda); SSL sin validar certificado en `tms_common/pg.py` (layer compartido, dentro de VPC);
+   reintento ante deadlock 40P01 en `transaction()`. NO se bajó `MAX_ROWS` (5000): truncaría en silencio listas
+   legítimas; revisar solo si aparecen presiones de memoria.
+10. **Push de la rama `dylan-tarifas`** (sin push hasta ahora).
 
 **Abiertos sin decidir:** multi-tenancy (las `tarifas_*` no tienen `organization_id`, ver D4);
 si la flota propia necesita un costo distinto por vehículo (hoy: estructura de costos del perfil
