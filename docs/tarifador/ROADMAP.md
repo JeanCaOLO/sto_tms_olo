@@ -876,3 +876,113 @@ npm run tarifas:ddl                # tras tocar el esquema
 `src/lib/tarifas/__tests__/simulaciones.test.ts` es el mecanismo que encontró 10 de las fallas del
 §4.2. **Cada situación nueva que se sospeche se escribe ahí primero, se ve fallar, y recién después
 se arregla.** Es lo que evita que una corrección tape un síntoma en vez de la causa.
+
+---
+
+# 8 · Liquidador automatizado sobre Aurora (diseño, 2026-10-02)
+
+> **Estado: DISEÑO PROPUESTO, PENDIENTE DE IMPLEMENTAR.** Cambia el modelo de las secciones 2.3, 2.4,
+> 2.13, 4.5 y 4.9: el liquidador deja de tener ruta, conductor y compañía propios y pasa a
+> **consumir** los viajes completados de guía de despacho. Las secciones anteriores describen el
+> estado previo y se reescriben al cerrar la implementación.
+
+## 8.1 Qué cambia y por qué
+
+- **Los viajes se consumen, no se crean.** Un viaje (`routes` en Aurora `tms_olo`; ver CANAL.md:
+  "la tabla `routes` son los VIAJES") se liquida cuando su `status` es `completada`. Desaparece el
+  alta manual de liquidaciones ("Nueva liquidación"): el viaje cambia demasiado con la operación
+  como para copiarlo a mano, y su dueño es guía de despacho.
+- **Solo se edita lo variable.** Del viaje se toman km, paradas, peso, vehículo, conductor,
+  transportista, zona y duración, **en solo lectura**. Lo que el viaje no trae (peajes, recolectas,
+  bultos, atrasos, incidencias, cualquier otra cosa) son **variables personalizadas** `PER_TRIP` de
+  la compañía, que se cargan al liquidar. Las devoluciones se siguen informando.
+- **Los datos maestros son del catálogo.** Compañías (`carriers`), conductores (`drivers`),
+  vehículos (`vehicles`), zonas (`zones`) y países (`countries`) se leen; el liquidador no los edita.
+  El liquidador es dueño solo de lo de **cálculo**: reglas, tarifarios, estructura de costos,
+  variables personalizadas, política de margen y las liquidaciones emitidas.
+- **Todo pasa por el ORM** (`src/lib/tarifas/data`, `db()`), incluidas las tablas del TMS. Nadie lee
+  `loadDatabase()` directo ni llama a otra API.
+- **Historial.** Un viaje tiene **una liquidación vigente**. Recalcular = anular la vigente (queda
+  con su snapshot) y emitir una nueva que la reemplaza.
+
+## 8.2 Entidades externas (solo lectura)
+
+Se declaran en `schema.ts` con `external: true`: el ORM las lee, **rechaza** insert/update/delete
+(igual que `appendOnly`) y `ddl.ts` no genera su DDL. Todas usan `id uuid`.
+
+| Entidad | Tabla / vista | Para qué |
+|---|---|---|
+| `trip` | vista `tarifas_v_viajes` | El viaje ya armado para liquidar (ver 8.4) |
+| `carrier` | `carriers` | Compañía a liquidar. `is_flota_propia` decide OWN/OUTSOURCED |
+| `driver` | `drivers` | Conductor del viaje (reemplaza `tarifas_drivers`) |
+| `vehicle` | `vehicles` | Tipo de camión (`vehicle_type`) y capacidad |
+| `zone` | `zones` | Zona destino; las reglas comparan su `code` (reemplaza `tarifas_zones`) |
+| `country` | `countries` | País y moneda (`currency`) (reemplaza `tarifas_countries`) |
+| `dispatchGuide` | `dispatch_guides` | Paradas del viaje, para el detalle |
+| `tripReturn` | `returns` | Devoluciones del viaje (vía `dispatch_guide_id`), para precargar |
+
+## 8.3 Entidades propias: qué cambia
+
+| Entidad | Cambio |
+|---|---|
+| `route` (`tarifas_routes`) | **Se elimina.** Sus datos salen del viaje |
+| `driver` (`tarifas_drivers`) | **Se elimina.** Pasa a externa |
+| `zone` (`tarifas_zones`) | **Se elimina.** Pasa a externa |
+| `country` (`tarifas_countries`) | **Se elimina.** Lo propio del cálculo (decimales, modo de redondeo, umbral de pernocta) pasa a `countrySettings` (`tarifas_country_settings`, `country_id uuid` único) |
+| `partyVehicleType` | **Se elimina.** Tipo de camión = `vehicles.vehicle_type`; capacidad = `vehicles.capacity_*` |
+| `settlementParty` | Pasa a **perfil de cálculo**: `id`, `carrier_id uuid` (único), `status`, `notes`. Pierde nombre, NIT, contacto y clasificación (se leen de `carriers`). Se crea al configurar por primera vez un transportista |
+| `zoneGroup` | Se queda. Gana `zone_codes jsonb` (códigos de `zones` que agrupa), porque la zona ya no tiene `zone_group_id` |
+| `settlement` | Gana `trip_id uuid` (→ `routes.id`), `trip_edits jsonb` (valores PER_TRIP y devoluciones cargados), `superseded_by text`. Pierde `route_id`, `driver_id`, `truck_type_id` (están en `trip`). Índice **único parcial** `trip_id WHERE status <> 'Anulado'` |
+| Todas las `tarifas_*` | `country_id` pasa a `uuid` referenciando `countries` |
+
+## 8.4 La vista `tarifas_v_viajes`
+
+Une `routes` + `carriers` + `drivers` + `vehicles` + `zones` y expone, por viaje:
+
+`id, country_id (de stores, el origen del viaje), route_number, route_date, status, carrier_id, carrier_name,
+is_flota_propia, driver_id, driver_name, driver_document, vehicle_id, vehicle_plate, vehicle_type,
+capacity_weight, capacity_volume, dest_zone_code, total_distance, total_stops, completed_stops,
+total_weight, total_volume, actual_start_time, actual_end_time, duration_hours, guide_count,
+return_count, settlement_id (vigente, nulo si no está liquidado)`.
+
+El estado se normaliza en la vista (`lower(status) IN ('completada','completed','completado')` →
+`completed`): en la base real hoy solo existe `completada`, pero el resto del código usa otras
+variantes.
+
+## 8.5 Del viaje al motor (`tripContext.ts`, reemplaza `routeTrip.ts`)
+
+| Variable del motor | Sale de |
+|---|---|
+| `km` | `total_distance` |
+| `clientCount` | `completed_stops` (lo que se hizo, no lo planificado) |
+| `weightKg` | `total_weight` |
+| `durationHours` | `actual_end_time − actual_start_time` |
+| `destZone` | `dest_zone_code` |
+| `originZone` | **vacío** (decisión: solo destino) |
+| `truckTypeId` | `vehicle_type` |
+| `truckWeightTons`, `truckVolumeM3` | `capacity_weight`, `capacity_volume` |
+| `fleetType` | `is_flota_propia` |
+| `carrierId`, `driverId` | `carrier_id`, `driver_id` |
+| `quotedAt` | `route_date` (resuelve vigencia de reglas) |
+| `custom:*` | `trip_edits` (PER_TRIP) y declaración de la compañía (CONSTANT) |
+
+**Variables fijas que dejan de existir** (decisión del usuario: lo que no está en el dato es
+personalizado): `tollCount`, `tollsAmount`, `pickupCount`, `packageCount`, `lateMinutes`,
+`incidentCount`. Se quitan de `BuiltinVarKey` y `TripContext`; las reglas existentes que las usan se
+reescriben a `custom:peajes`, `custom:monto_peajes`, `custom:recolectas`, `custom:bultos`,
+`custom:minutos_atraso`, `custom:incidencias`, declaradas `PER_TRIP` en cada compañía que las use.
+El driver de costo `PER_PACKAGE` (por bulto) se elimina por la misma razón.
+
+## 8.6 Backend `backend/tarifas/`
+
+Lambda Python (SAM, mismo patrón que `backend/context`), detrás del authorizer JWT, que implementa
+el contrato de `http-datasource.ts` bajo `/api/tarifas/`. Valida tabla y columnas contra
+`schema_manifest.json`, generado desde `schema.ts` (`npm run tarifas:manifest`): una sola fuente de
+verdad. Externas → solo `GET` (405 si se escribe). FK → 409. Permiso: módulo `tarifas`.
+
+## 8.7 Pantallas (a cargo de Kiro, pedido en `.agents/CANAL.md`)
+
+- **Liquidaciones:** pestañas "Viajes por liquidar" y "Historial" (DataTable). Sin "Nueva liquidación".
+- **Liquidar viaje:** datos del viaje en solo lectura + variables PER_TRIP + devoluciones; proforma; emitir / re-liquidar.
+- **Flota propia / externa:** lista de `carriers`; solo variables, estructura de costos y tarifarios.
+- **Probador:** "desde un viaje" en vez de "desde una ruta".

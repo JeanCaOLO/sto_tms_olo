@@ -1,5 +1,7 @@
 // Driver JSON: implementa `DataSource` sobre `localData/store.ts` (semilla embebida +
-// localStorage). Es el driver activo mientras no haya acceso a Postgres.
+// localStorage). Es el driver de los tests y del modo sin conexión; en producción el módulo usa
+// `HttpDataSource` contra Aurora. Las entidades externas (viajes, transportistas…) viven acá como
+// fixtures de solo lectura.
 //
 // Lo que este driver aporta sobre el acceso directo al store que había antes:
 // - Consultas declarativas (where/orderBy/limit) en vez de `.filter().sort()` repetido por entidad.
@@ -15,6 +17,8 @@ import {
   AppendOnlyError,
   ForeignKeyError,
   NotFoundError,
+  ReadOnlyEntityError,
+  UniqueViolationError,
   type Condition,
   type DataSource,
   type FindOptions,
@@ -151,6 +155,45 @@ export class JsonDataSource implements DataSource {
     }
   }
 
+  /**
+   * Hace cumplir `unique` y los índices únicos parciales del esquema, igual que Postgres: dos filas
+   * con los mismos valores en la clave (y que cumplen el `where`) no pueden convivir.
+   */
+  private assertUnique(db: TarifasDatabase, entity: EntityName, row: Row): void {
+    const def = entityDef(entity);
+    const pk = primaryKeyOf(entity);
+    const others = this.rowsOf(db, entity).filter((existing) => existing[pk] !== row[pk]);
+
+    for (const [column, col] of Object.entries(def.columns)) {
+      if (!col.unique || col.primaryKey) continue;
+      const value = row[column];
+      if (value === null || value === undefined) continue;
+      if (others.some((existing) => existing[column] === value)) {
+        throw new UniqueViolationError(
+          `${def.label}: ya existe una fila con ${column} = "${String(value)}".`,
+        );
+      }
+    }
+
+    for (const index of def.uniqueIndexes ?? []) {
+      const applies = (candidate: Row) =>
+        !index.where || matches(candidate, index.where as Condition);
+      if (!applies(row)) continue;
+      // Igual que Postgres: un NULL en la clave nunca choca con nada.
+      if (index.columns.some((column) => row[column] === null || row[column] === undefined)) continue;
+
+      const clash = others.some(
+        (existing) => applies(existing) && index.columns.every((column) => existing[column] === row[column]),
+      );
+      if (clash) throw new UniqueViolationError(index.message);
+    }
+  }
+
+  private assertWritable(entity: EntityName, operation: string): void {
+    const def = entityDef(entity);
+    if (def.external) throw new ReadOnlyEntityError(entity, def.label, operation);
+  }
+
   /** Verifica que nadie referencie la fila que se va a borrar. */
   private assertNoChildren(db: TarifasDatabase, entity: EntityName, id: string): void {
     for (const childName of ENTITY_NAMES) {
@@ -199,6 +242,7 @@ export class JsonDataSource implements DataSource {
   }
 
   async insert(entity: EntityName, values: Row): Promise<Row> {
+    this.assertWritable(entity, 'insert');
     const db = this.db();
     const def = entityDef(entity);
     const pk = primaryKeyOf(entity);
@@ -211,6 +255,7 @@ export class JsonDataSource implements DataSource {
     if (rows.some((existing) => existing[pk] === row[pk])) {
       throw new ForeignKeyError(`${def.label}: ya existe una fila con el id "${row[pk]}".`);
     }
+    this.assertUnique(db, entity, row);
 
     rows.push(row);
     this.commit(db);
@@ -218,6 +263,7 @@ export class JsonDataSource implements DataSource {
   }
 
   async update(entity: EntityName, id: string, values: Row): Promise<Row> {
+    this.assertWritable(entity, 'update');
     const def = entityDef(entity);
     if (def.appendOnly) throw new AppendOnlyError(entity, 'update');
 
@@ -232,12 +278,14 @@ export class JsonDataSource implements DataSource {
     // El id nunca se reemplaza desde el payload: mover una fila de identidad rompería toda FK que
     // la apunte, y ninguna pantalla del módulo lo necesita.
     const updated: Row = { ...rows[index], ...values, [pk]: id };
+    this.assertUnique(db, entity, updated);
     rows[index] = updated;
     this.commit(db);
     return updated;
   }
 
   async delete(entity: EntityName, id: string): Promise<void> {
+    this.assertWritable(entity, 'delete');
     const def = entityDef(entity);
     if (def.appendOnly) throw new AppendOnlyError(entity, 'delete');
 

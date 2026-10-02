@@ -5,27 +5,43 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { JsonDataSource } from '../json-datasource';
-import { AppendOnlyError, ForeignKeyError, NotFoundError } from '../datasource';
+import {
+  AppendOnlyError,
+  ForeignKeyError,
+  NotFoundError,
+  ReadOnlyEntityError,
+  UniqueViolationError,
+} from '../datasource';
 
 const db = new JsonDataSource();
 
-/** Fila mínima válida de compañía a liquidar, para los casos que solo necesitan "una entidad". */
-function party(id: string, name: string, countryId = 'CR') {
+/** Liquidación mínima válida de un viaje, para los casos de unicidad. */
+function settlement(id: string, tripId: string, status = 'Borrador') {
   return {
     id,
-    country_id: countryId,
-    classification: 'OUTSOURCED',
-    code: id,
-    name,
-    tax_id: null,
-    tax_id_type: null,
-    carrier_id: null,
-    contact_name: null,
-    email: null,
-    phone: null,
-    address: null,
-    status: 'active',
-    notes: null,
+    country_id: 'VE',
+    trip_id: tripId,
+    party_id: 'CARRIER_VE_1',
+    number: id,
+    trip_number: 'V-TEST',
+    settlement_date: '2026-09-01',
+    status,
+    currency: 'USD',
+    total_amount: '100.00',
+    trip_info: {},
+    trip_edits: {},
+    trip: {},
+    trace: [],
+    discarded: [],
+    stage_subtotals: {},
+    warnings: [],
+    overrides: [],
+    adhoc_rules: [],
+    excluded_seqs: [],
+    returns: [],
+    superseded_by: null,
+    created_at: '2026-09-01T00:00:00.000Z',
+    updated_at: '2026-09-01T00:00:00.000Z',
   };
 }
 
@@ -56,7 +72,7 @@ describe('JsonDataSource — consultas', () => {
   });
 
   it('find soporta in, gt y notNull', async () => {
-    const byIn = await db.find('country', { where: [{ column: 'iso2', op: 'in', value: ['CR', 'CO'] }] });
+    const byIn = await db.find('country', { where: [{ column: 'code', op: 'in', value: ['CR', 'CO'] }] });
     expect(byIn).toHaveLength(2);
 
     const byGt = await db.find('pricingRule', { where: [{ column: 'priority', op: 'gt', value: 30 }] });
@@ -96,44 +112,53 @@ describe('JsonDataSource — consultas', () => {
     expect(await db.findOne('country', 'NO_EXISTE')).toBeNull();
     expect((await db.findOne('country', 'CR'))?.name).toBe('Costa Rica');
   });
+
+  it('los viajes se leen por la misma capa y se filtran por estado', async () => {
+    const completados = await db.find('trip', { where: [{ column: 'status', op: 'eq', value: 'completed' }] });
+    const todos = await db.find('trip');
+    expect(completados.length).toBeGreaterThan(0);
+    expect(completados.length).toBeLessThan(todos.length); // hay al menos uno planificado
+  });
 });
 
 describe('JsonDataSource — escrituras', () => {
   it('insert genera el id con el prefijo de la entidad y persiste', async () => {
-    const created = await db.insert('zone', {
+    const created = await db.insert('zoneGroup', {
       country_id: 'CR',
-      zone_group_id: 'ZG_CR_VALLE',
-      code: 'HER',
-      name: 'Heredia',
+      code: 'NORTE',
+      name: 'Norte',
+      zone_codes: ['LIB'],
       status: 'active',
     });
 
-    expect(created.id).toMatch(/^zone_/);
+    expect(created.id).toMatch(/^zg_/);
     // Una instancia nueva lee de localStorage: si no persistió, esto falla.
-    expect(await new JsonDataSource().findOne('zone', created.id)).toMatchObject({ code: 'HER' });
+    expect(await new JsonDataSource().findOne('zoneGroup', created.id)).toMatchObject({ code: 'NORTE' });
   });
 
   it('insert respeta un id provisto', async () => {
-    const created = await db.insert('settlementParty', party('CARRIER_X', 'Transportes X'));
-    expect(created.id).toBe('CARRIER_X');
+    const created = await db.insert('partyVariable', {
+      id: 'PV_X', party_id: 'CARRIER_VE_1', key: 'custom:x', label: 'X', kind: 'NUMBER',
+      origin: 'PER_TRIP', default_value: '0', unit: null, active: true,
+    });
+    expect(created.id).toBe('PV_X');
   });
 
   it('insert rechaza un id duplicado', async () => {
     await expect(
-      db.insert('settlementParty', party('CARRIER_VE_1', 'Duplicado', 'VE')),
+      db.insert('settlementParty', { id: 'CARRIER_VE_1', carrier_id: 'CARRIER_VE_2', status: 'active', notes: null }),
     ).rejects.toThrow(ForeignKeyError);
   });
 
   it('update mezcla los campos y nunca cambia el id', async () => {
-    const updated = await db.update('zone', 'Z_CR_SJO', { name: 'San José (capital)', id: 'OTRO_ID' });
-    expect(updated.id).toBe('Z_CR_SJO');
-    expect(updated.name).toBe('San José (capital)');
-    expect(updated.code).toBe('SJO'); // campo no enviado: se conserva
-    expect(await db.findOne('zone', 'OTRO_ID')).toBeNull();
+    const updated = await db.update('zoneGroup', 'ZG_CR_VALLE', { name: 'Valle Central', id: 'OTRO_ID' });
+    expect(updated.id).toBe('ZG_CR_VALLE');
+    expect(updated.name).toBe('Valle Central');
+    expect(await db.findOne('zoneGroup', 'OTRO_ID')).toBeNull();
   });
 
   it('update falla con NotFoundError si el id no existe', async () => {
-    await expect(db.update('zone', 'NO_EXISTE', { name: 'x' })).rejects.toThrow(NotFoundError);
+    await expect(db.update('zoneGroup', 'NO_EXISTE', { name: 'x' })).rejects.toThrow(NotFoundError);
   });
 
   it('delete elimina y persiste', async () => {
@@ -145,20 +170,43 @@ describe('JsonDataSource — escrituras', () => {
   });
 });
 
-describe('JsonDataSource — integridad referencial derivada del esquema', () => {
-  it('insert rechaza una FK que apunta a una fila inexistente', async () => {
+describe('JsonDataSource — entidades externas (TMS), solo lectura', () => {
+  it.each(['trip', 'carrier', 'driver', 'vehicle', 'zone', 'country'] as const)(
+    'rechaza insert, update y delete sobre "%s"',
+    async (entity) => {
+      const [row] = await db.find(entity);
+      await expect(db.insert(entity, { name: 'x' })).rejects.toThrow(ReadOnlyEntityError);
+      await expect(db.update(entity, row.id, { name: 'x' })).rejects.toThrow(ReadOnlyEntityError);
+      await expect(db.delete(entity, row.id)).rejects.toThrow(ReadOnlyEntityError);
+    },
+  );
+
+  it('el rechazo no deja nada escrito', async () => {
+    const antes = await db.find('trip');
+    await expect(db.delete('trip', antes[0].id)).rejects.toMatchObject({ code: 'READ_ONLY' });
+    expect(await new JsonDataSource().find('trip')).toHaveLength(antes.length);
+  });
+
+  it('dentro de una transacción también se rechaza', async () => {
     await expect(
-      db.insert('zone', { country_id: 'PAIS_FANTASMA', code: 'X', name: 'X', status: 'active' }),
+      db.transaction(async (tx) => {
+        await tx.update('carrier', 'CARRIER_VE_1', { name: 'otro' });
+      }),
+    ).rejects.toThrow(ReadOnlyEntityError);
+  });
+});
+
+describe('JsonDataSource — integridad referencial derivada del esquema', () => {
+  it('insert rechaza una FK que apunta a una fila inexistente (también hacia el TMS)', async () => {
+    await expect(
+      db.insert('zoneGroup', { country_id: 'PAIS_FANTASMA', code: 'X', name: 'X', zone_codes: [], status: 'active' }),
+    ).rejects.toThrow(ForeignKeyError);
+    await expect(
+      db.insert('settlement', settlement('S_FANTASMA', 'VIAJE_FANTASMA')),
     ).rejects.toThrow(ForeignKeyError);
   });
 
-  it('delete rechaza borrar un tarifario usado por... nada: la FK protege al revés', async () => {
-    // Las zonas dejaron de estar protegidas por una FK del esquema cuando las tarifas zona-a-zona
-    // se absorbieron en los tarifarios: un tarifario guarda el CÓDIGO de la zona (que es lo que el
-    // motor compara) y un código no es una clave foránea. Esa protección se repuso a mano en
-    // `localRulesDataSource.deleteZone` y se prueba en `zoneDeletion.test.ts`.
-    //
-    // Acá se sigue probando la maquinaria de FK del esquema, con un par que sí la tiene.
+  it('delete rechaza borrar un perfil en uso (RESTRICT)', async () => {
     await expect(db.delete('settlementParty', 'CARRIER_CR_1')).rejects.toThrow(ForeignKeyError);
     expect(await db.findOne('settlementParty', 'CARRIER_CR_1')).not.toBeNull();
   });
@@ -167,23 +215,47 @@ describe('JsonDataSource — integridad referencial derivada del esquema', () =>
     await expect(db.delete('settlementParty', 'CARRIER_CR_1')).rejects.toMatchObject({ code: '23503' });
   });
 
-  it('delete de un grupo de zona pone en null la FK de sus zonas (onDelete: set null)', async () => {
-    await db.delete('zoneGroup', 'ZG_CR_VALLE');
-    const sjo = await db.findOne('zone', 'Z_CR_SJO');
-    expect(sjo?.zone_group_id).toBeNull();
+  it('delete de un tarifario se lleva sus filas (onDelete: cascade)', async () => {
+    const filas = await db.find('rateTableRow', { where: [{ column: 'table_id', op: 'eq', value: 'RT_ZONAS_CR' }] });
+    expect(filas.length).toBeGreaterThan(0);
+    await db.delete('rateTable', 'RT_ZONAS_CR');
+    expect(await db.find('rateTableRow', { where: [{ column: 'table_id', op: 'eq', value: 'RT_ZONAS_CR' }] })).toEqual([]);
+  });
+});
+
+describe('JsonDataSource — unicidad', () => {
+  it('un transportista tiene un solo perfil de cálculo (unique)', async () => {
+    await expect(
+      db.insert('settlementParty', { carrier_id: 'CARRIER_VE_1', status: 'active', notes: null }),
+    ).rejects.toThrow(UniqueViolationError);
   });
 
-  it('delete permite borrar una zona que nadie referencia', async () => {
-    await db.delete('zone', 'Z_CR_SIN_ZONA');
-    expect(await db.findOne('zone', 'Z_CR_SIN_ZONA')).toBeNull();
+  it('un viaje tiene una sola liquidación vigente (índice único parcial)', async () => {
+    const [viaje] = await db.find('trip', { where: [{ column: 'status', op: 'eq', value: 'completed' }] });
+    await db.insert('settlement', settlement('S1', viaje.id));
+    await expect(db.insert('settlement', settlement('S2', viaje.id))).rejects.toMatchObject({ code: '23505' });
+  });
+
+  it('una anulada no cuenta: se puede emitir otra para el mismo viaje', async () => {
+    const [viaje] = await db.find('trip', { where: [{ column: 'status', op: 'eq', value: 'completed' }] });
+    await db.insert('settlement', settlement('S1', viaje.id));
+    await db.update('settlement', 'S1', { status: 'Anulado' });
+    await expect(db.insert('settlement', settlement('S2', viaje.id))).resolves.toMatchObject({ id: 'S2' });
+  });
+
+  it('des-anular una liquidación con otra vigente choca', async () => {
+    const [viaje] = await db.find('trip', { where: [{ column: 'status', op: 'eq', value: 'completed' }] });
+    await db.insert('settlement', settlement('S1', viaje.id, 'Anulado'));
+    await db.insert('settlement', settlement('S2', viaje.id));
+    await expect(db.update('settlement', 'S1', { status: 'Borrador' })).rejects.toThrow(UniqueViolationError);
   });
 });
 
 describe('JsonDataSource — append-only', () => {
   it('la bitácora acepta insert', async () => {
     const row = await db.insert('auditLog', {
-      entity: 'zone',
-      entity_id: 'Z_CR_SJO',
+      entity: 'zoneGroup',
+      entity_id: 'ZG_CR_VALLE',
       action: 'UPDATE',
       user_name: 'tester',
       role: 'ADMIN',
@@ -202,47 +274,51 @@ describe('JsonDataSource — append-only', () => {
 });
 
 describe('JsonDataSource — transacciones', () => {
+  const variable = (id: string) => ({
+    id, party_id: 'CARRIER_VE_1', key: `custom:${id.toLowerCase()}`, label: id, kind: 'NUMBER',
+    origin: 'PER_TRIP', default_value: '0', unit: null, active: true,
+  });
+
   it('confirma todo junto', async () => {
     await db.transaction(async (tx) => {
-      await tx.insert('settlementParty', party('TX_1', 'Uno'));
-      await tx.insert('settlementParty', party('TX_2', 'Dos'));
+      await tx.insert('partyVariable', variable('TX_1'));
+      await tx.insert('partyVariable', variable('TX_2'));
     });
 
     const fresh = new JsonDataSource();
-    expect(await fresh.findOne('settlementParty', 'TX_1')).not.toBeNull();
-    expect(await fresh.findOne('settlementParty', 'TX_2')).not.toBeNull();
+    expect(await fresh.findOne('partyVariable', 'TX_1')).not.toBeNull();
+    expect(await fresh.findOne('partyVariable', 'TX_2')).not.toBeNull();
   });
 
   it('no persiste nada si algo falla a mitad de camino', async () => {
     await expect(
       db.transaction(async (tx) => {
-        await tx.insert('settlementParty', party('TX_3', 'Tres'));
+        await tx.insert('partyVariable', variable('TX_3'));
         throw new Error('falla simulada después de la primera escritura');
       }),
     ).rejects.toThrow('falla simulada');
 
-    // La primera escritura no debe haber sobrevivido.
-    expect(await new JsonDataSource().findOne('settlementParty', 'TX_3')).toBeNull();
+    expect(await new JsonDataSource().findOne('partyVariable', 'TX_3')).toBeNull();
   });
 
   it('una violación de FK dentro de la transacción deja todo sin efecto', async () => {
     await expect(
       db.transaction(async (tx) => {
-        await tx.insert('settlementParty', party('TX_4', 'Cuatro'));
-        await tx.insert('zone', { country_id: 'PAIS_FANTASMA', code: 'X', name: 'X', status: 'active' });
+        await tx.insert('partyVariable', variable('TX_4'));
+        await tx.insert('zoneGroup', { country_id: 'PAIS_FANTASMA', code: 'X', name: 'X', zone_codes: [], status: 'active' });
       }),
     ).rejects.toThrow(ForeignKeyError);
 
-    expect(await new JsonDataSource().findOne('settlementParty', 'TX_4')).toBeNull();
+    expect(await new JsonDataSource().findOne('partyVariable', 'TX_4')).toBeNull();
   });
 
   it('las escrituras de la transacción son visibles dentro de ella antes de confirmar', async () => {
     await db.transaction(async (tx) => {
-      await tx.insert('settlementParty', party('TX_5', 'Cinco'));
-      expect(await tx.findOne('settlementParty', 'TX_5')).not.toBeNull();
+      await tx.insert('partyVariable', variable('TX_5'));
+      expect(await tx.findOne('partyVariable', 'TX_5')).not.toBeNull();
       // Pero no para quien lee el almacén persistido todavía.
-      expect(await new JsonDataSource().findOne('settlementParty', 'TX_5')).toBeNull();
+      expect(await new JsonDataSource().findOne('partyVariable', 'TX_5')).toBeNull();
     });
-    expect(await new JsonDataSource().findOne('settlementParty', 'TX_5')).not.toBeNull();
+    expect(await new JsonDataSource().findOne('partyVariable', 'TX_5')).not.toBeNull();
   });
 });

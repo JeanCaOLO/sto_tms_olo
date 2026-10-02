@@ -1,13 +1,12 @@
 // Punto de entrada de la capa de datos del tarifador.
 //
-// EL CAMBIO A POSTGRES, COMPLETO:
+// EL CAMBIO A AURORA, COMPLETO:
 //
-//   1. Correr el DDL generado (`sql/04_tarifas.sql`) en la base.
-//   2. Levantar la API que cumple el contrato de `http-datasource.ts`, con las credenciales de
-//      Postgres en SU entorno (nunca en el frontend).
+//   1. Correr la migración `sql/19_tarifas_aurora.sql` (tablas `tarifas_*` + vistas).
+//   2. Desplegar `backend/tarifas/` (cumple el contrato de `http-datasource.ts`).
 //   3. En el `.env` del frontend:
 //        VITE_TARIFAS_DATASOURCE=postgres
-//        VITE_TARIFAS_API_URL=https://…
+//        VITE_TARIFAS_API_URL=…            (opcional; por defecto `${VITE_API_BASE}/api`)
 //
 // Nada más. Ni la UI ni el kernel se enteran de dónde vienen los datos.
 
@@ -20,6 +19,7 @@ export * from './schema';
 export { JsonDataSource } from './json-datasource';
 export { HttpDataSource } from './http-datasource';
 export { generateDdl } from './ddl';
+export { generateManifest } from './manifest';
 
 // `import.meta.env` solo existe bajo Vite; en vitest/node se cae a los valores por defecto, que es
 // justo lo que los tests quieren (driver JSON, sin red).
@@ -31,20 +31,29 @@ function env(key: string): string | undefined {
   }
 }
 
+// El JWT del usuario logueado. Se lee de la misma clave que usa el cliente del TMS
+// (`src/lib/supabase.ts`, STORAGE_KEY = 'tms_session') en cada request, no una sola vez: así un
+// re-login no deja al tarifador con un token vencido.
+function sessionHeaders(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem('tms_session');
+    const token = raw ? (JSON.parse(raw) as { access_token?: string }).access_token : undefined;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
+
 function build(): DataSource {
   const kind = (env('VITE_TARIFAS_DATASOURCE') ?? 'json').toLowerCase();
 
   if (kind === 'json') return new JsonDataSource();
 
   if (kind === 'postgres' || kind === 'http') {
-    const baseUrl = env('VITE_TARIFAS_API_URL');
-    if (!baseUrl) {
-      throw new Error(
-        'VITE_TARIFAS_DATASOURCE=postgres requiere VITE_TARIFAS_API_URL (URL base de la API del ' +
-          'tarifador). Configurala en el .env del frontend, o volvé a VITE_TARIFAS_DATASOURCE=json.',
-      );
-    }
-    return new HttpDataSource({ baseUrl });
+    // Misma API que el resto del TMS: vacío en dev (Vite proxya /api), el API Gateway en build.
+    const baseUrl =
+      env('VITE_TARIFAS_API_URL') ?? `${(env('VITE_API_BASE') ?? '').replace(/\/$/, '')}/api`;
+    return new HttpDataSource({ baseUrl, headers: sessionHeaders });
   }
 
   throw new Error(

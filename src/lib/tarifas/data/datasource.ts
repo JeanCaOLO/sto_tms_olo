@@ -1,5 +1,6 @@
-// Contrato único de acceso a datos del tarifador. Todo lo que lee o escribe datos propios del
-// módulo pasa por acá; nadie toca `localData/store.ts` ni `fetch` directamente.
+// Contrato único de acceso a datos del tarifador. Todo lo que el módulo lee o escribe pasa por
+// acá —sus datos propios Y los del TMS que consume (viajes, transportistas, conductores…)—; nadie
+// toca `localData/store.ts` ni `fetch` directamente.
 //
 // La razón de existir de esta interfaz: hoy la implementa `JsonDataSource` (JSON + localStorage);
 // el día que haya Postgres, la implementa `HttpDataSource` contra una API, y no cambia ni una
@@ -102,5 +103,31 @@ export class AppendOnlyError extends Error {
   constructor(entity: EntityName, operation: string) {
     super(`"${entity}" es append-only: la operación "${operation}" no está permitida.`);
     this.name = 'AppendOnlyError';
+  }
+}
+
+/** Mismo código que Postgres para violación de unicidad. */
+export class UniqueViolationError extends Error {
+  readonly code = '23505';
+  constructor(message: string) {
+    super(message);
+    this.name = 'UniqueViolationError';
+  }
+}
+
+/**
+ * Escritura sobre una entidad EXTERNA (del TMS). El tarifador solo las lee: sus dueños son guía de
+ * despacho y el catálogo. Ver `schema.ts`.
+ */
+export class ReadOnlyEntityError extends Error {
+  readonly code = 'READ_ONLY';
+  readonly entity: EntityName;
+  constructor(entity: EntityName, label: string, operation: string) {
+    super(
+      `${label}: es un dato del TMS y el liquidador solo lo lee (operación "${operation}" rechazada). ` +
+        'Se edita en su módulo de origen.',
+    );
+    this.name = 'ReadOnlyEntityError';
+    this.entity = entity;
   }
 }

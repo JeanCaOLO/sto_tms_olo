@@ -31,6 +31,7 @@ Estado: abierto | respondido | cerrado
 
 | Agente | Tarea | Archivos / áreas | Desde |
 |---|---|---|---|
+| Claude | Liquidador automatizado: viajes completados de guía de despacho vía ORM sobre Aurora (pedido de UI a Kiro llega aparte) | `src/lib/tarifas/**` (excepción acordada con el usuario: ORM/borde/kernel, sin React), `backend/tarifas/`, `sql/19_*`, `scripts/`, `docs/tarifador/` | 2026-10-02 |
 
 
 

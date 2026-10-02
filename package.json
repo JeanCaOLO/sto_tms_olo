@@ -59,6 +59,7 @@
     "preview": "vite preview",
     "server": "node --env-file=.env.local server/index.mjs",
     "tarifas:ddl": "node --experimental-strip-types scripts/print-tarifas-ddl.ts",
+    "tarifas:manifest": "node --experimental-strip-types scripts/print-tarifas-manifest.ts",
     "api:local": "python backend/local/serve.py",
     "type-check": "tsc --noEmit --project tsconfig.app.json",
     "test": "vitest run",

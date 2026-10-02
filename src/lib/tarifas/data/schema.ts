@@ -1,14 +1,23 @@
-// Registro de esquema: la ÚNICA definición de cada entidad del tarifador. De acá salen, sin
-// duplicar nada a mano: (1) el nombre de la colección dentro del JSON, (2) el nombre de la tabla
-// en Postgres, (3) el DDL (`ddl.ts`), (4) el mapeo snake_case <-> camelCase (`naming.ts`) y
-// (5) el prefijo de id de las filas nuevas.
+// Registro de esquema: la ÚNICA definición de cada entidad que el tarifador lee o escribe. De acá
+// salen, sin duplicar nada a mano: (1) el nombre de la colección dentro del JSON, (2) el nombre de
+// la tabla en Postgres, (3) el DDL (`ddl.ts`), (4) el manifiesto que valida el backend
+// (`manifest.ts` -> `backend/tarifas/src/schema_manifest.json`) y (5) el prefijo de id de las
+// filas nuevas.
 //
-// Regla de oro: agregar una entidad = agregar una entrada acá. Si se agrega en otro lado, el JSON
-// y Postgres se desincronizan, que es exactamente el problema que esta capa existe para evitar.
+// Regla de oro: agregar una entidad = agregar una entrada acá. Si se agrega en otro lado, el JSON,
+// Postgres y el backend se desincronizan, que es exactamente el problema que esta capa existe
+// para evitar.
 //
-// Alcance: SOLO datos propios del tarifador. Las tablas del TMS (carriers, drivers, vehicles,
-// routes, stores, countries) NO se declaran acá — el tarifador las lee vía Supabase y nunca las
-// escribe. Ver `repository.ts`.
+// Dos clases de entidad (ver docs/tarifador/ROADMAP.md §8):
+//
+//   PROPIAS   — lo de CÁLCULO: reglas, tarifarios, estructura de costos, variables personalizadas,
+//               política de margen, liquidaciones emitidas. El tarifador las crea y edita; su DDL
+//               se genera desde acá (tablas `tarifas_*`).
+//   EXTERNAS  — datos maestros y operativos del TMS: viajes de guía de despacho, transportistas,
+//               conductores, vehículos, zonas, países. El tarifador SOLO las lee, y también pasan
+//               por esta capa (nada se lee "por fuera" del ORM). `external` hace que los drivers
+//               rechacen cualquier escritura y que `ddl.ts` no genere su DDL: el dueño de esas
+//               tablas es otro módulo.
 
 export type ColumnType =
   | 'text'
@@ -16,7 +25,9 @@ export type ColumnType =
   | 'numeric'
   | 'boolean'
   | 'jsonb'
-  | 'timestamptz';
+  | 'timestamptz'
+  // Ids del TMS. En el JSON viaja como string, igual que en node-postgres.
+  | 'uuid';
 
 // El universo de entidades, declarado como unión literal en vez de derivarlo de `ENTITIES`.
 // Es a propósito: `ColumnDef.references` apunta a una EntityName, y derivar el tipo de la constante
@@ -24,16 +35,22 @@ export type ColumnType =
 // `ENTITIES` lleva `satisfies Record<EntityName, EntityDef>`, así que el compilador igual exige
 // que estén todas y solo estas.
 export type EntityName =
+  // ── Externas (TMS, solo lectura) ──
   | 'country'
-  | 'zoneGroup'
   | 'zone'
+  | 'carrier'
+  | 'driver'
+  | 'vehicle'
+  | 'trip'
+  | 'dispatchGuide'
+  | 'tripReturn'
+  // ── Propias (cálculo) ──
+  | 'countrySettings'
+  | 'zoneGroup'
   | 'pricingRule'
   | 'pricingTemplate'
   | 'settlementParty'
   | 'partyVariable'
-  | 'partyVehicleType'
-  | 'route'
-  | 'driver'
   | 'settlement'
   | 'costStructure'
   | 'costStructureRow'
@@ -55,19 +72,44 @@ export interface ColumnDef {
   onDelete?: 'restrict' | 'cascade' | 'set null';
   /** Índice simple sobre esta columna (los filtros más usados del módulo). */
   indexed?: boolean;
+  /** Único en toda la tabla. El driver JSON lo hace cumplir igual que Postgres. */
+  unique?: boolean;
+}
+
+/**
+ * Índice único PARCIAL: la combinación de `columns` es única entre las filas que cumplen `where`.
+ * `where` es estructurado (no SQL) para que el driver JSON pueda evaluarlo igual que Postgres.
+ */
+export interface UniqueIndexDef {
+  name: string;
+  columns: string[];
+  where?: { column: string; op: 'eq' | 'neq'; value: string };
+  /** Mensaje para el usuario cuando se viola. */
+  message: string;
+}
+
+export interface ExternalDef {
+  /**
+   * Tabla real del TMS. Cuando la entidad se lee desde una VISTA (`trip`, `tripReturn`), las FK de
+   * las tablas propias apuntan a esta tabla base, no a la vista.
+   */
+  baseTable: string;
 }
 
 export interface EntityDef {
-  /** Tabla en Postgres. */
+  /** Tabla (o vista) en Postgres. */
   table: string;
   /** Clave de la colección dentro del JSON (`TarifasDatabase` en `localData/store.ts`). */
   collection: string;
-  /** Prefijo de los ids generados para filas nuevas. */
+  /** Prefijo de los ids generados para filas nuevas. Las externas no generan ids. */
   idPrefix: string;
   /** Etiqueta legible, para mensajes de error dirigidos al usuario. */
   label: string;
   /** Si es true, la entidad es append-only: la capa rechaza update y delete. */
   appendOnly?: boolean;
+  /** Presente = entidad del TMS: solo lectura, sin DDL generado. */
+  external?: ExternalDef;
+  uniqueIndexes?: UniqueIndexDef[];
   columns: Record<string, ColumnDef>;
 }
 
@@ -76,29 +118,230 @@ export interface EntityDef {
 // number perdería precisión decimal, que es justo lo que el kernel evita con decimal.js.
 //
 // Nota sobre las filas existentes: el driver JSON NO coacciona tipos al leer (algunas filas de la
-// semilla guardan un numeric como number de JS, p.ej. `warn_below: 0.15`). Convertirlas ahora
-// cambiaría el comportamiento del módulo; la normalización sigue donde ya estaba, en el borde del
-// kernel (`repository.ts`).
+// semilla guardan un numeric como number de JS, p.ej. `warn_below: 0.15`). La normalización sigue
+// donde ya estaba, en el borde del kernel.
 
 const idColumn = (): ColumnDef => ({ type: 'text', primaryKey: true });
+const uuidId = (): ColumnDef => ({ type: 'uuid', primaryKey: true });
+
+/** País: entidad externa (`countries`). Toda tabla propia lo referencia con un uuid. */
+const countryRef = (extra: Partial<ColumnDef> = {}): ColumnDef => ({
+  type: 'uuid',
+  references: 'country',
+  indexed: true,
+  ...extra,
+});
 
 export const ENTITIES = {
+  // ════════════════════════════════════════════════════════════════════════════════════════════
+  // EXTERNAS — TMS, solo lectura. Se declaran SOLO las columnas que el tarifador usa: es también
+  // la lista blanca de lo que el backend deja leer.
+  // ════════════════════════════════════════════════════════════════════════════════════════════
+
   country: {
-    table: 'tarifas_countries',
+    table: 'countries',
     collection: 'countries',
     idPrefix: 'country',
     label: 'País',
+    external: { baseTable: 'countries' },
+    columns: {
+      id: uuidId(),
+      code: { type: 'text' },
+      name: { type: 'text' },
+      /** Moneda de liquidación del país. Se congela en cada liquidación al emitirla. */
+      currency: { type: 'text' },
+      status: { type: 'text', nullable: true },
+    },
+  },
+
+  // Zona del catálogo. Las reglas y los tarifarios comparan su `code` (en CR, el código de ruta del
+  // WMS: '01', '02'…), nunca el id.
+  zone: {
+    table: 'zones',
+    collection: 'zones',
+    idPrefix: 'zone',
+    label: 'Zona',
+    external: { baseTable: 'zones' },
+    columns: {
+      id: uuidId(),
+      country_id: { type: 'uuid', indexed: true },
+      code: { type: 'text', nullable: true, indexed: true },
+      name: { type: 'text' },
+      status: { type: 'text' },
+    },
+  },
+
+  // Transportista del catálogo: es la compañía a la que se le liquida. Flota propia o tercero lo
+  // decide `is_flota_propia`, no el liquidador.
+  carrier: {
+    table: 'carriers',
+    collection: 'carriers',
+    idPrefix: 'carrier',
+    label: 'Transportista',
+    external: { baseTable: 'carriers' },
+    columns: {
+      id: uuidId(),
+      country_id: { type: 'uuid', nullable: true, indexed: true },
+      code: { type: 'text' },
+      name: { type: 'text' },
+      tax_id: { type: 'text', nullable: true },
+      is_flota_propia: { type: 'boolean' },
+      status: { type: 'text', nullable: true },
+    },
+  },
+
+  driver: {
+    table: 'drivers',
+    collection: 'drivers',
+    idPrefix: 'drv',
+    label: 'Conductor',
+    external: { baseTable: 'drivers' },
+    columns: {
+      id: uuidId(),
+      carrier_id: { type: 'uuid', nullable: true, indexed: true },
+      code: { type: 'text' },
+      full_name: { type: 'text' },
+      document: { type: 'text', nullable: true },
+      phone: { type: 'text' },
+      license_number: { type: 'text' },
+      status: { type: 'text', nullable: true },
+    },
+  },
+
+  // Vehículo del catálogo. `vehicle_type` (texto) es el "tipo de camión" con el que se buscan las
+  // tarifas; la capacidad sale de acá (peso en kg, volumen en m³).
+  vehicle: {
+    table: 'vehicles',
+    collection: 'vehicles',
+    idPrefix: 'veh',
+    label: 'Vehículo',
+    external: { baseTable: 'vehicles' },
+    columns: {
+      id: uuidId(),
+      carrier_id: { type: 'uuid', nullable: true, indexed: true },
+      plate: { type: 'text' },
+      vehicle_type: { type: 'text', indexed: true },
+      capacity_weight: { type: 'numeric', nullable: true },
+      capacity_volume: { type: 'numeric', nullable: true },
+      status: { type: 'text', nullable: true },
+    },
+  },
+
+  // El VIAJE a liquidar, ya armado: vista `tarifas_v_viajes` sobre `routes` (los viajes de guía de
+  // despacho) + transportista + conductor + vehículo + zona destino. Ver sql/19_tarifas_aurora.sql.
+  //
+  // `status` llega NORMALIZADO por la vista ('completed' | 'planned' | 'in_progress' | otro en
+  // minúsculas): solo un viaje 'completed' se liquida. `settlement_id` es la liquidación vigente
+  // (no anulada) del viaje, o nulo si todavía no se liquidó.
+  trip: {
+    table: 'tarifas_v_viajes',
+    collection: 'trips',
+    idPrefix: 'trip',
+    label: 'Viaje',
+    external: { baseTable: 'routes' },
+    columns: {
+      id: uuidId(),
+      country_id: { type: 'uuid', indexed: true },
+      route_number: { type: 'text', indexed: true },
+      /** 'YYYY-MM-DD'. Resuelve la vigencia de las reglas. */
+      route_date: { type: 'text', indexed: true },
+      status: { type: 'text', indexed: true },
+      carrier_id: { type: 'uuid', nullable: true, indexed: true },
+      carrier_name: { type: 'text', nullable: true },
+      is_flota_propia: { type: 'boolean', nullable: true },
+      driver_id: { type: 'uuid', nullable: true },
+      driver_name: { type: 'text', nullable: true },
+      driver_document: { type: 'text', nullable: true },
+      vehicle_id: { type: 'uuid', nullable: true },
+      vehicle_plate: { type: 'text', nullable: true },
+      vehicle_type: { type: 'text', nullable: true },
+      /** kg */
+      capacity_weight: { type: 'numeric', nullable: true },
+      /** m³ */
+      capacity_volume: { type: 'numeric', nullable: true },
+      dest_zone_id: { type: 'uuid', nullable: true },
+      dest_zone_code: { type: 'text', nullable: true },
+      dest_zone_name: { type: 'text', nullable: true },
+      /** km */
+      total_distance: { type: 'numeric', nullable: true },
+      total_stops: { type: 'int', nullable: true },
+      completed_stops: { type: 'int', nullable: true },
+      /** kg */
+      total_weight: { type: 'numeric', nullable: true },
+      /** m³ */
+      total_volume: { type: 'numeric', nullable: true },
+      actual_start_time: { type: 'timestamptz', nullable: true },
+      actual_end_time: { type: 'timestamptz', nullable: true },
+      /** Calculada por la vista: fin real − inicio real, en horas. */
+      duration_hours: { type: 'numeric', nullable: true },
+      guide_count: { type: 'int' },
+      return_count: { type: 'int' },
+      settlement_id: { type: 'text', nullable: true, indexed: true },
+    },
+  },
+
+  // Parada del viaje (una guía por pedido). Solo para mostrar el detalle.
+  dispatchGuide: {
+    table: 'dispatch_guides',
+    collection: 'dispatchGuides',
+    idPrefix: 'dg',
+    label: 'Guía de despacho',
+    external: { baseTable: 'dispatch_guides' },
+    columns: {
+      id: uuidId(),
+      route_id: { type: 'uuid', indexed: true },
+      guide_number: { type: 'text' },
+      sequence_number: { type: 'int' },
+      status: { type: 'text', nullable: true },
+      delivery_status: { type: 'text', nullable: true },
+      recipient_name: { type: 'text', nullable: true },
+      actual_arrival_time: { type: 'timestamptz', nullable: true },
+    },
+  },
+
+  // Devolución del viaje. `returns` no apunta al viaje sino a la guía; la vista
+  // `tarifas_v_devoluciones` expone el `route_id` para poder filtrar por viaje.
+  tripReturn: {
+    table: 'tarifas_v_devoluciones',
+    collection: 'tripReturns',
+    idPrefix: 'ret',
+    label: 'Devolución',
+    external: { baseTable: 'returns' },
+    columns: {
+      id: uuidId(),
+      route_id: { type: 'uuid', indexed: true },
+      dispatch_guide_id: { type: 'uuid', nullable: true },
+      return_number: { type: 'text' },
+      return_type: { type: 'text' },
+      reason: { type: 'text' },
+      product_code: { type: 'text', nullable: true },
+      product_name: { type: 'text', nullable: true },
+      quantity: { type: 'int', nullable: true },
+      status: { type: 'text', nullable: true },
+    },
+  },
+
+  // ════════════════════════════════════════════════════════════════════════════════════════════
+  // PROPIAS — lo de cálculo.
+  // ════════════════════════════════════════════════════════════════════════════════════════════
+
+  // Lo que el cálculo necesita del país y el catálogo no tiene. La moneda NO va acá: es del país.
+  countrySettings: {
+    table: 'tarifas_country_settings',
+    collection: 'countrySettings',
+    idPrefix: 'cset',
+    label: 'Configuración de cálculo del país',
     columns: {
       id: idColumn(),
-      iso2: { type: 'text' },
-      name: { type: 'text' },
-      local_currency: { type: 'text' },
+      country_id: countryRef({ unique: true }),
       rounding_decimals: { type: 'int' },
       rounding_mode: { type: 'text' },
       overnight_threshold_hours: { type: 'int' },
     },
   },
 
+  // Agrupación de zonas para el cálculo ("Centro", "Valle Central"). La zona del catálogo no sabe
+  // de grupos: el grupo guarda los CÓDIGOS de las zonas que abarca.
   zoneGroup: {
     table: 'tarifas_zone_groups',
     collection: 'zoneGroups',
@@ -106,31 +349,14 @@ export const ENTITIES = {
     label: 'Grupo de zona',
     columns: {
       id: idColumn(),
-      country_id: { type: 'text', references: 'country', indexed: true },
+      country_id: countryRef(),
       code: { type: 'text' },
       name: { type: 'text' },
+      /** Códigos de `zones` que pertenecen al grupo. */
+      zone_codes: { type: 'jsonb' },
       status: { type: 'text' },
     },
   },
-
-  zone: {
-    table: 'tarifas_zones',
-    collection: 'zones',
-    idPrefix: 'zone',
-    label: 'Zona',
-    columns: {
-      id: idColumn(),
-      country_id: { type: 'text', references: 'country', indexed: true },
-      zone_group_id: { type: 'text', nullable: true, references: 'zoneGroup', onDelete: 'set null' },
-      code: { type: 'text' },
-      name: { type: 'text' },
-      status: { type: 'text' },
-    },
-  },
-
-  // Puente entre la geografía del TMS (tiendas, tipos de ruta) y la del tarifador (zonas).
-  // Sin él, una liquidación real no resuelve su zona y las reglas por zona nunca aplican.
-
 
   pricingRule: {
     table: 'tarifas_pricing_rules',
@@ -139,8 +365,8 @@ export const ENTITIES = {
     label: 'Regla de tarifa',
     columns: {
       id: idColumn(),
-      // Nullable = regla global (aplica a cualquier país configurado). Ver `repository.ts`.
-      country_id: { type: 'text', nullable: true, references: 'country', indexed: true },
+      // Nullable = regla global (aplica a cualquier país configurado).
+      country_id: countryRef({ nullable: true }),
       // 'COUNTRY' | 'PARTY'. Nullable: las reglas anteriores al alcance son todas de país.
       scope: { type: 'text', nullable: true, indexed: true },
       party_id: { type: 'text', nullable: true, references: 'settlementParty', onDelete: 'cascade', indexed: true },
@@ -184,49 +410,36 @@ export const ENTITIES = {
     label: 'Plantilla de viaje',
     columns: {
       id: idColumn(),
-      country_id: { type: 'text', references: 'country', indexed: true },
+      country_id: countryRef(),
       name: { type: 'text' },
       trip: { type: 'jsonb' },
     },
   },
 
-  // Compañía a la que se le liquida un viaje: flota propia o transportista tercero. Es la entidad
-  // del TARIFADOR, no del TMS — acá vive lo que el tarifador necesita para liquidar (clasificación,
-  // datos fiscales, moneda vía país) y nada más.
+  // PERFIL DE CÁLCULO de un transportista: el ancla de lo que el liquidador configura por compañía
+  // (variables personalizadas, estructura de costos, tarifarios, reglas propias). NO tiene datos
+  // maestros: nombre, NIT, contacto y flota propia/tercero se leen de `carriers`.
   //
-  // `carrier_id` enlaza OPCIONALMENTE con `carriers.id` del TMS (Supabase). Sin FK declarada, a
-  // propósito: son fuentes distintas, el tarifador no es dueño de esa tabla y un perfil debe poder
-  // existir sin contraparte en el TMS (es justo el caso de la flota propia).
+  // Uno por transportista (`carrier_id` único). Se crea la primera vez que se configura algo del
+  // transportista; un transportista sin perfil se liquida solo con las reglas del país.
   settlementParty: {
     table: 'tarifas_settlement_parties',
     collection: 'settlementParties',
     idPrefix: 'party',
-    label: 'Compañía a liquidar',
+    label: 'Perfil de cálculo',
     columns: {
       id: idColumn(),
-      country_id: { type: 'text', references: 'country', indexed: true },
-      classification: { type: 'text', indexed: true }, // 'OWN' | 'OUTSOURCED'
-      code: { type: 'text' },
-      name: { type: 'text' },
-      tax_id: { type: 'text', nullable: true },
-      tax_id_type: { type: 'text', nullable: true }, // RIF | NIT | CEDULA_JURIDICA | OTRO
-      carrier_id: { type: 'text', nullable: true, indexed: true },
-      contact_name: { type: 'text', nullable: true },
-      email: { type: 'text', nullable: true },
-      phone: { type: 'text', nullable: true },
-      address: { type: 'text', nullable: true },
-      // Baja lógica: una compañía referenciada por tarifas o liquidaciones históricas nunca se
-      // borra, se desactiva. Ver `partiesDataSource.ts`.
+      carrier_id: { type: 'uuid', references: 'carrier', unique: true, indexed: true },
+      // Baja lógica: un perfil referenciado por tarifas o liquidaciones históricas nunca se borra.
       status: { type: 'text', indexed: true }, // 'active' | 'inactive'
       notes: { type: 'text', nullable: true },
     },
   },
 
-  // Variables personalizadas de una compañía: campos que la compañía agrega para calcular su
-  // liquidación, más allá del vocabulario que trae el sistema. Cada una declara DE DÓNDE sale su
-  // valor, que es lo que permite que el motor sepa con qué número evaluarla:
+  // Variables personalizadas de una compañía: todo dato que el viaje NO trae (peajes, recolectas,
+  // bultos, horas de espera…). Cada una declara DE DÓNDE sale su valor:
   //   CONSTANT  -> un valor configurado en la compañía (p.ej. "bono nocturno = 15")
-  //   PER_TRIP  -> un dato que se carga en cada liquidación (p.ej. "horas de espera")
+  //   PER_TRIP  -> un dato que se carga al liquidar cada viaje (p.ej. "peajes")
   partyVariable: {
     table: 'tarifas_party_variables',
     collection: 'partyVariables',
@@ -251,114 +464,40 @@ export const ENTITIES = {
     },
   },
 
-  // Estructura de costos de una compañía: la planilla real, fila por fila. Reemplaza al modelo de
-  // tres campos (`ownCostParams`), que queda como respaldo para quien no cargó la suya.
-  // Catálogo de vehículos de una compañía. El `code` coincide con el `truck_type_id` de sus
-  // tarifas, así que un tarifario importado queda conectado con la capacidad de cada camión.
-  partyVehicleType: {
-    table: 'tarifas_party_vehicle_types',
-    collection: 'partyVehicleTypes',
-    idPrefix: 'pvt',
-    label: 'Tipo de vehículo',
-    columns: {
-      id: idColumn(),
-      party_id: { type: 'text', references: 'settlementParty', onDelete: 'cascade', indexed: true },
-      code: { type: 'text', indexed: true },
-      name: { type: 'text' },
-      volume_m3: { type: 'numeric' },
-      weight_tons: { type: 'numeric' },
-      notes: { type: 'text', nullable: true },
-      active: { type: 'boolean', indexed: true },
-    },
-  },
-
-  // Ruta del TARIFADOR: la lane comercial de un transportista (`CAR-CCS`), no la ruta operativa del
-  // TMS. Es de donde salen los datos del viaje al liquidar: zonas, km, paradas, bultos, peajes.
-  //
-  // NO lleva importe. La tarifa de la ruta sale del tarifario de su compañía, con clave
-  // (zona origen, zona destino). Ponerle un `amount` acá sería el segundo lugar donde buscar por
-  // qué un viaje cobró lo que cobró — exactamente lo que costó desarmar `zoneLaneRate`.
-  route: {
-    table: 'tarifas_routes',
-    collection: 'routes',
-    idPrefix: 'route',
-    label: 'Ruta',
-    columns: {
-      id: idColumn(),
-      country_id: { type: 'text', references: 'country', indexed: true },
-      /** Transportista dueño. Se borra con él: una ruta sin compañía no se liquida. */
-      party_id: { type: 'text', references: 'settlementParty', onDelete: 'cascade', indexed: true },
-      /** Código operativo, 'CAR-CCS'. Único dentro de la compañía. */
-      code: { type: 'text', indexed: true },
-      name: { type: 'text' },
-      // RESTRICT a propósito: el tarifario guarda el CÓDIGO de la zona y por eso perdió la
-      // protección que daba la clave foránea. Acá se recupera.
-      origin_zone_id: { type: 'text', references: 'zone', indexed: true },
-      dest_zone_id: { type: 'text', references: 'zone', indexed: true },
-      km: { type: 'numeric' },
-      /** Paradas/clientes atendidos. Alimenta `clientCount` del viaje. */
-      stop_count: { type: 'int' },
-      package_count: { type: 'int' },
-      weight_kg: { type: 'numeric' },
-      /** Cantidad de peajes y su monto: son dos variables distintas del motor, hacen falta las dos. */
-      toll_count: { type: 'int' },
-      tolls_amount: { type: 'numeric' },
-      duration_hours: { type: 'numeric' },
-      notes: { type: 'text', nullable: true },
-      /** Baja LÓGICA: hay liquidaciones emitidas que la nombran. */
-      active: { type: 'boolean', indexed: true },
-    },
-  },
-
-  // Conductor del tarifador. Existe porque la guía física trae NOMBRE y CÉDULA y casi nunca la
-  // compañía: `driverSearch.ts` resuelve esa búsqueda desde hace tiempo, pero no había de dónde
-  // sacar la lista — se leía del TMS.
-  driver: {
-    table: 'tarifas_drivers',
-    collection: 'drivers',
-    idPrefix: 'drv',
-    label: 'Conductor',
-    columns: {
-      id: idColumn(),
-      country_id: { type: 'text', references: 'country', indexed: true },
-      party_id: { type: 'text', references: 'settlementParty', onDelete: 'cascade', indexed: true },
-      full_name: { type: 'text', indexed: true },
-      /** Cédula. Se guarda como la tipearon; la comparación normaliza (ver `normalizeDocument`). */
-      document: { type: 'text', nullable: true, indexed: true },
-      phone: { type: 'text', nullable: true },
-      license: { type: 'text', nullable: true },
-      /** 'YYYY-MM-DD'. Texto, igual que la vigencia de las reglas: es fecha de calendario. */
-      license_expires_at: { type: 'text', nullable: true },
-      notes: { type: 'text', nullable: true },
-      active: { type: 'boolean', indexed: true },
-    },
-  },
-
-  // La liquidación EMITIDA, con su desglose completo.
+  // La liquidación EMITIDA de un viaje, con su desglose completo.
   //
   // El desglose se guarda DESNORMALIZADO y sin clave foránea hacia `pricingRule`, a propósito: una
   // liquidación emitida tiene que poder releerse tal cual se emitió aunque después la regla se
-  // edite, se desactive o se borre. Es la misma razón por la que las reglas se versionan.
+  // edite, se desactive o se borre. Por la misma razón `trip_info` congela lo que se leyó del viaje.
+  //
+  // Un viaje tiene UNA liquidación vigente (índice único parcial). Re-liquidar = anular la vigente
+  // y emitir otra; la anulada apunta a su reemplazo con `superseded_by`.
   settlement: {
     table: 'tarifas_settlements',
     collection: 'settlements',
     idPrefix: 'stl',
     label: 'Liquidación',
+    uniqueIndexes: [
+      {
+        name: 'tarifas_settlements_trip_vigente_uq',
+        columns: ['trip_id'],
+        where: { column: 'status', op: 'neq', value: 'Anulado' },
+        message: 'El viaje ya tiene una liquidación vigente. Para recalcularlo, re-liquidalo.',
+      },
+    ],
     columns: {
       id: idColumn(),
-      country_id: { type: 'text', references: 'country', indexed: true },
-      // RESTRICT en los tres: una liquidación emitida no se borra porque alguien dio de baja la
-      // compañía, la ruta o el conductor. Las pantallas hacen baja lógica.
-      party_id: { type: 'text', references: 'settlementParty', indexed: true },
-      route_id: { type: 'text', nullable: true, references: 'route', indexed: true },
-      driver_id: { type: 'text', nullable: true, references: 'driver', indexed: true },
+      country_id: countryRef(),
+      /** El viaje liquidado (`routes.id`). RESTRICT: un viaje liquidado no se borra. */
+      trip_id: { type: 'uuid', references: 'trip', indexed: true },
+      /** Perfil de cálculo con el que se liquidó. Nulo = transportista sin perfil. */
+      party_id: { type: 'text', nullable: true, references: 'settlementParty', indexed: true },
       /** Número propio del módulo, 'LIQ-0001'. Único por país. */
       number: { type: 'text', indexed: true },
-      /** Nro de viaje de la GUÍA FÍSICA. Es el dato con el que la gente busca. */
-      trip_number: { type: 'text', nullable: true, indexed: true },
-      /** Fecha de la liquidación, 'YYYY-MM-DD'. Es la que resuelve la vigencia de las reglas. */
+      /** Número del viaje (`routes.route_number`), congelado: es el dato con el que la gente busca. */
+      trip_number: { type: 'text', indexed: true },
+      /** Fecha del viaje, 'YYYY-MM-DD'. Es la que resolvió la vigencia de las reglas. */
       settlement_date: { type: 'text', indexed: true },
-      truck_type_id: { type: 'text', nullable: true },
       /** 'Borrador' | 'En Revisión' | 'Aprobado' | 'Pagado' | 'Anulado'. */
       status: { type: 'text', indexed: true },
       /** Moneda del país al emitir. Se congela: el país podría cambiarla después. */
@@ -372,9 +511,13 @@ export const ENTITIES = {
       margin_pct: { type: 'numeric', nullable: true },
       cost_total: { type: 'numeric', nullable: true },
       cost_model_id: { type: 'text', nullable: true },
-      /** El viaje con el que se calculó, variables personalizadas incluidas. Sin esto no se recalcula. */
+      /** Foto del viaje tal como se leyó al emitir (transportista, conductor, placa, zona, km…). */
+      trip_info: { type: 'jsonb' },
+      /** Lo cargado a mano al liquidar: variables PER_TRIP. */
+      trip_edits: { type: 'jsonb' },
+      /** El contexto con el que calculó el motor. Sin esto no se recalcula. */
       trip: { type: 'jsonb' },
-      /** Qué regla aportó cuánto. El desglose que hoy se pierde al guardar. */
+      /** Qué regla aportó cuánto. */
       trace: { type: 'jsonb' },
       /** Qué NO aplicó y por qué. Es la mitad de cualquier auditoría. */
       discarded: { type: 'jsonb' },
@@ -388,6 +531,8 @@ export const ENTITIES = {
       excluded_seqs: { type: 'jsonb' },
       /** Devoluciones informadas. No afectan el pago; se registran para la auditoría. */
       returns: { type: 'jsonb' },
+      /** Liquidación que reemplazó a esta al re-liquidar. Nulo = no fue reemplazada. */
+      superseded_by: { type: 'text', nullable: true, indexed: true },
       created_at: { type: 'timestamptz' },
       updated_at: { type: 'timestamptz' },
     },
@@ -401,7 +546,7 @@ export const ENTITIES = {
     columns: {
       id: idColumn(),
       party_id: { type: 'text', references: 'settlementParty', onDelete: 'cascade', indexed: true },
-      country_id: { type: 'text', references: 'country', indexed: true },
+      country_id: countryRef(),
       name: { type: 'text' },
       /** Divisor del prorrateo mensual. En la planilla de ejemplo, 30. */
       operating_days_per_month: { type: 'int' },
@@ -444,7 +589,7 @@ export const ENTITIES = {
     label: 'Tabla de tarifas',
     columns: {
       id: idColumn(),
-      country_id: { type: 'text', references: 'country', indexed: true },
+      country_id: countryRef(),
       /** Null = tabla del país, la usan todas las compañías. */
       party_id: { type: 'text', nullable: true, references: 'settlementParty', onDelete: 'cascade', indexed: true },
       /** Código con el que la referencia una regla. */
@@ -479,7 +624,7 @@ export const ENTITIES = {
     label: 'Parámetros de costo propio',
     columns: {
       id: idColumn(),
-      country_id: { type: 'text', references: 'country', indexed: true },
+      country_id: countryRef(),
       cost_per_km: { type: 'numeric' },
       depreciation_per_km: { type: 'numeric' },
       driver_daily: { type: 'numeric' },
@@ -493,10 +638,11 @@ export const ENTITIES = {
     label: 'Tarifa de outsourcing',
     columns: {
       id: idColumn(),
-      country_id: { type: 'text', references: 'country', indexed: true },
-      // Apunta al perfil liquidable del tarifador, no al `carriers.id` del TMS. El nombre de la
-      // columna se conserva para no romper las filas ya guardadas.
+      country_id: countryRef(),
+      // Apunta al perfil de cálculo, no al `carriers.id` del TMS. El nombre de la columna se
+      // conserva para no romper las filas ya guardadas.
       carrier_id: { type: 'text', references: 'settlementParty', indexed: true },
+      /** Tipo de camión = `vehicles.vehicle_type` del viaje. */
       truck_type_id: { type: 'text' },
       flat_rate: { type: 'numeric' },
     },
@@ -509,7 +655,7 @@ export const ENTITIES = {
     label: 'Política de margen',
     columns: {
       id: idColumn(),
-      country_id: { type: 'text', references: 'country', indexed: true },
+      country_id: countryRef(),
       warn_below: { type: 'numeric' },
       critical_below: { type: 'numeric' },
       require_reason_below: { type: 'numeric' },
@@ -537,7 +683,6 @@ export const ENTITIES = {
       created_at: { type: 'timestamptz', indexed: true },
     },
   },
-
 } as const satisfies Record<EntityName, EntityDef>;
 
 export const ENTITY_NAMES = Object.keys(ENTITIES) as EntityName[];
@@ -547,6 +692,13 @@ export function entityDef(name: EntityName): EntityDef {
   if (!def) throw new Error(`Entidad desconocida en el registro de esquema: "${name}"`);
   return def;
 }
+
+export function isExternal(name: EntityName): boolean {
+  return entityDef(name).external !== undefined;
+}
+
+/** Entidades cuyo DDL genera el tarifador (las `tarifas_*`). */
+export const OWN_ENTITY_NAMES = ENTITY_NAMES.filter((name) => !isExternal(name));
 
 export function primaryKeyOf(name: EntityName): string {
   const found = Object.entries(entityDef(name).columns).find(([, col]) => col.primaryKey);

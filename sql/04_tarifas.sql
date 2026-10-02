@@ -3,74 +3,49 @@
 -- Fuente: src/lib/tarifas/data/schema.ts
 -- Regenerar: npm run tarifas:ddl
 --
--- EJECUTAR MANUALMENTE en el editor SQL antes de apuntar el frontend a Postgres
--- (VITE_TARIFAS_DATASOURCE=postgres). La aplicación nunca ejecuta DDL por sí misma.
+-- Solo tablas PROPIAS del tarifador (tarifas_*). Las del TMS (countries, zones,
+-- carriers, drivers, vehicles, routes, dispatch_guides, returns) no se tocan: el
+-- tarifador las lee, nunca las escribe. Sus FK sí las referencian.
 --
--- Solo tablas PROPIAS del tarifador. Las tablas del TMS (carriers, drivers, vehicles,
--- routes, stores) no se tocan: el tarifador las lee, nunca las escribe.
+-- Lo aplica sql/19_tarifas_aurora.sql, junto con las vistas que leen las entidades
+-- externas. La aplicación nunca ejecuta DDL por sí misma.
 -- ============================================================================
--- País
-CREATE TABLE IF NOT EXISTS tarifas_countries (
+-- Configuración de cálculo del país
+CREATE TABLE IF NOT EXISTS tarifas_country_settings (
   id text PRIMARY KEY,
-  iso2 text NOT NULL,
-  name text NOT NULL,
-  local_currency text NOT NULL,
+  country_id uuid NOT NULL UNIQUE,
   rounding_decimals integer NOT NULL,
   rounding_mode text NOT NULL,
-  overnight_threshold_hours integer NOT NULL
+  overnight_threshold_hours integer NOT NULL,
+  CONSTRAINT tarifas_country_settings_country_id_fkey FOREIGN KEY (country_id) REFERENCES countries (id) ON DELETE RESTRICT
 );
 
 -- Grupo de zona
 CREATE TABLE IF NOT EXISTS tarifas_zone_groups (
   id text PRIMARY KEY,
-  country_id text NOT NULL,
+  country_id uuid NOT NULL,
   code text NOT NULL,
   name text NOT NULL,
+  zone_codes jsonb NOT NULL,
   status text NOT NULL,
-  CONSTRAINT tarifas_zone_groups_country_id_fkey FOREIGN KEY (country_id) REFERENCES tarifas_countries (id) ON DELETE RESTRICT
+  CONSTRAINT tarifas_zone_groups_country_id_fkey FOREIGN KEY (country_id) REFERENCES countries (id) ON DELETE RESTRICT
 );
 CREATE INDEX IF NOT EXISTS tarifas_zone_groups_country_id_idx ON tarifas_zone_groups (country_id);
 
--- Zona
-CREATE TABLE IF NOT EXISTS tarifas_zones (
-  id text PRIMARY KEY,
-  country_id text NOT NULL,
-  zone_group_id text,
-  code text NOT NULL,
-  name text NOT NULL,
-  status text NOT NULL,
-  CONSTRAINT tarifas_zones_country_id_fkey FOREIGN KEY (country_id) REFERENCES tarifas_countries (id) ON DELETE RESTRICT,
-  CONSTRAINT tarifas_zones_zone_group_id_fkey FOREIGN KEY (zone_group_id) REFERENCES tarifas_zone_groups (id) ON DELETE SET NULL
-);
-CREATE INDEX IF NOT EXISTS tarifas_zones_country_id_idx ON tarifas_zones (country_id);
-
--- Compañía a liquidar
+-- Perfil de cálculo
 CREATE TABLE IF NOT EXISTS tarifas_settlement_parties (
   id text PRIMARY KEY,
-  country_id text NOT NULL,
-  classification text NOT NULL,
-  code text NOT NULL,
-  name text NOT NULL,
-  tax_id text,
-  tax_id_type text,
-  carrier_id text,
-  contact_name text,
-  email text,
-  phone text,
-  address text,
+  carrier_id uuid NOT NULL UNIQUE,
   status text NOT NULL,
   notes text,
-  CONSTRAINT tarifas_settlement_parties_country_id_fkey FOREIGN KEY (country_id) REFERENCES tarifas_countries (id) ON DELETE RESTRICT
+  CONSTRAINT tarifas_settlement_parties_carrier_id_fkey FOREIGN KEY (carrier_id) REFERENCES carriers (id) ON DELETE RESTRICT
 );
-CREATE INDEX IF NOT EXISTS tarifas_settlement_parties_country_id_idx ON tarifas_settlement_parties (country_id);
-CREATE INDEX IF NOT EXISTS tarifas_settlement_parties_classification_idx ON tarifas_settlement_parties (classification);
-CREATE INDEX IF NOT EXISTS tarifas_settlement_parties_carrier_id_idx ON tarifas_settlement_parties (carrier_id);
 CREATE INDEX IF NOT EXISTS tarifas_settlement_parties_status_idx ON tarifas_settlement_parties (status);
 
 -- Regla de tarifa
 CREATE TABLE IF NOT EXISTS tarifas_pricing_rules (
   id text PRIMARY KEY,
-  country_id text,
+  country_id uuid,
   scope text,
   party_id text,
   code text NOT NULL,
@@ -85,12 +60,13 @@ CREATE TABLE IF NOT EXISTS tarifas_pricing_rules (
   reason text,
   effect text,
   builder jsonb,
+  condition_builder jsonb,
   is_adhoc boolean NOT NULL,
   active boolean NOT NULL,
   effective_from text,
   effective_to text,
   version integer NOT NULL,
-  CONSTRAINT tarifas_pricing_rules_country_id_fkey FOREIGN KEY (country_id) REFERENCES tarifas_countries (id) ON DELETE RESTRICT,
+  CONSTRAINT tarifas_pricing_rules_country_id_fkey FOREIGN KEY (country_id) REFERENCES countries (id) ON DELETE RESTRICT,
   CONSTRAINT tarifas_pricing_rules_party_id_fkey FOREIGN KEY (party_id) REFERENCES tarifas_settlement_parties (id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS tarifas_pricing_rules_country_id_idx ON tarifas_pricing_rules (country_id);
@@ -104,10 +80,10 @@ CREATE INDEX IF NOT EXISTS tarifas_pricing_rules_effective_to_idx ON tarifas_pri
 -- Plantilla de viaje
 CREATE TABLE IF NOT EXISTS tarifas_pricing_templates (
   id text PRIMARY KEY,
-  country_id text NOT NULL,
+  country_id uuid NOT NULL,
   name text NOT NULL,
   trip jsonb NOT NULL,
-  CONSTRAINT tarifas_pricing_templates_country_id_fkey FOREIGN KEY (country_id) REFERENCES tarifas_countries (id) ON DELETE RESTRICT
+  CONSTRAINT tarifas_pricing_templates_country_id_fkey FOREIGN KEY (country_id) REFERENCES countries (id) ON DELETE RESTRICT
 );
 CREATE INDEX IF NOT EXISTS tarifas_pricing_templates_country_id_idx ON tarifas_pricing_templates (country_id);
 
@@ -128,84 +104,15 @@ CREATE INDEX IF NOT EXISTS tarifas_party_variables_party_id_idx ON tarifas_party
 CREATE INDEX IF NOT EXISTS tarifas_party_variables_key_idx ON tarifas_party_variables (key);
 CREATE INDEX IF NOT EXISTS tarifas_party_variables_active_idx ON tarifas_party_variables (active);
 
--- Tipo de vehículo
-CREATE TABLE IF NOT EXISTS tarifas_party_vehicle_types (
-  id text PRIMARY KEY,
-  party_id text NOT NULL,
-  code text NOT NULL,
-  name text NOT NULL,
-  volume_m3 numeric NOT NULL,
-  weight_tons numeric NOT NULL,
-  notes text,
-  active boolean NOT NULL,
-  CONSTRAINT tarifas_party_vehicle_types_party_id_fkey FOREIGN KEY (party_id) REFERENCES tarifas_settlement_parties (id) ON DELETE CASCADE
-);
-CREATE INDEX IF NOT EXISTS tarifas_party_vehicle_types_party_id_idx ON tarifas_party_vehicle_types (party_id);
-CREATE INDEX IF NOT EXISTS tarifas_party_vehicle_types_code_idx ON tarifas_party_vehicle_types (code);
-CREATE INDEX IF NOT EXISTS tarifas_party_vehicle_types_active_idx ON tarifas_party_vehicle_types (active);
-
--- Ruta
-CREATE TABLE IF NOT EXISTS tarifas_routes (
-  id text PRIMARY KEY,
-  country_id text NOT NULL,
-  party_id text NOT NULL,
-  code text NOT NULL,
-  name text NOT NULL,
-  origin_zone_id text NOT NULL,
-  dest_zone_id text NOT NULL,
-  km numeric NOT NULL,
-  stop_count integer NOT NULL,
-  package_count integer NOT NULL,
-  weight_kg numeric NOT NULL,
-  toll_count integer NOT NULL,
-  tolls_amount numeric NOT NULL,
-  duration_hours numeric NOT NULL,
-  notes text,
-  active boolean NOT NULL,
-  CONSTRAINT tarifas_routes_country_id_fkey FOREIGN KEY (country_id) REFERENCES tarifas_countries (id) ON DELETE RESTRICT,
-  CONSTRAINT tarifas_routes_party_id_fkey FOREIGN KEY (party_id) REFERENCES tarifas_settlement_parties (id) ON DELETE CASCADE,
-  CONSTRAINT tarifas_routes_origin_zone_id_fkey FOREIGN KEY (origin_zone_id) REFERENCES tarifas_zones (id) ON DELETE RESTRICT,
-  CONSTRAINT tarifas_routes_dest_zone_id_fkey FOREIGN KEY (dest_zone_id) REFERENCES tarifas_zones (id) ON DELETE RESTRICT
-);
-CREATE INDEX IF NOT EXISTS tarifas_routes_country_id_idx ON tarifas_routes (country_id);
-CREATE INDEX IF NOT EXISTS tarifas_routes_party_id_idx ON tarifas_routes (party_id);
-CREATE INDEX IF NOT EXISTS tarifas_routes_code_idx ON tarifas_routes (code);
-CREATE INDEX IF NOT EXISTS tarifas_routes_origin_zone_id_idx ON tarifas_routes (origin_zone_id);
-CREATE INDEX IF NOT EXISTS tarifas_routes_dest_zone_id_idx ON tarifas_routes (dest_zone_id);
-CREATE INDEX IF NOT EXISTS tarifas_routes_active_idx ON tarifas_routes (active);
-
--- Conductor
-CREATE TABLE IF NOT EXISTS tarifas_drivers (
-  id text PRIMARY KEY,
-  country_id text NOT NULL,
-  party_id text NOT NULL,
-  full_name text NOT NULL,
-  document text,
-  phone text,
-  license text,
-  license_expires_at text,
-  notes text,
-  active boolean NOT NULL,
-  CONSTRAINT tarifas_drivers_country_id_fkey FOREIGN KEY (country_id) REFERENCES tarifas_countries (id) ON DELETE RESTRICT,
-  CONSTRAINT tarifas_drivers_party_id_fkey FOREIGN KEY (party_id) REFERENCES tarifas_settlement_parties (id) ON DELETE CASCADE
-);
-CREATE INDEX IF NOT EXISTS tarifas_drivers_country_id_idx ON tarifas_drivers (country_id);
-CREATE INDEX IF NOT EXISTS tarifas_drivers_party_id_idx ON tarifas_drivers (party_id);
-CREATE INDEX IF NOT EXISTS tarifas_drivers_full_name_idx ON tarifas_drivers (full_name);
-CREATE INDEX IF NOT EXISTS tarifas_drivers_document_idx ON tarifas_drivers (document);
-CREATE INDEX IF NOT EXISTS tarifas_drivers_active_idx ON tarifas_drivers (active);
-
 -- Liquidación
 CREATE TABLE IF NOT EXISTS tarifas_settlements (
   id text PRIMARY KEY,
-  country_id text NOT NULL,
-  party_id text NOT NULL,
-  route_id text,
-  driver_id text,
+  country_id uuid NOT NULL,
+  trip_id uuid NOT NULL,
+  party_id text,
   number text NOT NULL,
-  trip_number text,
+  trip_number text NOT NULL,
   settlement_date text NOT NULL,
-  truck_type_id text,
   status text NOT NULL,
   currency text NOT NULL,
   total_amount numeric NOT NULL,
@@ -216,6 +123,8 @@ CREATE TABLE IF NOT EXISTS tarifas_settlements (
   margin_pct numeric,
   cost_total numeric,
   cost_model_id text,
+  trip_info jsonb NOT NULL,
+  trip_edits jsonb NOT NULL,
   trip jsonb NOT NULL,
   trace jsonb NOT NULL,
   discarded jsonb NOT NULL,
@@ -225,35 +134,36 @@ CREATE TABLE IF NOT EXISTS tarifas_settlements (
   adhoc_rules jsonb NOT NULL,
   excluded_seqs jsonb NOT NULL,
   returns jsonb NOT NULL,
+  superseded_by text,
   created_at timestamptz NOT NULL,
   updated_at timestamptz NOT NULL,
-  CONSTRAINT tarifas_settlements_country_id_fkey FOREIGN KEY (country_id) REFERENCES tarifas_countries (id) ON DELETE RESTRICT,
-  CONSTRAINT tarifas_settlements_party_id_fkey FOREIGN KEY (party_id) REFERENCES tarifas_settlement_parties (id) ON DELETE RESTRICT,
-  CONSTRAINT tarifas_settlements_route_id_fkey FOREIGN KEY (route_id) REFERENCES tarifas_routes (id) ON DELETE RESTRICT,
-  CONSTRAINT tarifas_settlements_driver_id_fkey FOREIGN KEY (driver_id) REFERENCES tarifas_drivers (id) ON DELETE RESTRICT
+  CONSTRAINT tarifas_settlements_country_id_fkey FOREIGN KEY (country_id) REFERENCES countries (id) ON DELETE RESTRICT,
+  CONSTRAINT tarifas_settlements_trip_id_fkey FOREIGN KEY (trip_id) REFERENCES routes (id) ON DELETE RESTRICT,
+  CONSTRAINT tarifas_settlements_party_id_fkey FOREIGN KEY (party_id) REFERENCES tarifas_settlement_parties (id) ON DELETE RESTRICT
 );
 CREATE INDEX IF NOT EXISTS tarifas_settlements_country_id_idx ON tarifas_settlements (country_id);
+CREATE INDEX IF NOT EXISTS tarifas_settlements_trip_id_idx ON tarifas_settlements (trip_id);
 CREATE INDEX IF NOT EXISTS tarifas_settlements_party_id_idx ON tarifas_settlements (party_id);
-CREATE INDEX IF NOT EXISTS tarifas_settlements_route_id_idx ON tarifas_settlements (route_id);
-CREATE INDEX IF NOT EXISTS tarifas_settlements_driver_id_idx ON tarifas_settlements (driver_id);
 CREATE INDEX IF NOT EXISTS tarifas_settlements_number_idx ON tarifas_settlements (number);
 CREATE INDEX IF NOT EXISTS tarifas_settlements_trip_number_idx ON tarifas_settlements (trip_number);
 CREATE INDEX IF NOT EXISTS tarifas_settlements_settlement_date_idx ON tarifas_settlements (settlement_date);
 CREATE INDEX IF NOT EXISTS tarifas_settlements_status_idx ON tarifas_settlements (status);
 CREATE INDEX IF NOT EXISTS tarifas_settlements_margin_status_idx ON tarifas_settlements (margin_status);
+CREATE INDEX IF NOT EXISTS tarifas_settlements_superseded_by_idx ON tarifas_settlements (superseded_by);
+CREATE UNIQUE INDEX IF NOT EXISTS tarifas_settlements_trip_vigente_uq ON tarifas_settlements (trip_id) WHERE status <> 'Anulado';
 
 -- Estructura de costos
 CREATE TABLE IF NOT EXISTS tarifas_cost_structures (
   id text PRIMARY KEY,
   party_id text NOT NULL,
-  country_id text NOT NULL,
+  country_id uuid NOT NULL,
   name text NOT NULL,
   operating_days_per_month integer NOT NULL,
   effective_from timestamptz,
   active boolean NOT NULL,
   notes text,
   CONSTRAINT tarifas_cost_structures_party_id_fkey FOREIGN KEY (party_id) REFERENCES tarifas_settlement_parties (id) ON DELETE CASCADE,
-  CONSTRAINT tarifas_cost_structures_country_id_fkey FOREIGN KEY (country_id) REFERENCES tarifas_countries (id) ON DELETE RESTRICT
+  CONSTRAINT tarifas_cost_structures_country_id_fkey FOREIGN KEY (country_id) REFERENCES countries (id) ON DELETE RESTRICT
 );
 CREATE INDEX IF NOT EXISTS tarifas_cost_structures_party_id_idx ON tarifas_cost_structures (party_id);
 CREATE INDEX IF NOT EXISTS tarifas_cost_structures_country_id_idx ON tarifas_cost_structures (country_id);
@@ -280,13 +190,13 @@ CREATE INDEX IF NOT EXISTS tarifas_cost_structure_rows_active_idx ON tarifas_cos
 -- Tabla de tarifas
 CREATE TABLE IF NOT EXISTS tarifas_rate_tables (
   id text PRIMARY KEY,
-  country_id text NOT NULL,
+  country_id uuid NOT NULL,
   party_id text,
   code text NOT NULL,
   name text NOT NULL,
   key_columns jsonb NOT NULL,
   active boolean NOT NULL,
-  CONSTRAINT tarifas_rate_tables_country_id_fkey FOREIGN KEY (country_id) REFERENCES tarifas_countries (id) ON DELETE RESTRICT,
+  CONSTRAINT tarifas_rate_tables_country_id_fkey FOREIGN KEY (country_id) REFERENCES countries (id) ON DELETE RESTRICT,
   CONSTRAINT tarifas_rate_tables_party_id_fkey FOREIGN KEY (party_id) REFERENCES tarifas_settlement_parties (id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS tarifas_rate_tables_country_id_idx ON tarifas_rate_tables (country_id);
@@ -310,22 +220,22 @@ CREATE INDEX IF NOT EXISTS tarifas_rate_table_rows_active_idx ON tarifas_rate_ta
 -- Parámetros de costo propio
 CREATE TABLE IF NOT EXISTS tarifas_own_cost_params (
   id text PRIMARY KEY,
-  country_id text NOT NULL,
+  country_id uuid NOT NULL,
   cost_per_km numeric NOT NULL,
   depreciation_per_km numeric NOT NULL,
   driver_daily numeric NOT NULL,
-  CONSTRAINT tarifas_own_cost_params_country_id_fkey FOREIGN KEY (country_id) REFERENCES tarifas_countries (id) ON DELETE RESTRICT
+  CONSTRAINT tarifas_own_cost_params_country_id_fkey FOREIGN KEY (country_id) REFERENCES countries (id) ON DELETE RESTRICT
 );
 CREATE INDEX IF NOT EXISTS tarifas_own_cost_params_country_id_idx ON tarifas_own_cost_params (country_id);
 
 -- Tarifa de outsourcing
 CREATE TABLE IF NOT EXISTS tarifas_outsourced_cost_rates (
   id text PRIMARY KEY,
-  country_id text NOT NULL,
+  country_id uuid NOT NULL,
   carrier_id text NOT NULL,
   truck_type_id text NOT NULL,
   flat_rate numeric NOT NULL,
-  CONSTRAINT tarifas_outsourced_cost_rates_country_id_fkey FOREIGN KEY (country_id) REFERENCES tarifas_countries (id) ON DELETE RESTRICT,
+  CONSTRAINT tarifas_outsourced_cost_rates_country_id_fkey FOREIGN KEY (country_id) REFERENCES countries (id) ON DELETE RESTRICT,
   CONSTRAINT tarifas_outsourced_cost_rates_carrier_id_fkey FOREIGN KEY (carrier_id) REFERENCES tarifas_settlement_parties (id) ON DELETE RESTRICT
 );
 CREATE INDEX IF NOT EXISTS tarifas_outsourced_cost_rates_country_id_idx ON tarifas_outsourced_cost_rates (country_id);
@@ -334,12 +244,12 @@ CREATE INDEX IF NOT EXISTS tarifas_outsourced_cost_rates_carrier_id_idx ON tarif
 -- Política de margen
 CREATE TABLE IF NOT EXISTS tarifas_margin_policies (
   id text PRIMARY KEY,
-  country_id text NOT NULL,
+  country_id uuid NOT NULL,
   warn_below numeric NOT NULL,
   critical_below numeric NOT NULL,
   require_reason_below numeric NOT NULL,
   block_on_loss boolean NOT NULL,
-  CONSTRAINT tarifas_margin_policies_country_id_fkey FOREIGN KEY (country_id) REFERENCES tarifas_countries (id) ON DELETE RESTRICT
+  CONSTRAINT tarifas_margin_policies_country_id_fkey FOREIGN KEY (country_id) REFERENCES countries (id) ON DELETE RESTRICT
 );
 CREATE INDEX IF NOT EXISTS tarifas_margin_policies_country_id_idx ON tarifas_margin_policies (country_id);
 

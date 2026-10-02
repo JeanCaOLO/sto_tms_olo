@@ -1,0 +1,1111 @@
+{
+  "generatedFrom": "src/lib/tarifas/data/schema.ts",
+  "tables": {
+    "countries": {
+      "entity": "country",
+      "label": "País",
+      "readOnly": true,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "country",
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "code": {
+          "type": "text",
+          "nullable": false
+        },
+        "name": {
+          "type": "text",
+          "nullable": false
+        },
+        "currency": {
+          "type": "text",
+          "nullable": false
+        },
+        "status": {
+          "type": "text",
+          "nullable": true
+        }
+      }
+    },
+    "zones": {
+      "entity": "zone",
+      "label": "Zona",
+      "readOnly": true,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "zone",
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "country_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "code": {
+          "type": "text",
+          "nullable": true
+        },
+        "name": {
+          "type": "text",
+          "nullable": false
+        },
+        "status": {
+          "type": "text",
+          "nullable": false
+        }
+      }
+    },
+    "carriers": {
+      "entity": "carrier",
+      "label": "Transportista",
+      "readOnly": true,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "carrier",
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "country_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "code": {
+          "type": "text",
+          "nullable": false
+        },
+        "name": {
+          "type": "text",
+          "nullable": false
+        },
+        "tax_id": {
+          "type": "text",
+          "nullable": true
+        },
+        "is_flota_propia": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "status": {
+          "type": "text",
+          "nullable": true
+        }
+      }
+    },
+    "drivers": {
+      "entity": "driver",
+      "label": "Conductor",
+      "readOnly": true,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "drv",
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "carrier_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "code": {
+          "type": "text",
+          "nullable": false
+        },
+        "full_name": {
+          "type": "text",
+          "nullable": false
+        },
+        "document": {
+          "type": "text",
+          "nullable": true
+        },
+        "phone": {
+          "type": "text",
+          "nullable": false
+        },
+        "license_number": {
+          "type": "text",
+          "nullable": false
+        },
+        "status": {
+          "type": "text",
+          "nullable": true
+        }
+      }
+    },
+    "vehicles": {
+      "entity": "vehicle",
+      "label": "Vehículo",
+      "readOnly": true,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "veh",
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "carrier_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "plate": {
+          "type": "text",
+          "nullable": false
+        },
+        "vehicle_type": {
+          "type": "text",
+          "nullable": false
+        },
+        "capacity_weight": {
+          "type": "numeric",
+          "nullable": true
+        },
+        "capacity_volume": {
+          "type": "numeric",
+          "nullable": true
+        },
+        "status": {
+          "type": "text",
+          "nullable": true
+        }
+      }
+    },
+    "tarifas_v_viajes": {
+      "entity": "trip",
+      "label": "Viaje",
+      "readOnly": true,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "trip",
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "country_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "route_number": {
+          "type": "text",
+          "nullable": false
+        },
+        "route_date": {
+          "type": "text",
+          "nullable": false
+        },
+        "status": {
+          "type": "text",
+          "nullable": false
+        },
+        "carrier_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "carrier_name": {
+          "type": "text",
+          "nullable": true
+        },
+        "is_flota_propia": {
+          "type": "boolean",
+          "nullable": true
+        },
+        "driver_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "driver_name": {
+          "type": "text",
+          "nullable": true
+        },
+        "driver_document": {
+          "type": "text",
+          "nullable": true
+        },
+        "vehicle_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "vehicle_plate": {
+          "type": "text",
+          "nullable": true
+        },
+        "vehicle_type": {
+          "type": "text",
+          "nullable": true
+        },
+        "capacity_weight": {
+          "type": "numeric",
+          "nullable": true
+        },
+        "capacity_volume": {
+          "type": "numeric",
+          "nullable": true
+        },
+        "dest_zone_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "dest_zone_code": {
+          "type": "text",
+          "nullable": true
+        },
+        "dest_zone_name": {
+          "type": "text",
+          "nullable": true
+        },
+        "total_distance": {
+          "type": "numeric",
+          "nullable": true
+        },
+        "total_stops": {
+          "type": "int",
+          "nullable": true
+        },
+        "completed_stops": {
+          "type": "int",
+          "nullable": true
+        },
+        "total_weight": {
+          "type": "numeric",
+          "nullable": true
+        },
+        "total_volume": {
+          "type": "numeric",
+          "nullable": true
+        },
+        "actual_start_time": {
+          "type": "timestamptz",
+          "nullable": true
+        },
+        "actual_end_time": {
+          "type": "timestamptz",
+          "nullable": true
+        },
+        "duration_hours": {
+          "type": "numeric",
+          "nullable": true
+        },
+        "guide_count": {
+          "type": "int",
+          "nullable": false
+        },
+        "return_count": {
+          "type": "int",
+          "nullable": false
+        },
+        "settlement_id": {
+          "type": "text",
+          "nullable": true
+        }
+      }
+    },
+    "dispatch_guides": {
+      "entity": "dispatchGuide",
+      "label": "Guía de despacho",
+      "readOnly": true,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "dg",
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "route_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "guide_number": {
+          "type": "text",
+          "nullable": false
+        },
+        "sequence_number": {
+          "type": "int",
+          "nullable": false
+        },
+        "status": {
+          "type": "text",
+          "nullable": true
+        },
+        "delivery_status": {
+          "type": "text",
+          "nullable": true
+        },
+        "recipient_name": {
+          "type": "text",
+          "nullable": true
+        },
+        "actual_arrival_time": {
+          "type": "timestamptz",
+          "nullable": true
+        }
+      }
+    },
+    "tarifas_v_devoluciones": {
+      "entity": "tripReturn",
+      "label": "Devolución",
+      "readOnly": true,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "ret",
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "route_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "dispatch_guide_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "return_number": {
+          "type": "text",
+          "nullable": false
+        },
+        "return_type": {
+          "type": "text",
+          "nullable": false
+        },
+        "reason": {
+          "type": "text",
+          "nullable": false
+        },
+        "product_code": {
+          "type": "text",
+          "nullable": true
+        },
+        "product_name": {
+          "type": "text",
+          "nullable": true
+        },
+        "quantity": {
+          "type": "int",
+          "nullable": true
+        },
+        "status": {
+          "type": "text",
+          "nullable": true
+        }
+      }
+    },
+    "tarifas_country_settings": {
+      "entity": "countrySettings",
+      "label": "Configuración de cálculo del país",
+      "readOnly": false,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "cset",
+      "columns": {
+        "id": {
+          "type": "text",
+          "nullable": true
+        },
+        "country_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "rounding_decimals": {
+          "type": "int",
+          "nullable": false
+        },
+        "rounding_mode": {
+          "type": "text",
+          "nullable": false
+        },
+        "overnight_threshold_hours": {
+          "type": "int",
+          "nullable": false
+        }
+      }
+    },
+    "tarifas_zone_groups": {
+      "entity": "zoneGroup",
+      "label": "Grupo de zona",
+      "readOnly": false,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "zg",
+      "columns": {
+        "id": {
+          "type": "text",
+          "nullable": true
+        },
+        "country_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "code": {
+          "type": "text",
+          "nullable": false
+        },
+        "name": {
+          "type": "text",
+          "nullable": false
+        },
+        "zone_codes": {
+          "type": "jsonb",
+          "nullable": false
+        },
+        "status": {
+          "type": "text",
+          "nullable": false
+        }
+      }
+    },
+    "tarifas_pricing_rules": {
+      "entity": "pricingRule",
+      "label": "Regla de tarifa",
+      "readOnly": false,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "rule",
+      "columns": {
+        "id": {
+          "type": "text",
+          "nullable": true
+        },
+        "country_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "scope": {
+          "type": "text",
+          "nullable": true
+        },
+        "party_id": {
+          "type": "text",
+          "nullable": true
+        },
+        "code": {
+          "type": "text",
+          "nullable": false
+        },
+        "name": {
+          "type": "text",
+          "nullable": false
+        },
+        "stage": {
+          "type": "text",
+          "nullable": false
+        },
+        "priority": {
+          "type": "int",
+          "nullable": false
+        },
+        "stacking": {
+          "type": "text",
+          "nullable": false
+        },
+        "exclusion_group": {
+          "type": "text",
+          "nullable": true
+        },
+        "conditions": {
+          "type": "jsonb",
+          "nullable": false
+        },
+        "expression": {
+          "type": "jsonb",
+          "nullable": false
+        },
+        "description": {
+          "type": "text",
+          "nullable": true
+        },
+        "reason": {
+          "type": "text",
+          "nullable": true
+        },
+        "effect": {
+          "type": "text",
+          "nullable": true
+        },
+        "builder": {
+          "type": "jsonb",
+          "nullable": true
+        },
+        "condition_builder": {
+          "type": "jsonb",
+          "nullable": true
+        },
+        "is_adhoc": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "active": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "effective_from": {
+          "type": "text",
+          "nullable": true
+        },
+        "effective_to": {
+          "type": "text",
+          "nullable": true
+        },
+        "version": {
+          "type": "int",
+          "nullable": false
+        }
+      }
+    },
+    "tarifas_pricing_templates": {
+      "entity": "pricingTemplate",
+      "label": "Plantilla de viaje",
+      "readOnly": false,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "tpl",
+      "columns": {
+        "id": {
+          "type": "text",
+          "nullable": true
+        },
+        "country_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "name": {
+          "type": "text",
+          "nullable": false
+        },
+        "trip": {
+          "type": "jsonb",
+          "nullable": false
+        }
+      }
+    },
+    "tarifas_settlement_parties": {
+      "entity": "settlementParty",
+      "label": "Perfil de cálculo",
+      "readOnly": false,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "party",
+      "columns": {
+        "id": {
+          "type": "text",
+          "nullable": true
+        },
+        "carrier_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "status": {
+          "type": "text",
+          "nullable": false
+        },
+        "notes": {
+          "type": "text",
+          "nullable": true
+        }
+      }
+    },
+    "tarifas_party_variables": {
+      "entity": "partyVariable",
+      "label": "Variable personalizada",
+      "readOnly": false,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "pvar",
+      "columns": {
+        "id": {
+          "type": "text",
+          "nullable": true
+        },
+        "party_id": {
+          "type": "text",
+          "nullable": false
+        },
+        "key": {
+          "type": "text",
+          "nullable": false
+        },
+        "label": {
+          "type": "text",
+          "nullable": false
+        },
+        "kind": {
+          "type": "text",
+          "nullable": false
+        },
+        "origin": {
+          "type": "text",
+          "nullable": false
+        },
+        "default_value": {
+          "type": "text",
+          "nullable": true
+        },
+        "unit": {
+          "type": "text",
+          "nullable": true
+        },
+        "active": {
+          "type": "boolean",
+          "nullable": false
+        }
+      }
+    },
+    "tarifas_settlements": {
+      "entity": "settlement",
+      "label": "Liquidación",
+      "readOnly": false,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "stl",
+      "columns": {
+        "id": {
+          "type": "text",
+          "nullable": true
+        },
+        "country_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "trip_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "party_id": {
+          "type": "text",
+          "nullable": true
+        },
+        "number": {
+          "type": "text",
+          "nullable": false
+        },
+        "trip_number": {
+          "type": "text",
+          "nullable": false
+        },
+        "settlement_date": {
+          "type": "text",
+          "nullable": false
+        },
+        "status": {
+          "type": "text",
+          "nullable": false
+        },
+        "currency": {
+          "type": "text",
+          "nullable": false
+        },
+        "total_amount": {
+          "type": "numeric",
+          "nullable": false
+        },
+        "notes": {
+          "type": "text",
+          "nullable": true
+        },
+        "margin_reason": {
+          "type": "text",
+          "nullable": true
+        },
+        "margin_status": {
+          "type": "text",
+          "nullable": true
+        },
+        "margin_amount": {
+          "type": "numeric",
+          "nullable": true
+        },
+        "margin_pct": {
+          "type": "numeric",
+          "nullable": true
+        },
+        "cost_total": {
+          "type": "numeric",
+          "nullable": true
+        },
+        "cost_model_id": {
+          "type": "text",
+          "nullable": true
+        },
+        "trip_info": {
+          "type": "jsonb",
+          "nullable": false
+        },
+        "trip_edits": {
+          "type": "jsonb",
+          "nullable": false
+        },
+        "trip": {
+          "type": "jsonb",
+          "nullable": false
+        },
+        "trace": {
+          "type": "jsonb",
+          "nullable": false
+        },
+        "discarded": {
+          "type": "jsonb",
+          "nullable": false
+        },
+        "stage_subtotals": {
+          "type": "jsonb",
+          "nullable": false
+        },
+        "warnings": {
+          "type": "jsonb",
+          "nullable": false
+        },
+        "overrides": {
+          "type": "jsonb",
+          "nullable": false
+        },
+        "adhoc_rules": {
+          "type": "jsonb",
+          "nullable": false
+        },
+        "excluded_seqs": {
+          "type": "jsonb",
+          "nullable": false
+        },
+        "returns": {
+          "type": "jsonb",
+          "nullable": false
+        },
+        "superseded_by": {
+          "type": "text",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "timestamptz",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "timestamptz",
+          "nullable": false
+        }
+      }
+    },
+    "tarifas_cost_structures": {
+      "entity": "costStructure",
+      "label": "Estructura de costos",
+      "readOnly": false,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "cstr",
+      "columns": {
+        "id": {
+          "type": "text",
+          "nullable": true
+        },
+        "party_id": {
+          "type": "text",
+          "nullable": false
+        },
+        "country_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "name": {
+          "type": "text",
+          "nullable": false
+        },
+        "operating_days_per_month": {
+          "type": "int",
+          "nullable": false
+        },
+        "effective_from": {
+          "type": "timestamptz",
+          "nullable": true
+        },
+        "active": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "notes": {
+          "type": "text",
+          "nullable": true
+        }
+      }
+    },
+    "tarifas_cost_structure_rows": {
+      "entity": "costStructureRow",
+      "label": "Fila de estructura de costos",
+      "readOnly": false,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "crow",
+      "columns": {
+        "id": {
+          "type": "text",
+          "nullable": true
+        },
+        "structure_id": {
+          "type": "text",
+          "nullable": false
+        },
+        "code": {
+          "type": "text",
+          "nullable": false
+        },
+        "label": {
+          "type": "text",
+          "nullable": false
+        },
+        "driver": {
+          "type": "text",
+          "nullable": false
+        },
+        "amount": {
+          "type": "numeric",
+          "nullable": false
+        },
+        "sign": {
+          "type": "text",
+          "nullable": false
+        },
+        "applies_when": {
+          "type": "jsonb",
+          "nullable": true
+        },
+        "unit": {
+          "type": "text",
+          "nullable": true
+        },
+        "row_order": {
+          "type": "int",
+          "nullable": false
+        },
+        "active": {
+          "type": "boolean",
+          "nullable": false
+        }
+      }
+    },
+    "tarifas_rate_tables": {
+      "entity": "rateTable",
+      "label": "Tabla de tarifas",
+      "readOnly": false,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "rt",
+      "columns": {
+        "id": {
+          "type": "text",
+          "nullable": true
+        },
+        "country_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "party_id": {
+          "type": "text",
+          "nullable": true
+        },
+        "code": {
+          "type": "text",
+          "nullable": false
+        },
+        "name": {
+          "type": "text",
+          "nullable": false
+        },
+        "key_columns": {
+          "type": "jsonb",
+          "nullable": false
+        },
+        "active": {
+          "type": "boolean",
+          "nullable": false
+        }
+      }
+    },
+    "tarifas_rate_table_rows": {
+      "entity": "rateTableRow",
+      "label": "Fila de tabla de tarifas",
+      "readOnly": false,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "rtr",
+      "columns": {
+        "id": {
+          "type": "text",
+          "nullable": true
+        },
+        "table_id": {
+          "type": "text",
+          "nullable": false
+        },
+        "key": {
+          "type": "jsonb",
+          "nullable": false
+        },
+        "amount": {
+          "type": "numeric",
+          "nullable": false
+        },
+        "row_order": {
+          "type": "int",
+          "nullable": false
+        },
+        "active": {
+          "type": "boolean",
+          "nullable": false
+        }
+      }
+    },
+    "tarifas_own_cost_params": {
+      "entity": "ownCostParams",
+      "label": "Parámetros de costo propio",
+      "readOnly": false,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "own",
+      "columns": {
+        "id": {
+          "type": "text",
+          "nullable": true
+        },
+        "country_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "cost_per_km": {
+          "type": "numeric",
+          "nullable": false
+        },
+        "depreciation_per_km": {
+          "type": "numeric",
+          "nullable": false
+        },
+        "driver_daily": {
+          "type": "numeric",
+          "nullable": false
+        }
+      }
+    },
+    "tarifas_outsourced_cost_rates": {
+      "entity": "outsourcedCostRate",
+      "label": "Tarifa de outsourcing",
+      "readOnly": false,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "osr",
+      "columns": {
+        "id": {
+          "type": "text",
+          "nullable": true
+        },
+        "country_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "carrier_id": {
+          "type": "text",
+          "nullable": false
+        },
+        "truck_type_id": {
+          "type": "text",
+          "nullable": false
+        },
+        "flat_rate": {
+          "type": "numeric",
+          "nullable": false
+        }
+      }
+    },
+    "tarifas_margin_policies": {
+      "entity": "marginPolicy",
+      "label": "Política de margen",
+      "readOnly": false,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "mp",
+      "columns": {
+        "id": {
+          "type": "text",
+          "nullable": true
+        },
+        "country_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "warn_below": {
+          "type": "numeric",
+          "nullable": false
+        },
+        "critical_below": {
+          "type": "numeric",
+          "nullable": false
+        },
+        "require_reason_below": {
+          "type": "numeric",
+          "nullable": false
+        },
+        "block_on_loss": {
+          "type": "boolean",
+          "nullable": false
+        }
+      }
+    },
+    "tarifas_audit_log": {
+      "entity": "auditLog",
+      "label": "Bitácora",
+      "readOnly": false,
+      "appendOnly": true,
+      "primaryKey": "id",
+      "idPrefix": "audit",
+      "columns": {
+        "id": {
+          "type": "text",
+          "nullable": true
+        },
+        "entity": {
+          "type": "text",
+          "nullable": false
+        },
+        "entity_id": {
+          "type": "text",
+          "nullable": false
+        },
+        "action": {
+          "type": "text",
+          "nullable": false
+        },
+        "user_name": {
+          "type": "text",
+          "nullable": false
+        },
+        "role": {
+          "type": "text",
+          "nullable": false
+        },
+        "before": {
+          "type": "jsonb",
+          "nullable": true
+        },
+        "after": {
+          "type": "jsonb",
+          "nullable": true
+        },
+        "reason": {
+          "type": "text",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "timestamptz",
+          "nullable": false
+        }
+      }
+    }
+  }
+}
