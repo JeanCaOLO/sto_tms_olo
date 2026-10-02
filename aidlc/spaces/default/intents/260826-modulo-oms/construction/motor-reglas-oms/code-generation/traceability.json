@@ -1,0 +1,25 @@
+{
+  "stage": "code-generation",
+  "unit": "motor-reglas-oms",
+  "intent": "260826-modulo-oms",
+  "kind": "service",
+  "note": "Esqueleto ejecutable del motor de reglas propio del OMS (Lambda Python). Reconciliación contable: código ya construido y verificado (16/16 unidad + 142/142 suite). functional-design compensado inline; nfr/infra diferidos con gate.",
+  "upstream_ids": ["US1", "US7", "US8", "US9", "US10", "US11b", "US12", "US13"],
+  "coverage": [
+    { "id": "US1",   "status": "OK", "target": "backend/oms/src/cola_candidatos.py" },
+    { "id": "US7",   "status": "OK", "target": "backend/oms/src/regla_fecha.py" },
+    { "id": "US8",   "status": "OK", "target": "backend/oms/src/regla_fecha.py", "note": "fallback por valor centinela (FECHA NOT NULL)" },
+    { "id": "US9",   "status": "OK", "target": "backend/oms/src/handoff_pedidos.py", "note": "dos escrituras D6; escribe en oms.pedidos (U2) + TPEXSI='GENE'" },
+    { "id": "US10",  "status": "OK", "target": "backend/oms/src/motor_reglas.py" },
+    { "id": "US11b", "status": "OK", "target": "backend/oms/src/motor_reglas.py" },
+    { "id": "US12",  "status": "OK", "target": "backend/oms/src/analizador_observaciones.py", "note": "clasificador stub; Bedrock diferido" },
+    { "id": "US13",  "status": "OK", "target": "backend/oms/src/analizador_observaciones.py" }
+  ],
+  "pure_submodule": { "path": "backend/oms/src/score.py", "note": "cálculo de score como submódulo puro testeable (Testing Posture)" },
+  "verified_by": ["backend/tests/test_oms.py"],
+  "test_results": { "unit": "16/16", "suite": "142/142" },
+  "deferred": [
+    "Réplica EFLOW real (mock), Bedrock real (stub): adaptadores aislados con TODO.",
+    "Despliegue SAM/infra, destino de PRIORIDAD al WMS: reactivar nfr-requirements + nfr-design + infrastructure-design (gate en external-dependency-map.md)."
+  ]
+}

@@ -1,0 +1,116 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: TMS - OMS | Motor de reglas de priorización (esqueleto 1a entrega, /api/v1/oms/*)
+
+# NOTA (infrastructure-design DIFERIDA, gate de reactivación):
+# Este template es el ESQUELETO mínimo que calca el patrón de context/template.yaml
+# (Lambda + Layer tms_common + rutas HTTP API). La infra definitiva —el schedule
+# de EventBridge para la corrida automática (NFR1), el IAM fino, y la ruta/VPC a
+# EFLOW real— se diseña en infrastructure-design. NO desplegar al sandbox hasta
+# reactivar nfr-requirements + nfr-design + infrastructure-design
+# (ver external-dependency-map.md). El esqueleto corre local/en tests, contra mocks.
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [dev, qa, prod]
+  CommonStackName:
+    Type: String
+    Description: Stack de common-services del mismo ambiente (ej. dev-tms-common-services)
+  CommonLayerArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: Parámetro SSM con el ARN de la versión vigente de la Layer tms_common.
+  SubnetIds:
+    Type: AWS::SSM::Parameter::Value<List<String>>
+  SecurityGroupId:
+    Type: AWS::SSM::Parameter::Value<String>
+
+Conditions:
+  IsProduction: !Equals [!Ref Environment, prod]
+
+Resources:
+  OmsApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-oms-api
+      RetentionInDays: !If [IsProduction, 30, 7]
+
+  OmsApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-oms-api
+      Description: TMS - OMS API | Motor de reglas de priorización (corrida manual + handoff)
+      CodeUri: src/
+      Handler: app.handler
+      Runtime: python3.13
+      Architectures: [x86_64]
+      Timeout: 30
+      MemorySize: 512
+      Role:
+        Fn::ImportValue: !Sub ${CommonStackName}-LambdaRoleArn
+      Layers:
+        - !Ref CommonLayerArn
+      VpcConfig:
+        SubnetIds: !Ref SubnetIds
+        SecurityGroupIds: [!Ref SecurityGroupId]
+      LoggingConfig:
+        LogFormat: JSON
+        LogGroup: !Ref OmsApiLogGroup
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+          # OMS_SOURCE=mock (default): corre contra datos fijos sin tocar EFLOW/WMS.
+          # TODO(infrastructure-design): poner 'live' solo tras reactivar el diseño NFR/infra.
+          OMS_SOURCE: mock
+          TMS_DB_SECRET_NAME:
+            Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName
+
+  OmsApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt OmsApiFunction.Arn
+      PayloadFormatVersion: "2.0"
+
+  OmsApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref OmsApiFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub
+        - arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/*/*
+        - ApiId:
+            Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+
+  OmsHealthRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/v1/oms/health
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${OmsApiIntegration}
+
+  OmsCorridasRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/v1/oms/corridas
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${OmsApiIntegration}
+
+  # TODO(infrastructure-design DIFERIDA): regla de EventBridge Schedule que invoque
+  # OmsApiFunction para la corrida automática (NFR1: >=1/día + cortes). No se define
+  # en el esqueleto; se diseña al reactivar infrastructure-design.
+
+Outputs:
+  OmsApiFunctionArn:
+    Value: !GetAtt OmsApiFunction.Arn

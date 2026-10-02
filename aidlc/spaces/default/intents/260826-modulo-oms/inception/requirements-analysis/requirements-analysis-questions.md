@@ -1,135 +1,129 @@
-# Requirements Analysis (re-corrida) — Preguntas de clarificación (Módulo OMS)
+# Requirements Analysis — Preguntas de la re-corrida (pivote WMH, Módulo OMS)
 
-> Esta re-corrida CORRIGE el `requirements.md` con las decisiones firmes de
-> `project.md` (`## Decided`) y de tres reuniones ya indexadas: funcional con
-> Antonio (2026-09-08), datos/cruce con Calzadilla (2026-09-14) y diseño de
-> solución (2026-09-14). Casi todo el alcance ya está DECIDIDO; estas preguntas
-> solo fijan las pocas decisiones de redacción que aún quedan abiertas. Todas
-> tienen valor por defecto; puedes decir "acepta los valores por defecto".
+> Intent: `260826-modulo-oms`. Etapa: Requirements Analysis (Inception,
+> **re-corrida por el pivote de reemplazo del WMH**). El `requirements.md` v2
+> (14 FR) es la **base a CORREGIR** (regla L2): se barre cada concepto que
+> cambia en TODAS sus apariciones (FR, NFR, actores, glosario, restricciones,
+> OQ), no solo el FR más obvio.
 >
-> Lo que ya se aplica como FIRME (no se pregunta): el OMS lee del WMS/EFLOW y
-> escribe estado/situación (DISP→GENERADA) + prioridad a nivel WMS (no toca WMH,
-> no lee intermedias, no hay "lago de datos", termina en "alistado"); prioridad
-> numérica invertida atada a la fecha (T-1) con score ponderado; 5 macro-reglas
-> con 2 en la primera entrega (fecha + cliente retira/observaciones vía IA
-> Bedrock); motor = catálogo semi-configurable; multi-compañía con Lambda por
-> compañía y selector de compañía en la UI; fuente = `expedición_cabecera` con
-> `fecha_de_cierre IS NULL` + `DISP`.
+> Lo firme NO se re-pregunta: D1–D5 y C3 ya están en `project.md` `## Decided`.
+> C1 (Python/SAM) y C3 (scope, no Lambda por compañía) ya se confirmaron contra
+> el código. C2 (motor de reglas) se resuelve en domain-design. Estas preguntas
+> son de **precisión de alcance** de la corrección. Responde en cada `[Answer]:`.
 
 ---
 
-## Q1. Alcance del ciclo de corrección
+## Q1 — Alcance de la corrección (aplicar el pivote sobre la base)
 
-- A. **(por defecto)** Reescribir el `requirements.md` completo alineándolo a
-  las decisiones firmes (posicionamiento WMS/EFLOW, prioridad numérica T-1 +
-  score, 5 macro-reglas con 2 en 1ª entrega, motor catálogo, multi-compañía,
-  fuente de datos), corrigiendo cada FR/NFR/rol/glosario afectado.
-- B. Solo corregir los puntos que contradicen los hechos firmes (posicionamiento
-  y prioridad), dejando el resto como está.
-- X. Other (please specify)
+¿Aplico las correcciones del pivote sobre el `requirements.md` v2 existente, sin
+re-abrir lo firme?
 
-[Answer]: A
-## Q2. Score vs. filtro en el modelo de prioridad
-
-Antonio dejó abierto si las reglas deben cumplirse TODAS (filtro) o cada una
-suma peso (score). `project.md` decide **score ponderado desde la 1ª entrega**.
-
-- A. **(por defecto)** Redactar el modelo como **score ponderado** (cada regla
-  suma peso → prioridad; mayor peso = cliente retira, luego la fecha), y dejar
-  "score vs. filtro puro" como Open Question a cerrar con el cliente.
-- B. Redactarlo como filtro (todas las reglas deben cumplirse) — contradice
-  `project.md`, no recomendado.
-- X. Other (please specify)
-
-[Answer]: A
-## Q3. Roles del OMS
-
-Los 4 roles de la Adenda (Operador de Despacho, Administrador de Módulo, Jefe de
-Almacén, Responsable del OMS) siguen vigentes.
-
-- A. **(por defecto)** Mantener los 4 roles, ajustando responsabilidades al
-  alcance corregido (el "override manual" lo ejerce un rol autorizado; el
-  Administrador de Módulo configura el catálogo de reglas por compañía; el
-  calendario de rutas es CRUD del OMS pero su fuente de verdad es el TMS).
-- B. Simplificar a 3 niveles de acceso sin nombrar roles de negocio.
-- X. Other (please specify)
-
-[Answer]: A
-## Q4. Regla 4 (asignación de viaje/bajada) en el alcance
-
-El viaje lo abre/asigna el TMS/Planificación; el OMS solo consume el viaje y
-asigna la bajada. La 1ª entrega son 2 reglas (fecha + cliente retira).
-
-- A. **(por defecto)** Incluir la Regla 4 como macro-regla del catálogo pero
-  **fuera de la primera entrega** (documentada, inactiva), aclarando que la
-  creación del viaje es de Planificación.
-- B. Omitirla del documento por ahora.
-- X. Other (please specify)
-
-[Answer]: A
-## Q5. NFR cuantitativos
-
-Los umbrales previos (recálculo ≤60 s, cola ≤5 s, inserción al lago ≤5 s,
-simulador ≤30 s) se inventaron sobre un modelo de "lago" que ya no aplica.
-
-- A. **(por defecto)** Reemplazarlos por NFR alineados a lo real: el motor corre
-  ≥ 1 vez/día y en las horas de corte; IA de observaciones < $1 USD/mes (~400
-  pedidos/día); volumen de referencia ~400–500 pedidos/día (Cofersa); capacidad
-  operativa ~80 pedidos simultáneos. Marcar todos como provisionales.
-- B. Conservar los umbrales anteriores.
-- X. Other (please specify)
+- **A. (default)** Sí: tratar el v2 como base a corregir y aplicar
+  quirúrgicamente: (1) **retirar FR12** (Calendario de rutas del OMS) y toda su
+  huella (actores/glosario/OQ) por D5; (2) reencuadrar el posicionamiento de
+  "reemplazo **progresivo** del WMH" a **"reemplazo desde la salida"** (D1/D2),
+  citando `docs/wmh-actual/` como fuente de lo que se reemplaza; (3) marcar que
+  el **rediseño del flujo** pedido→TMS→OMS→WMS **entra en alcance** (D4); (4)
+  corregir el encabezado punto 6 de "Lambda por compañía" a **reglas con scope
+  CUSTOMER→WAREHOUSE→COUNTRY→GLOBAL** (C3-SUPERSEDE); (5) añadir la **jerarquía
+  País→Almacén→Cliente→Cliente Final** como contexto de datos (02-to-be §2, ya
+  implementada). Mantener intacto lo demás (T-1, score, IA, simulador, cola,
+  auditoría, seguridad).
+- **B.** Reescritura más amplia (revisar cada FR a fondo contra el 02-to-be y el
+  WMH, no solo los tocados por el pivote).
+- **X. Other (please specify)**
 
 [Answer]: A
 
 ---
+
+## Q2 — FR12 / Calendario de rutas: retirar o deprecar
+
+D5 elimina el Calendario de Rutas del OMS (ruteo dinámico). ¿Cómo lo dejo en el
+requirements?
+
+- **A. (default)** **Retirar** FR12 del cuerpo de FR y moverlo a "Fuera de
+  alcance" con una nota de deprecación (por qué se elimina: rutas dinámicas, "la
+  ruta manda", D5), para conservar la trazabilidad histórica sin que siga siendo
+  un requerimiento activo. La épica E8/US28–US29 se retira en user-stories (etapa
+  siguiente).
+- **B.** Borrar FR12 por completo (sin rastro).
+- **X. Other (please specify)**
+
+[Answer]: A
+
+---
+
+## Q3 — Reparto WMH → módulos (D2) en el requirements del OMS
+
+D2 dice que las funciones del WMH se reparten entre OMS, Planificación y quizá un
+tercer módulo. ¿Cuánto de ese reparto entra en ESTE requirements (del OMS)?
+
+- **A. (default)** Solo lo del **OMS** (priorización/alistamiento del pedido: el
+  ciclo de la Figura 7 — ingreso→enriquecimiento→reglas→priorización→handoff a
+  Planificación→auditoría). Lo de **Planificación** (armado de viajes, "Nuevo
+  Viaje" del WMH, ruteo dinámico) es del intent `260825-route-planning-reqs`
+  (Fase 3), no de este requirements. Se cita la frontera OMS↔Planificación
+  (el OMS deja "alistado"; Planificación arma el viaje) sin absorber sus FR.
+- **B.** Incluir aquí también los requerimientos de Planificación.
+- **X. Other (please specify)**
+
+[Answer]: A — Planificación va a su intent 260825-route-planning-reqs (Fase 3); aquí solo se cita la frontera del handoff (el OMS deja el pedido en situación=generada; Planificación arma el viaje) sin absorber sus FR.
+
+---
+
+## Q4 — Jerarquía País→Almacén→Cliente→Cliente Final en el OMS
+
+La jerarquía ya está implementada (módulo `context`). ¿Cómo la reflejo?
+
+- **A. (default)** Como **contexto de datos y aislamiento** (multi-tenancy por
+  scope) que el OMS consume: la Cola, el maestro de compañías y el filtro de la
+  UI operan sobre esa jerarquía; los pedidos se aíslan por país/almacén/cliente.
+  No la convierto en un FR de CRUD de la jerarquía (eso es del módulo context/
+  catálogos, no del OMS). Actualiza FR10 (cola/filtros) y FR13 (multi-compañía)
+  para hablar de scope país→almacén→cliente en vez de solo "compañía".
+- **X. Other (please specify)**
+
+[Answer]: A
+
+---
+
+## Q5 — §13 nada nuevo / seguir
+
+¿Algo más que deba capturar la re-corrida antes de generar el requirements
+corregido?
+
+- **A. (default)** No; proceder a generar el `requirements.md` corregido con lo
+  de Q1–Q4 y presentarlo en el gate.
+- **X. Other (please specify)**
+
+[Answer]: A
+
+[Answer]:
+
+---
+
+## Assumptions & Open Questions
+
+- Las OQ del v2 se mantienen salvo las ligadas a FR12 (calendario): réplica
+  `EFLOW_OLO` inexistente, fecha de Cofersa, tabla de prioridades del cliente,
+  score-vs-filtro/umbral, cortes/duración de rutas, viaje cliente retira, BD no
+  oficial. Se añade el gap peso/volumen (`capacity_known:false`) como dependencia
+  del handoff a Planificación.
+- C2 (motor de reglas: portar AST TS→Python vs. motor nuevo) NO se decide aquí;
+  es de domain-design.
 
 ## Consolidated Summary Confirmation
 
-Re-corrida de Requirements Analysis del OMS. Decisiones (Q1–Q5 = A) + precisiones:
-
-- **Q1 = A** — reescritura completa del `requirements.md` alineada a lo firme,
-  tratando el actual como base a corregir.
-- **Q2 = A** — modelo de prioridad = **score ponderado, desde la primera
-  entrega**. Como Open Question queda SOLO el matiz score vs. filtro estricto
-  (¿toda regla suma peso o alguna es obligatoria?); el score en sí ya está
-  decidido.
-- **Q3 = A** — se mantienen los 4 roles de la Adenda, ajustados al alcance.
-- **Q4 = A** — Regla 4 (asignación de viaje/bajada) incluida como macro-regla
-  **fuera de la 1ª entrega**, explícita: el OMS NO crea ni asigna el viaje (eso
-  es Planificación/TMS); el OMS consume el viaje ya abierto y termina en
-  "alistado". La bajada se documenta como futura con esa nota de propiedad.
-- **Q5 = A** — NFR reemplazados por los reales (motor ≥1/día + horas de corte;
-  IA < $1/mes ~400 pedidos/día; volumen ~400–500/día Cofersa; capacidad ~80
-  simultáneos), marcados provisionales.
-
-Correcciones firmes que se incorporan (de `project.md` y las reuniones):
-posicionamiento WMS/EFLOW (lee y escribe estado/situación DISP→GENERADA +
-prioridad; no toca WMH ni intermedias; termina en "alistado"); prioridad
-numérica invertida atada a T-1 (el OMS NO escribe fechas; usa la fecha de
-expedición planificada como insumo); fuente = `expedición_cabecera` con
-`fecha_de_cierre IS NULL` + `DISP` (anti-join con `almacén_movimiento_carcam`;
-`Journey_Orders` opcional; réplica `EFLOW_OLO` por solicitar); 5 macro-reglas,
-1ª entrega = 2 (fecha + cliente retira/observaciones vía IA Amazon Bedrock,
-prompt en Lambda no editable); Motor de Reglas = catálogo semi-configurable con
-selector de compañía; **Simulador = configurador de simulaciones** (entidad
-persistida/bitácora, modal previo de reglas activas + filtro de situación,
-aplicación manual/automática/mixta con hora de corte, una aplicada por
-compañía); multi-compañía con Lambda por compañía y compañía como filtro/selector
-en la UI (no perfil); Cola con default `DISP`, filtro de almacén, detalle en
-modal, selección de columnas (User Preference JSON), nombre+selector de compañía;
-Capa X (todas las tablas con compañía/país; nombre de compañía por maestro); BD
-`logistica_olo` con esquemas `OMS` y `TMS`; stack oficial AWS serverless +
-Python/Lambdas + React + PostgreSQL.
-
-Supuestos / Open Questions: BD una-sola con columnas compañía/país (no oficial);
-réplica `EFLOW_OLO` por solicitar (Alfredo); Cofersa no envía la fecha de
-entrega (fallback regla por ruta); tabla de prioridades del cliente pendiente;
-score vs. filtro estricto; umbral de inyección; duración de rutas y horas de
-corte (equipo de transporte).
-
-Does this all look correct before I rewrite the requirements artifact?
-
-- Looks correct
-- Request changes
+Resumen del requirements.md v3 (re-corrida por el pivote WMH), confirmado en
+conversación: reemplazo del WMH desde la salida (D1); FR12 y rol Operador de
+Despacho retirados, E8/US28–US29 fuera (D5); multi-compañía por scope
+CUSTOMER→WAREHOUSE→COUNTRY→GLOBAL en Lambdas compartidas (C3-SUPERSEDE); rediseño
+del flujo en alcance (D4); stack Python/Lambdas confirmado (C1); flujo de dos
+escrituras OMS→Planificación con tabla de pedidos propia del OMS como superficie
+de handoff (D6). C2 (motor de reglas compartido OMS+TMS) diferido a domain-design;
+OQ-8 (gap peso/volumen) abierta. Petición de secuencia anotada: rebanada delgada
+de las 2 reglas de 1ª entrega en domain-design. Sensores: required-sections PASS,
+upstream-coverage PASS.
 
 [Answer]: Looks correct

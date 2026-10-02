@@ -99,4 +99,16 @@ Does this all look correct before I generate the user-stories artifacts?
 - Looks correct
 - Request changes
 
+Re-corrida 2026-09-30 (pivote WMH) — resumen confirmado: E8/US28-US29 (Calendario
+de rutas) RETIRADA por D5; US9 reescrita con el flujo de dos escrituras D6 (tabla
+propia del OMS = handoff + situación en WMS = disparo picking, con orden, fallo
+parcial idempotente e idempotencia de corrida); US30/US31 multi-compañía por scope
+CUSTOMER-WAREHOUSE-COUNTRY-GLOBAL (no Lambda por compañía); US3 reconciliada a
+"acotar scope"; US12 clasificación IA con stub; US30 matriz de scope completa. Mob
+round 1 integrado (design/developer/quality). C2 RESUELTO: motor de reglas del OMS
+propio/nuevo en Lambda (no portar AST, no motor compartido, no tocar Liquidaciones).
+Sensores: required-sections PASS, upstream-coverage PASS; traceability = falso
+positivo advisory conocido. (La confirmación de la corrida original 2026-09-16 fue
+"Looks correct".)
+
 [Answer]: Looks correct

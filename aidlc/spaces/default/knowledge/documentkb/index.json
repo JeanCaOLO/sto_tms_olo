@@ -425,6 +425,118 @@
       },
       "content": "documentkb/01a0ac58-7ca6-7ba9-a911-5a0173feb56b/content.md",
       "content_sha256": "45ea11c5f47afb0d4f400fe317b4abd180b8595680fd17c98064d1fca81c3c40"
+    },
+    {
+      "id": "01a0f05a-b86f-7c11-bb34-9353589421ee",
+      "source": {
+        "kind": "managed",
+        "path": "documents/wmh-resumen-control-tower.md"
+      },
+      "sha256": "9310f4479975558035f0528ef728604aea1b22ab2cf7cf662250ce2593120a7e",
+      "bytes": 6595,
+      "indexed_at": "2026-09-30T03:27:52.418Z",
+      "extraction": {
+        "state": "extracted",
+        "extractor": {
+          "name": "builtin-text",
+          "version": "1"
+        },
+        "chars": 6450,
+        "truncated": false,
+        "source_revision": "9310f4479975558035f0528ef728604aea1b22ab2cf7cf662250ce2593120a7e"
+      },
+      "summary": {
+        "state": "absent"
+      },
+      "content": "documentkb/01a0f05a-b86f-7c11-bb34-9353589421ee/content.md",
+      "content_sha256": "9310f4479975558035f0528ef728604aea1b22ab2cf7cf662250ce2593120a7e",
+      "related_intent_ids": [
+        "01a04077-4ed3-78a8-ab14-612a6bfb6e91"
+      ]
+    },
+    {
+      "id": "01a0f05a-dce9-7c59-abd2-cdea90b83a93",
+      "source": {
+        "kind": "managed",
+        "path": "documents/wmh-actual/wmh-documento-maestro-control-tower.md"
+      },
+      "sha256": "ce8d81beb14b295e863d87976456adad2d743c5e510bec709f5111d6f377e6f8",
+      "bytes": 1427259,
+      "indexed_at": "2026-09-30T03:28:01.733Z",
+      "extraction": {
+        "state": "extracted",
+        "extractor": {
+          "name": "builtin-text",
+          "version": "1"
+        },
+        "chars": 200000,
+        "truncated": true,
+        "source_revision": "ce8d81beb14b295e863d87976456adad2d743c5e510bec709f5111d6f377e6f8"
+      },
+      "summary": {
+        "state": "absent"
+      },
+      "content": "documentkb/01a0f05a-dce9-7c59-abd2-cdea90b83a93/content.md",
+      "content_sha256": "d075b1de309a86af2c942e84264de0cef16a4503701a9e49f66b08564334f4e7",
+      "related_intent_ids": [
+        "01a04077-4ed3-78a8-ab14-612a6bfb6e91"
+      ]
+    },
+    {
+      "id": "01a0f05a-de1c-7836-bd25-f86d25c31e94",
+      "source": {
+        "kind": "managed",
+        "path": "documents/wmh-actual/wmh-mapeo-funcional-control-tower.md"
+      },
+      "sha256": "fe1c7618a39d98e3354dcc922610e5ce8aa3585b48352d70c2e6d5197a98b0f2",
+      "bytes": 1417252,
+      "indexed_at": "2026-09-30T03:28:02.050Z",
+      "extraction": {
+        "state": "extracted",
+        "extractor": {
+          "name": "builtin-text",
+          "version": "1"
+        },
+        "chars": 200000,
+        "truncated": true,
+        "source_revision": "fe1c7618a39d98e3354dcc922610e5ce8aa3585b48352d70c2e6d5197a98b0f2"
+      },
+      "summary": {
+        "state": "absent"
+      },
+      "content": "documentkb/01a0f05a-de1c-7836-bd25-f86d25c31e94/content.md",
+      "content_sha256": "32c9afa94b47c4c6b3a932ef26edf88df58e4711ca675255010c2c3324204274",
+      "related_intent_ids": [
+        "01a04077-4ed3-78a8-ab14-612a6bfb6e91"
+      ]
+    },
+    {
+      "id": "01a0f05a-df60-796d-8e4b-fa6a7e630361",
+      "source": {
+        "kind": "managed",
+        "path": "documents/wmh-actual/wmh-datos-reales-por-columna.md"
+      },
+      "sha256": "dac097c035e8ed281d9eb301a667e6f3293af083b6c2f53d82595c800289ded8",
+      "bytes": 17174,
+      "indexed_at": "2026-09-30T03:28:02.382Z",
+      "extraction": {
+        "state": "extracted",
+        "extractor": {
+          "name": "builtin-text",
+          "version": "1"
+        },
+        "chars": 17003,
+        "truncated": false,
+        "source_revision": "dac097c035e8ed281d9eb301a667e6f3293af083b6c2f53d82595c800289ded8"
+      },
+      "summary": {
+        "state": "absent"
+      },
+      "content": "documentkb/01a0f05a-df60-796d-8e4b-fa6a7e630361/content.md",
+      "content_sha256": "dac097c035e8ed281d9eb301a667e6f3293af083b6c2f53d82595c800289ded8",
+      "related_intent_ids": [
+        "01a04077-4ed3-78a8-ab14-612a6bfb6e91"
+      ]
     }
   ]
 }

@@ -15,10 +15,16 @@ export interface AppUser {
   role: Role;
 }
 
-// ponytail: opt-in via VITE_MOCK_AUTH so it never affects teammates who don't
-// set it in their own .env.local. Bypasses Supabase auth entirely for local
-// prototyping when there's no working login for this environment yet.
-export const MOCK_AUTH_ENABLED = import.meta.env.VITE_MOCK_AUTH === 'true';
+// NOTE: opt-in via VITE_MOCK_AUTH so it never affects teammates who don't set it
+// in their own .env.local. Es una RED DE SEGURIDAD para probar en local/PR sin
+// backend: el login real sigue siendo la puerta principal (ver useAuth.signIn),
+// y el mock solo entra si el login real falla o es inalcanzable.
+//
+// Guard de SEGURIDAD: además de la env var, exigimos `import.meta.env.DEV` para
+// que este bypass NUNCA quede activo en un build desplegado (Amplify/sandbox/prod),
+// aunque alguien deje VITE_MOCK_AUTH=true por error. `vite build` pone DEV=false.
+export const MOCK_AUTH_ENABLED =
+  import.meta.env.DEV && import.meta.env.VITE_MOCK_AUTH === 'true';
 
 const MOCK_ORGANIZATION_ID = '11111111-1111-1111-1111-111111111111';
 const MOCK_ROLE_ID = 'mock-role-superusuario';

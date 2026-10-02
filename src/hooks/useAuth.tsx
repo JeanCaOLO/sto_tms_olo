@@ -45,24 +45,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.error('No se pudo cargar app_users tras 3 intentos:', error);
   };
 
-  useEffect(() => {
-    if (MOCK_AUTH_ENABLED) {
-      setSession(mockSession);
-      setUser(mockUser);
-      setAppUser(mockAppUser);
-      setLoading(false);
-      return;
-    }
+  // Entra en modo mock (usuario de prototipo). Solo se invoca cuando el login
+  // real NO está disponible Y `VITE_MOCK_AUTH=true`. No es la puerta principal:
+  // es una red de seguridad para probar en local/PR sin backend.
+  const enterMock = (): { error: null } => {
+    setSession(mockSession);
+    setUser(mockUser);
+    setAppUser(mockAppUser);
+    return { error: null };
+  };
 
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
-      setUser(s?.user ?? null);
-      if (s?.user) {
-        fetchAppUser(s.user.id).finally(() => setLoading(false));
-      } else {
+  useEffect(() => {
+    // Siempre intentamos primero la sesión REAL. Si hay una guardada y válida,
+    // se entra con esa (el login real manda). Si no hay, se muestra el login
+    // normal — NO auto-logueamos como mock aquí, para no tapar el login real.
+    supabase.auth
+      .getSession()
+      .then(({ data: { session: s } }) => {
+        setSession(s);
+        setUser(s?.user ?? null);
+        if (s?.user) {
+          fetchAppUser(s.user.id).finally(() => setLoading(false));
+        } else {
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        // Backend inalcanzable al restaurar sesión: tratamos como "sin sesión"
+        // y dejamos que el usuario inicie sesión (real o, si aplica, mock).
         setLoading(false);
-      }
-    });
+      });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
@@ -78,17 +90,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string): Promise<{ error: string | null }> => {
-    if (MOCK_AUTH_ENABLED) return { error: null };
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (!error) return { error: null }; // login real OK -> manda el real
+      // El backend respondió con error (p. ej. credenciales inválidas).
+      if (MOCK_AUTH_ENABLED) return enterMock();
       return { error: error.message || 'Error al iniciar sesión. Intenta nuevamente.' };
+    } catch {
+      // El backend es inalcanzable (ECONNREFUSED / red). Si el mock está
+      // habilitado, dejamos entrar en modo prototipo; si no, informamos.
+      if (MOCK_AUTH_ENABLED) return enterMock();
+      return { error: 'No se pudo conectar con el servidor de autenticación.' };
     }
-    return { error: null };
   };
 
   const signOut = async () => {
-    if (MOCK_AUTH_ENABLED) return;
-    await supabase.auth.signOut();
+    // Sirve tanto para sesión real como para la mock: cerramos contra el
+    // backend (si hay) y limpiamos el estado local de todas formas.
+    await supabase.auth.signOut().catch(() => null);
+    setSession(null);
+    setUser(null);
     setAppUser(null);
   };
 
