@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import Card from '../../../components/base/Card';
 import Badge from '../../../components/base/Badge';
 import Button from '../../../components/base/Button';
-import Select from '../../../components/base/Select';
 import RuleParamsModal from './RuleParamsModal';
 import { useReglasController } from './useReglasController';
 
@@ -14,7 +13,7 @@ import { useReglasController } from './useReglasController';
 // la compañía seleccionada.
 export default function OmsReglasPage() {
   const {
-    rules, companies, company, setCompany, loading, error,
+    rules, loading, error,
     toggleRule, setWeight,
     editingId, setEditingId, editingRule, saveParams,
   } = useReglasController();
@@ -25,21 +24,11 @@ export default function OmsReglasPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">{t('omsRules.title')}</h1>
-          <p className="text-sm text-slate-600 mt-1">
-            {t('omsRules.subtitle')}
-          </p>
-        </div>
-        <div className="w-full sm:w-56">
-          <Select
-            label={t('omsRules.company')}
-            value={company}
-            onChange={(e) => setCompany(e.target.value)}
-            options={companies.map((c) => ({ value: c.id, label: c.name }))}
-          />
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">{t('omsRules.title')}</h1>
+        <p className="text-sm text-slate-600 mt-1">
+          {t('omsRules.subtitle')}
+        </p>
       </div>
 
       {loading && (

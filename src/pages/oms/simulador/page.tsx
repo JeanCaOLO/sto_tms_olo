@@ -14,7 +14,7 @@ import { omsApi } from '../api/omsApi';
 import { queueOrders } from '../mockData';
 import {
   APPLY_MODE_LABEL, SITUATION_OPTIONS,
-  type ApplyMode, type Company, type EngineRule, type OrderSituation,
+  type ApplyMode, type EngineRule, type OrderSituation,
   type QueueOrder, type Simulation, type SimulationExecution,
 } from '../types';
 import { runSimulation, type SimulatedOrder } from './simulate';
@@ -30,7 +30,6 @@ const nowStamp = () => new Date().toISOString().slice(0, 16).replace('T', ' ');
 // PROTOTIPO: datos y persistencia mock (localStorage vía omsApi).
 export default function OmsSimuladorPage() {
   const { t } = useTranslation();
-  const [companies, setCompanies] = useState<Company[]>([]);
   const [companyId, setCompanyId] = useState('');
   const [rules, setRules] = useState<EngineRule[]>([]);
   const [sims, setSims] = useState<Simulation[]>([]);
@@ -52,7 +51,6 @@ export default function OmsSimuladorPage() {
   useEffect(() => {
     Promise.all([omsApi.getCompanies(), omsApi.getEngineRules()])
       .then(([c, r]) => {
-        setCompanies(c);
         setRules(r);
         setCompanyId((prev) => prev || c[0]?.id || '');
       })
@@ -110,14 +108,6 @@ export default function OmsSimuladorPage() {
           </p>
         </div>
         <div className="flex items-end gap-3">
-          <div className="w-full sm:w-48">
-            <Select
-              label={t('omsSimulator.company')}
-              value={companyId}
-              onChange={(e) => setCompanyId(e.target.value)}
-              options={companies.map((c) => ({ value: c.id, label: c.name }))}
-            />
-          </div>
           <Button icon={<i className="ri-add-line"></i>} onClick={openNew} disabled={loading || companyRules.length === 0}>
             {t('omsSimulator.new')}
           </Button>

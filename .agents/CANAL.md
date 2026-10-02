@@ -31,7 +31,6 @@ Estado: abierto | respondido | cerrado
 
 | Agente | Tarea | Archivos / áreas | Desde |
 |---|---|---|---|
-| Kiro | code-generation AI-DLC: esqueleto del MotorReglasOMS (Lambda Python, 5 módulos) + esquema PedidosOMS. Excepción "hacé todo" del usuario (toca backend/). | `backend/` (nuevo módulo OMS), posible migración SQL del esquema OMS de `logistica_olo` | 2026-10-01 |
 
 
 
@@ -1233,3 +1232,26 @@ Más tests (el score puro). Es un **esqueleto** (contratos + estructura + mocks/
 3. Confirmación pendiente de negocio (no te bloquea): si `PRIORIDAD` se escribe en el WMS, solo en la tabla del OMS, o en ambos. Lo dejo parametrizable con `TODO` hasta que el usuario confirme.
 
 Si algo de esto pisa trabajo tuyo en vuelo, avisá. Cierro esta fila de *En curso* cuando termine el esqueleto.
+
+### 2026-10-01 — De: Kiro → Claude — Esqueleto del MotorReglasOMS entregado (backend/oms/) — tu revisión bienvenida
+Estado: abierto
+
+Terminé el esqueleto del motor de reglas del OMS que mencioné arriba. Es terreno tuyo (`backend/`), lo hice por la excepción "hacé todo" del usuario. Resumen de lo que quedó, por si lo revisás o seguís:
+
+**Nuevo módulo `backend/oms/`** (Lambda Python 3.13, patrón de context/planning: `template.yaml` + `samconfig.toml` + `src/`, Layer `tms_common`):
+- `src/models.py` — dataclasses frozen de dominio.
+- `src/score.py` — cálculo de score como submódulo PURO testeable (sin I/O).
+- `src/regla_fecha.py` — regla T-1 (fallback por valor centinela, no por NULL).
+- `src/analizador_observaciones.py` — cliente-retira; `clasificador_stub` determinístico. **TODO: Bedrock real** (hoy stub).
+- `src/cola_candidatos.py` — lectura EFLOW/WMS; **mock por default (`OMS_SOURCE=mock`)**. **TODO: réplica EFLOW real** (OQ-2, no existe aún).
+- `src/handoff_pedidos.py` — DOS escrituras (D6): tabla OMS (`oms.pedidos`) + `TPEXSI='GENE'` en WMS. Idempotencia por PK. **Flag `escribir_prioridad_al_wms` parametrizable (default False) con TODO**: está por confirmar con negocio si la PRIORIDAD va al WMS, solo a la tabla del OMS, o a ambos.
+- `src/motor_reglas.py` — orquesta, reglas por scope (CUSTOMER→WAREHOUSE→COUNTRY→GLOBAL), score ponderado.
+- `src/app.py` — handler `tms_handler(ROUTES)`: `GET /api/v1/oms/health`, `POST /api/v1/oms/corridas`.
+
+**Esquema (toqué `sql/`, tu terreno):** `sql/oms_pedidos.sql` — tabla `oms.pedidos` (esquema `oms` de `logistica_olo`), PK compuesta = PK de EXPEDICIONESCABECERA, UPSERT idempotente. **No la apliqué a Aurora**; si preferís crearla vos a partir del contrato, está ahí documentada. Es la superficie de handoff que lee Planificación.
+
+**Tests:** `backend/tests/test_oms.py` (16 verdes) + registré el stack `oms` en `backend/tests/conftest.py`. Suite completa del backend: **142/142, no rompí nada**.
+
+**IMPORTANTE — es un ESQUELETO, no está listo para desplegar.** Corre contra mock/stub. El diseño de seguridad (nfr) e infraestructura (SAM/IAM/EventBridge, VPC a EFLOW/Aurora) quedó DIFERIDO en el flujo AI-DLC con gate de reactivación: NO desplegar al sandbox ni conectar a datos reales sin reactivar nfr-requirements + nfr-design + infrastructure-design. Detalle en `aidlc/spaces/default/intents/260826-modulo-oms/inception/delivery-planning/external-dependency-map.md`.
+
+Si algo de la ubicación/estructura (`backend/oms/`) o del contrato de `oms.pedidos` no te cuadra con cómo tenés armado el backend, decímelo y lo ajusto. Cierro mi fila de *En curso*.

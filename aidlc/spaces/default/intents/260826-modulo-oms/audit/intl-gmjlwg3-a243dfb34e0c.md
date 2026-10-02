@@ -13091,3 +13091,366 @@
 **Details**: 39 passed, 1 failed
 
 ---
+
+## Human Turn
+**Timestamp**: 2026-10-01T21:21:52Z
+**Event**: HUMAN_TURN
+
+---
+
+## Sensor Fired
+**Timestamp**: 2026-10-01T21:27:52Z
+**Event**: SENSOR_FIRED
+**Fire id**: a91dbc66
+**Sensor ID**: required-sections
+**Stage slug**: code-generation
+**Output path**: aidlc/spaces/default/intents/260826-modulo-oms/construction/motor-reglas-oms/code-generation/code-generation-plan.md
+
+---
+
+## Sensor Passed
+**Timestamp**: 2026-10-01T21:27:52Z
+**Event**: SENSOR_PASSED
+**Fire id**: a91dbc66
+**Sensor ID**: required-sections
+**Stage slug**: code-generation
+**Output path**: aidlc/spaces/default/intents/260826-modulo-oms/construction/motor-reglas-oms/code-generation/code-generation-plan.md
+**Duration ms**: 94
+
+---
+
+## Sensor Fired
+**Timestamp**: 2026-10-01T21:33:32Z
+**Event**: SENSOR_FIRED
+**Fire id**: 3f534fb5
+**Sensor ID**: required-sections
+**Stage slug**: code-generation
+**Output path**: aidlc/spaces/default/intents/260826-modulo-oms/construction/motor-reglas-oms/code-generation/unit-test-instructions.md
+
+---
+
+## Sensor Passed
+**Timestamp**: 2026-10-01T21:33:32Z
+**Event**: SENSOR_PASSED
+**Fire id**: 3f534fb5
+**Sensor ID**: required-sections
+**Stage slug**: code-generation
+**Output path**: aidlc/spaces/default/intents/260826-modulo-oms/construction/motor-reglas-oms/code-generation/unit-test-instructions.md
+**Duration ms**: 72
+
+---
+
+## Sensor Fired
+**Timestamp**: 2026-10-01T21:40:26Z
+**Event**: SENSOR_FIRED
+**Fire id**: 768b17fd
+**Sensor ID**: required-sections
+**Stage slug**: code-generation
+**Output path**: aidlc/spaces/default/intents/260826-modulo-oms/construction/motor-reglas-oms/code-generation/code-generation-plan.md
+
+---
+
+## Sensor Passed
+**Timestamp**: 2026-10-01T21:40:26Z
+**Event**: SENSOR_PASSED
+**Fire id**: 768b17fd
+**Sensor ID**: required-sections
+**Stage slug**: code-generation
+**Output path**: aidlc/spaces/default/intents/260826-modulo-oms/construction/motor-reglas-oms/code-generation/code-generation-plan.md
+**Duration ms**: 97
+
+---
+
+## Sensor Fired
+**Timestamp**: 2026-10-01T21:43:48Z
+**Event**: SENSOR_FIRED
+**Fire id**: 45b9177a
+**Sensor ID**: required-sections
+**Stage slug**: code-generation
+**Output path**: aidlc/spaces/default/intents/260826-modulo-oms/construction/motor-reglas-oms/code-generation/code-generation-questions.md
+
+---
+
+## Sensor Failed
+**Timestamp**: 2026-10-01T21:43:49Z
+**Event**: SENSOR_FAILED
+**Fire id**: 45b9177a
+**Sensor ID**: required-sections
+**Stage slug**: code-generation
+**Output path**: aidlc/spaces/default/intents/260826-modulo-oms/construction/motor-reglas-oms/code-generation/code-generation-questions.md
+**Detail path**: aidlc/spaces/default/intents/260826-modulo-oms/.aidlc-sensors/code-generation/required-sections-45b9177a.md
+**Findings count**: 1
+
+---
+
+## Human Turn
+**Timestamp**: 2026-10-01T21:48:43Z
+**Event**: HUMAN_TURN
+
+---
+
+## Sensor Fired
+**Timestamp**: 2026-10-01T21:55:10Z
+**Event**: SENSOR_FIRED
+**Fire id**: b74fe922
+**Sensor ID**: required-sections
+**Stage slug**: code-generation
+**Output path**: aidlc/spaces/default/intents/260826-modulo-oms/construction/motor-reglas-oms/code-generation/code-generation-questions.md
+
+---
+
+## Sensor Failed
+**Timestamp**: 2026-10-01T21:55:11Z
+**Event**: SENSOR_FAILED
+**Fire id**: b74fe922
+**Sensor ID**: required-sections
+**Stage slug**: code-generation
+**Output path**: aidlc/spaces/default/intents/260826-modulo-oms/construction/motor-reglas-oms/code-generation/code-generation-questions.md
+**Detail path**: aidlc/spaces/default/intents/260826-modulo-oms/.aidlc-sensors/code-generation/required-sections-b74fe922.md
+**Findings count**: 1
+
+---
+
+## Sensor Fired
+**Timestamp**: 2026-10-01T22:05:56Z
+**Event**: SENSOR_FIRED
+**Fire id**: b5668174
+**Sensor ID**: required-sections
+**Stage slug**: code-generation
+**Output path**: aidlc/spaces/default/intents/260826-modulo-oms/construction/motor-reglas-oms/code-generation/code-summary.md
+
+---
+
+## Sensor Passed
+**Timestamp**: 2026-10-01T22:05:56Z
+**Event**: SENSOR_PASSED
+**Fire id**: b5668174
+**Sensor ID**: required-sections
+**Stage slug**: code-generation
+**Output path**: aidlc/spaces/default/intents/260826-modulo-oms/construction/motor-reglas-oms/code-generation/code-summary.md
+**Duration ms**: 116
+
+---
+
+## Sensor Fired
+**Timestamp**: 2026-10-01T22:06:05Z
+**Event**: SENSOR_FIRED
+**Fire id**: 44a9b538
+**Sensor ID**: required-sections
+**Stage slug**: code-generation
+**Output path**: aidlc/spaces/default/intents/260826-modulo-oms/construction/motor-reglas-oms/code-generation/traceability.json
+
+---
+
+## Sensor Passed
+**Timestamp**: 2026-10-01T22:06:05Z
+**Event**: SENSOR_PASSED
+**Fire id**: 44a9b538
+**Sensor ID**: required-sections
+**Stage slug**: code-generation
+**Output path**: aidlc/spaces/default/intents/260826-modulo-oms/construction/motor-reglas-oms/code-generation/traceability.json
+**Duration ms**: 116
+
+---
+
+## Sensor Fired
+**Timestamp**: 2026-10-01T22:06:05Z
+**Event**: SENSOR_FIRED
+**Fire id**: f312ea40
+**Sensor ID**: traceability
+**Stage slug**: code-generation
+**Output path**: aidlc/spaces/default/intents/260826-modulo-oms/construction/motor-reglas-oms/code-generation/traceability.json
+
+---
+
+## Sensor Failed
+**Timestamp**: 2026-10-01T22:06:05Z
+**Event**: SENSOR_FAILED
+**Fire id**: f312ea40
+**Sensor ID**: traceability
+**Stage slug**: code-generation
+**Output path**: aidlc/spaces/default/intents/260826-modulo-oms/construction/motor-reglas-oms/code-generation/traceability.json
+**Detail path**: aidlc/spaces/default/intents/260826-modulo-oms/.aidlc-sensors/code-generation/traceability-f312ea40.md
+**Findings count**: 2
+
+---
+
+## Sensor Fired
+**Timestamp**: 2026-10-01T22:06:09Z
+**Event**: SENSOR_FIRED
+**Fire id**: 61694fce
+**Sensor ID**: required-sections
+**Stage slug**: code-generation
+**Output path**: aidlc/spaces/default/intents/260826-modulo-oms/construction/motor-reglas-oms/code-generation/source-manifest.json
+
+---
+
+## Sensor Passed
+**Timestamp**: 2026-10-01T22:06:09Z
+**Event**: SENSOR_PASSED
+**Fire id**: 61694fce
+**Sensor ID**: required-sections
+**Stage slug**: code-generation
+**Output path**: aidlc/spaces/default/intents/260826-modulo-oms/construction/motor-reglas-oms/code-generation/source-manifest.json
+**Duration ms**: 148
+
+---
+
+## Artifact Updated
+**Timestamp**: 2026-10-01T22:06:21Z
+**Event**: ARTIFACT_UPDATED
+**Tool**: Edit
+**File**: <project-dir>/aidlc/spaces/default/intents/260826-modulo-oms/construction/motor-reglas-oms/code-generation/code-generation-plan.md
+**Context**: construction > motor-reglas-oms > code-generation > code-generation-plan.md
+
+---
+
+## Artifact Updated
+**Timestamp**: 2026-10-01T22:06:21Z
+**Event**: ARTIFACT_UPDATED
+**Tool**: Edit
+**File**: <project-dir>/aidlc/spaces/default/intents/260826-modulo-oms/construction/motor-reglas-oms/code-generation/code-generation-questions.md
+**Context**: construction > motor-reglas-oms > code-generation > code-generation-questions.md
+
+---
+
+## Artifact Updated
+**Timestamp**: 2026-10-01T22:06:22Z
+**Event**: ARTIFACT_UPDATED
+**Tool**: Edit
+**File**: <project-dir>/aidlc/spaces/default/intents/260826-modulo-oms/construction/motor-reglas-oms/code-generation/unit-test-instructions.md
+**Context**: construction > motor-reglas-oms > code-generation > unit-test-instructions.md
+
+---
+
+## Artifact Updated
+**Timestamp**: 2026-10-01T22:06:22Z
+**Event**: ARTIFACT_UPDATED
+**Tool**: Edit
+**File**: <project-dir>/aidlc/spaces/default/intents/260826-modulo-oms/construction/motor-reglas-oms/code-generation/code-summary.md
+**Context**: construction > motor-reglas-oms > code-generation > code-summary.md
+
+---
+
+## Artifact Updated
+**Timestamp**: 2026-10-01T22:06:22Z
+**Event**: ARTIFACT_UPDATED
+**Tool**: Edit
+**File**: <project-dir>/aidlc/spaces/default/intents/260826-modulo-oms/construction/motor-reglas-oms/code-generation/traceability.json
+**Context**: construction > motor-reglas-oms > code-generation > traceability.json
+
+---
+
+## Artifact Updated
+**Timestamp**: 2026-10-01T22:06:23Z
+**Event**: ARTIFACT_UPDATED
+**Tool**: Edit
+**File**: <project-dir>/aidlc/spaces/default/intents/260826-modulo-oms/construction/motor-reglas-oms/code-generation/source-manifest.json
+**Context**: construction > motor-reglas-oms > code-generation > source-manifest.json
+
+---
+
+## Error Logged
+**Timestamp**: 2026-10-01T22:07:08Z
+**Event**: ERROR_LOGGED
+**Tool**: aidlc-log
+**Command**: aidlc-log review --stage code-generation --reviewer aidlc-architecture-reviewer-agent --iteration 1
+**Error**: Refusing REVIEW_REQUESTED for "code-generation": review request 2 exceeds this stage's review budget (1). This review runs as a single advisory pass - do not re-invoke the reviewer; quote its findings at the approval gate for the human to triage.
+
+---
+
+## Error Logged
+**Timestamp**: 2026-10-01T22:07:08Z
+**Event**: ERROR_LOGGED
+**Tool**: aidlc-log
+**Command**: aidlc-log review --stage code-generation --reviewer aidlc-architecture-reviewer-agent --iteration 1 --verdict READY
+**Error**: Refusing REVIEW_COMPLETED for "code-generation": no unmatched REVIEW_REQUESTED iteration 1 exists in the current audit attempt.
+
+---
+
+## Error Logged
+**Timestamp**: 2026-10-01T22:07:23Z
+**Event**: ERROR_LOGGED
+**Tool**: aidlc-state
+**Command**: aidlc-state gate-start code-generation --recovered --project-dir <project-dir>
+**Error**: Refusing to present the approval gate for "code-generation": it declares a reviewer (aidlc-architecture-reviewer-agent) but 2 of 2 applicable units have no fresh recorded review (esquema-pedidos-oms, motor-reglas-oms). Invalidated receipts: none. Never reviewed: esquema-pedidos-oms, motor-reglas-oms. For never-reviewed units (esquema-pedidos-oms, motor-reglas-oms), run the normal `aidlc-log.ts review --stage code-generation --unit <unit> --reviewer aidlc-architecture-reviewer-agent --iteration <next ordinal>` request and record its verdict.
+
+---
+
+## Review Requested
+**Timestamp**: 2026-10-01T22:07:41Z
+**Event**: REVIEW_REQUESTED
+**Stage**: code-generation
+**Reviewer**: aidlc-architecture-reviewer-agent
+**Unit**: esquema-pedidos-oms
+**Iteration**: 1
+**Artifact Fingerprint**: sha256:7b267c80b56b07325e1f72f4daff88e0ca6b7b6118b83a7a51361d2e6f5d9d9f
+**Source Fingerprint**: 218d1e33ea240ffcd3b0e94efad4f4b3b9862aa2
+**Unit Source Fingerprint**: sha256:71e597f375699348c8447a105fc34f341ce0bec8343be71456caf514ab14b221
+
+---
+
+## Review Completed
+**Timestamp**: 2026-10-01T22:07:47Z
+**Event**: REVIEW_COMPLETED
+**Stage**: code-generation
+**Reviewer**: aidlc-architecture-reviewer-agent
+**Unit**: esquema-pedidos-oms
+**Iteration**: 1
+**Verdict**: READY
+**Artifact Fingerprint**: sha256:7b267c80b56b07325e1f72f4daff88e0ca6b7b6118b83a7a51361d2e6f5d9d9f
+**Source Fingerprint**: 218d1e33ea240ffcd3b0e94efad4f4b3b9862aa2
+**Unit Source Fingerprint**: sha256:71e597f375699348c8447a105fc34f341ce0bec8343be71456caf514ab14b221
+
+---
+
+## Error Logged
+**Timestamp**: 2026-10-01T22:07:52Z
+**Event**: ERROR_LOGGED
+**Tool**: aidlc-log
+**Command**: aidlc-log review --stage code-generation --unit esquema-pedidos-oms --reviewer aidlc-architecture-reviewer-agent --iteration 1 --verdict READY
+**Error**: Refusing REVIEW_COMPLETED for "code-generation": no unmatched REVIEW_REQUESTED iteration 1 exists in the current audit attempt.
+
+---
+
+## Review Requested
+**Timestamp**: 2026-10-01T22:08:31Z
+**Event**: REVIEW_REQUESTED
+**Stage**: code-generation
+**Reviewer**: aidlc-architecture-reviewer-agent
+**Unit**: motor-reglas-oms
+**Iteration**: 1
+**Artifact Fingerprint**: sha256:19d291adcb060c7e93607f3a01e6bbeb50f81024a4a9e34b8c941cafe5b6cad5
+**Source Fingerprint**: 218d1e33ea240ffcd3b0e94efad4f4b3b9862aa2
+**Unit Source Fingerprint**: sha256:53356cb7682d53ce1620f26c3ff85cbb8314b5070cf99ad7a55b859822185f6a
+
+---
+
+## Review Completed
+**Timestamp**: 2026-10-01T22:08:51Z
+**Event**: REVIEW_COMPLETED
+**Stage**: code-generation
+**Reviewer**: aidlc-architecture-reviewer-agent
+**Unit**: motor-reglas-oms
+**Iteration**: 1
+**Verdict**: READY
+**Artifact Fingerprint**: sha256:19d291adcb060c7e93607f3a01e6bbeb50f81024a4a9e34b8c941cafe5b6cad5
+**Source Fingerprint**: 218d1e33ea240ffcd3b0e94efad4f4b3b9862aa2
+**Unit Source Fingerprint**: sha256:53356cb7682d53ce1620f26c3ff85cbb8314b5070cf99ad7a55b859822185f6a
+
+---
+
+## Error Logged
+**Timestamp**: 2026-10-01T22:09:16Z
+**Event**: ERROR_LOGGED
+**Tool**: aidlc-state
+**Command**: aidlc-state gate-start code-generation --recovered --project-dir <project-dir>
+**Error**: Refusing to complete "code-generation": 7 application-source path(s) changed during this stage run that no reviewed unit's source manifest claims (.agents/CANAL.md, .env, docs/reference/README.md, docs/reference/diccionario-datos-tms-olo.md, docs/wms-eflow/EFLOW_OLO-ddl.sql, mensajes para kiro.md, scripts/diccionario-datos.py). Add each path to the owning unit's source-manifest.json and record that unit's one bounded stale-receipt recovery review (aidlc-log.ts review --stage code-generation --unit <unit> --reviewer aidlc-architecture-reviewer-agent --iteration <next ordinal>, then --verdict <READY|NOT-READY>), or revert the change. Unclaimed source changes fail closed (RFC #662).
+
+---
+
+## Human Turn
+**Timestamp**: 2026-10-01T22:39:36Z
+**Event**: HUMAN_TURN
+
+---

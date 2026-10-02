@@ -3,11 +3,10 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import Card from '../../../components/base/Card';
 import Badge from '../../../components/base/Badge';
-import Select from '../../../components/base/Select';
 import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
 import { omsApi } from '../api/omsApi';
 import { TIER_LABEL } from '../types';
-import type { AuditEntry, Company, Country } from '../types';
+import type { AuditEntry, Country } from '../types';
 
 const tierChange = (e: AuditEntry, t: TFunction) =>
   `${e.tierFrom === 'sin asignar' ? t('omsAudit.unassigned') : TIER_LABEL[e.tierFrom]} → ${TIER_LABEL[e.tierTo]}`;
@@ -18,8 +17,6 @@ const tierChange = (e: AuditEntry, t: TFunction) =>
 export default function OmsAuditoriaPage() {
   const { t } = useTranslation();
   const country: Country = 'CR';
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [company, setCompany] = useState<string>('');
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,11 +26,9 @@ export default function OmsAuditoriaPage() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    Promise.all([omsApi.getCompanies(), omsApi.getAudit(country)])
-      .then(([c, rows]) => {
+    omsApi.getAudit(country)
+      .then((rows) => {
         if (cancelled) return;
-        setCompanies(c);
-        setCompany((prev) => prev || c[0]?.id || '');
         setEntries(rows);
       })
       .catch(() => { if (!cancelled) setError(t('omsAudit.loadError')); })
@@ -76,21 +71,11 @@ export default function OmsAuditoriaPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">{t('omsAudit.title')}</h1>
-          <p className="text-sm text-slate-600 mt-1">
-            {t('omsAudit.subtitle')}
-          </p>
-        </div>
-        <div className="w-full sm:w-56">
-          <Select
-            label={t('omsAudit.company')}
-            value={company}
-            onChange={(e) => setCompany(e.target.value)}
-            options={companies.map((c) => ({ value: c.id, label: c.name }))}
-          />
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">{t('omsAudit.title')}</h1>
+        <p className="text-sm text-slate-600 mt-1">
+          {t('omsAudit.subtitle')}
+        </p>
       </div>
 
       <Card padding={false}>
