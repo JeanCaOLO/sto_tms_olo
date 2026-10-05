@@ -39,7 +39,6 @@ const OMS_GROUP: MenuGroup = {
     { icon: 'ri-stack-line', label: 'Cola de Priorización', i18nKey: 'menu.omsCola', path: '/oms/cola', permKey: 'oms.cola' },
     { icon: 'ri-settings-3-line', label: 'Motor de Reglas', i18nKey: 'menu.omsReglas', path: '/oms/reglas', permKey: 'oms.reglas' },
     { icon: 'ri-flask-line', label: 'Simulador', i18nKey: 'menu.omsSimulador', path: '/oms/simulador', permKey: 'oms.simulador' },
-    { icon: 'ri-calendar-schedule-line', label: 'Rutas y Días', i18nKey: 'menu.omsRutas', path: '/oms/rutas-despacho', permKey: 'oms.rutas' },
     { icon: 'ri-history-line', label: 'Auditoría', i18nKey: 'menu.omsAuditoria', path: '/oms/auditoria', permKey: 'oms.auditoria' },
   ],
 };

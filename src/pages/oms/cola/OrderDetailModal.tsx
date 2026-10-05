@@ -30,7 +30,7 @@ export default function OrderDetailModal({ order, onOverride, onClose }: OrderDe
           <div className="flex justify-between"><span className="text-slate-500">ID Compañía</span><span className="text-slate-900">{order.companyId}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">ID Sucursal</span><span className="text-slate-900">{order.branchId}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Cliente</span><span className="text-slate-900">{order.customer}</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">Ruta</span><span className="text-slate-900">{order.route}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Zona</span><span className="text-slate-900">{order.route}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Monto Total</span><span className="text-slate-900">{order.totalAmount.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Peso (kg)</span><span className="text-slate-900">{order.weight.toFixed(1)}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Volumen (m³)</span><span className="text-slate-900">{order.volume.toFixed(1)}</span></div>

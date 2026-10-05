@@ -1,0 +1,537 @@
+{
+  "generado_por": "backend/oms/demo_export.py (motor real del OMS, modo mock)",
+  "corrida": "oms-2026-10-01-demo",
+  "hoy": "2026-10-01",
+  "nota": "Prioridades = salida real del motor; entrada = pedidos de ejemplo (no WMS en vivo).",
+  "total": 12,
+  "pedidos": [
+    {
+      "wms": {
+        "IDALMACEN": "0001",
+        "IDCOMPANIA": "0109",
+        "IDSUCURSAL": "001",
+        "IDEXPEDICION": "EXP-1001",
+        "IDCLIENTE": "CLI-00231",
+        "NOMBRECLIENTE": "Ferreteria El Mango",
+        "RUTA": "Zona 3",
+        "TPEXPE": "VTA",
+        "TPEXES": "DISP",
+        "TPEXSI": "DISP",
+        "FECHAEXPEDICIONPLANIFICADA": "2026-10-02T14:30:00",
+        "FECHACREACION": "2026-09-28T09:15:00",
+        "FECHACIERRE": null,
+        "NUMEROVIAJEWMH": null,
+        "OBSERVACIONESEXPEDICION": "Entregar en recepcion",
+        "PESOPEDIDO_TOTAL": 120.5,
+        "CUBICAJEPEDIDO_TOTAL": 1.2,
+        "COSTO_TOTAL": 48000.0,
+        "PAIS": "CR"
+      },
+      "oms": {
+        "prioridad": 1,
+        "score": 100.0,
+        "cliente_retira": false,
+        "estado_handoff": "completado",
+        "TPEXES_resultante": "DISP",
+        "TPEXSI_resultante": "GENE",
+        "situacion": "generada",
+        "reglas": [
+          {
+            "regla": "fecha_t1",
+            "puntos": 100.0,
+            "detalle": "Alistado objetivo 2026-10-01 <= hoy 2026-10-01: urgente."
+          },
+          {
+            "regla": "observaciones",
+            "puntos": 0.0,
+            "detalle": "Etiquetas: ninguna."
+          }
+        ]
+      }
+    },
+    {
+      "wms": {
+        "IDALMACEN": "0001",
+        "IDCOMPANIA": "0029",
+        "IDSUCURSAL": "001",
+        "IDEXPEDICION": "EXP-1002",
+        "IDCLIENTE": "CLI-00488",
+        "NOMBRECLIENTE": "Construcciones Vega",
+        "RUTA": "Zona 12",
+        "TPEXPE": "VTA",
+        "TPEXES": "DISP",
+        "TPEXSI": "DISP",
+        "FECHAEXPEDICIONPLANIFICADA": "2026-10-03T10:00:00",
+        "FECHACREACION": "2026-09-29T08:40:00",
+        "FECHACIERRE": null,
+        "NUMEROVIAJEWMH": null,
+        "OBSERVACIONESEXPEDICION": "",
+        "PESOPEDIDO_TOTAL": 80.0,
+        "CUBICAJEPEDIDO_TOTAL": 0.8,
+        "COSTO_TOTAL": 15200.0,
+        "PAIS": "CR"
+      },
+      "oms": {
+        "prioridad": 10,
+        "score": 90.0,
+        "cliente_retira": false,
+        "estado_handoff": "completado",
+        "TPEXES_resultante": "DISP",
+        "TPEXSI_resultante": "GENE",
+        "situacion": "generada",
+        "reglas": [
+          {
+            "regla": "fecha_t1",
+            "puntos": 90.0,
+            "detalle": "1 día(s) de margen hasta alistado objetivo 2026-10-02."
+          },
+          {
+            "regla": "observaciones",
+            "puntos": 0.0,
+            "detalle": "Sin observaciones."
+          }
+        ]
+      }
+    },
+    {
+      "wms": {
+        "IDALMACEN": "0002",
+        "IDCOMPANIA": "0109",
+        "IDSUCURSAL": "001",
+        "IDEXPEDICION": "EXP-1003",
+        "IDCLIENTE": "CLI-00102",
+        "NOMBRECLIENTE": "Deposito Los Andes",
+        "RUTA": "Zona 7",
+        "TPEXPE": "VTA",
+        "TPEXES": "DISP",
+        "TPEXSI": "DISP",
+        "FECHAEXPEDICIONPLANIFICADA": "2026-10-05T16:00:00",
+        "FECHACREACION": "2026-09-27T11:20:00",
+        "FECHACIERRE": null,
+        "NUMEROVIAJEWMH": null,
+        "OBSERVACIONESEXPEDICION": "Revisar direccion",
+        "PESOPEDIDO_TOTAL": null,
+        "CUBICAJEPEDIDO_TOTAL": null,
+        "COSTO_TOTAL": 9800.0,
+        "PAIS": "CR"
+      },
+      "oms": {
+        "prioridad": 30,
+        "score": 70.0,
+        "cliente_retira": false,
+        "estado_handoff": "completado",
+        "TPEXES_resultante": "DISP",
+        "TPEXSI_resultante": "GENE",
+        "situacion": "generada",
+        "reglas": [
+          {
+            "regla": "fecha_t1",
+            "puntos": 70.0,
+            "detalle": "3 día(s) de margen hasta alistado objetivo 2026-10-04."
+          },
+          {
+            "regla": "observaciones",
+            "puntos": 0.0,
+            "detalle": "Etiquetas: ninguna."
+          }
+        ]
+      }
+    },
+    {
+      "wms": {
+        "IDALMACEN": "0001",
+        "IDCOMPANIA": "0029",
+        "IDSUCURSAL": "001",
+        "IDEXPEDICION": "EXP-1004",
+        "IDCLIENTE": "CLI-00517",
+        "NOMBRECLIENTE": "Ferreteria Santa Ana",
+        "RUTA": "Zona 20",
+        "TPEXPE": "VTA",
+        "TPEXES": "DISP",
+        "TPEXSI": "DISP",
+        "FECHAEXPEDICIONPLANIFICADA": "2026-10-08T09:30:00",
+        "FECHACREACION": "2026-09-30T14:05:00",
+        "FECHACIERRE": null,
+        "NUMEROVIAJEWMH": null,
+        "OBSERVACIONESEXPEDICION": "",
+        "PESOPEDIDO_TOTAL": 210.0,
+        "CUBICAJEPEDIDO_TOTAL": 2.4,
+        "COSTO_TOTAL": 30500.0,
+        "PAIS": "CR"
+      },
+      "oms": {
+        "prioridad": 60,
+        "score": 40.0,
+        "cliente_retira": false,
+        "estado_handoff": "completado",
+        "TPEXES_resultante": "DISP",
+        "TPEXSI_resultante": "GENE",
+        "situacion": "generada",
+        "reglas": [
+          {
+            "regla": "fecha_t1",
+            "puntos": 40.0,
+            "detalle": "6 día(s) de margen hasta alistado objetivo 2026-10-07."
+          },
+          {
+            "regla": "observaciones",
+            "puntos": 0.0,
+            "detalle": "Sin observaciones."
+          }
+        ]
+      }
+    },
+    {
+      "wms": {
+        "IDALMACEN": "0002",
+        "IDCOMPANIA": "0109",
+        "IDSUCURSAL": "001",
+        "IDEXPEDICION": "EXP-1005",
+        "IDCLIENTE": "CLI-00076",
+        "NOMBRECLIENTE": "Materiales Perez",
+        "RUTA": "Zona 3",
+        "TPEXPE": "VTA",
+        "TPEXES": "DISP",
+        "TPEXSI": "DISP",
+        "FECHAEXPEDICIONPLANIFICADA": "2026-10-12T13:15:00",
+        "FECHACREACION": "2026-09-26T10:50:00",
+        "FECHACIERRE": null,
+        "NUMEROVIAJEWMH": null,
+        "OBSERVACIONESEXPEDICION": "",
+        "PESOPEDIDO_TOTAL": 45.0,
+        "CUBICAJEPEDIDO_TOTAL": 0.5,
+        "COSTO_TOTAL": 5400.0,
+        "PAIS": "CR"
+      },
+      "oms": {
+        "prioridad": 100,
+        "score": 0.0,
+        "cliente_retira": false,
+        "estado_handoff": "completado",
+        "TPEXES_resultante": "DISP",
+        "TPEXSI_resultante": "GENE",
+        "situacion": "generada",
+        "reglas": [
+          {
+            "regla": "fecha_t1",
+            "puntos": 0.0,
+            "detalle": "10 día(s) de margen hasta alistado objetivo 2026-10-11."
+          },
+          {
+            "regla": "observaciones",
+            "puntos": 0.0,
+            "detalle": "Sin observaciones."
+          }
+        ]
+      }
+    },
+    {
+      "wms": {
+        "IDALMACEN": "0001",
+        "IDCOMPANIA": "0109",
+        "IDSUCURSAL": "001",
+        "IDEXPEDICION": "EXP-1006",
+        "IDCLIENTE": "CLI-00345",
+        "NOMBRECLIENTE": "Ferreteria La Union",
+        "RUTA": "Zona 9",
+        "TPEXPE": "VTA",
+        "TPEXES": "DISP",
+        "TPEXSI": "DISP",
+        "FECHAEXPEDICIONPLANIFICADA": "2026-10-10T08:30:00",
+        "FECHACREACION": "2026-09-28T07:55:00",
+        "FECHACIERRE": null,
+        "NUMEROVIAJEWMH": null,
+        "OBSERVACIONESEXPEDICION": "",
+        "PESOPEDIDO_TOTAL": 95.0,
+        "CUBICAJEPEDIDO_TOTAL": 0.9,
+        "COSTO_TOTAL": 12750.0,
+        "PAIS": "CR"
+      },
+      "oms": {
+        "prioridad": 80,
+        "score": 20.0,
+        "cliente_retira": false,
+        "estado_handoff": "completado",
+        "TPEXES_resultante": "DISP",
+        "TPEXSI_resultante": "GENE",
+        "situacion": "generada",
+        "reglas": [
+          {
+            "regla": "fecha_t1",
+            "puntos": 20.0,
+            "detalle": "8 día(s) de margen hasta alistado objetivo 2026-10-09."
+          },
+          {
+            "regla": "observaciones",
+            "puntos": 0.0,
+            "detalle": "Sin observaciones."
+          }
+        ]
+      }
+    },
+    {
+      "wms": {
+        "IDALMACEN": "0001",
+        "IDCOMPANIA": "0029",
+        "IDSUCURSAL": "001",
+        "IDEXPEDICION": "EXP-1007",
+        "IDCLIENTE": "CLI-00609",
+        "NOMBRECLIENTE": "Constructora Heredia",
+        "RUTA": "Zona 12",
+        "TPEXPE": "VTA",
+        "TPEXES": "DISP",
+        "TPEXSI": "DISP",
+        "FECHAEXPEDICIONPLANIFICADA": "2026-10-06T11:00:00",
+        "FECHACREACION": "2026-09-29T15:30:00",
+        "FECHACIERRE": null,
+        "NUMEROVIAJEWMH": null,
+        "OBSERVACIONESEXPEDICION": "El cliente retira en bodega el viernes",
+        "PESOPEDIDO_TOTAL": 50.0,
+        "CUBICAJEPEDIDO_TOTAL": 0.4,
+        "COSTO_TOTAL": 7100.0,
+        "PAIS": "CR"
+      },
+      "oms": {
+        "prioridad": 1,
+        "score": 160.0,
+        "cliente_retira": true,
+        "estado_handoff": "completado",
+        "TPEXES_resultante": "DISP",
+        "TPEXSI_resultante": "GENE",
+        "situacion": "generada",
+        "reglas": [
+          {
+            "regla": "fecha_t1",
+            "puntos": 60.0,
+            "detalle": "4 día(s) de margen hasta alistado objetivo 2026-10-05."
+          },
+          {
+            "regla": "observaciones",
+            "puntos": 100.0,
+            "detalle": "Observación clasificada como cliente retira."
+          }
+        ]
+      }
+    },
+    {
+      "wms": {
+        "IDALMACEN": "0002",
+        "IDCOMPANIA": "0109",
+        "IDSUCURSAL": "001",
+        "IDEXPEDICION": "EXP-1008",
+        "IDCLIENTE": "CLI-00158",
+        "NOMBRECLIENTE": "Almacen El Roble",
+        "RUTA": "Zona 7",
+        "TPEXPE": "VTA",
+        "TPEXES": "DISP",
+        "TPEXSI": "DISP",
+        "FECHAEXPEDICIONPLANIFICADA": "2026-10-04T07:45:00",
+        "FECHACREACION": "2026-09-25T09:10:00",
+        "FECHACIERRE": null,
+        "NUMEROVIAJEWMH": null,
+        "OBSERVACIONESEXPEDICION": "",
+        "PESOPEDIDO_TOTAL": 340.0,
+        "CUBICAJEPEDIDO_TOTAL": 3.1,
+        "COSTO_TOTAL": 52900.0,
+        "PAIS": "CR"
+      },
+      "oms": {
+        "prioridad": 20,
+        "score": 80.0,
+        "cliente_retira": false,
+        "estado_handoff": "completado",
+        "TPEXES_resultante": "DISP",
+        "TPEXSI_resultante": "GENE",
+        "situacion": "generada",
+        "reglas": [
+          {
+            "regla": "fecha_t1",
+            "puntos": 80.0,
+            "detalle": "2 día(s) de margen hasta alistado objetivo 2026-10-03."
+          },
+          {
+            "regla": "observaciones",
+            "puntos": 0.0,
+            "detalle": "Sin observaciones."
+          }
+        ]
+      }
+    },
+    {
+      "wms": {
+        "IDALMACEN": "0001",
+        "IDCOMPANIA": "0029",
+        "IDSUCURSAL": "001",
+        "IDEXPEDICION": "EXP-1009",
+        "IDCLIENTE": "CLI-00422",
+        "NOMBRECLIENTE": "Ferreteria Cartago",
+        "RUTA": "Zona 20",
+        "TPEXPE": "VTA",
+        "TPEXES": "DISP",
+        "TPEXSI": "DISP",
+        "FECHAEXPEDICIONPLANIFICADA": "2026-10-02T09:00:00",
+        "FECHACREACION": "2026-09-30T08:20:00",
+        "FECHACIERRE": null,
+        "NUMEROVIAJEWMH": null,
+        "OBSERVACIONESEXPEDICION": "Pasa a buscar el cliente manana",
+        "PESOPEDIDO_TOTAL": 60.0,
+        "CUBICAJEPEDIDO_TOTAL": 0.6,
+        "COSTO_TOTAL": 8300.0,
+        "PAIS": "CR"
+      },
+      "oms": {
+        "prioridad": 1,
+        "score": 200.0,
+        "cliente_retira": true,
+        "estado_handoff": "completado",
+        "TPEXES_resultante": "DISP",
+        "TPEXSI_resultante": "GENE",
+        "situacion": "generada",
+        "reglas": [
+          {
+            "regla": "fecha_t1",
+            "puntos": 100.0,
+            "detalle": "Alistado objetivo 2026-10-01 <= hoy 2026-10-01: urgente."
+          },
+          {
+            "regla": "observaciones",
+            "puntos": 100.0,
+            "detalle": "Observación clasificada como cliente retira."
+          }
+        ]
+      }
+    },
+    {
+      "wms": {
+        "IDALMACEN": "0002",
+        "IDCOMPANIA": "0109",
+        "IDSUCURSAL": "001",
+        "IDEXPEDICION": "EXP-1010",
+        "IDCLIENTE": "CLI-00291",
+        "NOMBRECLIENTE": "Distribuidora Guanacaste",
+        "RUTA": "Zona 9",
+        "TPEXPE": "VTA",
+        "TPEXES": "DISP",
+        "TPEXSI": "DISP",
+        "FECHAEXPEDICIONPLANIFICADA": "2026-10-09T15:00:00",
+        "FECHACREACION": "2026-09-27T13:40:00",
+        "FECHACIERRE": null,
+        "NUMEROVIAJEWMH": null,
+        "OBSERVACIONESEXPEDICION": "",
+        "PESOPEDIDO_TOTAL": 180.0,
+        "CUBICAJEPEDIDO_TOTAL": 1.8,
+        "COSTO_TOTAL": 24100.0,
+        "PAIS": "CR"
+      },
+      "oms": {
+        "prioridad": 70,
+        "score": 30.0,
+        "cliente_retira": false,
+        "estado_handoff": "completado",
+        "TPEXES_resultante": "DISP",
+        "TPEXSI_resultante": "GENE",
+        "situacion": "generada",
+        "reglas": [
+          {
+            "regla": "fecha_t1",
+            "puntos": 30.0,
+            "detalle": "7 día(s) de margen hasta alistado objetivo 2026-10-08."
+          },
+          {
+            "regla": "observaciones",
+            "puntos": 0.0,
+            "detalle": "Sin observaciones."
+          }
+        ]
+      }
+    },
+    {
+      "wms": {
+        "IDALMACEN": "0001",
+        "IDCOMPANIA": "0029",
+        "IDSUCURSAL": "001",
+        "IDEXPEDICION": "EXP-1011",
+        "IDCLIENTE": "CLI-00533",
+        "NOMBRECLIENTE": "Ferreteria San Carlos",
+        "RUTA": "Zona 12",
+        "TPEXPE": "VTA",
+        "TPEXES": "DISP",
+        "TPEXSI": "DISP",
+        "FECHAEXPEDICIONPLANIFICADA": "2026-10-04T10:30:00",
+        "FECHACREACION": "2026-09-29T09:50:00",
+        "FECHACIERRE": null,
+        "NUMEROVIAJEWMH": null,
+        "OBSERVACIONESEXPEDICION": "Urgente, cita 9am",
+        "PESOPEDIDO_TOTAL": 70.0,
+        "CUBICAJEPEDIDO_TOTAL": 0.7,
+        "COSTO_TOTAL": 9900.0,
+        "PAIS": "CR"
+      },
+      "oms": {
+        "prioridad": 20,
+        "score": 80.0,
+        "cliente_retira": false,
+        "estado_handoff": "completado",
+        "TPEXES_resultante": "DISP",
+        "TPEXSI_resultante": "GENE",
+        "situacion": "generada",
+        "reglas": [
+          {
+            "regla": "fecha_t1",
+            "puntos": 80.0,
+            "detalle": "2 día(s) de margen hasta alistado objetivo 2026-10-03."
+          },
+          {
+            "regla": "observaciones",
+            "puntos": 0.0,
+            "detalle": "Etiquetas: ninguna."
+          }
+        ]
+      }
+    },
+    {
+      "wms": {
+        "IDALMACEN": "0002",
+        "IDCOMPANIA": "0109",
+        "IDSUCURSAL": "001",
+        "IDEXPEDICION": "EXP-1012",
+        "IDCLIENTE": "CLI-00187",
+        "NOMBRECLIENTE": "Deposito Pavas",
+        "RUTA": "Zona 3",
+        "TPEXPE": "VTA",
+        "TPEXES": "DISP",
+        "TPEXSI": "DISP",
+        "FECHAEXPEDICIONPLANIFICADA": "2026-10-07T12:00:00",
+        "FECHACREACION": "2026-09-28T16:25:00",
+        "FECHACIERRE": null,
+        "NUMEROVIAJEWMH": null,
+        "OBSERVACIONESEXPEDICION": "",
+        "PESOPEDIDO_TOTAL": 130.0,
+        "CUBICAJEPEDIDO_TOTAL": 1.3,
+        "COSTO_TOTAL": 18600.0,
+        "PAIS": "CR"
+      },
+      "oms": {
+        "prioridad": 50,
+        "score": 50.0,
+        "cliente_retira": false,
+        "estado_handoff": "completado",
+        "TPEXES_resultante": "DISP",
+        "TPEXSI_resultante": "GENE",
+        "situacion": "generada",
+        "reglas": [
+          {
+            "regla": "fecha_t1",
+            "puntos": 50.0,
+            "detalle": "5 día(s) de margen hasta alistado objetivo 2026-10-06."
+          },
+          {
+            "regla": "observaciones",
+            "puntos": 0.0,
+            "detalle": "Sin observaciones."
+          }
+        ]
+      }
+    }
+  ]
+}

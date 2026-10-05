@@ -259,3 +259,47 @@
 **Digest**: 7d376a2f772dbad60b6aa7e59cb40ff5d71b45e9230b0accc56b7f2bf164267d
 
 ---
+
+## Document Indexed
+**Timestamp**: 2026-09-30T03:27:52Z
+**Event**: DOCUMENT_INDEXED
+**Space**: default
+**Document**: 01a0f05a-b86f-7c11-bb34-9353589421ee
+**Source**: documents/wmh-resumen-control-tower.md
+**Digest**: 9310f4479975558035f0528ef728604aea1b22ab2cf7cf662250ce2593120a7e
+**Intents**: ["01a04077-4ed3-78a8-ab14-612a6bfb6e91"]
+
+---
+
+## Document Indexed
+**Timestamp**: 2026-09-30T03:28:01Z
+**Event**: DOCUMENT_INDEXED
+**Space**: default
+**Document**: 01a0f05a-dce9-7c59-abd2-cdea90b83a93
+**Source**: documents/wmh-actual/wmh-documento-maestro-control-tower.md
+**Digest**: ce8d81beb14b295e863d87976456adad2d743c5e510bec709f5111d6f377e6f8
+**Intents**: ["01a04077-4ed3-78a8-ab14-612a6bfb6e91"]
+
+---
+
+## Document Indexed
+**Timestamp**: 2026-09-30T03:28:02Z
+**Event**: DOCUMENT_INDEXED
+**Space**: default
+**Document**: 01a0f05a-de1c-7836-bd25-f86d25c31e94
+**Source**: documents/wmh-actual/wmh-mapeo-funcional-control-tower.md
+**Digest**: fe1c7618a39d98e3354dcc922610e5ce8aa3585b48352d70c2e6d5197a98b0f2
+**Intents**: ["01a04077-4ed3-78a8-ab14-612a6bfb6e91"]
+
+---
+
+## Document Indexed
+**Timestamp**: 2026-09-30T03:28:02Z
+**Event**: DOCUMENT_INDEXED
+**Space**: default
+**Document**: 01a0f05a-df60-796d-8e4b-fa6a7e630361
+**Source**: documents/wmh-actual/wmh-datos-reales-por-columna.md
+**Digest**: dac097c035e8ed281d9eb301a667e6f3293af083b6c2f53d82595c800289ded8
+**Intents**: ["01a04077-4ed3-78a8-ab14-612a6bfb6e91"]
+
+---
