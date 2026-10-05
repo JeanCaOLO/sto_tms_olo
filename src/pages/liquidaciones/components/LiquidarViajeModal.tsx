@@ -25,6 +25,7 @@ import {
   emitSettlement, reliquidateSettlement, type EmitSettlementResult,
 } from '../../../lib/tarifas/settlementsDataSource';
 import { formatMoney } from '../../../lib/tarifas/format';
+import { InterruptorVista, useVistaLiquidador } from './useVistaLiquidador';
 import type {
   SettlementRecord, SettlementReturn, SettlementStatus, TripEdits, TripRecord,
 } from '../../../lib/tarifas/types';
@@ -52,6 +53,8 @@ const ruleHref = (origin: { source: string | null; ruleId: string | null }) =>
 export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, onSaved }: Props) {
   const tripId = trip?.id ?? settlement?.tripId ?? '';
   const reliquidando = !!settlement;
+  const { puedeConfigurar, extendida, setExtendida } = useVistaLiquidador();
+  const simple = !extendida;
 
   const [calculation, setCalculation] = useState<TripCalculation | null>(null);
   const [loading, setLoading] = useState(false);
@@ -202,7 +205,7 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
         trip: calculation.trip,
         partyId: calculation.partyId,
         edits: editsUsed.current,
-        status,
+        status: simple ? 'Borrador' : status,
         notes: notes.trim() || null,
         marginReason: marginReason.trim() || null,
         context: calculation.context,
@@ -234,7 +237,7 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-7xl max-h-[94vh] overflow-y-auto">
+      <div className={`bg-white rounded-lg shadow-xl w-full ${simple ? 'max-w-3xl' : 'max-w-7xl'} max-h-[94vh] overflow-y-auto`}>
         <div className="sticky top-0 bg-white flex items-center justify-between px-6 py-4 border-b border-slate-200 z-10">
           <div>
             <h2 className="text-lg font-semibold text-slate-800">
@@ -248,9 +251,12 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
             <p className="text-xs text-slate-500 mt-0.5">
               {reliquidando
                 ? `Reemplaza a ${settlement?.number}: queda anulada y enlazada a la nueva.`
-                : 'Los datos del viaje vienen de guía de despacho. Acá se cargan solo las variables y las devoluciones.'}
+                : simple
+                  ? 'Revise los datos del viaje y emita la liquidación: el total se calcula solo.'
+                  : 'Los datos del viaje vienen de guía de despacho. Acá se cargan solo las variables y las devoluciones.'}
             </p>
           </div>
+          {puedeConfigurar && <InterruptorVista extendida={extendida} onChange={setExtendida} />}
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 cursor-pointer" aria-label="Cerrar">
             <i className="ri-close-line text-xl"></i>
           </button>
@@ -259,9 +265,9 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
         {loading && !calculation ? (
           <div className="text-center py-20 text-slate-400"><i className="ri-loader-4-line animate-spin text-2xl"></i></div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 px-6 py-5">
+          <div className={`grid grid-cols-1 ${simple ? '' : 'lg:grid-cols-5'} gap-6 px-6 py-5`}>
             {/* ══ Formulario ══════════════════════════════════════════════════════════════ */}
-            <div className="lg:col-span-3 space-y-5">
+            <div className={`${simple ? '' : 'lg:col-span-3'} space-y-5`}>
               {(error || loadError) && (
                 <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
                   {error || loadError}
@@ -277,19 +283,21 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
                 <>
                   {/* ── 1 · El viaje (solo lectura) ─────────────────────────────────────── */}
                   <section>
-                    <h3 className="text-sm font-semibold text-slate-700 mb-3">1 · El viaje</h3>
-                    <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
+                    <h3 className="text-sm font-semibold text-slate-700 mb-3">{simple ? 'El viaje' : '1 · El viaje'}</h3>
+                    <div className={`bg-slate-50 border border-slate-200 rounded-lg ${simple ? 'px-3 py-2' : 'px-4 py-3'}`}>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-y-2 gap-x-4 text-xs">
                         {describeTrip(calculation.trip).map((d) => (
                           <Dato key={d.label} label={d.label} valor={d.value} />
                         ))}
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-2">
-                        Son de guía de despacho: no se editan desde el liquidador. La fecha del viaje decide
-                        qué reglas estaban vigentes.
-                      </p>
+                      {!simple && (
+                        <p className="text-[11px] text-slate-400 mt-2">
+                          Son de guía de despacho: no se editan desde el liquidador. La fecha del viaje decide
+                          qué reglas estaban vigentes.
+                        </p>
+                      )}
                     </div>
-                    {!calculation.partyId && (
+                    {!simple && !calculation.partyId && (
                       <p className="text-xs text-amber-700 mt-2">
                         El transportista no tiene perfil de cálculo: se liquida solo con las reglas del país.
                       </p>
@@ -297,10 +305,10 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
                   </section>
 
                   {/* ── 2 · Variables del transportista ─────────────────────────────────── */}
-                  {(calculation.customVarFields.length > 0 || constantes.length > 0) && (
+                  {(calculation.customVarFields.length > 0 || (!simple && constantes.length > 0)) && (
                     <section className="border-t border-slate-200 pt-4">
                       <h3 className="text-sm font-semibold text-slate-700 mb-3">
-                        2 · Variables de este viaje
+                        {simple ? 'Variables de este viaje' : '2 · Variables de este viaje'}
                       </h3>
 
                       {calculation.customVarFields.length > 0 && (
@@ -317,7 +325,7 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
                         </div>
                       )}
 
-                      {constantes.length > 0 && (
+                      {!simple && constantes.length > 0 && (
                         <div className="mt-3 flex flex-wrap gap-1.5">
                           {constantes.map((c) => (
                             <span key={c.key} className="px-2 py-1 text-xs bg-slate-100 rounded-full text-slate-600">
@@ -328,7 +336,7 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
                         </div>
                       )}
 
-                      {calculation.undeclaredVars.length > 0 && (
+                      {!simple && calculation.undeclaredVars.length > 0 && (
                         <p className="text-xs text-amber-700 mt-2">
                           Hay reglas que usan variables que el transportista no declaró (valen 0):{' '}
                           {calculation.undeclaredVars.join(', ')}.
@@ -338,9 +346,12 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
                   )}
 
                   {/* ── 3 · Devoluciones ────────────────────────────────────────────────── */}
-                  <section className="border-t border-slate-200 pt-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-sm font-semibold text-slate-700">3 · Devoluciones</h3>
+                  <details className="border-t border-slate-200 pt-4 group" open={!simple}>
+                    <summary className={`text-sm font-semibold text-slate-700 cursor-pointer ${simple ? '' : 'hidden'}`}>
+                      Devoluciones (opcional){returns.length > 0 ? ` · ${returns.length}` : ''}
+                    </summary>
+                    <div className="flex items-center justify-between mb-2 mt-2">
+                      <h3 className="text-sm font-semibold text-slate-700">{simple ? '' : '3 · Devoluciones'}</h3>
                       <Button variant="secondary" size="sm" onClick={() => setReturns([...returns, emptyReturn()])}>
                         <i className="ri-add-line mr-1"></i>Agregar
                       </Button>
@@ -386,28 +397,45 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
                     {returns.length === 0 && (
                       <p className="text-xs text-slate-400">Sin devoluciones en este viaje.</p>
                     )}
-                  </section>
+                  </details>
 
                   {/* ── 4 · Cierre ──────────────────────────────────────────────────────── */}
                   <section className="border-t border-slate-200 pt-4 space-y-3">
-                    <h3 className="text-sm font-semibold text-slate-700">4 · Notas y estado</h3>
-                    <textarea
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      rows={2}
-                      placeholder="Observaciones del viaje"
-                      className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    />
+                    {!simple && (
+                      <>
+                        <h3 className="text-sm font-semibold text-slate-700">4 · Notas y estado</h3>
+                        <textarea
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          rows={2}
+                          placeholder="Observaciones del viaje"
+                          className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                        />
+                      </>
+                    )}
+                    {simple && margin && margin.action !== 'NONE' && (
+                      <p className="text-sm text-amber-700">
+                        <i className="ri-information-line mr-1"></i>
+                        {margin.status === 'LOSS'
+                          ? 'La diferencia contra el costo es negativa'
+                          : 'La diferencia contra el costo es baja'}
+                        {margin.action === 'REQUIRE_REASON' ? ': indique el motivo.' : '.'}
+                      </p>
+                    )}
                     <div className="grid grid-cols-2 gap-3">
-                      <Select
-                        label="Estado"
-                        value={status}
-                        onChange={(e) => setStatus(e.target.value as SettlementStatus)}
-                        options={ESTADOS.map((s) => ({ value: s, label: s }))}
-                      />
+                      {!simple && (
+                        <Select
+                          label="Estado"
+                          value={status}
+                          onChange={(e) => setStatus(e.target.value as SettlementStatus)}
+                          options={ESTADOS.map((s) => ({ value: s, label: s }))}
+                        />
+                      )}
                       {margin && margin.action !== 'NONE' && (
                         <Input
-                          label={margin.action === 'REQUIRE_REASON' ? 'Motivo del margen *' : 'Motivo del margen'}
+                          label={simple
+                            ? (margin.action === 'REQUIRE_REASON' ? 'Motivo *' : 'Motivo')
+                            : (margin.action === 'REQUIRE_REASON' ? 'Motivo del margen *' : 'Motivo del margen')}
                           value={marginReason}
                           onChange={(e) => setMarginReason(e.target.value)}
                           placeholder="Por qué se liquida con este margen"
@@ -428,12 +456,16 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
             </div>
 
             {/* ══ Panel de cálculo ════════════════════════════════════════════════════════ */}
-            <div className="lg:col-span-2">
-              <div className="lg:sticky lg:top-20 space-y-3">
-                <h3 className="text-sm font-semibold text-slate-700">
-                  ¿Por qué este total?
-                  {pending && <i className="ri-loader-4-line animate-spin ml-2 text-slate-400"></i>}
-                </h3>
+            <div className={simple ? '' : 'lg:col-span-2'}>
+              <div className={`${simple ? '' : 'lg:sticky lg:top-20'} space-y-3`}>
+                {simple ? (
+                  pending && <p className="text-xs text-slate-400"><i className="ri-loader-4-line animate-spin mr-1"></i>Recalculando…</p>
+                ) : (
+                  <h3 className="text-sm font-semibold text-slate-700">
+                    ¿Por qué este total?
+                    {pending && <i className="ri-loader-4-line animate-spin ml-2 text-slate-400"></i>}
+                  </h3>
+                )}
 
                 {blocking.length > 0 && (
                   <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-4 py-3">
@@ -444,7 +476,27 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
                   </div>
                 )}
 
-                {calculation && totals && (
+                {calculation && totals && simple && (
+                  <details className="border border-slate-200 rounded-lg px-4 py-3">
+                    <summary className="text-sm font-semibold text-slate-700 cursor-pointer">Por qué este total</summary>
+                    <div className="mt-3">
+                      <CalcBreakdownPanel
+                        result={effectiveResult ?? calculation.result}
+                        ctx={{
+                          rules: calculation.input.rules,
+                          customLabels: Object.fromEntries(
+                            (calculation.input.partyVariables ?? []).map((v) => [v.key, v.label]),
+                          ),
+                        }}
+                        excludedSeqs={excludedSeqs}
+                        total={totals.total}
+                        fixedLevel="resumen"
+                      />
+                    </div>
+                  </details>
+                )}
+
+                {calculation && totals && !simple && (
                   <>
                     <CalcBreakdownPanel
                       result={effectiveResult ?? calculation.result}

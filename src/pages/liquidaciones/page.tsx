@@ -17,6 +17,7 @@ import LiquidarViajeModal from './components/LiquidarViajeModal';
 import DetalleLiquidacionModal from './components/DetalleLiquidacionModal';
 import { useActiveCountry } from '../../hooks/useActiveCountry';
 import { useModulePermissions } from '../../hooks/use-module-permissions';
+import { useTarifasActor } from '../../hooks/useTarifasActor';
 import { listSettlements, updateSettlementStatus } from '../../lib/tarifas/settlementsDataSource';
 import { listLiquidableTrips } from '../../lib/tarifas/tripsDataSource';
 import { formatMoney } from '../../lib/tarifas/format';
@@ -44,6 +45,7 @@ type Tab = 'trips' | 'history';
 export default function LiquidacionesPage() {
   const { country: activeCountry, countryId, problem, selectedName, loading: loadingCountries } = useActiveCountry();
   const { canCreate, canEdit } = useModulePermissions('tarifas');
+  useTarifasActor();
 
   const [tab, setTab] = useState<Tab>('trips');
   const [from, setFrom] = useState('');

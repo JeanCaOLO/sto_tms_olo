@@ -16,7 +16,8 @@ import type { NumberFormat } from '../../../lib/tarifas/costSheetParser';
 import { importOutsourcedRates } from '../../../lib/tarifas/localRulesDataSource';
 import { ensurePartyProfile } from '../../../lib/tarifas/partiesDataSource';
 import { registrarEvento } from '../../../lib/liquidador/auditLog';
-import { obtenerRolActivo } from '../../../lib/liquidador/rbac';
+import { getActorRole } from '../../../lib/tarifas/actor';
+import { useModulePermissions } from '../../../hooks/use-module-permissions';
 
 interface Props {
   isOpen: boolean;
@@ -41,6 +42,7 @@ export default function ImportRatesModal({
   isOpen, organizationId, countryId, countryName, currency, carriers,
   onClose, onImported,
 }: Props) {
+  const { canCreate } = useModulePermissions('tarifas.config');
   const [carrierId, setCarrierId] = useState('');
   const [numberFormat, setNumberFormat] = useState<NumberFormat>('auto');
   const [onDuplicate, setOnDuplicate] = useState<'update' | 'skip'>('update');
@@ -145,7 +147,7 @@ export default function ImportRatesModal({
         entidadId: carrierId,
         accion: 'CREATE',
         usuario: 'Usuario simulado',
-        rol: obtenerRolActivo(),
+        rol: getActorRole(),
         despues: {
           archivo: fileName,
           pais: countryId,
@@ -367,7 +369,7 @@ export default function ImportRatesModal({
           <Button variant="secondary" onClick={handleClose} disabled={busy}>
             {done ? 'Cerrar' : 'Cancelar'}
           </Button>
-          <Button onClick={() => void handleImport()} disabled={!canImport || busy}>
+          <Button onClick={() => void handleImport()} disabled={!canImport || busy || !canCreate} title={!canCreate ? 'Tu rol no puede importar tarifas' : undefined}>
             {busy ? 'Importando…' : `Importar ${parsed.rates.length} tarifas`}
           </Button>
         </div>

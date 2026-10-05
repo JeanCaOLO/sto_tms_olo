@@ -44,14 +44,17 @@ interface Props {
   onToggleLine?: (seq: number) => void;
   /** Enlace para abrir una regla o un tarifario desde su línea. Sin él no se muestran enlaces. */
   hrefFor?: (origin: ExplainedLine['origen']) => string | null;
+  /** Si viene, fuerza ese nivel y oculta el selector. Sin él, el usuario elige (por defecto Detalle). */
+  fixedLevel?: Nivel;
 }
 
 type Nivel = 'resumen' | 'detalle' | 'auditoria';
 
 export default function CalcBreakdownPanel({
-  result, ctx, excludedSeqs, total, onToggleLine, hrefFor,
+  result, ctx, excludedSeqs, total, onToggleLine, hrefFor, fixedLevel,
 }: Props) {
-  const [nivel, setNivel] = useState<Nivel>('detalle');
+  const [nivelElegido, setNivel] = useState<Nivel>('detalle');
+  const nivel = fixedLevel ?? nivelElegido;
 
   const explicacion = explainResult(result, ctx, { excludedSeqs, total });
   const costo = explainCost(result);
@@ -78,6 +81,7 @@ export default function CalcBreakdownPanel({
       )}
 
       {/* ── Selector de nivel ───────────────────────────────────────────────────────────── */}
+      {!fixedLevel && (
       <div className="flex gap-1 bg-slate-100 rounded-lg p-1 w-fit">
         {([
           ['resumen', 'Resumen'],
@@ -96,6 +100,7 @@ export default function CalcBreakdownPanel({
           </button>
         ))}
       </div>
+      )}
 
       {/* ── 1 · Resumen ─────────────────────────────────────────────────────────────────── */}
       <div className="border border-slate-200 rounded-lg overflow-hidden">
@@ -322,7 +327,7 @@ export default function CalcBreakdownPanel({
       )}
 
       {/* ── Avisos ──────────────────────────────────────────────────────────────────────── */}
-      {explicacion.warnings.length > 0 && (
+      {fixedLevel !== 'resumen' && explicacion.warnings.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
           <p className="text-xs font-medium text-amber-800 mb-1">
             <i className="ri-alert-line mr-1"></i>

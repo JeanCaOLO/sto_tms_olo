@@ -22,7 +22,8 @@ import type { CostDriver, CostStructure, CostStructureRow, PartyVariable } from 
 import { ensurePartyProfile } from '../../../lib/tarifas/partiesDataSource';
 import type { CarrierProfile } from '../../../lib/tarifas/parties';
 import { registrarEvento } from '../../../lib/liquidador/auditLog';
-import { obtenerRolActivo } from '../../../lib/liquidador/rbac';
+import { getActorRole } from '../../../lib/tarifas/actor';
+import { useModulePermissions } from '../../../hooks/use-module-permissions';
 
 interface Props {
   isOpen: boolean;
@@ -52,6 +53,7 @@ const emptyRow = (): CostRowInput => ({
 export default function CostStructureModal({
   isOpen, party, currency, onClose, onProfileCreated,
 }: Props) {
+  const { canCreate, canEdit, canDelete } = useModulePermissions('tarifas.config');
   const [structure, setStructure] = useState<CostStructure | null>(null);
   const [rows, setRows] = useState<CostStructureRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -281,7 +283,7 @@ export default function CostStructureModal({
       entidadId: target.id,
       accion: 'UPDATE',
       usuario: 'Usuario simulado',
-      rol: obtenerRolActivo(),
+      rol: getActorRole(),
       despues: { filas_importadas: result.inserted, modo: mode },
       motivo: `Importación de planilla (${mode === 'replace' ? 'reemplazo' : 'agregado'})`,
     });
@@ -334,7 +336,7 @@ export default function CostStructureModal({
 
           {/* ── Acciones ───────────────────────────────────────────────────────────────── */}
           <div className="flex flex-wrap items-center gap-3 border-y border-slate-100 py-3">
-            <Button onClick={() => void handleOpenTemplate()}>
+            <Button onClick={() => void handleOpenTemplate()} disabled={!canEdit} title={!canEdit ? 'Tu rol no puede editar costos' : undefined}>
               <i className="ri-file-upload-line mr-1"></i> Subir plantilla
             </Button>
             <Button variant="secondary" onClick={downloadCostTemplate}>
@@ -390,7 +392,7 @@ export default function CostStructureModal({
               ]}
             />
             <div className="md:col-span-6 flex items-center gap-2">
-              <Button variant="secondary" onClick={() => void handleSubmitRow()}>
+              <Button variant="secondary" onClick={() => void handleSubmitRow()} disabled={editing ? !canEdit : !canCreate} title={(editing ? !canEdit : !canCreate) ? 'Tu rol no puede modificar costos' : undefined}>
                 <i className={`${editing ? 'ri-save-line' : 'ri-add-line'} mr-1`}></i> {editing ? 'Guardar cambios' : 'Agregar'}
               </Button>
               {editing && <Button variant="ghost" onClick={cancelEdit}>Cancelar</Button>}
@@ -411,14 +413,15 @@ export default function CostStructureModal({
             emptyMessage="Todavía no hay conceptos cargados: subí la plantilla o cargalos a mano."
             actions={(row) => (
               <div className="flex items-center justify-end gap-1">
-                <Button variant="ghost" size="sm" onClick={() => startEdit(row)} title="Editar">
+                <Button variant="ghost" size="sm" onClick={() => startEdit(row)} disabled={!canEdit} title={canEdit ? 'Editar' : 'Tu rol no puede editar costos'}>
                   <i className="ri-edit-line"></i>
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => void handleRowAction(() => updateRow(row.id, { active: !row.active }))}
-                  title={row.active ? 'Dar de baja' : 'Reactivar'}
+                  disabled={!canEdit}
+                  title={!canEdit ? 'Tu rol no puede editar costos' : row.active ? 'Dar de baja' : 'Reactivar'}
                 >
                   <i className={row.active ? 'ri-forbid-line' : 'ri-refresh-line'}></i>
                 </Button>
@@ -429,7 +432,8 @@ export default function CostStructureModal({
                     if (!window.confirm(`¿Eliminar "${row.label}"?`)) return;
                     void handleRowAction(() => deleteRow(row.id));
                   }}
-                  title="Eliminar"
+                  disabled={!canDelete}
+                  title={canDelete ? 'Eliminar' : 'Tu rol no puede eliminar costos'}
                 >
                   <i className="ri-delete-bin-line"></i>
                 </Button>

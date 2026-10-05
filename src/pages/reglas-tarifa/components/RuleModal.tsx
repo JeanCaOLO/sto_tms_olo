@@ -27,8 +27,8 @@ import {
 } from '../../../lib/tarifas/rule-builder';
 import { VAR_KEY_LABELS, formatPred, varLabel } from '../../../lib/tarifas/format';
 import { evaluateExpr } from '../../../lib/tarifas/evaluator';
-import { puede } from '../../../lib/liquidador/rbac';
-import type { LiquidadorRole } from '../../../lib/liquidador/rbac';
+import { getActorRole } from '../../../lib/tarifas/actor';
+import { useModulePermissions } from '../../../hooks/use-module-permissions';
 import { registrarEvento } from '../../../lib/liquidador/auditLog';
 import { ensurePartyProfile, listCarrierProfiles } from '../../../lib/tarifas/partiesDataSource';
 import { listRateTables } from '../../../lib/tarifas/rateTablesDataSource';
@@ -43,7 +43,6 @@ interface RuleModalProps {
   organizationId: string;
   /** País activo del módulo: toda regla nueva nace en él. */
   country: { id: string; name: string; local_currency?: string } | null;
-  rolActivo: LiquidadorRole;
   usuarioActivo: string;
 }
 
@@ -101,8 +100,9 @@ const emptyBuilder = (): RuleBuilderForm => ({
 });
 
 export default function RuleModal({
-  isOpen, onClose, onSuccess, rule, organizationId, country, rolActivo, usuarioActivo,
+  isOpen, onClose, onSuccess, rule, organizationId, country, usuarioActivo,
 }: RuleModalProps) {
+  const { canCreate, canEdit } = useModulePermissions('tarifas.config');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [tab, setTab] = useState<Tab>('simple');
@@ -356,8 +356,8 @@ export default function RuleModal({
       setErrorMsg('No se pudo identificar la organización. Recarga la página e intenta de nuevo.');
       return;
     }
-    if (!puede(rule ? 'EDITAR_REGLA' : 'CREAR_REGLA', rolActivo)) {
-      setErrorMsg('Tu rol simulado actual no tiene permiso para esta acción. Cambiá a "Jefe de transporte" en el selector de rol.');
+    if (!(rule ? canEdit : canCreate)) {
+      setErrorMsg(`Tu rol no puede ${rule ? 'editar' : 'crear'} reglas.`);
       return;
     }
     if (formData.scope === 'PARTY' && !selectedCarrierId) {
@@ -488,7 +488,7 @@ export default function RuleModal({
         entidadId: rule?.id || candidate.code,
         accion: rule ? 'UPDATE' : 'CREATE',
         usuario: usuarioActivo,
-        rol: rolActivo,
+        rol: getActorRole(),
         antes: rule ?? null,
         despues: payload,
         motivo: candidate.reason ?? undefined,

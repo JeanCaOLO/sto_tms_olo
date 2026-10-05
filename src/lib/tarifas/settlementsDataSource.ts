@@ -11,7 +11,7 @@
 // snapshot y apuntando a su reemplazo) y emite otra, todo en una transacción.
 
 import { registrarEvento } from '../liquidador/auditLog';
-import { obtenerRolActivo } from '../liquidador/rbac';
+import { getActorRole } from './actor';
 import { db, UniqueViolationError, type Condition, type Row } from './data';
 import { notLiquidableReason } from './tripContext';
 import { getTrip } from './tripsDataSource';
@@ -413,7 +413,7 @@ async function auditar(
       entidadId,
       accion,
       usuario: usuarioActual(),
-      rol: obtenerRolActivo(),
+      rol: getActorRole(),
       antes,
       despues,
       ...(motivo ? { motivo } : {}),

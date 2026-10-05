@@ -26,6 +26,7 @@ import { listCarrierProfiles } from '../../../lib/tarifas/partiesDataSource';
 import { listTruckTypes } from '../../../lib/tarifas/vehiclesDataSource';
 import { RATE_TABLE_WILDCARD, type RateTable, type RateTableRow, type VarKey } from '../../../lib/tarifas/types';
 import type { CarrierProfile } from '../../../lib/tarifas/parties';
+import { useModulePermissions } from '../../../hooks/use-module-permissions';
 
 interface Props {
   /** País activo del módulo. El ámbito es global. */
@@ -46,6 +47,7 @@ interface Props {
 const varLabelOf = (key: VarKey) => VAR_KEY_LABELS[key as keyof typeof VAR_KEY_LABELS] ?? key;
 
 export default function TarifariosTab({ countryId, currency, zones, partyId }: Props) {
+  const { canCreate, canEdit, canDelete } = useModulePermissions('tarifas.config');
   const [tables, setTables] = useState<RateTable[]>([]);
   const [parties, setParties] = useState<CarrierProfile[]>([]);
   const [truckCodes, setTruckCodes] = useState<string[]>([]);
@@ -299,7 +301,7 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
               ]}
             />
           </div>
-          <Button onClick={() => { setEditingTable(null); setIsTableModalOpen(true); }}>
+          <Button onClick={() => { setEditingTable(null); setIsTableModalOpen(true); }} disabled={!canCreate} title={!canCreate ? 'Tu rol no puede crear tarifarios' : undefined}>
             <i className="ri-add-line mr-1"></i>Nuevo tarifario
           </Button>
         </div>
@@ -321,22 +323,25 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
             <>
               <button
                 onClick={() => { setEditingTable(t); setIsTableModalOpen(true); }}
-                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer"
-                title="Editar"
+                disabled={!canEdit}
+                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                title={canEdit ? 'Editar' : 'Tu rol no puede editar tarifarios'}
               >
                 <i className="ri-edit-line"></i>
               </button>
               <button
                 onClick={() => void handleToggleTable(t)}
-                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer"
-                title={t.active ? 'Desactivar' : 'Reactivar'}
+                disabled={!canEdit}
+                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                title={!canEdit ? 'Tu rol no puede editar tarifarios' : t.active ? 'Desactivar' : 'Reactivar'}
               >
                 <i className={t.active ? 'ri-forbid-line' : 'ri-refresh-line'}></i>
               </button>
               <button
                 onClick={() => void handleDeleteTable(t)}
-                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
-                title="Eliminar"
+                disabled={!canDelete}
+                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                title={canDelete ? 'Eliminar' : 'Tu rol no puede eliminar tarifarios'}
               >
                 <i className="ri-delete-bin-line"></i>
               </button>
@@ -430,7 +435,7 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
                 {editingRowId && (
                   <Button variant="secondary" onClick={resetDraft}>Cancelar</Button>
                 )}
-                <Button onClick={() => void handleSaveRow()}>
+                <Button onClick={() => void handleSaveRow()} disabled={!canEdit} title={!canEdit ? 'Tu rol no puede editar tarifarios' : undefined}>
                   <i className={editingRowId ? 'ri-save-line mr-1' : 'ri-add-line mr-1'}></i>
                   {editingRowId ? 'Guardar' : 'Agregar'}
                 </Button>
@@ -453,15 +458,17 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
               <>
                 <button
                   onClick={() => startEditRow(row)}
-                  className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer"
-                  title="Editar"
+                  disabled={!canEdit}
+                  className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={canEdit ? 'Editar' : 'Tu rol no puede editar tarifarios'}
                 >
                   <i className="ri-edit-line"></i>
                 </button>
                 <button
                   onClick={() => void handleDeleteRow(row)}
-                  className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
-                  title="Eliminar"
+                  disabled={!canDelete}
+                  className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={canDelete ? 'Eliminar' : 'Tu rol no puede eliminar filas'}
                 >
                   <i className="ri-delete-bin-line"></i>
                 </button>

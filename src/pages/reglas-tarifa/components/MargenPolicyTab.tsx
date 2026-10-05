@@ -5,6 +5,7 @@ import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
 import HelpButton from './HelpButton';
 import { listMarginPolicies, saveMarginPolicy } from '../../../lib/tarifas/localRulesDataSource';
+import { useModulePermissions } from '../../../hooks/use-module-permissions';
 
 interface MargenPolicyTabProps {
   organizationId: string;
@@ -18,6 +19,7 @@ const emptyForm = { warn_below: '0.15', critical_below: '0.10', require_reason_b
 // (liquidado vs. costo operativo) el semáforo pasa a Atención/Crítico/Pérdida, y si una pérdida
 // bloquea la aprobación de la liquidación.
 export default function MargenPolicyTab({ organizationId, countryId }: MargenPolicyTabProps) {
+  const { canEdit } = useModulePermissions('tarifas.config');
   const [loading, setLoading] = useState(true);
   const [policies, setPolicies] = useState<any[]>([]);
   const [form, setForm] = useState(emptyForm);
@@ -109,7 +111,7 @@ export default function MargenPolicyTab({ organizationId, countryId }: MargenPol
           <span className="text-sm text-slate-700">Bloquear aprobación si hay pérdida (margen negativo)</span>
         </label>
         <div className="pt-4 mt-4 border-t border-slate-200">
-          <Button onClick={handleSave} disabled={saving || !countryId}>
+          <Button onClick={handleSave} disabled={saving || !countryId || !canEdit} title={!canEdit ? 'Tu rol no puede editar el margen' : undefined}>
             {saving ? 'Guardando...' : current ? 'Actualizar' : 'Guardar'}
           </Button>
         </div>

@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import { saveZoneGroup } from '../../../lib/tarifas/localRulesDataSource';
-import { puede } from '../../../lib/liquidador/rbac';
-import type { LiquidadorRole } from '../../../lib/liquidador/rbac';
+import { getActorRole } from '../../../lib/tarifas/actor';
+import { useModulePermissions } from '../../../hooks/use-module-permissions';
 import { registrarEvento } from '../../../lib/liquidador/auditLog';
 
 interface ZoneGroupModalProps {
@@ -16,12 +16,11 @@ interface ZoneGroupModalProps {
   countryId: string;
   /** Zonas del catálogo del país (solo lectura): de ahí se eligen las del grupo. */
   zones: { id: string; code: string; name: string }[];
-  rolActivo: LiquidadorRole;
   usuarioActivo: string;
 }
 
 export default function ZoneGroupModal({
-  isOpen, onClose, onSuccess, group, organizationId, countryId, zones, rolActivo, usuarioActivo,
+  isOpen, onClose, onSuccess, group, organizationId, countryId, zones, usuarioActivo,
 }: ZoneGroupModalProps) {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -39,7 +38,8 @@ export default function ZoneGroupModal({
     prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
   ));
 
-  const permiso = group ? 'EDITAR_ZONA' : 'CREAR_ZONA';
+  const { canCreate, canEdit } = useModulePermissions('tarifas.config');
+  const permitido = group ? canEdit : canCreate;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,8 +49,8 @@ export default function ZoneGroupModal({
       setErrorMsg('No se pudo identificar la organización. Recarga la página e intenta de nuevo.');
       return;
     }
-    if (!puede(permiso, rolActivo)) {
-      setErrorMsg('Tu rol simulado actual no tiene permiso para esta acción. Cambiá a "Jefe de transporte" en el selector de rol.');
+    if (!permitido) {
+      setErrorMsg(`Tu rol no puede ${group ? 'editar' : 'crear'} grupos de zonas.`);
       return;
     }
     if (!countryId) {
@@ -78,7 +78,7 @@ export default function ZoneGroupModal({
         entidadId: group?.id || payload.code,
         accion: group ? 'UPDATE' : 'CREATE',
         usuario: usuarioActivo,
-        rol: rolActivo,
+        rol: getActorRole(),
         antes: group ?? null,
         despues: payload,
       });
@@ -158,9 +158,9 @@ export default function ZoneGroupModal({
             )}
           </div>
 
-          {!puede(permiso, rolActivo) && (
+          {!permitido && (
             <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              Tu rol simulado actual ("{rolActivo}") no puede {group ? 'editar' : 'crear'} grupos — cambiá a "Jefe de transporte".
+              Tu rol no puede {group ? 'editar' : 'crear'} grupos de zonas.
             </p>
           )}
 
@@ -168,7 +168,7 @@ export default function ZoneGroupModal({
             <Button type="button" variant="secondary" onClick={onClose}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading || !puede(permiso, rolActivo)}>
+            <Button type="submit" disabled={loading || !permitido}>
               {loading ? 'Guardando...' : group ? 'Actualizar' : 'Crear grupo'}
             </Button>
           </div>

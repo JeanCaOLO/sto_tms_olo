@@ -16,6 +16,7 @@ import {
 import type { CustomVarOrigin, PartyVariable } from '../../../lib/tarifas/types';
 import { ensurePartyProfile } from '../../../lib/tarifas/partiesDataSource';
 import type { CarrierProfile } from '../../../lib/tarifas/parties';
+import { useModulePermissions } from '../../../hooks/use-module-permissions';
 
 interface Props {
   isOpen: boolean;
@@ -49,6 +50,7 @@ function emptyForm(partyId: string): PartyVariableInput {
 }
 
 export default function VariablesModal({ isOpen, party, onClose, onProfileCreated }: Props) {
+  const { canCreate, canEdit } = useModulePermissions('tarifas.config');
   const [variables, setVariables] = useState<PartyVariable[]>([]);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState<PartyVariableInput>(emptyForm(''));
@@ -249,7 +251,7 @@ export default function VariablesModal({ isOpen, party, onClose, onProfileCreate
               {editingId && (
                 <Button type="button" variant="secondary" onClick={cancelEdit}>Cancelar</Button>
               )}
-              <Button type="button" onClick={handleSave} disabled={saving}>
+              <Button type="button" onClick={handleSave} disabled={saving || !(editingId ? canEdit : canCreate)} title={!(editingId ? canEdit : canCreate) ? 'Tu rol no puede modificar variables' : undefined}>
                 <i className="ri-save-line mr-1"></i>
                 {editingId ? 'Guardar cambios' : 'Agregar variable'}
               </Button>
@@ -303,14 +305,15 @@ export default function VariablesModal({ isOpen, party, onClose, onProfileCreate
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => startEdit(variable)} title="Editar">
+                          <Button variant="ghost" size="sm" onClick={() => startEdit(variable)} disabled={!canEdit} title={canEdit ? 'Editar' : 'Tu rol no puede editar variables'}>
                             <i className="ri-edit-line"></i>
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => void toggleActive(variable)}
-                            title={variable.active ? 'Dar de baja' : 'Reactivar'}
+                            disabled={!canEdit}
+                            title={!canEdit ? 'Tu rol no puede editar variables' : variable.active ? 'Dar de baja' : 'Reactivar'}
                           >
                             <i className={variable.active ? 'ri-forbid-line' : 'ri-refresh-line'}></i>
                           </Button>

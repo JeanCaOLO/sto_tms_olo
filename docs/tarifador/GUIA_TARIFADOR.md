@@ -34,16 +34,15 @@ un dato el motor **avisa o bloquea** en vez de emitir un número plausible y fal
 
 | Concepto | Qué es |
 |---|---|
-| **País** | Ámbito global. Define moneda (la del catálogo), decimales y modo de redondeo, y el umbral de pernocta. Todas las pantallas respetan el país activo. |
+| **País** | Es el del **selector global del TMS** (barra superior); el tarifador no tiene selector propio. Define moneda (la del catálogo), decimales y modo de redondeo, y el umbral de pernocta. Con "Todos los países" las pantallas piden elegir uno. |
 | **Zona / grupo de zonas** | La zona es del catálogo (solo lectura). Un **grupo** reúne códigos de zona (`zone_codes`) y sí se edita aquí. |
 | **Perfil de cálculo** (`settlementParty`) | Lo que el tarifador sabe de un transportista del catálogo: sus variables, estructura de costos, tarifarios. Se crea la primera vez que se configura algo (`ensurePartyProfile`). |
 | **Variable personalizada** | Variable propia de un transportista, con prefijo `custom:` (p. ej. `custom:peajes`). Origen **constante** (mismo valor siempre) o **por viaje** (se carga al liquidar). Peajes, recolectas, bultos, atrasos e incidencias ya no son variables del sistema: son `custom:*`. |
 | **Regla de tarifa** | Condición (cuándo aplica) + expresión (cuánto) + etapa + convivencia + prioridad + alcance (país o transportista) + vigencia. |
 | **Tarifario** | Planilla de precios indexada por combinaciones (zona × camión → importe). Una regla lo usa con el operador "Tarifa de tabla". |
-| **Estructura de costos** | Costo real de operar un viaje, fila por fila (fijo, por km, por día, mensual prorrateado, por parada/hora). Solo sirve para el margen. |
-| **Parámetros de costo del país** | Respaldo: costo por km, depreciación por km, chofer por día. **Sin ellos la flota propia no se puede liquidar.** |
-| **Tarifa plana (outsourcing)** | Costo del tercero por transportista y tipo de camión. |
-| **Política de margen** | Umbrales (advertencia, crítico, exigir motivo) y bloqueo por pérdida. Resultado: OK / Atención / Crítico / Pérdida. |
+| **Estructura de costos** | **Única fuente** del costo de operar un viaje de flota propia. Es una tabla de filas de dos clases: *fijos mensuales* (conductor, ayudante, depreciación: se prorratean por día) y *componentes que se repiten* (mantenimiento, llantas: cuestan "costo por km"), más combustible. Cada transportista puede tener la suya; si no, vale la **estructura por defecto del país**. Solo sirve para el margen. Se carga con una plantilla (§7). |
+| **Tarifa plana (terceros)** | Costo de contratar a un tercero, por transportista y tipo de camión. |
+| **Política de margen** | Umbrales (advertencia, crítico, exigir motivo) y bloqueo por pérdida. El margen es *lo que se paga menos lo que cuesta operar el viaje* ("diferencia contra costo operativo"): **no incluye lo cobrado al cliente**. Resultado: OK / Atención / Crítico / Pérdida. |
 | **Plantilla de viaje** | Viaje guardado para repetirlo en el Probador. |
 | **Bitácora** | Registro solo-agregar de cambios. La escribe el código de datos (crear, re-liquidar, cambiar estado). |
 
@@ -84,8 +83,8 @@ un dato el motor **avisa o bloquea** en vez de emitir un número plausible y fal
 1. **Derivar variables** del viaje y del perfil del transportista.
 2. **Resolver reglas:** condición, alcance, vigencia, exclusividad, orden.
 3. **Pipeline por etapas** (cada línea deja su rastro: regla, por qué aplicó, cómo se calculó).
-4. **Costo:** estructura del transportista → si no, parámetros del país → o tarifa plana (tercero).
-5. **Margen:** liquidado − costo, contra la política.
+4. **Costo:** estructura del transportista → si no tiene, la estructura por defecto del país (flota propia) → o tarifa plana (tercero). Sin ninguna, se avisa y no se calcula.
+5. **Margen:** liquidado − costo, contra la política. Si el liquidador destilda líneas, el margen se recalcula contra el total que realmente se paga.
 
 Salida (`calculateTrip`): `result` con el desglose, `blockingIssues` (impiden emitir), `warnings`,
 `notLiquidableReason` (si no es nulo, no se puede emitir) y los campos de variables por viaje a
@@ -122,7 +121,7 @@ integridad referencial y el `schema_manifest.json` que el backend usa para valid
 
 **Backend `backend/tarifas/`:** Lambda Python (SAM) detrás del authorizer JWT que implementa
 `/api/tarifas/*`. Entidades externas: solo `GET` (405 si se escribe). Violación de FK/único: 409.
-Permiso: módulo `tarifas`. Transacciones en `/api/tarifas/tx`. Las lecturas idénticas simultáneas
+Permisos: módulo `tarifas` (liquidar y leer) y módulo `tarifas.config` (escribir reglas, tarifarios, costos, variables, margen…): el backend elige el módulo según la tabla. Transacciones en `/api/tarifas/tx` (se repiten ante deadlock). Las lecturas idénticas simultáneas
 del navegador se juntan en una sola petición.
 
 **Base de datos (Aurora `tms_olo`)**
@@ -132,7 +131,7 @@ del navegador se juntan en una sola petición.
 - Externas (solo lectura): `routes`, `carriers`, `drivers`, `vehicles`, `zones`, `countries`,
   `dispatch_guides`, `returns`.
 - Una liquidación vigente por viaje: índice único parcial `tarifas_settlements (trip_id) WHERE status <> 'Anulado'`.
-- Migración: `sql/19_tarifas_aurora.sql` (**ya aplicada**).
+- Migraciones **ya aplicadas**: `sql/19_tarifas_aurora.sql` (esquema), `20` (reglas usadas en la liquidación), `21` (estructura de costos v2: componentes, parámetros, estructura por país; elimina `tarifas_own_cost_params`), `22` (módulo de permisos `tarifas.config`).
 
 ---
 
@@ -141,9 +140,11 @@ del navegador se juntan en una sola petición.
 | Ruta | Para qué |
 |---|---|
 | `/liquidaciones` | Pestaña **Viajes por liquidar** (acción *Liquidar*) e **Historial** (estado, ver desglose, re-liquidar con motivo). Modal *Liquidar viaje*: datos del viaje en solo lectura, variables por viaje, devoluciones, desglose, emitir. |
-| `/tarifas/flota-propia` | Transportistas propios (lista del catálogo, solo lectura): estructura de costos, tarifarios, variables, desactivar/reactivar perfil. |
-| `/tarifas/transportistas` | Lo mismo para terceros. |
-| `/reglas-tarifa` | Reglas, Zonas (solo lectura + grupos), Tarifarios, Costos, Política de margen (+ cálculo del país), Plantillas, Resumen, Probador del motor, Bitácora. |
+| `/tarifas/flota-propia` | **Solo con `tarifas.config`.** Transportistas propios (lista del catálogo, solo lectura): estructura de costos (con plantilla), tarifarios, variables, desactivar/reactivar perfil. |
+| `/tarifas/transportistas` | Lo mismo para terceros. Solo `tarifas.config`. |
+| `/reglas-tarifa` | **Solo con `tarifas.config`.** Reglas, Zonas (solo lectura + grupos), Tarifarios, Costos (estructura del país + tarifa plana), Política de margen (+ cálculo del país), Plantillas, Resumen, Probador, Bitácora. |
+
+**Dos niveles de usuario.** Quien solo liquida (`tarifas`) ve *Liquidaciones* en modo simple: datos del viaje, variables por viaje, total y Emitir, con un "por qué este total" plegado. Quien configura (`tarifas.config`, los roles administradores lo tienen por código) ve además las pantallas de configuración y la vista extendida del desglose. Cada línea del desglose dice su origen (regla del país, regla del transportista —y si reemplaza a la del país—, costo, tarifa plana) y las reglas del catálogo traen un enlace para abrirlas.
 
 El **Probador** calcula "desde un viaje" completado (mismo camino que la liquidación) o con un "viaje
 libre" armado a mano. No emite nada.
@@ -205,8 +206,14 @@ El liquidador no inventa datos de negocio. Para liquidar viajes de un país hay 
    viajes: "la zona de destino no existe").
 2. **Reglas de Tarifa → Política de margen → Cálculo del país:** decimales, modo de redondeo y umbral
    de pernocta (la migración sembró 2, HALF_UP y 24 h para Costa Rica).
-3. **Flota propia:** *Reglas de Tarifa → Costos* (costo/km, depreciación/km, chofer/día) **o** una
-   estructura de costos por transportista. Sin esto el liquidador avisa y no calcula.
+3. **Flota propia:** la **estructura de costos**. Descargue la plantilla en *Reglas de Tarifa → Costos*
+   (país) o en *Flota propia → Estructura de costos* (un transportista), llénela, súbala, revise la vista
+   previa (errores por hoja y fila, totales por camión) y guarde. Sin estructura el liquidador avisa y no calcula.
+   La plantilla es un libro de 3 hojas:
+   - **Variables** (`componente, tipo_camion, frecuencia, cantidad_frecuencia, costo, unidad_componente`): mantenimiento y similares. `frecuencia` = `km` (cada N km), `year` (cada N años) o `month` (cada N meses); el costo por km se calcula solo: `km`: costo ÷ N · `year`: costo ÷ (N × km por año) · `month`: costo ÷ (N × km por año ÷ 12).
+   - **Fijos** (`concepto, monto_mensual, aplica_a, tipo_camion, valor_vehiculo, vida_meses`): `aplica_a` = conductor, ayudante, depreciacion u otros. La depreciación puede traer valor y vida útil en vez del monto. La fila del ayudante solo cuenta si el viaje declara la variable `custom:con_ayudante` > 0.
+   - **Parámetros** (`clave, valor`): `dias_operativos`, `km_anual`, `precio_combustible` y `rendimiento_km_litro:<tipo de camión>`.
+   `tipo_camion` vacío = aplica a todos; si no, debe coincidir con `vehicles.vehicle_type` del catálogo.
 4. **Terceros:** tarifa plana por transportista y tipo de camión (*Costos → Outsourcing*, importable
    desde Excel/CSV).
 5. **Tarifarios y reglas** con clave por **`destZone`** (el viaje no trae origen).
@@ -233,11 +240,12 @@ Hay planillas de ejemplo en `docs/tarifador/demo-data/` (estructura de costos de
 
 | Qué | Comando |
 |---|---|
-| Tests del módulo | `npx vitest run src/lib/tarifas` (corren en modo `json` aunque `.env.local` diga `postgres`) |
+| Tests del módulo | `npx vitest run src/lib/tarifas` (corren en modo `json` aunque `.env.local` diga `postgres`). Incluye `costStructureCR.test.ts`: reproduce la planilla de Costa Rica (costo fijo diario 57,525.69 y 48.8118 por km para el camión de 3 a 4.5 t). |
 | Todos los tests | `npx vitest run` |
 | Tipos | `npx tsc --noEmit --project tsconfig.app.json` |
 | Lint | `node node_modules/eslint/bin/eslint.js src/pages/liquidaciones src/pages/companias src/pages/reglas-tarifa` |
 | Backend | `cd backend && python -m pytest` (requiere `pip install -r requirements-dev.txt`) |
+| Cargar la estructura de Costa Rica en Aurora (escribe de verdad) | `TARIFAS_CR_LOAD=1 npx vitest run src/lib/tarifas/__tests__/aurora.cr-load.test.ts`: lee los datos de `.test/archivos_para_estructura_de_costos_CR/` (carpeta personal, fuera de git), arma la plantilla, la lee con el mismo parser de la pantalla, la aplica y liquida un viaje de flota propia comparando con la planilla; la liquidación de verificación se anula. Todo en una transacción que solo se confirma si todo pasa. |
 | Flujo completo contra Aurora (revierte todo) | Con el túnel abierto: `TARIFAS_AURORA_E2E=1 npx vitest run src/lib/tarifas/__tests__/aurora.e2e.test.ts` (~30 s). Corre calcular, emitir, rechazar una segunda vigente, re-liquidar y cambiar estado dentro de una transacción que termina en ROLLBACK; los costos y la regla que usa son de prueba y no quedan en la base. |
 | Build | `npx vite build` |
 | Esquema / manifiesto | `npm run tarifas:ddl`, `npm run tarifas:manifest` |
@@ -259,7 +267,11 @@ serialización (`40001`).
 
 | Síntoma | Causa y salida |
 |---|---|
-| "No hay parámetros de costo para <país>…" | Falta cargar costos de flota propia (§7.3). |
+| "No hay estructura de costos para la flota propia de este país" | Falta cargar la estructura de costos (§7.3). |
+| "No hay tarifa plana configurada para este transportista…" | Falta la tarifa plana del tercero para ese tipo de camión (Costos → Tarifa plana de terceros). |
+| No veo Reglas de Tarifa / Flota en el menú, o 403 al guardar configuración | Su rol no tiene el permiso `tarifas.config` (Configuración → Roles). |
+| "Elija un país en el selector de la parte superior" | El selector global está en "Todos los países". |
+| Un viaje de flota propia no calcula costo por camión | Revise que `tipo_camion` de la plantilla coincida con el tipo de vehículo del catálogo (aparece como aviso en la vista previa). |
 | "La zona de destino no existe" | La zona del viaje no tiene `code` en el catálogo. |
 | Páginas en blanco o 401 en `/api/tarifas` | Sin sesión, o `api:local` no está arriba. |
 | `ECONNREFUSED 15432` / timeout | El túnel no está abierto, o Aurora está apagado (fuera de L–V 04:45–17:00 CR). |

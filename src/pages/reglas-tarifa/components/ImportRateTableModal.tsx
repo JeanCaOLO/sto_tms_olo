@@ -19,8 +19,9 @@ import { bulkUpsertRows } from '../../../lib/tarifas/rateTablesDataSource';
 import { labelsOf, listPartyVariables } from '../../../lib/tarifas/partyVariablesDataSource';
 import { VAR_KEY_LABELS } from '../../../lib/tarifas/format';
 import { registrarEvento } from '../../../lib/liquidador/auditLog';
-import { obtenerRolActivo } from '../../../lib/liquidador/rbac';
+import { getActorRole } from '../../../lib/tarifas/actor';
 import { RATE_TABLE_WILDCARD, type RateTable, type VarKey } from '../../../lib/tarifas/types';
+import { useModulePermissions } from '../../../hooks/use-module-permissions';
 
 interface Props {
   isOpen: boolean;
@@ -37,6 +38,7 @@ const NUMBER_FORMAT_OPTIONS: { value: NumberFormat; label: string }[] = [
 
 
 export default function ImportRateTableModal({ isOpen, table, onClose, onImported }: Props) {
+  const { canEdit } = useModulePermissions('tarifas.config');
   // Rótulos de las variables personalizadas de la clave (si el tarifario es de una compañía).
   const [customLabels, setCustomLabels] = useState<Record<string, string>>({});
   useEffect(() => {
@@ -156,7 +158,7 @@ export default function ImportRateTableModal({ isOpen, table, onClose, onImporte
         entidadId: table.id,
         accion: 'CREATE',
         usuario: 'Usuario simulado',
-        rol: obtenerRolActivo(),
+        rol: getActorRole(),
         despues: {
           archivo: fileName,
           tarifario: table.code,
@@ -427,7 +429,7 @@ export default function ImportRateTableModal({ isOpen, table, onClose, onImporte
             {done ? 'Cerrar' : 'Cancelar'}
           </Button>
           {!done && (
-            <Button onClick={() => void handleImport()} disabled={!canImport || busy}>
+            <Button onClick={() => void handleImport()} disabled={!canImport || busy || !canEdit} title={!canEdit ? 'Tu rol no puede importar filas de tarifario' : undefined}>
               <i className="ri-upload-2-line mr-1"></i>
               {busy ? 'Importando…' : `Importar ${parsed.rows.length} fila${parsed.rows.length === 1 ? '' : 's'}`}
             </Button>

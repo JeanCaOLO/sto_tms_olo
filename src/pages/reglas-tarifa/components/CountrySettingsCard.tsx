@@ -4,6 +4,7 @@ import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
 import { listCountries, saveCountrySettings } from '../../../lib/tarifas/localRulesDataSource';
+import { useModulePermissions } from '../../../hooks/use-module-permissions';
 
 interface Props {
   /** País activo del módulo. */
@@ -21,6 +22,7 @@ const ROUNDING_MODES = [
 
 // Configuración de cálculo del país: redondeo y umbral de pernocta. La moneda es del catálogo.
 export default function CountrySettingsCard({ countryId, currency }: Props) {
+  const { canEdit } = useModulePermissions('tarifas.config');
   const [loading, setLoading] = useState(true);
   const [configured, setConfigured] = useState(false);
   const [form, setForm] = useState({ rounding_decimals: '2', rounding_mode: 'HALF_UP', overnight_threshold_hours: '12' });
@@ -98,7 +100,7 @@ export default function CountrySettingsCard({ countryId, currency }: Props) {
             <Input label="Decimales" type="number" value={form.rounding_decimals} onChange={(e) => setForm({ ...form, rounding_decimals: e.target.value })} />
             <Select label="Modo de redondeo" value={form.rounding_mode} onChange={(e) => setForm({ ...form, rounding_mode: e.target.value })} options={ROUNDING_MODES} />
             <Input label="Umbral de pernocta (h)" type="number" value={form.overnight_threshold_hours} onChange={(e) => setForm({ ...form, overnight_threshold_hours: e.target.value })} />
-            <Button onClick={() => void handleSave()} disabled={saving || !countryId}>
+            <Button onClick={() => void handleSave()} disabled={saving || !countryId || !canEdit} title={!canEdit ? 'Tu rol no puede editar la configuración' : undefined}>
               {saving ? 'Guardando...' : 'Guardar'}
             </Button>
           </div>

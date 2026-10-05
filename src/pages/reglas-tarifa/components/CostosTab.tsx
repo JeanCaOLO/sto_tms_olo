@@ -17,6 +17,7 @@ import CostTemplateModal, { downloadCostTemplate } from '../../../components/tar
 import { CostRowsTable, TruckSummaryTable } from '../../../components/tarifas/CostStructureParts';
 import { ensurePartyProfile } from '../../../lib/tarifas/partiesDataSource';
 import { listTruckTypes, type TruckTypeOption } from '../../../lib/tarifas/vehiclesDataSource';
+import { useModulePermissions } from '../../../hooks/use-module-permissions';
 
 interface CostosTabProps {
   organizationId: string;
@@ -32,6 +33,7 @@ const emptyOutsourcedForm = { carrierId: '', truckTypeId: '', flatRate: '0' };
 //  - Terceros: tarifa plana por transportista y tipo de camión.
 // Se usa junto con el total liquidado para derivar el margen (pestaña Política de Margen).
 export default function CostosTab({ organizationId, country }: CostosTabProps) {
+  const { canEdit, canDelete } = useModulePermissions('tarifas.config');
   const countryId = country?.id ?? '';
   const [loading, setLoading] = useState(true);
   const [structure, setStructure] = useState<CostStructure | null>(null);
@@ -163,7 +165,7 @@ export default function CostosTab({ organizationId, country }: CostosTabProps) {
             <Button variant="secondary" onClick={downloadCostTemplate}>
               <i className="ri-download-2-line mr-1"></i> Descargar plantilla
             </Button>
-            <Button onClick={() => setIsTemplateOpen(true)} disabled={!countryId}>
+            <Button onClick={() => setIsTemplateOpen(true)} disabled={!countryId || !canEdit} title={!canEdit ? 'Tu rol no puede editar costos' : undefined}>
               <i className="ri-file-upload-line mr-1"></i> Subir plantilla
             </Button>
           </div>
@@ -246,7 +248,7 @@ export default function CostosTab({ organizationId, country }: CostosTabProps) {
           exportFileName="tarifas_outsourcing"
           emptyMessage="Sin tarifas de outsourcing configuradas para este país."
           actions={(r) => (
-            <button onClick={() => void handleDeleteOutsourced(r.id)} className="text-red-500 hover:bg-red-50 rounded-lg p-1" title="Eliminar">
+            <button onClick={() => void handleDeleteOutsourced(r.id)} disabled={!canDelete} className="text-red-500 hover:bg-red-50 rounded-lg p-1 disabled:opacity-40 disabled:cursor-not-allowed" title={canDelete ? 'Eliminar' : 'Tu rol no puede eliminar tarifas'}>
               <i className="ri-delete-bin-line"></i>
             </button>
           )}

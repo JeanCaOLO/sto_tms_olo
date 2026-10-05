@@ -24,7 +24,9 @@ import {
 import type { CarrierProfile, PartyClassification } from '../../lib/tarifas/parties';
 import { useAuth } from '../../hooks/useAuth';
 import { registrarEvento } from '../../lib/liquidador/auditLog';
-import { obtenerRolActivo, puede } from '../../lib/liquidador/rbac';
+import { getActorRole } from '../../lib/tarifas/actor';
+import { useModulePermissions } from '../../hooks/use-module-permissions';
+import { useTarifasActor } from '../../hooks/useTarifasActor';
 import CountryScopeBar from '../../components/feature/CountryScopeBar';
 import DataModeBanner from '../../components/tarifas/DataModeBanner';
 import { useActiveCountry } from '../../hooks/useActiveCountry';
@@ -72,8 +74,9 @@ export default function CompaniasView({ classification }: { classification: Part
   const isOutsourced = classification === 'OUTSOURCED';
 
   const { appUser } = useAuth();
-  const usuarioActivo = appUser?.full_name || appUser?.email || 'Usuario simulado';
-  const rolActivo = obtenerRolActivo();
+  const usuarioActivo = appUser?.full_name || appUser?.email || 'Usuario';
+  const { canEdit } = useModulePermissions('tarifas.config');
+  useTarifasActor();
 
   const {
     countries, country: activeCountry, countryId, problem, selectedName, loading: loadingCountries,
@@ -160,7 +163,7 @@ export default function CompaniasView({ classification }: { classification: Part
         entidadId: profile.partyId,
         accion: 'UPDATE',
         usuario: usuarioActivo,
-        rol: rolActivo,
+        rol: getActorRole(),
         antes: { status: profile.profileStatus },
         despues: { status: reactivating ? 'active' : 'inactive' },
         motivo: reactivating ? 'Reactivación' : 'Baja lógica',
@@ -171,7 +174,8 @@ export default function CompaniasView({ classification }: { classification: Part
     }
   };
 
-  const puedeDesactivar = puede('DESACTIVAR_COMPANIA', rolActivo);
+  // Desactivar/reactivar un cálculo es una edición del perfil de la compañía.
+  const puedeDesactivar = canEdit;
 
   const countryLabel = (profile: CarrierProfile) => {
     const country = countries.find((c) => c.id === profile.countryId);
@@ -327,7 +331,9 @@ export default function CompaniasView({ classification }: { classification: Part
                 size="sm"
                 onClick={() => void handleToggleStatus(profile)}
                 disabled={!puedeDesactivar || !profile.partyId}
-                title={!profile.partyId
+                title={!canEdit
+                  ? 'Tu rol no puede desactivar compañías'
+                  : !profile.partyId
                   ? 'Sin cálculo configurado: no hay nada que desactivar'
                   : profile.profileStatus === 'inactive' ? 'Reactivar cálculo' : 'Desactivar cálculo'}
               >

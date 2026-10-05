@@ -12,6 +12,7 @@ import Badge from '../../../components/base/Badge';
 import CalcBreakdownPanel from '../../../components/tarifas/CalcBreakdownPanel';
 import { formatMoney } from '../../../lib/tarifas/format';
 import { describeReturn } from '../../../lib/tarifas/returnsNote';
+import { InterruptorVista, useVistaLiquidador } from './useVistaLiquidador';
 import type { CalcResult, SettlementRecord } from '../../../lib/tarifas/types';
 
 interface Props {
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export default function DetalleLiquidacionModal({ settlement, onClose }: Props) {
+  const { puedeConfigurar, extendida, setExtendida } = useVistaLiquidador();
   if (!settlement) return null;
 
   // Se rearma el resultado desde lo guardado. Los campos que el panel necesita están todos
@@ -70,6 +72,7 @@ export default function DetalleLiquidacionModal({ settlement, onClose }: Props) 
         </div>
 
         <div className="px-6 py-5 space-y-5">
+          {puedeConfigurar && <InterruptorVista extendida={extendida} onChange={setExtendida} />}
           <div className="flex items-center gap-3">
             <Badge variant="default">{settlement.status}</Badge>
             <span className="text-2xl font-bold text-teal-700">
@@ -109,6 +112,7 @@ export default function DetalleLiquidacionModal({ settlement, onClose }: Props) 
             ctx={{ rules: [...settlement.rulesUsed, ...settlement.adhocRules] }}
             excludedSeqs={settlement.excludedSeqs}
             total={settlement.totalAmount}
+            fixedLevel={extendida ? undefined : 'resumen'}
           />
 
           {settlement.notes && (

@@ -19,6 +19,7 @@ import { labelsOf, listPartyVariables } from '../../../lib/tarifas/partyVariable
 import type { PartyVariable, RateTable, VarKey } from '../../../lib/tarifas/types';
 import { ensurePartyProfile } from '../../../lib/tarifas/partiesDataSource';
 import type { CarrierProfile } from '../../../lib/tarifas/parties';
+import { useModulePermissions } from '../../../hooks/use-module-permissions';
 
 interface Props {
   isOpen: boolean;
@@ -45,6 +46,7 @@ const emptyForm = (countryId: string): RateTableInput => ({
 export default function RateTableModal({
   isOpen, countryId, table, parties, currency, onClose, onSaved,
 }: Props) {
+  const { canCreate, canEdit } = useModulePermissions('tarifas.config');
   const [form, setForm] = useState<RateTableInput>(emptyForm(countryId));
   const [errors, setErrors] = useState<RateTableErrors>({});
   const [generalError, setGeneralError] = useState('');
@@ -329,7 +331,7 @@ export default function RateTableModal({
 
         <div className="sticky bottom-0 bg-white flex justify-end gap-2 px-6 py-4 border-t border-slate-200">
           <Button variant="secondary" onClick={onClose} disabled={saving}>Cancelar</Button>
-          <Button onClick={() => void handleSave()} disabled={saving}>
+          <Button onClick={() => void handleSave()} disabled={saving || !(table ? canEdit : canCreate)} title={!(table ? canEdit : canCreate) ? 'Tu rol no puede guardar tarifarios' : undefined}>
             <i className="ri-save-line mr-1"></i>
             {saving ? 'Guardando…' : table ? 'Guardar cambios' : 'Crear tarifario'}
           </Button>

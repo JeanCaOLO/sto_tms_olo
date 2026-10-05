@@ -6,14 +6,13 @@
 // delete sobre esta entidad aunque alguien lo intente desde otro lado.
 
 import { db } from '../tarifas/data';
-import type { LiquidadorRole } from './rbac';
 
 export interface EventoAuditoria {
   entidad: string;
   entidadId: string;
   accion: 'CREATE' | 'UPDATE' | 'DELETE' | 'AUTHORIZE';
   usuario: string;
-  rol: LiquidadorRole;
+  rol: string;
   antes?: unknown;
   despues?: unknown;
   motivo?: string;

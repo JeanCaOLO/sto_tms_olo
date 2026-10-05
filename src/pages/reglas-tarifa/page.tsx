@@ -20,8 +20,8 @@ import HelpButton from './components/HelpButton';
 import {
   deleteRule, deleteZoneGroup, listRules, listZoneGroups, listZones,
 } from '../../lib/tarifas/localRulesDataSource';
-import { LIQUIDADOR_ROLES, obtenerRolActivo, establecerRolActivo, puede } from '../../lib/liquidador/rbac';
-import type { LiquidadorRole } from '../../lib/liquidador/rbac';
+import { getActorRole } from '../../lib/tarifas/actor';
+import { useTarifasActor } from '../../hooks/useTarifasActor';
 import { registrarEvento } from '../../lib/liquidador/auditLog';
 import { listCarrierProfiles } from '../../lib/tarifas/partiesDataSource';
 import CountryScopeBar from '../../components/feature/CountryScopeBar';
@@ -35,14 +35,10 @@ type Tab = 'reglas' | 'zonas' | 'tarifarios' | 'costos' | 'margen' | 'plantillas
 export default function ReglasTarifaPage() {
   const { appUser } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>('reglas');
-  const [rolActivo, setRolActivo] = useState<LiquidadorRole>(obtenerRolActivo());
-  const usuarioActivo = appUser?.full_name || appUser?.email || 'Usuario simulado';
-  const { canCreate, canEdit, canDelete } = useModulePermissions('tarifas');
-
-  const handleRolChange = (rol: LiquidadorRole) => {
-    setRolActivo(rol);
-    establecerRolActivo(rol);
-  };
+  const usuarioActivo = appUser?.full_name || appUser?.email || 'Usuario';
+  // Permisos reales del módulo de configuración (el backend los exige igual).
+  const { canCreate, canEdit, canDelete } = useModulePermissions('tarifas.config');
+  useTarifasActor();
 
   // País activo: el ámbito global del módulo. Reemplaza a los selectores que tenía cada pestaña.
   const { countries, country: activeCountry, countryId, problem, selectedName, loading: loadingCountries } = useActiveCountry();
@@ -123,8 +119,8 @@ export default function ReglasTarifaPage() {
   const handleDeleteRule = async () => {
     if (!ruleToDelete) return;
     setRuleDeleteError('');
-    if (!puede('ELIMINAR_REGLA', rolActivo)) {
-      setRuleDeleteError('Tu rol simulado actual no tiene permiso para eliminar reglas.');
+    if (!canDelete) {
+      setRuleDeleteError('Tu rol no tiene permiso para eliminar reglas.');
       return;
     }
     try {
@@ -138,7 +134,7 @@ export default function ReglasTarifaPage() {
       }
       await registrarEvento({
         entidad: 'pricing_rules', entidadId: ruleToDelete.id, accion: 'DELETE',
-        usuario: usuarioActivo, rol: rolActivo, antes: ruleToDelete, despues: null,
+        usuario: usuarioActivo, rol: getActorRole(), antes: ruleToDelete, despues: null,
       });
       await loadRules();
       setRuleToDelete(null);
@@ -151,8 +147,8 @@ export default function ReglasTarifaPage() {
   const handleDeleteGroup = async () => {
     if (!groupToDelete) return;
     setGroupDeleteError('');
-    if (!puede('ELIMINAR_ZONA', rolActivo)) {
-      setGroupDeleteError('Tu rol simulado actual no tiene permiso para eliminar grupos de zonas.');
+    if (!canDelete) {
+      setGroupDeleteError('Tu rol no tiene permiso para eliminar grupos de zonas.');
       return;
     }
     try {
@@ -163,7 +159,7 @@ export default function ReglasTarifaPage() {
       }
       await registrarEvento({
         entidad: 'zone_groups', entidadId: groupToDelete.id, accion: 'DELETE',
-        usuario: usuarioActivo, rol: rolActivo, antes: groupToDelete, despues: null,
+        usuario: usuarioActivo, rol: getActorRole(), antes: groupToDelete, despues: null,
       });
       await loadZoneGroups();
       await loadZones();
@@ -330,23 +326,9 @@ export default function ReglasTarifaPage() {
           <p className="text-sm text-slate-500 mt-1">Reglas de liquidación al transportista configurables y zonas para liquidaciones</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="text-sm">
-            <label className="block text-xs text-slate-500 mb-0.5">Actuando como</label>
-            <select
-              value={rolActivo}
-              onChange={(e) => handleRolChange(e.target.value as LiquidadorRole)}
-              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-            >
-              {LIQUIDADOR_ROLES.map((r) => (
-                <option key={r.value} value={r.value}>{r.label}</option>
-              ))}
-            </select>
-          </div>
           {canCreate && activeTab === 'reglas' && (
             <Button
               onClick={() => { setSelectedRule(null); setIsRuleModalOpen(true); }}
-              disabled={!puede('CREAR_REGLA', rolActivo)}
-              title={!puede('CREAR_REGLA', rolActivo) ? 'Tu rol simulado actual no puede crear reglas' : undefined}
             >
               <i className="ri-add-line mr-2"></i>
               Nueva Regla
@@ -355,8 +337,6 @@ export default function ReglasTarifaPage() {
           {canCreate && activeTab === 'zonas' && (
             <Button
               onClick={() => { setSelectedGroup(null); setIsGroupModalOpen(true); }}
-              disabled={!puede('CREAR_ZONA', rolActivo)}
-              title={!puede('CREAR_ZONA', rolActivo) ? 'Tu rol simulado actual no puede crear grupos de zonas' : undefined}
             >
               <i className="ri-add-line mr-2"></i>
               Nuevo Grupo de Zonas
@@ -372,15 +352,6 @@ export default function ReglasTarifaPage() {
         selectedName={selectedName}
         loading={loadingCountries}
       />
-
-      <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-3">
-        <i className="ri-shield-user-line mt-0.5 shrink-0"></i>
-        <span>
-          <strong>Simulación de rol, no es control de acceso real:</strong> el selector "Actuando
-          como" solo condiciona qué botones ves habilitados en esta pantalla — no hay backend que lo
-          haga cumplir todavía. Cualquiera puede saltárselo abriendo las devtools.
-        </span>
-      </div>
 
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
         <button
@@ -463,9 +434,8 @@ export default function ReglasTarifaPage() {
                 {canEdit && (
                   <button
                     onClick={() => { setSelectedRule(rule); setIsRuleModalOpen(true); }}
-                    disabled={!puede('EDITAR_REGLA', rolActivo)}
                     className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                    title={puede('EDITAR_REGLA', rolActivo) ? 'Editar' : 'Tu rol simulado actual no puede editar reglas'}
+                    title="Editar"
                   >
                     <i className="ri-edit-line text-base"></i>
                   </button>
@@ -473,9 +443,8 @@ export default function ReglasTarifaPage() {
                 {canDelete && (
                   <button
                     onClick={() => { setRuleToDelete(rule); setRuleDeleteError(''); }}
-                    disabled={!puede('ELIMINAR_REGLA', rolActivo)}
                     className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                    title={puede('ELIMINAR_REGLA', rolActivo) ? 'Eliminar' : 'Tu rol simulado actual no puede eliminar reglas'}
+                    title="Eliminar"
                   >
                     <i className="ri-delete-bin-line text-base"></i>
                   </button>
@@ -522,9 +491,8 @@ export default function ReglasTarifaPage() {
                   {canEdit && (
                     <button
                       onClick={() => { setSelectedGroup(group); setIsGroupModalOpen(true); }}
-                      disabled={!puede('EDITAR_ZONA', rolActivo)}
                       className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                      title={puede('EDITAR_ZONA', rolActivo) ? 'Editar' : 'Tu rol simulado actual no puede editar grupos de zonas'}
+                      title="Editar"
                     >
                       <i className="ri-edit-line text-base"></i>
                     </button>
@@ -532,9 +500,8 @@ export default function ReglasTarifaPage() {
                   {canDelete && (
                     <button
                       onClick={() => { setGroupToDelete(group); setGroupDeleteError(''); }}
-                      disabled={!puede('ELIMINAR_ZONA', rolActivo)}
                       className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                      title={puede('ELIMINAR_ZONA', rolActivo) ? 'Eliminar' : 'Tu rol simulado actual no puede eliminar grupos de zonas'}
+                      title="Eliminar"
                     >
                       <i className="ri-delete-bin-line text-base"></i>
                     </button>
@@ -586,7 +553,6 @@ export default function ReglasTarifaPage() {
         rule={selectedRule}
         organizationId={appUser?.organization_id || ''}
         country={activeCountry}
-        rolActivo={rolActivo}
         usuarioActivo={usuarioActivo}
       />
 
@@ -598,7 +564,6 @@ export default function ReglasTarifaPage() {
         organizationId={appUser?.organization_id || ''}
         countryId={countryId}
         zones={countryZones}
-        rolActivo={rolActivo}
         usuarioActivo={usuarioActivo}
       />
 
