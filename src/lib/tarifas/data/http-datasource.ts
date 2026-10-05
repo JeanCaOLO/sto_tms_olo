@@ -77,10 +77,15 @@ export class HttpDataSource implements DataSource {
   /** Cuando está presente, las escrituras se acumulan acá y se envían juntas al confirmar. */
   private readonly pending: TxOperation[] | null;
 
+  /** Lecturas idénticas en vuelo: varios componentes piden lo mismo (países, zonas…) a la vez. */
+  private readonly inflight = new Map<string, Promise<unknown>>();
+
   constructor(options: HttpDataSourceOptions, pending: TxOperation[] | null = null) {
     this.baseUrl = options.baseUrl.replace(/\/$/, '');
     this.headers = options.headers ?? (() => ({}));
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    // `fetch` suelto y llamado como `this.fetchImpl(...)` se invoca con `this` = el datasource y el
+    // navegador lo rechaza ("Illegal invocation"): se envuelve para llamarlo siempre sobre `window`.
+    this.fetchImpl = options.fetchImpl ?? ((input, init) => fetch(input, init));
     this.pending = pending;
   }
 
@@ -89,6 +94,24 @@ export class HttpDataSource implements DataSource {
   }
 
   private async request(
+    url: string,
+    init: NonNullable<Parameters<typeof fetch>[1]>,
+    entity: EntityName,
+    id?: string,
+  ): Promise<unknown> {
+    if (init.method !== 'GET') return this.send(url, init, entity, id);
+    // Una sola petición por URL mientras esté en vuelo; cada llamador recibe su propia copia, para
+    // que mutar las filas de un componente no altere las de otro. No hay caché: al terminar, la
+    // siguiente lectura va a la API.
+    let shared = this.inflight.get(url);
+    if (!shared) {
+      shared = this.send(url, init, entity, id).finally(() => this.inflight.delete(url));
+      this.inflight.set(url, shared);
+    }
+    return structuredClone(await shared);
+  }
+
+  private async send(
     url: string,
     init: NonNullable<Parameters<typeof fetch>[1]>,
     entity: EntityName,

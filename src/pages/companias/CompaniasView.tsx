@@ -105,12 +105,14 @@ export default function CompaniasView({ classification }: { classification: Part
     }
   }, [classification, countryId]);
 
-  useEffect(() => { void load(); }, [load]);
+  // Esperar a los países: antes de eso `countryId` es '' y se pediría todo el catálogo para repetirlo filtrado.
+  useEffect(() => { if (!loadingCountries) void load(); }, [load, loadingCountries]);
 
   const currency = activeCountry?.local_currency ?? 'moneda local';
 
   // Las zonas del país activo, para que el tarifario pueda sugerir códigos en sus columnas.
   useEffect(() => {
+    if (loadingCountries) return undefined;
     let cancelled = false;
     loadZones(activeCountry?.id)
       .then((list) => {
@@ -118,7 +120,7 @@ export default function CompaniasView({ classification }: { classification: Part
       })
       .catch(() => { if (!cancelled) setZonas([]); });
     return () => { cancelled = true; };
-  }, [activeCountry?.id]);
+  }, [activeCountry?.id, loadingCountries]);
 
   const visible = useMemo(
     () => profiles.filter((p) => showInactive || !isInactive(p)),

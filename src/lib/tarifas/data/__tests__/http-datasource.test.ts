@@ -87,4 +87,34 @@ describe('HttpDataSource', () => {
     expect(url).toBe('https://api/tarifas/tx');
     expect(JSON.parse(String(init.body)).ops.map((o: { op: string }) => o.op)).toEqual(['update', 'insert']);
   });
+
+  it('sin fetchImpl llama al fetch global con su propio this (el navegador rechaza otro: "Illegal invocation")', async () => {
+    const seen: unknown[] = [];
+    const strictFetch = vi.fn(function (this: unknown) {
+      seen.push(this);
+      if (this !== undefined && this !== globalThis) throw new TypeError('Illegal invocation');
+      return Promise.resolve(new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    });
+    vi.stubGlobal('fetch', strictFetch);
+    try {
+      const ds = new HttpDataSource({ baseUrl: 'https://api' });
+      await expect(ds.find('country')).resolves.toEqual([]);
+      expect(strictFetch).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('junta lecturas idénticas en vuelo en una sola petición y entrega copias independientes', async () => {
+    const fetchImpl = fakeFetch(200, [{ id: 'c1', name: 'CR' }]);
+    const ds = new HttpDataSource({ baseUrl: 'https://api', fetchImpl });
+
+    const [a, b] = await Promise.all([ds.find('country'), ds.find('country')]);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    a[0].name = 'mutado';
+    expect(b[0].name).toBe('CR');
+
+    await ds.find('country'); // ya no hay nada en vuelo: va a la API de nuevo (sin caché)
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
 });

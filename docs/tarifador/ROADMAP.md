@@ -1,5 +1,7 @@
 # Módulo Tarifador — Guía del módulo y roadmap
 
+> **Para empezar o poner el módulo a funcionar, leer [`GUIA_TARIFADOR.md`](GUIA_TARIFADOR.md)** (guía general y operativa). Este documento es el diseño detallado, el historial y los pendientes (§8.8).
+
 **Fecha:** 2026-09-16 (Fase 9)
 
 **Alcance:** `src/lib/tarifas/`, `src/pages/reglas-tarifa/`, `src/pages/liquidaciones/`,
@@ -1013,37 +1015,40 @@ y el cierre de documentación. Detalle de cambios: `docs/work/2026-10/2026-10-02
 | Esquema (única fuente) | `data/schema.ts` → `npm run tarifas:ddl` + `npm run tarifas:manifest` |
 
 **Hecho el 2026-10-02 (sesión 2):**
-- Migración `sql/19_tarifas_aurora.sql` APLICADA en Aurora (dry-run + `--execute`, registrada en `schema_migrations`); 15 tablas `tarifas_*` y 2 vistas verificadas; `tarifas_v_viajes` devuelve 28 viajes (0.8-2.6 ms).
+- Migración `sql/19_tarifas_aurora.sql` APLICADA en Aurora (dry-run + `--execute`, registrada en `schema_migrations`); 15 tablas `tarifas_*` y 2 vistas verificadas.
 - Zonas de Costa Rica sin `code` corregidas en Aurora: `GAM` → `GAM`, `Rural` → `RURAL` (dato, sin commit).
-- Pantallas del liquidador reconstruidas sobre el ORM nuevo (tsc 0 errores, antes 101).
-- Auditoría: 526 tests vitest en verde; tsc sin errores en `src/lib` (los 101 son de `src/pages`/`src/components`, de Kiro).
-- `catalogLoader.loadRules` filtra por país en el servidor (2 consultas: país + globales) en vez de traer todas.
+- Pantallas del liquidador reconstruidas sobre el ORM nuevo por Claude en lugar de Kiro (commit `62481aa`).
+- `catalogLoader.loadRules` filtra por país en el servidor.
+
+**Hecho el 2026-10-05 (sesión 3) — prueba en el navegador contra Aurora** (túnel SSM + `api:local` + vite, `VITE_TARIFAS_DATASOURCE=postgres`):
+- Probado y funcionando con datos reales: Liquidaciones (17 viajes completados de Aurora; pestaña Historial vacía; modal *Liquidar viaje* abre y calcula), Flota propia (1: OLO), Transportistas a liquidar (8), Reglas de Tarifa (Reglas, Zonas con 17 zonas, Tarifarios, Costos, Política de margen + *Cálculo del país*, Probador "desde un viaje").
+- El modal avisa correctamente "No hay parámetros de costo para Costa Rica…" y bloquea emitir: es el estado esperado sin costos de flota propia.
+- **Bug corregido:** `HttpDataSource` llamaba a `fetch` con otro `this` y el navegador lo rechazaba (`Illegal invocation`): con `postgres` ninguna pantalla cargaba. Los tests no lo veían porque inyectaban `fetchImpl`. Test de regresión agregado.
+- **Tests dependían de `.env.local`:** con `VITE_TARIFAS_DATASOURCE=postgres` fallaban 104. `vitest.config.ts` fija `json`.
+- **Rendimiento:** cada página repetía lecturas (`countries`, `country_settings`, `carriers`, `zones`, `zone_groups`: 2-3 veces, algunas sin filtro de país y otra vez con filtro). Ahora `HttpDataSource` junta lecturas idénticas en vuelo, y `CompaniasView` espera a los países antes de pedir. La latencia restante en local es el túnel (conexión ~0,9 s por petición, ~0,1 s por consulta), no la aplicación.
+- Auditoría de seguridad y rendimiento (tres revisiones): migración, índices y vistas OK (`tarifas_v_viajes` 1-3 ms con 28 viajes); una liquidación vigente por viaje garantizada por índice único parcial; sin hallazgos críticos.
+- Documentación general nueva: [`GUIA_TARIFADOR.md`](GUIA_TARIFADOR.md).
 
 **FALTANTE para la próxima sesión, en orden:**
 
-1. **Prueba visual de las pantallas en el navegador** (Liquidaciones, Flota propia/externa, Reglas de Tarifa). Reescritas el 2026-10-02 por Claude en lugar de Kiro (tsc 0, vitest 666, `vite build` OK) pero SIN probar con datos: hacerlo con `VITE_TARIFAS_DATASOURCE=json` y luego con Aurora. Menores: `BitacoraTab`/`ResumenTab` con `<table>` manual; permisos `CREAR_COMPANIA`/`EDITAR_COMPANIA` sin uso.
-2. **Desplegar `backend/tarifas`** (solo Intelix): `npm run tarifas:manifest`, luego
-   `cd backend/tarifas && sam build && sam deploy --config-env dev`. Local: `npm run api:local`.
-3. **Activar Aurora en el front:** `VITE_TARIFAS_DATASOURCE=postgres` (URL por defecto
-   `${VITE_API_BASE}/api`), tras el despliegue.
-4. **Costos de flota propia de Costa Rica** (datos de negocio, NO inventar; el usuario aún no los tiene):
-   parámetros de costo de flota propia (sin ellos el liquidador no calcula y lo avisa), reglas y
-   tarifarios con clave por **`destZone`** (el viaje no trae origen), y variables personalizadas
-   por transportista (`custom:peajes`, `custom:recolectas`…). La migración solo siembra redondeo
-   (2, HALF_UP), pernocta (24 h) y política de margen.
-5. **Prueba de extremo a extremo:** liquidar un viaje real contra Aurora vía `api:local` (requiere el punto 4) y medir las vistas con volumen real (hoy solo 28 viajes).
-6. **Datos del catálogo** (se corrigen en Catálogos, no en el liquidador):
+1. **Costos de flota propia de Costa Rica** (datos de negocio, NO inventar; el usuario aún no los tiene). Sin ellos ningún viaje de flota propia se calcula. Hay una planilla candidata en `docs/tarifador/demo-data/estructura-costos-transporte-cr-real.xlsx` (importable desde la estructura de costos): confirmar con el usuario si es el dato oficial antes de cargarla. También: parámetros de costo del país, reglas y tarifarios con clave por **`destZone`**, y variables personalizadas por transportista (`custom:peajes`, `custom:recolectas`…). La migración solo sembró redondeo (2, HALF_UP), pernocta (24 h) y política de margen.
+2. **Tarifa plana de los terceros** (outsourcing) por transportista y tipo de camión: 8 transportistas de CR están "Sin configurar". Sin ella los viajes de terceros no se calculan.
+3. **Prueba de extremo a extremo con emisión real** (requiere 1 o 2): liquidar un viaje, ver el desglose, emitirlo, re-liquidarlo y cambiar su estado. Lo escrito (emitir, re-liquidar, `ensurePartyProfile`) NO se probó contra Aurora: la prueba del 2026-10-05 fue solo de lectura para no escribir datos de prueba en la base compartida.
+4. **Desplegar `backend/tarifas`** (solo Intelix): `npm run tarifas:manifest`, luego `cd backend/tarifas && sam build && sam deploy --config-env dev`. El manifiesto del repo está sincronizado con `schema.ts`. Después, front con `VITE_TARIFAS_DATASOURCE=postgres`.
+5. **Medir con volumen real:** hoy hay 28 viajes. Revisar `tarifas_v_viajes` (subconsultas por viaje de guías, devoluciones y liquidación) y el tope `MAX_ROWS = 5000` cuando crezca.
+6. **Detalles de interfaz vistos en la prueba:**
+   - En *Viajes por liquidar* el botón "Liquidar" queda cortado a la derecha en pantallas de ~1500 px (la tabla desborda); ajustar anchos de columna o fijar la columna de acciones.
+   - Política de margen muestra arriba un bloque "País ?" vacío.
+   - `BitacoraTab` y `ResumenTab` siguen con `<table>` manual en lugar de DataTable.
+   - Textos en español directo, sin i18n; los permisos `CREAR_COMPANIA`/`EDITAR_COMPANIA` de `rbac` quedaron sin uso.
+   - Mensaje de costo faltante en `cost.ts` nombra `carrierId` cuando debería decir la compañía (auditoría, severidad baja).
+7. **Datos del catálogo** (se corrigen en Catálogos, no en el liquidador):
    - Costa Rica figura con moneda **USD**: se liquida en la moneda del catálogo (decisión del usuario);
    - Venezuela tiene código `VN` (la semilla local usa `VE`; no afecta a Aurora).
-7. **Decisiones** de §8.1 a proponer para `aidlc/spaces/default/memory/project.md ## Decided`
-   (solo con aprobación del usuario).
-8. **Reescribir §2.3, §2.4, §2.13, §4.5 y §4.9** de esta guía cuando la UI esté hecha.
-9. **Mejoras opcionales (auditoría 2026-10-02), a coordinar con Intelix:** `Architectures: [arm64]` en
-   `backend/tarifas/template.yaml` (hoy todos los backends y el layer `tms_common` son x86_64: cambiar en bloque,
-   ahorro ~20 % de Lambda); SSL sin validar certificado en `tms_common/pg.py` (layer compartido, dentro de VPC);
-   reintento ante deadlock 40P01 en `transaction()`. NO se bajó `MAX_ROWS` (5000): truncaría en silencio listas
-   legítimas; revisar solo si aparecen presiones de memoria.
-10. **Push de la rama `dylan-tarifas`** (sin push hasta ahora).
+8. **Decisiones** de §8.1 a proponer para `aidlc/spaces/default/memory/project.md ## Decided` (solo con aprobación del usuario).
+9. **Reescribir §2.3, §2.4, §2.13, §4.5 y §4.9** de esta guía por la nueva `GUIA_TARIFADOR.md` y dejar en el ROADMAP solo historial y pendientes ("sin ruido").
+10. **Mejoras opcionales, a coordinar con Intelix:** `Architectures: [arm64]` en `backend/tarifas/template.yaml` (hoy todos los backends y el layer `tms_common` son x86_64: cambiar en bloque, ahorro ~20 % de Lambda); SSL sin validar certificado en `tms_common/pg.py` (layer compartido, dentro de la VPC); reintento ante deadlock 40P01 en `transaction()`. NO se bajó `MAX_ROWS` (5000): truncaría en silencio listas legítimas.
+11. **Push de la rama `dylan-tarifas`** (sin push hasta ahora; commits sin subir desde `738f5ca`).
 
 **Abiertos sin decidir:** multi-tenancy (las `tarifas_*` no tienen `organization_id`, ver D4);
 si la flota propia necesita un costo distinto por vehículo (hoy: estructura de costos del perfil
