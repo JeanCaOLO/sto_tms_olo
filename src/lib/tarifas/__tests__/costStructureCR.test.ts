@@ -60,7 +60,7 @@ function costoDe(tipo: TipoCamion, km: number, conAyudante = false, nights = 0) 
   const trip = makeTrip({ km, truckTypeId: tipo, fleetType: 'OWN' });
   const { vars, overnightNights } = deriveContext({ trip, country, zones, zoneGroups, locations });
   return computeCost(
-    { country, trip, outsourcedCostRates: [], costStructure: null, costStructureRows: [], defaultCostStructure: structure, defaultCostStructureRows: rows },
+    { country, trip, costStructure: null, costStructureRows: [], defaultCostStructure: structure, defaultCostStructureRows: rows },
     nights || overnightNights,
     // La variable por viaje la declara el perfil de la compañía; acá se simula ya resuelta.
     { ...vars, 'custom:con_ayudante': conAyudante ? 1 : 0 } as VarBag,
@@ -125,7 +125,7 @@ describe('combustible y drivers personalizados', () => {
     const trip = makeTrip({ km: 100, truckTypeId: truck, fleetType: 'OWN' });
     const { vars } = deriveContext({ trip, country, zones, zoneGroups, locations });
     return computeCost(
-      { country, trip, outsourcedCostRates: [], costStructure: structure, costStructureRows: rows },
+      { country, trip, costStructure: structure, costStructureRows: rows },
       0, { ...vars, ...extraVars } as VarBag, warn,
     );
   };

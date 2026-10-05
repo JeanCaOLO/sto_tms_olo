@@ -93,21 +93,25 @@ describe('lo que demuestra cada escenario', () => {
     expect(result.warnings).toEqual([]); // sin fila, el motor avisa; acá no debe avisar
   });
 
-  it('el escenario de flota propia se costea contra la estructura, no contra una tarifa de tercero', async () => {
+  it('en flota propia el total es la acumulación de gastos de la estructura más lo que suman las reglas', async () => {
     const { result } = await buscar('TPL_VE_1');
 
-    expect(result.trace.map((l) => l.ruleCode)).toEqual(['R1', 'R2', 'R3']);
+    // Primero las filas de la estructura (la base), después las reglas que ajustan encima.
+    const codigos = result.trace.map((l) => l.ruleCode);
+    expect(codigos.slice(-3)).toEqual(['R1', 'R2', 'R3']);
+    expect(result.trace[0].source).toBe('COST_ROW');
     expect(Number(result.cost.total)).toBeGreaterThan(0);
+    expect(Number(result.totalLiquidado)).toBeGreaterThan(Number(result.cost.total));
     // Fase 8: la flota propia de Venezuela ya tiene estructura de costos cargada (§4.1 decía
     // "construida, sin datos"). Antes de eso, este mismo assert pasaba igual pero por casualidad:
     // costeaba contra `ownCostParams` porque `costStructures` estaba vacío.
     expect(result.cost.modelId).toBe('CSTR_VE_OWN');
   });
 
-  it('el escenario colombiano deja ver una pérdida, que es justo lo que la política debe detectar', async () => {
-    // No es un error de la semilla: es el caso que hace visible el semáforo de margen.
+  it('sin pedidos cargados en la semilla no hay ganancia/pérdida que medir (no se inventa)', async () => {
     const { result } = await buscar('TPL_CO_1');
-    expect(result.margin.status).toBe('LOSS');
+    expect(result.margin.basis).toBe('NONE');
+    expect(result.allocation).toBeNull();
   });
 });
 

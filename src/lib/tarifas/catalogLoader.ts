@@ -12,7 +12,7 @@
 import { db, type Row } from './data';
 import { toCostStructure, toCostStructureRow } from './costStructureDataSource';
 import type {
-  Country, CostStructure, CostStructureRow, MarginPolicy, OutsourcedCostRate,
+  Country, CostStructure, CostStructureRow, MarginPolicy,
   PartyVariable, RateTable, RateTableRow, RoundingMode, Rule, Zone, ZoneGroup,
 } from './types';
 
@@ -21,7 +21,6 @@ export interface TarifasCatalog {
   rules: Rule[];
   zones: Zone[];
   zoneGroups: ZoneGroup[];
-  outsourcedCostRates: OutsourcedCostRate[];
   marginPolicy: MarginPolicy;
   /** Sólo las de la compañía del viaje. Ver abajo por qué. */
   partyVariables: PartyVariable[];
@@ -161,17 +160,6 @@ async function loadRules(countryId: string): Promise<Rule[]> {
     }));
 }
 
-async function loadOutsourcedCostRates(countryId: string): Promise<OutsourcedCostRate[]> {
-  const rows = await db().find('outsourcedCostRate', { where: [eq('country_id', countryId)] });
-  return rows.map((row) => ({
-    id: row.id,
-    countryId,
-    carrierId: row.carrier_id,
-    truckTypeId: row.truck_type_id,
-    flatRate: String(row.flat_rate),
-  }));
-}
-
 async function loadMarginPolicy(countryId: string): Promise<MarginPolicy | null> {
   const [row] = await db().find('marginPolicy', { where: [eq('country_id', countryId)], limit: 1 });
   if (!row) return null;
@@ -292,14 +280,13 @@ export async function loadTarifasCatalog(countryId: string, partyId: string | nu
   }
 
   const [
-    marginPolicy, rules, zones, zoneGroups, outsourcedCostRates,
+    marginPolicy, rules, zones, zoneGroups,
     partyVariables, cost, defaultCost, rateTables,
   ] = await Promise.all([
     loadMarginPolicy(countryId),
     loadRules(countryId),
     loadZones(countryId),
     loadZoneGroups(countryId),
-    loadOutsourcedCostRates(countryId),
     loadPartyVariables(partyId),
     loadCostStructure({ partyId }),
     loadCostStructure({ countryId }),
@@ -317,7 +304,6 @@ export async function loadTarifasCatalog(countryId: string, partyId: string | nu
     rules,
     zones,
     zoneGroups,
-    outsourcedCostRates,
     marginPolicy,
     partyVariables,
     costStructure: cost.structure,

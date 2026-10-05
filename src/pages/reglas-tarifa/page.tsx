@@ -316,7 +316,7 @@ export default function ReglasTarifaPage() {
               steps={[
                 'Reglas: definen cómo se calcula lo que se le cobra al transportista/cliente por una liquidación (base, por km, recargos, descuentos).',
                 'Zonas: son del catálogo (solo lectura). Acá se agrupan en grupos de zonas para condicionar reglas y tarifas por "de dónde a dónde" sin declarar una regla por cada zona.',
-                'Costos y Margen: cuánto le cuesta a la empresa ese viaje (flota propia o transportista) y qué tan buen negocio fue, comparado contra lo cobrado.',
+                'Costos: la estructura de costos de la flota propia, que es la base de lo que se liquida por sus viajes. Los terceros no tienen costos propios: se les paga por reglas y tarifarios. Alerta de auditoría: compara el valor de la mercancía del viaje contra sus gastos, solo informativa (nunca bloquea).',
                 'Plantillas: viajes frecuentes guardados para no tipear los mismos datos cada vez en el Probador.',
                 'Resumen: una vista de solo lectura con todo lo configurado, para auditar de un vistazo.',
                 'Probador del motor: corré un viaje de prueba con los datos de arriba y mirá el desglose completo antes de usarlo en una liquidación real.',
@@ -382,7 +382,7 @@ export default function ReglasTarifaPage() {
           onClick={() => setActiveTab('margen')}
           className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'margen' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
         >
-          Política de Margen
+          Alerta de auditoría
         </button>
         <button
           onClick={() => setActiveTab('plantillas')}

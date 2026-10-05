@@ -1,7 +1,7 @@
 // Motor de costos. Deliberadamente NO es "una regla más" del lenguaje de reglas: el costo no se
 // liquida al transportista, se calcula con su propio modelo y solo se usa para derivar el margen.
-// Hay dos modelos: una ESTRUCTURA de costos por filas (la de la compañía, o la del país para la
-// flota propia) y la tarifa plana de los terceros.
+// Hay un solo modelo: la ESTRUCTURA de costos por filas (la de la compañía, o la del país para la
+// flota propia).
 //
 // MONEDA: hay una sola por país, así que el costo y el total liquidado están siempre en la misma y
 // el margen compara moneda contra la misma moneda por construcción.
@@ -237,67 +237,48 @@ function computeFromStructure(
 const hasRows = (structure: CostStructure | null | undefined, rows: CostStructureRow[] | undefined) =>
   !!structure?.active && !!rows?.length;
 
+/** Sin gastos que acumular: el viaje es de un tercero (se le paga por tarifario/reglas) o no hay nada. */
+const NO_COST = (country: Country): CostBreakdown => ({
+  total: roundToMoney(new Decimal(0), country),
+  breakdown: [],
+  modelId: 'NONE',
+  currency: country.localCurrency,
+});
+
+/**
+ * Gastos operativos de un viaje de FLOTA PROPIA: la acumulación de la estructura de costos. Es lo
+ * que se liquida. La estructura de la compañía manda; si no tiene, vale la del país; sin ninguna no
+ * hay con qué calcular y se avisa (no se inventa un cero).
+ *
+ * Un viaje de un tercero no tiene gastos propios: se le paga lo que dicen las reglas y el
+ * tarifario, así que devuelve vacío.
+ */
 export function computeCost(
   input: Pick<
     CalculateInput,
-    'country' | 'trip' | 'outsourcedCostRates' | 'costStructure' | 'costStructureRows'
+    'country' | 'trip' | 'costStructure' | 'costStructureRows'
     | 'defaultCostStructure' | 'defaultCostStructureRows'
   >,
   overnightNights: number,
   vars?: VarBag,
-  /** Canal de avisos. Sin él, una fila de costo ilegible cambiaría el margen en silencio. */
+  /** Canal de avisos. Sin él, una fila de costo ilegible cambiaría el total en silencio. */
   warn?: (message: string) => void,
 ): CostBreakdown {
-  const { country, trip, outsourcedCostRates } = input;
+  const { country, trip } = input;
   const bag = vars ?? ({} as VarBag);
 
-  // La estructura de la compañía manda sobre todo lo demás: es el modelo completo.
+  if (trip.fleetType !== 'OWN') return NO_COST(country);
+
   if (hasRows(input.costStructure, input.costStructureRows)) {
     return computeFromStructure(input.costStructure!, input.costStructureRows!, input, overnightNights, bag, warn);
   }
-
-  if (trip.fleetType === 'OWN') {
-    // Flota propia sin estructura propia: la del país. Sin ninguna, no hay con qué costear.
-    if (hasRows(input.defaultCostStructure, input.defaultCostStructureRows)) {
-      return computeFromStructure(
-        input.defaultCostStructure!, input.defaultCostStructureRows!, input, overnightNights, bag, warn,
-      );
-    }
-    throw new Error(
-      'No hay estructura de costos para la flota propia de este país. ' +
-        'Cárguela en Reglas de Tarifa → Costos antes de liquidar.',
+  if (hasRows(input.defaultCostStructure, input.defaultCostStructureRows)) {
+    return computeFromStructure(
+      input.defaultCostStructure!, input.defaultCostStructureRows!, input, overnightNights, bag, warn,
     );
   }
-
-  // OUTSOURCED: tarifa plana de la compañía para ese tipo de camión.
-  //
-  // La búsqueda va por `partyId` (la compañía del tarifador), no por `carrierId` (el transportista
-  // del TMS): las tarifas de outsourcing se configuran contra compañías del tarifador. Se acepta
-  // `carrierId` como respaldo para los viajes armados antes de que `partyId` existiera.
-  const partyKey = trip.partyId ?? trip.carrierId;
-  const rate = outsourcedCostRates.find(
-    (r) => r.carrierId === partyKey && r.truckTypeId === trip.truckTypeId,
+  throw new Error(
+    'No hay estructura de costos para la flota propia de este país. ' +
+      'Cárguela en Reglas de Tarifa → Costos antes de liquidar.',
   );
-  if (!rate) {
-    // Sin el id de la compañía: es un uuid que a quien liquida no le dice nada.
-    throw new Error(
-      `No hay tarifa plana configurada para este transportista y el tipo de camión "${trip.truckTypeId}". ` +
-        'Configúrela en Reglas de Tarifa → Costos antes de liquidar.',
-    );
-  }
-  const lines: CostLine[] = [
-    {
-      code: 'COST_FLAT',
-      label: 'Tarifa plana del transportista',
-      amount: toDecimal(rate.flatRate),
-      inputs: { flatRate: rate.flatRate, truckTypeId: trip.truckTypeId },
-    },
-  ];
-
-  return {
-    total: roundToMoney(lines[0]!.amount, country),
-    breakdown: toTraceLines(lines, country, 'FLAT_RATE'),
-    modelId: rate.id,
-    currency: country.localCurrency,
-  };
 }

@@ -64,7 +64,6 @@ function totalEn(fecha: string, rules: Rule[], trip: Partial<TripContext> = {}):
     zoneGroups,
     locations,
     ...makeOwnCostStructure(),
-    outsourcedCostRates: [],
     marginPolicy: makeMarginPolicy(),
   };
   return calculate(input).totalLiquidado;

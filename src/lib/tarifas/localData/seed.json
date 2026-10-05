@@ -2371,7 +2371,7 @@
         "carrierId": null,
         "customerId": null,
         "durationHours": 3,
-        "expectedTotal": "510.00",
+        "expectedTotal": "718.67",
         "customVars": {
           "custom:bultos": 40
         }
@@ -2452,7 +2452,7 @@
         "carrierId": null,
         "customerId": null,
         "durationHours": 8,
-        "expectedTotal": "415",
+        "expectedTotal": "1068",
         "customVars": {
           "custom:bultos": 30
         }
@@ -2526,7 +2526,7 @@
         "carrierId": null,
         "customerId": null,
         "durationHours": 4,
-        "expectedTotal": "447.00",
+        "expectedTotal": "746.39",
         "customVars": {
           "custom:bultos": 25
         }
@@ -3717,78 +3717,6 @@
       "active": true
     }
   ],
-  "outsourcedCostRates": [
-    {
-      "id": "OSR_VE_1",
-      "country_id": "VE",
-      "carrier_id": "CARRIER_VE_1",
-      "truck_type_id": "TT-350",
-      "flat_rate": "420.00"
-    },
-    {
-      "id": "OSR_VE_2",
-      "country_id": "VE",
-      "carrier_id": "CARRIER_VE_2",
-      "truck_type_id": "TT-750",
-      "flat_rate": "650.00"
-    },
-    {
-      "id": "OSR_VE_3",
-      "country_id": "VE",
-      "carrier_id": "CARRIER_VE_2",
-      "truck_type_id": "TT-350",
-      "flat_rate": "440.00"
-    },
-    {
-      "id": "OSR_VE_4",
-      "country_id": "VE",
-      "carrier_id": "CARRIER_VE_2",
-      "truck_type_id": "TT-550",
-      "flat_rate": "460.00"
-    },
-    {
-      "id": "OSR_CO_1",
-      "country_id": "CO",
-      "carrier_id": "CARRIER_CO_1",
-      "truck_type_id": "TT-350",
-      "flat_rate": "300.00"
-    },
-    {
-      "id": "OSR_CO_2",
-      "country_id": "CO",
-      "carrier_id": "CARRIER_CO_2",
-      "truck_type_id": "TT-750",
-      "flat_rate": "480.00"
-    },
-    {
-      "id": "OSR_CO_3",
-      "country_id": "CO",
-      "carrier_id": "CARRIER_CO_2",
-      "truck_type_id": "TT-350",
-      "flat_rate": "250.00"
-    },
-    {
-      "id": "OSR_CR_1",
-      "country_id": "CR",
-      "carrier_id": "CARRIER_CR_1",
-      "truck_type_id": "TT-350",
-      "flat_rate": "360.00"
-    },
-    {
-      "id": "OSR_CR_2",
-      "country_id": "CR",
-      "carrier_id": "CARRIER_CR_2",
-      "truck_type_id": "TT-750",
-      "flat_rate": "560.00"
-    },
-    {
-      "id": "OSR_CR_3",
-      "country_id": "CR",
-      "carrier_id": "CARRIER_CR_2",
-      "truck_type_id": "TT-350",
-      "flat_rate": "320.00"
-    }
-  ],
   "marginPolicies": [
     {
       "id": "MP_VE",
@@ -3815,5 +3743,6 @@
       "block_on_loss": false
     }
   ],
-  "auditLog": []
+  "auditLog": [],
+  "tripCargos": []
 }

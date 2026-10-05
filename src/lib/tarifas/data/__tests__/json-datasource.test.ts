@@ -206,13 +206,15 @@ describe('JsonDataSource — integridad referencial derivada del esquema', () =>
     ).rejects.toThrow(ForeignKeyError);
   });
 
-  it('delete rechaza borrar un perfil en uso (RESTRICT)', async () => {
-    await expect(db.delete('settlementParty', 'CARRIER_CR_1')).rejects.toThrow(ForeignKeyError);
-    expect(await db.findOne('settlementParty', 'CARRIER_CR_1')).not.toBeNull();
+  it('delete rechaza borrar un perfil en uso por una liquidación (RESTRICT)', async () => {
+    await db.insert('settlement', settlement('S_EN_USO', 'TRIP_RT_VE_A1'));
+    await expect(db.delete('settlementParty', 'CARRIER_VE_1')).rejects.toThrow(ForeignKeyError);
+    expect(await db.findOne('settlementParty', 'CARRIER_VE_1')).not.toBeNull();
   });
 
   it('el error de FK usa el código 23503, que es el que la UI ya reconoce', async () => {
-    await expect(db.delete('settlementParty', 'CARRIER_CR_1')).rejects.toMatchObject({ code: '23503' });
+    await db.insert('settlement', settlement('S_EN_USO', 'TRIP_RT_VE_A1'));
+    await expect(db.delete('settlementParty', 'CARRIER_VE_1')).rejects.toMatchObject({ code: '23503' });
   });
 
   it('delete de un tarifario se lleva sus filas (onDelete: cascade)', async () => {

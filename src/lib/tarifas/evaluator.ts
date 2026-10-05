@@ -10,6 +10,7 @@ import type {
 } from './types';
 import { RATE_TABLE_WILDCARD, STAGE_ORDER } from './types';
 import { roundToMoney, toDecimal, ZERO } from './money';
+import { inRange, parseRange } from './rateRange';
 
 // ── Predicados — ¿aplica esta condición? ──────────────────────────────────────────────────────
 
@@ -315,6 +316,9 @@ export function lookupRateTable(
     .filter((row) => table.keyColumns.every((column, i) => {
       const expected = row.key[i];
       if (expected === undefined || expected === RATE_TABLE_WILDCARD) return true;
+      // Una celda con rango ("101..300") cubre todos los valores de ese tramo.
+      const range = parseRange(expected);
+      if (range) return inRange(Number(vars[column]), range);
       return looseEq(vars[column] ?? '', expected);
     }));
 
@@ -456,6 +460,11 @@ export function runChargePipeline(
     CalculateInput,
     'country' | 'trip' | 'overrides' | 'rateTables' | 'rateTableRows'
   >,
+  /**
+   * Líneas que ya forman parte del total antes de evaluar reglas: los gastos de la estructura de
+   * costos de la flota propia. Entran como base (etapa BASE) y las reglas se acumulan sobre ellas.
+   */
+  seed?: { lines: TraceLine[] },
 ): ChargeResult {
   const { country, trip, overrides = {} } = input;
   const rateTables = input.rateTables ?? [];
@@ -470,6 +479,14 @@ export function runChargePipeline(
   const blockingIssues: CalcIssue[] = [];
   const discarded: DiscardedRule[] = [];
   const trace: TraceLine[] = [];
+
+  // Las líneas sembradas ocupan el principio del desglose y arrancan el acumulado.
+  for (const line of seed?.lines ?? []) {
+    const amount = toDecimal(line.final);
+    running = running.plus(amount);
+    stageAccum.BASE = stageAccum.BASE.plus(amount);
+    trace.push({ ...line, seq: trace.length + 1, stage: 'BASE', runningSubtotal: roundToMoney(running, country) });
+  }
 
   // Un ciclo de porcentajes da un total plausible pero equivocado, así que se detecta antes de
   // evaluar nada y frena la emisión.
@@ -506,7 +523,7 @@ export function runChargePipeline(
     }
   };
 
-  let seq = 0;
+  let seq = trace.length;
 
   for (const rule of applied) {
     // Se reinicia por regla: cada línea informa la fila que resolvió SU monto.

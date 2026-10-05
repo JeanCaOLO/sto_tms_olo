@@ -40,7 +40,6 @@ function calcular(overrides: Partial<CalculateInput> = {}) {
     rules: REGLAS,
     zones, zoneGroups, locations,
     ...makeOwnCostStructure(),
-    outsourcedCostRates: [],
     marginPolicy: makeMarginPolicy(),
     ...overrides,
   });
@@ -228,7 +227,7 @@ describe('explainResult', () => {
 describe('explainCost', () => {
   it('abre el desglose del costo, que hoy sólo muestra su total', () => {
     // Con estructura de costos por filas, es la mitad de la historia del margen.
-    const lineas = explainCost(calcular());
+    const lineas = explainCost(calcular({ trip: makeTrip({ clientCount: 40, fleetType: 'OWN' }) }));
 
     expect(lineas.length).toBeGreaterThan(0);
     expect(lineas[0]).toMatchObject({ stageLabel: 'Costo' });
@@ -236,7 +235,7 @@ describe('explainCost', () => {
   });
 
   it('cada línea dice cómo se calculó', () => {
-    const lineas = explainCost(calcular());
+    const lineas = explainCost(calcular({ trip: makeTrip({ clientCount: 40, fleetType: 'OWN' }) }));
     expect(lineas.find((l) => l.ruleCode === 'COSTO_KM')?.como).toContain('×');
   });
 });

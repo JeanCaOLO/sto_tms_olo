@@ -19,7 +19,7 @@ import RateTableModal from './RateTableModal';
 import ImportRateTableModal from './ImportRateTableModal';
 import { VAR_KEY_LABELS } from '../../../lib/tarifas/format';
 import {
-  deleteRateRow, deleteRateTable, listRateTableRows, listRateTables, saveRateRow,
+  deleteRateRow, deleteRateTable, isRangeKeyVar, listRateTableRows, listRateTables, saveRateRow,
   setRateTableActive, type RateRowErrors,
 } from '../../../lib/tarifas/rateTablesDataSource';
 import { listCarrierProfiles } from '../../../lib/tarifas/partiesDataSource';
@@ -408,7 +408,7 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
                         setDraftKey(copia);
                         setRowErrors((prev) => ({ ...prev, key: undefined }));
                       }}
-                      placeholder="cualquiera"
+                      placeholder={isRangeKeyVar(column) || column.startsWith('custom:') ? 'cualquiera · o rango 101..300' : 'cualquiera'}
                       list={sugerencias.length > 0 ? listId : undefined}
                     />
                     {sugerencias.length > 0 && (

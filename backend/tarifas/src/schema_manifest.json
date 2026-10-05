@@ -401,6 +401,56 @@
         }
       }
     },
+    "tarifas_v_viaje_cargas": {
+      "entity": "tripCargo",
+      "label": "Mercancía del viaje",
+      "readOnly": true,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "crg",
+      "columns": {
+        "id": {
+          "type": "text",
+          "nullable": true
+        },
+        "route_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "customer_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "customer_code": {
+          "type": "text",
+          "nullable": true
+        },
+        "customer_name": {
+          "type": "text",
+          "nullable": true
+        },
+        "value": {
+          "type": "numeric",
+          "nullable": false
+        },
+        "weight_kg": {
+          "type": "numeric",
+          "nullable": false
+        },
+        "volume_m3": {
+          "type": "numeric",
+          "nullable": false
+        },
+        "items": {
+          "type": "int",
+          "nullable": false
+        },
+        "orders": {
+          "type": "int",
+          "nullable": false
+        }
+      }
+    },
     "tarifas_country_settings": {
       "entity": "countrySettings",
       "label": "Configuración de cálculo del país",
@@ -737,6 +787,14 @@
           "type": "text",
           "nullable": true
         },
+        "cargo_value": {
+          "type": "numeric",
+          "nullable": true
+        },
+        "allocation": {
+          "type": "jsonb",
+          "nullable": true
+        },
         "trip_info": {
           "type": "jsonb",
           "nullable": false
@@ -991,36 +1049,6 @@
         },
         "active": {
           "type": "boolean",
-          "nullable": false
-        }
-      }
-    },
-    "tarifas_outsourced_cost_rates": {
-      "entity": "outsourcedCostRate",
-      "label": "Tarifa de outsourcing",
-      "readOnly": false,
-      "appendOnly": false,
-      "primaryKey": "id",
-      "idPrefix": "osr",
-      "columns": {
-        "id": {
-          "type": "text",
-          "nullable": true
-        },
-        "country_id": {
-          "type": "uuid",
-          "nullable": false
-        },
-        "carrier_id": {
-          "type": "text",
-          "nullable": false
-        },
-        "truck_type_id": {
-          "type": "text",
-          "nullable": false
-        },
-        "flat_rate": {
-          "type": "numeric",
           "nullable": false
         }
       }

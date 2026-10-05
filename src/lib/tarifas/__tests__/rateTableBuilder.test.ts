@@ -120,7 +120,6 @@ function totalCon(
     zoneGroups,
     locations,
     ...makeOwnCostStructure(),
-    outsourcedCostRates: [],
     marginPolicy: makeMarginPolicy(),
     rateTables: [TARIFARIO],
     rateTableRows: rows,

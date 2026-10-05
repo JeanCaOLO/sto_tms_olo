@@ -215,9 +215,7 @@ export async function deleteTemplate(id: string): Promise<SaveResult> {
 //
 // Lee el catálogo del TMS (`carriers` con `is_flota_propia = false`), con su perfil de cálculo:
 //   - `id`        = `carriers.id`: es el valor de la variable `carrierId` en las reglas.
-//   - `party_id`  = perfil de cálculo, o null si todavía no tiene. Las tarifas de outsourcing se
-//                   guardan contra el PERFIL (`outsourcedCostRate.carrier_id` → `settlementParty`):
-//                   la pantalla debe llamar a `ensurePartyProfile(id)` antes de guardar una.
+//   - `party_id`  = perfil de cálculo, o null si todavía no tiene.
 // ---------------------------------------------------------------------------------------------
 
 export async function listSimulatedCarriers(_organizationId: string): Promise<Row[]> {
@@ -241,95 +239,6 @@ export async function listSimulatedCarriers(_organizationId: string): Promise<Ro
 }
 
 // ---------------------------------------------------------------------------------------------
-// Costos — parámetros de flota propia y tarifas planas de outsourcing, por país.
-// ---------------------------------------------------------------------------------------------
-
-export async function listOutsourcedCostRates(_organizationId: string): Promise<Row[]> {
-  return db().find('outsourcedCostRate');
-}
-
-export async function saveOutsourcedCostRate(_organizationId: string, payload: Row, id?: string): Promise<SaveResult> {
-  return attempt(() => upsert('outsourcedCostRate', payload, id));
-}
-
-export async function deleteOutsourcedCostRate(id: string): Promise<SaveResult> {
-  return attempt(() => db().delete('outsourcedCostRate', id));
-}
-
-export interface ImportedRate {
-  truckTypeId: string;
-  flatRate: string;
-}
-
-export interface RateImportOutcome {
-  error: string | null;
-  created: number;
-  updated: number;
-}
-
-/**
- * Importa varias tarifas de golpe para UN transportista y UN país.
- *
- * Corre en una TRANSACCIÓN: si falla a mitad, no queda un tarifario con la mitad de los vehículos
- * cargados — que es peor que no importar nada, porque parece completo.
- *
- * `onDuplicate` decide qué hacer con un tipo de vehículo que esa compañía ya tenía:
- *   'update' -> le pisa la tarifa con la del archivo
- *   'skip'   -> lo deja como estaba
- */
-export async function importOutsourcedRates(
-  _organizationId: string,
-  countryId: string,
-  carrierId: string,
-  rates: ImportedRate[],
-  onDuplicate: 'update' | 'skip',
-): Promise<RateImportOutcome> {
-  try {
-    return await db().transaction(async (tx) => {
-      const existing = await tx.find('outsourcedCostRate', {
-        where: [
-          { column: 'country_id', op: 'eq', value: countryId },
-          { column: 'carrier_id', op: 'eq', value: carrierId },
-        ],
-      });
-      const byTruckType = new Map(existing.map((r) => [String(r.truck_type_id).toUpperCase(), r]));
-
-      let created = 0;
-      let updated = 0;
-
-      for (const rate of rates) {
-        const previo = byTruckType.get(rate.truckTypeId.toUpperCase());
-
-        if (previo) {
-          if (onDuplicate === 'skip') continue;
-          await tx.update('outsourcedCostRate', previo.id, {
-            flat_rate: rate.flatRate,
-          });
-          updated += 1;
-          continue;
-        }
-
-        await tx.insert('outsourcedCostRate', {
-          country_id: countryId,
-          carrier_id: carrierId,
-          truck_type_id: rate.truckTypeId,
-          flat_rate: rate.flatRate,
-        });
-        created += 1;
-      }
-
-      return { error: null, created, updated };
-    });
-  } catch (error) {
-    return {
-      error: error instanceof Error ? error.message : String(error),
-      created: 0,
-      updated: 0,
-    };
-  }
-}
-
-// ---------------------------------------------------------------------------------------------
 // Política de margen — una fila por país.
 // ---------------------------------------------------------------------------------------------
 
@@ -349,18 +258,17 @@ export async function saveMarginPolicy(_organizationId: string, payload: Row, id
 export async function listRulesAndZonesForTesting(organizationId: string) {
   const [
     countries, zoneGroups, zones, rules, carriers,
-    outsourcedCostRates, marginPolicies,
+    marginPolicies,
   ] = await Promise.all([
     listCountries(organizationId),
     listZoneGroups(organizationId),
     listZones(organizationId),
     listRules(organizationId),
     listSimulatedCarriers(organizationId),
-    listOutsourcedCostRates(organizationId),
     listMarginPolicies(organizationId),
   ]);
   return {
     countries, zoneGroups, zones, rules, carriers,
-    outsourcedCostRates, marginPolicies,
+    marginPolicies,
   };
 }

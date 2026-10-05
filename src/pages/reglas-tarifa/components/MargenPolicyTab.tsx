@@ -15,9 +15,9 @@ interface MargenPolicyTabProps {
 
 const emptyForm = { warn_below: '0.15', critical_below: '0.10', require_reason_below: '0.15', block_on_loss: true };
 
-// Política de margen (Fase 2), una fila por país: define a partir de qué porcentaje de margen
-// (liquidado vs. costo operativo) el semáforo pasa a Atención/Crítico/Pérdida, y si una pérdida
-// bloquea la aprobación de la liquidación.
+// Alerta de auditoría, una fila por país: define a partir de qué ganancia (valor de la mercancía vs.
+// gastos del viaje) la alerta pasa a Atención/Crítico. Solo informativa: no bloquea nada.
+// `require_reason_below` y `block_on_loss` ya no tienen efecto; se conservan tal como estaban al guardar.
 export default function MargenPolicyTab({ organizationId, countryId }: MargenPolicyTabProps) {
   const { canEdit } = useModulePermissions('tarifas.config');
   const [loading, setLoading] = useState(true);
@@ -55,8 +55,8 @@ export default function MargenPolicyTab({ organizationId, countryId }: MargenPol
       country_id: countryId,
       warn_below: Number(form.warn_below),
       critical_below: Number(form.critical_below),
-      require_reason_below: Number(form.require_reason_below),
-      block_on_loss: form.block_on_loss,
+      require_reason_below: Number(current?.require_reason_below ?? form.require_reason_below),
+      block_on_loss: current ? !!current.block_on_loss : form.block_on_loss,
     }, current?.id);
     setSaving(false);
     await load();
@@ -70,18 +70,16 @@ export default function MargenPolicyTab({ organizationId, countryId }: MargenPol
     <div className="space-y-6">
       <Card>
         <div className="flex items-center gap-2 mb-3">
-          <h3 className="text-sm font-semibold text-slate-700">Umbrales de margen</h3>
+          <h3 className="text-sm font-semibold text-slate-700">Alerta de auditoría (ganancia vs gastos)</h3>
           <HelpButton
-            title="Política de margen"
+            title="Alerta de auditoría"
             steps={[
-              'Margen = (liquidado − costo) / liquidado. Compara lo que se le paga al transportista contra lo que cuesta operar el viaje.',
-              '"Atención" y "Crítico" son umbrales de margen mínimo aceptable, de menor a mayor severidad.',
-              'Por debajo de "exige motivo", la liquidación pide un motivo obligatorio antes de aprobarse.',
-              'Si el margen da pérdida (negativo) y "Bloquear en pérdida" está activo, no se puede aprobar la liquidación hasta corregirla.',
+              'Compara el valor de la mercancía de los pedidos del viaje contra los gastos del viaje. Es solo informativo, para auditoría: NUNCA bloquea ni condiciona una liquidación.',
+              '"Atención" y "Crítico" son umbrales de ganancia mínima aceptable (como proporción): solo definen cuándo se pinta la alerta en amarillo (Atención) o en rojo (Crítico).',
             ]}
           />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Input
             label="Advertencia por debajo de"
             value={form.warn_below}
@@ -94,30 +92,15 @@ export default function MargenPolicyTab({ organizationId, countryId }: MargenPol
             onChange={(e) => setForm({ ...form, critical_below: e.target.value })}
             placeholder="0.10 (10%)"
           />
-          <Input
-            label="Exige motivo por debajo de"
-            value={form.require_reason_below}
-            onChange={(e) => setForm({ ...form, require_reason_below: e.target.value })}
-            placeholder="0.15 (15%)"
-          />
         </div>
-        <label className="flex items-center gap-2 mt-4">
-          <input
-            type="checkbox"
-            checked={form.block_on_loss}
-            onChange={(e) => setForm({ ...form, block_on_loss: e.target.checked })}
-            className="w-4 h-4 accent-teal-600"
-          />
-          <span className="text-sm text-slate-700">Bloquear aprobación si hay pérdida (margen negativo)</span>
-        </label>
         <div className="pt-4 mt-4 border-t border-slate-200">
-          <Button onClick={handleSave} disabled={saving || !countryId || !canEdit} title={!canEdit ? 'Tu rol no puede editar el margen' : undefined}>
+          <Button onClick={handleSave} disabled={saving || !countryId || !canEdit} title={!canEdit ? 'Tu rol no puede editar la alerta' : undefined}>
             {saving ? 'Guardando...' : current ? 'Actualizar' : 'Guardar'}
           </Button>
         </div>
         {!current && (
           <p className="text-xs text-amber-600 mt-2">
-            Sin esto configurado, una liquidación para este país no puede calcular el semáforo de margen.
+            Sin esto configurado, una liquidación para este país no puede mostrar la alerta de auditoría (se usan los umbrales por defecto).
           </p>
         )}
       </Card>

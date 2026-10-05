@@ -19,7 +19,7 @@ import CostStructureModal from './components/CostStructureModal';
 import RateTablesModal from './components/RateTablesModal';
 import { loadZones } from '../../lib/tarifas/catalogLoader';
 import {
-  countOutsourcedRates, deactivateParty, listCarrierProfiles, reactivateParty,
+  deactivateParty, listCarrierProfiles, reactivateParty,
 } from '../../lib/tarifas/partiesDataSource';
 import type { CarrierProfile, PartyClassification } from '../../lib/tarifas/parties';
 import { useAuth } from '../../hooks/useAuth';
@@ -138,14 +138,10 @@ export default function CompaniasView({ classification }: { classification: Part
 
     try {
       if (!reactivating) {
-        const dependientes = await countOutsourcedRates(profile.partyId);
-        const aviso = dependientes > 0
-          ? `\n\nOjo: ${dependientes} tarifa(s) de outsourcing dependen de esta compañía y dejarán de ofrecerse.`
-          : '';
         const ok = window.confirm(
           `¿Desactivar el cálculo de "${profile.name}"?\n\nNo se borra: sale de los selectores pero las ` +
           `liquidaciones ya emitidas la conservan intacta, porque el histórico es inmutable. ` +
-          `El transportista sigue en el catálogo.${aviso}`,
+          `El transportista sigue en el catálogo.`,
         );
         if (!ok) return;
       }

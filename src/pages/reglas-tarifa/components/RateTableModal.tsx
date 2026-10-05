@@ -298,12 +298,14 @@ export default function RateTableModal({
             <div className="flex items-start gap-2 bg-slate-50 border border-slate-200 text-slate-600 text-xs rounded-lg px-3 py-2.5">
               <i className="ri-information-line mt-0.5 shrink-0"></i>
               <span>
-                Sólo aparecen variables <strong>categóricas</strong>. Las numéricas del sistema
-                (kilómetros, bultos) casarían por igualdad exacta —181 no casa con 180— y el
-                tarifario quedaría mudo casi siempre: para cobrar por tramos de una magnitud está
-                el operador <em>Por escalones</em>.{' '}
+                Las variables <strong>categóricas</strong> (zona, tipo de camión…) casan con un valor
+                exacto. Las <strong>numéricas</strong> (kilómetros, peso, paradas, horas) casan por{' '}
+                <strong>rango</strong>: en la fila se escribe el tramo, por ejemplo{' '}
+                <code className="font-mono">0..100</code>, <code className="font-mono">101..300</code> o{' '}
+                <code className="font-mono">301..</code> (extremos incluidos), y 181 km cae en
+                «101..300». Una celda vacía vale para todo.{' '}
                 {form.partyId
-                  ? 'Además puede usar las variables personalizadas de su compañía (si son numéricas, con valores exactos como 0, 1 o 2).'
+                  ? 'También puede usar las variables personalizadas de su compañía: las numéricas por rango, las de texto por valor exacto.'
                   : 'Las variables personalizadas solo se pueden usar en el tarifario de una compañía con perfil de cálculo.'}
               </span>
             </div>

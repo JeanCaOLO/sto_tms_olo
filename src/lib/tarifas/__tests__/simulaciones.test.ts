@@ -22,7 +22,6 @@ function run(rules: Rule[], trip: Partial<TripContext> = {}, extra: Partial<Calc
     zoneGroups,
     locations,
     ...makeOwnCostStructure(),
-    outsourcedCostRates: [],
     marginPolicy: makeMarginPolicy(),
     ...extra,
   });

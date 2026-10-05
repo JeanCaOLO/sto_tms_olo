@@ -15,17 +15,83 @@
 
 import { useState } from 'react';
 import Badge from '../base/Badge';
-import { explainCost, explainResult, type ExplainContext } from '../../lib/tarifas/explain';
+import DataTable, { type DataTableColumn } from '../base/DataTable';
+import { explainResult, type ExplainContext } from '../../lib/tarifas/explain';
 import { formatMoney, formatPct } from '../../lib/tarifas/format';
-import type { CalcResult, Money } from '../../lib/tarifas/types';
+import type { Allocation, AllocationShare, CalcResult, Money } from '../../lib/tarifas/types';
 import type { ExplainedLine } from '../../lib/tarifas/explain';
+
+const MARGIN_LABEL: Record<string, string> = {
+  OK: 'OK', WARN: 'Atención', CRITICAL: 'Crítico', LOSS: 'Pérdida',
+};
+
+const BASIS_LABEL: Record<string, string> = {
+  VALUE: 'valor de la mercancía', WEIGHT: 'peso', VOLUME: 'volumen', ORDERS: 'cantidad de pedidos',
+};
+
+/**
+ * Reparto del total entre casas comerciales (lo que se factura por casa). Visible para todos.
+ * `allocation` null = el viaje no tiene pedidos cargados: línea informativa, no bloquea.
+ */
+export function AllocationBlock({ allocation, criterion }: { allocation: Allocation | null; criterion?: string }) {
+  const columns: DataTableColumn<AllocationShare>[] = [
+    {
+      key: 'name', header: 'Casa comercial', sortable: true, accessor: (r) => r.name,
+      render: (r) => (
+        <span>{r.name}{r.code && <span className="ml-1 font-mono text-[11px] text-slate-400">{r.code}</span>}</span>
+      ),
+    },
+    {
+      key: 'share', header: '%', sortable: true, align: 'right', accessor: (r) => Number(r.share),
+      render: (r) => `${(Number(r.share) * 100).toFixed(2)} %`,
+      exportValue: (r) => Number(r.share) * 100,
+    },
+    {
+      key: 'amount', header: 'Monto a pagar', sortable: true, align: 'right', accessor: (r) => Number(r.amount),
+      render: (r) => <span className="font-medium text-slate-900">{formatMoney(r.amount, allocation?.currency ?? '')}</span>,
+    },
+    {
+      key: 'value', header: 'Valor de la mercancía', sortable: true, align: 'right', accessor: (r) => Number(r.value),
+      render: (r) => formatMoney(r.value, allocation?.currency ?? ''),
+    },
+  ];
+
+  return (
+    <section className="space-y-2">
+      <h3 className="text-sm font-semibold text-slate-700">Reparto por casa comercial</h3>
+      {!allocation ? (
+        <p className="text-xs text-slate-500">
+          <i className="ri-information-line mr-1"></i>
+          El viaje no tiene pedidos cargados: no se puede repartir por casa comercial.
+        </p>
+      ) : (
+        <>
+          {(criterion ?? allocation.criterion) !== allocation.basis && (
+            <p className="text-xs text-amber-700">
+              <i className="ri-information-line mr-1"></i>
+              Se repartió por {BASIS_LABEL[allocation.basis]} porque los pedidos no traen{' '}
+              {allocation.criterion === 'VALUE' ? 'valor' : allocation.criterion === 'WEIGHT' ? 'peso' : 'volumen'}.
+            </p>
+          )}
+          <DataTable
+            data={allocation.shares}
+            columns={columns}
+            getRowId={(r) => r.customerId ?? r.code ?? r.name}
+            searchPlaceholder="Buscar casa comercial"
+            exportFileName="reparto_casas_comerciales"
+            emptyMessage="Sin casas comerciales"
+          />
+        </>
+      )}
+    </section>
+  );
+}
 
 /** Dónde se edita lo que produjo la línea, en palabras. */
 function originLabel(line: ExplainedLine, replacesCountry: boolean): { text: string; tone: string } | null {
   const { source, scope } = line.origen;
   if (source === 'ADHOC') return { text: 'Regla de esta liquidación', tone: 'bg-purple-50 text-purple-700' };
   if (source === 'COST_ROW') return { text: 'Estructura de costos', tone: 'bg-slate-100 text-slate-600' };
-  if (source === 'FLAT_RATE') return { text: 'Tarifa plana del transportista', tone: 'bg-slate-100 text-slate-600' };
   if (scope === 'PARTY') {
     return { text: replacesCountry ? 'Regla del transportista · reemplaza a la del país' : 'Regla del transportista', tone: 'bg-amber-50 text-amber-700' };
   }
@@ -57,7 +123,6 @@ export default function CalcBreakdownPanel({
   const nivel = fixedLevel ?? nivelElegido;
 
   const explicacion = explainResult(result, ctx, { excludedSeqs, total });
-  const costo = explainCost(result);
   const moneda = explicacion.currency;
 
   const difiere = total !== undefined && total !== result.totalLiquidado;
@@ -268,59 +333,48 @@ export default function CalcBreakdownPanel({
             )}
           </div>
 
-          {/* Costo y margen */}
+          {/* Auditoría: mercancía transportada vs gastos operativos (solo informativa) */}
           <div className="border border-slate-200 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-xs font-semibold text-slate-600 uppercase">
-                Costo de operar el viaje
-              </h4>
-              <span className="text-xs text-slate-500">
-                modelo: <span className="font-mono">{result.cost.modelId}</span>
-              </span>
-            </div>
-            {costo.length === 0 ? (
-              <p className="text-xs text-slate-400">Sin desglose de costo.</p>
+            <h4 className="text-xs font-semibold text-slate-600 uppercase mb-2">
+              Auditoría: mercancía transportada vs gastos operativos
+            </h4>
+            {result.margin.basis === 'NONE' ? (
+              <p className="text-xs text-slate-500">
+                Este viaje no tiene pedidos con valor cargado: no se puede medir ganancia o pérdida.
+              </p>
             ) : (
-              <table className="w-full text-xs">
-                <tbody className="divide-y divide-slate-100">
-                  {costo.map((line) => (
-                    <tr key={line.seq}>
-                      <td className="py-1.5 text-slate-700">{line.label}</td>
-                      <td className="py-1.5 text-slate-500">{line.como}</td>
+              <>
+                <table className="w-full text-xs">
+                  <tbody className="divide-y divide-slate-100">
+                    <tr>
+                      <td className="py-1.5 text-slate-700">Valor de la mercancía</td>
                       <td className="py-1.5 text-right font-medium text-slate-800">
-                        {formatMoney(line.monto, moneda)}
+                        {formatMoney(result.margin.cargoValue, moneda)}
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-                <tfoot className="border-t border-slate-200">
-                  <tr>
-                    <td className="py-1.5 font-medium text-slate-700" colSpan={2}>Total del costo</td>
-                    <td className="py-1.5 text-right font-semibold text-slate-900">
-                      {formatMoney(result.cost.total, moneda)}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            )}
-
-            {result.cost.modelId !== 'NONE' && (
-              <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-200">
-                <span className="text-xs text-slate-600" title="Lo que se paga menos lo que cuesta operar el viaje. No incluye lo cobrado al cliente.">
-                  Diferencia contra costo operativo: {formatMoney(result.margin.amount, moneda)} ({formatPct(result.margin.pct)})
-                </span>
-                <Badge
-                  variant={
-                    result.margin.status === 'OK' ? 'success'
-                      : result.margin.status === 'WARN' ? 'warning' : 'danger'
-                  }
-                  size="sm"
-                >
-                  {result.margin.status === 'OK' ? 'OK'
-                    : result.margin.status === 'WARN' ? 'Atención'
-                      : result.margin.status === 'CRITICAL' ? 'Crítico' : 'Pérdida'}
-                </Badge>
-              </div>
+                    <tr>
+                      <td className="py-1.5 text-slate-700">Gastos operativos (total pagado)</td>
+                      <td className="py-1.5 text-right font-medium text-slate-800">
+                        {formatMoney(result.margin.expense, moneda)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-200">
+                  <span className="text-xs text-slate-600" title="Valor de la mercancía menos lo que se paga. Es solo de auditoría: no bloquea nada.">
+                    Diferencia: {formatMoney(result.margin.amount, moneda)} ({formatPct(result.margin.pct)})
+                  </span>
+                  <Badge
+                    variant={
+                      result.margin.status === 'OK' ? 'success'
+                        : result.margin.status === 'WARN' ? 'warning' : 'danger'
+                    }
+                    size="sm"
+                  >
+                    {MARGIN_LABEL[result.margin.status]}
+                  </Badge>
+                </div>
+              </>
             )}
           </div>
         </div>

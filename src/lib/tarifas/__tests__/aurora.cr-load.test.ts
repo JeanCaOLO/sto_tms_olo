@@ -200,7 +200,7 @@ describe.skipIf(!enabled)('Carga de la estructura de costos de Costa Rica en Aur
     const emitted = await emitSettlement({
       trip: c.trip, partyId: c.partyId, edits: { customVars: { 'custom:con_ayudante': 1 } }, status: 'Borrador',
       notes: 'Verificación de la estructura de costos de Costa Rica contra la planilla',
-      marginReason: c.result.margin.action === 'REQUIRE_REASON' ? 'Verificación de costos (tarifa de prueba)' : null,
+      marginReason: null,
       context: c.context, calc: c.result, adhocRules: [adhoc],
       totalAmount: c.result.totalLiquidado,
     });

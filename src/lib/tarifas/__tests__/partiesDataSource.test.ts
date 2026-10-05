@@ -5,7 +5,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  countOutsourcedRates, deactivateParty, ensurePartyProfile, getProfileForCarrier,
+  deactivateParty, ensurePartyProfile, getProfileForCarrier,
   listCarrierProfiles, reactivateParty,
 } from '../partiesDataSource';
 import { db, ReadOnlyEntityError } from '../data';
@@ -51,9 +51,8 @@ describe('ensurePartyProfile', () => {
   it('crea el perfil la primera vez, y es idempotente', async () => {
     // Un transportista sin perfil: se le quita el de la semilla borrando lo que lo referencia.
     const [perfil] = await db().find('settlementParty', { where: [{ column: 'carrier_id', op: 'eq', value: 'CARRIER_CR_2' }] });
-    for (const t of ['partyVariable', 'outsourcedCostRate', 'pricingRule', 'rateTable', 'costStructure'] as const) {
-      const col = t === 'outsourcedCostRate' ? 'carrier_id' : 'party_id';
-      for (const row of await db().find(t, { where: [{ column: col, op: 'eq', value: perfil.id }] })) {
+    for (const t of ['partyVariable', 'pricingRule', 'rateTable', 'costStructure'] as const) {
+      for (const row of await db().find(t, { where: [{ column: 'party_id', op: 'eq', value: perfil.id }] })) {
         await db().delete(t, row.id);
       }
     }
@@ -79,10 +78,6 @@ describe('baja lógica y catálogo de solo lectura', () => {
     expect((await getProfileForCarrier('CARRIER_VE_1'))?.status).toBe('inactive');
     expect((await reactivateParty('CARRIER_VE_1')).error).toBeNull();
     expect((await getProfileForCarrier('CARRIER_VE_1'))?.status).toBe('active');
-  });
-
-  it('cuenta las tarifas de outsourcing que dependen del perfil', async () => {
-    expect(await countOutsourcedRates('CARRIER_VE_1')).toBeGreaterThan(0);
   });
 
   it('el transportista del catálogo no se edita desde el liquidador', async () => {

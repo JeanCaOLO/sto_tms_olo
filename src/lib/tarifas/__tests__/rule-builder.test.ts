@@ -188,7 +188,6 @@ function runWithBuilder(builderForm: RuleBuilderForm, trip: Partial<TripContext>
     zoneGroups,
     locations,
     ...makeOwnCostStructure(),
-    outsourcedCostRates: [],
     marginPolicy: makeMarginPolicy(),
     partyVariables,
   };
@@ -389,7 +388,7 @@ describe('A2 de punta a punta: OR e IN deciden si la regla aplica', () => {
     });
     const input: CalculateInput = {
       country, trip: makeTrip({ truckTypeId: 'FRR' }), rules: [rule], zones, zoneGroups, locations,
-      ...makeOwnCostStructure(), outsourcedCostRates: [], marginPolicy: makeMarginPolicy(),
+      ...makeOwnCostStructure(), marginPolicy: makeMarginPolicy(),
     };
     expect(calculate(input).totalLiquidado).toBe('50.00');
   });

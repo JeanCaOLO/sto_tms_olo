@@ -52,7 +52,7 @@ const fila = (overrides: Partial<CostStructureRow> = {}): CostStructureRow => {
 function costOf(rows: CostStructureRow[], tripOverrides = {}, str = estructura()) {
   const country = makeCountryVE();
   const { zoneGroups, zones, locations } = makeGeoVE();
-  const trip = makeTrip(tripOverrides);
+  const trip = makeTrip({ fleetType: 'OWN', ...tripOverrides });
   const { vars } = deriveContext({ trip, country, zones, zoneGroups, locations });
 
   return computeCost(
@@ -60,7 +60,6 @@ function costOf(rows: CostStructureRow[], tripOverrides = {}, str = estructura()
       country,
       trip,
       ...makeOwnCostStructure(),
-      outsourcedCostRates: [],
       costStructure: str,
       costStructureRows: rows,
     },
@@ -183,9 +182,8 @@ describe('compatibilidad', () => {
     const result = computeCost(
       {
         country: makeCountryVE(),
-        trip: makeTrip({ km: 100 }),
+        trip: makeTrip({ km: 100, fleetType: 'OWN' }),
         ...makeOwnCostStructure(),
-        outsourcedCostRates: [],
         costStructure: null,
         costStructureRows: [],
       },

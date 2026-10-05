@@ -34,7 +34,6 @@ function totalDe(mode: TierMode | undefined, tiers: Tier[], trip: Partial<TripCo
     zoneGroups,
     locations,
     ...makeOwnCostStructure(),
-    outsourcedCostRates: [],
     marginPolicy: makeMarginPolicy(),
   };
   return calculate(input).totalLiquidado;

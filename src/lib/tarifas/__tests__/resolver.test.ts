@@ -79,8 +79,7 @@ describe('resolveRules — stacking', () => {
 
     // Quién gana se verifica de punta a punta, que es donde la decisión se toma de verdad.
     const result = calculate({
-      country, trip, rules: [low, high], zones, zoneGroups, locations, ...makeOwnCostStructure(), outsourcedCostRates: [],
-      marginPolicy: makeMarginPolicy(),
+      country, trip, rules: [low, high], zones, zoneGroups, locations, ...makeOwnCostStructure(), marginPolicy: makeMarginPolicy(),
     });
 
     expect(result.trace.map((l) => l.ruleCode)).toEqual(['MAX_HIGH']);

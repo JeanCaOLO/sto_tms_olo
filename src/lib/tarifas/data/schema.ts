@@ -44,6 +44,7 @@ export type EntityName =
   | 'trip'
   | 'dispatchGuide'
   | 'tripReturn'
+  | 'tripCargo'
   // ── Propias (cálculo) ──
   | 'countrySettings'
   | 'zoneGroup'
@@ -56,7 +57,6 @@ export type EntityName =
   | 'costStructureRow'
   | 'rateTable'
   | 'rateTableRow'
-  | 'outsourcedCostRate'
   | 'marginPolicy'
   | 'auditLog';
 
@@ -320,6 +320,29 @@ export const ENTITIES = {
     },
   },
 
+  // Mercancía de un viaje por casa comercial: los pedidos de sus guías de despacho, agrupados por
+  // cliente (`tarifas_v_viaje_cargas`). Alimenta la ganancia/pérdida de auditoría y el reparto del
+  // total entre casas. Una fila por (viaje, cliente); el id es sintético.
+  tripCargo: {
+    table: 'tarifas_v_viaje_cargas',
+    collection: 'tripCargos',
+    idPrefix: 'crg',
+    label: 'Mercancía del viaje',
+    external: { baseTable: 'dispatch_guides' },
+    columns: {
+      id: { type: 'text', primaryKey: true },
+      route_id: { type: 'uuid', indexed: true },
+      customer_id: { type: 'uuid', nullable: true },
+      customer_code: { type: 'text', nullable: true },
+      customer_name: { type: 'text', nullable: true },
+      value: { type: 'numeric' },
+      weight_kg: { type: 'numeric' },
+      volume_m3: { type: 'numeric' },
+      items: { type: 'int' },
+      orders: { type: 'int' },
+    },
+  },
+
   // ════════════════════════════════════════════════════════════════════════════════════════════
   // PROPIAS — lo de cálculo.
   // ════════════════════════════════════════════════════════════════════════════════════════════
@@ -503,13 +526,17 @@ export const ENTITIES = {
       currency: { type: 'text' },
       total_amount: { type: 'numeric' },
       notes: { type: 'text', nullable: true },
-      /** Motivo obligatorio cuando el margen cae bajo el umbral de la política. */
+      /** Sin efecto desde 2026-10-05 (el margen es informativo). Se conserva para liquidaciones anteriores. */
       margin_reason: { type: 'text', nullable: true },
       margin_status: { type: 'text', nullable: true, indexed: true },
       margin_amount: { type: 'numeric', nullable: true },
       margin_pct: { type: 'numeric', nullable: true },
       cost_total: { type: 'numeric', nullable: true },
       cost_model_id: { type: 'text', nullable: true },
+      /** Valor de la mercancía del viaje al emitir (suma de sus pedidos). Nulo = no se conocía. */
+      cargo_value: { type: 'numeric', nullable: true },
+      /** Reparto del total entre casas comerciales (`Allocation`). Nulo = el viaje no tenía pedidos cargados. */
+      allocation: { type: 'jsonb', nullable: true },
       /** Foto del viaje tal como se leyó al emitir (transportista, conductor, placa, zona, km…). */
       trip_info: { type: 'jsonb' },
       /** Lo cargado a mano al liquidar: variables PER_TRIP. */
@@ -630,23 +657,6 @@ export const ENTITIES = {
       amount: { type: 'numeric' },
       row_order: { type: 'int' },
       active: { type: 'boolean', indexed: true },
-    },
-  },
-
-  outsourcedCostRate: {
-    table: 'tarifas_outsourced_cost_rates',
-    collection: 'outsourcedCostRates',
-    idPrefix: 'osr',
-    label: 'Tarifa de outsourcing',
-    columns: {
-      id: idColumn(),
-      country_id: countryRef(),
-      // Apunta al perfil de cálculo, no al `carriers.id` del TMS. El nombre de la columna se
-      // conserva para no romper las filas ya guardadas.
-      carrier_id: { type: 'text', references: 'settlementParty', indexed: true },
-      /** Tipo de camión = `vehicles.vehicle_type` del viaje. */
-      truck_type_id: { type: 'text' },
-      flat_rate: { type: 'numeric' },
     },
   },
 

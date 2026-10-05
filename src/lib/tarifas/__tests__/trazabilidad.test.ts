@@ -6,17 +6,16 @@ import { explainCost, explainResult } from '../explain';
 import { makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostStructure, makeRule, makeTrip } from './fixtures';
 import type { CalculateInput, Rule } from '../types';
 
-function calcular(rules: Rule[], partyId: string | null = 'P1') {
+function calcular(rules: Rule[], partyId: string | null = 'P1', fleetType: 'OWN' | 'OUTSOURCED' = 'OUTSOURCED') {
   const { zoneGroups, zones, locations } = makeGeoVE();
   const input: CalculateInput = {
     country: makeCountryVE(),
-    trip: makeTrip({ partyId }),
+    trip: makeTrip({ partyId, fleetType }),
     rules,
     zones,
     zoneGroups,
     locations,
     ...makeOwnCostStructure(),
-    outsourcedCostRates: [],
     marginPolicy: makeMarginPolicy(),
   };
   return { input, result: calculate(input) };
@@ -58,7 +57,7 @@ describe('origen de cada línea', () => {
   it('las líneas de costo dicen de qué modelo vienen', () => {
     const { result } = calcular([
       makeRule({ code: 'BASE', stage: 'BASE', expression: { op: 'FIXED', amount: '100.00' } }),
-    ]);
+    ], 'P1', 'OWN');
     const costo = explainCost(result);
     expect(costo.length).toBeGreaterThan(0);
     expect(costo.every((l) => l.origen.source === 'COST_ROW')).toBe(true);

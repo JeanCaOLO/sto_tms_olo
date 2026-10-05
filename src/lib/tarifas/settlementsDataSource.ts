@@ -16,7 +16,7 @@ import { db, UniqueViolationError, type Condition, type Row } from './data';
 import { notLiquidableReason } from './tripContext';
 import { getTrip } from './tripsDataSource';
 import type {
-  CalcIssue, CalcResult, MarginStatus, Override, Rule, SettlementRecord, SettlementReturn,
+  Allocation, CalcIssue, CalcResult, MarginStatus, Override, Rule, SettlementRecord, SettlementReturn,
   SettlementStatus, Stage, TraceLine, TripContext, TripEdits, TripRecord,
 } from './types';
 
@@ -76,6 +76,8 @@ function toDomain(row: Row): SettlementRecord {
     marginPct: money(row.margin_pct),
     costTotal: money(row.cost_total),
     costModelId: row.cost_model_id ?? null,
+    cargoValue: row.cargo_value === null || row.cargo_value === undefined ? null : String(row.cargo_value),
+    allocation: (row.allocation ?? null) as Allocation | null,
     trip: (row.trip ?? {}) as TripContext,
     trace: (row.trace ?? []) as TraceLine[],
     discarded: row.discarded ?? [],
@@ -153,25 +155,12 @@ export function validateSettlement(input: SettlementInput): SettlementErrors {
   if (!input.trip?.id) errors.trip = 'Falta el viaje a liquidar.';
   if (!input.trip?.countryId) errors.trip = 'El viaje no tiene país.';
 
-  // El motivo del margen no es una formalidad: es lo que queda escrito cuando alguien aprueba una
-  // liquidación que la política marcó como floja.
-  if (input.calc.margin.action === 'REQUIRE_REASON' && !(input.marginReason ?? '').trim()) {
-    errors.marginReason = 'El margen exige un motivo escrito para esta liquidación.';
-  }
-
   return errors;
 }
 
-/** Problemas del cálculo o de la política que impiden emitir. Vacío = se puede. */
+/** Problemas del cálculo que impiden emitir. Vacío = se puede. La ganancia/pérdida no bloquea nada. */
 function blockingIssues(input: SettlementInput): CalcIssue[] {
-  if (input.calc.blockingIssues.length > 0) return input.calc.blockingIssues;
-  if (input.calc.margin.action === 'BLOCK' && (input.status === 'Aprobado' || input.status === 'Pagado')) {
-    return [{
-      code: 'TOTAL_NEGATIVO',
-      message: 'La política de margen de este país impide aprobar una liquidación con pérdida.',
-    }];
-  }
-  return [];
+  return input.calc.blockingIssues;
 }
 
 function newSettlementId(): string {
@@ -195,6 +184,8 @@ function rowValues(input: SettlementInput, trip: TripRecord, ahora: string): Row
     margin_pct: input.calc.margin.pct,
     cost_total: input.calc.cost.total,
     cost_model_id: input.calc.cost.modelId,
+    cargo_value: input.calc.margin.basis === 'CARGO' ? input.calc.margin.cargoValue : null,
+    allocation: input.calc.allocation ?? null,
     // La foto es la del viaje RELEÍDO al emitir, no la que traía la pantalla.
     trip_info: { ...trip, settlementId: null },
     trip_edits: input.edits ?? { customVars: {} },
@@ -350,11 +341,6 @@ export async function updateSettlementStatus(
 
     if (actual.superseded_by && status !== 'Anulado') {
       return { error: 'Esta liquidación fue reemplazada al re-liquidar el viaje: no se puede reactivar.' };
-    }
-
-    // Misma protección que al emitir: el margen en pérdida no se aprueba desde la lista.
-    if (actual.margin_status === 'LOSS' && (status === 'Aprobado' || status === 'Pagado')) {
-      return { error: 'No se puede aprobar una liquidación con margen en pérdida.' };
     }
 
     await db().update('settlement', id, {

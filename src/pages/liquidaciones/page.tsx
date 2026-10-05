@@ -15,6 +15,7 @@ import CountryScopeBar from '../../components/feature/CountryScopeBar';
 import DataModeBanner from '../../components/tarifas/DataModeBanner';
 import LiquidarViajeModal from './components/LiquidarViajeModal';
 import DetalleLiquidacionModal from './components/DetalleLiquidacionModal';
+import { useVistaLiquidador } from './components/useVistaLiquidador';
 import { useActiveCountry } from '../../hooks/useActiveCountry';
 import { useModulePermissions } from '../../hooks/use-module-permissions';
 import { useTarifasActor } from '../../hooks/useTarifasActor';
@@ -46,6 +47,7 @@ export default function LiquidacionesPage() {
   const { country: activeCountry, countryId, problem, selectedName, loading: loadingCountries } = useActiveCountry();
   const { canCreate, canEdit } = useModulePermissions('tarifas');
   useTarifasActor();
+  const { extendida } = useVistaLiquidador();
 
   const [tab, setTab] = useState<Tab>('trips');
   const [from, setFrom] = useState('');
@@ -111,8 +113,7 @@ export default function LiquidacionesPage() {
     const pendiente = vigentes
       .filter((s) => s.status === 'Borrador' || s.status === 'En Revisión')
       .reduce((sum, s) => sum + Number(s.totalAmount), 0);
-    const enPerdida = vigentes.filter((s) => s.marginStatus === 'LOSS').length;
-    return { total, pendiente, enPerdida };
+    return { total, pendiente };
   }, [settlements]);
 
   const cambiarEstado = async (s: SettlementRecord, status: SettlementStatus) => {
@@ -190,15 +191,6 @@ export default function LiquidacionesPage() {
       render: (s) => <span className="font-medium text-slate-900">{formatMoney(s.totalAmount, s.currency)}</span>,
     },
     {
-      key: 'margin', header: 'Margen', filterable: true,
-      accessor: (s) => (s.marginStatus ? MARGIN_LABEL[s.marginStatus] ?? s.marginStatus : ''),
-      render: (s) => (s.marginStatus ? (
-        <Badge variant={MARGIN_BADGE[s.marginStatus] ?? 'default'} size="sm">
-          {MARGIN_LABEL[s.marginStatus] ?? s.marginStatus}
-        </Badge>
-      ) : <span className="text-slate-300">—</span>),
-    },
-    {
       key: 'status', header: 'Estado', sortable: true, filterable: true,
       accessor: (s) => s.status,
       render: (s) => (
@@ -214,6 +206,27 @@ export default function LiquidacionesPage() {
       ),
     },
   ];
+
+  // Ganancia/pérdida: solo auditoría, solo en la vista extendida. Nunca bloquea nada.
+  const columnasHistorial: DataTableColumn<SettlementRecord>[] = extendida
+    ? [
+      ...settlementColumns.slice(0, 5),
+      {
+        key: 'margin', header: 'Ganancia (auditoría)', filterable: true,
+        accessor: (s) => (s.cargoValue && s.marginStatus ? MARGIN_LABEL[s.marginStatus] ?? s.marginStatus : ''),
+        exportValue: (s) => (s.cargoValue && s.marginAmount ? Number(s.marginAmount) : ''),
+        render: (s) => (s.cargoValue && s.marginStatus ? (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-700">{formatMoney(s.marginAmount ?? '0', s.currency)}</span>
+            <Badge variant={MARGIN_BADGE[s.marginStatus] ?? 'default'} size="sm">
+              {MARGIN_LABEL[s.marginStatus] ?? s.marginStatus}
+            </Badge>
+          </div>
+        ) : <span className="text-slate-300">—</span>),
+      },
+      ...settlementColumns.slice(5),
+    ]
+    : settlementColumns;
 
   if (loadingCountries) {
     return <div className="p-6 text-center text-slate-500"><i className="ri-loader-4-line animate-spin text-2xl"></i></div>;
@@ -240,11 +253,10 @@ export default function LiquidacionesPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard title="Viajes por liquidar" value={String(trips.length)} icon="ri-route-line" color="teal" />
         <StatCard title="Total liquidado" value={formatMoney(kpis.total.toFixed(2), moneda)} icon="ri-money-dollar-circle-line" color="emerald" />
         <StatCard title="Sin aprobar" value={formatMoney(kpis.pendiente.toFixed(2), moneda)} icon="ri-time-line" color="amber" />
-        <StatCard title="En pérdida" value={String(kpis.enPerdida)} icon="ri-alert-line" color="red" />
       </div>
 
       <Card>
@@ -282,7 +294,7 @@ export default function LiquidacionesPage() {
         ) : (
           <DataTable
             data={settlements}
-            columns={settlementColumns}
+            columns={columnasHistorial}
             getRowId={(s) => s.id}
             loading={loadingSettlements}
             searchPlaceholder="Buscar por LIQ-, viaje o transportista"

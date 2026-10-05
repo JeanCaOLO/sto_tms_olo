@@ -123,6 +123,8 @@ CREATE TABLE IF NOT EXISTS tarifas_settlements (
   margin_pct numeric,
   cost_total numeric,
   cost_model_id text,
+  cargo_value numeric,
+  allocation jsonb,
   trip_info jsonb NOT NULL,
   trip_edits jsonb NOT NULL,
   trip jsonb NOT NULL,
@@ -224,19 +226,6 @@ CREATE TABLE IF NOT EXISTS tarifas_rate_table_rows (
 );
 CREATE INDEX IF NOT EXISTS tarifas_rate_table_rows_table_id_idx ON tarifas_rate_table_rows (table_id);
 CREATE INDEX IF NOT EXISTS tarifas_rate_table_rows_active_idx ON tarifas_rate_table_rows (active);
-
--- Tarifa de outsourcing
-CREATE TABLE IF NOT EXISTS tarifas_outsourced_cost_rates (
-  id text PRIMARY KEY,
-  country_id uuid NOT NULL,
-  carrier_id text NOT NULL,
-  truck_type_id text NOT NULL,
-  flat_rate numeric NOT NULL,
-  CONSTRAINT tarifas_outsourced_cost_rates_country_id_fkey FOREIGN KEY (country_id) REFERENCES countries (id) ON DELETE RESTRICT,
-  CONSTRAINT tarifas_outsourced_cost_rates_carrier_id_fkey FOREIGN KEY (carrier_id) REFERENCES tarifas_settlement_parties (id) ON DELETE RESTRICT
-);
-CREATE INDEX IF NOT EXISTS tarifas_outsourced_cost_rates_country_id_idx ON tarifas_outsourced_cost_rates (country_id);
-CREATE INDEX IF NOT EXISTS tarifas_outsourced_cost_rates_carrier_id_idx ON tarifas_outsourced_cost_rates (carrier_id);
 
 -- Política de margen
 CREATE TABLE IF NOT EXISTS tarifas_margin_policies (

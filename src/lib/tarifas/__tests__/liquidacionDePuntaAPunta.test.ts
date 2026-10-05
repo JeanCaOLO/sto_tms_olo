@@ -15,6 +15,7 @@ import {
 } from '../settlementsDataSource';
 import { deactivateParty } from '../partiesDataSource';
 import { parseCustomVarValues } from '../customVarFields';
+import { calculate } from '../index';
 import { computeSettlementTotals, resultWithTotal } from '../settlementTotals';
 import { db } from '../data';
 import { explainResult } from '../explain';
@@ -43,7 +44,7 @@ function aEmitir(c: TripCalculation, edits: TripEdits): SettlementInput {
     edits,
     status: 'Borrador',
     notes: null,
-    marginReason: c.result.margin.action === 'REQUIRE_REASON' ? 'Prueba de punta a punta' : null,
+    marginReason: null,
     context: c.context,
     calc: c.result,
     totalAmount: c.result.totalLiquidado,
@@ -169,29 +170,46 @@ describe('emitir y re-liquidar', () => {
     expect(Number(c.result.totalLiquidado) - Number(totales.total)).toBe(50);
   });
 
-  it('destildar una línea recalcula el margen contra el total que se paga', async () => {
+  it('destildar una línea recalcula la ganancia y el reparto contra el total que se paga', async () => {
     const viaje = await viajeDeTercero();
+    const cargo = {
+      value: '5000.00', weightKg: 300, volumeM3: 3, orders: 2,
+      parts: [
+        { customerId: 'A', code: 'EPA', name: 'EPA', value: '3000.00', weightKg: 100, volumeM3: 1, items: 2, orders: 1 },
+        { customerId: 'B', code: 'COF', name: 'Cofersa', value: '2000.00', weightKg: 200, volumeM3: 2, items: 3, orders: 1 },
+      ],
+    };
     const c = await calcular(viaje, { customVars: { 'custom:recolectas': 2 } });
+    const input = { ...c.input, cargo };
     const recolectas = c.result.trace.find((l) => l.ruleCode === 'R_RECOLECTAS');
     if (!recolectas) throw new Error('falta la línea de recolectas');
 
-    const totales = computeSettlementTotals(c.result.trace, [recolectas.seq], c.input.country);
-    const ajustado = resultWithTotal(c.result, totales, c.input.marginPolicy, c.input.country);
+    const base = calculate({ ...input });
+    const totales = computeSettlementTotals(base.trace, [recolectas.seq], input.country);
+    const ajustado = resultWithTotal(base, totales, input);
 
     expect(ajustado.totalLiquidado).toBe(totales.total);
-    expect(Number(ajustado.margin.amount)).toBe(Number(totales.total) - Number(c.result.cost.total));
-    expect(Number(ajustado.margin.amount)).toBeLessThan(Number(c.result.margin.amount));
+    expect(ajustado.margin.expense).toBe(totales.total);
+    expect(Number(ajustado.margin.amount)).toBe(5000 - Number(totales.total));
+    expect(Number(ajustado.margin.amount)).toBeGreaterThan(Number(base.margin.amount));
+    // El reparto sigue cuadrando al centavo y reparte el total editado, 60 % / 40 %.
+    expect(ajustado.allocation?.total).toBe(totales.total);
+    const [epa, cof] = ajustado.allocation!.shares;
+    expect(Number(epa.amount) + Number(cof.amount)).toBeCloseTo(Number(totales.total), 2);
+    expect(Number(epa.share)).toBeCloseTo(0.6, 6);
     // Sin exclusiones no cambia nada.
-    const sinCambios = computeSettlementTotals(c.result.trace, [], c.input.country);
-    expect(resultWithTotal(c.result, sinCambios, c.input.marginPolicy, c.input.country)).toBe(c.result);
+    const sinCambios = computeSettlementTotals(base.trace, [], input.country);
+    expect(resultWithTotal(base, sinCambios, input)).toBe(base);
   });
 
-  it('un tercero sin tarifa plana de costo se informa como falta de catálogo, no como excepción', async () => {
-    const viaje = await viajeDeTercero();
-    for (const r of await db().find('outsourcedCostRate')) await db().delete('outsourcedCostRate', r.id);
-
+  it('una flota propia sin estructura de costos se informa como falta de catálogo, no como excepción', async () => {
+    const viaje = (await listLiquidableTrips({ countryId: 'VE' })).find((t) => t.isOwnFleet === true);
+    if (!viaje) return; // la semilla no trae un viaje de flota propia completado
+    for (const e of ['costStructure'] as const) {
+      for (const r of await db().find(e)) await db().delete(e, r.id);
+    }
     const r = await calculateTrip(viaje, { customVars: {} });
     expect(r.status).toBe('catalog-error');
-    if (r.status === 'catalog-error') expect(r.message).toMatch(/tarifa plana/i);
+    if (r.status === 'catalog-error') expect(r.message).toMatch(/estructura de costos/i);
   });
 });

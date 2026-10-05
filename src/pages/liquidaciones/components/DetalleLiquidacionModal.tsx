@@ -9,7 +9,7 @@
 
 import Button from '../../../components/base/Button';
 import Badge from '../../../components/base/Badge';
-import CalcBreakdownPanel from '../../../components/tarifas/CalcBreakdownPanel';
+import CalcBreakdownPanel, { AllocationBlock } from '../../../components/tarifas/CalcBreakdownPanel';
 import { formatMoney } from '../../../lib/tarifas/format';
 import { describeReturn } from '../../../lib/tarifas/returnsNote';
 import { InterruptorVista, useVistaLiquidador } from './useVistaLiquidador';
@@ -42,9 +42,12 @@ export default function DetalleLiquidacionModal({ settlement, onClose }: Props) 
       amount: settlement.marginAmount ?? '0',
       pct: settlement.marginPct ?? '0',
       status: settlement.marginStatus ?? 'OK',
-      action: 'NONE',
+      basis: settlement.cargoValue ? 'CARGO' : 'NONE',
+      cargoValue: settlement.cargoValue ?? '0',
+      expense: settlement.totalAmount,
       currency: settlement.currency,
     },
+    allocation: settlement.allocation,
     warnings: settlement.warnings,
     blockingIssues: [],
   };
@@ -87,12 +90,6 @@ export default function DetalleLiquidacionModal({ settlement, onClose }: Props) 
             )}
           </div>
 
-          {settlement.marginReason && (
-            <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-4 py-2.5">
-              <strong>Motivo del margen:</strong> {settlement.marginReason}
-            </div>
-          )}
-
           {settlement.returns.length > 0 && (
             <div className="border border-slate-200 rounded-lg p-4">
               <h4 className="text-xs font-semibold text-slate-600 uppercase mb-2">
@@ -106,6 +103,8 @@ export default function DetalleLiquidacionModal({ settlement, onClose }: Props) 
               </p>
             </div>
           )}
+
+          <AllocationBlock allocation={settlement.allocation} />
 
           <CalcBreakdownPanel
             result={result}

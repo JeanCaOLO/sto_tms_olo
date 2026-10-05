@@ -16,7 +16,7 @@ import { buildCustomVarFields, missingDeclaredVars, type CustomVarField } from '
 import { getProfileForCarrier } from './partiesDataSource';
 import { buildCalculateInput } from './settlementInput';
 import { emptyTripEdits, notLiquidableReason, toTripContext } from './tripContext';
-import { getTrip } from './tripsDataSource';
+import { getTrip, getTripCargo } from './tripsDataSource';
 import type { CalcIssue, CalcResult, CalculateInput, Override, Rule, TripContext, TripEdits, TripRecord } from './types';
 
 export interface TripCalculation {
@@ -98,7 +98,9 @@ export async function calculateTrip(
   }
 
   const context = toTripContext(trip, edits, partyId);
+  const cargo = await getTripCargo(trip.id);
   const { input, issues, warnings } = buildCalculateInput(catalog, context, {
+    ...(cargo ? { cargo } : {}),
     ...(options.overrides ? { overrides: options.overrides } : {}),
     ...(options.adhocRules ? { adhocRules: options.adhocRules } : {}),
   });
@@ -109,8 +111,8 @@ export async function calculateTrip(
   try {
     result = issues.length > 0 ? emptyResult(catalog, issues) : calculate(input);
   } catch (error) {
-    // Falta una configuración que el motor exige (p. ej. la tarifa plana de un tercero): se informa
-    // como falta de catálogo en vez de romper la pantalla con una excepción.
+    // Falta una configuración que el motor exige (p. ej. la estructura de costos de la flota
+    // propia): se informa como falta de catálogo en vez de romper la pantalla con una excepción.
     return { status: 'catalog-error', message: error instanceof Error ? error.message : String(error) };
   }
 
@@ -143,7 +145,10 @@ function emptyResult(catalog: TarifasCatalog, issues: CalcIssue[]): CalcResult {
     totalLiquidado: '0',
     currency,
     cost: { total: '0', breakdown: [], modelId: 'NONE', currency },
-    margin: { amount: '0', pct: '0', status: 'OK', action: 'NONE', currency },
+    margin: {
+      amount: '0', pct: '0', status: 'OK', basis: 'NONE', cargoValue: '0', expense: '0', currency,
+    },
+    allocation: null,
     warnings: [],
     blockingIssues: issues,
   };

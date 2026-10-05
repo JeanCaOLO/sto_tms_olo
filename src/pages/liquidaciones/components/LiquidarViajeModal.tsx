@@ -12,7 +12,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
-import CalcBreakdownPanel from '../../../components/tarifas/CalcBreakdownPanel';
+import CalcBreakdownPanel, { AllocationBlock } from '../../../components/tarifas/CalcBreakdownPanel';
 import { calculateTrip, type TripCalculation } from '../../../lib/tarifas/tripSettlement';
 import { listTripReturns } from '../../../lib/tarifas/tripsDataSource';
 import { describeTrip, emptyTripEdits } from '../../../lib/tarifas/tripContext';
@@ -69,7 +69,6 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
   const [excludedSeqs, setExcludedSeqs] = useState<Set<number>>(new Set());
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState<SettlementStatus>('Borrador');
-  const [marginReason, setMarginReason] = useState('');
   const [reason, setReason] = useState('');
 
   // Lo que se calculó: es lo que se guarda, aunque después se siga tecleando.
@@ -110,7 +109,6 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
     setExcludedSeqs(new Set());
     setNotes(settlement?.notes ?? '');
     setStatus('Borrador');
-    setMarginReason('');
     setReason('');
     setCustomRaw({});
     setReturns(settlement?.returns ?? []);
@@ -163,7 +161,7 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
   // no contra el que calculó el motor.
   const effectiveResult = useMemo(
     () => (calculation && totals
-      ? resultWithTotal(calculation.result, totals, calculation.input.marginPolicy, calculation.input.country)
+      ? resultWithTotal(calculation.result, totals, calculation.input)
       : null),
     [calculation, totals],
   );
@@ -176,7 +174,6 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
   if (!isOpen) return null;
 
   const currency = calculation?.result.currency ?? '';
-  const margin = effectiveResult?.margin;
   const blocking = calculation?.blockingIssues ?? [];
   const puedeEmitir = !!calculation && !!totals && !calculation.notLiquidableReason
     && blocking.length === 0 && !loading && !pending && !saving;
@@ -207,7 +204,7 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
         edits: editsUsed.current,
         status: simple ? 'Borrador' : status,
         notes: notes.trim() || null,
-        marginReason: marginReason.trim() || null,
+        marginReason: null,
         context: calculation.context,
         calc: effectiveResult,
         rulesUsed: calculation.input.rules.filter((r) => calculation.result.trace.some((l) => l.ruleId === r.id)),
@@ -413,15 +410,6 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
                         />
                       </>
                     )}
-                    {simple && margin && margin.action !== 'NONE' && (
-                      <p className="text-sm text-amber-700">
-                        <i className="ri-information-line mr-1"></i>
-                        {margin.status === 'LOSS'
-                          ? 'La diferencia contra el costo es negativa'
-                          : 'La diferencia contra el costo es baja'}
-                        {margin.action === 'REQUIRE_REASON' ? ': indique el motivo.' : '.'}
-                      </p>
-                    )}
                     <div className="grid grid-cols-2 gap-3">
                       {!simple && (
                         <Select
@@ -429,16 +417,6 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
                           value={status}
                           onChange={(e) => setStatus(e.target.value as SettlementStatus)}
                           options={ESTADOS.map((s) => ({ value: s, label: s }))}
-                        />
-                      )}
-                      {margin && margin.action !== 'NONE' && (
-                        <Input
-                          label={simple
-                            ? (margin.action === 'REQUIRE_REASON' ? 'Motivo *' : 'Motivo')
-                            : (margin.action === 'REQUIRE_REASON' ? 'Motivo del margen *' : 'Motivo del margen')}
-                          value={marginReason}
-                          onChange={(e) => setMarginReason(e.target.value)}
-                          placeholder="Por qué se liquida con este margen"
                         />
                       )}
                     </div>
@@ -477,6 +455,13 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
                 )}
 
                 {calculation && totals && simple && (
+                  <div className="rounded-lg bg-teal-50 border border-teal-200 px-4 py-3">
+                    <div className="text-xs text-teal-700">Total a pagar</div>
+                    <div className="text-2xl font-bold text-teal-800">{formatMoney(totals.total, currency)}</div>
+                  </div>
+                )}
+
+                {calculation && totals && simple && (
                   <details className="border border-slate-200 rounded-lg px-4 py-3">
                     <summary className="text-sm font-semibold text-slate-700 cursor-pointer">Por qué este total</summary>
                     <div className="mt-3">
@@ -494,6 +479,10 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
                       />
                     </div>
                   </details>
+                )}
+
+                {calculation && effectiveResult && (
+                  <AllocationBlock allocation={effectiveResult.allocation} />
                 )}
 
                 {calculation && totals && !simple && (
@@ -537,7 +526,7 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
           <div className="text-sm">
             {totals && (
               <span className="text-slate-600">
-                Total: <strong className="text-teal-700">{formatMoney(totals.total, currency)}</strong>
+                Total a pagar: <strong className="text-teal-700">{formatMoney(totals.total, currency)}</strong>
               </span>
             )}
           </div>

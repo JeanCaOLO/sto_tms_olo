@@ -33,7 +33,6 @@ function run(rules: Rule[], trip: Partial<TripContext> = {}) {
     zoneGroups,
     locations, // 1:1, para que los números del test sean los de la regla
     ...makeOwnCostStructure(),
-    outsourcedCostRates: [],
     marginPolicy: makeMarginPolicy(),
     partyVariables: VARIABLES,
   };

@@ -12,31 +12,43 @@
 
 import { db, type Row } from './data';
 import { listPartyVariables } from './partyVariablesDataSource';
+import { parseRange, rangesOverlap } from './rateRange';
 import {
   RATE_TABLE_WILDCARD, type PartyVariable, type RateTable, type RateTableRow, type VarKey,
 } from './types';
 
 /**
- * Variables que pueden formar la clave de un tarifario.
- *
- * Son las CATEGÓRICAS, y la omisión de las numéricas es deliberada: una fila casa por igualdad, así
- * que una clave por `km` solo cobraría cuando el viaje midiera exactamente los kilómetros tecleados
- * —181 no casaría con 180— y el tarifario quedaría mudo casi siempre. Para cobrar por tramos de una
- * magnitud está el operador de escalones, que es lo que ese caso necesita.
+ * Variables CATEGÓRICAS de la clave de un tarifario: la fila casa por igualdad con un valor exacto
+ * (una zona, un tipo de camión) o con un comodín.
  */
-export const RATE_TABLE_KEY_VARS = [
+export const RATE_TABLE_CATEGORICAL_VARS = [
   'originZone', 'destZone', 'originZoneGroup', 'destZoneGroup',
   'truckTypeId', 'serviceType', 'fleetType', 'carrierId', 'customerId',
   'countryId', 'weekday',
 ] as const satisfies readonly VarKey[];
+
+/**
+ * Variables NUMÉRICAS que pueden ir en la clave: la celda de la fila es un RANGO ("0..100",
+ * "101..300", "301..") y casa con todo el tramo, así que 181 km cae en "101..300". Para el valor
+ * exacto de una magnitud (181 no casa con 180) la clave por igualdad no sirve; el rango sí.
+ */
+export const RATE_TABLE_RANGE_VARS = [
+  'km', 'weightKg', 'clientCount', 'durationHours', 'truckWeightTons', 'truckVolumeM3',
+] as const satisfies readonly VarKey[];
+
+/** Todas las del sistema que pueden formar la clave. */
+export const RATE_TABLE_KEY_VARS = [...RATE_TABLE_CATEGORICAL_VARS, ...RATE_TABLE_RANGE_VARS] as const;
+
+export const isRangeKeyVar = (key: string): boolean =>
+  (RATE_TABLE_RANGE_VARS as readonly string[]).includes(key);
 
 /** ¿Es una variable personalizada de una compañía (`custom:*`)? */
 export const isCustomKeyVar = (key: string): key is `custom:${string}` => key.startsWith('custom:');
 
 /**
  * Variables que se pueden elegir para la clave de un tarifario de una compañía: las del sistema más
- * las personalizadas ACTIVAS de esa compañía. Una variable numérica solo sirve con valores
- * discretos (0, 1, 2…): casa por igualdad exacta, igual que las del sistema.
+ * las personalizadas ACTIVAS de esa compañía. Una personalizada numérica admite rangos como las
+ * magnitudes del sistema; una de texto, valores exactos.
  */
 export function keyVarsFor(partyVariables: PartyVariable[] = []): VarKey[] {
   return [
@@ -292,9 +304,43 @@ export function validateRateRow(
   table: RateTable,
   existing: RateTableRow[],
   id?: string,
+  /** Variables personalizadas de la compañía: solo las NUMÉRICAS admiten rangos. */
+  partyVariables: PartyVariable[] = [],
 ): RateRowErrors {
   const errors: RateRowErrors = {};
   const key = normalizeKey(input.key, table.keyColumns.length);
+
+  // Rangos: solo en columnas numéricas, bien formados y sin pisarse con otra fila que sea igual en
+  // las demás columnas (dos tramos que comparten un valor harían ambigua la tarifa de ese valor).
+  const numericColumn = (column: VarKey) =>
+    isRangeKeyVar(column) || partyVariables.some((v) => v.key === column && v.kind === 'NUMBER');
+  const ranges = key.map((cell) => parseRange(cell));
+  for (let i = 0; i < key.length; i += 1) {
+    const range = ranges[i];
+    const cell = key[i]!;
+    if (!range) {
+      if (/\.\./.test(cell)) errors.key = `"${cell}" no es un rango válido. Use el formato 101..300, ..100 o 301..`;
+      continue;
+    }
+    if (!numericColumn(table.keyColumns[i]!)) {
+      errors.key = `La columna "${table.keyColumns[i]}" no es numérica: no admite rangos ("${cell}").`;
+    } else if (range.from !== null && range.to !== null && range.from > range.to) {
+      errors.key = `El rango "${cell}" está al revés: el inicio es mayor que el final.`;
+    }
+  }
+  if (!errors.key && ranges.some(Boolean)) {
+    const cruza = existing.some((r) => {
+      if (r.id === id) return false;
+      const other = normalizeKey(r.key, table.keyColumns.length);
+      return key.every((cell, i) => {
+        const mine = ranges[i];
+        const theirs = parseRange(other[i]);
+        if (mine && theirs) return rangesOverlap(mine, theirs);
+        return cell.toUpperCase() === other[i]!.toUpperCase();
+      });
+    });
+    if (cruza) errors.key = 'Este rango se pisa con otra fila: un mismo valor tendría dos tarifas.';
+  }
 
   // Dos filas con la MISMA clave son igual de específicas: el motor avisaría y elegiría una por
   // orden. Que elija bien de casualidad no es una tarifa, es una moneda al aire.
@@ -325,7 +371,10 @@ export async function saveRateRow(
   }
 
   const existing = await listRateTableRows(input.tableId);
-  const errors = validateRateRow(input, table, existing, id);
+  const partyVariables = table.partyId && table.keyColumns.some(isCustomKeyVar)
+    ? await listPartyVariables(table.partyId)
+    : [];
+  const errors = validateRateRow(input, table, existing, id, partyVariables);
   if (Object.keys(errors).length > 0) return { status: 'invalid', errors };
 
   const values: Row = {

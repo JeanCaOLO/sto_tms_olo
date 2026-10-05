@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { calculate } from '../index';
 import { lookupRateTable } from '../evaluator';
-import { keyVarsFor, validateRateTable } from '../rateTablesDataSource';
+import { keyVarsFor, validateRateRow, validateRateTable } from '../rateTablesDataSource';
 import { makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostStructure, makeRule, makeTrip } from './fixtures';
 import type {
   CalculateInput, PartyVariable, RateTable, RateTableRow, Rule, TripContext, VarBag,
@@ -150,7 +150,6 @@ function run(rules: Rule[], rows: RateTableRow[], trip: Partial<TripContext> = {
     rateTables: tables,
     rateTableRows: rows,
     ...makeOwnCostStructure(),
-    outsourcedCostRates: [],
     marginPolicy: makeMarginPolicy(),
   };
   return calculate(input);
@@ -254,5 +253,57 @@ describe('claves con variables personalizadas de la compañía', () => {
     expect(keys).toContain('destZone');
     expect(keys).toContain('custom:a');
     expect(keys).not.toContain('custom:b');
+  });
+});
+
+describe('rangos en la clave del tarifario', () => {
+  const rows = (cells: string[][]): RateTableRow[] => cells.map((key, i) => ({
+    id: `r${i}`, tableId: 'TR', key, amount: String((i + 1) * 100), order: i, active: true,
+  }));
+  const tabla: RateTable = {
+    id: 'TR', countryId: 'VE', partyId: null, code: 'KM', name: 'Por km', keyColumns: ['destZone', 'km'], active: true,
+  };
+
+  it('181 km cae en el tramo 101..300 aunque ninguna fila diga 181', () => {
+    const r = lookupRateTable(tabla, rows([['CCS', '0..100'], ['CCS', '101..300'], ['CCS', '301..']]), { destZone: 'CCS', km: 181 } as never);
+    expect(r?.row.id).toBe('r1');
+    expect(r?.match.matchedKey).toBe('CCS | 101..300');
+  });
+
+  it('los extremos están incluidos y el tramo abierto cubre el resto', () => {
+    const filas = rows([['CCS', '0..100'], ['CCS', '101..300'], ['CCS', '301..']]);
+    const idDe = (km: number) => lookupRateTable(tabla, filas, { destZone: 'CCS', km } as never)?.row.id;
+    expect(idDe(100)).toBe('r0');
+    expect(idDe(101)).toBe('r1');
+    expect(idDe(300)).toBe('r1');
+    expect(idDe(5000)).toBe('r2');
+  });
+
+  it('un valor sin tramo (hueco) no casa y el comodín sigue valiendo', () => {
+    const filas = rows([['CCS', '0..100'], ['CCS', '*']]);
+    expect(lookupRateTable(tabla, filas, { destZone: 'CCS', km: 150 } as never)?.row.id).toBe('r1');
+    expect(lookupRateTable(tabla, rows([['CCS', '0..100']]), { destZone: 'CCS', km: 150 } as never)).toBeNull();
+  });
+});
+
+describe('validación de rangos al guardar una fila', () => {
+  const tabla: RateTable = {
+    id: 'TR', countryId: 'VE', partyId: null, code: 'KM', name: 'Por km', keyColumns: ['destZone', 'km'], active: true,
+  };
+  const fila = (key: string[], id = 'x') => ({ tableId: 'TR', key, amount: '100', active: true, id });
+  const existente = { id: 'e1', tableId: 'TR', key: ['CCS', '0..100'], amount: '50', order: 0, active: true } as RateTableRow;
+
+  it('acepta un rango bien formado en una columna numérica', () => {
+    expect(validateRateRow(fila(['CCS', '101..300']), tabla, [existente]).key).toBeUndefined();
+  });
+  it('rechaza un rango al revés, mal escrito o en una columna que no es numérica', () => {
+    expect(validateRateRow(fila(['CCS', '300..100']), tabla, []).key).toMatch(/al revés/);
+    expect(validateRateRow(fila(['CCS', '10..x']), tabla, []).key).toMatch(/rango válido/);
+    expect(validateRateRow(fila(['1..5', '10..20']), tabla, []).key).toMatch(/no es numérica/);
+  });
+  it('rechaza dos tramos que se pisan en la misma combinación', () => {
+    expect(validateRateRow(fila(['CCS', '50..150']), tabla, [existente]).key).toMatch(/pisa/);
+    // Otra zona: no se pisan.
+    expect(validateRateRow(fila(['CAR', '50..150']), tabla, [existente]).key).toBeUndefined();
   });
 });

@@ -10,10 +10,11 @@
 //
 // Módulo PURO.
 
+import { allocateTotal } from './allocation';
 import { computeMargin } from './margin';
 import { addAll, roundToMoney, toDecimal } from './money';
 import { STAGE_ORDER } from './types';
-import type { CalcResult, Country, MarginPolicy, Money, Stage, TraceLine } from './types';
+import type { CalcResult, CalculateInput, Country, Money, Stage, TraceLine } from './types';
 
 export interface SettlementTotals {
   /** Lo que se paga: sólo las líneas incluidas. */
@@ -73,21 +74,21 @@ export function differsFromEngine(totals: SettlementTotals, result: CalcResult):
 }
 
 /**
- * El resultado del motor con el total realmente emitido: si el liquidador destildó líneas, el
- * margen se mide contra lo que se paga (no contra lo que calculó el motor). Sin exclusiones
- * devuelve el resultado tal cual.
+ * El resultado del motor con el total realmente emitido: si el liquidador destilda líneas, lo que se
+ * paga cambia y con él la ganancia de auditoría y el reparto entre casas comerciales. Sin
+ * exclusiones devuelve el resultado tal cual.
  */
 export function resultWithTotal(
   result: CalcResult,
   totals: SettlementTotals,
-  marginPolicy: MarginPolicy,
-  country: Country,
+  input: Pick<CalculateInput, 'marginPolicy' | 'country' | 'cargo' | 'allocationCriterion'>,
 ): CalcResult {
   if (totals.excludedCount === 0) return result;
   return {
     ...result,
     totalLiquidado: totals.total,
     stageSubtotals: totals.stageSubtotals,
-    margin: computeMargin(toDecimal(totals.total), toDecimal(result.cost.total), marginPolicy, country),
+    margin: computeMargin(toDecimal(input.cargo?.value ?? '0'), toDecimal(totals.total), input.marginPolicy, input.country),
+    allocation: allocateTotal(totals.total, input.cargo, input.allocationCriterion ?? 'VALUE', input.country),
   };
 }

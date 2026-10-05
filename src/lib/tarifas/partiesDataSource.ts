@@ -120,11 +120,3 @@ export async function reactivateParty(id: string): Promise<DeleteResult> {
     return { error: { message: message(error) } };
   }
 }
-
-/** Cuántas tarifas de outsourcing dependen de este perfil — se muestra antes de desactivarlo. */
-export async function countOutsourcedRates(partyId: string): Promise<number> {
-  const rows = await db().find('outsourcedCostRate', {
-    where: [{ column: 'carrier_id', op: 'eq', value: partyId }],
-  });
-  return rows.length;
-}

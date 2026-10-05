@@ -10,13 +10,18 @@
 // usando el transportista original de la ruta, con sus reglas, su tarifario y sus variables.
 
 import type { TarifasCatalog } from './catalogLoader';
-import type { CalcIssue, CalculateInput, Location, Override, Rule, TripContext } from './types';
+import type {
+  AllocationCriterion, CalcIssue, CalculateInput, CargoSummary, Location, Override, Rule, TripContext,
+} from './types';
 
 export interface BuildInputOptions {
   /** Montos corregidos a mano, con su motivo. */
   overrides?: Record<string, Override>;
   /** Reglas puntuales de esta liquidación, que no viven en el catálogo. */
   adhocRules?: Rule[];
+  /** Mercancía del viaje (pedidos de sus guías): alimenta la auditoría y el reparto por casa comercial. */
+  cargo?: CargoSummary | null;
+  allocationCriterion?: AllocationCriterion;
   /** Ubicaciones además de las derivadas de las zonas (casos de prueba). */
   extraLocations?: Location[];
 }
@@ -96,7 +101,6 @@ export function buildCalculateInput(
     zones: catalog.zones,
     zoneGroups: catalog.zoneGroups,
     locations,
-    outsourcedCostRates: catalog.outsourcedCostRates,
     marginPolicy: catalog.marginPolicy,
     partyVariables: catalog.partyVariables,
     costStructure: catalog.costStructure,
@@ -107,6 +111,8 @@ export function buildCalculateInput(
     rateTableRows: catalog.rateTableRows,
     ...(options.overrides ? { overrides: options.overrides } : {}),
     ...(options.adhocRules ? { adhocRules: options.adhocRules } : {}),
+    ...(options.cargo ? { cargo: options.cargo } : {}),
+    ...(options.allocationCriterion ? { allocationCriterion: options.allocationCriterion } : {}),
   };
 
   return { input, issues, warnings };

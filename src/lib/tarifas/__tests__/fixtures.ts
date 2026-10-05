@@ -4,7 +4,7 @@
 import Decimal from 'decimal.js';
 import type { EvalContext } from '../evaluator';
 import type {
-  CalculateInput, Country, CostStructureRow, Location, MarginPolicy, OutsourcedCostRate, Rule, TripContext,
+  CalculateInput, Country, CostStructureRow, Location, MarginPolicy, Rule, TripContext,
   VarBag, Zone, ZoneGroup,
 } from '../types';
 
@@ -61,7 +61,7 @@ export function makeTrip(overrides: Partial<TripContext> = {}): TripContext {
     weightKg: 1200,
     truckTypeId: 'TT_350',
     serviceType: 'EXPRESS',
-    fleetType: 'OWN',
+    fleetType: 'OUTSOURCED',
     carrierId: null,
     driverId: null,
     customerId: null,
@@ -115,17 +115,6 @@ export function makeOwnCostStructure(
       row('DEPRECIACION_KM', 'PER_KM', depreciationPerKm, 2),
       row('CHOFER_DIA', 'PER_DAY', driverDaily, 3),
     ],
-  };
-}
-
-export function makeOutsourcedCostRate(overrides: Partial<OutsourcedCostRate> = {}): OutsourcedCostRate {
-  return {
-    id: 'OSR_1',
-    countryId: 'VE',
-    carrierId: 'CARRIER_1',
-    truckTypeId: 'TT_350',
-    flatRate: '420.00',
-    ...overrides,
   };
 }
 

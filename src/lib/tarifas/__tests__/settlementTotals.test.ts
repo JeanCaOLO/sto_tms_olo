@@ -122,7 +122,6 @@ describe('differsFromEngine', () => {
       ],
       zones, zoneGroups, locations,
       ...makeOwnCostStructure(),
-      outsourcedCostRates: [],
       marginPolicy: makeMarginPolicy(),
     };
     return calculate(input);

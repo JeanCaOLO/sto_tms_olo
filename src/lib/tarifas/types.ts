@@ -580,6 +580,10 @@ export interface SettlementRecord {
   marginPct: string | null;
   costTotal: Money | null;
   costModelId: string | null;
+  /** Valor de la mercancía del viaje al emitir. Nulo = no se conocía. */
+  cargoValue: Money | null;
+  /** Reparto del total entre casas comerciales al emitir. Nulo = el viaje no tenía pedidos. */
+  allocation: Allocation | null;
   trip: TripContext;
   trace: TraceLine[];
   discarded: DiscardedRule[];
@@ -597,17 +601,9 @@ export interface SettlementRecord {
 }
 
 // ── Costo + margen (Fase 2) ───────────────────────────────────────────────────────────────────
-// El costo NO se liquida al transportista: es lo que le cuesta a la empresa operar el viaje
-// (flota propia u outsourcing), y solo se usa para derivar el margen. Por eso vive fuera del AST
-// de Rule — mezclarlo forzaría conceptos de costo dentro de un vocabulario pensado para tarifas.
-
-export interface OutsourcedCostRate {
-  id: string;
-  countryId: string;
-  carrierId: string;
-  truckTypeId: string;
-  flatRate: Money;
-}
+// El costo de operar un viaje de FLOTA PROPIA es lo que se liquida: la acumulación de gastos de la
+// estructura de costos es el total a pagar (y las reglas, si las hay, solo ajustan encima). Vive
+// fuera del AST de Rule porque sus conceptos (prorrateo mensual, costo por km) no son de tarifas.
 
 // ── Estructura de costos por filas ────────────────────────────────────────────────────────────
 // Es la ÚNICA fuente de costo de la flota propia (antes había además tres tasas fijas por país).
@@ -711,33 +707,92 @@ export interface CostBreakdown {
   currency: string;
 }
 
-// En este dominio no existe un "cobro a cliente": el margen compara lo LIQUIDADO (totalLiquidado)
-// contra el costo operativo — "¿estamos pagando más de lo que cuesta operar el viaje?", no un
-// margen de venta.
+// La ganancia o pérdida del viaje es un dato de AUDITORÍA, no de la liquidación: compara el valor
+// de la mercancía que el viaje lleva (los pedidos de sus guías de despacho) contra los gastos
+// operativos (lo que se liquida). No bloquea ni pide motivo: quien liquida solo ve cuánto se paga.
+// Los umbrales solo colorean la alerta de auditoría.
 export interface MarginPolicy {
   countryId: string;
   warnBelow: number;
   criticalBelow: number;
+  /** Sin efecto desde 2026-10-05 (el margen es informativo). Se conserva por compatibilidad. */
   requireReasonBelow: number;
+  /** Sin efecto desde 2026-10-05 (el margen es informativo). Se conserva por compatibilidad. */
   blockOnLoss: boolean;
 }
 
 export type MarginStatus = 'OK' | 'WARN' | 'CRITICAL' | 'LOSS';
-export type MarginAction = 'NONE' | 'REQUIRE_REASON' | 'BLOCK';
 
 export interface MarginResult {
+  /** Valor de la mercancía − gastos operativos. */
   amount: Money;
+  /** amount ÷ valor de la mercancía. */
   pct: string;
   status: MarginStatus;
-  action: MarginAction;
+  /** CARGO = se midió contra el valor de la mercancía; NONE = el viaje no tiene valor de pedidos cargado. */
+  basis: 'CARGO' | 'NONE';
+  /** Valor de la mercancía del viaje (suma de sus pedidos). */
+  cargoValue: Money;
+  /** Gastos operativos: lo que se liquida. */
+  expense: Money;
   /** Moneda del margen: la local del país, igual que el total liquidado y el costo. */
   currency: string;
+}
+
+// ── Mercancía del viaje y reparto entre casas comerciales ─────────────────────────────────────
+
+/** Lo que una casa comercial (cliente) pone en un viaje: sus pedidos, vistos por las guías de despacho. */
+export interface CargoPart {
+  customerId: string | null;
+  code: string | null;
+  name: string;
+  /** Valor de la mercancía (`orders.total_amount`). */
+  value: Money;
+  weightKg: number;
+  volumeM3: number;
+  items: number;
+  orders: number;
+}
+
+/** Todo lo que lleva un viaje, por casa comercial. */
+export interface CargoSummary {
+  value: Money;
+  weightKg: number;
+  volumeM3: number;
+  orders: number;
+  parts: CargoPart[];
+}
+
+/** Con qué se reparte el costo del viaje entre las casas comerciales. */
+export type AllocationCriterion = 'VALUE' | 'WEIGHT' | 'VOLUME';
+
+export interface AllocationShare {
+  customerId: string | null;
+  code: string | null;
+  name: string;
+  /** Parte del reparto (0 a 1) con 6 decimales. */
+  share: string;
+  /** Lo que le toca pagar a la casa. La suma de todas es exactamente el total repartido. */
+  amount: Money;
+  value: Money;
+  weightKg: number;
+  volumeM3: number;
+  orders: number;
+}
+
+export interface Allocation {
+  criterion: AllocationCriterion;
+  /** Cuál se usó de verdad: cae a repartir por pedidos si la base elegida suma cero. */
+  basis: AllocationCriterion | 'ORDERS';
+  total: Money;
+  currency: string;
+  shares: AllocationShare[];
 }
 
 // ── Salida del kernel ────────────────────────────────────────────────────────────────────────
 
 /** Origen de una línea del desglose: una regla del catálogo, una ad-hoc o una línea de costo. */
-export type TraceSource = 'RULE' | 'ADHOC' | 'COST_ROW' | 'FLAT_RATE';
+export type TraceSource = 'RULE' | 'ADHOC' | 'COST_ROW';
 
 export interface TraceLine {
   seq: number;
@@ -811,8 +866,12 @@ export interface CalcResult {
   totalLiquidado: Money;
   /** Moneda del país: `country.localCurrency`. Todo el resultado está en ella. */
   currency: string;
+  /** Gastos operativos de la estructura de costos (flota propia); ya están dentro del total liquidado. */
   cost: CostBreakdown;
+  /** Ganancia/pérdida de auditoría: valor de la mercancía contra gastos operativos. */
   margin: MarginResult;
+  /** Cómo se reparte el total entre las casas comerciales; null si el viaje no tiene pedidos cargados. */
+  allocation: Allocation | null;
   /** Avisos informativos: el total es correcto, pero algo merece una mirada. */
   warnings: string[];
   /** Problemas que hacen que el total NO sea confiable. Vacío = la liquidación se puede emitir. */
@@ -831,7 +890,10 @@ export interface CalculateInput {
   /** Tablas de tarifas disponibles para este viaje (las del país + las de su compañía). */
   rateTables?: RateTable[];
   rateTableRows?: RateTableRow[];
-  outsourcedCostRates: OutsourcedCostRate[];
+  /** Mercancía del viaje (pedidos de sus guías). Sin ella no hay margen de auditoría ni reparto por casa. */
+  cargo?: CargoSummary | null;
+  /** Criterio de reparto entre casas comerciales. Por defecto el valor de la mercancía. */
+  allocationCriterion?: AllocationCriterion;
   /** Variables declaradas por la compañía del viaje. Sin esto, sus reglas propias no resuelven. */
   partyVariables?: PartyVariable[];
   /** Estructura de costos de la compañía del viaje. Si existe, manda sobre cualquier otra. */

@@ -17,6 +17,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { db, setDataSource } from '../data';
 import { PgDataSource } from './helpers/pgDataSource';
 import { calculateTrip } from '../tripSettlement';
+import { activeStructure } from '../costStructureDataSource';
+import { allocationAddsUp } from '../allocation';
 import { ensurePartyProfile } from '../partiesDataSource';
 import { listLiquidableTrips } from '../tripsDataSource';
 import {
@@ -79,9 +81,6 @@ describe.skipIf(!enabled)('Liquidador contra Aurora (transacción revertida)', {
     const ensured = await ensurePartyProfile(trip.carrierId as string);
     if (ensured.status !== 'saved') throw new Error(ensured.error.message);
     partyId = ensured.partyId;
-    await db().insert('outsourcedCostRate', {
-      country_id: countryId, carrier_id: partyId, truck_type_id: trip.vehicleType, flat_rate: '100.00',
-    });
     await db().insert('pricingRule', {
       country_id: countryId, scope: 'COUNTRY', party_id: null, code: 'E2E_BASE', name: 'Base de prueba E2E',
       stage: 'BASE', priority: 10, stacking: 'SUM', exclusion_group: null, conditions: { p: 'ALWAYS' },
@@ -146,6 +145,33 @@ describe.skipIf(!enabled)('Liquidador contra Aurora (transacción revertida)', {
 
     const log = await db().find('auditLog', {});
     expect(log.length).toBeGreaterThanOrEqual(3); // emitir, re-liquidar, cambiar estado
+  });
+
+  it('flota propia: el total es la acumulación de gastos y la mercancía sale de los pedidos de las guías', async () => {
+    const structure = await activeStructure(null, countryId);
+    const own = (await listLiquidableTrips({ countryId })).find((t) => t.isOwnFleet === true);
+    if (!structure || !own) return; // sin estructura de CR cargada o sin viaje propio: nada que comparar
+
+    const result = await calculateTrip(own.id, { customVars: {} });
+    expect(result.status, JSON.stringify(result)).toBe('ok');
+    if (result.status !== 'ok') return;
+    const r = result.calculation.result;
+
+    // El total a pagar es exactamente lo que acumulan las filas de la estructura (no hay reglas de CR).
+    expect(r.trace.every((l) => l.source === 'COST_ROW' || l.source === 'RULE')).toBe(true);
+    expect(Number(r.totalLiquidado)).toBeCloseTo(
+      r.trace.filter((l) => l.source === 'COST_ROW').reduce((sum, l) => sum + Number(l.final), 0)
+        + r.trace.filter((l) => l.source === 'RULE').reduce((sum, l) => sum + Number(l.final), 0),
+      2,
+    );
+    // Los pedidos del viaje (vista tarifas_v_viaje_cargas) alimentan la auditoría y el reparto por casa.
+    const cargo = result.calculation.input.cargo;
+    if (cargo && Number(cargo.value) > 0) {
+      expect(r.margin.basis).toBe('CARGO');
+      expect(r.margin.expense).toBe(r.totalLiquidado);
+      expect(r.allocation?.shares.length).toBe(cargo.parts.length);
+      expect(allocationAddsUp(r.allocation!)).toBe(true);
+    }
   });
 
   async function calcOk(allowSettled = false): Promise<TripCalculation> {

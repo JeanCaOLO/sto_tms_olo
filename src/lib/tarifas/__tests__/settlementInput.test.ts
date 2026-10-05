@@ -241,7 +241,7 @@ describe('variables personalizadas y estructura de costos llegan al motor', () =
     expect(result.warnings.some((w) => w.includes('custom:bono_zona'))).toBe(false);
   });
 
-  it('la estructura de costos del perfil manda sobre los parámetros del país', async () => {
+  it('la estructura de costos del perfil manda sobre la estructura por defecto del país', async () => {
     const estructura = await db().insert('costStructure', {
       party_id: 'CARRIER_VE_1', country_id: 'VE', name: 'Estructura real',
       operating_days_per_month: 30, effective_from: null, active: true, notes: null,
@@ -253,7 +253,7 @@ describe('variables personalizadas y estructura de costos llegan al motor', () =
     });
 
     const catalog = await loadTarifasCatalog('VE', 'CARRIER_VE_1');
-    const result = calculate(buildCalculateInput(catalog, viajeVE({ partyId: 'CARRIER_VE_1' })).input);
+    const result = calculate(buildCalculateInput(catalog, viajeVE({ partyId: 'CARRIER_VE_1', fleetType: 'OWN' })).input);
 
     expect(result.cost.modelId).toBe(estructura.id);
     expect(result.cost.breakdown.map((l) => l.ruleCode)).toContain('NOMINA');

@@ -4,9 +4,10 @@
 // externa `trip`, vista `tarifas_v_viajes`), igual que cualquier otro dato: por `db()`, nunca por un
 // fetch aparte.
 
+import Decimal from 'decimal.js';
 import { db, type Condition } from './data';
 import { isLiquidable, toTripRecord } from './tripContext';
-import type { SettlementReturn, TripRecord } from './types';
+import type { CargoPart, CargoSummary, SettlementReturn, TripRecord } from './types';
 
 export interface TripFilter {
   countryId?: string;
@@ -98,4 +99,34 @@ export async function listTripReturns(tripId: string): Promise<SettlementReturn[
     kind: r.product_code ? 'PARCIAL' : 'TOTAL',
     notes: [r.reason, r.product_name, r.quantity ? `cant. ${r.quantity}` : null].filter(Boolean).join(' · ') || null,
   }));
+}
+
+/**
+ * La mercancía de un viaje, por casa comercial: los pedidos de sus guías de despacho. Null si el
+ * viaje no tiene pedidos cargados (no hay con qué medir ganancia ni repartir). Solo lectura.
+ */
+export async function getTripCargo(tripId: string): Promise<CargoSummary | null> {
+  const rows = await db().find('tripCargo', {
+    where: [{ column: 'route_id', op: 'eq', value: tripId }],
+    orderBy: [{ column: 'customer_name', locale: true }],
+  });
+  if (rows.length === 0) return null;
+
+  const parts: CargoPart[] = rows.map((r) => ({
+    customerId: r.customer_id ?? null,
+    code: r.customer_code ?? null,
+    name: String(r.customer_name ?? 'Sin casa comercial'),
+    value: String(r.value ?? '0'),
+    weightKg: Number(r.weight_kg ?? 0),
+    volumeM3: Number(r.volume_m3 ?? 0),
+    items: Number(r.items ?? 0),
+    orders: Number(r.orders ?? 0),
+  }));
+  return {
+    value: parts.reduce((sum, p) => sum.plus(p.value), new Decimal(0)).toFixed(2),
+    weightKg: parts.reduce((sum, p) => sum + p.weightKg, 0),
+    volumeM3: parts.reduce((sum, p) => sum + p.volumeM3, 0),
+    orders: parts.reduce((sum, p) => sum + p.orders, 0),
+    parts,
+  };
 }

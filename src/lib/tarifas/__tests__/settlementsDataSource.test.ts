@@ -17,7 +17,13 @@ import { getTrip, listLiquidableTrips } from '../tripsDataSource';
 import { calculate } from '../index';
 import { db } from '../data';
 import { makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostStructure, makeRule, makeTrip } from './fixtures';
-import type { CalcResult, CalculateInput, MarginPolicy, TripRecord } from '../types';
+import type { CalcResult, CalculateInput, CargoSummary, MarginPolicy, TripRecord } from '../types';
+
+/** Mercancía de 10 en un solo cliente: los gastos del viaje la superan, así que da pérdida de auditoría. */
+const perdida = (): CargoSummary => ({
+  value: '10.00', weightKg: 5, volumeM3: 0.1, orders: 1,
+  parts: [{ customerId: 'C1', code: 'EPA', name: 'EPA', value: '10.00', weightKg: 5, volumeM3: 0.1, items: 1, orders: 1 }],
+});
 
 function calcular(overrides: Partial<CalculateInput> = {}): CalcResult {
   const { zoneGroups, zones, locations } = makeGeoVE();
@@ -29,7 +35,6 @@ function calcular(overrides: Partial<CalculateInput> = {}): CalcResult {
     zoneGroups,
     locations,
     ...makeOwnCostStructure(),
-    outsourcedCostRates: [],
     marginPolicy: makeMarginPolicy(),
     ...overrides,
   });
@@ -90,15 +95,13 @@ describe('validateSettlement', () => {
     expect(validateSettlement(entrada({ trip: { ...viaje, id: '' } })).trip).toBeDefined();
   });
 
-  it('exige el motivo cuando la política de margen lo pide', () => {
+  it('la ganancia o pérdida NO exige motivo ni frena nada: solo informa', () => {
     const exigente: MarginPolicy = {
-      countryId: 'VE', warnBelow: 0.9, criticalBelow: 0.8, requireReasonBelow: 0.9, blockOnLoss: false,
+      countryId: 'VE', warnBelow: 0.9, criticalBelow: 0.8, requireReasonBelow: 0.9, blockOnLoss: true,
     };
-    const calc = calcular({ marginPolicy: exigente });
-    expect(calc.margin.action).toBe('REQUIRE_REASON');
-
-    expect(validateSettlement(entrada({ calc })).marginReason).toBeDefined();
-    expect(validateSettlement(entrada({ calc, marginReason: 'Acuerdo comercial' })).marginReason).toBeUndefined();
+    const calc = calcular({ marginPolicy: exigente, cargo: perdida() });
+    expect(calc.margin.status).toBe('LOSS');
+    expect(validateSettlement(entrada({ calc })).marginReason).toBeUndefined();
   });
 });
 
@@ -189,12 +192,19 @@ describe('bloqueos', () => {
     expect(result.issues[0]?.code).toBe('REFERENCIA_CIRCULAR');
   });
 
-  it('el margen en pérdida no se aprueba, pero sí se guarda como borrador', async () => {
-    const calc = calcular({ ...makeOwnCostStructure({ driverDaily: '99999' }) });
+  it('una pérdida de auditoría no impide emitir ni aprobar: lo que se paga es lo que se paga', async () => {
+    const calc = calcular({ cargo: perdida() });
     expect(calc.margin.status).toBe('LOSS');
 
-    expect((await emitSettlement(entrada({ calc, status: 'Aprobado' }))).status).toBe('blocked');
-    expect((await emitSettlement(entrada({ calc, status: 'Borrador' }))).status).toBe('saved');
+    expect((await emitSettlement(entrada({ calc, status: 'Aprobado' }))).status).toBe('saved');
+  });
+
+  it('guarda el valor de la mercancía y el reparto por casa comercial', async () => {
+    const calc = calcular({ cargo: perdida() });
+    const result = await emitSettlement(entrada({ calc }));
+    if (result.status !== 'saved') throw new Error('no se emitió');
+    expect(result.settlement.cargoValue).toBe('10.00');
+    expect(result.settlement.allocation?.shares[0]).toMatchObject({ code: 'EPA', amount: calc.totalLiquidado });
   });
 
   it('un viaje que no está completado no se liquida', async () => {
@@ -325,14 +335,13 @@ describe('lista y estados', () => {
     expect((await getSettlement(result.settlement.id))?.status).toBe('Aprobado');
   });
 
-  it('desde la lista tampoco se aprueba una liquidación en pérdida', async () => {
-    const calc = calcular({ ...makeOwnCostStructure({ driverDaily: '99999' }) });
+  it('desde la lista una liquidación con pérdida de auditoría sí se aprueba', async () => {
+    const calc = calcular({ cargo: perdida() });
     const result = await emitSettlement(entrada({ calc, status: 'Borrador' }));
     if (result.status !== 'saved') throw new Error('no se emitió');
 
-    const cambio = await updateSettlementStatus(result.settlement.id, 'Pagado');
-    expect(cambio.error).toContain('pérdida');
-    expect((await getSettlement(result.settlement.id))?.status).toBe('Borrador');
+    expect((await updateSettlementStatus(result.settlement.id, 'Pagado')).error).toBeNull();
+    expect((await getSettlement(result.settlement.id))?.status).toBe('Pagado');
   });
 
   it('una liquidación se ANULA, no se borra, y el viaje vuelve a quedar por liquidar', async () => {
