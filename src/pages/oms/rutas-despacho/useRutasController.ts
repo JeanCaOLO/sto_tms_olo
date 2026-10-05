@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { omsApi } from '../api/omsApi';
 import type { Company, Country, DispatchRoute } from '../types';
+import { matchesSearch } from '../../../lib/text';
 
 // Controller del Calendario de Rutas (FR1). Un solo load por país.
 // El país sigue siendo el filtro de dato; la compañía es el selector visible
@@ -31,9 +32,7 @@ export function useRutasController() {
   }, []);
 
   const filtered = routes.filter((r) => {
-    const q = query.trim().toLowerCase();
-    if (!q) return true;
-    return `${r.id} ${r.name}`.toLowerCase().includes(q);
+    return matchesSearch(`${r.id} ${r.name}`, query);
   });
 
   return {

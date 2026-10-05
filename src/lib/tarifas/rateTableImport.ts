@@ -9,6 +9,7 @@
 //
 // Módulo PURO: recibe una matriz de celdas, no un archivo.
 
+import { normalizeText } from '../text';
 import { detectHeaderRow, parseAmount, type NumberFormat, type SheetMatrix } from './costSheetParser';
 import { RATE_TABLE_WILDCARD, type VarKey } from './types';
 
@@ -52,13 +53,7 @@ function text(cell: string | number | null | undefined): string {
 }
 
 /** Sin acentos ni mayúsculas, para comparar un encabezado con el nombre de una variable. */
-function fold(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .trim();
-}
+const fold = normalizeText;
 
 /**
  * Palabras con las que un encabezado puede estar nombrando cada variable de la clave.

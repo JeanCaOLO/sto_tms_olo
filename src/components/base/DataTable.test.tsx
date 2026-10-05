@@ -84,3 +84,20 @@ describe('DataTable filtro Cliente con accessor anidado + paginación', () => {
     expect(within(body).queryByText('P3')).toBeNull();
   });
 });
+
+describe('DataTable buscador sin mayúsculas ni acentos', () => {
+  const people = [
+    { id: '1', customer: 'José Álvarez' },
+    { id: '2', customer: 'Ana Pérez' },
+  ];
+
+  it.each(['jose', 'JOSÉ', 'alvarez', 'JOSE ALVAREZ'])('"%s" encuentra a José Álvarez', (term) => {
+    renderWithRouter(
+      <DataTable data={people} columns={columns} getRowId={(r) => r.id} searchPlaceholder="buscar" />,
+    );
+    fireEvent.change(screen.getByPlaceholderText('buscar'), { target: { value: term } });
+    const body = document.querySelector('tbody')!;
+    expect(within(body).getByText('José Álvarez')).toBeTruthy();
+    expect(within(body).queryByText('Ana Pérez')).toBeNull();
+  });
+});

@@ -143,12 +143,12 @@ export default function LiquidacionesPage() {
     },
     {
       key: 'vehicle', header: 'Vehículo', sortable: true,
-      accessor: (t) => t.vehiclePlate ?? '', cellClassName: 'max-w-[150px] truncate',
+      accessor: (t) => `${t.vehiclePlate ?? ''} ${t.vehicleType ?? ''}`.trim(), cellClassName: 'max-w-[150px] truncate',
       render: (t) => { const v = `${t.vehiclePlate ?? '—'} · ${t.vehicleType ?? '—'}`; return <span title={v}>{v}</span>; },
     },
     {
       key: 'zone', header: 'Zona destino', sortable: true, filterable: true,
-      accessor: (t) => t.destZoneCode ?? '', cellClassName: 'max-w-[160px] truncate',
+      accessor: (t) => (t.destZoneCode ? `${t.destZoneCode} · ${t.destZoneName ?? ''}` : ''), cellClassName: 'max-w-[160px] truncate',
       render: (t) => { const z = t.destZoneCode ? `${t.destZoneCode} · ${t.destZoneName ?? ''}` : '—'; return <span title={z}>{z}</span>; },
     },
     { key: 'km', header: 'Km', sortable: true, align: 'right', accessor: (t) => t.km },

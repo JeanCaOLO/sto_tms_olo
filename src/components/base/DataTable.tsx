@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { permKeyForPath } from '../feature/module-routes';
 import { postAuditEvent } from '../../pages/auditoria/audit-api';
+import { matchesSearch } from '../../lib/text';
 
 export interface DataTableColumn<T> {
   key: string;
@@ -42,11 +43,6 @@ interface DataTableProps<T> {
 
 type SortDirection = 'asc' | 'desc';
 
-function normalize(value: unknown): string {
-  if (value === null || value === undefined) return '';
-  return String(value).toLowerCase();
-}
-
 function ColumnFilterMenu<T>({
   column,
   data,
@@ -81,7 +77,7 @@ function ColumnFilterMenu<T>({
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
   }, [data, column]);
 
-  const filteredValues = uniqueValues.filter((v) => v.toLowerCase().includes(query.toLowerCase()));
+  const filteredValues = uniqueValues.filter((v) => matchesSearch(v, query));
   // Sin filtro (selected null) = nada marcado. Marcar un valor = mostrar solo ese;
   // marcar más = sumarlos. Desmarcar el último vuelve a "sin filtro" (null).
   const activeSelection = selected ?? new Set<string>();
@@ -173,9 +169,8 @@ export default function DataTable<T>({
 
   const searched = useMemo(() => {
     if (!search.trim()) return filteredByColumns;
-    const term = normalize(search);
     return filteredByColumns.filter((row) =>
-      columns.some((col) => normalize(col.accessor(row)).includes(term))
+      columns.some((col) => matchesSearch(col.accessor(row), search))
     );
   }, [filteredByColumns, search, columns]);
 

@@ -9,6 +9,7 @@ import { RouteCard } from './components/RouteCard';
 import { MapView } from './components/MapView';
 import { TrackingTimeline } from './components/TrackingTimeline';
 import { useModulePermissions } from '../../hooks/use-module-permissions';
+import { matchesSearch } from '../../lib/text';
 
 interface Route {
   id: string;
@@ -433,14 +434,10 @@ export default function TrackingPage() {
 
   // ─── Filters ─────────────────────────────────────────────────
   const filteredRoutes = routes.filter((route) => {
-    const q = searchTerm.toLowerCase();
-    const matchesSearch =
-      !q ||
-      route.route_number.toLowerCase().includes(q) ||
-      (route.driver?.full_name || '').toLowerCase().includes(q) ||
-      (route.vehicle?.plate || '').toLowerCase().includes(q) ||
-      (route.carrier?.name || '').toLowerCase().includes(q) ||
-      (route.route_type_name || '').toLowerCase().includes(q);
+    const matchesQuery = matchesSearch(
+      [route.route_number, route.driver?.full_name, route.vehicle?.plate, route.carrier?.name, route.route_type_name].join(' '),
+      searchTerm,
+    );
 
     const matchesStatus =
       statusFilter === 'all' ||
@@ -453,7 +450,7 @@ export default function TrackingPage() {
     const matchesRutaType =
       rutaTypeFilter === 'all' || route.route_type_id === rutaTypeFilter;
 
-    return matchesSearch && matchesStatus && matchesRutaType;
+    return matchesQuery && matchesStatus && matchesRutaType;
   });
 
   const selectedRoute = selectedRouteId
