@@ -10,9 +10,10 @@
 //
 // Módulo PURO.
 
+import { computeMargin } from './margin';
 import { addAll, roundToMoney, toDecimal } from './money';
 import { STAGE_ORDER } from './types';
-import type { CalcResult, Country, Money, Stage, TraceLine } from './types';
+import type { CalcResult, Country, MarginPolicy, Money, Stage, TraceLine } from './types';
 
 export interface SettlementTotals {
   /** Lo que se paga: sólo las líneas incluidas. */
@@ -69,4 +70,24 @@ export function computeSettlementTotals(
  */
 export function differsFromEngine(totals: SettlementTotals, result: CalcResult): boolean {
   return totals.total !== result.totalLiquidado;
+}
+
+/**
+ * El resultado del motor con el total realmente emitido: si el liquidador destildó líneas, el
+ * margen se mide contra lo que se paga (no contra lo que calculó el motor). Sin exclusiones
+ * devuelve el resultado tal cual.
+ */
+export function resultWithTotal(
+  result: CalcResult,
+  totals: SettlementTotals,
+  marginPolicy: MarginPolicy,
+  country: Country,
+): CalcResult {
+  if (totals.excludedCount === 0) return result;
+  return {
+    ...result,
+    totalLiquidado: totals.total,
+    stageSubtotals: totals.stageSubtotals,
+    margin: computeMargin(toDecimal(totals.total), toDecimal(result.cost.total), marginPolicy, country),
+  };
 }

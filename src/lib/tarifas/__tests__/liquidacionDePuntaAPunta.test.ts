@@ -15,7 +15,8 @@ import {
 } from '../settlementsDataSource';
 import { deactivateParty } from '../partiesDataSource';
 import { parseCustomVarValues } from '../customVarFields';
-import { computeSettlementTotals } from '../settlementTotals';
+import { computeSettlementTotals, resultWithTotal } from '../settlementTotals';
+import { db } from '../data';
 import { explainResult } from '../explain';
 import type { TripEdits, TripRecord } from '../types';
 
@@ -166,5 +167,31 @@ describe('emitir y re-liquidar', () => {
 
     const totales = computeSettlementTotals(c.result.trace, [recolectas.seq], c.input.country);
     expect(Number(c.result.totalLiquidado) - Number(totales.total)).toBe(50);
+  });
+
+  it('destildar una línea recalcula el margen contra el total que se paga', async () => {
+    const viaje = await viajeDeTercero();
+    const c = await calcular(viaje, { customVars: { 'custom:recolectas': 2 } });
+    const recolectas = c.result.trace.find((l) => l.ruleCode === 'R_RECOLECTAS');
+    if (!recolectas) throw new Error('falta la línea de recolectas');
+
+    const totales = computeSettlementTotals(c.result.trace, [recolectas.seq], c.input.country);
+    const ajustado = resultWithTotal(c.result, totales, c.input.marginPolicy, c.input.country);
+
+    expect(ajustado.totalLiquidado).toBe(totales.total);
+    expect(Number(ajustado.margin.amount)).toBe(Number(totales.total) - Number(c.result.cost.total));
+    expect(Number(ajustado.margin.amount)).toBeLessThan(Number(c.result.margin.amount));
+    // Sin exclusiones no cambia nada.
+    const sinCambios = computeSettlementTotals(c.result.trace, [], c.input.country);
+    expect(resultWithTotal(c.result, sinCambios, c.input.marginPolicy, c.input.country)).toBe(c.result);
+  });
+
+  it('un tercero sin tarifa plana de costo se informa como falta de catálogo, no como excepción', async () => {
+    const viaje = await viajeDeTercero();
+    for (const r of await db().find('outsourcedCostRate')) await db().delete('outsourcedCostRate', r.id);
+
+    const r = await calculateTrip(viaje, { customVars: {} });
+    expect(r.status).toBe('catalog-error');
+    if (r.status === 'catalog-error') expect(r.message).toMatch(/tarifa plana/i);
   });
 });

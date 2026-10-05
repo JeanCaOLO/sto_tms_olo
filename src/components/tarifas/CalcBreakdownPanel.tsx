@@ -265,22 +265,24 @@ export default function CalcBreakdownPanel({
               </table>
             )}
 
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-200">
-              <span className="text-xs text-slate-600">
-                Margen: {formatMoney(result.margin.amount, moneda)} ({formatPct(result.margin.pct)})
-              </span>
-              <Badge
-                variant={
-                  result.margin.status === 'OK' ? 'success'
-                    : result.margin.status === 'WARN' ? 'warning' : 'danger'
-                }
-                size="sm"
-              >
-                {result.margin.status === 'OK' ? 'OK'
-                  : result.margin.status === 'WARN' ? 'Atención'
-                    : result.margin.status === 'CRITICAL' ? 'Crítico' : 'Pérdida'}
-              </Badge>
-            </div>
+            {result.cost.modelId !== 'NONE' && (
+              <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-200">
+                <span className="text-xs text-slate-600" title="Lo que se paga menos lo que cuesta operar el viaje. No incluye lo cobrado al cliente.">
+                  Diferencia contra costo operativo: {formatMoney(result.margin.amount, moneda)} ({formatPct(result.margin.pct)})
+                </span>
+                <Badge
+                  variant={
+                    result.margin.status === 'OK' ? 'success'
+                      : result.margin.status === 'WARN' ? 'warning' : 'danger'
+                  }
+                  size="sm"
+                >
+                  {result.margin.status === 'OK' ? 'OK'
+                    : result.margin.status === 'WARN' ? 'Atención'
+                      : result.margin.status === 'CRITICAL' ? 'Crítico' : 'Pérdida'}
+                </Badge>
+              </div>
+            )}
           </div>
         </div>
       )}

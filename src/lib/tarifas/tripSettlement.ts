@@ -105,7 +105,14 @@ export async function calculateTrip(
 
   // Con un problema de armado (p.ej. zona inexistente) el motor no puede correr: se devuelve un
   // resultado vacío con el problema a la vista, en vez de una excepción.
-  const result: CalcResult = issues.length > 0 ? emptyResult(catalog, issues) : calculate(input);
+  let result: CalcResult;
+  try {
+    result = issues.length > 0 ? emptyResult(catalog, issues) : calculate(input);
+  } catch (error) {
+    // Falta una configuración que el motor exige (p. ej. la tarifa plana de un tercero): se informa
+    // como falta de catálogo en vez de romper la pantalla con una excepción.
+    return { status: 'catalog-error', message: error instanceof Error ? error.message : String(error) };
+  }
 
   const reason = notLiquidableReason(trip);
   const ignorable = options.allowSettled && trip.settlementId && trip.status === 'completed';

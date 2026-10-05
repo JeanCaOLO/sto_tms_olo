@@ -19,7 +19,7 @@ import { describeTrip, emptyTripEdits } from '../../../lib/tarifas/tripContext';
 import {
   constantVars, initialCustomVarValues, parseCustomVarValues,
 } from '../../../lib/tarifas/customVarFields';
-import { computeSettlementTotals } from '../../../lib/tarifas/settlementTotals';
+import { computeSettlementTotals, resultWithTotal } from '../../../lib/tarifas/settlementTotals';
 import { emptyReturn, validateReturn } from '../../../lib/tarifas/returnsNote';
 import {
   emitSettlement, reliquidateSettlement, type EmitSettlementResult,
@@ -152,6 +152,15 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
     [calculation, excludedSeqs],
   );
 
+  // Si se destildaron líneas, lo que se paga cambia y el margen tiene que medirse contra ESE total,
+  // no contra el que calculó el motor.
+  const effectiveResult = useMemo(
+    () => (calculation && totals
+      ? resultWithTotal(calculation.result, totals, calculation.input.marginPolicy, calculation.input.country)
+      : null),
+    [calculation, totals],
+  );
+
   const constantes = useMemo(
     () => constantVars(calculation?.input.partyVariables ?? []),
     [calculation],
@@ -160,7 +169,7 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
   if (!isOpen) return null;
 
   const currency = calculation?.result.currency ?? '';
-  const margin = calculation?.result.margin;
+  const margin = effectiveResult?.margin;
   const blocking = calculation?.blockingIssues ?? [];
   const puedeEmitir = !!calculation && !!totals && !calculation.notLiquidableReason
     && blocking.length === 0 && !loading && !pending && !saving;
@@ -171,7 +180,7 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
   };
 
   const handleEmitir = async () => {
-    if (!calculation || !totals) return;
+    if (!calculation || !totals || !effectiveResult) return;
     setError('');
 
     for (const d of returns) {
@@ -193,7 +202,7 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
         notes: notes.trim() || null,
         marginReason: marginReason.trim() || null,
         context: calculation.context,
-        calc: calculation.result,
+        calc: effectiveResult,
         excludedSeqs: [...excludedSeqs],
         returns,
         totalAmount: totals.total,
@@ -433,7 +442,7 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
                 {calculation && totals && (
                   <>
                     <CalcBreakdownPanel
-                      result={calculation.result}
+                      result={effectiveResult ?? calculation.result}
                       ctx={{
                         rules: calculation.input.rules,
                         customLabels: Object.fromEntries(
