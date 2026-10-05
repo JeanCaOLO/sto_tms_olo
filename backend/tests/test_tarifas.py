@@ -205,6 +205,50 @@ def test_escribir_exige_la_accion_en_tarifas(api, caller_permissions):
     assert response["statusCode"] == 403 and db.calls == []
 
 
+def test_quien_liquida_escribe_liquidaciones_pero_no_configuracion(api, caller_permissions):
+    app, db = api
+    caller_permissions.set(make_permissions({"tarifas": ["view", "create", "edit"]}))
+    ok = call(app, "POST /api/tarifas/{table}", path={"table": "tarifas_settlements"}, body={"status": "Borrador"})
+    assert ok["statusCode"] == 200
+    llamadas = len(db.calls)
+    for tabla in ("tarifas_pricing_rules", "tarifas_cost_structures", "tarifas_rate_tables", "tarifas_margin_policies"):
+        r = call(app, "POST /api/tarifas/{table}", path={"table": tabla}, body={"code": "x"})
+        assert r["statusCode"] == 403, tabla
+        r = call(app, "PATCH /api/tarifas/{table}/{id}", path={"table": tabla, "id": "x"}, body={"code": "y"})
+        assert r["statusCode"] == 403, tabla
+    assert len(db.calls) == llamadas  # ninguna escritura de configuración llegó a la base
+
+
+def test_configurar_exige_tarifas_config(api, caller_permissions):
+    app, db = api
+    caller_permissions.set(make_permissions({"tarifas.config": ["view", "create", "edit", "delete"]}))
+    r = call(app, "POST /api/tarifas/{table}", path={"table": "tarifas_pricing_rules"}, body={"code": "R1"})
+    assert r["statusCode"] == 200
+    # ...pero eso solo no permite emitir liquidaciones.
+    r = call(app, "POST /api/tarifas/{table}", path={"table": "tarifas_settlements"}, body={"status": "Borrador"})
+    assert r["statusCode"] == 403
+
+
+def test_leer_sirve_con_cualquiera_de_los_dos_modulos(api, caller_permissions):
+    app, _db = api
+    for modulos in ({"tarifas": ["view"]}, {"tarifas.config": ["view"]}):
+        caller_permissions.set(make_permissions(modulos))
+        assert call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_pricing_rules"})["statusCode"] == 200
+    caller_permissions.set(make_permissions({"guias": ["view"]}))
+    assert call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_pricing_rules"})["statusCode"] == 403
+
+
+def test_la_transaccion_valida_el_modulo_de_cada_operacion(api, caller_permissions):
+    app, db = api
+    caller_permissions.set(make_permissions({"tarifas": ["view", "create", "edit"]}))
+    ops = [{"op": "update", "table": "tarifas_settlements", "id": "s1", "values": {"status": "Anulado"}},
+           {"op": "insert", "table": "tarifas_pricing_rules", "values": {"code": "X"}}]
+    r = call(app, "POST /api/tarifas/tx", body={"ops": ops})
+    assert r["statusCode"] == 403 and db.tx_calls == []
+    ok = call(app, "POST /api/tarifas/tx", body={"ops": ops[:1]})
+    assert ok["statusCode"] == 200
+
+
 def test_no_se_escribe_en_un_pais_ajeno(api, caller_permissions):
     app, db = api
     caller_permissions.set(make_permissions({"tarifas": "*"}, countries=(CR,)))

@@ -17,8 +17,13 @@ Reglas:
     países): solo lectura; cualquier escritura es 405. Sus dueños son guía de
     despacho y el catálogo (ROADMAP §8).
   - Bitácora (`tarifas_audit_log`): append-only; update/delete es 405.
-  - Permisos: módulo `tarifas` de la matriz de roles (view / create / edit /
-    delete). Países: se filtra y se valida contra los países del rol.
+  - Permisos, en dos módulos de la matriz de roles (view / create / edit / delete):
+      `tarifas`         liquidar: emitir, re-liquidar y cambiar el estado de una liquidación
+                        (tablas `tarifas_settlements` y `tarifas_audit_log`), y leer todo lo que el
+                        cálculo necesita;
+      `tarifas.config`  configurar: reglas, tarifarios, costos, variables, margen, plantillas.
+    Un rol de liquidación NO puede escribir configuración. Países: se filtra y se valida contra los
+    países del rol.
   - Integridad: FK y unicidad las hace cumplir Postgres; llegan como 409 con el
     SQLSTATE en `error.code` (23503 / 23505).
 """
@@ -33,14 +38,30 @@ from tarifas_schema import Table, table as table_def
 from tarifas_sql import build_delete, build_find, build_get, build_insert, build_update
 
 MODULE = "tarifas"
+CONFIG_MODULE = "tarifas.config"
+# Lo único que escribe quien liquida; todo lo demás es configuración.
+LIQUIDATION_TABLES = frozenset({"tarifas_settlements", "tarifas_audit_log"})
 TX_RETRIES = 2  # reintentos ante deadlock (40P01) o fallo de serialización (40001)
 TX_OPERATIONS = {"insert": "create", "update": "edit", "delete": "delete"}
 
 
-def _caller(event: dict, action: str) -> permissions.Permissions:
+def _write_module(table: Table) -> str:
+    return MODULE if table.name in LIQUIDATION_TABLES else CONFIG_MODULE
+
+
+def _reader(event: dict) -> permissions.Permissions:
+    """Leer exige poder liquidar o poder configurar: el cálculo y pantallas de config leen lo mismo."""
     caller = permissions.for_event(event)
-    caller.require(MODULE, action)
+    if not (caller.can(MODULE, "view") or caller.can(CONFIG_MODULE, "view")):
+        caller.require(MODULE, "view")
     return caller
+
+
+def _writer(event: dict, table_name: str, action: str, operation: str) -> tuple[permissions.Permissions, Table]:
+    caller = permissions.for_event(event)
+    table = _writable(table_name, operation)
+    caller.require(_write_module(table), action)
+    return caller, table
 
 
 def _table(name: str) -> Table:
@@ -76,7 +97,7 @@ def _body(event: dict) -> dict:
 # ── Lectura ────────────────────────────────────────────────────────────────────────────────────
 
 def list_rows(event: dict) -> dict:
-    caller = _caller(event, "view")
+    caller = _reader(event)
     table = _table(path_param(event, "table"))
     options = parse_json_param(query_params(event).get("q"), "q")
     sql, params = build_find(table, options, caller.country_filter)
@@ -84,7 +105,7 @@ def list_rows(event: dict) -> dict:
 
 
 def get_row(event: dict) -> dict:
-    caller = _caller(event, "view")
+    caller = _reader(event)
     table = _table(path_param(event, "table"))
     rows = pg.query(*build_get(table, path_param(event, "id"), caller.country_filter))
     if not rows:
@@ -95,16 +116,14 @@ def get_row(event: dict) -> dict:
 # ── Escrituras sueltas ─────────────────────────────────────────────────────────────────────────
 
 def insert_row(event: dict) -> dict:
-    caller = _caller(event, "create")
-    table = _writable(path_param(event, "table"), "insert")
+    caller, table = _writer(event, path_param(event, "table"), "create", "insert")
     values = _body(event)
     _require_country(caller, table, values)
     return json_response(200, pg.query(*build_insert(table, values))[0])
 
 
 def update_row(event: dict) -> dict:
-    caller = _caller(event, "edit")
-    table = _writable(path_param(event, "table"), "update")
+    caller, table = _writer(event, path_param(event, "table"), "edit", "update")
     values = _body(event)
     _require_country(caller, table, values)
     rows = pg.query(*build_update(table, path_param(event, "id"), values, caller.country_filter))
@@ -114,8 +133,7 @@ def update_row(event: dict) -> dict:
 
 
 def delete_row(event: dict) -> dict:
-    caller = _caller(event, "delete")
-    table = _writable(path_param(event, "table"), "delete")
+    caller, table = _writer(event, path_param(event, "table"), "delete", "delete")
     rows = pg.query(*build_delete(table, path_param(event, "id"), caller.country_filter))
     if not rows:
         raise HttpError(404, f"{table.label} no encontrado.")
@@ -129,8 +147,8 @@ def _planned(caller: permissions.Permissions, op: object) -> tuple[str, tuple[st
     if not isinstance(op, dict) or op.get("op") not in TX_OPERATIONS:
         raise HttpError(400, 'Cada operación debe ser { op: "insert" | "update" | "delete", table, id?, values? }')
     kind = op["op"]
-    caller.require(MODULE, TX_OPERATIONS[kind])
     table = _writable(str(op.get("table")), kind)
+    caller.require(_write_module(table), TX_OPERATIONS[kind])
     values = op.get("values")
     _require_country(caller, table, values)
     if kind == "insert":
