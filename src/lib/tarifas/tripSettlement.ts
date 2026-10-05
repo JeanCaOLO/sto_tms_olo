@@ -17,7 +17,9 @@ import { getProfileForCarrier } from './partiesDataSource';
 import { buildCalculateInput } from './settlementInput';
 import { emptyTripEdits, notLiquidableReason, toTripContext } from './tripContext';
 import { getTrip, getTripCargo } from './tripsDataSource';
-import type { CalcIssue, CalcResult, CalculateInput, Override, Rule, TripContext, TripEdits, TripRecord } from './types';
+import type {
+  CalcIssue, CalcResult, CalculateInput, CargoSummary, Override, Rule, TripContext, TripEdits, TripRecord,
+} from './types';
 
 export interface TripCalculation {
   trip: TripRecord;
@@ -98,7 +100,16 @@ export async function calculateTrip(
   }
 
   const context = toTripContext(trip, edits, partyId);
-  const cargo = await getTripCargo(trip.id);
+  // La mercancía solo alimenta la auditoría y el reparto por casa: si no se puede leer, lo que se paga
+  // NO cambia. Se avisa en vez de frenar la liquidación.
+  let cargo: CargoSummary | null = null;
+  let cargoWarning: string | null = null;
+  try {
+    cargo = await getTripCargo(trip.id);
+  } catch (error) {
+    cargoWarning = 'No se pudo leer la mercancía del viaje (pedidos de sus guías): no habrá ganancia/pérdida de '
+      + `auditoría ni reparto por casa comercial. ${error instanceof Error ? error.message : ''}`.trim();
+  }
   const { input, issues, warnings } = buildCalculateInput(catalog, context, {
     ...(cargo ? { cargo } : {}),
     ...(options.overrides ? { overrides: options.overrides } : {}),
@@ -130,7 +141,7 @@ export async function calculateTrip(
       input,
       result,
       blockingIssues: [...issues, ...(issues.length > 0 ? [] : result.blockingIssues)],
-      warnings: [...warnings, ...result.warnings],
+      warnings: [...warnings, ...(cargoWarning ? [cargoWarning] : []), ...result.warnings],
       notLiquidableReason: ignorable ? null : reason,
     },
   };

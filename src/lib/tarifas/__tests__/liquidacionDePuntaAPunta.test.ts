@@ -7,7 +7,7 @@
 // Es la prueba de que las piezas encajan. Cada una tiene sus tests; ésta verifica que juntas hacen
 // lo que el módulo promete: el viaje no se teclea, y todo se lee por la capa de datos.
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { calculateTrip, type TripCalculation } from '../tripSettlement';
 import { listLiquidableTrips, getTrip } from '../tripsDataSource';
 import {
@@ -211,5 +211,25 @@ describe('emitir y re-liquidar', () => {
     const r = await calculateTrip(viaje, { customVars: {} });
     expect(r.status).toBe('catalog-error');
     if (r.status === 'catalog-error') expect(r.message).toMatch(/estructura de costos/i);
+  });
+});
+
+describe('mercancía del viaje ilegible', () => {
+  it('si no se puede leer la mercancía, el cálculo sigue (lo que se paga no cambia) y avisa', async () => {
+    const viaje = await viajeDeTercero();
+    const normal = await calcular(viaje);
+    const original = db().find.bind(db());
+    const spy = vi.spyOn(db(), 'find').mockImplementation(async (entity, options) => {
+      if (entity === 'tripCargo') throw new Error('Tabla desconocida para el tarifador: "tarifas_v_viaje_cargas"');
+      return original(entity, options);
+    });
+    try {
+      const sinCarga = await calcular(viaje);
+      expect(sinCarga.result.totalLiquidado).toBe(normal.result.totalLiquidado);
+      expect(sinCarga.warnings.some((w) => /mercancía del viaje/.test(w))).toBe(true);
+      expect(sinCarga.result.margin.basis).toBe('NONE');
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

@@ -16,8 +16,14 @@ ese número?**
 
 - **Consume viajes, no los crea.** Toma los viajes **completados** de guía de despacho (tabla
   `routes` de Aurora) con km, paradas, peso, vehículo, conductor, transportista y zona.
-- **Calcula** el monto con reglas y tarifarios configurables, deja el **desglose** línea por línea y
-  calcula el **costo** y el **margen**.
+- **Calcula** el monto a pagar y deja el **desglose** línea por línea. Para **flota propia**, lo que se
+  paga es la **acumulación de gastos de la estructura de costos** (fijos prorrateados + mantenimiento
+  por km + combustible); las reglas activas solo suman o restan encima. A un **tercero** se le paga lo
+  que dicen las reglas y los tarifarios. Ese total es lo que va a cuentas por pagar.
+- **No muestra ganancia al liquidar.** La ganancia o pérdida es de **auditoría**: compara el valor de
+  la mercancía del viaje (los pedidos de sus guías de despacho) con esos gastos, y nunca bloquea.
+- **Reparte el total entre las casas comerciales** (clientes de los pedidos) según lo que cada una carga
+  —hoy por valor de la mercancía; peso y volumen ya están soportados— cuadrando al centavo.
 - **Emite una liquidación.** Un viaje tiene **una sola liquidación vigente**. Recalcular es
   *re-liquidar*: anula la vigente (queda en el historial) y emite otra que la reemplaza.
 - **Solo se edita lo variable del viaje:** variables personalizadas por viaje (peajes, recolectas,
@@ -40,9 +46,10 @@ un dato el motor **avisa o bloquea** en vez de emitir un número plausible y fal
 | **Variable personalizada** | Variable propia de un transportista, con prefijo `custom:` (p. ej. `custom:peajes`). Origen **constante** (mismo valor siempre) o **por viaje** (se carga al liquidar). Peajes, recolectas, bultos, atrasos e incidencias ya no son variables del sistema: son `custom:*`. |
 | **Regla de tarifa** | Condición (cuándo aplica) + expresión (cuánto) + etapa + convivencia + prioridad + alcance (país o transportista) + vigencia. |
 | **Tarifario** | Planilla de precios indexada por combinaciones (zona × camión → importe). Una regla lo usa con el operador "Tarifa de tabla". |
-| **Estructura de costos** | **Única fuente** del costo de operar un viaje de flota propia. Es una tabla de filas de dos clases: *fijos mensuales* (conductor, ayudante, depreciación: se prorratean por día) y *componentes que se repiten* (mantenimiento, llantas: cuestan "costo por km"), más combustible. Cada transportista puede tener la suya; si no, vale la **estructura por defecto del país**. Solo sirve para el margen. Se carga con una plantilla (§7). |
-| **Tarifa plana (terceros)** | Costo de contratar a un tercero, por transportista y tipo de camión. |
-| **Política de margen** | Umbrales (advertencia, crítico, exigir motivo) y bloqueo por pérdida. El margen es *lo que se paga menos lo que cuesta operar el viaje* ("diferencia contra costo operativo"): **no incluye lo cobrado al cliente**. Resultado: OK / Atención / Crítico / Pérdida. |
+| **Estructura de costos** | **Única fuente** del costo de operar un viaje de flota propia. Es una tabla de filas de dos clases: *fijos mensuales* (conductor, ayudante, depreciación: se prorratean por día) y *componentes que se repiten* (mantenimiento, llantas: cuestan "costo por km"), más combustible. Cada transportista puede tener la suya; si no, vale la **estructura por defecto del país**. **Es lo que se liquida** (más los ajustes de las reglas). Se carga con una plantilla (§7). |
+| **Mercancía del viaje** | Suma de los pedidos de las guías del viaje, por casa comercial (valor, peso, volumen), leída de la vista `tarifas_v_viaje_cargas`. Solo lectura. |
+| **Alerta de auditoría** | Umbrales (atención, crítico) que colorean la ganancia/pérdida de auditoría: *valor de la mercancía − gastos operativos*, con % sobre el valor. No bloquea ni pide motivo. Sin valor de pedidos cargado no se inventa un margen. |
+| **Reparto por casa comercial** | Cuánto del total corresponde a cada cliente según su parte de la mercancía. Se guarda en la liquidación (base de las proformas por casa). |
 | **Plantilla de viaje** | Viaje guardado para repetirlo en el Probador. |
 | **Bitácora** | Registro solo-agregar de cambios. La escribe el código de datos (crear, re-liquidar, cambiar estado). |
 
@@ -83,8 +90,9 @@ un dato el motor **avisa o bloquea** en vez de emitir un número plausible y fal
 1. **Derivar variables** del viaje y del perfil del transportista.
 2. **Resolver reglas:** condición, alcance, vigencia, exclusividad, orden.
 3. **Pipeline por etapas** (cada línea deja su rastro: regla, por qué aplicó, cómo se calculó).
-4. **Costo:** estructura del transportista → si no tiene, la estructura por defecto del país (flota propia) → o tarifa plana (tercero). Sin ninguna, se avisa y no se calcula.
-5. **Margen:** liquidado − costo, contra la política. Si el liquidador destilda líneas, el margen se recalcula contra el total que realmente se paga.
+4. **Gastos (flota propia):** estructura del transportista → si no tiene, la estructura por defecto del país. Sin ninguna, se avisa y no se calcula. Esas filas son el comienzo del desglose y de ellas parte el total (un tercero no tiene gastos propios).
+5. **Pipeline de reglas** sobre ese comienzo: las reglas ajustan (recolectas, bonos, descuentos).
+6. **Auditoría y reparto:** ganancia/pérdida = valor de la mercancía − total pagado; y el total se reparte entre las casas comerciales. Si el liquidador destilda líneas, ambos se recalculan contra el total que realmente se paga.
 
 Salida (`calculateTrip`): `result` con el desglose, `blockingIssues` (impiden emitir), `warnings`,
 `notLiquidableReason` (si no es nulo, no se puede emitir) y los campos de variables por viaje a
@@ -131,7 +139,7 @@ del navegador se juntan en una sola petición.
 - Externas (solo lectura): `routes`, `carriers`, `drivers`, `vehicles`, `zones`, `countries`,
   `dispatch_guides`, `returns`.
 - Una liquidación vigente por viaje: índice único parcial `tarifas_settlements (trip_id) WHERE status <> 'Anulado'`.
-- Migraciones **ya aplicadas**: `sql/19_tarifas_aurora.sql` (esquema), `20` (reglas usadas en la liquidación), `21` (estructura de costos v2: componentes, parámetros, estructura por país; elimina `tarifas_own_cost_params`), `22` (módulo de permisos `tarifas.config`).
+- Migraciones **ya aplicadas**: `sql/19_tarifas_aurora.sql` (esquema), `20` (reglas usadas en la liquidación), `21` (estructura de costos v2: componentes, parámetros, estructura por país; elimina `tarifas_own_cost_params`), `22` (módulo de permisos `tarifas.config`), `23` (vista `tarifas_v_viaje_cargas`, `cargo_value` y `allocation` en la liquidación; elimina `tarifas_outsourced_cost_rates`).
 
 ---
 
@@ -142,9 +150,9 @@ del navegador se juntan en una sola petición.
 | `/liquidaciones` | Pestaña **Viajes por liquidar** (acción *Liquidar*) e **Historial** (estado, ver desglose, re-liquidar con motivo). Modal *Liquidar viaje*: datos del viaje en solo lectura, variables por viaje, devoluciones, desglose, emitir. |
 | `/tarifas/flota-propia` | **Solo con `tarifas.config`.** Transportistas propios (lista del catálogo, solo lectura): estructura de costos (con plantilla), tarifarios, variables, desactivar/reactivar perfil. |
 | `/tarifas/transportistas` | Lo mismo para terceros. Solo `tarifas.config`. |
-| `/reglas-tarifa` | **Solo con `tarifas.config`.** Reglas, Zonas (solo lectura + grupos), Tarifarios, Costos (estructura del país + tarifa plana), Política de margen (+ cálculo del país), Plantillas, Resumen, Probador, Bitácora. |
+| `/reglas-tarifa` | **Solo con `tarifas.config`.** Reglas, Zonas (solo lectura + grupos), Tarifarios, Costos (estructura de la flota propia del país), Alerta de auditoría (+ cálculo del país), Plantillas, Resumen, Probador, Bitácora. |
 
-**Dos niveles de usuario.** Quien solo liquida (`tarifas`) ve *Liquidaciones* en modo simple: datos del viaje, variables por viaje, total y Emitir, con un "por qué este total" plegado. Quien configura (`tarifas.config`, los roles administradores lo tienen por código) ve además las pantallas de configuración y la vista extendida del desglose. Cada línea del desglose dice su origen (regla del país, regla del transportista —y si reemplaza a la del país—, costo, tarifa plana) y las reglas del catálogo traen un enlace para abrirlas.
+**Dos niveles de usuario.** Quien solo liquida (`tarifas`) ve *Liquidaciones* en modo simple: datos del viaje, variables por viaje, total y Emitir, con un "por qué este total" plegado. Quien configura (`tarifas.config`, los roles administradores lo tienen por código) ve además las pantallas de configuración y la vista extendida del desglose. Cada línea del desglose dice su origen (regla del país, regla del transportista —y si reemplaza a la del país—, gasto de la estructura de costos) y las reglas del catálogo traen un enlace para abrirlas.
 
 El **Probador** calcula "desde un viaje" completado (mismo camino que la liquidación) o con un "viaje
 libre" armado a mano. No emite nada.
@@ -214,8 +222,9 @@ El liquidador no inventa datos de negocio. Para liquidar viajes de un país hay 
    - **Fijos** (`concepto, monto_mensual, aplica_a, tipo_camion, valor_vehiculo, vida_meses`): `aplica_a` = conductor, ayudante, depreciacion u otros. La depreciación puede traer valor y vida útil en vez del monto. La fila del ayudante solo cuenta si el viaje declara la variable `custom:con_ayudante` > 0.
    - **Parámetros** (`clave, valor`): `dias_operativos`, `km_anual`, `precio_combustible` y `rendimiento_km_litro:<tipo de camión>`.
    `tipo_camion` vacío = aplica a todos; si no, debe coincidir con `vehicles.vehicle_type` del catálogo.
-4. **Terceros:** tarifa plana por transportista y tipo de camión (*Costos → Outsourcing*, importable
-   desde Excel/CSV).
+4. **Terceros:** no tienen costos propios; se les paga por **reglas y tarifarios** (§2). Un tarifario puede
+   tener columnas de rango para km, peso, paradas u horas (`0..100`, `101..300`, `301..`) y variables
+   personalizadas de la compañía en la clave.
 5. **Tarifarios y reglas** con clave por **`destZone`** (el viaje no trae origen).
 6. **Variables personalizadas** por transportista (`custom:peajes`, `custom:recolectas`…), por viaje o
    constantes.
@@ -268,7 +277,6 @@ serialización (`40001`).
 | Síntoma | Causa y salida |
 |---|---|
 | "No hay estructura de costos para la flota propia de este país" | Falta cargar la estructura de costos (§7.3). |
-| "No hay tarifa plana configurada para este transportista…" | Falta la tarifa plana del tercero para ese tipo de camión (Costos → Tarifa plana de terceros). |
 | No veo Reglas de Tarifa / Flota en el menú, o 403 al guardar configuración | Su rol no tiene el permiso `tarifas.config` (Configuración → Roles). |
 | "Elija un país en el selector de la parte superior" | El selector global está en "Todos los países". |
 | Un viaje de flota propia no calcula costo por camión | Revise que `tipo_camion` de la plantilla coincida con el tipo de vehículo del catálogo (aparece como aviso en la vista previa). |
