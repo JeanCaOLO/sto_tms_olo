@@ -76,7 +76,7 @@ export default function CompaniasView({ classification }: { classification: Part
   const rolActivo = obtenerRolActivo();
 
   const {
-    countries, country: activeCountry, countryId, loading: loadingCountries, setCountry,
+    countries, country: activeCountry, countryId, problem, selectedName, loading: loadingCountries,
   } = useActiveCountry();
 
   const [profiles, setProfiles] = useState<CarrierProfile[]>([]);
@@ -249,9 +249,9 @@ export default function CompaniasView({ classification }: { classification: Part
 
       <DataModeBanner />
       <CountryScopeBar
-        countries={countries}
         country={activeCountry}
-        onChange={setCountry}
+        problem={problem}
+        selectedName={selectedName}
         loading={loadingCountries}
       />
 

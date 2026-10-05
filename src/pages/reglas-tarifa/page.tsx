@@ -45,7 +45,7 @@ export default function ReglasTarifaPage() {
   };
 
   // País activo: el ámbito global del módulo. Reemplaza a los selectores que tenía cada pestaña.
-  const { countries, country: activeCountry, countryId, loading: loadingCountries, setCountry } = useActiveCountry();
+  const { countries, country: activeCountry, countryId, problem, selectedName, loading: loadingCountries } = useActiveCountry();
 
   // --- Reglas ---
   const [rules, setRules] = useState<any[]>([]);
@@ -367,9 +367,9 @@ export default function ReglasTarifaPage() {
 
       <DataModeBanner />
       <CountryScopeBar
-        countries={countries}
         country={activeCountry}
-        onChange={setCountry}
+        problem={problem}
+        selectedName={selectedName}
         loading={loadingCountries}
       />
 
