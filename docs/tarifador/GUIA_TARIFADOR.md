@@ -237,9 +237,21 @@ Hay planillas de ejemplo en `docs/tarifador/demo-data/` (estructura de costos de
 | Todos los tests | `npx vitest run` |
 | Tipos | `npx tsc --noEmit --project tsconfig.app.json` |
 | Lint | `node node_modules/eslint/bin/eslint.js src/pages/liquidaciones src/pages/companias src/pages/reglas-tarifa` |
-| Backend | `cd backend/tarifas && python -m pytest` (requiere `backend/requirements-dev.txt`) |
+| Backend | `cd backend && python -m pytest` (requiere `pip install -r requirements-dev.txt`) |
+| Flujo completo contra Aurora (revierte todo) | Con el túnel abierto: `TARIFAS_AURORA_E2E=1 npx vitest run src/lib/tarifas/__tests__/aurora.e2e.test.ts` (~30 s). Corre calcular, emitir, rechazar una segunda vigente, re-liquidar y cambiar estado dentro de una transacción que termina en ROLLBACK; los costos y la regla que usa son de prueba y no quedan en la base. |
 | Build | `npx vite build` |
 | Esquema / manifiesto | `npm run tarifas:ddl`, `npm run tarifas:manifest` |
+
+---
+
+### Variables de entorno del backend (opcionales)
+
+| Variable | Efecto |
+|---|---|
+| `TMS_DB_SSL_CA` | Ruta al bundle CA de RDS. Si está, la conexión a Aurora valida cadena y nombre del servidor; si no, se conecta sin validar (comportamiento anterior). Aplica a todos los backends que usan `tms_common`. |
+
+`POST /api/tarifas/tx` repite la transacción hasta 2 veces ante deadlock (`40P01`) o fallo de
+serialización (`40001`).
 
 ---
 

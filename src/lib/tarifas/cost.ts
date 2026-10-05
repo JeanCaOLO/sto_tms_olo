@@ -213,9 +213,10 @@ export function computeCost(
     (r) => r.carrierId === partyKey && r.truckTypeId === trip.truckTypeId,
   );
   if (!rate) {
+    // Sin el id de la compañía: es un uuid que a quien liquida no le dice nada.
     throw new Error(
-      `No hay tarifa de outsourcing configurada para la compañía "${partyKey ?? '(ninguna)'}" ` +
-        `y truckType="${trip.truckTypeId}". Configúrela en Tarifas → Reglas de Tarifa → Costos antes de liquidar.`,
+      `No hay tarifa plana configurada para este transportista y el tipo de camión "${trip.truckTypeId}". ` +
+        'Configúrela en Reglas de Tarifa → Costos antes de liquidar.',
     );
   }
   const lines: CostLine[] = [

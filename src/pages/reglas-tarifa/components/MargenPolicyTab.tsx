@@ -68,7 +68,7 @@ export default function MargenPolicyTab({ organizationId, countryId }: MargenPol
     <div className="space-y-6">
       <Card>
         <div className="flex items-center gap-2 mb-3">
-          <h3 className="text-sm font-semibold text-slate-700">País</h3>
+          <h3 className="text-sm font-semibold text-slate-700">Umbrales de margen</h3>
           <HelpButton
             title="Política de margen"
             steps={[
@@ -79,10 +79,6 @@ export default function MargenPolicyTab({ organizationId, countryId }: MargenPol
             ]}
           />
         </div>
-      </Card>
-
-      <Card>
-        <h3 className="text-sm font-semibold text-slate-700 mb-3">Umbrales de margen</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <Input
             label="Advertencia por debajo de"

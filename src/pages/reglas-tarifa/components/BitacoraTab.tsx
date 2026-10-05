@@ -3,11 +3,46 @@ import Card from '../../../components/base/Card';
 import Button from '../../../components/base/Button';
 import { listarEventos } from '../../../lib/liquidador/auditLog';
 import type { FilaAuditoria } from '../../../lib/liquidador/auditLog';
+import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
 import HelpButton from './HelpButton';
 
 const ACCION_LABELS: Record<string, string> = {
   CREATE: 'Creación', UPDATE: 'Edición', DELETE: 'Eliminación', AUTHORIZE: 'Autorización',
 };
+
+const columns: DataTableColumn<FilaAuditoria>[] = [
+  {
+    key: 'fecha', header: 'Fecha', sortable: true,
+    accessor: (ev) => ev.created_at,
+    render: (ev) => <span className="text-slate-600">{new Date(ev.created_at).toLocaleString('es-ES')}</span>,
+    exportValue: (ev) => new Date(ev.created_at).toLocaleString('es-ES'),
+  },
+  { key: 'usuario', header: 'Usuario', sortable: true, filterable: true, accessor: (ev) => ev.user_name },
+  { key: 'rol', header: 'Rol', sortable: true, filterable: true, accessor: (ev) => ev.role },
+  {
+    key: 'entidad', header: 'Entidad', sortable: true, filterable: true,
+    accessor: (ev) => ev.entity,
+    render: (ev) => <span>{ev.entity} <span className="text-xs text-slate-400">({ev.entity_id})</span></span>,
+    exportValue: (ev) => `${ev.entity} (${ev.entity_id})`,
+  },
+  {
+    key: 'accion', header: 'Acción', sortable: true, filterable: true,
+    accessor: (ev) => ACCION_LABELS[ev.action] || ev.action,
+  },
+  {
+    key: 'detalle', header: 'Antes → Después',
+    accessor: (ev) => JSON.stringify({ antes: ev.before, despues: ev.after, motivo: ev.reason }),
+    cellClassName: 'text-xs text-slate-500 max-w-md',
+    render: (ev) => (
+      <details>
+        <summary className="cursor-pointer text-teal-700">Ver detalle</summary>
+        <pre className="whitespace-pre-wrap break-all mt-1 bg-slate-50 rounded p-2 border border-slate-200">
+          {JSON.stringify({ antes: ev.before, despues: ev.after, motivo: ev.reason }, null, 2)}
+        </pre>
+      </details>
+    ),
+  },
+];
 
 export default function BitacoraTab() {
   const [eventos, setEventos] = useState<FilaAuditoria[]>([]);
@@ -62,39 +97,14 @@ export default function BitacoraTab() {
       ) : eventos.length === 0 ? (
         <p className="text-sm text-slate-400 text-center py-10">Todavía no hay eventos registrados.</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200">
-                <th className="text-left py-2 px-2">Fecha</th>
-                <th className="text-left py-2 px-2">Usuario</th>
-                <th className="text-left py-2 px-2">Rol</th>
-                <th className="text-left py-2 px-2">Entidad</th>
-                <th className="text-left py-2 px-2">Acción</th>
-                <th className="text-left py-2 px-2">Antes → Después</th>
-              </tr>
-            </thead>
-            <tbody>
-              {eventos.map((ev) => (
-                <tr key={ev.id} className="border-b border-slate-100 align-top">
-                  <td className="py-2 px-2 text-slate-600 whitespace-nowrap">{new Date(ev.created_at).toLocaleString('es-ES')}</td>
-                  <td className="py-2 px-2 text-slate-800">{ev.user_name}</td>
-                  <td className="py-2 px-2 text-slate-600">{ev.role}</td>
-                  <td className="py-2 px-2 text-slate-600">{ev.entity} <span className="text-xs text-slate-400">({ev.entity_id})</span></td>
-                  <td className="py-2 px-2 text-slate-600">{ACCION_LABELS[ev.action] || ev.action}</td>
-                  <td className="py-2 px-2 text-xs text-slate-500 max-w-md">
-                    <details>
-                      <summary className="cursor-pointer text-teal-700">Ver detalle</summary>
-                      <pre className="whitespace-pre-wrap break-all mt-1 bg-slate-50 rounded p-2 border border-slate-200">
-{JSON.stringify({ antes: ev.before, despues: ev.after, motivo: ev.reason }, null, 2)}
-                      </pre>
-                    </details>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          data={eventos}
+          columns={columns}
+          getRowId={(ev) => String(ev.id)}
+          searchPlaceholder="Buscar por usuario, entidad o acción"
+          exportFileName="bitacora_auditoria_tarifas"
+          pageSize={25}
+        />
       )}
     </Card>
   );

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Card from '../../../components/base/Card';
 import Badge from '../../../components/base/Badge';
 import Select from '../../../components/base/Select';
+import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
 import HelpButton from './HelpButton';
 import { listRules } from '../../../lib/tarifas/localRulesDataSource';
 import { STAGE_ORDER } from '../../../lib/tarifas/types';
@@ -34,6 +35,37 @@ export default function ResumenTab({ organizationId, countryId }: ResumenTabProp
 
 
   const activeRules = rules.filter((r) => r.active && (r.country_id === countryId || !r.country_id));
+  const tableRules = [...activeRules].sort(
+    (a, b) => STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage) || a.priority - b.priority,
+  );
+
+  const columns: DataTableColumn<any>[] = [
+    {
+      key: 'stage', header: 'Etapa', sortable: true, filterable: true,
+      accessor: (r) => STAGE_LABELS[r.stage] ?? r.stage,
+    },
+    {
+      key: 'name', header: 'Regla', sortable: true,
+      accessor: (r) => r.name,
+      render: (r) => (
+        <span>
+          <span className="text-slate-800">{r.name}</span>
+          <span className="text-xs text-slate-400 ml-1">({r.code})</span>
+        </span>
+      ),
+      exportValue: (r) => `${r.name} (${r.code})`,
+    },
+    {
+      key: 'stacking', header: 'Acumulación', filterable: true,
+      accessor: (r) => r.stacking,
+      render: (r) => <Badge variant={r.stacking === 'EXCLUSIVE' ? 'warning' : r.stacking === 'MAX' ? 'info' : 'default'}>{r.stacking}</Badge>,
+    },
+    {
+      key: 'op', header: 'Operación', filterable: true,
+      accessor: (r) => r.expression?.op ?? '',
+      cellClassName: 'text-xs text-slate-500',
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -56,30 +88,14 @@ export default function ResumenTab({ organizationId, countryId }: ResumenTabProp
         <>
           <Card>
             <h3 className="text-sm font-semibold text-slate-700 mb-3">Reglas activas (lo que se le liquida al transportista)</h3>
-            {STAGE_ORDER.map((stage) => {
-              const inStage = activeRules.filter((r) => r.stage === stage).sort((a, b) => a.priority - b.priority);
-              if (inStage.length === 0) return null;
-              return (
-                <div key={stage} className="mb-4">
-                  <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">{STAGE_LABELS[stage]}</h4>
-                  <table className="w-full text-sm">
-                    <tbody>
-                      {inStage.map((rule) => (
-                        <tr key={rule.id} className="border-b border-slate-100">
-                          <td className="py-1.5">
-                            <span className="text-slate-800">{rule.name}</span>
-                            <span className="text-xs text-slate-400 ml-1">({rule.code})</span>
-                          </td>
-                          <td className="py-1.5"><Badge variant={rule.stacking === 'EXCLUSIVE' ? 'warning' : rule.stacking === 'MAX' ? 'info' : 'default'}>{rule.stacking}</Badge></td>
-                          <td className="py-1.5 text-right text-xs text-slate-500">{rule.expression?.op}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              );
-            })}
-            {activeRules.length === 0 && <p className="text-sm text-slate-400">No hay reglas activas.</p>}
+            <DataTable
+              data={tableRules}
+              columns={columns}
+              getRowId={(r) => String(r.id)}
+              searchPlaceholder="Buscar por regla o código"
+              exportFileName="resumen_reglas_activas"
+              emptyMessage="No hay reglas activas."
+            />
           </Card>
 
         </>

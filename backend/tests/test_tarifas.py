@@ -12,6 +12,28 @@ from conftest import body_of, http_event, load_stack_module, make_permissions
 from tms_common import pg
 from tms_common.errors import HttpError
 
+# CA autofirmada solo para este test (sin llave privada).
+TEST_CA = """-----BEGIN CERTIFICATE-----
+MIIDBTCCAe2gAwIBAgIUOFz31XjudpJmJ/yAz71dVY4kgiQwDQYJKoZIhvcNAQEL
+BQAwEjEQMA4GA1UEAwwHdGVzdC1jYTAeFw0yNjEwMDUxMzUwMDBaFw0zNjEwMDIx
+MzUwMDBaMBIxEDAOBgNVBAMMB3Rlc3QtY2EwggEiMA0GCSqGSIb3DQEBAQUAA4IB
+DwAwggEKAoIBAQCeAvu91ZUyVgBGJGYiRIp3afOpLo964vZ851/Oj/4jY0R3co+A
+3osw5RVQ56SO0fOUs7QbmQCu/qA0l21Bo8mRqlajdeQYO1H/VQ/hudaakNwrPXqv
+QbXtvKeoehbla/Iu4BIhtG70gVfQ0QWV6xjc2Sz36mG/V+GySy6xL1Ht8gUmqsGp
+G1552GV2qHeClj+oqkgoyTF4uaSnXaEDFBxBgq0DE98x5+fS+ZaPEdkcQpALxEyn
+/Jq+JqzEkwes+HgYmiDDZ9eL9ivKs7aV4FJOH6d0IFDDEsaYbUgmwfmHHmfqEntO
+hl/XMqndSGctTeB1qpUmwGEaarHE1dOq51tRAgMBAAGjUzBRMB0GA1UdDgQWBBR3
+gcbcANy/4cWcXl5avvGozYErMzAfBgNVHSMEGDAWgBR3gcbcANy/4cWcXl5avvGo
+zYErMzAPBgNVHRMBAf8EBTADAQH/MA0GCSqGSIb3DQEBCwUAA4IBAQAiZmoU+BeQ
+5psmoxYIZ2Jsw0U4EkqqzyckoI+EF4Skl9qoDsTdIRVqvNNY81NTfL2HmR/52TAM
+PLAtNkhhpqhiq2aQBCOhSeXKeUtHZz6dnWYMaYbZ71Uzw2dHe/CkU9RAle3sMBP/
+YYobCje0AUD6hDDiiWvk81VOiYLFCEcVc4F2E62aYtP8Qjl1ozCBE8xtA9t5ddt5
+43LuwmoFAfgmEsWZhdILFhV2RdgM3vQA1FuM2IYTuNkStiXXza9Bw0IT+b0kvn28
+2Iddm3weAb2gPakDHikhL07BOhbrWnTHedWgR3Mz97rJ2XQisBrh9rUCWCohlPsN
+FUagDTD3dLz8
+-----END CERTIFICATE-----
+"""
+
 USER = {"id": "auth-1", "email": "liquidador@ologistics.com"}
 CR = "22222222-2222-2222-2222-222222222221"
 
@@ -247,6 +269,75 @@ def test_transaccion_sin_la_fila_hace_rollback(api):
     response = call(app, "POST /api/tarifas/tx", body={"ops": ops})
     assert response["statusCode"] == 404
     assert db.tx_state == "rollback"
+
+
+def test_transaccion_se_repite_ante_deadlock(api, monkeypatch):
+    app, db = api
+    monkeypatch.setattr(pg.time, "sleep", lambda _s: None)
+    real = db.transaction
+    attempts = []
+
+    @contextmanager
+    def flaky():
+        attempts.append(1)
+        with real() as run:
+            if len(attempts) == 1:
+                raise HttpError(500, "deadlock detected", code="40P01")
+            yield run
+
+    monkeypatch.setattr(pg, "transaction", flaky)
+    ops = [{"op": "update", "table": "tarifas_settlements", "id": "s1", "values": {"status": "Anulado"}}]
+    response = call(app, "POST /api/tarifas/tx", body={"ops": ops})
+    assert response["statusCode"] == 200
+    assert len(attempts) == 2 and db.tx_state == "commit"
+
+
+def test_transaccion_no_repite_errores_de_integridad(api, monkeypatch):
+    app, db = api
+    attempts = []
+
+    @contextmanager
+    def failing():
+        attempts.append(1)
+        raise HttpError(409, "llave duplicada", code="23505")
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(pg, "transaction", failing)
+    ops = [{"op": "update", "table": "tarifas_settlements", "id": "s1", "values": {"status": "Anulado"}}]
+    response = call(app, "POST /api/tarifas/tx", body={"ops": ops})
+    assert response["statusCode"] == 409
+    assert len(attempts) == 1
+
+
+def test_transaccion_agota_los_reintentos(api, monkeypatch):
+    app, db = api
+    monkeypatch.setattr(pg.time, "sleep", lambda _s: None)
+    attempts = []
+
+    @contextmanager
+    def always_deadlock():
+        attempts.append(1)
+        raise HttpError(500, "deadlock detected", code="40P01")
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(pg, "transaction", always_deadlock)
+    ops = [{"op": "update", "table": "tarifas_settlements", "id": "s1", "values": {"status": "Anulado"}}]
+    response = call(app, "POST /api/tarifas/tx", body={"ops": ops})
+    assert response["statusCode"] == 500
+    assert len(attempts) == 1 + app.TX_RETRIES
+
+
+def test_ssl_valida_el_servidor_solo_con_tms_db_ssl_ca(monkeypatch, tmp_path):
+    import ssl
+    monkeypatch.delenv("TMS_DB_SSL_CA", raising=False)
+    default = pg._ssl_context()
+    assert default.verify_mode == ssl.CERT_NONE and default.check_hostname is False
+
+    pem = tmp_path / "ca.pem"
+    pem.write_text(TEST_CA)
+    monkeypatch.setenv("TMS_DB_SSL_CA", str(pem))
+    strict = pg._ssl_context()
+    assert strict.verify_mode == ssl.CERT_REQUIRED and strict.check_hostname is True
 
 
 @pytest.mark.parametrize("body", [{}, {"ops": []}, {"ops": [{"op": "truncate", "table": "tarifas_settlements"}]},

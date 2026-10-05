@@ -33,6 +33,7 @@ from tarifas_schema import Table, table as table_def
 from tarifas_sql import build_delete, build_find, build_get, build_insert, build_update
 
 MODULE = "tarifas"
+TX_RETRIES = 2  # reintentos ante deadlock (40P01) o fallo de serialización (40001)
 TX_OPERATIONS = {"insert": "create", "update": "edit", "delete": "delete"}
 
 
@@ -149,14 +150,18 @@ def run_transaction(event: dict) -> dict:
         raise HttpError(400, '"ops" debe ser una lista no vacía')
     planned = [_planned(caller, op) for op in ops]
 
-    results = []
-    with pg.transaction() as run:
+    def apply(run) -> list:
+        results = []
         for kind, (sql, params) in planned:
             rows = run(sql, params)
             if kind != "insert" and not rows:
                 # Lanzar acá dispara el ROLLBACK: o se aplica todo o nada.
                 raise HttpError(404, "Una de las filas de la transacción no existe: no se guardó nada.")
             results.append(rows[0] if kind != "delete" else None)
+        return results
+
+    # Las operaciones ya están planificadas (solo SQL), así que repetir ante deadlock es seguro.
+    results = pg.run_in_transaction(apply, retries=TX_RETRIES)
     return json_response(200, results)
 
 

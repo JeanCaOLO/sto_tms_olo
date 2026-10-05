@@ -129,22 +129,27 @@ export default function LiquidacionesPage() {
     { key: 'routeDate', header: 'Fecha', sortable: true, accessor: (t) => t.routeDate },
     {
       key: 'carrier', header: 'Transportista', sortable: true, filterable: true,
-      accessor: (t) => t.carrierName ?? '',
+      accessor: (t) => t.carrierName ?? '', cellClassName: 'max-w-[160px] truncate',
+      render: (t) => <span title={t.carrierName ?? ''}>{t.carrierName ?? '—'}</span>,
     },
     {
       key: 'fleet', header: 'Flota', filterable: true,
       accessor: (t) => (t.isOwnFleet ? 'Propia' : 'Externa'),
     },
-    { key: 'driver', header: 'Conductor', sortable: true, filterable: true, accessor: (t) => t.driverName ?? '' },
+    {
+      key: 'driver', header: 'Conductor', sortable: true, filterable: true, accessor: (t) => t.driverName ?? '',
+      cellClassName: 'max-w-[160px] truncate',
+      render: (t) => <span title={t.driverName ?? ''}>{t.driverName ?? '—'}</span>,
+    },
     {
       key: 'vehicle', header: 'Vehículo', sortable: true,
-      accessor: (t) => t.vehiclePlate ?? '',
-      render: (t) => `${t.vehiclePlate ?? '—'} · ${t.vehicleType ?? '—'}`,
+      accessor: (t) => t.vehiclePlate ?? '', cellClassName: 'max-w-[150px] truncate',
+      render: (t) => { const v = `${t.vehiclePlate ?? '—'} · ${t.vehicleType ?? '—'}`; return <span title={v}>{v}</span>; },
     },
     {
       key: 'zone', header: 'Zona destino', sortable: true, filterable: true,
-      accessor: (t) => t.destZoneCode ?? '',
-      render: (t) => (t.destZoneCode ? `${t.destZoneCode} · ${t.destZoneName ?? ''}` : '—'),
+      accessor: (t) => t.destZoneCode ?? '', cellClassName: 'max-w-[160px] truncate',
+      render: (t) => { const z = t.destZoneCode ? `${t.destZoneCode} · ${t.destZoneName ?? ''}` : '—'; return <span title={z}>{z}</span>; },
     },
     { key: 'km', header: 'Km', sortable: true, align: 'right', accessor: (t) => t.km },
     {
