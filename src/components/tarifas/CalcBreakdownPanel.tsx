@@ -25,7 +25,6 @@ function originLabel(line: ExplainedLine, replacesCountry: boolean): { text: str
   const { source, scope } = line.origen;
   if (source === 'ADHOC') return { text: 'Regla de esta liquidación', tone: 'bg-purple-50 text-purple-700' };
   if (source === 'COST_ROW') return { text: 'Estructura de costos', tone: 'bg-slate-100 text-slate-600' };
-  if (source === 'OWN_PARAMS') return { text: 'Costos del país', tone: 'bg-slate-100 text-slate-600' };
   if (source === 'FLAT_RATE') return { text: 'Tarifa plana del transportista', tone: 'bg-slate-100 text-slate-600' };
   if (scope === 'PARTY') {
     return { text: replacesCountry ? 'Regla del transportista · reemplaza a la del país' : 'Regla del transportista', tone: 'bg-amber-50 text-amber-700' };

@@ -17,7 +17,7 @@ import { describe, expect, it } from 'vitest';
 import { calculate } from '../index';
 import { evaluateExpr, evaluatePred, RuleShapeError } from '../evaluator';
 import {
-  makeCountryVE, makeGeoVE, makeMarginPolicy, makeOutsourcedCostRate, makeOwnCostParams, makeRule,
+  makeCountryVE, makeGeoVE, makeMarginPolicy, makeOutsourcedCostRate, makeOwnCostStructure, makeRule,
   makeTrip,
 } from './fixtures';
 
@@ -30,7 +30,7 @@ const conReglas = (rules: Parameters<typeof calculate>[0]['rules']) => {
     zones,
     zoneGroups,
     locations,
-    ownCostParams: makeOwnCostParams(),
+    ...makeOwnCostStructure(),
     outsourcedCostRates: [makeOutsourcedCostRate()],
     marginPolicy: makeMarginPolicy(),
   });

@@ -9,7 +9,7 @@ import {
 } from '../rule-builder';
 import { varLabel } from '../format';
 import { calculate } from '../index';
-import { makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostParams, makeRule, makeTrip } from './fixtures';
+import { makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostStructure, makeRule, makeTrip } from './fixtures';
 import type {
   CalculateInput, ConditionBuilderForm, ConditionRowForm, PartyVariable, RuleBuilderForm,
   TripContext,
@@ -187,7 +187,7 @@ function runWithBuilder(builderForm: RuleBuilderForm, trip: Partial<TripContext>
     zones,
     zoneGroups,
     locations,
-    ownCostParams: makeOwnCostParams(),
+    ...makeOwnCostStructure(),
     outsourcedCostRates: [],
     marginPolicy: makeMarginPolicy(),
     partyVariables,
@@ -389,7 +389,7 @@ describe('A2 de punta a punta: OR e IN deciden si la regla aplica', () => {
     });
     const input: CalculateInput = {
       country, trip: makeTrip({ truckTypeId: 'FRR' }), rules: [rule], zones, zoneGroups, locations,
-      ownCostParams: makeOwnCostParams(), outsourcedCostRates: [], marginPolicy: makeMarginPolicy(),
+      ...makeOwnCostStructure(), outsourcedCostRates: [], marginPolicy: makeMarginPolicy(),
     };
     expect(calculate(input).totalLiquidado).toBe('50.00');
   });

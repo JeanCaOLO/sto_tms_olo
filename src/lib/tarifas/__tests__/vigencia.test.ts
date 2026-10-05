@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest';
 import { deriveContext, isRuleInEffect, resolveRules } from '../resolver';
 import { calculate } from '../index';
-import { makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostParams, makeRule, makeTrip } from './fixtures';
+import { makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostStructure, makeRule, makeTrip } from './fixtures';
 import type { CalculateInput, Rule, TripContext } from '../types';
 
 // ── La unidad pura ────────────────────────────────────────────────────────────────────────────
@@ -63,7 +63,7 @@ function totalEn(fecha: string, rules: Rule[], trip: Partial<TripContext> = {}):
     zones,
     zoneGroups,
     locations,
-    ownCostParams: makeOwnCostParams(),
+    ...makeOwnCostStructure(),
     outsourcedCostRates: [],
     marginPolicy: makeMarginPolicy(),
   };

@@ -156,7 +156,7 @@ export function variablesUsadas(
   for (const line of trace) {
     for (const [key, value] of Object.entries(line.inputs)) {
       // `rate`, `amount`, `pct` y `cada` son parámetros de la REGLA, no datos del viaje.
-      if (['rate', 'amount', 'pct', 'base', 'cada', 'tabla', 'driver', 'unidades', 'importe'].includes(key)) continue;
+      if (['rate', 'amount', 'pct', 'base', 'cada', 'tabla', 'driver', 'unidades', 'importe', 'frecuencia', 'costo por km'].includes(key)) continue;
       if (!vistas.has(key)) vistas.set(key, String(value));
     }
   }

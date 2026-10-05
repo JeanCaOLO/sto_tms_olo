@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import { calculate } from '../index';
 import {
-  makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostParams, makeRule, makeTrip,
+  makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostStructure, makeRule, makeTrip,
 } from './fixtures';
 import type { CalculateInput, PartyVariable, Rule, TripContext } from '../types';
 
@@ -32,7 +32,7 @@ function run(rules: Rule[], trip: Partial<TripContext> = {}) {
     zones,
     zoneGroups,
     locations, // 1:1, para que los números del test sean los de la regla
-    ownCostParams: makeOwnCostParams(),
+    ...makeOwnCostStructure(),
     outsourcedCostRates: [],
     marginPolicy: makeMarginPolicy(),
     partyVariables: VARIABLES,

@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { calculate } from '../index';
 import {
-  makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostParams, makeRule, makeTrip,
+  makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostStructure, makeRule, makeTrip,
 } from './fixtures';
 import type { CalculateInput, Country, Rule, TripContext } from '../types';
 
@@ -21,7 +21,7 @@ function run(rules: Rule[], trip: Partial<TripContext> = {}, extra: Partial<Calc
     zones,
     zoneGroups,
     locations,
-    ownCostParams: makeOwnCostParams(),
+    ...makeOwnCostStructure(),
     outsourcedCostRates: [],
     marginPolicy: makeMarginPolicy(),
     ...extra,

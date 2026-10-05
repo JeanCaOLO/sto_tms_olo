@@ -12,7 +12,7 @@
 import { describe, expect, it } from 'vitest';
 import { computeSettlementTotals, differsFromEngine } from '../settlementTotals';
 import { calculate } from '../index';
-import { makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostParams, makeRule, makeTrip } from './fixtures';
+import { makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostStructure, makeRule, makeTrip } from './fixtures';
 import type { CalculateInput, Country, TraceLine } from '../types';
 
 const PAIS = makeCountryVE();
@@ -121,7 +121,7 @@ describe('differsFromEngine', () => {
         makeRule({ code: 'EXTRA', stage: 'SURCHARGE', expression: { op: 'FIXED', amount: '30.00' } }),
       ],
       zones, zoneGroups, locations,
-      ownCostParams: makeOwnCostParams(),
+      ...makeOwnCostStructure(),
       outsourcedCostRates: [],
       marginPolicy: makeMarginPolicy(),
     };

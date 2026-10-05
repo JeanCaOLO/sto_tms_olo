@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest';
 import { compileBuilder, describeBuilder, isBuilderValid, validateBuilder } from '../rule-builder';
 import { varLabel } from '../format';
 import { calculate } from '../index';
-import { makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostParams, makeRule, makeTrip } from './fixtures';
+import { makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostStructure, makeRule, makeTrip } from './fixtures';
 import type { CalculateInput, RateTable, RateTableRow, RuleBuilderForm, TripContext } from '../types';
 
 const form = (overrides: Partial<RuleBuilderForm> = {}): RuleBuilderForm => ({
@@ -119,7 +119,7 @@ function totalCon(
     zones,
     zoneGroups,
     locations,
-    ownCostParams: makeOwnCostParams(),
+    ...makeOwnCostStructure(),
     outsourcedCostRates: [],
     marginPolicy: makeMarginPolicy(),
     rateTables: [TARIFARIO],

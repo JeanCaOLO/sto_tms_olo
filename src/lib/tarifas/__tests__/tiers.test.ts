@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest';
 import Decimal from 'decimal.js';
 import { progressiveAmount, sortTiers } from '../evaluator';
 import { calculate } from '../index';
-import { makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostParams, makeRule, makeTrip } from './fixtures';
+import { makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostStructure, makeRule, makeTrip } from './fixtures';
 import type { CalculateInput, Expr, Tier, TierMode, TripContext } from '../types';
 
 const CONTRATO: Tier[] = [
@@ -33,7 +33,7 @@ function totalDe(mode: TierMode | undefined, tiers: Tier[], trip: Partial<TripCo
     zones,
     zoneGroups,
     locations,
-    ownCostParams: makeOwnCostParams(),
+    ...makeOwnCostStructure(),
     outsourcedCostRates: [],
     marginPolicy: makeMarginPolicy(),
   };

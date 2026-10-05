@@ -156,10 +156,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS tarifas_settlements_trip_vigente_uq ON tarifas
 -- Estructura de costos
 CREATE TABLE IF NOT EXISTS tarifas_cost_structures (
   id text PRIMARY KEY,
-  party_id text NOT NULL,
+  party_id text,
   country_id uuid NOT NULL,
   name text NOT NULL,
   operating_days_per_month integer NOT NULL,
+  params jsonb NOT NULL,
   effective_from timestamptz,
   active boolean NOT NULL,
   notes text,
@@ -183,6 +184,12 @@ CREATE TABLE IF NOT EXISTS tarifas_cost_structure_rows (
   unit text,
   row_order integer NOT NULL,
   active boolean NOT NULL,
+  cost_group text,
+  frequency text,
+  frequency_qty numeric,
+  unit_qty numeric,
+  cost_per_km numeric,
+  truck_type text,
   CONSTRAINT tarifas_cost_structure_rows_structure_id_fkey FOREIGN KEY (structure_id) REFERENCES tarifas_cost_structures (id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS tarifas_cost_structure_rows_structure_id_idx ON tarifas_cost_structure_rows (structure_id);
@@ -217,17 +224,6 @@ CREATE TABLE IF NOT EXISTS tarifas_rate_table_rows (
 );
 CREATE INDEX IF NOT EXISTS tarifas_rate_table_rows_table_id_idx ON tarifas_rate_table_rows (table_id);
 CREATE INDEX IF NOT EXISTS tarifas_rate_table_rows_active_idx ON tarifas_rate_table_rows (active);
-
--- Parámetros de costo propio
-CREATE TABLE IF NOT EXISTS tarifas_own_cost_params (
-  id text PRIMARY KEY,
-  country_id uuid NOT NULL,
-  cost_per_km numeric NOT NULL,
-  depreciation_per_km numeric NOT NULL,
-  driver_daily numeric NOT NULL,
-  CONSTRAINT tarifas_own_cost_params_country_id_fkey FOREIGN KEY (country_id) REFERENCES countries (id) ON DELETE RESTRICT
-);
-CREATE INDEX IF NOT EXISTS tarifas_own_cost_params_country_id_idx ON tarifas_own_cost_params (country_id);
 
 -- Tarifa de outsourcing
 CREATE TABLE IF NOT EXISTS tarifas_outsourced_cost_rates (

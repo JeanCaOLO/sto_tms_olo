@@ -7,9 +7,14 @@ import DataTable, { type DataTableColumn } from '../../../components/base/DataTa
 import HelpButton from './HelpButton';
 import ImportRatesModal from './ImportRatesModal';
 import {
-  listOwnCostParams, listOutsourcedCostRates, listSimulatedCarriers,
-  saveOwnCostParams, saveOutsourcedCostRate, deleteOutsourcedCostRate,
+  listOutsourcedCostRates, listSimulatedCarriers,
+  saveOutsourcedCostRate, deleteOutsourcedCostRate,
 } from '../../../lib/tarifas/localRulesDataSource';
+import { activeStructure, listRows } from '../../../lib/tarifas/costStructureDataSource';
+import { summarize } from '../../../lib/tarifas/costTemplate';
+import type { CostStructure, CostStructureRow } from '../../../lib/tarifas/types';
+import CostTemplateModal, { downloadCostTemplate } from '../../../components/tarifas/CostTemplateModal';
+import { CostRowsTable, TruckSummaryTable } from '../../../components/tarifas/CostStructureParts';
 import { ensurePartyProfile } from '../../../lib/tarifas/partiesDataSource';
 import { listTruckTypes, type TruckTypeOption } from '../../../lib/tarifas/vehiclesDataSource';
 
@@ -19,24 +24,24 @@ interface CostosTabProps {
   country: { id: string; name: string; local_currency?: string } | null;
 }
 
-// Por defecto 'REF', que es cómo se interpretaban los importes antes de que el campo existiera.
-const emptyOwnForm = { cost_per_km: '0', depreciation_per_km: '0', driver_daily: '0' };
 const emptyOutsourcedForm = { carrierId: '', truckTypeId: '', flatRate: '0' };
 
-// Motor de costos (Fase 2): cuánto le cuesta a la empresa operar el viaje — flota propia (por km +
-// depreciación + chofer por día) o tercerizada (tarifa plana por transportista/tipo de vehículo).
+// Costos: cuánto le cuesta a la empresa operar el viaje. Dos bloques:
+//  - Flota propia del país: la estructura de costos por defecto (`partyId = null`), que se carga con
+//    la plantilla de Excel. Una compañía con estructura propia (ficha de la compañía) manda sobre ella.
+//  - Terceros: tarifa plana por transportista y tipo de camión.
 // Se usa junto con el total liquidado para derivar el margen (pestaña Política de Margen).
 export default function CostosTab({ organizationId, country }: CostosTabProps) {
   const countryId = country?.id ?? '';
   const [loading, setLoading] = useState(true);
-  const [ownParams, setOwnParams] = useState<any[]>([]);
+  const [structure, setStructure] = useState<CostStructure | null>(null);
+  const [structureRows, setStructureRows] = useState<CostStructureRow[]>([]);
   const [outsourcedRates, setOutsourcedRates] = useState<any[]>([]);
   const [carriers, setCarriers] = useState<any[]>([]);
   const [truckTypes, setTruckTypes] = useState<TruckTypeOption[]>([]);
   const [error, setError] = useState('');
 
-  const [ownForm, setOwnForm] = useState(emptyOwnForm);
-  const [ownSaving, setOwnSaving] = useState(false);
+  const [isTemplateOpen, setIsTemplateOpen] = useState(false);
   const [outsourcedForm, setOutsourcedForm] = useState(emptyOutsourcedForm);
   const [isImportOpen, setIsImportOpen] = useState(false);
 
@@ -44,13 +49,14 @@ export default function CostosTab({ organizationId, country }: CostosTabProps) {
     setLoading(true);
     setError('');
     try {
-      const [own, outsourced, testCarriers, trucks] = await Promise.all([
-        listOwnCostParams(organizationId),
+      const [active, outsourced, testCarriers, trucks] = await Promise.all([
+        countryId ? activeStructure(null, countryId) : Promise.resolve(null),
         listOutsourcedCostRates(organizationId),
         listSimulatedCarriers(organizationId),
         listTruckTypes(),
       ]);
-      setOwnParams(own);
+      setStructure(active);
+      setStructureRows(active ? await listRows(active.id) : []);
       setOutsourcedRates(outsourced);
       setCarriers(testCarriers);
       setTruckTypes(trucks);
@@ -65,51 +71,18 @@ export default function CostosTab({ organizationId, country }: CostosTabProps) {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [organizationId]);
-
-  useEffect(() => {
-    const current = ownParams.find((p) => p.country_id === countryId);
-    setOwnForm(current
-      ? {
-          cost_per_km: String(current.cost_per_km),
-          depreciation_per_km: String(current.depreciation_per_km),
-          driver_daily: String(current.driver_daily),
-        }
-      : emptyOwnForm);
-  }, [countryId, ownParams]);
+  }, [organizationId, countryId]);
 
   const currency = country?.local_currency ?? 'moneda local';
-  // Un importe de costo puede estar escrito en cualquiera de las dos monedas; el motor lo lleva a
-  // la local antes de compararlo contra el total liquidado. Declararlo evita el error clásico de
-  // cargar colones donde el sistema esperaba dólares.
 
-  const currentOwnParams = ownParams.find((p) => p.country_id === countryId);
+  const summary = structure
+    ? summarize(structureRows.filter((r) => r.active), structure.params, structure.operatingDaysPerMonth)
+    : [];
   const countryOutsourcedRates = outsourcedRates.filter((r) => r.country_id === countryId);
 
   // Las tarifas de outsourcing cuelgan del PERFIL de cálculo (`party_id`), no del transportista.
   const carrierLabel = (partyId: string) => carriers.find((c) => c.party_id === partyId)?.name || partyId;
   const countryCarriers = carriers.filter((c) => !c.country_id || c.country_id === countryId);
-
-  const handleSaveOwn = async () => {
-    if (!countryId) return;
-    setOwnSaving(true);
-    setError('');
-    try {
-      const { error: saveError } = await saveOwnCostParams(organizationId, {
-        country_id: countryId,
-        cost_per_km: ownForm.cost_per_km,
-        depreciation_per_km: ownForm.depreciation_per_km,
-        driver_daily: ownForm.driver_daily,
-      }, currentOwnParams?.id);
-      if (saveError) throw saveError;
-      await load();
-    } catch (e) {
-      console.error('Error guardando costos de flota propia:', e);
-      setError('No se pudieron guardar los costos de flota propia.');
-    } finally {
-      setOwnSaving(false);
-    }
-  };
 
   const handleAddOutsourced = async () => {
     if (!countryId || !outsourcedForm.carrierId || !outsourcedForm.truckTypeId) return;
@@ -174,35 +147,73 @@ export default function CostosTab({ organizationId, country }: CostosTabProps) {
           <HelpButton
             title="Costos"
             steps={[
-              'Flota propia: costo por km + depreciación por km + chofer por día (una fila por país).',
-              'Tercerizada (outsourcing): tarifa plana por transportista y tipo de vehículo — se busca por esa combinación exacta al liquidar.',
-              'Este costo nunca se le cobra ni se le muestra al transportista: solo se usa para calcular el margen (pestaña Política de Margen).',
-              'Moneda: indicá en cuál escribiste cada importe. El motor lo convierte a la moneda local del país antes de compararlo contra el total liquidado, así el margen nunca compara monedas distintas.',
+              'Acá se carga lo que le cuesta a la empresa operar un viaje. Es costo interno: nunca se le cobra ni se le muestra al transportista; solo sirve para calcular el margen (pestaña Política de Margen).',
+              'Flota propia: una estructura de costos por país, que se carga con la plantilla de Excel (variables por km, fijos mensuales y parámetros). Una compañía puede tener la suya propia desde su ficha en Compañías, y esa manda sobre la del país.',
+              'Terceros: tarifa plana por transportista y tipo de camión — se busca por esa combinación exacta al liquidar.',
+              'Esto NO es el Tarifario: el Tarifario es lo que se le paga o cobra por el servicio (por zona, tramo, etc.); los costos son lo que cuesta hacerlo.',
             ]}
           />
         </div>
       </Card>
 
       <Card>
-        <h3 className="text-sm font-semibold text-slate-700 mb-3">Flota propia</h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-          <Input label="Costo por km" value={ownForm.cost_per_km} onChange={(e) => setOwnForm({ ...ownForm, cost_per_km: e.target.value })} placeholder="1.10" />
-          <Input label="Depreciación por km" value={ownForm.depreciation_per_km} onChange={(e) => setOwnForm({ ...ownForm, depreciation_per_km: e.target.value })} placeholder="0.18" />
-          <Input label="Chofer por día" value={ownForm.driver_daily} onChange={(e) => setOwnForm({ ...ownForm, driver_daily: e.target.value })} placeholder="35.00" />
-          <Button onClick={handleSaveOwn} disabled={ownSaving || !countryId}>
-            {ownSaving ? 'Guardando...' : currentOwnParams ? 'Actualizar' : 'Guardar'}
-          </Button>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+          <h3 className="text-sm font-semibold text-slate-700">Estructura de costos de la flota propia del país</h3>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={downloadCostTemplate}>
+              <i className="ri-download-2-line mr-1"></i> Descargar plantilla
+            </Button>
+            <Button onClick={() => setIsTemplateOpen(true)} disabled={!countryId}>
+              <i className="ri-file-upload-line mr-1"></i> Subir plantilla
+            </Button>
+          </div>
         </div>
-        {!currentOwnParams && (
-          <p className="text-xs text-amber-600 mt-2">
-            Sin esto configurado, una liquidación de flota propia para este país no se puede calcular.
+        <p className="text-xs text-slate-500 mb-3">
+          Costo de operar con camiones propios en {country?.name ?? 'este país'}: lo fijo (conductor, depreciación)
+          se prorratea por día y lo variable (mantenimiento, llantas) por kilómetro. Se usa para el margen de toda
+          compañía que no tenga estructura propia. A diferencia del Tarifario, no es lo que se paga ni se cobra: es lo que cuesta.
+        </p>
+
+        {!structure ? (
+          <p className="text-xs text-amber-600">
+            Sin estructura cargada: una liquidación de flota propia para este país no se puede calcular. Descargá la plantilla, llenala y subila.
           </p>
+        ) : (
+          <>
+            <dl className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm mb-4">
+              <div><dt className="text-xs text-slate-500">Nombre</dt><dd className="font-medium text-slate-800">{structure.name}</dd></div>
+              <div><dt className="text-xs text-slate-500">Días operativos por mes</dt><dd className="font-medium text-slate-800">{structure.operatingDaysPerMonth}</dd></div>
+              <div><dt className="text-xs text-slate-500">Km por año</dt><dd className="font-medium text-slate-800">{structure.params.kmPerYear ?? '—'}</dd></div>
+              <div><dt className="text-xs text-slate-500">Precio del combustible ({currency})</dt><dd className="font-medium text-slate-800">{structure.params.fuelPrice ?? '—'}</dd></div>
+              <div>
+                <dt className="text-xs text-slate-500">Rendimiento (km/l)</dt>
+                <dd className="font-medium text-slate-800">
+                  {Object.keys(structure.params.fuelEfficiency).length === 0
+                    ? '—'
+                    : Object.entries(structure.params.fuelEfficiency).map(([t, v]) => `${t}: ${v}`).join(' · ')}
+                </dd>
+              </div>
+            </dl>
+
+            <CostRowsTable
+              rows={structureRows}
+              exportFileName="estructura_costos_flota_propia"
+              emptyMessage="La estructura no tiene filas."
+            />
+
+            {summary.length > 0 && (
+              <div className="mt-4">
+                <h4 className="text-sm font-semibold text-slate-700 mb-2">Resumen por tipo de camión ({currency})</h4>
+                <TruckSummaryTable summary={summary} exportFileName="resumen_costos_por_camion" />
+              </div>
+            )}
+          </>
         )}
       </Card>
 
       <Card>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-slate-700">Tercerizada (outsourcing) — tarifa plana</h3>
+          <h3 className="text-sm font-semibold text-slate-700">Tarifa plana de terceros</h3>
           <Button variant="secondary" onClick={() => setIsImportOpen(true)} disabled={!countryId}>
             <i className="ri-file-upload-line mr-1"></i> Importar CSV o Excel
           </Button>
@@ -241,6 +252,17 @@ export default function CostosTab({ organizationId, country }: CostosTabProps) {
           )}
         />
       </Card>
+
+      <CostTemplateModal
+        isOpen={isTemplateOpen}
+        partyId={null}
+        countryId={countryId}
+        structureName={structure?.name ?? `Flota propia ${country?.name ?? ''}`.trim()}
+        scopeLabel={`la estructura de la flota propia de ${country?.name ?? 'este país'}`}
+        currency={country?.local_currency}
+        onClose={() => setIsTemplateOpen(false)}
+        onApplied={() => { void load(); }}
+      />
 
       <ImportRatesModal
         isOpen={isImportOpen}

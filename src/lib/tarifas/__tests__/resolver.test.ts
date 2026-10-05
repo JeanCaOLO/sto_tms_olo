@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { deriveContext, resolveRules } from '../resolver';
 import { calculate } from '../index';
 import {
-  makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostParams, makeRule, makeTrip,
+  makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostStructure, makeRule, makeTrip,
 } from './fixtures';
 
 describe('resolveRules — stacking', () => {
@@ -79,7 +79,7 @@ describe('resolveRules — stacking', () => {
 
     // Quién gana se verifica de punta a punta, que es donde la decisión se toma de verdad.
     const result = calculate({
-      country, trip, rules: [low, high], zones, zoneGroups, locations, ownCostParams: makeOwnCostParams(), outsourcedCostRates: [],
+      country, trip, rules: [low, high], zones, zoneGroups, locations, ...makeOwnCostStructure(), outsourcedCostRates: [],
       marginPolicy: makeMarginPolicy(),
     });
 

@@ -7,9 +7,10 @@
 import { describe, expect, it } from 'vitest';
 import { calculate } from '../index';
 import { lookupRateTable } from '../evaluator';
-import { makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostParams, makeRule, makeTrip } from './fixtures';
+import { keyVarsFor, validateRateTable } from '../rateTablesDataSource';
+import { makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostStructure, makeRule, makeTrip } from './fixtures';
 import type {
-  CalculateInput, RateTable, RateTableRow, Rule, TripContext, VarBag,
+  CalculateInput, PartyVariable, RateTable, RateTableRow, Rule, TripContext, VarBag,
 } from '../types';
 
 const tabla: RateTable = {
@@ -148,7 +149,7 @@ function run(rules: Rule[], rows: RateTableRow[], trip: Partial<TripContext> = {
     locations,
     rateTables: tables,
     rateTableRows: rows,
-    ownCostParams: makeOwnCostParams(),
+    ...makeOwnCostStructure(),
     outsourcedCostRates: [],
     marginPolicy: makeMarginPolicy(),
   };
@@ -214,5 +215,44 @@ describe('lo que reemplaza', () => {
 
     expect(run([reglaTabla()], rows, { truckTypeId: 'TT_350' }).totalLiquidado).toBe('400.00');
     expect(run([reglaTabla()], rows, { truckTypeId: 'TT_750' }).totalLiquidado).toBe('650.00');
+  });
+});
+
+describe('claves con variables personalizadas de la compañía', () => {
+  const existing: Parameters<typeof validateRateTable>[1] = [];
+  const base = { countryId: 'VE', code: 'TARIFA', name: 'Tarifa', active: true };
+  const variable = (key: `custom:${string}`, active = true): PartyVariable => ({
+    id: key, partyId: 'P1', key, label: key, kind: 'TEXT', origin: 'PER_TRIP', defaultValue: null, unit: null, active,
+  });
+
+  it('el tarifario de una compañía acepta una variable personalizada activa en la clave', () => {
+    const errors = validateRateTable(
+      { ...base, partyId: 'P1', keyColumns: ['destZone', 'custom:tipo_carga'] }, existing, undefined,
+      [variable('custom:tipo_carga')],
+    );
+    expect(errors.keyColumns).toBeUndefined();
+  });
+
+  it('un tarifario del país no puede usar variables personalizadas', () => {
+    const errors = validateRateTable(
+      { ...base, partyId: null, keyColumns: ['custom:tipo_carga'] }, existing, undefined, [variable('custom:tipo_carga')],
+    );
+    expect(errors.keyColumns).toMatch(/compañía/);
+  });
+
+  it('una variable inexistente o desactivada se rechaza al guardar', () => {
+    const inexistente = validateRateTable({ ...base, partyId: 'P1', keyColumns: ['custom:otra'] }, existing, undefined, []);
+    expect(inexistente.keyColumns).toMatch(/custom:otra/);
+    const inactiva = validateRateTable(
+      { ...base, partyId: 'P1', keyColumns: ['custom:tipo_carga'] }, existing, undefined, [variable('custom:tipo_carga', false)],
+    );
+    expect(inactiva.keyColumns).toMatch(/custom:tipo_carga/);
+  });
+
+  it('keyVarsFor suma las variables activas de la compañía a las del sistema', () => {
+    const keys = keyVarsFor([variable('custom:a'), variable('custom:b', false)]);
+    expect(keys).toContain('destZone');
+    expect(keys).toContain('custom:a');
+    expect(keys).not.toContain('custom:b');
   });
 });

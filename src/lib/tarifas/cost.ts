@@ -1,14 +1,14 @@
 // Motor de costos. Deliberadamente NO es "una regla más" del lenguaje de reglas: el costo no se
-// liquida al transportista, se calcula con su propio modelo (OWN u OUTSOURCED) y solo se usa para
-// derivar el margen. Mezclarlo con el AST de Rule obligaría a forzar conceptos de costo (flota
-// propia, tarifas de transportista) dentro de un vocabulario pensado para tarifas.
+// liquida al transportista, se calcula con su propio modelo y solo se usa para derivar el margen.
+// Hay dos modelos: una ESTRUCTURA de costos por filas (la de la compañía, o la del país para la
+// flota propia) y la tarifa plana de los terceros.
 //
 // MONEDA: hay una sola por país, así que el costo y el total liquidado están siempre en la misma y
 // el margen compara moneda contra la misma moneda por construcción.
 
 import Decimal from 'decimal.js';
 import type {
-  CalculateInput, CostBreakdown, CostDriver, CostStructure, CostStructureRow, Country,
+  BuiltinCostDriver, CalculateInput, CostBreakdown, CostDriver, CostStructure, CostStructureRow, Country,
   Stage, TraceLine, TraceSource, VarBag,
 } from './types';
 import { evaluatePred, RuleShapeError } from './evaluator';
@@ -57,14 +57,27 @@ function toTraceLines(lines: CostLine[], country: Country, source: TraceSource):
  * Cuántas unidades le corresponden a una fila en ESTE viaje, según su driver. Es el único lugar
  * donde se decide qué significa "por km", "por día" o "mensual prorrateado" — y por eso es el único
  * lugar que hay que mirar cuando un costo no da lo esperado.
+ *
+ * Un driver `custom:*` es una variable numérica de la compañía ("peajes", "bultos"): sus unidades
+ * son el valor que tiene en este viaje.
  */
 export function unitsForDriver(
   driver: CostDriver,
   trip: CalculateInput['trip'],
   days: number,
   operatingDaysPerMonth: number,
+  vars?: VarBag,
+  warn?: (message: string) => void,
 ): Decimal {
-  switch (driver) {
+  if (driver.startsWith('custom:')) {
+    const raw = (vars as Record<string, unknown> | undefined)?.[driver];
+    if (raw === undefined || raw === null) {
+      warn?.(`La variable "${driver}" no tiene valor en este viaje: la fila de costo vale 0.`);
+      return new Decimal(0);
+    }
+    return toDecimal(raw as number | string);
+  }
+  switch (driver as BuiltinCostDriver) {
     case 'FIXED':
       return new Decimal(1);
     case 'PER_KM':
@@ -82,10 +95,13 @@ export function unitsForDriver(
       return toDecimal(trip.clientCount);
     case 'PER_HOUR':
       return toDecimal(trip.durationHours);
+    default:
+      warn?.(`El driver "${driver}" no se reconoce: la fila de costo vale 0.`);
+      return new Decimal(0);
   }
 }
 
-export const COST_DRIVER_LABELS: Record<CostDriver, string> = {
+export const COST_DRIVER_LABELS: Record<BuiltinCostDriver, string> = {
   FIXED: 'Fijo por viaje',
   PER_KM: 'Por kilómetro',
   PER_DAY: 'Por día de viaje',
@@ -93,6 +109,36 @@ export const COST_DRIVER_LABELS: Record<CostDriver, string> = {
   PER_CLIENT: 'Por parada/cliente',
   PER_HOUR: 'Por hora',
 };
+
+/**
+ * Costo por kilómetro de un componente que se repite (mantenimiento, llantas…), según cada cuánto:
+ *
+ * - `km`:    cada N km    → costo ÷ N
+ * - `year`:  cada N años  → costo ÷ (N × km por año)
+ * - `month`: cada N meses → costo ÷ (N × km por año ÷ 12)
+ *
+ * Null si faltan datos (frecuencia ≤ 0, o km por año para `year`/`month`).
+ */
+export function componentCostPerKm(
+  row: Pick<CostStructureRow, 'amount' | 'frequency' | 'frequencyQty'>,
+  kmPerYear: number | null,
+): Decimal | null {
+  const qty = row.frequencyQty;
+  if (!row.frequency || qty === null || qty === undefined || !(qty > 0)) return null;
+  const amount = toDecimal(row.amount);
+  switch (row.frequency) {
+    case 'km':
+      return amount.dividedBy(qty);
+    case 'year':
+      return kmPerYear && kmPerYear > 0 ? amount.dividedBy(new Decimal(qty).times(kmPerYear)) : null;
+    case 'month':
+      return kmPerYear && kmPerYear > 0
+        ? amount.dividedBy(new Decimal(qty).times(kmPerYear).dividedBy(12))
+        : null;
+    default:
+      return null;
+  }
+}
 
 function computeFromStructure(
   structure: CostStructure,
@@ -104,9 +150,12 @@ function computeFromStructure(
 ): CostBreakdown {
   const { country, trip } = input;
   const days = daysFor(overnightNights);
+  const km = toDecimal(trip.km);
 
   const lines: CostLine[] = rows
     .filter((row) => row.active)
+    // Una fila de otro tipo de camión no cuenta en este viaje.
+    .filter((row) => !row.truckType || row.truckType === trip.truckTypeId)
     // Una fila condicionada que no se cumple no aporta — misma semántica que una regla.
     // Una fila con una condición ilegible no aporta, y se avisa: callarla cambiaría el costo —y
     // con él el margen— sin que nadie pudiera ver por qué.
@@ -121,12 +170,35 @@ function computeFromStructure(
       }
     })
     .sort((a, b) => a.order - b.order)
-    .map((row) => {
-      const units = unitsForDriver(row.driver, trip, days, structure.operatingDaysPerMonth);
+    .flatMap((row): CostLine[] => {
       const unitAmount = toDecimal(row.amount);
       const signed = row.sign === 'SUBTRACT' ? unitAmount.negated() : unitAmount;
 
-      return {
+      // Componente que se repite: cuesta (costo por km) × km del viaje.
+      if (row.frequency) {
+        const perKm = componentCostPerKm(row, structure.params.kmPerYear);
+        if (!perKm) {
+          warn?.(
+            `La fila de costo "${row.code}" no tiene los datos para calcular su costo por km ` +
+              '(frecuencia o km por año): no se incluyó.',
+          );
+          return [];
+        }
+        const rate = row.sign === 'SUBTRACT' ? perKm.negated() : perKm;
+        return [{
+          code: row.code,
+          label: row.label,
+          amount: km.times(rate),
+          inputs: {
+            frecuencia: `${row.frequencyQty} ${row.frequency}`,
+            'costo por km': perKm.toFixed(4),
+            km: trip.km,
+          },
+        }];
+      }
+
+      const units = unitsForDriver(row.driver, trip, days, structure.operatingDaysPerMonth, vars, warn);
+      return [{
         code: row.code,
         label: row.label,
         amount: units.times(signed),
@@ -135,8 +207,24 @@ function computeFromStructure(
           unidades: units.toFixed(4),
           importe: row.amount,
         },
-      };
+      }];
     });
+
+  // Combustible: precio del litro ÷ rendimiento del camión, por km. Línea propia para verla aparte.
+  const { fuelPrice, fuelEfficiency } = structure.params;
+  if (fuelPrice) {
+    const efficiency = trip.truckTypeId ? fuelEfficiency[trip.truckTypeId] : undefined;
+    if (efficiency && toDecimal(efficiency).greaterThan(0)) {
+      lines.push({
+        code: 'COMBUSTIBLE',
+        label: 'Combustible',
+        amount: km.times(toDecimal(fuelPrice)).dividedBy(toDecimal(efficiency)),
+        inputs: { km: trip.km, 'precio por litro': fuelPrice, 'km por litro': efficiency },
+      });
+    } else {
+      warn?.(`No hay rendimiento (km por litro) para el camión "${trip.truckTypeId}": no se calculó el combustible.`);
+    }
+  }
 
   return {
     total: roundToMoney(addAll(lines.map((l) => l.amount)), country),
@@ -146,62 +234,39 @@ function computeFromStructure(
   };
 }
 
+const hasRows = (structure: CostStructure | null | undefined, rows: CostStructureRow[] | undefined) =>
+  !!structure?.active && !!rows?.length;
+
 export function computeCost(
   input: Pick<
     CalculateInput,
-    'country' | 'trip' | 'ownCostParams' | 'outsourcedCostRates' | 'costStructure' | 'costStructureRows'
+    'country' | 'trip' | 'outsourcedCostRates' | 'costStructure' | 'costStructureRows'
+    | 'defaultCostStructure' | 'defaultCostStructureRows'
   >,
   overnightNights: number,
   vars?: VarBag,
   /** Canal de avisos. Sin él, una fila de costo ilegible cambiaría el margen en silencio. */
   warn?: (message: string) => void,
 ): CostBreakdown {
-  const { country, trip, ownCostParams, outsourcedCostRates } = input;
+  const { country, trip, outsourcedCostRates } = input;
+  const bag = vars ?? ({} as VarBag);
 
-  // La estructura por filas manda sobre todo lo demás: es el modelo completo. `ownCostParams` y las
-  // tarifas planas quedan como respaldo para las compañías que todavía no cargaron la suya.
-  if (input.costStructure?.active && input.costStructureRows?.length) {
-    return computeFromStructure(
-      input.costStructure,
-      input.costStructureRows,
-      input,
-      overnightNights,
-      vars ?? ({} as VarBag),
-      warn,
-    );
+  // La estructura de la compañía manda sobre todo lo demás: es el modelo completo.
+  if (hasRows(input.costStructure, input.costStructureRows)) {
+    return computeFromStructure(input.costStructure!, input.costStructureRows!, input, overnightNights, bag, warn);
   }
 
   if (trip.fleetType === 'OWN') {
-    const km = toDecimal(trip.km);
-    const days = daysFor(overnightNights);
-  
-    const lines: CostLine[] = [
-      {
-        code: 'COST_KM',
-        label: 'Costo operativo por km',
-        amount: km.times(toDecimal(ownCostParams.costPerKm)),
-        inputs: { km: trip.km, rate: ownCostParams.costPerKm },
-      },
-      {
-        code: 'COST_DEPRECIATION',
-        label: 'Depreciación por km',
-        amount: km.times(toDecimal(ownCostParams.depreciationPerKm)),
-        inputs: { km: trip.km, rate: ownCostParams.depreciationPerKm },
-      },
-      {
-        code: 'COST_DRIVER',
-        label: 'Chofer (por día)',
-        amount: toDecimal(days).times(toDecimal(ownCostParams.driverDaily)),
-        inputs: { days, rate: ownCostParams.driverDaily },
-      },
-    ];
-
-    return {
-      total: roundToMoney(addAll(lines.map((l) => l.amount)), country),
-      breakdown: toTraceLines(lines, country, 'OWN_PARAMS'),
-      modelId: 'OWN',
-      currency: country.localCurrency,
-    };
+    // Flota propia sin estructura propia: la del país. Sin ninguna, no hay con qué costear.
+    if (hasRows(input.defaultCostStructure, input.defaultCostStructureRows)) {
+      return computeFromStructure(
+        input.defaultCostStructure!, input.defaultCostStructureRows!, input, overnightNights, bag, warn,
+      );
+    }
+    throw new Error(
+      'No hay estructura de costos para la flota propia de este país. ' +
+        'Cárguela en Reglas de Tarifa → Costos antes de liquidar.',
+    );
   }
 
   // OUTSOURCED: tarifa plana de la compañía para ese tipo de camión.

@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { calculate } from '../index';
 import { explainCost, explainResult } from '../explain';
-import { makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostParams, makeRule, makeTrip } from './fixtures';
+import { makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostStructure, makeRule, makeTrip } from './fixtures';
 import type { CalculateInput, Rule } from '../types';
 
 function calcular(rules: Rule[], partyId: string | null = 'P1') {
@@ -15,7 +15,7 @@ function calcular(rules: Rule[], partyId: string | null = 'P1') {
     zones,
     zoneGroups,
     locations,
-    ownCostParams: makeOwnCostParams(),
+    ...makeOwnCostStructure(),
     outsourcedCostRates: [],
     marginPolicy: makeMarginPolicy(),
   };
@@ -61,6 +61,6 @@ describe('origen de cada línea', () => {
     ]);
     const costo = explainCost(result);
     expect(costo.length).toBeGreaterThan(0);
-    expect(costo.every((l) => l.origen.source === 'OWN_PARAMS')).toBe(true);
+    expect(costo.every((l) => l.origen.source === 'COST_ROW')).toBe(true);
   });
 });

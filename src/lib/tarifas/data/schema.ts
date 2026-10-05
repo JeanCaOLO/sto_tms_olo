@@ -56,7 +56,6 @@ export type EntityName =
   | 'costStructureRow'
   | 'rateTable'
   | 'rateTableRow'
-  | 'ownCostParams'
   | 'outsourcedCostRate'
   | 'marginPolicy'
   | 'auditLog';
@@ -547,11 +546,14 @@ export const ENTITIES = {
     label: 'Estructura de costos',
     columns: {
       id: idColumn(),
-      party_id: { type: 'text', references: 'settlementParty', onDelete: 'cascade', indexed: true },
+      /** Nulo = estructura por defecto del país (la usa la flota propia sin estructura propia). */
+      party_id: { type: 'text', nullable: true, references: 'settlementParty', onDelete: 'cascade', indexed: true },
       country_id: countryRef(),
       name: { type: 'text' },
       /** Divisor del prorrateo mensual. En la planilla de ejemplo, 30. */
       operating_days_per_month: { type: 'int' },
+      /** { kmPerYear, fuelPrice, fuelEfficiency: { <tipo de camión>: km/L } }. Ver `CostStructureParams`. */
+      params: { type: 'jsonb' },
       effective_from: { type: 'timestamptz', nullable: true },
       active: { type: 'boolean', indexed: true },
       notes: { type: 'text', nullable: true },
@@ -578,6 +580,18 @@ export const ENTITIES = {
       unit: { type: 'text', nullable: true },
       row_order: { type: 'int' },
       active: { type: 'boolean', indexed: true },
+      /** Grupo de presentación: conductor | ayudante | otros | depreciacion | mantenimiento. */
+      cost_group: { type: 'text', nullable: true },
+      /** Componente que se repite: 'km' | 'year' | 'month'. Si está, la fila cuesta costo por km × km del viaje. */
+      frequency: { type: 'text', nullable: true },
+      /** Cada cuántos km / años / meses se repite. */
+      frequency_qty: { type: 'numeric', nullable: true },
+      /** Unidades del componente (informativo). */
+      unit_qty: { type: 'numeric', nullable: true },
+      /** Costo por km derivado, guardado para mostrar y exportar. */
+      cost_per_km: { type: 'numeric', nullable: true },
+      /** Solo para este tipo de camión (`vehicles.vehicle_type`). Nulo = todos. */
+      truck_type: { type: 'text', nullable: true },
     },
   },
 
@@ -616,20 +630,6 @@ export const ENTITIES = {
       amount: { type: 'numeric' },
       row_order: { type: 'int' },
       active: { type: 'boolean', indexed: true },
-    },
-  },
-
-  ownCostParams: {
-    table: 'tarifas_own_cost_params',
-    collection: 'ownCostParams',
-    idPrefix: 'own',
-    label: 'Parámetros de costo propio',
-    columns: {
-      id: idColumn(),
-      country_id: countryRef(),
-      cost_per_km: { type: 'numeric' },
-      depreciation_per_km: { type: 'numeric' },
-      driver_daily: { type: 'numeric' },
     },
   },
 

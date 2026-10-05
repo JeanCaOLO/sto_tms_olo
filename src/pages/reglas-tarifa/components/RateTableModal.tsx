@@ -12,10 +12,11 @@ import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
 import { VAR_KEY_LABELS } from '../../../lib/tarifas/format';
 import {
-  RATE_TABLE_KEY_VARS, saveRateTable,
+  keyVarsFor, saveRateTable,
   type RateTableErrors, type RateTableInput,
 } from '../../../lib/tarifas/rateTablesDataSource';
-import type { RateTable, VarKey } from '../../../lib/tarifas/types';
+import { labelsOf, listPartyVariables } from '../../../lib/tarifas/partyVariablesDataSource';
+import type { PartyVariable, RateTable, VarKey } from '../../../lib/tarifas/types';
 import { ensurePartyProfile } from '../../../lib/tarifas/partiesDataSource';
 import type { CarrierProfile } from '../../../lib/tarifas/parties';
 
@@ -40,7 +41,6 @@ const emptyForm = (countryId: string): RateTableInput => ({
   active: true,
 });
 
-const varLabelOf = (key: VarKey) => VAR_KEY_LABELS[key as keyof typeof VAR_KEY_LABELS] ?? key;
 
 export default function RateTableModal({
   isOpen, countryId, table, parties, currency, onClose, onSaved,
@@ -50,6 +50,8 @@ export default function RateTableModal({
   const [generalError, setGeneralError] = useState('');
   const [saving, setSaving] = useState(false);
   const [carrierPick, setCarrierPick] = useState<string | null>(null);
+  // Variables personalizadas de la compañía del tarifario: pueden formar parte de la clave.
+  const [partyVars, setPartyVars] = useState<PartyVariable[]>([]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -68,10 +70,23 @@ export default function RateTableModal({
       : emptyForm(countryId));
   }, [isOpen, table, countryId]);
 
+  useEffect(() => {
+    if (!isOpen || !form.partyId) { setPartyVars([]); return undefined; }
+    let cancelled = false;
+    listPartyVariables(form.partyId)
+      .then((list) => { if (!cancelled) setPartyVars(list); })
+      .catch(() => { if (!cancelled) setPartyVars([]); });
+    return () => { cancelled = true; };
+  }, [isOpen, form.partyId]);
+
   const disponibles = useMemo(
-    () => RATE_TABLE_KEY_VARS.filter((v) => !form.keyColumns.includes(v)),
-    [form.keyColumns],
+    () => keyVarsFor(partyVars).filter((v) => !form.keyColumns.includes(v)),
+    [form.keyColumns, partyVars],
   );
+
+  const customLabels = useMemo(() => labelsOf(partyVars), [partyVars]);
+  const varLabelOf = (key: VarKey) =>
+    VAR_KEY_LABELS[key as keyof typeof VAR_KEY_LABELS] ?? customLabels[key] ?? key;
 
   // La clave cambió respecto de lo guardado: las filas existentes se van a reacomodar.
   const claveCambiada = !!table
@@ -281,10 +296,13 @@ export default function RateTableModal({
             <div className="flex items-start gap-2 bg-slate-50 border border-slate-200 text-slate-600 text-xs rounded-lg px-3 py-2.5">
               <i className="ri-information-line mt-0.5 shrink-0"></i>
               <span>
-                Sólo aparecen variables <strong>categóricas</strong>. Las numéricas (kilómetros,
-                bultos) casarían por igualdad exacta —181 no casa con 180— y el tarifario quedaría
-                mudo casi siempre: para cobrar por tramos de una magnitud está el operador{' '}
-                <em>Por escalones</em>.
+                Sólo aparecen variables <strong>categóricas</strong>. Las numéricas del sistema
+                (kilómetros, bultos) casarían por igualdad exacta —181 no casa con 180— y el
+                tarifario quedaría mudo casi siempre: para cobrar por tramos de una magnitud está
+                el operador <em>Por escalones</em>.{' '}
+                {form.partyId
+                  ? 'Además puede usar las variables personalizadas de su compañía (si son numéricas, con valores exactos como 0, 1 o 2).'
+                  : 'Las variables personalizadas solo se pueden usar en el tarifario de una compañía con perfil de cálculo.'}
               </span>
             </div>
           </div>

@@ -16,7 +16,7 @@ import {
 import { getTrip, listLiquidableTrips } from '../tripsDataSource';
 import { calculate } from '../index';
 import { db } from '../data';
-import { makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostParams, makeRule, makeTrip } from './fixtures';
+import { makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostStructure, makeRule, makeTrip } from './fixtures';
 import type { CalcResult, CalculateInput, MarginPolicy, TripRecord } from '../types';
 
 function calcular(overrides: Partial<CalculateInput> = {}): CalcResult {
@@ -28,7 +28,7 @@ function calcular(overrides: Partial<CalculateInput> = {}): CalcResult {
     zones,
     zoneGroups,
     locations,
-    ownCostParams: makeOwnCostParams(),
+    ...makeOwnCostStructure(),
     outsourcedCostRates: [],
     marginPolicy: makeMarginPolicy(),
     ...overrides,
@@ -190,7 +190,7 @@ describe('bloqueos', () => {
   });
 
   it('el margen en pérdida no se aprueba, pero sí se guarda como borrador', async () => {
-    const calc = calcular({ ownCostParams: { ...makeOwnCostParams(), driverDaily: '99999' } });
+    const calc = calcular({ ...makeOwnCostStructure({ driverDaily: '99999' }) });
     expect(calc.margin.status).toBe('LOSS');
 
     expect((await emitSettlement(entrada({ calc, status: 'Aprobado' }))).status).toBe('blocked');
@@ -326,7 +326,7 @@ describe('lista y estados', () => {
   });
 
   it('desde la lista tampoco se aprueba una liquidación en pérdida', async () => {
-    const calc = calcular({ ownCostParams: { ...makeOwnCostParams(), driverDaily: '99999' } });
+    const calc = calcular({ ...makeOwnCostStructure({ driverDaily: '99999' }) });
     const result = await emitSettlement(entrada({ calc, status: 'Borrador' }));
     if (result.status !== 'saved') throw new Error('no se emitió');
 

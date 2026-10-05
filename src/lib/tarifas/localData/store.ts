@@ -44,7 +44,6 @@ export interface TarifasDatabase {
   costStructureRows: Rows;
   rateTables: Rows;
   rateTableRows: Rows;
-  ownCostParams: Rows;
   outsourcedCostRates: Rows;
   marginPolicies: Rows;
   auditLog: Rows;
@@ -56,7 +55,7 @@ export const COLLECTIONS: (keyof TarifasDatabase)[] = [
   'countries', 'zones', 'carriers', 'drivers', 'vehicles', 'trips', 'dispatchGuides', 'tripReturns',
   'countrySettings', 'zoneGroups', 'pricingRules', 'pricingTemplates', 'settlementParties',
   'partyVariables', 'settlements', 'costStructures', 'costStructureRows', 'rateTables',
-  'rateTableRows', 'ownCostParams', 'outsourcedCostRates', 'marginPolicies', 'auditLog',
+  'rateTableRows', 'outsourcedCostRates', 'marginPolicies', 'auditLog',
 ];
 
 function cloneSeed(): TarifasDatabase {

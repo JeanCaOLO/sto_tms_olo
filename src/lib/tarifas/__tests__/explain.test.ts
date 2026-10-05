@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest';
 import { explainCost, explainDiscards, explainLine, explainResult, variablesUsadas } from '../explain';
 import { calculate } from '../index';
-import { makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostParams, makeRule, makeTrip } from './fixtures';
+import { makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostStructure, makeRule, makeTrip } from './fixtures';
 import type { CalculateInput, RateTable, RateTableRow, Rule } from '../types';
 
 const REGLAS: Rule[] = [
@@ -39,7 +39,7 @@ function calcular(overrides: Partial<CalculateInput> = {}) {
     trip: makeTrip({ clientCount: 40 }),
     rules: REGLAS,
     zones, zoneGroups, locations,
-    ownCostParams: makeOwnCostParams(),
+    ...makeOwnCostStructure(),
     outsourcedCostRates: [],
     marginPolicy: makeMarginPolicy(),
     ...overrides,
@@ -232,11 +232,11 @@ describe('explainCost', () => {
 
     expect(lineas.length).toBeGreaterThan(0);
     expect(lineas[0]).toMatchObject({ stageLabel: 'Costo' });
-    expect(lineas.map((l) => l.ruleCode)).toContain('COST_KM');
+    expect(lineas.map((l) => l.ruleCode)).toContain('COSTO_KM');
   });
 
   it('cada línea dice cómo se calculó', () => {
     const lineas = explainCost(calcular());
-    expect(lineas.find((l) => l.ruleCode === 'COST_KM')?.como).toContain('×');
+    expect(lineas.find((l) => l.ruleCode === 'COSTO_KM')?.como).toContain('×');
   });
 });

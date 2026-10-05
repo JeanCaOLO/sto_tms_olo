@@ -601,14 +601,6 @@ export interface SettlementRecord {
 // (flota propia u outsourcing), y solo se usa para derivar el margen. Por eso vive fuera del AST
 // de Rule — mezclarlo forzaría conceptos de costo dentro de un vocabulario pensado para tarifas.
 
-export interface OwnCostParams {
-  id: string;
-  countryId: string;
-  costPerKm: Money;
-  depreciationPerKm: Money;
-  driverDaily: Money;
-}
-
 export interface OutsourcedCostRate {
   id: string;
   countryId: string;
@@ -618,12 +610,13 @@ export interface OutsourcedCostRate {
 }
 
 // ── Estructura de costos por filas ────────────────────────────────────────────────────────────
-// Reemplaza al modelo rígido de tres campos (`OwnCostParams`). Una estructura de costos real tiene
+// Es la ÚNICA fuente de costo de la flota propia (antes había además tres tasas fijas por país).
+// Una estructura de costos real tiene
 // decenas de conceptos —salarios, aguinaldo, seguros, depreciación, mantenimiento por km— y cada
 // uno se prorratea de una manera distinta. Eso es una TABLA, no tres columnas.
 
 /** Cómo se convierte el importe de una fila en plata de ESTE viaje. */
-export type CostDriver =
+export type BuiltinCostDriver =
   /** Importe fijo por viaje. */
   | 'FIXED'
   /** Por kilómetro recorrido. */
@@ -638,14 +631,34 @@ export type CostDriver =
   /** Por hora de duración del viaje. */
   | 'PER_HOUR';
 
+/** Un driver del sistema o una variable personalizada NUMÉRICA de la compañía ("peajes", "bultos"). */
+export type CostDriver = BuiltinCostDriver | CustomVarKey;
+
+/** Cada cuánto se repite el costo de un componente (ver `componentCostPerKm`). */
+export type CostFrequency = 'km' | 'year' | 'month';
+
+/** Grupo de presentación de una fila de la estructura. */
+export type CostGroup = 'conductor' | 'ayudante' | 'otros' | 'depreciacion' | 'mantenimiento';
+
+/** Valores con los que se calculan las filas de una estructura (los edita quien la carga). */
+export interface CostStructureParams {
+  /** Kilómetros que recorre un camión en un año. Amortiza los componentes `year` y `month`. */
+  kmPerYear: number | null;
+  /** Precio del litro de combustible. Sin él no se calcula la línea de combustible. */
+  fuelPrice: Money | null;
+  /** Rendimiento km por litro, por tipo de camión (`vehicles.vehicle_type`). */
+  fuelEfficiency: Record<string, Money>;
+}
+
 export interface CostStructure {
   id: string;
-  /** Compañía dueña de esta estructura. */
-  partyId: string;
+  /** Compañía dueña de esta estructura. Null = estructura por defecto del país (flota propia). */
+  partyId: string | null;
   countryId: string;
   name: string;
   /** Divisor de `PER_MONTH_PRORATED`. En la planilla de ejemplo son 30. */
   operatingDaysPerMonth: number;
+  params: CostStructureParams;
   /** Desde cuándo rige. Null = siempre. */
   effectiveFrom: string | null;
   active: boolean;
@@ -672,6 +685,22 @@ export interface CostStructureRow {
   unit: string | null;
   order: number;
   active: boolean;
+  /** Grupo de presentación. Null = sin grupo. */
+  group: CostGroup | null;
+  /**
+   * Componente que se repite cada cierto tiempo (mantenimiento, llantas…). Si está, la fila cuesta
+   * `costPerKm × km del viaje`: `amount` es el costo de UNA reposición y `frequency`+`frequencyQty`
+   * dicen cada cuánto se repite. `driver` se ignora.
+   */
+  frequency: CostFrequency | null;
+  /** Cada cuántos km / años / meses se repite (según `frequency`). */
+  frequencyQty: number | null;
+  /** Cuántas unidades del componente se compran (informativo: el costo ya viene total). */
+  unitQty: number | null;
+  /** Costo por km derivado (para mostrar y exportar; el cálculo lo recalcula de sus datos). */
+  costPerKm: Money | null;
+  /** Solo para este tipo de camión (`vehicles.vehicle_type`). Null = todos. */
+  truckType: string | null;
 }
 
 export interface CostBreakdown {
@@ -708,7 +737,7 @@ export interface MarginResult {
 // ── Salida del kernel ────────────────────────────────────────────────────────────────────────
 
 /** Origen de una línea del desglose: una regla del catálogo, una ad-hoc o una línea de costo. */
-export type TraceSource = 'RULE' | 'ADHOC' | 'COST_ROW' | 'OWN_PARAMS' | 'FLAT_RATE';
+export type TraceSource = 'RULE' | 'ADHOC' | 'COST_ROW' | 'FLAT_RATE';
 
 export interface TraceLine {
   seq: number;
@@ -802,16 +831,15 @@ export interface CalculateInput {
   /** Tablas de tarifas disponibles para este viaje (las del país + las de su compañía). */
   rateTables?: RateTable[];
   rateTableRows?: RateTableRow[];
-  ownCostParams: OwnCostParams;
   outsourcedCostRates: OutsourcedCostRate[];
   /** Variables declaradas por la compañía del viaje. Sin esto, sus reglas propias no resuelven. */
   partyVariables?: PartyVariable[];
-  /**
-   * Estructura de costos de la compañía. Cuando está presente MANDA sobre `ownCostParams`, que
-   * queda como respaldo para las compañías que todavía no cargaron la suya.
-   */
+  /** Estructura de costos de la compañía del viaje. Si existe, manda sobre cualquier otra. */
   costStructure?: CostStructure | null;
   costStructureRows?: CostStructureRow[];
+  /** Estructura por defecto del país: costo de la flota propia sin estructura propia. */
+  defaultCostStructure?: CostStructure | null;
+  defaultCostStructureRows?: CostStructureRow[];
   marginPolicy: MarginPolicy;
   overrides?: Record<string, Override>; // indexados por ruleCode
   adhocRules?: Rule[]; // reglas del viaje actual, no persistidas

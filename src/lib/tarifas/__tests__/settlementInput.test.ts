@@ -36,7 +36,7 @@ describe('loadTarifasCatalog', () => {
     expect(catalog.country.roundingDecimals).toBe(2);
     expect(catalog.rules.length).toBeGreaterThan(0);
     expect(catalog.zones.length).toBeGreaterThan(0);
-    expect(catalog.ownCostParams).toBeTruthy();
+    expect(catalog.defaultCostStructure).toBeTruthy();
     expect(catalog.marginPolicy).toBeTruthy();
   });
 

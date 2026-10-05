@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { calculate } from '../index';
 import { computeMargin } from '../margin';
 import {
-  makeCountryVE, makeGeoVE, makeMarginPolicy, makeOutsourcedCostRate, makeOwnCostParams,
+  makeCountryVE, makeGeoVE, makeMarginPolicy, makeOutsourcedCostRate, makeOwnCostStructure,
   makeRequirementRules, makeTrip,
 } from './fixtures';
 
@@ -44,7 +44,7 @@ describe('calculate() — caso B\' del requerimiento (override + outsourcing)', 
       zones,
       zoneGroups,
       locations,
-      ownCostParams: makeOwnCostParams(),
+      ...makeOwnCostStructure(),
       outsourcedCostRates: [makeOutsourcedCostRate()], // flatRate 420.00
       marginPolicy: makeMarginPolicy(),
       overrides: { R1: { value: '360.00', reason: 'Descuento comercial autorizado' } },
@@ -71,7 +71,7 @@ describe('calculate() — caso B\' del requerimiento (override + outsourcing)', 
       zones,
       zoneGroups,
       locations,
-      ownCostParams: makeOwnCostParams(),
+      ...makeOwnCostStructure(),
       outsourcedCostRates: [],
       marginPolicy: makeMarginPolicy(),
     });

@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { computeCost, unitsForDriver } from '../cost';
 import { deriveContext } from '../resolver';
-import { makeCountryVE, makeGeoVE, makeOwnCostParams, makeTrip } from './fixtures';
+import { makeCountryVE, makeGeoVE, makeOwnCostStructure, makeTrip } from './fixtures';
 import type { CostStructure, CostStructureRow, VarBag } from '../types';
 
 const estructura = (overrides: Partial<CostStructure> = {}): CostStructure => ({
@@ -15,6 +15,7 @@ const estructura = (overrides: Partial<CostStructure> = {}): CostStructure => ({
   countryId: 'VE',
   name: 'Estructura de ejemplo',
   operatingDaysPerMonth: 30,
+  params: { kmPerYear: null, fuelPrice: null, fuelEfficiency: {} },
   effectiveFrom: null,
   active: true,
   notes: null,
@@ -36,6 +37,12 @@ const fila = (overrides: Partial<CostStructureRow> = {}): CostStructureRow => {
     unit: null,
     order: seq,
     active: true,
+    group: null,
+    frequency: null,
+    frequencyQty: null,
+    unitQty: null,
+    costPerKm: null,
+    truckType: null,
     ...overrides,
   };
 };
@@ -52,7 +59,7 @@ function costOf(rows: CostStructureRow[], tripOverrides = {}, str = estructura()
     {
       country,
       trip,
-      ownCostParams: makeOwnCostParams(),
+      ...makeOwnCostStructure(),
       outsourcedCostRates: [],
       costStructure: str,
       costStructureRows: rows,
@@ -172,12 +179,12 @@ describe('filas', () => {
 });
 
 describe('compatibilidad', () => {
-  it('sin estructura cargada, sigue usando los parámetros de costo anteriores', () => {
+  it('sin estructura propia, la flota propia usa la estructura por defecto del país', () => {
     const result = computeCost(
       {
         country: makeCountryVE(),
         trip: makeTrip({ km: 100 }),
-        ownCostParams: makeOwnCostParams(),
+        ...makeOwnCostStructure(),
         outsourcedCostRates: [],
         costStructure: null,
         costStructureRows: [],
@@ -188,7 +195,7 @@ describe('compatibilidad', () => {
 
     // 100 km × (1.10 + 0.18) + 1 día × 35 = 163
     expect(Number(result.total)).toBeCloseTo(163, 2);
-    expect(result.modelId).toBe('OWN');
+    expect(result.modelId).toBe('OWN_VE');
   });
 
   it('una estructura desactivada tampoco se usa', () => {
@@ -197,6 +204,6 @@ describe('compatibilidad', () => {
       { km: 100 },
       estructura({ active: false }),
     );
-    expect(result.modelId).toBe('OWN');
+    expect(result.modelId).toBe('OWN_VE');
   });
 });

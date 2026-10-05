@@ -244,14 +244,6 @@ export async function listSimulatedCarriers(_organizationId: string): Promise<Ro
 // Costos — parámetros de flota propia y tarifas planas de outsourcing, por país.
 // ---------------------------------------------------------------------------------------------
 
-export async function listOwnCostParams(_organizationId: string): Promise<Row[]> {
-  return db().find('ownCostParams');
-}
-
-export async function saveOwnCostParams(_organizationId: string, payload: Row, id?: string): Promise<SaveResult> {
-  return attempt(() => upsert('ownCostParams', payload, id));
-}
-
 export async function listOutsourcedCostRates(_organizationId: string): Promise<Row[]> {
   return db().find('outsourcedCostRate');
 }
@@ -357,19 +349,18 @@ export async function saveMarginPolicy(_organizationId: string, payload: Row, id
 export async function listRulesAndZonesForTesting(organizationId: string) {
   const [
     countries, zoneGroups, zones, rules, carriers,
-    ownCostParams, outsourcedCostRates, marginPolicies,
+    outsourcedCostRates, marginPolicies,
   ] = await Promise.all([
     listCountries(organizationId),
     listZoneGroups(organizationId),
     listZones(organizationId),
     listRules(organizationId),
     listSimulatedCarriers(organizationId),
-    listOwnCostParams(organizationId),
     listOutsourcedCostRates(organizationId),
     listMarginPolicies(organizationId),
   ]);
   return {
     countries, zoneGroups, zones, rules, carriers,
-    ownCostParams, outsourcedCostRates, marginPolicies,
+    outsourcedCostRates, marginPolicies,
   };
 }

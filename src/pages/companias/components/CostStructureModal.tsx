@@ -7,14 +7,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
-import Badge from '../../../components/base/Badge';
 import ImportSheetWizard from './ImportSheetWizard';
+import CostTemplateModal, { downloadCostTemplate } from '../../../components/tarifas/CostTemplateModal';
+import { CostRowsTable, TruckSummaryTable } from '../../../components/tarifas/CostStructureParts';
+import { summarize } from '../../../lib/tarifas/costTemplate';
+import { listTruckTypes } from '../../../lib/tarifas/vehiclesDataSource';
+import { listPartyVariables } from '../../../lib/tarifas/partyVariablesDataSource';
 import {
   activeStructure, addRow, deleteRow, importRows, saveStructure, updateRow,
   listRows, type CostRowInput,
 } from '../../../lib/tarifas/costStructureDataSource';
 import { COST_DRIVER_LABELS } from '../../../lib/tarifas/cost';
-import type { CostDriver, CostStructure, CostStructureRow } from '../../../lib/tarifas/types';
+import type { CostDriver, CostStructure, CostStructureRow, PartyVariable } from '../../../lib/tarifas/types';
 import { ensurePartyProfile } from '../../../lib/tarifas/partiesDataSource';
 import type { CarrierProfile } from '../../../lib/tarifas/parties';
 import { registrarEvento } from '../../../lib/liquidador/auditLog';
@@ -31,8 +35,8 @@ interface Props {
   onProfileCreated?: () => void;
 }
 
-const DRIVER_OPTIONS = (Object.keys(COST_DRIVER_LABELS) as CostDriver[])
-  .map((d) => ({ value: d, label: COST_DRIVER_LABELS[d] }));
+const SYSTEM_DRIVER_OPTIONS = (Object.keys(COST_DRIVER_LABELS) as CostDriver[])
+  .map((d) => ({ value: d as string, label: COST_DRIVER_LABELS[d as keyof typeof COST_DRIVER_LABELS] }));
 
 const emptyRow = (): CostRowInput => ({
   code: '',
@@ -55,6 +59,10 @@ export default function CostStructureModal({
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [newRow, setNewRow] = useState<CostRowInput>(emptyRow());
   const [partyId, setPartyId] = useState<string | null>(null);
+  const [isTemplateOpen, setIsTemplateOpen] = useState(false);
+  const [editing, setEditing] = useState<CostStructureRow | null>(null);
+  const [truckTypes, setTruckTypes] = useState<string[]>([]);
+  const [variables, setVariables] = useState<PartyVariable[]>([]);
 
   const [meta, setMeta] = useState({
     name: 'Estructura de costos',
@@ -67,6 +75,9 @@ export default function CostStructureModal({
     setLoading(true);
     setError('');
     try {
+      // Variables NUMBER activas: pueden ser el driver de una fila (`custom:*`).
+      const vars = await listPartyVariables(partyId);
+      setVariables(vars.filter((v) => v.kind === 'NUMBER'));
       const existing = await activeStructure(partyId);
       setStructure(existing);
       setRows(existing ? await listRows(existing.id) : []);
@@ -86,6 +97,7 @@ export default function CostStructureModal({
   useEffect(() => {
     if (!isOpen || !party) return;
     setNewRow(emptyRow());
+    setEditing(null);
     setPartyId(party.partyId);
   }, [isOpen, party]);
 
@@ -93,18 +105,29 @@ export default function CostStructureModal({
     if (isOpen && party) void load();
   }, [isOpen, party, load]);
 
-  const currencyLabel = currency;
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    listTruckTypes()
+      .then((t) => { if (!cancelled) setTruckTypes(t.map((x) => x.code)); })
+      .catch(() => { if (!cancelled) setTruckTypes([]); });
+    return () => { cancelled = true; };
+  }, [isOpen]);
 
-  // Suma informativa por driver: es lo que se compara contra los totales de la planilla original.
-  const totals = useMemo(() => {
-    const byDriver = new Map<CostDriver, number>();
-    for (const row of rows) {
-      if (!row.active) continue;
-      const signed = row.sign === 'SUBTRACT' ? -Number(row.amount) : Number(row.amount);
-      byDriver.set(row.driver, (byDriver.get(row.driver) ?? 0) + signed);
-    }
-    return [...byDriver.entries()];
-  }, [rows]);
+  const driverOptions = useMemo(() => [
+    ...SYSTEM_DRIVER_OPTIONS,
+    ...variables.map((v) => ({ value: v.key as string, label: `${v.label} (variable de la compañía)` })),
+  ], [variables]);
+  const customLabels = useMemo(
+    () => Object.fromEntries(variables.map((v) => [v.key, v.label])) as Record<string, string>,
+    [variables],
+  );
+  const summary = useMemo(
+    () => (structure ? summarize(rows.filter((r) => r.active), structure.params, structure.operatingDaysPerMonth) : []),
+    [structure, rows],
+  );
+
+  const currencyLabel = currency;
 
   if (!isOpen || !party) return null;
 
@@ -150,6 +173,7 @@ export default function CostStructureModal({
         countryId: party.countryId ?? '',
         name: meta.name,
         operatingDaysPerMonth: meta.operatingDaysPerMonth,
+        params: target.params,
         effectiveFrom: target.effectiveFrom ?? null,
         active: true,
         notes: target.notes ?? null,
@@ -163,20 +187,86 @@ export default function CostStructureModal({
     }
   };
 
-  const handleAddRow = async () => {
+  const startEdit = (row: CostStructureRow) => {
+    setEditing(row);
+    setNewRow({
+      code: row.code, label: row.label, driver: row.driver, amount: row.amount, sign: row.sign,
+      appliesWhen: row.appliesWhen, unit: row.unit, active: row.active, group: row.group,
+      frequency: row.frequency, frequencyQty: row.frequencyQty, unitQty: row.unitQty,
+      costPerKm: row.costPerKm, truckType: row.truckType,
+    });
+  };
+
+  const cancelEdit = () => { setEditing(null); setNewRow(emptyRow()); };
+
+  const handleSubmitRow = async () => {
     setError('');
     if (!newRow.label.trim()) { setError('La fila necesita un concepto.'); return; }
+    const amount = newRow.amount.trim();
+    if (amount === '' || !Number.isFinite(Number(amount)) || Number(amount) < 0) {
+      setError('El importe debe ser un número de cero o más.');
+      return;
+    }
+    const truckType = newRow.truckType || null;
 
-    const target = await ensureStructure();
-    if (!target) return;
+    try {
+      if (editing) {
+        const truckChanged = (editing.truckType ?? null) !== truckType;
+        if (truckChanged) {
+          // `updateRow` no cambia el tipo de camión: se recrea la fila con el valor nuevo.
+          const removed = await deleteRow(editing.id);
+          if (removed.error) { setError(removed.error); return; }
+          const created = await addRow(editing.structureId, { ...newRow, amount, truckType });
+          if (created.error) { setError(created.error); return; }
+        } else {
+          const result = await updateRow(editing.id, {
+            label: newRow.label.trim(), driver: newRow.driver, amount, sign: newRow.sign,
+          });
+          if (result.error) { setError(result.error); return; }
+        }
+        cancelEdit();
+        await load();
+        return;
+      }
 
-    const code = newRow.code.trim()
-      || newRow.label.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').slice(0, 40);
+      const target = await ensureStructure();
+      if (!target) return;
+      const code = newRow.code.trim()
+        || newRow.label.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').slice(0, 40);
+      const result = await addRow(target.id, { ...newRow, amount, code, truckType });
+      if (result.error) { setError(result.error); return; }
+      setNewRow(emptyRow());
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
 
-    const result = await addRow(target.id, { ...newRow, code });
-    if (result.error) { setError(result.error); return; }
-    setNewRow(emptyRow());
-    await load();
+  const handleRowAction = async (action: () => Promise<{ error: string | null }>) => {
+    setError('');
+    try {
+      const result = await action();
+      if (result.error) { setError(result.error); return; }
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  // Subir plantilla necesita el perfil de cálculo de la compañía (puede no existir todavía).
+  const handleOpenTemplate = async () => {
+    setError('');
+    try {
+      if (!partyId) {
+        const profile = await ensurePartyProfile(party.carrierId);
+        if (profile.status === 'failed') { setError(profile.error.message); return; }
+        setPartyId(profile.partyId);
+        if (profile.created) onProfileCreated?.();
+      }
+      setIsTemplateOpen(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
   };
 
   const handleImport = async (imported: CostRowInput[], mode: 'replace' | 'append') => {
@@ -244,25 +334,26 @@ export default function CostStructureModal({
 
           {/* ── Acciones ───────────────────────────────────────────────────────────────── */}
           <div className="flex flex-wrap items-center gap-3 border-y border-slate-100 py-3">
-            <Button onClick={() => setIsImportOpen(true)}>
-              <i className="ri-file-excel-2-line mr-1"></i> Importar planilla
+            <Button onClick={() => void handleOpenTemplate()}>
+              <i className="ri-file-upload-line mr-1"></i> Subir plantilla
             </Button>
-            {totals.length > 0 && (
-              <div className="flex flex-wrap gap-2 ml-auto text-xs">
-                {totals.map(([driver, sum]) => (
-                  <Badge key={driver} variant="default" size="sm">
-                    {COST_DRIVER_LABELS[driver]}: {sum.toLocaleString('es-CR', { minimumFractionDigits: 2 })} {currencyLabel}
-                  </Badge>
-                ))}
-              </div>
-            )}
+            <Button variant="secondary" onClick={downloadCostTemplate}>
+              <i className="ri-download-2-line mr-1"></i> Descargar plantilla
+            </Button>
+            <Button variant="secondary" onClick={() => setIsImportOpen(true)}>
+              <i className="ri-file-excel-2-line mr-1"></i> Importar una hoja suelta
+            </Button>
+            <p className="text-xs text-slate-500 basis-full">
+              La plantilla reemplaza toda la estructura de esta compañía. La hoja suelta agrega o reemplaza
+              conceptos de un solo tipo de cobro (por ejemplo, una lista de importes fijos).
+            </p>
           </div>
 
-          {/* ── Alta manual ────────────────────────────────────────────────────────────── */}
+          {/* ── Alta / edición manual ──────────────────────────────────────────────────── */}
           <div className="grid grid-cols-1 md:grid-cols-6 gap-2 items-end bg-slate-50 rounded-lg p-3">
             <div className="md:col-span-2">
               <Input
-                label="Concepto"
+                label={editing ? 'Concepto (editando)' : 'Concepto'}
                 value={newRow.label}
                 onChange={(e) => setNewRow({ ...newRow, label: e.target.value })}
                 placeholder="Salario del chofer"
@@ -271,12 +362,14 @@ export default function CostStructureModal({
             <Select
               label="Cómo se cobra"
               value={newRow.driver}
+              disabled={!!editing?.frequency}
               onChange={(e) => setNewRow({ ...newRow, driver: e.target.value as CostDriver })}
-              options={DRIVER_OPTIONS}
+              options={driverOptions}
             />
             <Input
               label={`Importe (${currencyLabel})`}
               value={newRow.amount}
+              disabled={!!editing?.frequency}
               onChange={(e) => setNewRow({ ...newRow, amount: e.target.value })}
             />
             <Select
@@ -285,102 +378,69 @@ export default function CostStructureModal({
               onChange={(e) => setNewRow({ ...newRow, sign: e.target.value as 'ADD' | 'SUBTRACT' })}
               options={[{ value: 'ADD', label: 'Suma' }, { value: 'SUBTRACT', label: 'Resta' }]}
             />
-            <Button variant="secondary" onClick={() => void handleAddRow()}>
-              <i className="ri-add-line mr-1"></i> Agregar
-            </Button>
+            <Select
+              label="Aplica cuando"
+              value={newRow.truckType ?? ''}
+              onChange={(e) => setNewRow({ ...newRow, truckType: e.target.value || null })}
+              options={[
+                { value: '', label: 'Siempre' },
+                ...truckTypes.map((t) => ({ value: t, label: `Solo para ${t}` })),
+                ...(newRow.truckType && !truckTypes.includes(newRow.truckType)
+                  ? [{ value: newRow.truckType, label: `Solo para ${newRow.truckType}` }] : []),
+              ]}
+            />
+            <div className="md:col-span-6 flex items-center gap-2">
+              <Button variant="secondary" onClick={() => void handleSubmitRow()}>
+                <i className={`${editing ? 'ri-save-line' : 'ri-add-line'} mr-1`}></i> {editing ? 'Guardar cambios' : 'Agregar'}
+              </Button>
+              {editing && <Button variant="ghost" onClick={cancelEdit}>Cancelar</Button>}
+              {editing?.frequency && (
+                <span className="text-xs text-slate-500">
+                  Esta fila se repite cada cierto tiempo: para cambiar su importe o frecuencia, volvé a subir la plantilla.
+                </span>
+              )}
+            </div>
           </div>
 
           {/* ── Filas ──────────────────────────────────────────────────────────────────── */}
-          {loading ? (
-            <p className="text-sm text-slate-500 py-8 text-center">Cargando…</p>
-          ) : rows.length === 0 ? (
-            <div className="text-center py-10">
-              <i className="ri-table-line text-4xl text-slate-300"></i>
-              <p className="mt-2 text-sm text-slate-600 font-medium">Todavía no hay conceptos cargados</p>
-              <p className="text-xs text-slate-500">
-                Importá la planilla que ya usás, o cargá los conceptos a mano.
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 text-left text-xs font-medium text-slate-500 uppercase">
-                    <th className="px-3 py-2">Concepto</th>
-                    <th className="px-3 py-2">Cómo se cobra</th>
-                    <th className="px-3 py-2 text-right">Importe</th>
-                    <th className="px-3 py-2">Efecto</th>
-                    <th className="px-3 py-2">Estado</th>
-                    <th className="px-3 py-2 text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {rows.map((row) => (
-                    <tr key={row.id} className={row.active ? '' : 'bg-slate-50/60'}>
-                      <td className="px-3 py-2">
-                        <div className="text-slate-800">{row.label}</div>
-                        <div className="text-[11px] font-mono text-slate-400">{row.code}</div>
-                      </td>
-                      <td className="px-3 py-2">
-                        <Select
-                          value={row.driver}
-                          onChange={async (e) => {
-                            await updateRow(row.id, { driver: e.target.value as CostDriver });
-                            await load();
-                          }}
-                          options={DRIVER_OPTIONS}
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <input
-                          defaultValue={row.amount}
-                          onBlur={async (e) => {
-                            if (e.target.value === row.amount) return;
-                            await updateRow(row.id, { amount: e.target.value });
-                            await load();
-                          }}
-                          className="w-28 text-right px-2 py-1 border border-slate-200 rounded font-mono text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                        />
-                        {row.unit && <div className="text-[11px] text-slate-400">{row.unit}</div>}
-                      </td>
-                      <td className="px-3 py-2">
-                        <Badge variant={row.sign === 'SUBTRACT' ? 'warning' : 'default'} size="sm">
-                          {row.sign === 'SUBTRACT' ? 'Resta' : 'Suma'}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-2">
-                        <Badge variant={row.active ? 'success' : 'default'} size="sm">
-                          {row.active ? 'Activa' : 'De baja'}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={async () => { await updateRow(row.id, { active: !row.active }); await load(); }}
-                            title={row.active ? 'Dar de baja' : 'Reactivar'}
-                          >
-                            <i className={row.active ? 'ri-forbid-line' : 'ri-refresh-line'}></i>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={async () => {
-                              if (!window.confirm(`¿Eliminar "${row.label}"?`)) return;
-                              await deleteRow(row.id);
-                              await load();
-                            }}
-                            title="Eliminar"
-                          >
-                            <i className="ri-delete-bin-line"></i>
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <CostRowsTable
+            rows={rows}
+            loading={loading}
+            customLabels={customLabels}
+            exportFileName="estructura_costos_compania"
+            emptyMessage="Todavía no hay conceptos cargados: subí la plantilla o cargalos a mano."
+            actions={(row) => (
+              <div className="flex items-center justify-end gap-1">
+                <Button variant="ghost" size="sm" onClick={() => startEdit(row)} title="Editar">
+                  <i className="ri-edit-line"></i>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void handleRowAction(() => updateRow(row.id, { active: !row.active }))}
+                  title={row.active ? 'Dar de baja' : 'Reactivar'}
+                >
+                  <i className={row.active ? 'ri-forbid-line' : 'ri-refresh-line'}></i>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    if (!window.confirm(`¿Eliminar "${row.label}"?`)) return;
+                    void handleRowAction(() => deleteRow(row.id));
+                  }}
+                  title="Eliminar"
+                >
+                  <i className="ri-delete-bin-line"></i>
+                </Button>
+              </div>
+            )}
+          />
+
+          {summary.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-slate-700 mb-2">Resumen por tipo de camión ({currencyLabel})</h3>
+              <TruckSummaryTable summary={summary} exportFileName="resumen_costos_por_camion" />
             </div>
           )}
         </div>
@@ -389,6 +449,17 @@ export default function CostStructureModal({
           <Button variant="secondary" onClick={onClose}>Cerrar</Button>
         </div>
       </div>
+
+      <CostTemplateModal
+        isOpen={isTemplateOpen}
+        partyId={partyId}
+        countryId={party.countryId ?? ''}
+        structureName={structure?.name ?? meta.name}
+        scopeLabel={`la estructura de costos de ${party.name}`}
+        currency={currencyLabel}
+        onClose={() => setIsTemplateOpen(false)}
+        onApplied={() => { void load(); }}
+      />
 
       <ImportSheetWizard
         isOpen={isImportOpen}

@@ -6,7 +6,7 @@
 // Lo que el archivo NO decide: a qué tarifario va ni en qué moneda está. Eso ya está dicho por la
 // tabla elegida, y leerlo del archivo sería adivinar.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Button from '../../../components/base/Button';
 import Select from '../../../components/base/Select';
 import Badge from '../../../components/base/Badge';
@@ -16,6 +16,7 @@ import {
 } from '../../../lib/tarifas/rateTableImport';
 import type { NumberFormat } from '../../../lib/tarifas/costSheetParser';
 import { bulkUpsertRows } from '../../../lib/tarifas/rateTablesDataSource';
+import { labelsOf, listPartyVariables } from '../../../lib/tarifas/partyVariablesDataSource';
 import { VAR_KEY_LABELS } from '../../../lib/tarifas/format';
 import { registrarEvento } from '../../../lib/liquidador/auditLog';
 import { obtenerRolActivo } from '../../../lib/liquidador/rbac';
@@ -34,9 +35,24 @@ const NUMBER_FORMAT_OPTIONS: { value: NumberFormat; label: string }[] = [
   { value: 'en', label: 'Inglés — 1,234.56' },
 ];
 
-const varLabelOf = (key: VarKey) => VAR_KEY_LABELS[key as keyof typeof VAR_KEY_LABELS] ?? key;
 
 export default function ImportRateTableModal({ isOpen, table, onClose, onImported }: Props) {
+  // Rótulos de las variables personalizadas de la clave (si el tarifario es de una compañía).
+  const [customLabels, setCustomLabels] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!isOpen || !table.partyId || !table.keyColumns.some((c) => c.startsWith('custom:'))) {
+      setCustomLabels({});
+      return undefined;
+    }
+    let cancelled = false;
+    listPartyVariables(table.partyId, { includeInactive: true })
+      .then((list) => { if (!cancelled) setCustomLabels(labelsOf(list)); })
+      .catch(() => { if (!cancelled) setCustomLabels({}); });
+    return () => { cancelled = true; };
+  }, [isOpen, table.partyId, table.keyColumns]);
+  const varLabelOf = (key: VarKey) =>
+    VAR_KEY_LABELS[key as keyof typeof VAR_KEY_LABELS] ?? customLabels[key] ?? key;
+
   const [numberFormat, setNumberFormat] = useState<NumberFormat>('auto');
   const [mode, setMode] = useState<'replace' | 'merge'>('merge');
 
@@ -69,7 +85,7 @@ export default function ImportRateTableModal({ isOpen, table, onClose, onImporte
   const handleClose = () => { reset(); onClose(); };
 
   const applySheet = (loaded: LoadedSheet[], index: number) => {
-    const analysis = analyzeRateTableSheet(loaded[index]?.matrix ?? [], table.keyColumns);
+    const analysis = analyzeRateTableSheet(loaded[index]?.matrix ?? [], table.keyColumns, customLabels);
     setSheetIndex(index);
     setHeaderRow(analysis.headerRow);
     setMapping(analysis.mapping);

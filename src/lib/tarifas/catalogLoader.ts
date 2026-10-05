@@ -10,8 +10,9 @@
 // sigue siendo del tarifador. Nada de esto se lee "por fuera" del ORM.
 
 import { db, type Row } from './data';
+import { toCostStructure, toCostStructureRow } from './costStructureDataSource';
 import type {
-  Country, CostStructure, CostStructureRow, MarginPolicy, OutsourcedCostRate, OwnCostParams,
+  Country, CostStructure, CostStructureRow, MarginPolicy, OutsourcedCostRate,
   PartyVariable, RateTable, RateTableRow, RoundingMode, Rule, Zone, ZoneGroup,
 } from './types';
 
@@ -20,13 +21,15 @@ export interface TarifasCatalog {
   rules: Rule[];
   zones: Zone[];
   zoneGroups: ZoneGroup[];
-  ownCostParams: OwnCostParams;
   outsourcedCostRates: OutsourcedCostRate[];
   marginPolicy: MarginPolicy;
   /** Sólo las de la compañía del viaje. Ver abajo por qué. */
   partyVariables: PartyVariable[];
   costStructure: CostStructure | null;
   costStructureRows: CostStructureRow[];
+  /** Estructura por defecto del país: costo de la flota propia sin estructura propia. */
+  defaultCostStructure: CostStructure | null;
+  defaultCostStructureRows: CostStructureRow[];
   rateTables: RateTable[];
   rateTableRows: RateTableRow[];
 }
@@ -158,18 +161,6 @@ async function loadRules(countryId: string): Promise<Rule[]> {
     }));
 }
 
-async function loadOwnCostParams(countryId: string): Promise<OwnCostParams | null> {
-  const [row] = await db().find('ownCostParams', { where: [eq('country_id', countryId)], limit: 1 });
-  if (!row) return null;
-  return {
-    id: row.id,
-    countryId,
-    costPerKm: String(row.cost_per_km),
-    depreciationPerKm: String(row.depreciation_per_km),
-    driverDaily: String(row.driver_daily),
-  };
-}
-
 async function loadOutsourcedCostRates(countryId: string): Promise<OutsourcedCostRate[]> {
   const rows = await db().find('outsourcedCostRate', { where: [eq('country_id', countryId)] });
   return rows.map((row) => ({
@@ -213,44 +204,26 @@ async function loadPartyVariables(partyId: string | null): Promise<PartyVariable
   }));
 }
 
-async function loadCostStructure(partyId: string | null): Promise<{
+/**
+ * Estructura activa de una compañía (`partyId`) o la estructura por defecto de un país (`countryId`,
+ * la que no tiene compañía). Sin ninguno de los dos, nada.
+ */
+async function loadCostStructure(scope: { partyId?: string | null; countryId?: string }): Promise<{
   structure: CostStructure | null;
   rows: CostStructureRow[];
 }> {
-  if (!partyId) return { structure: null, rows: [] };
+  const where = scope.partyId
+    ? [eq('party_id', scope.partyId), eq('active', true)]
+    : scope.countryId
+      ? [{ column: 'party_id', op: 'isNull' as const }, eq('country_id', scope.countryId), eq('active', true)]
+      : null;
+  if (!where) return { structure: null, rows: [] };
 
-  const [row] = await db().find('costStructure', {
-    where: [eq('party_id', partyId), eq('active', true)],
-    limit: 1,
-  });
+  const [row] = await db().find('costStructure', { where, limit: 1 });
   if (!row) return { structure: null, rows: [] };
 
   const rows = await db().find('costStructureRow', { where: [eq('structure_id', row.id)] });
-  return {
-    structure: {
-      id: row.id,
-      partyId: row.party_id,
-      countryId: row.country_id,
-      name: row.name,
-      operatingDaysPerMonth: Number(row.operating_days_per_month),
-      effectiveFrom: row.effective_from ?? null,
-      active: !!row.active,
-      notes: row.notes ?? null,
-    },
-    rows: rows.map((r) => ({
-      id: r.id,
-      structureId: r.structure_id,
-      code: r.code,
-      label: r.label,
-      driver: r.driver,
-      amount: String(r.amount),
-      sign: r.sign,
-      appliesWhen: r.applies_when ?? null,
-      unit: r.unit ?? null,
-      order: Number(r.row_order ?? 0),
-      active: !!r.active,
-    })),
-  };
+  return { structure: toCostStructure(row), rows: rows.map(toCostStructureRow) };
 }
 
 /**
@@ -319,26 +292,20 @@ export async function loadTarifasCatalog(countryId: string, partyId: string | nu
   }
 
   const [
-    ownCostParams, marginPolicy, rules, zones, zoneGroups, outsourcedCostRates,
-    partyVariables, cost, rateTables,
+    marginPolicy, rules, zones, zoneGroups, outsourcedCostRates,
+    partyVariables, cost, defaultCost, rateTables,
   ] = await Promise.all([
-    loadOwnCostParams(countryId),
     loadMarginPolicy(countryId),
     loadRules(countryId),
     loadZones(countryId),
     loadZoneGroups(countryId),
     loadOutsourcedCostRates(countryId),
     loadPartyVariables(partyId),
-    loadCostStructure(partyId),
+    loadCostStructure({ partyId }),
+    loadCostStructure({ countryId }),
     loadRateTables(countryId, partyId),
   ]);
 
-  if (!ownCostParams) {
-    throw new CatalogError(
-      `No hay parámetros de costo para ${country.name} en Reglas de Tarifa → Costos. ` +
-      'Sin ellos no se puede calcular el margen.',
-    );
-  }
   if (!marginPolicy) {
     throw new CatalogError(
       `No hay política de margen para ${country.name} en Reglas de Tarifa → Política de Margen.`,
@@ -350,12 +317,13 @@ export async function loadTarifasCatalog(countryId: string, partyId: string | nu
     rules,
     zones,
     zoneGroups,
-    ownCostParams,
     outsourcedCostRates,
     marginPolicy,
     partyVariables,
     costStructure: cost.structure,
     costStructureRows: cost.rows,
+    defaultCostStructure: defaultCost.structure,
+    defaultCostStructureRows: defaultCost.rows,
     rateTables: rateTables.tables,
     rateTableRows: rateTables.rows,
   };

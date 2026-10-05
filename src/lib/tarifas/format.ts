@@ -146,6 +146,14 @@ export function formatInputs(inputs: Record<string, string | number>): string {
     const unitKey = keys.find((k) => k !== 'cada' && k !== 'amount')!;
     return `${inputs[unitKey]} → cada ${inputs.cada}: ${inputs.amount}`;
   }
+  // Fila de una estructura de costos: unidades del viaje × importe de la fila.
+  if (keys.includes('unidades') && keys.includes('importe')) {
+    return `${Number(inputs.unidades)} × ${inputs.importe}`;
+  }
+  // Componente que se repite: km del viaje × costo por km.
+  if (keys.includes('costo por km') && keys.includes('km')) {
+    return `${inputs.km} km × ${inputs['costo por km']}`;
+  }
   if (keys.includes('originZone') && keys.includes('destZone')) {
     return `${inputs.originZone} → ${inputs.destZone}`;
   }

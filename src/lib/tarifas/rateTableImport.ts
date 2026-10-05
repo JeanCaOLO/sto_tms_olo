@@ -90,6 +90,8 @@ const AMOUNT_HINTS = [
 export function analyzeRateTableSheet(
   matrix: SheetMatrix,
   keyColumns: VarKey[],
+  /** Rótulos de las variables personalizadas de la clave (`custom:*` → "Tipo de carga"), para reconocer su encabezado. */
+  customLabels: Record<string, string> = {},
 ): RateTableSheetAnalysis {
   const headerRow = detectHeaderRow(matrix);
   const headers = (matrix[headerRow] ?? []).map(text);
@@ -111,7 +113,16 @@ export function analyzeRateTableSheet(
     return null;
   };
 
-  const key = keyColumns.map((column) => buscarPorEncabezado(HEADER_HINTS[column] ?? []));
+  // Una variable personalizada se reconoce por su rótulo ("Tipo de carga") o por su nombre ("tipo_carga").
+  const hintsOf = (column: VarKey): string[] => {
+    const known = HEADER_HINTS[column];
+    if (known) return known;
+    if (!column.startsWith('custom:')) return [];
+    return [customLabels[column], column.slice('custom:'.length).replace(/_/g, ' ')]
+      .filter((h): h is string => !!h)
+      .map(fold);
+  };
+  const key = keyColumns.map((column) => buscarPorEncabezado(hintsOf(column)));
 
   let amount = buscarPorEncabezado(AMOUNT_HINTS);
   if (amount === null) {

@@ -4,8 +4,8 @@
 import Decimal from 'decimal.js';
 import type { EvalContext } from '../evaluator';
 import type {
-  Country, Location, MarginPolicy, OutsourcedCostRate, OwnCostParams, Rule, TripContext, VarBag,
-  Zone, ZoneGroup,
+  CalculateInput, Country, CostStructureRow, Location, MarginPolicy, OutsourcedCostRate, Rule, TripContext,
+  VarBag, Zone, ZoneGroup,
 } from '../types';
 
 // Contexto de evaluación mínimo para probar evaluateExpr en aislamiento, sin correr todo el pipeline.
@@ -92,14 +92,29 @@ export function makeRule(overrides: Partial<Rule> & Pick<Rule, 'stage' | 'expres
   };
 }
 
-export function makeOwnCostParams(overrides: Partial<OwnCostParams> = {}): OwnCostParams {
+/**
+ * Estructura de costos por defecto del país con las tres tasas de siempre (costo/km, depreciación/km
+ * y chofer por día), para los tests que necesitan que la flota propia tenga algún costo.
+ */
+export function makeOwnCostStructure(
+  rates: { costPerKm?: string; depreciationPerKm?: string; driverDaily?: string } = {},
+): Pick<CalculateInput, 'defaultCostStructure' | 'defaultCostStructureRows'> {
+  const { costPerKm = '1.10', depreciationPerKm = '0.18', driverDaily = '35.00' } = rates;
+  const row = (code: string, driver: CostStructureRow['driver'], amount: string, order: number): CostStructureRow => ({
+    id: `own-${code}`, structureId: 'OWN_VE', code, label: code, driver, amount, sign: 'ADD', appliesWhen: null,
+    unit: null, order, active: true, group: null, frequency: null, frequencyQty: null, unitQty: null,
+    costPerKm: null, truckType: null,
+  });
   return {
-    id: 'OWN_VE',
-    countryId: 'VE',
-    costPerKm: '1.10',
-    depreciationPerKm: '0.18',
-    driverDaily: '35.00',
-    ...overrides,
+    defaultCostStructure: {
+      id: 'OWN_VE', partyId: null, countryId: 'VE', name: 'Costos de flota propia', operatingDaysPerMonth: 30,
+      params: { kmPerYear: null, fuelPrice: null, fuelEfficiency: {} }, effectiveFrom: null, active: true, notes: null,
+    },
+    defaultCostStructureRows: [
+      row('COSTO_KM', 'PER_KM', costPerKm, 1),
+      row('DEPRECIACION_KM', 'PER_KM', depreciationPerKm, 2),
+      row('CHOFER_DIA', 'PER_DAY', driverDaily, 3),
+    ],
   };
 }
 

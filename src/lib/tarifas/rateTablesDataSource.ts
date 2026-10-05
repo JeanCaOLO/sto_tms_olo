@@ -11,7 +11,10 @@
 // salió mal en una liquidación. Las claves repetidas y los huecos se rechazan al GUARDAR.
 
 import { db, type Row } from './data';
-import { RATE_TABLE_WILDCARD, type RateTable, type RateTableRow, type VarKey } from './types';
+import { listPartyVariables } from './partyVariablesDataSource';
+import {
+  RATE_TABLE_WILDCARD, type PartyVariable, type RateTable, type RateTableRow, type VarKey,
+} from './types';
 
 /**
  * Variables que pueden formar la clave de un tarifario.
@@ -26,6 +29,21 @@ export const RATE_TABLE_KEY_VARS = [
   'truckTypeId', 'serviceType', 'fleetType', 'carrierId', 'customerId',
   'countryId', 'weekday',
 ] as const satisfies readonly VarKey[];
+
+/** ¿Es una variable personalizada de una compañía (`custom:*`)? */
+export const isCustomKeyVar = (key: string): key is `custom:${string}` => key.startsWith('custom:');
+
+/**
+ * Variables que se pueden elegir para la clave de un tarifario de una compañía: las del sistema más
+ * las personalizadas ACTIVAS de esa compañía. Una variable numérica solo sirve con valores
+ * discretos (0, 1, 2…): casa por igualdad exacta, igual que las del sistema.
+ */
+export function keyVarsFor(partyVariables: PartyVariable[] = []): VarKey[] {
+  return [
+    ...RATE_TABLE_KEY_VARS,
+    ...partyVariables.filter((v) => v.active).map((v) => v.key),
+  ];
+}
 
 /**
  * Columnas de clave que nombran una ZONA, por su código.
@@ -94,6 +112,8 @@ export function validateRateTable(
   input: RateTableInput,
   existing: Pick<RateTable, 'id' | 'code' | 'countryId' | 'partyId'>[],
   id?: string,
+  /** Variables personalizadas ACTIVAS de la compañía del tarifario (para validar las `custom:*` de la clave). */
+  partyVariables: PartyVariable[] = [],
 ): RateTableErrors {
   const errors: RateTableErrors = {};
   const code = input.code.trim().toUpperCase();
@@ -120,6 +140,18 @@ export function validateRateTable(
     // Una variable repetida en la clave haría que dos columnas pidan siempre lo mismo: no agrega
     // precisión y duplica lo que hay que teclear en cada fila.
     errors.keyColumns = 'Hay una variable repetida en la clave.';
+  } else {
+    const custom = input.keyColumns.filter(isCustomKeyVar);
+    if (custom.length > 0 && !input.partyId) {
+      // Las variables personalizadas son de una compañía: un tarifario del país no sabe cuáles hay.
+      errors.keyColumns = 'Las variables personalizadas solo se pueden usar en el tarifario de una compañía.';
+    } else {
+      const activas = new Set(partyVariables.filter((v) => v.active).map((v) => v.key));
+      const faltan = custom.filter((k) => !activas.has(k));
+      if (faltan.length > 0) {
+        errors.keyColumns = `La compañía no tiene activa la variable: ${faltan.join(', ')}.`;
+      }
+    }
   }
 
   return errors;
@@ -130,7 +162,10 @@ export async function saveRateTable(
   id?: string,
 ): Promise<SaveRateTableResult> {
   const existing = (await db().find('rateTable')).map(toTable);
-  const errors = validateRateTable(input, existing, id);
+  const partyVariables = input.partyId && input.keyColumns.some(isCustomKeyVar)
+    ? await listPartyVariables(input.partyId)
+    : [];
+  const errors = validateRateTable(input, existing, id, partyVariables);
   if (Object.keys(errors).length > 0) return { status: 'invalid', errors };
 
   // Cambiar la clave de una tabla que ya tiene filas dejaría cada fila con una cantidad de valores
@@ -249,7 +284,7 @@ export function normalizeKey(key: string[], columnCount: number): string[] {
 }
 
 function keyFingerprint(key: string[]): string {
-  return key.map((v) => v.toUpperCase()).join(' ');
+  return key.map((v) => v.toUpperCase()).join('\0');
 }
 
 export function validateRateRow(

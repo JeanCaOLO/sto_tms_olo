@@ -813,7 +813,7 @@
         },
         "party_id": {
           "type": "text",
-          "nullable": false
+          "nullable": true
         },
         "country_id": {
           "type": "uuid",
@@ -825,6 +825,10 @@
         },
         "operating_days_per_month": {
           "type": "int",
+          "nullable": false
+        },
+        "params": {
+          "type": "jsonb",
           "nullable": false
         },
         "effective_from": {
@@ -892,6 +896,30 @@
         "active": {
           "type": "boolean",
           "nullable": false
+        },
+        "cost_group": {
+          "type": "text",
+          "nullable": true
+        },
+        "frequency": {
+          "type": "text",
+          "nullable": true
+        },
+        "frequency_qty": {
+          "type": "numeric",
+          "nullable": true
+        },
+        "unit_qty": {
+          "type": "numeric",
+          "nullable": true
+        },
+        "cost_per_km": {
+          "type": "numeric",
+          "nullable": true
+        },
+        "truck_type": {
+          "type": "text",
+          "nullable": true
         }
       }
     },
@@ -963,36 +991,6 @@
         },
         "active": {
           "type": "boolean",
-          "nullable": false
-        }
-      }
-    },
-    "tarifas_own_cost_params": {
-      "entity": "ownCostParams",
-      "label": "Parámetros de costo propio",
-      "readOnly": false,
-      "appendOnly": false,
-      "primaryKey": "id",
-      "idPrefix": "own",
-      "columns": {
-        "id": {
-          "type": "text",
-          "nullable": true
-        },
-        "country_id": {
-          "type": "uuid",
-          "nullable": false
-        },
-        "cost_per_km": {
-          "type": "numeric",
-          "nullable": false
-        },
-        "depreciation_per_km": {
-          "type": "numeric",
-          "nullable": false
-        },
-        "driver_daily": {
-          "type": "numeric",
           "nullable": false
         }
       }

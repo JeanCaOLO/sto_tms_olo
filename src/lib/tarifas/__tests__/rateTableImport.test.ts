@@ -188,3 +188,18 @@ describe('findDuplicateKeys', () => {
     expect(findDuplicateKeys([fila(['A', 'B'], '1'), fila(['A', 'C'], '2')])).toEqual([]);
   });
 });
+
+describe('analyzeRateTableSheet con variables personalizadas en la clave', () => {
+  it('reconoce el encabezado por el rótulo de la variable, sin tildes ni mayúsculas', () => {
+    const sheet = [['Zona destino', 'Tipo de Carga', 'Importe'], ['CCS', 'Frágil', 120]];
+    const { mapping } = analyzeRateTableSheet(sheet, ['destZone', 'custom:tipo_carga'], { 'custom:tipo_carga': 'Tipo de carga' });
+    expect(mapping.key).toEqual([0, 1]);
+    expect(mapping.amount).toBe(2);
+  });
+
+  it('también por el nombre de la variable cuando no hay rótulo', () => {
+    const sheet = [['destino', 'tipo carga', 'precio'], ['CCS', 'Frágil', 120]];
+    const { mapping } = analyzeRateTableSheet(sheet, ['destZone', 'custom:tipo_carga']);
+    expect(mapping.key).toEqual([0, 1]);
+  });
+});

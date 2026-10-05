@@ -3016,7 +3016,12 @@
       "operating_days_per_month": 30,
       "effective_from": null,
       "active": true,
-      "notes": null
+      "notes": null,
+      "params": {
+        "kmPerYear": null,
+        "fuelPrice": null,
+        "fuelEfficiency": {}
+      }
     },
     {
       "id": "CSTR_CO_OWN",
@@ -3026,7 +3031,12 @@
       "operating_days_per_month": 26,
       "effective_from": null,
       "active": true,
-      "notes": null
+      "notes": null,
+      "params": {
+        "kmPerYear": null,
+        "fuelPrice": null,
+        "fuelEfficiency": {}
+      }
     },
     {
       "id": "CSTR_CR_OWN",
@@ -3036,7 +3046,57 @@
       "operating_days_per_month": 30,
       "effective_from": null,
       "active": true,
-      "notes": "Mismos cuatro componentes y la misma proporción entre ellos que el archivo real del cliente (Estructura_Costos_Transporte.xlsx: conductor, ayudante, depreciación y mantenimiento por km del camión activo T3 3-4.5 Ton), reescalados a los montos de este tarifario de demo."
+      "notes": "Mismos cuatro componentes y la misma proporción entre ellos que el archivo real del cliente (Estructura_Costos_Transporte.xlsx: conductor, ayudante, depreciación y mantenimiento por km del camión activo T3 3-4.5 Ton), reescalados a los montos de este tarifario de demo.",
+      "params": {
+        "kmPerYear": null,
+        "fuelPrice": null,
+        "fuelEfficiency": {}
+      }
+    },
+    {
+      "id": "CSTR_VE_DEFAULT",
+      "party_id": null,
+      "country_id": "VE",
+      "name": "Costos de flota propia — por defecto (VE)",
+      "operating_days_per_month": 30,
+      "params": {
+        "kmPerYear": null,
+        "fuelPrice": null,
+        "fuelEfficiency": {}
+      },
+      "effective_from": null,
+      "active": true,
+      "notes": "Convertida de los parámetros de costo por país."
+    },
+    {
+      "id": "CSTR_CO_DEFAULT",
+      "party_id": null,
+      "country_id": "CO",
+      "name": "Costos de flota propia — por defecto (CO)",
+      "operating_days_per_month": 30,
+      "params": {
+        "kmPerYear": null,
+        "fuelPrice": null,
+        "fuelEfficiency": {}
+      },
+      "effective_from": null,
+      "active": true,
+      "notes": "Convertida de los parámetros de costo por país."
+    },
+    {
+      "id": "CSTR_CR_DEFAULT",
+      "party_id": null,
+      "country_id": "CR",
+      "name": "Costos de flota propia — por defecto (CR)",
+      "operating_days_per_month": 30,
+      "params": {
+        "kmPerYear": null,
+        "fuelPrice": null,
+        "fuelEfficiency": {}
+      },
+      "effective_from": null,
+      "active": true,
+      "notes": "Convertida de los parámetros de costo por país."
     }
   ],
   "costStructureRows": [
@@ -3333,6 +3393,123 @@
       "unit": "CRC/viaje",
       "row_order": 5,
       "active": true
+    },
+    {
+      "id": "CROW_VE_DEF_1",
+      "structure_id": "CSTR_VE_DEFAULT",
+      "code": "COSTO_KM",
+      "label": "Costo operativo por km",
+      "driver": "PER_KM",
+      "amount": "1.10",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": null,
+      "row_order": 1,
+      "active": true
+    },
+    {
+      "id": "CROW_VE_DEF_2",
+      "structure_id": "CSTR_VE_DEFAULT",
+      "code": "DEPRECIACION_KM",
+      "label": "Depreciación por km",
+      "driver": "PER_KM",
+      "amount": "0.18",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": null,
+      "row_order": 2,
+      "active": true
+    },
+    {
+      "id": "CROW_VE_DEF_3",
+      "structure_id": "CSTR_VE_DEFAULT",
+      "code": "CHOFER_DIA",
+      "label": "Chofer (por día)",
+      "driver": "PER_DAY",
+      "amount": "35.00",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": null,
+      "row_order": 3,
+      "active": true
+    },
+    {
+      "id": "CROW_CO_DEF_1",
+      "structure_id": "CSTR_CO_DEFAULT",
+      "code": "COSTO_KM",
+      "label": "Costo operativo por km",
+      "driver": "PER_KM",
+      "amount": "0.95",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": null,
+      "row_order": 1,
+      "active": true
+    },
+    {
+      "id": "CROW_CO_DEF_2",
+      "structure_id": "CSTR_CO_DEFAULT",
+      "code": "DEPRECIACION_KM",
+      "label": "Depreciación por km",
+      "driver": "PER_KM",
+      "amount": "0.15",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": null,
+      "row_order": 2,
+      "active": true
+    },
+    {
+      "id": "CROW_CO_DEF_3",
+      "structure_id": "CSTR_CO_DEFAULT",
+      "code": "CHOFER_DIA",
+      "label": "Chofer (por día)",
+      "driver": "PER_DAY",
+      "amount": "28.00",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": null,
+      "row_order": 3,
+      "active": true
+    },
+    {
+      "id": "CROW_CR_DEF_1",
+      "structure_id": "CSTR_CR_DEFAULT",
+      "code": "COSTO_KM",
+      "label": "Costo operativo por km",
+      "driver": "PER_KM",
+      "amount": "1.05",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": null,
+      "row_order": 1,
+      "active": true
+    },
+    {
+      "id": "CROW_CR_DEF_2",
+      "structure_id": "CSTR_CR_DEFAULT",
+      "code": "DEPRECIACION_KM",
+      "label": "Depreciación por km",
+      "driver": "PER_KM",
+      "amount": "0.20",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": null,
+      "row_order": 2,
+      "active": true
+    },
+    {
+      "id": "CROW_CR_DEF_3",
+      "structure_id": "CSTR_CR_DEFAULT",
+      "code": "CHOFER_DIA",
+      "label": "Chofer (por día)",
+      "driver": "PER_DAY",
+      "amount": "40.00",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": null,
+      "row_order": 3,
+      "active": true
     }
   ],
   "rateTables": [
@@ -3538,29 +3715,6 @@
       "amount": "300.00",
       "row_order": 5,
       "active": true
-    }
-  ],
-  "ownCostParams": [
-    {
-      "id": "OWN_VE",
-      "country_id": "VE",
-      "cost_per_km": "1.10",
-      "depreciation_per_km": "0.18",
-      "driver_daily": "35.00"
-    },
-    {
-      "id": "OWN_CO",
-      "country_id": "CO",
-      "cost_per_km": "0.95",
-      "depreciation_per_km": "0.15",
-      "driver_daily": "28.00"
-    },
-    {
-      "id": "OWN_CR",
-      "country_id": "CR",
-      "cost_per_km": "1.05",
-      "depreciation_per_km": "0.20",
-      "driver_daily": "40.00"
     }
   ],
   "outsourcedCostRates": [

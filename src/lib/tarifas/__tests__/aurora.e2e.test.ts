@@ -79,10 +79,6 @@ describe.skipIf(!enabled)('Liquidador contra Aurora (transacción revertida)', {
     const ensured = await ensurePartyProfile(trip.carrierId as string);
     if (ensured.status !== 'saved') throw new Error(ensured.error.message);
     partyId = ensured.partyId;
-    // El cargador exige parámetros de costo del país aunque el viaje sea de un tercero.
-    await db().insert('ownCostParams', {
-      country_id: countryId, cost_per_km: '0.50', depreciation_per_km: '0.10', driver_daily: '20.00',
-    });
     await db().insert('outsourcedCostRate', {
       country_id: countryId, carrier_id: partyId, truck_type_id: trip.vehicleType, flat_rate: '100.00',
     });
