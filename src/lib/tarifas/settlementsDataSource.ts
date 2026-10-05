@@ -35,6 +35,8 @@ export interface SettlementInput {
   calc: CalcResult;
   overrides?: Record<string, Override>;
   adhocRules?: Rule[];
+  /** Reglas del catálogo que produjeron líneas: se guardan para poder explicar la liquidación después. */
+  rulesUsed?: Rule[];
   /** Líneas que el liquidador destildó. */
   excludedSeqs?: number[];
   returns?: SettlementReturn[];
@@ -81,6 +83,7 @@ function toDomain(row: Row): SettlementRecord {
     warnings: (row.warnings ?? []) as string[],
     overrides: (row.overrides ?? {}) as Record<string, Override>,
     adhocRules: (row.adhoc_rules ?? []) as Rule[],
+    rulesUsed: (row.rules_used ?? []) as Rule[],
     excludedSeqs: (row.excluded_seqs ?? []) as number[],
     returns: (row.returns ?? []) as SettlementReturn[],
     createdAt: row.created_at,
@@ -202,6 +205,7 @@ function rowValues(input: SettlementInput, trip: TripRecord, ahora: string): Row
     warnings: input.calc.warnings,
     overrides: input.overrides ?? {},
     adhoc_rules: input.adhocRules ?? [],
+    rules_used: input.rulesUsed ?? [],
     excluded_seqs: input.excludedSeqs ?? [],
     returns: input.returns ?? [],
     superseded_by: null,

@@ -45,6 +45,10 @@ const ESTADOS: SettlementStatus[] = ['Borrador', 'En Revisión', 'Aprobado', 'Pa
 const toRaw = (edits: TripEdits): Record<string, string> =>
   Object.fromEntries(Object.entries(edits.customVars ?? {}).map(([k, v]) => [k, String(v)]));
 
+/** Enlace a la regla que produjo una línea (solo reglas del catálogo). */
+const ruleHref = (origin: { source: string | null; ruleId: string | null }) =>
+  origin.source === 'RULE' && origin.ruleId ? `/reglas-tarifa?regla=${encodeURIComponent(origin.ruleId)}` : null;
+
 export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, onSaved }: Props) {
   const tripId = trip?.id ?? settlement?.tripId ?? '';
   const reliquidando = !!settlement;
@@ -203,6 +207,7 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
         marginReason: marginReason.trim() || null,
         context: calculation.context,
         calc: effectiveResult,
+        rulesUsed: calculation.input.rules.filter((r) => calculation.result.trace.some((l) => l.ruleId === r.id)),
         excludedSeqs: [...excludedSeqs],
         returns,
         totalAmount: totals.total,
@@ -450,6 +455,7 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
                         ),
                       }}
                       excludedSeqs={excludedSeqs}
+                      hrefFor={ruleHref}
                       total={totals.total}
                       onToggleLine={(seq) => setExcludedSeqs((prev) => {
                         const next = new Set(prev);

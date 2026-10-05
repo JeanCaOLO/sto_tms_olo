@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import Card from '../../components/base/Card';
 import Button from '../../components/base/Button';
@@ -24,6 +25,7 @@ import type { LiquidadorRole } from '../../lib/liquidador/rbac';
 import { registrarEvento } from '../../lib/liquidador/auditLog';
 import { listCarrierProfiles } from '../../lib/tarifas/partiesDataSource';
 import CountryScopeBar from '../../components/feature/CountryScopeBar';
+import DataModeBanner from '../../components/tarifas/DataModeBanner';
 import { useActiveCountry } from '../../hooks/useActiveCountry';
 import type { CarrierProfile } from '../../lib/tarifas/parties';
 import { useModulePermissions } from '../../hooks/use-module-permissions';
@@ -50,10 +52,20 @@ export default function ReglasTarifaPage() {
   const [loadingRules, setLoadingRules] = useState(true);
   const [isRuleModalOpen, setIsRuleModalOpen] = useState(false);
   const [selectedRule, setSelectedRule] = useState<any>(null);
+  // Enlace desde el desglose de una liquidación: /reglas-tarifa?regla=<id> abre esa regla.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const ruleFromLink = searchParams.get('regla');
   const [ruleToDelete, setRuleToDelete] = useState<any>(null);
   const [ruleDeleteError, setRuleDeleteError] = useState('');
   const [loadError, setLoadError] = useState('');
   const [parties, setParties] = useState<CarrierProfile[]>([]);
+
+  useEffect(() => {
+    if (!ruleFromLink || rules.length === 0) return;
+    const found = rules.find((r) => r.id === ruleFromLink);
+    if (found) { setActiveTab('reglas'); setSelectedRule(found); setIsRuleModalOpen(true); }
+    setSearchParams({}, { replace: true });
+  }, [ruleFromLink, rules, setSearchParams]);
 
   // --- Zonas ---
   const [zones, setZones] = useState<any[]>([]);
@@ -353,6 +365,7 @@ export default function ReglasTarifaPage() {
         </div>
       </div>
 
+      <DataModeBanner />
       <CountryScopeBar
         countries={countries}
         country={activeCountry}

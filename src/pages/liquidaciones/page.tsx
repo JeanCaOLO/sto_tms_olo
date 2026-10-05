@@ -12,6 +12,7 @@ import Badge from '../../components/base/Badge';
 import DataTable, { type DataTableColumn } from '../../components/base/DataTable';
 import StatCard from '../../components/feature/StatCard';
 import CountryScopeBar from '../../components/feature/CountryScopeBar';
+import DataModeBanner from '../../components/tarifas/DataModeBanner';
 import LiquidarViajeModal from './components/LiquidarViajeModal';
 import DetalleLiquidacionModal from './components/DetalleLiquidacionModal';
 import { useActiveCountry } from '../../hooks/useActiveCountry';
@@ -228,6 +229,7 @@ export default function LiquidacionesPage() {
         </p>
       </div>
 
+      <DataModeBanner />
       <CountryScopeBar countries={countries} country={activeCountry} onChange={setCountry} />
 
       {error && (

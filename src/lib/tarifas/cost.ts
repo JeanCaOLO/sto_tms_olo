@@ -9,7 +9,7 @@
 import Decimal from 'decimal.js';
 import type {
   CalculateInput, CostBreakdown, CostDriver, CostStructure, CostStructureRow, Country,
-  Stage, TraceLine, VarBag,
+  Stage, TraceLine, TraceSource, VarBag,
 } from './types';
 import { evaluatePred, RuleShapeError } from './evaluator';
 import { addAll, roundToMoney, toDecimal } from './money';
@@ -30,7 +30,7 @@ interface CostLine {
 // desglose que el de reglas), pero estas líneas no pertenecen al pipeline de cargo: no hay reglas,
 // stage es un valor fijo sin significado de stacking, y runningSubtotal solo se acumula dentro del
 // propio desglose de costo.
-function toTraceLines(lines: CostLine[], country: Country): TraceLine[] {
+function toTraceLines(lines: CostLine[], country: Country, source: TraceSource): TraceLine[] {
   let running = new Decimal(0);
   const stage: Stage = 'BASE';
   return lines.map((line, index) => {
@@ -43,6 +43,7 @@ function toTraceLines(lines: CostLine[], country: Country): TraceLine[] {
       ruleCode: line.code,
       label: line.label,
       inputs: line.inputs,
+      source,
       computed: amount,
       final: amount,
       runningSubtotal: roundToMoney(running, country),
@@ -139,7 +140,7 @@ function computeFromStructure(
 
   return {
     total: roundToMoney(addAll(lines.map((l) => l.amount)), country),
-    breakdown: toTraceLines(lines, country),
+    breakdown: toTraceLines(lines, country, 'COST_ROW'),
     modelId: structure.id,
     currency: country.localCurrency,
   };
@@ -197,7 +198,7 @@ export function computeCost(
 
     return {
       total: roundToMoney(addAll(lines.map((l) => l.amount)), country),
-      breakdown: toTraceLines(lines, country),
+      breakdown: toTraceLines(lines, country, 'OWN_PARAMS'),
       modelId: 'OWN',
       currency: country.localCurrency,
     };
@@ -230,7 +231,7 @@ export function computeCost(
 
   return {
     total: roundToMoney(lines[0]!.amount, country),
-    breakdown: toTraceLines(lines, country),
+    breakdown: toTraceLines(lines, country, 'FLAT_RATE'),
     modelId: rate.id,
     currency: country.localCurrency,
   };

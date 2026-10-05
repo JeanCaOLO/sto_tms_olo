@@ -26,6 +26,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { registrarEvento } from '../../lib/liquidador/auditLog';
 import { obtenerRolActivo, puede } from '../../lib/liquidador/rbac';
 import CountryScopeBar from '../../components/feature/CountryScopeBar';
+import DataModeBanner from '../../components/tarifas/DataModeBanner';
 import { useActiveCountry } from '../../hooks/useActiveCountry';
 
 interface Copy {
@@ -246,6 +247,7 @@ export default function CompaniasView({ classification }: { classification: Part
         <p className="text-sm text-slate-500 mt-1">{copy.subtitle}</p>
       </div>
 
+      <DataModeBanner />
       <CountryScopeBar
         countries={countries}
         country={activeCountry}

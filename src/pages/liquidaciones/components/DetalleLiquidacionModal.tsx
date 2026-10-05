@@ -106,7 +106,7 @@ export default function DetalleLiquidacionModal({ settlement, onClose }: Props) 
 
           <CalcBreakdownPanel
             result={result}
-            ctx={{ rules: settlement.adhocRules }}
+            ctx={{ rules: [...settlement.rulesUsed, ...settlement.adhocRules] }}
             excludedSeqs={settlement.excludedSeqs}
             total={settlement.totalAmount}
           />

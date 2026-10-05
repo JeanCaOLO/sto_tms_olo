@@ -122,11 +122,13 @@ export async function loadZoneGroups(countryId?: string): Promise<ZoneGroup[]> {
 // ── Reglas y parámetros del país ──────────────────────────────────────────────────────────────
 
 async function loadRules(countryId: string): Promise<Rule[]> {
+  // También las inactivas: el resolver las descarta con su motivo, y una regla inactiva de compañía
+  // es la forma de apagar para ella una regla del país.
   // OR no existe en `Where` (todo es AND): dos consultas en paralelo, país + globales, en vez de
   // traer las reglas de todos los países y descartar el resto en el cliente.
   const [ofCountry, global] = await Promise.all([
-    db().find('pricingRule', { where: [eq('active', true), eq('country_id', countryId)] }),
-    db().find('pricingRule', { where: [eq('active', true), { column: 'country_id', op: 'isNull' as const }] }),
+    db().find('pricingRule', { where: [eq('country_id', countryId)] }),
+    db().find('pricingRule', { where: [{ column: 'country_id', op: 'isNull' as const }] }),
   ]);
   return [...ofCountry, ...global]
     .map((row) => ({

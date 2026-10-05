@@ -527,6 +527,8 @@ export const ENTITIES = {
       overrides: { type: 'jsonb' },
       /** Reglas puntuales de esta liquidación, que no viven en el catálogo. */
       adhoc_rules: { type: 'jsonb' },
+      /** Reglas del catálogo que produjeron líneas, tal como estaban al emitir: sirven para explicar la liquidación aunque la regla cambie después. */
+      rules_used: { type: 'jsonb' },
       /** Líneas destildadas: se excluyeron del total y hay que poder decir cuáles. */
       excluded_seqs: { type: 'jsonb' },
       /** Devoluciones informadas. No afectan el pago; se registran para la auditoría. */

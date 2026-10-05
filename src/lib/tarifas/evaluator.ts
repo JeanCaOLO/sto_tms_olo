@@ -341,7 +341,9 @@ export function lookupRateTable(
   return {
     row: ganadora,
     match: {
+      tableId: table.id,
       tableCode: table.code,
+      tablePartyId: table.partyId ?? null,
       rowId: ganadora.id,
       matchedKey: table.keyColumns.map((_c, i) => ganadora.key[i] ?? RATE_TABLE_WILDCARD).join(' | '),
       specificity: maxEspecificidad,
@@ -613,6 +615,10 @@ export function runChargePipeline(
       ruleCode: rule.code,
       label: rule.name,
       inputs: extractInputs(rule, vars),
+      source: rule.isAdhoc ? 'ADHOC' : 'RULE',
+      ruleScope: rule.scope ?? 'COUNTRY',
+      rulePartyId: rule.partyId ?? null,
+      ruleVersion: rule.version,
       computed: roundToMoney(computed, country),
       final: roundToMoney(final, country),
       runningSubtotal: roundToMoney(running, country),

@@ -457,7 +457,11 @@ export interface RateTableRow {
 
 /** Cómo resolvió una búsqueda en tabla, para que el desglose lo pueda explicar. */
 export interface RateTableMatch {
+  /** Id del tarifario (para abrirlo desde el desglose). */
+  tableId: string;
   tableCode: string;
+  /** Compañía dueña del tarifario; null = del país. */
+  tablePartyId: string | null;
   rowId: string;
   /** La clave de la fila que ganó, ya legible ("CCS | NPR | *"). */
   matchedKey: string;
@@ -583,6 +587,8 @@ export interface SettlementRecord {
   warnings: string[];
   overrides: Record<string, Override>;
   adhocRules: Rule[];
+  /** Reglas del catálogo que produjeron líneas, tal como estaban al emitir (para poder explicarlas después). */
+  rulesUsed: Rule[];
   /** Líneas que el liquidador destildó: se excluyeron del total. */
   excludedSeqs: number[];
   returns: SettlementReturn[];
@@ -701,6 +707,9 @@ export interface MarginResult {
 
 // ── Salida del kernel ────────────────────────────────────────────────────────────────────────
 
+/** Origen de una línea del desglose: una regla del catálogo, una ad-hoc o una línea de costo. */
+export type TraceSource = 'RULE' | 'ADHOC' | 'COST_ROW' | 'OWN_PARAMS' | 'FLAT_RATE';
+
 export interface TraceLine {
   seq: number;
   stage: Stage;
@@ -712,6 +721,14 @@ export interface TraceLine {
   computed: Money;
   /** Si el monto salió de una tabla de tarifas, qué fila lo resolvió. */
   tableMatch?: RateTableMatch;
+  /** De dónde viene la línea. Falta en liquidaciones guardadas antes de que se registrara. */
+  source?: TraceSource;
+  /** Alcance de la regla que la produjo ('COUNTRY' o 'PARTY'); solo si `source` es RULE. */
+  ruleScope?: RuleScope;
+  /** Compañía dueña de la regla cuando es de alcance 'PARTY'. */
+  rulePartyId?: string | null;
+  /** Versión de la regla al calcular. */
+  ruleVersion?: number;
   override?: Override;
   /** `override.value` si existe; si no, `computed`. Es lo que entra al acumulado. */
   final: Money;

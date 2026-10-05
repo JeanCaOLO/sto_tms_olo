@@ -773,6 +773,10 @@
           "type": "jsonb",
           "nullable": false
         },
+        "rules_used": {
+          "type": "jsonb",
+          "nullable": false
+        },
         "excluded_seqs": {
           "type": "jsonb",
           "nullable": false

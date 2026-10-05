@@ -16,7 +16,7 @@
 import { DISCARD_REASON_LABELS, STAGE_LABELS, formatInputs, formatPred, varLabel } from './format';
 import { STAGE_ORDER } from './types';
 import type {
-  CalcResult, DiscardReason, DiscardedRule, Money, Rule, Stage, TraceLine, VarKey,
+  CalcResult, DiscardReason, DiscardedRule, Money, Rule, Stage, TraceLine, TraceSource, VarKey,
 } from './types';
 
 export interface ExplainContext {
@@ -44,6 +44,15 @@ export interface ExplainedLine {
   override: { value: Money; reason: string } | null;
   /** Destildada por el liquidador: no entra en el total. */
   excluida: boolean;
+  /** Dónde está la línea para editarla: la regla (id), el alcance, la compañía o el tipo de costo. */
+  origen: {
+    source: TraceSource | null;
+    ruleId: string | null;
+    scope: 'COUNTRY' | 'PARTY' | null;
+    partyId: string | null;
+    version: number | null;
+    tableId: string | null;
+  };
 }
 
 export interface ExplainedStage {
@@ -77,7 +86,10 @@ export function explainLine(
   ctx: ExplainContext,
   excluida = false,
 ): ExplainedLine {
-  const rule = ctx.rules.find((r) => r.code === line.ruleCode);
+  // Por id: el código se repite cuando una regla de compañía reemplaza a la de país (mismo código,
+  // dos reglas), y buscar solo por código podía explicar la línea con la regla equivocada.
+  const rule = (line.ruleId ? ctx.rules.find((r) => r.id === line.ruleId) : undefined)
+    ?? ctx.rules.find((r) => r.code === line.ruleCode && (r.scope ?? 'COUNTRY') === (line.ruleScope ?? r.scope ?? 'COUNTRY'));
 
   // La descripción escrita por el usuario gana sobre la reconstruida: está en castellano y dice el
   // porqué de negocio, no la mecánica.
@@ -100,6 +112,14 @@ export function explainLine(
     acumulado: line.runningSubtotal,
     override: line.override ? { value: line.override.value, reason: line.override.reason } : null,
     excluida,
+    origen: {
+      source: line.source ?? null,
+      ruleId: line.ruleId,
+      scope: line.ruleScope ?? null,
+      partyId: line.rulePartyId ?? null,
+      version: line.ruleVersion ?? null,
+      tableId: line.tableMatch?.tableId ?? null,
+    },
   };
 }
 
@@ -204,5 +224,6 @@ export function explainCost(result: CalcResult): ExplainedLine[] {
     acumulado: line.runningSubtotal,
     override: null,
     excluida: false,
+    origen: { source: line.source ?? null, ruleId: null, scope: null, partyId: null, version: null, tableId: null },
   }));
 }

@@ -18,6 +18,21 @@ import Badge from '../base/Badge';
 import { explainCost, explainResult, type ExplainContext } from '../../lib/tarifas/explain';
 import { formatMoney, formatPct } from '../../lib/tarifas/format';
 import type { CalcResult, Money } from '../../lib/tarifas/types';
+import type { ExplainedLine } from '../../lib/tarifas/explain';
+
+/** Dónde se edita lo que produjo la línea, en palabras. */
+function originLabel(line: ExplainedLine, replacesCountry: boolean): { text: string; tone: string } | null {
+  const { source, scope } = line.origen;
+  if (source === 'ADHOC') return { text: 'Regla de esta liquidación', tone: 'bg-purple-50 text-purple-700' };
+  if (source === 'COST_ROW') return { text: 'Estructura de costos', tone: 'bg-slate-100 text-slate-600' };
+  if (source === 'OWN_PARAMS') return { text: 'Costos del país', tone: 'bg-slate-100 text-slate-600' };
+  if (source === 'FLAT_RATE') return { text: 'Tarifa plana del transportista', tone: 'bg-slate-100 text-slate-600' };
+  if (scope === 'PARTY') {
+    return { text: replacesCountry ? 'Regla del transportista · reemplaza a la del país' : 'Regla del transportista', tone: 'bg-amber-50 text-amber-700' };
+  }
+  if (source === 'RULE') return { text: 'Regla del país', tone: 'bg-teal-50 text-teal-700' };
+  return null;
+}
 
 interface Props {
   result: CalcResult;
@@ -28,12 +43,14 @@ interface Props {
   total?: Money;
   /** Permite destildar líneas. En el Probador no aplica. */
   onToggleLine?: (seq: number) => void;
+  /** Enlace para abrir una regla o un tarifario desde su línea. Sin él no se muestran enlaces. */
+  hrefFor?: (origin: ExplainedLine['origen']) => string | null;
 }
 
 type Nivel = 'resumen' | 'detalle' | 'auditoria';
 
 export default function CalcBreakdownPanel({
-  result, ctx, excludedSeqs, total, onToggleLine,
+  result, ctx, excludedSeqs, total, onToggleLine, hrefFor,
 }: Props) {
   const [nivel, setNivel] = useState<Nivel>('detalle');
 
@@ -42,6 +59,9 @@ export default function CalcBreakdownPanel({
   const moneda = explicacion.currency;
 
   const difiere = total !== undefined && total !== result.totalLiquidado;
+  const countryOverridden = new Set(
+    result.discarded.filter((d) => d.reason === 'OVERRIDDEN_BY_PARTY').map((d) => d.ruleCode),
+  );
 
   return (
     <div className="space-y-4">
@@ -149,6 +169,21 @@ export default function CalcBreakdownPanel({
                   <td className="px-3 py-2">
                     <div className={line.excluida ? 'line-through' : 'text-slate-800'}>{line.label}</div>
                     <div className="text-[11px] text-slate-400 font-mono">{line.ruleCode}</div>
+                    {(() => {
+                      const origin = originLabel(line, countryOverridden.has(line.ruleCode));
+                      if (!origin) return null;
+                      const href = hrefFor?.(line.origen) ?? null;
+                      return (
+                        <div className="mt-0.5 flex items-center gap-1.5">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] ${origin.tone}`}>{origin.text}</span>
+                          {href && (
+                            <a href={href} target="_blank" rel="noreferrer" className="text-[10px] text-teal-600 hover:underline">
+                              Abrir
+                            </a>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-3 py-2 text-slate-600 max-w-[16rem]">
                     {line.porQue ?? <span className="text-slate-300">—</span>}
