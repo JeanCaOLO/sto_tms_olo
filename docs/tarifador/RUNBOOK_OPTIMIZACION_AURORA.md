@@ -28,11 +28,15 @@ Evidencia: CloudWatch 14 días (cuenta `tms-sandbox`, us-east-2) y lectura del r
 | Caché del catálogo contra la API (TTL 60 s) | `catalogLoader.ts`, `data/writeEvents.ts`, `http-datasource.ts` | Un cálculo repetido no recarga ~14 consultas. Se descarta al instante cuando esta sesión escribe una entidad del catálogo; las ediciones de otras personas se ven en ≤ 60 s. Solo con el driver HTTP. |
 | Número de liquidación sin carrera | `data/schema.ts`, `sql/26_tarifas_indices_rendimiento.sql` | Índice único `(country_id, number)`: dos emisiones simultáneas ya no repiten `LIQ-NNNN`; la segunda recibe un aviso. |
 | Índices de lectura | `sql/26_tarifas_indices_rendimiento.sql` | `(country_id, settlement_date desc, number desc)` en liquidaciones y `(table_id, active)` en filas de tarifario. |
+| Tabla de liquidaciones sin el cálculo | `settlementsDataSource.ts` (`listSettlementSummaries`), `liquidaciones/page.tsx` | El listado no trae `trace`, reglas, avisos, etc.; el desglose y re-liquidar leen la liquidación entera al abrir (`getSettlement`), así que siempre está al día. |
+| Vista de viajes con un solo recorrido de guías | `sql/27_tarifas_vista_viajes_un_recorrido.sql` | `guide_count` y `delivered_guides` salen de una sola lectura en vez de dos subconsultas. Mismas columnas y valores (verificado: 28 filas idénticas). Solo vistas del tarifador. |
 | Tests | `backend/tests/test_permissions_cache.py`, `test_tarifas.py`, `__tests__/catalogCache.test.ts` | 195 tests de backend y 634 del tarifador en verde. |
 
 También se restauró la entrada `tarifas` de `backend/tests/conftest.py`, que se había perdido en el merge con `main`.
 
-## 3. Runbook: aplicar la migración 26
+## 3. Runbook: aplicar las migraciones 26 y 27
+
+Dry-run de 26 y 27 ejecutado el 2026-10-06 contra Aurora: sin errores, ROLLBACK (la base no cambió). La 27 se probó además contra los datos reales dentro de una transacción revertida: la vista nueva devuelve las mismas 28 filas, idénticas a la actual.
 
 Requisitos: túnel abierto (`scripts/tunel-aurora.ps1`), `.env.local` con `TMS_DB_ADMIN_*`, ventana con poca actividad.
 
@@ -41,16 +45,17 @@ Requisitos: túnel abierto (`scripts/tunel-aurora.ps1`), `.env.local` con `TMS_D
    select country_id, number, count(*) from tarifas_settlements group by 1, 2 having count(*) > 1;
    ```
    Debe devolver 0 filas. Si devuelve filas, renumerar esas liquidaciones a mano antes de seguir.
-2. **Dry-run** (hace ROLLBACK):
+2. **Dry-run** (hace ROLLBACK), uno por archivo:
    `node --env-file=.env.local scripts/run-migration.mjs sql/26_tarifas_indices_rendimiento.sql`
-3. **Aplicar**: el mismo comando con `--execute`.
+   `node --env-file=.env.local scripts/run-migration.mjs sql/27_tarifas_vista_viajes_un_recorrido.sql`
+3. **Aplicar**: los mismos comandos con `--execute`, en orden.
 4. **Validar**:
    ```sql
    select indexname from pg_indexes where tablename in ('tarifas_settlements','tarifas_rate_table_rows')
      and indexname in ('tarifas_settlements_country_number_uq','tarifas_settlements_country_date_idx','tarifas_rate_table_rows_table_active_idx');
    ```
    Deben aparecer los 3. Emitir una liquidación de prueba y comprobar que el número avanza.
-5. **Rollback** (si algo falla): los tres `drop index if exists …` que están al inicio de `sql/26_…sql`. No hay cambios de datos.
+5. **Rollback** (si algo falla): los tres `drop index if exists …` del inicio de `sql/26_…sql`; para la 27, volver a correr la definición de `tarifas_v_viajes` de `sql/24_…sql`. No hay cambios de datos.
 
 Las tablas son pequeñas (61 MB en total): los `create index` tardan milisegundos. Con tablas grandes usar `create index concurrently` fuera de transacción.
 
@@ -74,32 +79,32 @@ Las tablas son pequeñas (61 MB en total): los `create index` tardan milisegundo
 | Hallazgo de seguridad: el SG `default` abre 5432 a `0.0.0.0/0` (`docs/reference/aws-inventario-tms.md`) | Exposición | Solo informar |
 | RDS Proxy, Serverless v2 | Plan C. **No se justifica hoy** (CPU 10 %, 0,56 conexiones) | +USD 15–60/mes |
 
-## 6. Lo que falta medir (necesita el túnel, solo lectura)
+## 6. Medición en la base (2026-10-06, solo lectura)
+
+| Medición | Resultado |
+|---|---|
+| Tamaño de las tablas `tarifas_*` | la mayor, `tarifas_settlements`, 256 kB; el resto 64–144 kB |
+| Vista `tarifas_v_viajes` (28 viajes) | 1,1 ms de ejecución, 2 ms de planificación |
+| Números de liquidación repetidos | 0 (el índice único se puede crear) |
+| Índices con 0 usos (`pg_stat_user_indexes`) | varios de `tarifas_pricing_rules`; **no es evidencia para borrar**: con tablas de decenas de filas el planificador prefiere recorrer la tabla |
+| `pg_stat_statements` | la extensión está precargada pero **no creada** en `tms_olo` (`relation "pg_stat_statements" does not exist`) |
+
+Conclusión: con el volumen actual la base no tiene nada que optimizar por dentro; los cambios sirven para que escale. Para medir consultas hace falta `create extension pg_stat_statements;` con el rol dueño (solicitud a Intelix o al dueño de la BD) y dejar correr tráfico real. Consulta para entonces:
 
 ```sql
--- Consultas más costosas (pg_stat_statements ya está precargado)
 select left(query, 120) q, calls, round(total_exec_time::numeric) total_ms, round(mean_exec_time::numeric, 2) mean_ms
 from pg_stat_statements order by total_exec_time desc limit 20;
-
--- Índices sin uso (candidatos a borrar; no borrar sin esta evidencia)
-select relname, indexrelname, idx_scan from pg_stat_user_indexes
-where relname like 'tarifas_%' order by idx_scan asc limit 30;
-
--- Tamaño de tablas
-select relname, pg_size_pretty(pg_total_relation_size(oid)) from pg_class
-where relname like 'tarifas_%' and relkind = 'r' order by pg_total_relation_size(oid) desc;
-
--- Plan de la vista de viajes
-explain (analyze, buffers) select * from tarifas_v_viajes where status = 'completed' order by route_date desc limit 50;
 ```
+
+Volver a revisar índices sin uso (`pg_stat_user_indexes`) cuando las tablas tengan miles de filas, antes de borrar ninguno.
 
 ## 7. Siguientes pasos (aún no hechos)
 
-1. **Listados con columnas livianas y paginación**: `listSettlements` y `listPendingTrips` siguen trayendo todo (tope 5000). Hace falta que la tabla pida solo las columnas visibles y que el detalle cargue la liquidación completa por id al abrirla.
-2. **`tarifas_v_viajes`**: exponer `route_date` y `status` como columnas reales (hoy son `to_char`/`CASE`, no usan `idx_routes_date` ni `idx_routes_status`) y reemplazar las 4 subqueries correlacionadas por agregados por `route_id`. Con 28 viajes cuesta 1–3 ms; importa a escala.
-3. **Un solo `/tx` al emitir** (número + inserción + auditoría) en vez de ~5 llamadas sueltas; y un endpoint que devuelva el catálogo en una sola llamada.
-4. **Borrar índices individuales** de baja cardinalidad (`active`, `status`, `stage`, `scope`, `margin_status`) solo si `pg_stat_user_indexes` confirma que no se usan.
-5. **Auditoría doble**: `tarifas_audit_log` (cliente) más `audit.events` (trigger) por cada escritura; decidir si se conserva una sola.
+1. **Paginación** de `listPendingTrips` (viajes por liquidar): sigue trayendo todo con tope 5000. Conviene paginar por fecha cuando el volumen lo pida.
+2. **Un solo `/tx` al emitir** (número + inserción + auditoría) en vez de ~5 llamadas sueltas, y un endpoint que devuelva el catálogo en una sola llamada.
+3. **`route_date` y `status` indexables**: hoy son expresiones de la vista (`to_char`, `CASE`) y no usan `idx_routes_date` ni `idx_routes_status`. Indexarlas exige un índice sobre `routes`, que es de otro módulo: se deja como solicitud al dueño de esa tabla si el volumen lo justifica.
+4. **Auditoría doble**: `tarifas_audit_log` (cliente) más `audit.events` (trigger) por cada escritura; decidir si se conserva una sola.
+5. **Borrar índices individuales** de baja cardinalidad solo con evidencia de tablas grandes (sección 6).
 
 ## 8. KPIs para el panel
 
