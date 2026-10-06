@@ -101,7 +101,7 @@ Volver a revisar índices sin uso (`pg_stat_user_indexes`) cuando las tablas ten
 ## 7. Siguientes pasos (aún no hechos)
 
 1. **Paginación** de `listPendingTrips` (viajes por liquidar): sigue trayendo todo con tope 5000. Conviene paginar por fecha cuando el volumen lo pida.
-2. **Un solo `/tx` al emitir** (número + inserción + auditoría) en vez de ~5 llamadas sueltas, y un endpoint que devuelva el catálogo en una sola llamada.
+2. **Un solo `/tx` al emitir**: se evaluó y se dejó. Ahorra una llamada, pero meter la bitácora dentro de la transacción cambia el contrato actual (una bitácora caída ya no tumba una liquidación guardada) y con el caché de permisos el ahorro es mínimo. Un endpoint de "catálogo en una llamada" tampoco hace falta mientras rija el caché de 60 s.
 3. **`route_date` y `status` indexables**: hoy son expresiones de la vista (`to_char`, `CASE`) y no usan `idx_routes_date` ni `idx_routes_status`. Indexarlas exige un índice sobre `routes`, que es de otro módulo: se deja como solicitud al dueño de esa tabla si el volumen lo justifica.
 4. **Auditoría doble**: `tarifas_audit_log` (cliente) más `audit.events` (trigger) por cada escritura; decidir si se conserva una sola.
 5. **Borrar índices individuales** de baja cardinalidad solo con evidencia de tablas grandes (sección 6).
