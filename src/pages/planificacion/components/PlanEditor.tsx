@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { usePlanes } from '../use-planes';
+import { useNuevosPedidos } from '../use-nuevos-pedidos';
 import { useZonasNombre } from '../use-zonas-nombre';
 import type { MockContext } from '../planes-api';
 import PlanTripCard from './PlanTripCard';
@@ -37,6 +38,13 @@ export default function PlanEditor({ fecha, pedidosCount, vehiculosCount, ctx, d
   const { nombreDe } = useZonasNombre();
   const editable = plan?.status === 'draft';
 
+  // Pedidos que consideró el plan actual (paradas + sin-asignar). Base para
+  // detectar pedidos nuevos que llegaron DESPUÉS de generar → hay que regenerar.
+  const pedidosEnPlan = plan
+    ? plan.trips.reduce((acc, tr) => acc + tr.stops.length, 0) + plan.unassigned_order_numbers.length
+    : null;
+  const nuevosPedidos = useNuevosPedidos(fecha, pedidosEnPlan);
+
   const confirmarPlan = async () => {
     await confirmar();
     onConfirmed?.();
@@ -65,15 +73,30 @@ export default function PlanEditor({ fecha, pedidosCount, vehiculosCount, ctx, d
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            data-testid="generar-plan"
-            onClick={generar}
-            disabled={generando || disabled || pedidosCount === 0}
-            className="px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-300 text-white text-sm font-semibold rounded-lg cursor-pointer flex items-center gap-2"
-          >
-            <i className={generando ? 'ri-loader-4-line animate-spin' : 'ri-route-line'}></i>
-            {generando ? t('planning.generating') : t('planning.generate')}
-          </button>
+          <div className="relative">
+            <button
+              data-testid="generar-plan"
+              onClick={generar}
+              disabled={generando || disabled || pedidosCount === 0}
+              className={`px-4 py-2 text-white text-sm font-semibold rounded-lg cursor-pointer flex items-center gap-2 ${
+                nuevosPedidos > 0 && !generando
+                  ? 'bg-amber-500 hover:bg-amber-600 animate-pulse'
+                  : 'bg-teal-600 hover:bg-teal-700 disabled:bg-teal-300'
+              }`}
+            >
+              <i className={generando ? 'ri-loader-4-line animate-spin' : plan ? 'ri-refresh-line' : 'ri-route-line'}></i>
+              {generando ? t('planning.generating') : t(plan ? 'planning.regenerate' : 'planning.generate')}
+            </button>
+            {nuevosPedidos > 0 && !generando && (
+              <span
+                data-testid="nuevos-pedidos-badge"
+                title={t('planning.newOrders', { count: nuevosPedidos })}
+                className="absolute -top-2 -right-2 min-w-5 h-5 px-1 flex items-center justify-center rounded-full bg-red-600 text-white text-[11px] font-bold shadow"
+              >
+                {nuevosPedidos}
+              </span>
+            )}
+          </div>
           {editable && (
             <button
               data-testid="confirmar-plan"
