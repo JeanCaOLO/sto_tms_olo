@@ -40,7 +40,7 @@ from tarifas_sql import build_delete, build_find, build_get, build_insert, build
 MODULE = "tarifas"
 CONFIG_MODULE = "tarifas.config"
 # Lo único que escribe quien liquida; todo lo demás es configuración.
-LIQUIDATION_TABLES = frozenset({"tarifas_settlements", "tarifas_audit_log"})
+LIQUIDATION_TABLES = frozenset({"tarifas_settlements", "tarifas_audit_log", "tarifas_trip_order_marks"})
 TX_RETRIES = 2  # reintentos ante deadlock (40P01) o fallo de serialización (40001)
 TX_OPERATIONS = {"insert": "create", "update": "edit", "delete": "delete"}
 

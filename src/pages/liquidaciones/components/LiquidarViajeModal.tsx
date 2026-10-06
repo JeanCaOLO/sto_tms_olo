@@ -16,6 +16,7 @@ import CalcBreakdownPanel, { AllocationBlock } from '../../../components/tarifas
 import { calculateTrip, type TripCalculation } from '../../../lib/tarifas/tripSettlement';
 import { listTripReturns } from '../../../lib/tarifas/tripsDataSource';
 import { describeTrip, emptyTripEdits } from '../../../lib/tarifas/tripContext';
+import { snapshotOrders, tripProgress } from '../../../lib/tarifas/tripOrders';
 import {
   constantVars, initialCustomVarValues, parseCustomVarValues,
 } from '../../../lib/tarifas/customVarFields';
@@ -25,6 +26,7 @@ import {
   emitSettlement, reliquidateSettlement, type EmitSettlementResult,
 } from '../../../lib/tarifas/settlementsDataSource';
 import { formatMoney } from '../../../lib/tarifas/format';
+import TripOrdersPanel from './TripOrdersPanel';
 import { InterruptorVista, useVistaLiquidador } from './useVistaLiquidador';
 import type {
   SettlementRecord, SettlementReturn, SettlementStatus, TripEdits, TripRecord,
@@ -70,6 +72,8 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState<SettlementStatus>('Borrador');
   const [reason, setReason] = useState('');
+  // Vista simple: el detalle (pedidos, devoluciones, desglose) queda plegado detrás de "Ver más".
+  const [verMas, setVerMas] = useState(false);
 
   // Lo que se calculó: es lo que se guarda, aunque después se siga tecleando.
   const editsUsed = useRef<TripEdits>(emptyTripEdits());
@@ -110,6 +114,7 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
     setNotes(settlement?.notes ?? '');
     setStatus('Borrador');
     setReason('');
+    setVerMas(false);
     setCustomRaw({});
     setReturns(settlement?.returns ?? []);
     setLoading(true);
@@ -210,6 +215,7 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
         rulesUsed: calculation.input.rules.filter((r) => calculation.result.trace.some((l) => l.ruleId === r.id)),
         excludedSeqs: [...excludedSeqs],
         returns,
+        orders: calculation.orders.length > 0 ? snapshotOrders(calculation.orders) : null,
         totalAmount: totals.total,
       };
       const result: EmitSettlementResult = settlement
@@ -229,13 +235,25 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
     }
   };
 
+  const progreso = calculation ? tripProgress(calculation.trip) : null;
+  const pedidosPanel = calculation && (
+    <TripOrdersPanel
+      trip={calculation.trip}
+      currency={currency}
+      editable
+      onChanged={() => { void runCalc(editsUsed.current); }}
+      intro={'Cada guía lleva un pedido. Anular saca el pedido del reparto; "Liquidar después" lo deja con su proforma '
+        + 'pendiente. Ninguna de las dos cambia lo que se le paga al transportista.'}
+    />
+  );
+
   const updateReturn = (i: number, patch: Partial<SettlementReturn>) =>
     setReturns(returns.map((x, j) => (j === i ? { ...x, ...patch } : x)));
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className={`bg-white rounded-lg shadow-xl w-full ${simple ? 'max-w-3xl' : 'max-w-7xl'} max-h-[94vh] overflow-y-auto`}>
-        <div className="sticky top-0 bg-white flex items-center justify-between px-6 py-4 border-b border-slate-200 z-10">
+      <div className={`bg-white rounded-lg shadow-xl w-full ${simple ? 'max-w-3xl' : 'max-w-7xl'} max-h-[94vh] flex flex-col`}>
+        <div className="shrink-0 bg-white flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <div>
             <h2 className="text-lg font-semibold text-slate-800">
               {reliquidando ? 'Re-liquidar viaje' : 'Liquidar viaje'}
@@ -259,6 +277,7 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
           </button>
         </div>
 
+        <div className="flex-1 min-h-0 overflow-y-auto">
         {loading && !calculation ? (
           <div className="text-center py-20 text-slate-400"><i className="ri-loader-4-line animate-spin text-2xl"></i></div>
         ) : (
@@ -273,6 +292,14 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
               {calculation?.notLiquidableReason && (
                 <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-4 py-2.5">
                   <i className="ri-information-line mr-1"></i>{calculation.notLiquidableReason}
+                </div>
+              )}
+
+              {calculation && progreso && !progreso.complete && !calculation.notLiquidableReason && (
+                <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-4 py-2.5">
+                  <i className="ri-error-warning-line mr-1"></i>
+                  Este viaje no está 100&nbsp;% entregado ({progreso.label.toLowerCase()}). Podés liquidarlo completo, o
+                  anular los pedidos que no corresponden / dejarlos para liquidar después en <strong>Pedidos del viaje</strong>.
                 </div>
               )}
 
@@ -342,13 +369,78 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
                     </section>
                   )}
 
-                  {/* ── 3 · Devoluciones ────────────────────────────────────────────────── */}
+                  {/* ── Pedidos del viaje ───────────────────────────────────────────────────── */}
+                  {!simple && (
+                    <section className="border-t border-slate-200 pt-4">
+                      <h3 className="text-sm font-semibold text-slate-700 mb-2">3 · Pedidos del viaje</h3>
+                      {pedidosPanel}
+                    </section>
+                  )}
+
+                  {simple && (
+                    <div className="border-t border-slate-200 pt-3">
+                      <button
+                        type="button"
+                        onClick={() => setVerMas((v) => !v)}
+                        aria-expanded={verMas}
+                        className="text-sm font-medium text-teal-700 hover:underline cursor-pointer"
+                      >
+                        <i className={`${verMas ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} mr-1`}></i>
+                        {verMas ? 'Ver menos' : 'Ver más: pedidos, devoluciones y desglose'}
+                      </button>
+                      {verMas && (
+                        <div className="mt-3 max-h-[42vh] overflow-y-auto border border-slate-200 rounded-lg p-3 space-y-4 bg-slate-50/50">
+                          <section>
+                            <h3 className="text-sm font-semibold text-slate-700 mb-2">Pedidos del viaje</h3>
+                            {pedidosPanel}
+                          </section>
+                          <section>
+                            <h3 className="text-sm font-semibold text-slate-700 mb-2">Por qué este total</h3>
+                            {effectiveResult && totals && (
+                              <CalcBreakdownPanel
+                                result={effectiveResult}
+                                ctx={{
+                                  rules: calculation.input.rules,
+                                  customLabels: Object.fromEntries(
+                                    (calculation.input.partyVariables ?? []).map((v) => [v.key, v.label]),
+                                  ),
+                                }}
+                                excludedSeqs={excludedSeqs}
+                                total={totals.total}
+                                fixedLevel="resumen"
+                              />
+                            )}
+                          </section>
+                          <section>
+                            <h3 className="text-sm font-semibold text-slate-700 mb-1">
+                              Devoluciones{returns.length > 0 ? ` · ${returns.length}` : ''}
+                            </h3>
+                            <p className="text-xs text-slate-500">
+                              <strong>Solo informativas:</strong> vienen de guía de despacho y no cambian lo que se paga.
+                            </p>
+                            {returns.length === 0 ? (
+                              <p className="text-xs text-slate-400 mt-1">Sin devoluciones en este viaje.</p>
+                            ) : (
+                              <ul className="mt-1 text-xs text-slate-600 space-y-0.5">
+                                {returns.map((d, i) => (
+                                  <li key={i}>• {d.invoiceNumber || 'sin número'} · {d.kind === 'TOTAL' ? 'total' : `parcial ${d.productCode}`}{d.notes ? ` · ${d.notes}` : ''}</li>
+                                ))}
+                              </ul>
+                            )}
+                          </section>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── 4 · Devoluciones (solo vista extendida) ───────────────────────────────── */}
+                  {!simple && (
                   <details className="border-t border-slate-200 pt-4 group" open={!simple}>
                     <summary className={`text-sm font-semibold text-slate-700 cursor-pointer ${simple ? '' : 'hidden'}`}>
                       Devoluciones (opcional){returns.length > 0 ? ` · ${returns.length}` : ''}
                     </summary>
                     <div className="flex items-center justify-between mb-2 mt-2">
-                      <h3 className="text-sm font-semibold text-slate-700">{simple ? '' : '3 · Devoluciones'}</h3>
+                      <h3 className="text-sm font-semibold text-slate-700">{simple ? '' : '4 · Devoluciones'}</h3>
                       <Button variant="secondary" size="sm" onClick={() => setReturns([...returns, emptyReturn()])}>
                         <i className="ri-add-line mr-1"></i>Agregar
                       </Button>
@@ -395,12 +487,13 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
                       <p className="text-xs text-slate-400">Sin devoluciones en este viaje.</p>
                     )}
                   </details>
+                  )}
 
                   {/* ── 4 · Cierre ──────────────────────────────────────────────────────── */}
                   <section className="border-t border-slate-200 pt-4 space-y-3">
                     {!simple && (
                       <>
-                        <h3 className="text-sm font-semibold text-slate-700">4 · Notas y estado</h3>
+                        <h3 className="text-sm font-semibold text-slate-700">5 · Notas y estado</h3>
                         <textarea
                           value={notes}
                           onChange={(e) => setNotes(e.target.value)}
@@ -461,26 +554,6 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
                   </div>
                 )}
 
-                {calculation && totals && simple && (
-                  <details className="border border-slate-200 rounded-lg px-4 py-3">
-                    <summary className="text-sm font-semibold text-slate-700 cursor-pointer">Por qué este total</summary>
-                    <div className="mt-3">
-                      <CalcBreakdownPanel
-                        result={effectiveResult ?? calculation.result}
-                        ctx={{
-                          rules: calculation.input.rules,
-                          customLabels: Object.fromEntries(
-                            (calculation.input.partyVariables ?? []).map((v) => [v.key, v.label]),
-                          ),
-                        }}
-                        excludedSeqs={excludedSeqs}
-                        total={totals.total}
-                        fixedLevel="resumen"
-                      />
-                    </div>
-                  </details>
-                )}
-
                 {calculation && effectiveResult && (
                   <AllocationBlock allocation={effectiveResult.allocation} />
                 )}
@@ -521,8 +594,9 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
             </div>
           </div>
         )}
+        </div>
 
-        <div className="sticky bottom-0 bg-white flex items-center justify-between px-6 py-4 border-t border-slate-200">
+        <div className="shrink-0 bg-white flex items-center justify-between px-6 py-4 border-t border-slate-200">
           <div className="text-sm">
             {totals && (
               <span className="text-slate-600">

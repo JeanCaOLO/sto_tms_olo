@@ -4,10 +4,11 @@
 // externa `trip`, vista `tarifas_v_viajes`), igual que cualquier otro dato: por `db()`, nunca por un
 // fetch aparte.
 
-import Decimal from 'decimal.js';
 import { db, type Condition } from './data';
 import { isLiquidable, toTripRecord } from './tripContext';
-import type { CargoPart, CargoSummary, SettlementReturn, TripRecord } from './types';
+import { getActorRole } from './actor';
+import { cargoFromOrders, toTripOrder, tripProgress } from './tripOrders';
+import type { CargoSummary, OrderMark, SettlementReturn, TripOrder, TripRecord } from './types';
 
 export interface TripFilter {
   countryId?: string;
@@ -68,6 +69,30 @@ export async function listLiquidableTrips(filter: Omit<TripFilter, 'status'> = {
   return (await withVigentes(rows.map(toTripRecord))).filter(isLiquidable);
 }
 
+/** Qué viajes mostrar en la bandeja. */
+export type TripScope =
+  /** Completados y 100 % entregados, sin liquidación vigente: los que se pueden liquidar sin dudas. */
+  | 'ready'
+  /** Sin liquidación vigente y con algo pendiente (no completados o con pedidos sin entregar): para auditar. */
+  | 'incomplete'
+  /** Todos los que no tienen liquidación vigente (menos los anulados). */
+  | 'all';
+
+/**
+ * Viajes sin liquidación vigente según `scope`. Los viajes anulados en guía de despacho nunca se
+ * listan: no hay nada que auditar de ellos.
+ */
+export async function listPendingTrips(
+  scope: TripScope,
+  filter: Omit<TripFilter, 'status'> = {},
+): Promise<TripRecord[]> {
+  if (scope === 'ready') {
+    return (await listLiquidableTrips(filter)).filter((t) => tripProgress(t).complete);
+  }
+  const trips = (await listTrips(filter)).filter((t) => !t.settlementId && t.status !== 'cancelled');
+  return scope === 'incomplete' ? trips.filter((t) => !tripProgress(t).complete) : trips;
+}
+
 export async function getTrip(id: string): Promise<TripRecord | null> {
   const row = await db().findOne('trip', id);
   if (!row) return null;
@@ -101,32 +126,72 @@ export async function listTripReturns(tripId: string): Promise<SettlementReturn[
   }));
 }
 
+/** Los pedidos de un viaje (uno por guía), con la marca que se les haya puesto. */
+export async function listTripOrders(tripId: string): Promise<TripOrder[]> {
+  const rows = await db().find('tripOrder', {
+    where: [{ column: 'route_id', op: 'eq', value: tripId }],
+    orderBy: [{ column: 'sequence_number' }, { column: 'guide_number', locale: true }],
+  });
+  // La marca se lee de su tabla (no solo de la vista) para que valga igual con cualquier driver.
+  const marks = await db().find('tripOrderMark', {
+    where: [{ column: 'trip_id', op: 'eq', value: tripId }],
+  });
+  const byOrder = new Map(marks.map((m) => [String(m.order_id), m]));
+  return rows.map((row) => {
+    const mark = row.order_id ? byOrder.get(String(row.order_id)) : undefined;
+    return toTripOrder(mark ? { ...row, mark: mark.mark, mark_reason: mark.reason } : row);
+  });
+}
+
 /**
- * La mercancía de un viaje, por casa comercial: los pedidos de sus guías de despacho. Null si el
- * viaje no tiene pedidos cargados (no hay con qué medir ganancia ni repartir). Solo lectura.
+ * La mercancía de un viaje, por casa comercial: los pedidos de sus guías de despacho, sin los
+ * anulados. Null si el viaje no tiene pedidos cargados (no hay con qué medir ganancia ni repartir).
  */
 export async function getTripCargo(tripId: string): Promise<CargoSummary | null> {
-  const rows = await db().find('tripCargo', {
-    where: [{ column: 'route_id', op: 'eq', value: tripId }],
-    orderBy: [{ column: 'customer_name', locale: true }],
-  });
-  if (rows.length === 0) return null;
+  return cargoFromOrders(await listTripOrders(tripId));
+}
 
-  const parts: CargoPart[] = rows.map((r) => ({
-    customerId: r.customer_id ?? null,
-    code: r.customer_code ?? null,
-    name: String(r.customer_name ?? 'Sin casa comercial'),
-    value: String(r.value ?? '0'),
-    weightKg: Number(r.weight_kg ?? 0),
-    volumeM3: Number(r.volume_m3 ?? 0),
-    items: Number(r.items ?? 0),
-    orders: Number(r.orders ?? 0),
-  }));
-  return {
-    value: parts.reduce((sum, p) => sum.plus(p.value), new Decimal(0)).toFixed(2),
-    weightKg: parts.reduce((sum, p) => sum + p.weightKg, 0),
-    volumeM3: parts.reduce((sum, p) => sum + p.volumeM3, 0),
-    orders: parts.reduce((sum, p) => sum + p.orders, 0),
-    parts,
-  };
+export interface OrderMarkInput {
+  trip: Pick<TripRecord, 'id' | 'countryId'>;
+  orderId: string;
+  /** Null = quitar la marca: el pedido vuelve a entrar en la liquidación. */
+  mark: OrderMark | null;
+  reason?: string | null;
+}
+
+/**
+ * Anula un pedido del viaje, lo deja para liquidar después, o le quita la marca. Una sola marca por
+ * pedido y viaje. Anular exige un motivo: es lo que la auditoría va a querer saber.
+ */
+export async function setOrderMark(input: OrderMarkInput): Promise<{ error: string | null }> {
+  const reason = input.reason?.trim() || null;
+  if (input.mark === 'ANULADO' && !reason) return { error: 'Indicá por qué se anula el pedido.' };
+
+  try {
+    await db().transaction(async (tx) => {
+      const existing = await tx.find('tripOrderMark', {
+        where: [
+          { column: 'trip_id', op: 'eq', value: input.trip.id },
+          { column: 'order_id', op: 'eq', value: input.orderId },
+        ],
+      });
+      if (!input.mark) {
+        for (const row of existing) await tx.delete('tripOrderMark', row.id);
+        return;
+      }
+      const values = {
+        country_id: input.trip.countryId,
+        trip_id: input.trip.id,
+        order_id: input.orderId,
+        mark: input.mark,
+        reason,
+        actor: getActorRole(),
+      };
+      if (existing[0]) await tx.update('tripOrderMark', existing[0].id, values);
+      else await tx.insert('tripOrderMark', values);
+    });
+    return { error: null };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
 }

@@ -18,6 +18,8 @@ export interface RateTableMapping {
   /** Un índice por cada columna de la clave, en el mismo orden que `keyColumns`. */
   key: (number | null)[];
   amount: number | null;
+  /** Columna de la planilla de cada columna de valor adicional del tarifario, por nombre. */
+  values?: Record<string, number | null>;
 }
 
 export interface RateTableSheetAnalysis {
@@ -34,6 +36,8 @@ export interface ParsedRateTableRow {
   amount: string;
   /** Valor original de la celda del importe, para mostrarlo al lado en la vista previa. */
   rawAmount: string;
+  /** Valores de las columnas adicionales que se pudieron leer, por nombre. */
+  values?: Record<string, string>;
   sourceRow: number;
 }
 
@@ -92,6 +96,8 @@ export function analyzeRateTableSheet(
   keyColumns: VarKey[],
   /** Rótulos de las variables personalizadas de la clave (`custom:*` → "Tipo de carga"), para reconocer su encabezado. */
   customLabels: Record<string, string> = {},
+  /** Columnas de valor adicionales del tarifario: se buscan por su nombre en los encabezados. */
+  valueColumns: string[] = [],
 ): RateTableSheetAnalysis {
   const headerRow = detectHeaderRow(matrix);
   const headers = (matrix[headerRow] ?? []).map(text);
@@ -124,6 +130,11 @@ export function analyzeRateTableSheet(
   };
   const key = keyColumns.map((column) => buscarPorEncabezado(hintsOf(column)));
 
+  // Las columnas de valor adicionales se reconocen por su nombre exacto ("flete"): se buscan ANTES del
+  // importe principal para que una palabra genérica ("valor") no se las lleve.
+  const values: Record<string, number | null> = {};
+  for (const name of valueColumns) values[name] = buscarPorEncabezado([fold(name)]);
+
   let amount = buscarPorEncabezado(AMOUNT_HINTS);
   if (amount === null) {
     amount = ultimaColumnaNumerica(matrix, firstDataRow, usadas);
@@ -146,7 +157,7 @@ export function analyzeRateTableSheet(
     notes.push(`${sinMapear} columna${sinMapear === 1 ? '' : 's'} de la clave sin asignar: revisá el mapeo.`);
   }
 
-  return { headerRow, firstDataRow, headers, mapping: { key, amount }, notes };
+  return { headerRow, firstDataRow, headers, mapping: { key, amount, ...(valueColumns.length ? { values } : {}) }, notes };
 }
 
 function ultimaColumnaNumerica(
@@ -215,7 +226,15 @@ export function parseRateTableSheet(
       continue;
     }
 
-    rows.push({ key, amount, rawAmount, sourceRow: i });
+    // Columnas adicionales: una celda vacía o ilegible deja a la fila sin ese valor (no entra como cero).
+    const values: Record<string, string> = {};
+    for (const [name, columna] of Object.entries(mapping.values ?? {})) {
+      if (columna === null || columna === undefined) continue;
+      const leido = parseAmount(text(row[columna]), format);
+      if (leido !== null) values[name] = leido;
+    }
+
+    rows.push({ key, amount, rawAmount, ...(Object.keys(values).length ? { values } : {}), sourceRow: i });
   }
 
   return { rows, skipped };

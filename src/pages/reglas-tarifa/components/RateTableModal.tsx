@@ -39,6 +39,7 @@ const emptyForm = (countryId: string): RateTableInput => ({
   code: '',
   name: '',
   keyColumns: ['originZone', 'truckTypeId'],
+  valueColumns: [],
   active: true,
 });
 
@@ -54,6 +55,8 @@ export default function RateTableModal({
   const [carrierPick, setCarrierPick] = useState<string | null>(null);
   // Variables personalizadas de la compañía del tarifario: pueden formar parte de la clave.
   const [partyVars, setPartyVars] = useState<PartyVariable[]>([]);
+  // Las columnas de valor adicionales, tal como se teclean ("flete, peaje").
+  const [valueColumnsText, setValueColumnsText] = useState('');
 
   useEffect(() => {
     if (!isOpen) return;
@@ -67,9 +70,11 @@ export default function RateTableModal({
         code: table.code,
         name: table.name,
         keyColumns: [...table.keyColumns],
+        valueColumns: [...(table.valueColumns ?? [])],
         active: table.active,
       }
       : emptyForm(countryId));
+    setValueColumnsText((table?.valueColumns ?? []).join(', '));
   }, [isOpen, table, countryId]);
 
   useEffect(() => {
@@ -121,6 +126,11 @@ export default function RateTableModal({
     const copia = [...form.keyColumns];
     [copia[index], copia[destino]] = [copia[destino]!, copia[index]!];
     set('keyColumns', copia);
+  };
+
+  const cambiarColumnasDeValor = (text: string) => {
+    setValueColumnsText(text);
+    set('valueColumns', text.split(',').map((c) => c.trim()).filter(Boolean));
   };
 
   const handleSave = async () => {
@@ -291,6 +301,7 @@ export default function RateTableModal({
                 <p className="text-[11px] text-slate-400 mb-1">Así se va a ver una fila:</p>
                 <code className="text-xs text-teal-300 font-mono whitespace-nowrap">
                   {form.keyColumns.map(varLabelOf).join('  |  ')}  |  Importe
+                  {(form.valueColumns ?? []).map((c) => `  |  ${c}`).join('')}
                 </code>
               </div>
             )}
@@ -309,6 +320,29 @@ export default function RateTableModal({
                   : 'Las variables personalizadas solo se pueden usar en el tarifario de una compañía con perfil de cálculo.'}
               </span>
             </div>
+          </div>
+
+          {/* ── Varios valores por fila ───────────────────────────────────────────────────── */}
+          <div className="border border-slate-200 rounded-lg p-4 space-y-2">
+            <h3 className="text-sm font-semibold text-slate-700">Columnas de valor adicionales (opcional)</h3>
+            <p className="text-xs text-slate-500">
+              Por defecto cada fila trae un solo importe. Si la misma combinación da más de un valor
+              (por ejemplo <em>flete</em> y <em>peaje</em>), escribí sus nombres separados por coma y
+              cada regla elegirá cuál usa.
+            </p>
+            <Input
+              label="Nombres de las columnas"
+              value={valueColumnsText}
+              onChange={(e) => cambiarColumnasDeValor(e.target.value)}
+              placeholder="flete, peaje"
+              error={errors.valueColumns}
+            />
+            {table && (table.valueColumns ?? []).some((c) => !(form.valueColumns ?? []).includes(c)) && (
+              <p className="text-xs text-amber-700">
+                <i className="ri-alert-line mr-1"></i>
+                Quitaste una columna que ya existe: sus valores se borran de todas las filas.
+              </p>
+            )}
           </div>
 
           {claveCambiada && (

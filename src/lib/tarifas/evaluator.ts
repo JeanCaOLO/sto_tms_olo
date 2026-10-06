@@ -243,6 +243,14 @@ export function evaluateExpr(expr: Expr, ctx: EvalContext): Decimal {
         return evaluateExpr(expr.fallback, ctx);
       }
 
+      // Una regla que pide una columna que el tarifario no tiene no puede leer nada: se avisa y va el respaldo.
+      if (expr.column && !(table.valueColumns ?? []).includes(expr.column)) {
+        ctx.warn(
+          `La regla pide la columna "${expr.column}" del tarifario "${table.code}", que no la tiene: se usó la tarifa de respaldo.`,
+        );
+        return evaluateExpr(expr.fallback, ctx);
+      }
+
       const found = lookupRateTable(table, ctx.rateTableRows ?? [], ctx.vars);
       if (!found) {
         const clave = table.keyColumns.map((c) => `${c}=${ctx.vars[c] ?? '(vacío)'}`).join(', ');
@@ -258,8 +266,21 @@ export function evaluateExpr(expr: Expr, ctx: EvalContext): Decimal {
         );
       }
 
-      ctx.recordTableMatch?.(found.match);
-      return toDecimal(found.row.amount);
+      // La columna elegida, o el valor principal. Una fila sin ese valor no cobra "0": avisa y usa el respaldo.
+      let amount: string | undefined = found.row.amount;
+      if (expr.column) {
+        amount = found.row.values?.[expr.column];
+        if (amount === undefined || amount === null || amount === '') {
+          ctx.warn(
+            `La fila "${found.match.matchedKey}" del tarifario "${table.code}" no tiene valor en la columna ` +
+            `"${expr.column}": se usó la tarifa de respaldo.`,
+          );
+          return evaluateExpr(expr.fallback, ctx);
+        }
+      }
+
+      ctx.recordTableMatch?.(expr.column ? { ...found.match, column: expr.column } : found.match);
+      return toDecimal(amount);
     }
 
     case 'MIN':
@@ -439,7 +460,7 @@ function extractInputs(rule: Rule, vars: VarBag): Record<string, string | number
     case 'PER_BLOCK':
       return { [expr.unit]: vars[expr.unit], cada: expr.blockSize, amount: expr.amount };
     case 'LOOKUP_TABLE':
-      return { tabla: expr.table };
+      return expr.column ? { tabla: expr.table, columna: expr.column } : { tabla: expr.table };
     case 'MIN':
     case 'MAX':
     case 'CLAMP':

@@ -2,7 +2,7 @@
 //
 // Quien solo liquida viajes ve lo mínimo: variables, total y emitir. Quien configura el tarifador
 // (permiso `tarifas.config`) además puede ver todo el desglose y elegir entre ambas vistas; la
-// elección se recuerda en el navegador.
+// elección se recuerda en el navegador. Por defecto se ve la simple.
 
 import { useState } from 'react';
 import { usePermissions } from '../../../hooks/usePermissions';
@@ -11,9 +11,9 @@ const STORAGE_KEY = 'liquidador.vista';
 
 const leerPreferencia = (): 'simple' | 'extendida' => {
   try {
-    return localStorage.getItem(STORAGE_KEY) === 'simple' ? 'simple' : 'extendida';
+    return localStorage.getItem(STORAGE_KEY) === 'extendida' ? 'extendida' : 'simple';
   } catch {
-    return 'extendida';
+    return 'simple';
   }
 };
 

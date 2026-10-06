@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, it, expect } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect } from 'vitest';
 import { render, screen, fireEvent, within, cleanup } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { ReactElement } from 'react';
@@ -99,5 +99,98 @@ describe('DataTable buscador sin mayúsculas ni acentos', () => {
     const body = document.querySelector('tbody')!;
     expect(within(body).getByText('José Álvarez')).toBeTruthy();
     expect(within(body).queryByText('Ana Pérez')).toBeNull();
+  });
+});
+
+describe('DataTable columnas ocultas y ordenadas (columnsKey)', () => {
+  interface Trip { id: string; code: string; carrier: string; km: number; }
+  const trips: Trip[] = [{ id: '1', code: 'RT-1', carrier: 'Acme', km: 120 }];
+  const cols: DataTableColumn<Trip>[] = [
+    { key: 'code', header: 'Viaje', accessor: (r) => r.code },
+    { key: 'carrier', header: 'Transportista', accessor: (r) => r.carrier },
+    { key: 'km', header: 'Km', accessor: (r) => r.km },
+  ];
+  const headers = () => [...document.querySelectorAll('thead th')].map((th) => th.textContent?.trim());
+
+  beforeEach(() => localStorage.clear());
+
+  it('sin columnsKey no hay botón de columnas', () => {
+    renderWithRouter(<DataTable data={trips} columns={cols} getRowId={(r) => r.id} />);
+    expect(screen.queryByText('Columnas')).toBeNull();
+  });
+
+  it('oculta una columna y lo recuerda', () => {
+    const { unmount } = renderWithRouter(
+      <DataTable data={trips} columns={cols} getRowId={(r) => r.id} columnsKey="t.ocultar" />,
+    );
+    fireEvent.click(screen.getByText('Columnas'));
+    fireEvent.click(screen.getByLabelText('Mostrar Transportista'));
+    expect(headers()).toEqual(['Viaje', 'Km']);
+    unmount();
+
+    renderWithRouter(<DataTable data={trips} columns={cols} getRowId={(r) => r.id} columnsKey="t.ocultar" />);
+    expect(headers()).toEqual(['Viaje', 'Km']);
+  });
+
+  it('mueve una columna con las flechas', () => {
+    renderWithRouter(<DataTable data={trips} columns={cols} getRowId={(r) => r.id} columnsKey="t.mover" />);
+    fireEvent.click(screen.getByText('Columnas'));
+    fireEvent.click(screen.getByLabelText('Subir Km'));
+    expect(headers()).toEqual(['Viaje', 'Km', 'Transportista']);
+  });
+
+  it('no deja ocultar todas las columnas', () => {
+    renderWithRouter(<DataTable data={trips} columns={cols.slice(0, 2)} getRowId={(r) => r.id} columnsKey="t.todas" />);
+    fireEvent.click(screen.getByText('Columnas'));
+    fireEvent.click(screen.getByLabelText('Mostrar Viaje'));
+    fireEvent.click(screen.getByLabelText('Mostrar Transportista'));
+    expect(headers()).toEqual(['Transportista']);
+  });
+
+  it('arranca con las columnas ocultas por defecto y se pueden restablecer', () => {
+    renderWithRouter(
+      <DataTable data={trips} columns={cols} getRowId={(r) => r.id} columnsKey="t.defecto" defaultHidden={['km']} />,
+    );
+    expect(headers()).toEqual(['Viaje', 'Transportista']);
+    fireEvent.click(screen.getByText('Columnas'));
+    fireEvent.click(screen.getByLabelText('Mostrar Km'));
+    expect(headers()).toEqual(['Viaje', 'Transportista', 'Km']);
+    fireEvent.click(screen.getByText('Restablecer'));
+    expect(headers()).toEqual(['Viaje', 'Transportista']);
+  });
+});
+
+describe('DataTable filas extensibles (renderExpanded)', () => {
+  const data = [{ id: '1', customer: 'A' }, { id: '2', customer: 'B' }];
+
+  it('extiende y contrae el detalle de una fila', () => {
+    renderWithRouter(
+      <DataTable
+        data={data}
+        columns={columns}
+        getRowId={(r) => r.id}
+        renderExpanded={(r) => <div>detalle de {r.customer}</div>}
+      />,
+    );
+    expect(screen.queryByText('detalle de A')).toBeNull();
+    fireEvent.click(screen.getAllByLabelText('Extender')[1]); // la 0 es el encabezado
+    expect(screen.getByText('detalle de A')).toBeTruthy();
+    expect(screen.queryByText('detalle de B')).toBeNull();
+    fireEvent.click(screen.getByLabelText('Contraer'));
+    expect(screen.queryByText('detalle de A')).toBeNull();
+  });
+
+  it('canExpand deja sin botón a las filas sin detalle', () => {
+    renderWithRouter(
+      <DataTable
+        data={data}
+        columns={columns}
+        getRowId={(r) => r.id}
+        renderExpanded={() => <div>x</div>}
+        canExpand={(r) => r.id === '2'}
+      />,
+    );
+    // encabezado + una sola fila con botón
+    expect(screen.getAllByLabelText('Extender')).toHaveLength(2);
   });
 });

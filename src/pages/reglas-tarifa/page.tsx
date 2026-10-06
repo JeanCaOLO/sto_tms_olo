@@ -428,6 +428,7 @@ export default function ReglasTarifaPage() {
             loading={loadingRules}
             searchPlaceholder="Buscar por código, nombre o compañía..."
             exportFileName="reglas_tarifa"
+            columnsKey="tarifas.reglas_tarifa"
             emptyMessage="No hay reglas registradas. Creá tu primera regla para empezar a tarifar liquidaciones."
             actions={(rule) => (
               <>
@@ -469,6 +470,7 @@ export default function ReglasTarifaPage() {
               loading={loadingZones}
               searchPlaceholder="Buscar zona..."
               exportFileName="zonas"
+              columnsKey="tarifas.zonas"
               emptyMessage="No hay zonas registradas en este país. Se dan de alta en Catálogos."
             />
           </Card>
@@ -485,6 +487,7 @@ export default function ReglasTarifaPage() {
               loading={loadingZones}
               searchPlaceholder="Buscar grupo..."
               exportFileName="grupos_de_zonas"
+              columnsKey="tarifas.grupos_de_zonas"
               emptyMessage="No hay grupos de zonas en este país."
               actions={(group) => (
                 <>

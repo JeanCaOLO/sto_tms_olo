@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -39,6 +39,50 @@ interface DataTableProps<T> {
   // Opcional: se llama tras exportar (para auditar el evento export). Recibe el
   // número de filas exportadas.
   onExport?: (rows: number) => void;
+  // Opcional: activa "Columnas" (ocultar y reordenar) y recuerda la elección en este navegador bajo
+  // esta clave. Sin ella la tabla se comporta como siempre.
+  columnsKey?: string;
+  // Columnas ocultas mientras la persona no haya elegido otra cosa (requiere columnsKey).
+  defaultHidden?: string[];
+  // Opcional: filas que se pueden extender. Si devuelve contenido, la fila lleva un botón para
+  // desplegarlo debajo (por ejemplo, el detalle de un viaje).
+  renderExpanded?: (row: T) => ReactNode;
+  canExpand?: (row: T) => boolean;
+}
+
+export interface ColumnLayout {
+  order: string[];
+  hidden: string[];
+}
+
+const EMPTY_LAYOUT: ColumnLayout = { order: [], hidden: [] };
+const layoutStorageKey = (key: string) => `datatable.columns.${key}`;
+
+function readLayout(key: string | undefined, defaultHidden: string[] = []): ColumnLayout {
+  const initial: ColumnLayout = { order: [], hidden: defaultHidden };
+  if (!key) return EMPTY_LAYOUT;
+  try {
+    const raw = localStorage.getItem(layoutStorageKey(key));
+    if (!raw) return initial;
+    const parsed = JSON.parse(raw) as Partial<ColumnLayout>;
+    return {
+      order: Array.isArray(parsed.order) ? parsed.order.filter((k) => typeof k === 'string') : [],
+      hidden: Array.isArray(parsed.hidden) ? parsed.hidden.filter((k) => typeof k === 'string') : [],
+    };
+  } catch {
+    return initial;
+  }
+}
+
+/** Columnas en el orden elegido; las que no estén en el orden guardado (nuevas) van al final. */
+function applyColumnLayout<T>(columns: DataTableColumn<T>[], layout: ColumnLayout): DataTableColumn<T>[] {
+  const rank = new Map(layout.order.map((k, i) => [k, i]));
+  const original = new Map(columns.map((c, i) => [c.key, i]));
+  return [...columns].sort((a, b) => {
+    const ra = rank.get(a.key) ?? layout.order.length + (original.get(a.key) ?? 0);
+    const rb = rank.get(b.key) ?? layout.order.length + (original.get(b.key) ?? 0);
+    return ra - rb;
+  });
 }
 
 type SortDirection = 'asc' | 'desc';
@@ -131,7 +175,7 @@ function ColumnFilterMenu<T>({
 
 export default function DataTable<T>({
   data,
-  columns,
+  columns: allColumns,
   getRowId,
   searchPlaceholder,
   exportFileName = 'exportado',
@@ -144,6 +188,10 @@ export default function DataTable<T>({
   pageSizeOptions = [10, 25, 50, 100],
   selectedRowId = null,
   onExport,
+  columnsKey,
+  defaultHidden,
+  renderExpanded,
+  canExpand,
 }: DataTableProps<T>) {
   const { t } = useTranslation();
   const location = useLocation();
@@ -154,6 +202,67 @@ export default function DataTable<T>({
   const paginated = initialPageSize !== undefined;
   const [pageSize, setPageSize] = useState(initialPageSize ?? pageSizeOptions[0]);
   const [page, setPage] = useState(1);
+  const [layout, setLayout] = useState<ColumnLayout>(() => readLayout(columnsKey, defaultHidden));
+  const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
+  const [dragKey, setDragKey] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const columnsMenuRef = useRef<HTMLDivElement>(null);
+
+  // Las columnas que se ven: en el orden elegido y sin las ocultas. Siempre queda al menos una.
+  const orderedAll = useMemo(() => applyColumnLayout(allColumns, layout), [allColumns, layout]);
+  const columns = useMemo(() => {
+    const visible = orderedAll.filter((c) => !layout.hidden.includes(c.key));
+    return visible.length > 0 ? visible : orderedAll.slice(0, 1);
+  }, [orderedAll, layout.hidden]);
+
+  const saveLayout = (next: ColumnLayout) => {
+    setLayout(next);
+    if (!columnsKey) return;
+    try {
+      localStorage.setItem(layoutStorageKey(columnsKey), JSON.stringify(next));
+    } catch {
+      // Sin almacenamiento: la elección vale solo mientras la pantalla esté abierta.
+    }
+  };
+  const toggleHidden = (key: string) => {
+    const hidden = layout.hidden.includes(key) ? layout.hidden.filter((k) => k !== key) : [...layout.hidden, key];
+    if (hidden.length >= allColumns.length) return; // no se ocultan todas
+    saveLayout({ ...layout, order: orderedAll.map((c) => c.key), hidden });
+  };
+  const moveColumn = (key: string, toKey: string) => {
+    if (key === toKey) return;
+    const keys = orderedAll.map((c) => c.key);
+    const from = keys.indexOf(key);
+    const to = keys.indexOf(toKey);
+    if (from < 0 || to < 0) return;
+    keys.splice(to, 0, keys.splice(from, 1)[0]);
+    saveLayout({ ...layout, order: keys });
+  };
+  const shiftColumn = (key: string, delta: -1 | 1) => {
+    const keys = orderedAll.map((c) => c.key);
+    const i = keys.indexOf(key);
+    const j = i + delta;
+    if (i < 0 || j < 0 || j >= keys.length) return;
+    [keys[i], keys[j]] = [keys[j], keys[i]];
+    saveLayout({ ...layout, order: keys });
+  };
+
+  useEffect(() => {
+    if (!columnsMenuOpen) return undefined;
+    const handler = (e: MouseEvent) => {
+      if (columnsMenuRef.current && !columnsMenuRef.current.contains(e.target as Node)) setColumnsMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [columnsMenuOpen]);
+
+  const toggleExpanded = (id: string) => setExpanded((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const expandable = !!renderExpanded;
+  const spanAll = columns.length + (actions ? 1 : 0) + (expandable ? 1 : 0);
 
   const filteredByColumns = useMemo(() => {
     return data.filter((row) =>
@@ -265,6 +374,75 @@ export default function DataTable<T>({
             </button>
           )}
           <span className="text-xs text-slate-400 whitespace-nowrap">{t('table.records', { count: sorted.length })}</span>
+          {columnsKey && (
+            <div className="relative" ref={columnsMenuRef}>
+              <button
+                type="button"
+                onClick={() => setColumnsMenuOpen((open) => !open)}
+                aria-expanded={columnsMenuOpen}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-slate-50 text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <i className="ri-layout-column-line"></i>
+                Columnas
+                {layout.hidden.length > 0 && (
+                  <span className="text-[10px] bg-teal-100 text-teal-700 rounded-full px-1.5">{layout.hidden.length} ocultas</span>
+                )}
+              </button>
+              {columnsMenuOpen && (
+                <div className="absolute right-0 z-30 mt-1 w-64 bg-white border border-slate-200 rounded-lg shadow-lg p-2 text-left">
+                  <div className="flex items-center justify-between px-1 pb-1.5 text-xs text-slate-500">
+                    <span>Mostrar y ordenar</span>
+                    <button
+                      type="button"
+                      className="text-teal-600 hover:underline cursor-pointer"
+                      onClick={() => saveLayout({ order: [], hidden: defaultHidden ?? [] })}
+                    >
+                      Restablecer
+                    </button>
+                  </div>
+                  <ul className="max-h-72 overflow-y-auto space-y-0.5">
+                    {orderedAll.map((col, i) => {
+                      const hidden = layout.hidden.includes(col.key);
+                      return (
+                        <li
+                          key={col.key}
+                          className="flex items-center gap-1 px-1 py-0.5 rounded hover:bg-slate-50"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={!hidden}
+                            onChange={() => toggleHidden(col.key)}
+                            aria-label={`Mostrar ${col.header}`}
+                            className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                          />
+                          <span className={`flex-1 truncate text-xs ${hidden ? 'text-slate-400' : 'text-slate-700'}`}>{col.header}</span>
+                          <button
+                            type="button"
+                            disabled={i === 0}
+                            onClick={() => shiftColumn(col.key, -1)}
+                            aria-label={`Subir ${col.header}`}
+                            className="w-5 h-5 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                          >
+                            <i className="ri-arrow-up-s-line"></i>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={i === orderedAll.length - 1}
+                            onClick={() => shiftColumn(col.key, 1)}
+                            aria-label={`Bajar ${col.header}`}
+                            className="w-5 h-5 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                          >
+                            <i className="ri-arrow-down-s-line"></i>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <p className="text-[11px] text-slate-400 px-1 pt-1.5">También podés arrastrar el título de una columna.</p>
+                </div>
+              )}
+            </div>
+          )}
           <button
             onClick={handleExport}
             disabled={sorted.length === 0}
@@ -280,9 +458,15 @@ export default function DataTable<T>({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
+              {expandable && <th className="w-8 px-2 py-3" aria-label="Extender"></th>}
               {columns.map((col) => (
                 <th
                   key={col.key}
+                  draggable={!!columnsKey}
+                  onDragStart={columnsKey ? () => setDragKey(col.key) : undefined}
+                  onDragOver={columnsKey ? (e) => { if (dragKey) e.preventDefault(); } : undefined}
+                  onDrop={columnsKey ? () => { if (dragKey) moveColumn(dragKey, col.key); setDragKey(null); } : undefined}
+                  onDragEnd={columnsKey ? () => setDragKey(null) : undefined}
                   className={`relative px-4 py-3 font-semibold text-slate-700 whitespace-nowrap ${
                     col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'
                   } ${col.headerClassName ?? ''}`}
@@ -331,23 +515,43 @@ export default function DataTable<T>({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={columns.length + (actions ? 1 : 0)} className="px-4 py-10 text-center text-slate-400">
+                <td colSpan={spanAll} className="px-4 py-10 text-center text-slate-400">
                   <i className="ri-loader-4-line animate-spin text-xl"></i>
                 </td>
               </tr>
             ) : sorted.length === 0 ? (
               <tr>
-                <td colSpan={columns.length + (actions ? 1 : 0)} className="px-4 py-10 text-center text-slate-400 text-sm">
+                <td colSpan={spanAll} className="px-4 py-10 text-center text-slate-400 text-sm">
                   {emptyMessage ?? t('table.empty')}
                 </td>
               </tr>
             ) : (
-              visibleRows.map((row) => (
+              visibleRows.map((row) => {
+                const rowId = getRowId(row);
+                const isOpen = expandable && expanded.has(rowId);
+                const rowCanExpand = expandable && (canExpand ? canExpand(row) : true);
+                return (
+                <Fragment key={rowId}>
                 <tr
-                  key={getRowId(row)}
                   onClick={() => onRowClick?.(row)}
-                  className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${onRowClick ? 'cursor-pointer' : ''} ${selectedRowId && getRowId(row) === selectedRowId ? 'bg-teal-50' : ''}`}
+                  className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${onRowClick ? 'cursor-pointer' : ''} ${selectedRowId && rowId === selectedRowId ? 'bg-teal-50' : ''}`}
                 >
+                  {expandable && (
+                    <td className="w-8 px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                      {rowCanExpand && (
+                        <button
+                          type="button"
+                          onClick={() => toggleExpanded(rowId)}
+                          aria-expanded={isOpen}
+                          aria-label={isOpen ? 'Contraer' : 'Extender'}
+                          title={isOpen ? 'Contraer' : 'Extender para ver el detalle'}
+                          className="w-6 h-6 rounded text-slate-500 hover:bg-slate-100 cursor-pointer"
+                        >
+                          <i className={isOpen ? 'ri-subtract-line' : 'ri-add-line'}></i>
+                        </button>
+                      )}
+                    </td>
+                  )}
                   {columns.map((col) => (
                     <td
                       key={col.key}
@@ -364,7 +568,14 @@ export default function DataTable<T>({
                     </td>
                   )}
                 </tr>
-              ))
+                {isOpen && renderExpanded && (
+                  <tr className="border-b border-slate-100 bg-slate-50/60">
+                    <td colSpan={spanAll} className="px-4 py-3">{renderExpanded(row)}</td>
+                  </tr>
+                )}
+                </Fragment>
+                );
+              })
             )}
           </tbody>
         </table>

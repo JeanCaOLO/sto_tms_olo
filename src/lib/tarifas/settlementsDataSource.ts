@@ -16,7 +16,7 @@ import { db, UniqueViolationError, type Condition, type Row } from './data';
 import { notLiquidableReason } from './tripContext';
 import { getTrip } from './tripsDataSource';
 import type {
-  Allocation, CalcIssue, CalcResult, MarginStatus, Override, Rule, SettlementRecord, SettlementReturn,
+  Allocation, CalcIssue, CalcResult, MarginStatus, Override, Rule, SettlementOrder, SettlementRecord, SettlementReturn,
   SettlementStatus, Stage, TraceLine, TripContext, TripEdits, TripRecord,
 } from './types';
 
@@ -40,6 +40,8 @@ export interface SettlementInput {
   /** Líneas que el liquidador destildó. */
   excludedSeqs?: number[];
   returns?: SettlementReturn[];
+  /** Foto de los pedidos del viaje y qué se hizo con cada uno. */
+  orders?: SettlementOrder[] | null;
   /** Total realmente emitido: puede diferir del que calculó el motor si se destildaron líneas. */
   totalAmount: string;
 }
@@ -78,6 +80,7 @@ function toDomain(row: Row): SettlementRecord {
     costModelId: row.cost_model_id ?? null,
     cargoValue: row.cargo_value === null || row.cargo_value === undefined ? null : String(row.cargo_value),
     allocation: (row.allocation ?? null) as Allocation | null,
+    orders: (row.orders ?? null) as SettlementOrder[] | null,
     trip: (row.trip ?? {}) as TripContext,
     trace: (row.trace ?? []) as TraceLine[],
     discarded: row.discarded ?? [],
@@ -186,6 +189,7 @@ function rowValues(input: SettlementInput, trip: TripRecord, ahora: string): Row
     cost_model_id: input.calc.cost.modelId,
     cargo_value: input.calc.margin.basis === 'CARGO' ? input.calc.margin.cargoValue : null,
     allocation: input.calc.allocation ?? null,
+    orders: input.orders ?? null,
     // La foto es la del viaje RELEÍDO al emitir, no la que traía la pantalla.
     trip_info: { ...trip, settlementId: null },
     trip_edits: input.edits ?? { customVars: {} },

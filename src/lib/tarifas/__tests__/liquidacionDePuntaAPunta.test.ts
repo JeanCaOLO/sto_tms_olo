@@ -220,7 +220,7 @@ describe('mercancía del viaje ilegible', () => {
     const normal = await calcular(viaje);
     const original = db().find.bind(db());
     const spy = vi.spyOn(db(), 'find').mockImplementation(async (entity, options) => {
-      if (entity === 'tripCargo') throw new Error('Tabla desconocida para el tarifador: "tarifas_v_viaje_cargas"');
+      if (entity === 'tripOrder') throw new Error('Tabla desconocida para el tarifador: "tarifas_v_viaje_pedidos"');
       return original(entity, options);
     });
     try {

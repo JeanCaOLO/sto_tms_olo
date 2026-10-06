@@ -44,7 +44,8 @@ export interface TarifasDatabase {
   costStructureRows: Rows;
   rateTables: Rows;
   rateTableRows: Rows;
-  tripCargos: Rows;
+  tripOrders: Rows;
+  tripOrderMarks: Rows;
   marginPolicies: Rows;
   auditLog: Rows;
 }
@@ -52,7 +53,7 @@ export interface TarifasDatabase {
 // Exportada para que un test pueda verificar que ninguna entidad del esquema quedó fuera: una
 // colección faltante acá no rompe nada, simplemente devuelve vacío para siempre.
 export const COLLECTIONS: (keyof TarifasDatabase)[] = [
-  'countries', 'zones', 'carriers', 'drivers', 'vehicles', 'trips', 'dispatchGuides', 'tripReturns', 'tripCargos',
+  'countries', 'zones', 'carriers', 'drivers', 'vehicles', 'trips', 'dispatchGuides', 'tripReturns', 'tripOrders', 'tripOrderMarks',
   'countrySettings', 'zoneGroups', 'pricingRules', 'pricingTemplates', 'settlementParties',
   'partyVariables', 'settlements', 'costStructures', 'costStructureRows', 'rateTables',
   'rateTableRows', 'marginPolicies', 'auditLog',

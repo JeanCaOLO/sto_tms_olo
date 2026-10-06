@@ -94,6 +94,7 @@ export default function ResumenTab({ organizationId, countryId }: ResumenTabProp
               getRowId={(r) => String(r.id)}
               searchPlaceholder="Buscar por regla o código"
               exportFileName="resumen_reglas_activas"
+              columnsKey="tarifas.resumen_reglas_activas"
               emptyMessage="No hay reglas activas."
             />
           </Card>

@@ -777,7 +777,11 @@ export default function RuleModal({
                   <Select
                     label="¿De qué tarifario sale el importe? *"
                     value={builder.rateTableCode ?? ''}
-                    onChange={(e) => setBuilderField('rateTableCode', e.target.value)}
+                    onChange={(e) => {
+                      setBuilderField('rateTableCode', e.target.value);
+                      // La columna elegida era de OTRO tarifario: se vuelve al valor principal.
+                      setBuilderField('rateTableColumn', '');
+                    }}
                     options={[
                       { value: '', label: rateTables.length === 0 ? 'No hay tarifarios en este país' : 'Elegir tarifario…' },
                       ...rateTables.map((t) => ({
@@ -787,6 +791,18 @@ export default function RuleModal({
                     ]}
                     error={builderErrors.rateTableCode}
                   />
+                  {(rateTables.find((t) => t.code === builder.rateTableCode)?.valueColumns ?? []).length > 0 && (
+                    <Select
+                      label="¿Qué valor de la fila usa?"
+                      value={builder.rateTableColumn ?? ''}
+                      onChange={(e) => setBuilderField('rateTableColumn', e.target.value)}
+                      options={[
+                        { value: '', label: 'El valor principal' },
+                        ...(rateTables.find((t) => t.code === builder.rateTableCode)?.valueColumns ?? [])
+                          .map((c) => ({ value: c, label: c })),
+                      ]}
+                    />
+                  )}
                   {rateTables.length === 0 ? (
                     <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                       <i className="ri-alert-line mr-1"></i>

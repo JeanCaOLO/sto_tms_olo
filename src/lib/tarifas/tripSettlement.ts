@@ -16,13 +16,16 @@ import { buildCustomVarFields, missingDeclaredVars, type CustomVarField } from '
 import { getProfileForCarrier } from './partiesDataSource';
 import { buildCalculateInput } from './settlementInput';
 import { emptyTripEdits, notLiquidableReason, toTripContext } from './tripContext';
-import { getTrip, getTripCargo } from './tripsDataSource';
+import { getTrip, listTripOrders } from './tripsDataSource';
+import { cargoFromOrders } from './tripOrders';
 import type {
-  CalcIssue, CalcResult, CalculateInput, CargoSummary, Override, Rule, TripContext, TripEdits, TripRecord,
+  CalcIssue, CalcResult, CalculateInput, CargoSummary, Override, Rule, TripContext, TripEdits, TripOrder, TripRecord,
 } from './types';
 
 export interface TripCalculation {
   trip: TripRecord;
+  /** Pedidos del viaje (una guía = un pedido) con su marca. Vacío si no se pudieron leer. */
+  orders: TripOrder[];
   /** Perfil de cálculo del transportista, o null si no tiene (se liquida con las reglas del país). */
   partyId: string | null;
   /** Campos a dibujar para lo variable: las variables PER_TRIP activas del perfil. */
@@ -103,9 +106,11 @@ export async function calculateTrip(
   // La mercancía solo alimenta la auditoría y el reparto por casa: si no se puede leer, lo que se paga
   // NO cambia. Se avisa en vez de frenar la liquidación.
   let cargo: CargoSummary | null = null;
+  let orders: TripOrder[] = [];
   let cargoWarning: string | null = null;
   try {
-    cargo = await getTripCargo(trip.id);
+    orders = await listTripOrders(trip.id);
+    cargo = cargoFromOrders(orders);
   } catch (error) {
     cargoWarning = 'No se pudo leer la mercancía del viaje (pedidos de sus guías): no habrá ganancia/pérdida de '
       + `auditoría ni reparto por casa comercial. ${error instanceof Error ? error.message : ''}`.trim();
@@ -134,6 +139,7 @@ export async function calculateTrip(
     status: 'ok',
     calculation: {
       trip,
+      orders,
       partyId,
       customVarFields: buildCustomVarFields(catalog.partyVariables),
       undeclaredVars: missingDeclaredVars(referencedVarKeys(rulesForParty(catalog, partyId)), catalog.partyVariables),

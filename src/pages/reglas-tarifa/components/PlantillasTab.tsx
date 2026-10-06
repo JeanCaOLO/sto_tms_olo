@@ -138,6 +138,7 @@ export default function PlantillasTab({ organizationId, countryId, zones }: Plan
           loading={loading}
           searchPlaceholder="Buscar plantilla..."
           exportFileName="plantillas_de_viaje"
+          columnsKey="tarifas.plantillas_de_viaje"
           emptyMessage="Sin plantillas guardadas."
           actions={(t) => (
             <>

@@ -87,7 +87,9 @@ export default function ImportRateTableModal({ isOpen, table, onClose, onImporte
   const handleClose = () => { reset(); onClose(); };
 
   const applySheet = (loaded: LoadedSheet[], index: number) => {
-    const analysis = analyzeRateTableSheet(loaded[index]?.matrix ?? [], table.keyColumns, customLabels);
+    const analysis = analyzeRateTableSheet(
+      loaded[index]?.matrix ?? [], table.keyColumns, customLabels, table.valueColumns ?? [],
+    );
     setSheetIndex(index);
     setHeaderRow(analysis.headerRow);
     setMapping(analysis.mapping);
@@ -147,7 +149,7 @@ export default function ImportRateTableModal({ isOpen, table, onClose, onImporte
     try {
       const result = await bulkUpsertRows(
         table.id,
-        parsed.rows.map((r) => ({ key: r.key, amount: r.amount })),
+        parsed.rows.map((r) => ({ key: r.key, amount: r.amount, ...(r.values ? { values: r.values } : {}) })),
         mode,
       );
 
@@ -296,6 +298,19 @@ export default function ImportRateTableModal({ isOpen, table, onClose, onImporte
                         })}
                         options={columnOptions}
                       />
+                      {(table.valueColumns ?? []).map((name) => (
+                        <Select
+                          key={`v:${name}`}
+                          label={name}
+                          value={mapping.values?.[name] === null || mapping.values?.[name] === undefined
+                            ? '' : String(mapping.values[name])}
+                          onChange={(e) => setMapping({
+                            ...mapping,
+                            values: { ...(mapping.values ?? {}), [name]: e.target.value === '' ? null : Number(e.target.value) },
+                          })}
+                          options={columnOptions}
+                        />
+                      ))}
                     </div>
                   </div>
 
@@ -373,6 +388,9 @@ export default function ImportRateTableModal({ isOpen, table, onClose, onImporte
                                 <th key={c} className="py-2 px-3 font-medium">{varLabelOf(c)}</th>
                               ))}
                               <th className="py-2 px-3 font-medium text-right">Importe</th>
+                              {(table.valueColumns ?? []).map((name) => (
+                                <th key={name} className="py-2 px-3 font-medium text-right">{name}</th>
+                              ))}
                               <th className="py-2 px-3 font-medium">En el archivo</th>
                             </tr>
                           </thead>
@@ -387,6 +405,9 @@ export default function ImportRateTableModal({ isOpen, table, onClose, onImporte
                                   </td>
                                 ))}
                                 <td className="py-1.5 px-3 text-right font-medium text-slate-800">{row.amount}</td>
+                                {(table.valueColumns ?? []).map((name) => (
+                                  <td key={name} className="py-1.5 px-3 text-right text-slate-700">{row.values?.[name] ?? '—'}</td>
+                                ))}
                                 <td className="py-1.5 px-3 text-slate-400">{row.rawAmount}</td>
                               </tr>
                             ))}

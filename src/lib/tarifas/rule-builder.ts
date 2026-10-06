@@ -184,6 +184,7 @@ function compileBuilderBase(form: RuleBuilderForm): Expr {
       return {
         op: 'LOOKUP_TABLE',
         table: (form.rateTableCode ?? '').trim(),
+        ...((form.rateTableColumn ?? '').trim() ? { column: (form.rateTableColumn ?? '').trim() } : {}),
         fallback: { op: 'FIXED', amount: signed(form.value, form.effect) },
       };
 
@@ -325,7 +326,9 @@ export function describeBuilder(form: RuleBuilderForm, ctx: DescribeContext): st
     }
     case 'RATE_TABLE': {
       const respaldo = amountText(form.value, ctx.currency);
-      cuerpo = `${verbo} el importe que diga el tarifario ${(form.rateTableCode ?? '').trim()} `
+      const columna = (form.rateTableColumn ?? '').trim();
+      cuerpo = `${verbo} el importe que diga el tarifario ${(form.rateTableCode ?? '').trim()}`
+        + `${columna ? ` (columna ${columna})` : ''} `
         + `(y ${respaldo} si el viaje no está en la tabla)`;
       break;
     }

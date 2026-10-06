@@ -65,6 +65,9 @@ export default function CostStructureModal({
   const [editing, setEditing] = useState<CostStructureRow | null>(null);
   const [truckTypes, setTruckTypes] = useState<string[]>([]);
   const [variables, setVariables] = useState<PartyVariable[]>([]);
+  // La estructura del país, que la compañía usa mientras no tenga una propia.
+  const [inherited, setInherited] = useState<{ structure: CostStructure; rows: CostStructureRow[] } | null>(null);
+  const [copying, setCopying] = useState(false);
 
   const [meta, setMeta] = useState({
     name: 'Estructura de costos',
@@ -73,14 +76,18 @@ export default function CostStructureModal({
 
   const load = useCallback(async () => {
     if (!party) return;
-    if (!partyId) { setStructure(null); setRows([]); return; }
     setLoading(true);
     setError('');
     try {
-      // Variables NUMBER activas: pueden ser el driver de una fila (`custom:*`).
-      const vars = await listPartyVariables(partyId);
-      setVariables(vars.filter((v) => v.kind === 'NUMBER'));
-      const existing = await activeStructure(partyId);
+      let existing: CostStructure | null = null;
+      if (partyId) {
+        // Variables NUMBER activas: pueden ser el driver de una fila (`custom:*`).
+        const vars = await listPartyVariables(partyId);
+        setVariables(vars.filter((v) => v.kind === 'NUMBER'));
+        existing = await activeStructure(partyId);
+      } else {
+        setVariables([]);
+      }
       setStructure(existing);
       setRows(existing ? await listRows(existing.id) : []);
       if (existing) {
@@ -88,6 +95,15 @@ export default function CostStructureModal({
           name: existing.name,
           operatingDaysPerMonth: existing.operatingDaysPerMonth,
         });
+      }
+
+      // Sin estructura propia vale la del país (la que se carga en Reglas de Tarifa → Costos): se
+      // muestra para que se vea qué se liquida hoy.
+      if (!existing && party.countryId) {
+        const base = await activeStructure(null, party.countryId);
+        setInherited(base ? { structure: base, rows: await listRows(base.id) } : null);
+      } else {
+        setInherited(null);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -124,9 +140,15 @@ export default function CostStructureModal({
     () => Object.fromEntries(variables.map((v) => [v.key, v.label])) as Record<string, string>,
     [variables],
   );
+  const shown = structure
+    ? { structure, rows }
+    : inherited
+      ? { structure: inherited.structure, rows: inherited.rows }
+      : null;
   const summary = useMemo(
-    () => (structure ? summarize(rows.filter((r) => r.active), structure.params, structure.operatingDaysPerMonth) : []),
-    [structure, rows],
+    () => (shown ? summarize(shown.rows.filter((r) => r.active), shown.structure.params, shown.structure.operatingDaysPerMonth) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [structure, rows, inherited],
   );
 
   const currencyLabel = currency;
@@ -165,6 +187,49 @@ export default function CostStructureModal({
     return result.structure;
   };
 
+  // Parte de la estructura del país: la copia como propia para poder cambiarla sin tocar la del país.
+  const handleCopyFromCountry = async () => {
+    if (!inherited || !party) return;
+    setError('');
+    setCopying(true);
+    try {
+      let targetId = partyId;
+      if (!targetId) {
+        const profile = await ensurePartyProfile(party.carrierId);
+        if (profile.status === 'failed') { setError(profile.error.message); return; }
+        targetId = profile.partyId;
+        setPartyId(targetId);
+        if (profile.created) onProfileCreated?.();
+      }
+      const saved = await saveStructure({
+        partyId: targetId,
+        countryId: party.countryId ?? '',
+        name: `${inherited.structure.name} (propia)`,
+        operatingDaysPerMonth: inherited.structure.operatingDaysPerMonth,
+        params: inherited.structure.params,
+        effectiveFrom: null,
+        active: true,
+        notes: 'Copiada de la estructura del país',
+      });
+      if (saved.status !== 'saved') {
+        setError(saved.status === 'invalid' ? Object.values(saved.errors).join(' ') : saved.error.message);
+        return;
+      }
+      const copied = await importRows(saved.structure.id, inherited.rows.map((r) => ({
+        code: r.code, label: r.label, driver: r.driver, amount: r.amount, sign: r.sign,
+        appliesWhen: r.appliesWhen, unit: r.unit, active: r.active, group: r.group,
+        frequency: r.frequency, frequencyQty: r.frequencyQty, unitQty: r.unitQty,
+        costPerKm: r.costPerKm, truckType: r.truckType,
+      })), 'replace');
+      if (copied.error) { setError(copied.error); return; }
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCopying(false);
+    }
+  };
+
   const handleSaveMeta = async () => {
     setError('');
     try {
@@ -201,8 +266,14 @@ export default function CostStructureModal({
 
   const cancelEdit = () => { setEditing(null); setNewRow(emptyRow()); };
 
+  // Crear una estructura propia con una sola fila taparía a la del país y dejaría el costo casi en cero.
+  const blockedByInherited = !structure && !!inherited && party.classification === 'OWN';
+  const INHERITED_MESSAGE = 'Esta compañía usa la estructura del país. Antes de agregar conceptos, creá una propia a '
+    + 'partir de la del país (botón de arriba) o subí la plantilla completa.';
+
   const handleSubmitRow = async () => {
     setError('');
+    if (blockedByInherited && !editing) { setError(INHERITED_MESSAGE); return; }
     if (!newRow.label.trim()) { setError('La fila necesita un concepto.'); return; }
     const amount = newRow.amount.trim();
     if (amount === '' || !Number.isFinite(Number(amount)) || Number(amount) < 0) {
@@ -272,6 +343,7 @@ export default function CostStructureModal({
   };
 
   const handleImport = async (imported: CostRowInput[], mode: 'replace' | 'append') => {
+    if (blockedByInherited) throw new Error(INHERITED_MESSAGE);
     const target = await ensureStructure();
     if (!target) throw new Error('No se pudo crear la estructura de costos.');
 
@@ -298,8 +370,9 @@ export default function CostStructureModal({
           <div>
             <h2 className="text-lg font-semibold text-slate-800">Estructura de costos — {party.name}</h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Cuánto le cuesta a la empresa operar un viaje de esta compañía. No se le cobra al
-              transportista: se usa para el margen.
+              {party.classification === 'OWN'
+                ? 'Los gastos de operar un viaje de esta flota propia. Se acumulan y es lo que se liquida y se envía a cuentas por pagar.'
+                : 'Un tercero se liquida con reglas y tarifarios, no con una estructura de costos. Esta pantalla solo la muestra como referencia.'}
             </p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 cursor-pointer" aria-label="Cerrar">
@@ -310,6 +383,37 @@ export default function CostStructureModal({
         <div className="px-6 py-5 space-y-5">
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">{error}</div>
+          )}
+
+          {!structure && !loading && (
+            inherited ? (
+              <div className="bg-teal-50 border border-teal-200 text-teal-800 text-sm rounded-lg px-4 py-3 flex flex-wrap items-center gap-3">
+                <i className="ri-global-line text-lg"></i>
+                <div className="flex-1 min-w-[260px]">
+                  <strong>
+                    {party.classification === 'OWN'
+                      ? 'Esta compañía usa la estructura de costos del país'
+                      : 'Estructura de costos del país (solo referencia)'}
+                  </strong>
+                  {` «${inherited.structure.name}», con ${inherited.rows.filter((r) => r.active).length} conceptos activos. `}
+                  {party.classification === 'OWN'
+                    ? 'Es la que se liquida hoy. Si esta compañía necesita otra, copiala y ajustala.'
+                    : 'Los terceros no se liquidan con ella.'}
+                </div>
+                {party.classification === 'OWN' && (
+                  <Button variant="secondary" onClick={() => void handleCopyFromCountry()} disabled={!canEdit || copying}
+                    title={!canEdit ? 'Tu rol no puede editar costos' : 'Crea una estructura propia con los mismos conceptos'}>
+                    <i className="ri-file-copy-line mr-1"></i>{copying ? 'Copiando…' : 'Crear una propia a partir de la del país'}
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-3">
+                <i className="ri-error-warning-line mr-1"></i>
+                Ni esta compañía ni el país tienen estructura de costos cargada.
+                {party.classification === 'OWN' && ' Hasta que se cargue una, no se puede liquidar a la flota propia.'}
+              </div>
+            )
           )}
 
           {/* ── Parámetros ─────────────────────────────────────────────────────────────── */}
@@ -406,12 +510,12 @@ export default function CostStructureModal({
 
           {/* ── Filas ──────────────────────────────────────────────────────────────────── */}
           <CostRowsTable
-            rows={rows}
+            rows={structure ? rows : inherited?.rows ?? []}
             loading={loading}
             customLabels={customLabels}
             exportFileName="estructura_costos_compania"
             emptyMessage="Todavía no hay conceptos cargados: subí la plantilla o cargalos a mano."
-            actions={(row) => (
+            actions={!structure ? undefined : (row) => (
               <div className="flex items-center justify-end gap-1">
                 <Button variant="ghost" size="sm" onClick={() => startEdit(row)} disabled={!canEdit} title={canEdit ? 'Editar' : 'Tu rol no puede editar costos'}>
                   <i className="ri-edit-line"></i>

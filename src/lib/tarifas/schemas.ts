@@ -102,7 +102,7 @@ export const ExprSchema: z.ZodType<unknown> = z.lazy(() =>
       blockSize: z.number().positive('El tamaño de bloque debe ser mayor que cero'),
       amount: MoneySchema,
     }),
-    z.object({ op: z.literal('LOOKUP_TABLE'), table: z.string().min(1), fallback: ExprSchema }),
+    z.object({ op: z.literal('LOOKUP_TABLE'), table: z.string().min(1), column: z.string().min(1).optional(), fallback: ExprSchema }),
     z.object({ op: z.literal('MIN'), args: z.array(ExprSchema).min(1) }),
     z.object({ op: z.literal('MAX'), args: z.array(ExprSchema).min(1) }),
     z.object({ op: z.literal('CLAMP'), value: ExprSchema, min: MoneySchema.optional(), max: MoneySchema.optional() }),

@@ -10,6 +10,22 @@
 -- Lo aplica sql/19_tarifas_aurora.sql, junto con las vistas que leen las entidades
 -- externas. La aplicación nunca ejecuta DDL por sí misma.
 -- ============================================================================
+-- Marca de pedido
+CREATE TABLE IF NOT EXISTS tarifas_trip_order_marks (
+  id text PRIMARY KEY,
+  country_id uuid NOT NULL,
+  trip_id uuid NOT NULL,
+  order_id uuid NOT NULL,
+  mark text NOT NULL,
+  reason text,
+  actor text,
+  CONSTRAINT tarifas_trip_order_marks_country_id_fkey FOREIGN KEY (country_id) REFERENCES countries (id) ON DELETE RESTRICT,
+  CONSTRAINT tarifas_trip_order_marks_trip_id_fkey FOREIGN KEY (trip_id) REFERENCES routes (id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS tarifas_trip_order_marks_country_id_idx ON tarifas_trip_order_marks (country_id);
+CREATE INDEX IF NOT EXISTS tarifas_trip_order_marks_trip_id_idx ON tarifas_trip_order_marks (trip_id);
+CREATE UNIQUE INDEX IF NOT EXISTS tarifas_trip_order_marks_uq ON tarifas_trip_order_marks (trip_id, order_id);
+
 -- Configuración de cálculo del país
 CREATE TABLE IF NOT EXISTS tarifas_country_settings (
   id text PRIMARY KEY,
@@ -125,6 +141,7 @@ CREATE TABLE IF NOT EXISTS tarifas_settlements (
   cost_model_id text,
   cargo_value numeric,
   allocation jsonb,
+  orders jsonb,
   trip_info jsonb NOT NULL,
   trip_edits jsonb NOT NULL,
   trip jsonb NOT NULL,
@@ -205,6 +222,7 @@ CREATE TABLE IF NOT EXISTS tarifas_rate_tables (
   code text NOT NULL,
   name text NOT NULL,
   key_columns jsonb NOT NULL,
+  value_columns jsonb,
   active boolean NOT NULL,
   CONSTRAINT tarifas_rate_tables_country_id_fkey FOREIGN KEY (country_id) REFERENCES countries (id) ON DELETE RESTRICT,
   CONSTRAINT tarifas_rate_tables_party_id_fkey FOREIGN KEY (party_id) REFERENCES tarifas_settlement_parties (id) ON DELETE CASCADE
@@ -220,6 +238,7 @@ CREATE TABLE IF NOT EXISTS tarifas_rate_table_rows (
   table_id text NOT NULL,
   key jsonb NOT NULL,
   amount numeric NOT NULL,
+  extra_values jsonb,
   row_order integer NOT NULL,
   active boolean NOT NULL,
   CONSTRAINT tarifas_rate_table_rows_table_id_fkey FOREIGN KEY (table_id) REFERENCES tarifas_rate_tables (id) ON DELETE CASCADE

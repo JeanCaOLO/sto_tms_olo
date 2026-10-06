@@ -64,6 +64,8 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
 
   const [draftKey, setDraftKey] = useState<string[]>([]);
   const [draftAmount, setDraftAmount] = useState('');
+  // Valores de las columnas adicionales del tarifario elegido, por nombre.
+  const [draftValues, setDraftValues] = useState<Record<string, string>>({});
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [rowErrors, setRowErrors] = useState<RateRowErrors>({});
   const [generalError, setGeneralError] = useState('');
@@ -114,6 +116,7 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
     if (!selected) { setRows([]); return; }
     setDraftKey(selected.keyColumns.map(() => ''));
     setDraftAmount('');
+    setDraftValues({});
     setEditingRowId(null);
     setRowErrors({});
     void loadRows(selected.id);
@@ -159,6 +162,7 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
   const resetDraft = () => {
     setDraftKey(selected ? selected.keyColumns.map(() => '') : []);
     setDraftAmount('');
+    setDraftValues({});
     setEditingRowId(null);
     setRowErrors({});
   };
@@ -173,13 +177,14 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
       return value === RATE_TABLE_WILDCARD ? '' : value;
     }));
     setDraftAmount(row.amount);
+    setDraftValues({ ...(row.values ?? {}) });
   };
 
   const handleSaveRow = async () => {
     if (!selected) return;
     setGeneralError('');
     const result = await saveRateRow(
-      { tableId: selected.id, key: draftKey, amount: draftAmount, active: true },
+      { tableId: selected.id, key: draftKey, amount: draftAmount, values: draftValues, active: true },
       editingRowId ?? undefined,
     );
 
@@ -235,6 +240,15 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
     },
     { key: 'name', header: 'Nombre', accessor: (t) => t.name, sortable: true },
     {
+      key: 'values', header: 'Valores',
+      accessor: (t) => ['principal', ...(t.valueColumns ?? [])].join(' · '),
+      render: (t) => (
+        <span className="text-xs text-slate-600">
+          {(t.valueColumns ?? []).length === 0 ? 'Uno por fila' : ['principal', ...(t.valueColumns ?? [])].join(' · ')}
+        </span>
+      ),
+    },
+    {
       key: 'key', header: 'Clave', accessor: (t) => t.keyColumns.map(varLabelOf).join(' · '),
       render: (t) => <span className="text-xs text-slate-600">{t.keyColumns.map(varLabelOf).join(' · ')}</span>,
     },
@@ -264,10 +278,18 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
       },
     })),
     {
-      key: 'amount', header: 'Importe', align: 'right', sortable: true,
+      key: 'amount', header: (selected.valueColumns ?? []).length > 0 ? 'Importe (principal)' : 'Importe',
+      align: 'right', sortable: true,
       accessor: (r) => Number(r.amount),
       render: (r) => <span className="font-medium text-slate-800">{r.amount}</span>,
     },
+    ...(selected.valueColumns ?? []).map((name): DataTableColumn<RateTableRow> => ({
+      key: `v:${name}`, header: name, align: 'right', sortable: true,
+      accessor: (r) => (r.values?.[name] === undefined ? null : Number(r.values[name])),
+      render: (r) => (r.values?.[name] === undefined
+        ? <span className="text-slate-300" title="Esta fila no tiene valor en esta columna">—</span>
+        : <span className="font-medium text-slate-800">{r.values[name]}</span>),
+    })),
     {
       key: 'scope', header: 'Alcance', filterable: true,
       accessor: (r) => (comodines(r) === 0 ? 'Exacta'
@@ -316,6 +338,7 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
           loading={loading}
           searchPlaceholder="Buscar tarifario..."
           exportFileName="tarifarios"
+          columnsKey="tarifas.tarifarios"
           emptyMessage="No hay tarifarios en este país. Un tarifario reemplaza a un montón de reglas casi iguales: 5 zonas x 4 camiones son 20 filas de una planilla."
           selectedRowId={selectedId}
           onRowClick={(t) => setSelectedId(t.id === selectedId ? null : t.id)}
@@ -421,7 +444,7 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
               })}
               <div className="min-w-[8rem]">
                 <Input
-                  label="Importe *"
+                  label={(selected.valueColumns ?? []).length > 0 ? 'Importe principal *' : 'Importe *'}
                   value={draftAmount}
                   onChange={(e) => {
                     setDraftAmount(e.target.value);
@@ -431,6 +454,19 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
                   error={rowErrors.amount}
                 />
               </div>
+              {(selected.valueColumns ?? []).map((name) => (
+                <div key={name} className="min-w-[8rem]">
+                  <Input
+                    label={name}
+                    value={draftValues[name] ?? ''}
+                    onChange={(e) => {
+                      setDraftValues((prev) => ({ ...prev, [name]: e.target.value }));
+                      setRowErrors((prev) => ({ ...prev, values: undefined }));
+                    }}
+                    placeholder="opcional"
+                  />
+                </div>
+              ))}
               <div className="flex gap-2 pb-0.5">
                 {editingRowId && (
                   <Button variant="secondary" onClick={resetDraft}>Cancelar</Button>
@@ -442,6 +478,7 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
               </div>
             </div>
             {rowErrors.key && <p className="text-xs text-red-600 mt-2">{rowErrors.key}</p>}
+            {rowErrors.values && <p className="text-xs text-red-600 mt-2">{rowErrors.values}</p>}
           </div>
 
           {/* Listado */}
@@ -452,6 +489,7 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
             loading={loadingRows}
             searchPlaceholder="Buscar fila..."
             exportFileName={`tarifario_${selected.code.toLowerCase()}_filas`}
+            columnsKey={`tarifas.tarifario_${selected.code.toLowerCase()}_filas`}
             emptyMessage="Este tarifario no tiene filas. Mientras esté vacío, una regla que lo use cobra siempre su importe de respaldo."
             selectedRowId={editingRowId}
             actions={(row) => (

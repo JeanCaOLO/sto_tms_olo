@@ -299,6 +299,10 @@
           "type": "int",
           "nullable": false
         },
+        "delivered_guides": {
+          "type": "int",
+          "nullable": false
+        },
         "return_count": {
           "type": "int",
           "nullable": false
@@ -401,21 +405,41 @@
         }
       }
     },
-    "tarifas_v_viaje_cargas": {
-      "entity": "tripCargo",
-      "label": "Mercancía del viaje",
+    "tarifas_v_viaje_pedidos": {
+      "entity": "tripOrder",
+      "label": "Pedido del viaje",
       "readOnly": true,
       "appendOnly": false,
       "primaryKey": "id",
-      "idPrefix": "crg",
+      "idPrefix": "tor",
       "columns": {
         "id": {
-          "type": "text",
+          "type": "uuid",
           "nullable": true
         },
         "route_id": {
           "type": "uuid",
           "nullable": false
+        },
+        "guide_number": {
+          "type": "text",
+          "nullable": true
+        },
+        "sequence_number": {
+          "type": "int",
+          "nullable": true
+        },
+        "delivery_status": {
+          "type": "text",
+          "nullable": true
+        },
+        "order_id": {
+          "type": "uuid",
+          "nullable": true
+        },
+        "order_number": {
+          "type": "text",
+          "nullable": true
         },
         "customer_id": {
           "type": "uuid",
@@ -445,9 +469,51 @@
           "type": "int",
           "nullable": false
         },
-        "orders": {
-          "type": "int",
+        "mark": {
+          "type": "text",
+          "nullable": true
+        },
+        "mark_reason": {
+          "type": "text",
+          "nullable": true
+        }
+      }
+    },
+    "tarifas_trip_order_marks": {
+      "entity": "tripOrderMark",
+      "label": "Marca de pedido",
+      "readOnly": false,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "mrk",
+      "columns": {
+        "id": {
+          "type": "text",
+          "nullable": true
+        },
+        "country_id": {
+          "type": "uuid",
           "nullable": false
+        },
+        "trip_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "order_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "mark": {
+          "type": "text",
+          "nullable": false
+        },
+        "reason": {
+          "type": "text",
+          "nullable": true
+        },
+        "actor": {
+          "type": "text",
+          "nullable": true
         }
       }
     },
@@ -795,6 +861,10 @@
           "type": "jsonb",
           "nullable": true
         },
+        "orders": {
+          "type": "jsonb",
+          "nullable": true
+        },
         "trip_info": {
           "type": "jsonb",
           "nullable": false
@@ -1013,6 +1083,10 @@
           "type": "jsonb",
           "nullable": false
         },
+        "value_columns": {
+          "type": "jsonb",
+          "nullable": true
+        },
         "active": {
           "type": "boolean",
           "nullable": false
@@ -1042,6 +1116,10 @@
         "amount": {
           "type": "numeric",
           "nullable": false
+        },
+        "extra_values": {
+          "type": "jsonb",
+          "nullable": true
         },
         "row_order": {
           "type": "int",

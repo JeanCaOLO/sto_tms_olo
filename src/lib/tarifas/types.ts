@@ -292,8 +292,10 @@ export type Expr =
   // había que enumerar un escalón por cada tramo posible, que no escala.
   | { op: 'PER_BLOCK'; unit: NumericVarKey; blockSize: number; amount: Money }
   // Busca en una tabla de tarifas por su código. Gana la fila MÁS ESPECÍFICA (la que menos
-  // comodines usa); si ninguna coincide, se evalúa `fallback`.
-  | { op: 'LOOKUP_TABLE'; table: string; fallback: Expr }
+  // comodines usa); si ninguna coincide, se evalúa `fallback`. `column` elige cuál de las columnas
+  // de valor de la fila se usa (sin ella, el valor principal). Si la fila no trae ese valor, también
+  // se evalúa `fallback`, y se avisa.
+  | { op: 'LOOKUP_TABLE'; table: string; column?: string; fallback: Expr }
   | { op: 'MIN' | 'MAX'; args: Expr[] }
   | { op: 'CLAMP'; value: Expr; min?: Money; max?: Money }
   | { op: 'IF'; cond: Pred; then: Expr; else: Expr };
@@ -369,6 +371,8 @@ export interface RuleBuilderForm {
   tierMode?: TierMode;
   /** Código del tarifario a consultar, para RATE_TABLE. */
   rateTableCode?: string;
+  /** Columna de valor del tarifario a usar. Vacío = el valor principal. */
+  rateTableColumn?: string;
   effect: RuleEffect;
   /**
    * Tope y piso sobre el resultado YA calculado, cualquiera sea el operador. Compila a un CLAMP que
@@ -439,6 +443,12 @@ export interface RateTable {
    * Pueden ser del sistema (`truckTypeId`, `originZone`) o personalizadas de la compañía.
    */
   keyColumns: VarKey[];
+  /**
+   * Columnas de valor ADEMÁS del principal (`amount`): un mismo tarifario puede dar, por ejemplo,
+   * "flete" y "peaje" para la misma combinación, y cada regla elige la que usa. Vacío o ausente =
+   * un solo valor por fila, como siempre.
+   */
+  valueColumns?: string[];
   active: boolean;
 }
 
@@ -450,7 +460,10 @@ export interface RateTableRow {
   tableId: string;
   /** Un valor por cada `keyColumns`, en el mismo orden. `*` acepta cualquier valor. */
   key: string[];
+  /** Valor principal de la fila. */
   amount: Money;
+  /** Valores de las columnas adicionales (`RateTable.valueColumns`), por nombre. Puede faltar alguno. */
+  values?: Record<string, Money>;
   order: number;
   active: boolean;
 }
@@ -467,6 +480,8 @@ export interface RateTableMatch {
   matchedKey: string;
   /** Cuántas columnas coincidieron de forma exacta (sin comodín). */
   specificity: number;
+  /** Columna de valor que se leyó. Ausente = la principal. */
+  column?: string;
 }
 
 
@@ -517,6 +532,8 @@ export interface TripRecord {
   actualEndTime: string | null;
   durationHours: number;
   guideCount: number;
+  /** Guías (una por pedido) ya entregadas. */
+  deliveredGuides: number;
   returnCount: number;
   /** Liquidación vigente del viaje, o nulo si todavía no se liquidó. */
   settlementId: string | null;
@@ -584,6 +601,8 @@ export interface SettlementRecord {
   cargoValue: Money | null;
   /** Reparto del total entre casas comerciales al emitir. Nulo = el viaje no tenía pedidos. */
   allocation: Allocation | null;
+  /** Pedidos del viaje al emitir y qué se hizo con cada uno. Nulo = no había pedidos cargados. */
+  orders: SettlementOrder[] | null;
   trip: TripContext;
   trace: TraceLine[];
   discarded: DiscardedRule[];
@@ -752,6 +771,44 @@ export interface CargoPart {
   volumeM3: number;
   items: number;
   orders: number;
+  /** De esos pedidos, cuántos se dejaron para liquidar después. */
+  deferredOrders?: number;
+}
+
+/** Lo que se decide con un pedido de un viaje: anularlo (no entra en el reparto) o dejarlo para después. */
+export type OrderMark = 'ANULADO' | 'DIFERIDO';
+
+/** Un pedido de un viaje, visto por su guía de despacho (una guía lleva un pedido). */
+export interface TripOrder {
+  guideId: string;
+  guideNumber: string | null;
+  sequence: number | null;
+  /** 'pending' | 'in_transit' | 'delivered' | 'failed' (vocabulario de guía de despacho). */
+  deliveryStatus: string | null;
+  orderId: string | null;
+  orderNumber: string | null;
+  customerId: string | null;
+  customerCode: string | null;
+  customerName: string | null;
+  value: Money;
+  weightKg: number;
+  volumeM3: number;
+  items: number;
+  mark: OrderMark | null;
+  markReason: string | null;
+}
+
+/** Qué se hizo con un pedido al emitir la liquidación (foto congelada). */
+export interface SettlementOrder {
+  orderId: string | null;
+  orderNumber: string | null;
+  guideNumber: string | null;
+  customerName: string | null;
+  value: Money;
+  deliveryStatus: string | null;
+  /** INCLUIDO = entra en el reparto; ANULADO = fuera, con su motivo; DIFERIDO = entra, pero su proforma queda pendiente. */
+  status: 'INCLUIDO' | 'ANULADO' | 'DIFERIDO';
+  reason: string | null;
 }
 
 /** Todo lo que lleva un viaje, por casa comercial. */
@@ -778,6 +835,8 @@ export interface AllocationShare {
   weightKg: number;
   volumeM3: number;
   orders: number;
+  /** Pedidos de esta casa que quedaron para liquidar después: su proforma está pendiente. */
+  deferredOrders?: number;
 }
 
 export interface Allocation {

@@ -3744,5 +3744,61 @@
     }
   ],
   "auditLog": [],
-  "tripCargos": []
+  "tripOrders": [
+    {
+      "id": "TORD_1",
+      "route_id": "TRIP_RT_VE_A1",
+      "guide_number": "GD-0001",
+      "sequence_number": 1,
+      "delivery_status": "delivered",
+      "order_id": "ORD_1",
+      "order_number": "PED-1001",
+      "customer_id": "CUST_EPA",
+      "customer_code": "EPA",
+      "customer_name": "EPA",
+      "value": "3000.00",
+      "weight_kg": 300,
+      "volume_m3": 1.5,
+      "items": 10,
+      "mark": null,
+      "mark_reason": null
+    },
+    {
+      "id": "TORD_2",
+      "route_id": "TRIP_RT_VE_A1",
+      "guide_number": "GD-0002",
+      "sequence_number": 2,
+      "delivery_status": "delivered",
+      "order_id": "ORD_2",
+      "order_number": "PED-1002",
+      "customer_id": "CUST_EPA",
+      "customer_code": "EPA",
+      "customer_name": "EPA",
+      "value": "500.00",
+      "weight_kg": 50,
+      "volume_m3": 1.5,
+      "items": 10,
+      "mark": null,
+      "mark_reason": null
+    },
+    {
+      "id": "TORD_3",
+      "route_id": "TRIP_RT_VE_A1",
+      "guide_number": "GD-0003",
+      "sequence_number": 3,
+      "delivery_status": "pending",
+      "order_id": "ORD_3",
+      "order_number": "PED-1003",
+      "customer_id": "CUST_COF",
+      "customer_code": "COF",
+      "customer_name": "Cofersa",
+      "value": "1500.00",
+      "weight_kg": 150,
+      "volume_m3": 1.5,
+      "items": 10,
+      "mark": null,
+      "mark_reason": null
+    }
+  ],
+  "tripOrderMarks": []
 }

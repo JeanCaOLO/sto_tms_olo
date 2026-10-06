@@ -51,6 +51,9 @@ export function toTripRecord(row: Row): TripRecord {
     actualEndTime: text(row.actual_end_time),
     durationHours: num(row.duration_hours),
     guideCount: num(row.guide_count),
+    // Sin el dato (datos de demostración) no se afirma que falte nada por entregar.
+    deliveredGuides: row.delivered_guides === null || row.delivered_guides === undefined
+      ? num(row.guide_count) : num(row.delivered_guides),
     returnCount: num(row.return_count),
     settlementId: text(row.settlement_id),
   };

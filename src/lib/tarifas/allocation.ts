@@ -77,6 +77,7 @@ export function allocateTotal(
     weightKg: part.weightKg,
     volumeM3: part.volumeM3,
     orders: part.orders,
+    ...(part.deferredOrders ? { deferredOrders: part.deferredOrders } : {}),
   }));
 
   return {

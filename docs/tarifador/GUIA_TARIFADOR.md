@@ -47,7 +47,8 @@ un dato el motor **avisa o bloquea** en vez de emitir un número plausible y fal
 | **Regla de tarifa** | Condición (cuándo aplica) + expresión (cuánto) + etapa + convivencia + prioridad + alcance (país o transportista) + vigencia. |
 | **Tarifario** | Planilla de precios indexada por combinaciones (zona × camión → importe). Una regla lo usa con el operador "Tarifa de tabla". |
 | **Estructura de costos** | **Única fuente** del costo de operar un viaje de flota propia. Es una tabla de filas de dos clases: *fijos mensuales* (conductor, ayudante, depreciación: se prorratean por día) y *componentes que se repiten* (mantenimiento, llantas: cuestan "costo por km"), más combustible. Cada transportista puede tener la suya; si no, vale la **estructura por defecto del país**. **Es lo que se liquida** (más los ajustes de las reglas). Se carga con una plantilla (§7). |
-| **Mercancía del viaje** | Suma de los pedidos de las guías del viaje, por casa comercial (valor, peso, volumen), leída de la vista `tarifas_v_viaje_cargas`. Solo lectura. |
+| **Mercancía del viaje** | Suma de los pedidos de las guías del viaje, por casa comercial (valor, peso, volumen), leída de la vista `tarifas_v_viaje_pedidos` (una fila por guía). Solo lectura. |
+| **Marca de pedido** | Decisión sobre un pedido del viaje: **anulado** (sale del reparto y de la mercancía auditada, con motivo) o **liquidar después** (sigue repartiéndose su parte, su proforma queda pendiente). Ninguna cambia lo que se le paga al transportista. Tabla `tarifas_trip_order_marks`. |
 | **Alerta de auditoría** | Umbrales (atención, crítico) que colorean la ganancia/pérdida de auditoría: *valor de la mercancía − gastos operativos*, con % sobre el valor. No bloquea ni pide motivo. Sin valor de pedidos cargado no se inventa un margen. |
 | **Reparto por casa comercial** | Cuánto del total corresponde a cada cliente según su parte de la mercancía. Se guarda en la liquidación (base de las proformas por casa). |
 | **Plantilla de viaje** | Viaje guardado para repetirlo en el Probador. |
@@ -65,8 +66,11 @@ un dato el motor **avisa o bloquea** en vez de emitir un número plausible y fal
 - **Vigencia:** se compara con la **fecha del viaje**, no con hoy. Para subir una tarifa: vencer la
   vieja y abrir la nueva.
 - **Orden total y determinista:** etapa → prioridad → alcance → código.
-- **Tarifarios:** gana la fila más específica; `*` es comodín; solo claves categóricas. Siempre se
-  declara un importe de respaldo.
+- **Tarifarios:** gana la fila más específica; `*` es comodín. Una celda de clave numérica (km, peso,
+  paradas…) acepta **rangos** (`0..100`, `101..300`, `301..`). La clave puede incluir variables
+  `custom:*` de la compañía. Un tarifario puede dar **varios valores por fila** (columnas de valor
+  adicionales, p. ej. `flete` y `peaje`): cada regla elige la columna que usa. Siempre se declara un
+  importe de respaldo, que también cubre una fila sin el valor pedido (se avisa).
 
 ### Del viaje al motor
 
@@ -139,7 +143,7 @@ del navegador se juntan en una sola petición.
 - Externas (solo lectura): `routes`, `carriers`, `drivers`, `vehicles`, `zones`, `countries`,
   `dispatch_guides`, `returns`.
 - Una liquidación vigente por viaje: índice único parcial `tarifas_settlements (trip_id) WHERE status <> 'Anulado'`.
-- Migraciones **ya aplicadas**: `sql/19_tarifas_aurora.sql` (esquema), `20` (reglas usadas en la liquidación), `21` (estructura de costos v2: componentes, parámetros, estructura por país; elimina `tarifas_own_cost_params`), `22` (módulo de permisos `tarifas.config`), `23` (vista `tarifas_v_viaje_cargas`, `cargo_value` y `allocation` en la liquidación; elimina `tarifas_outsourced_cost_rates`).
+- Migraciones **ya aplicadas**: `sql/19_tarifas_aurora.sql` (esquema), `20` (reglas usadas en la liquidación), `21` (estructura de costos v2: componentes, parámetros, estructura por país; elimina `tarifas_own_cost_params`), `22` (módulo de permisos `tarifas.config`), `23` (vista `tarifas_v_viaje_cargas`, `cargo_value` y `allocation` en la liquidación; elimina `tarifas_outsourced_cost_rates`), `24` (pedidos por viaje: vista `tarifas_v_viaje_pedidos`, tabla `tarifas_trip_order_marks`, `delivered_guides` en `tarifas_v_viajes`, `orders` en la liquidación) y `25` (columnas de valor en tarifarios: `value_columns`, `extra_values`).
 
 ---
 
@@ -147,12 +151,16 @@ del navegador se juntan en una sola petición.
 
 | Ruta | Para qué |
 |---|---|
-| `/liquidaciones` | Pestaña **Viajes por liquidar** (acción *Liquidar*) e **Historial** (estado, ver desglose, re-liquidar con motivo). Modal *Liquidar viaje*: datos del viaje en solo lectura, variables por viaje, devoluciones, desglose, emitir. |
+| `/liquidaciones` | Pestaña **Viajes por liquidar** con tres alcances: *Listos para liquidar* (completados y 100 % entregados), *Incompletos (auditoría)* (no completados o con pedidos sin entregar) y *Todos*. Cada viaje se **extiende** (botón `+`) para ver sus pedidos uno por uno. **Historial**: estado, ver desglose, pedidos que se emitieron (incluidos / anulados / para después), re-liquidar con motivo. Modal *Liquidar viaje*: vista **simple** por defecto (viaje, variables, total, reparto por casa, y un **Ver más** con scroll interno: pedidos, desglose y devoluciones) o **extendida** (quien tiene `tarifas.config`, con interruptor). En *Pedidos del viaje* se puede anular un pedido (con motivo) o dejarlo para liquidar después. |
 | `/tarifas/flota-propia` | **Solo con `tarifas.config`.** Transportistas propios (lista del catálogo, solo lectura): estructura de costos (con plantilla), tarifarios, variables, desactivar/reactivar perfil. |
 | `/tarifas/transportistas` | Lo mismo para terceros. Solo `tarifas.config`. |
 | `/reglas-tarifa` | **Solo con `tarifas.config`.** Reglas, Zonas (solo lectura + grupos), Tarifarios, Costos (estructura de la flota propia del país), Alerta de auditoría (+ cálculo del país), Plantillas, Resumen, Probador, Bitácora. |
 
 **Dos niveles de usuario.** Quien solo liquida (`tarifas`) ve *Liquidaciones* en modo simple: datos del viaje, variables por viaje, total y Emitir, con un "por qué este total" plegado. Quien configura (`tarifas.config`, los roles administradores lo tienen por código) ve además las pantallas de configuración y la vista extendida del desglose. Cada línea del desglose dice su origen (regla del país, regla del transportista —y si reemplaza a la del país—, gasto de la estructura de costos) y las reglas del catálogo traen un enlace para abrirlas.
+
+**Columnas.** Toda tabla del módulo trae el botón **Columnas**: ocultar/mostrar y reordenar (con flechas o arrastrando el título). La elección se recuerda en el navegador por tabla; *Restablecer* vuelve a la de fábrica (en la vista simple de Liquidaciones algunas columnas arrancan ocultas).
+
+**Estructura de costos en la ficha de la compañía.** Si la compañía no tiene estructura propia se muestra la **del país** (la de Reglas de Tarifa → Costos), que es la que se liquida; se puede copiar como propia para ajustarla. Un tercero la ve solo como referencia (no se liquida con ella). No se permite agregar un concepto suelto que tape a la del país: primero se copia o se sube la plantilla completa.
 
 El **Probador** calcula "desde un viaje" completado (mismo camino que la liquidación) o con un "viaje
 libre" armado a mano. No emite nada.
@@ -236,9 +244,11 @@ Hay planillas de ejemplo en `docs/tarifador/demo-data/` (estructura de costos de
 
 ## 8. Uso diario
 
-1. *Liquidaciones → Viajes por liquidar* (viajes completados sin liquidación vigente).
-2. **Liquidar:** completar las variables por viaje y las devoluciones; revisar el desglose; destildar
-   líneas si corresponde; emitir. Si hay `blockingIssues` o `notLiquidableReason`, no se puede emitir.
+1. *Liquidaciones → Viajes por liquidar* (por defecto, los listos; el alcance *Incompletos* sirve para auditar qué falta).
+2. **Liquidar:** completar las variables por viaje; revisar el total y el reparto; si el viaje tiene
+   pedidos que no corresponden, anularlos (con motivo) o dejarlos para después; emitir. Las
+   devoluciones son **solo informativas**. Si hay `blockingIssues` o `notLiquidableReason`, no se puede emitir.
+   Un viaje no completado se ve en la lista pero no se puede liquidar.
 3. **Historial:** cambiar estado (la aprobación se rechaza si hay pérdida y la política bloquea) y
    **re-liquidar** (motivo obligatorio): anula la vigente y emite una nueva.
 4. Toda acción queda en la bitácora.

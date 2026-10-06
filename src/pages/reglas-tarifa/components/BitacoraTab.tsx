@@ -103,6 +103,7 @@ export default function BitacoraTab() {
           getRowId={(ev) => String(ev.id)}
           searchPlaceholder="Buscar por usuario, entidad o acción"
           exportFileName="bitacora_auditoria_tarifas"
+          columnsKey="tarifas.bitacora_auditoria_tarifas"
           pageSize={25}
         />
       )}

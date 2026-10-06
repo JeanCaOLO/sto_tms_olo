@@ -44,7 +44,7 @@ export type EntityName =
   | 'trip'
   | 'dispatchGuide'
   | 'tripReturn'
-  | 'tripCargo'
+  | 'tripOrder'
   // ── Propias (cálculo) ──
   | 'countrySettings'
   | 'zoneGroup'
@@ -53,6 +53,7 @@ export type EntityName =
   | 'settlementParty'
   | 'partyVariable'
   | 'settlement'
+  | 'tripOrderMark'
   | 'costStructure'
   | 'costStructureRow'
   | 'rateTable'
@@ -274,6 +275,8 @@ export const ENTITIES = {
       /** Calculada por la vista: fin real − inicio real, en horas. */
       duration_hours: { type: 'numeric', nullable: true },
       guide_count: { type: 'int' },
+      /** Guías (una por pedido) ya entregadas. Contra `guide_count` dice si el viaje está 100 % entregado. */
+      delivered_guides: { type: 'int' },
       return_count: { type: 'int' },
       settlement_id: { type: 'text', nullable: true, indexed: true },
     },
@@ -320,18 +323,23 @@ export const ENTITIES = {
     },
   },
 
-  // Mercancía de un viaje por casa comercial: los pedidos de sus guías de despacho, agrupados por
-  // cliente (`tarifas_v_viaje_cargas`). Alimenta la ganancia/pérdida de auditoría y el reparto del
-  // total entre casas. Una fila por (viaje, cliente); el id es sintético.
-  tripCargo: {
-    table: 'tarifas_v_viaje_cargas',
-    collection: 'tripCargos',
-    idPrefix: 'crg',
-    label: 'Mercancía del viaje',
+  // Pedidos de un viaje, uno por guía de despacho (`tarifas_v_viaje_pedidos`): qué lleva cada guía,
+  // de qué casa comercial es, cuánto vale y si ya se entregó. `mark` es lo que quien liquida decidió
+  // con ese pedido (ANULADO / DIFERIDO), leído de `tarifas_trip_order_marks`.
+  tripOrder: {
+    table: 'tarifas_v_viaje_pedidos',
+    collection: 'tripOrders',
+    idPrefix: 'tor',
+    label: 'Pedido del viaje',
     external: { baseTable: 'dispatch_guides' },
     columns: {
-      id: { type: 'text', primaryKey: true },
+      id: uuidId(),
       route_id: { type: 'uuid', indexed: true },
+      guide_number: { type: 'text', nullable: true },
+      sequence_number: { type: 'int', nullable: true },
+      delivery_status: { type: 'text', nullable: true },
+      order_id: { type: 'uuid', nullable: true },
+      order_number: { type: 'text', nullable: true },
       customer_id: { type: 'uuid', nullable: true },
       customer_code: { type: 'text', nullable: true },
       customer_name: { type: 'text', nullable: true },
@@ -339,7 +347,36 @@ export const ENTITIES = {
       weight_kg: { type: 'numeric' },
       volume_m3: { type: 'numeric' },
       items: { type: 'int' },
-      orders: { type: 'int' },
+      /** 'ANULADO' | 'DIFERIDO' | nulo (el pedido entra en la liquidación). */
+      mark: { type: 'text', nullable: true },
+      mark_reason: { type: 'text', nullable: true },
+    },
+  },
+
+  // Lo que se decidió con un pedido concreto de un viaje antes de liquidarlo: anularlo (no entra en
+  // el reparto) o dejarlo para liquidar después. Se conserva para que la decisión sobreviva entre
+  // sesiones y quede a la vista de la auditoría.
+  tripOrderMark: {
+    table: 'tarifas_trip_order_marks',
+    collection: 'tripOrderMarks',
+    idPrefix: 'mrk',
+    label: 'Marca de pedido',
+    uniqueIndexes: [
+      {
+        name: 'tarifas_trip_order_marks_uq',
+        columns: ['trip_id', 'order_id'],
+        message: 'Ese pedido ya tiene una marca en este viaje.',
+      },
+    ],
+    columns: {
+      id: idColumn(),
+      country_id: countryRef(),
+      trip_id: { type: 'uuid', references: 'trip', indexed: true },
+      order_id: { type: 'uuid' },
+      /** 'ANULADO' | 'DIFERIDO'. */
+      mark: { type: 'text' },
+      reason: { type: 'text', nullable: true },
+      actor: { type: 'text', nullable: true },
     },
   },
 
@@ -537,6 +574,8 @@ export const ENTITIES = {
       cargo_value: { type: 'numeric', nullable: true },
       /** Reparto del total entre casas comerciales (`Allocation`). Nulo = el viaje no tenía pedidos cargados. */
       allocation: { type: 'jsonb', nullable: true },
+      /** Pedidos del viaje al emitir y qué pasó con cada uno (incluido, anulado, para después). Nulo = no había pedidos cargados. */
+      orders: { type: 'jsonb', nullable: true },
       /** Foto del viaje tal como se leyó al emitir (transportista, conductor, placa, zona, km…). */
       trip_info: { type: 'jsonb' },
       /** Lo cargado a mano al liquidar: variables PER_TRIP. */
@@ -640,6 +679,8 @@ export const ENTITIES = {
       name: { type: 'text' },
       /** Variables que forman la clave, en orden. */
       key_columns: { type: 'jsonb' },
+      /** Columnas de valor adicionales al principal (nombres). Nulo o vacío = un solo valor por fila. */
+      value_columns: { type: 'jsonb', nullable: true },
       active: { type: 'boolean', indexed: true },
     },
   },
@@ -655,6 +696,8 @@ export const ENTITIES = {
       /** Un valor por cada columna de la clave, en el mismo orden. `*` es comodín. */
       key: { type: 'jsonb' },
       amount: { type: 'numeric' },
+      /** Valores de las columnas adicionales del tarifario, por nombre. */
+      extra_values: { type: 'jsonb', nullable: true },
       row_order: { type: 'int' },
       active: { type: 'boolean', indexed: true },
     },

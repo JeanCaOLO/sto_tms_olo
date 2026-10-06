@@ -54,6 +54,19 @@ export function AllocationBlock({ allocation, criterion }: { allocation: Allocat
       key: 'value', header: 'Valor de la mercancía', sortable: true, align: 'right', accessor: (r) => Number(r.value),
       render: (r) => formatMoney(r.value, allocation?.currency ?? ''),
     },
+    {
+      key: 'proforma', header: 'Proforma', filterable: true,
+      accessor: (r) => (r.deferredOrders && r.deferredOrders >= r.orders ? 'Pendiente' : r.deferredOrders ? 'Parcial' : 'Lista'),
+      render: (r) => {
+        const pendientes = r.deferredOrders ?? 0;
+        if (pendientes === 0) return <span className="text-xs text-emerald-700">Lista</span>;
+        return (
+          <span className="text-xs text-amber-700">
+            {pendientes >= r.orders ? 'Pendiente' : `Parcial · ${pendientes} de ${r.orders} pedidos para después`}
+          </span>
+        );
+      },
+    },
   ];
 
   return (
@@ -77,6 +90,7 @@ export function AllocationBlock({ allocation, criterion }: { allocation: Allocat
             data={allocation.shares}
             columns={columns}
             getRowId={(r) => r.customerId ?? r.code ?? r.name}
+            columnsKey="liquidaciones.reparto"
             searchPlaceholder="Buscar casa comercial"
             exportFileName="reparto_casas_comerciales"
             emptyMessage="Sin casas comerciales"

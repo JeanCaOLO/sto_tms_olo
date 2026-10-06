@@ -75,6 +75,8 @@ export interface RateTableInput {
   code: string;
   name: string;
   keyColumns: VarKey[];
+  /** Columnas de valor adicionales al principal. Vacío o ausente = un solo valor por fila. */
+  valueColumns?: string[];
   active: boolean;
 }
 
@@ -93,6 +95,7 @@ function toTable(row: Row): RateTable {
     code: row.code,
     name: row.name,
     keyColumns: (row.key_columns ?? []) as VarKey[],
+    valueColumns: ((row.value_columns ?? []) as unknown[]).map(String),
     active: !!row.active,
   };
 }
@@ -166,7 +169,25 @@ export function validateRateTable(
     }
   }
 
+  const valueColumnsError = validateValueColumns(input.valueColumns ?? []);
+  if (valueColumnsError) errors.valueColumns = valueColumnsError;
+
   return errors;
+}
+
+/** Nombres de las columnas de valor adicionales: los usa una regla para elegir cuál leer. */
+const VALUE_COLUMN_SHAPE = /^[A-Za-z0-9_]+$/;
+
+function validateValueColumns(columns: string[]): string | undefined {
+  const names = columns.map((c) => c.trim());
+  if (names.some((c) => !c)) return 'Hay una columna de valor sin nombre.';
+  const bad = names.find((c) => !VALUE_COLUMN_SHAPE.test(c));
+  if (bad) return `"${bad}": usá solo letras, números y guión bajo (sin espacios ni acentos).`;
+  if (names.some((c) => c.toLowerCase() === 'amount' || c.toLowerCase() === 'valor')) {
+    return 'Los nombres "amount" y "valor" están reservados para el valor principal.';
+  }
+  if (new Set(names.map((c) => c.toLowerCase())).size !== names.length) return 'Hay una columna de valor repetida.';
+  return undefined;
 }
 
 export async function saveRateTable(
@@ -192,6 +213,7 @@ export async function saveRateTable(
     code: input.code.trim().toUpperCase(),
     name: input.name.trim(),
     key_columns: input.keyColumns,
+    value_columns: (input.valueColumns ?? []).map((c) => c.trim()),
     active: input.active,
   };
 
@@ -201,6 +223,9 @@ export async function saveRateTable(
       : await db().insert('rateTable', values);
 
     if (reacomodar && anterior) await remapRows(anterior, input.keyColumns);
+    // Una columna de valor que se quitó ya no tiene dónde mostrarse: se descarta de las filas.
+    const quitadas = (anterior?.valueColumns ?? []).filter((c) => !(input.valueColumns ?? []).includes(c));
+    if (id && quitadas.length > 0) await dropRowValues(id, quitadas);
 
     return { status: 'saved', table: toTable(saved) };
   } catch (error) {
@@ -231,6 +256,16 @@ async function remapRows(anterior: RateTable, nuevaClave: VarKey[]): Promise<voi
   }
 }
 
+async function dropRowValues(tableId: string, removed: string[]): Promise<void> {
+  const rows = await db().find('rateTableRow', { where: [{ column: 'table_id', op: 'eq', value: tableId }] });
+  for (const row of rows) {
+    const extra = (row.extra_values ?? {}) as Record<string, string>;
+    if (!removed.some((c) => c in extra)) continue;
+    const kept = Object.fromEntries(Object.entries(extra).filter(([c]) => !removed.includes(c)));
+    await db().update('rateTableRow', row.id, { extra_values: kept });
+  }
+}
+
 export async function setRateTableActive(id: string, active: boolean): Promise<{ error: string | null }> {
   try {
     await db().update('rateTable', id, { active });
@@ -256,10 +291,21 @@ export interface RateTableRowInput {
   tableId: string;
   key: string[];
   amount: string;
+  /** Valores de las columnas adicionales, por nombre. Una columna vacía = la fila no tiene ese valor. */
+  values?: Record<string, string>;
   active: boolean;
 }
 
-export type RateRowErrors = { key?: string; amount?: string };
+export type RateRowErrors = { key?: string; amount?: string; values?: string };
+
+/** Solo los valores adicionales que traen algo, con el número ya recortado. */
+function cleanValues(values: Record<string, string> | undefined): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(values ?? {})
+      .map(([name, value]) => [name, String(value ?? '').trim()] as const)
+      .filter(([, value]) => value !== ''),
+  );
+}
 
 export type SaveRateRowResult =
   | { status: 'saved'; row: RateTableRow }
@@ -272,6 +318,9 @@ function toRow(row: Row): RateTableRow {
     tableId: row.table_id,
     key: (row.key ?? []) as string[],
     amount: String(row.amount),
+    values: Object.fromEntries(
+      Object.entries((row.extra_values ?? {}) as Record<string, unknown>).map(([k, v]) => [k, String(v)]),
+    ),
     order: Number(row.row_order ?? 0),
     active: !!row.active,
   };
@@ -358,6 +407,16 @@ export function validateRateRow(
     errors.amount = 'Escribí un número, por ejemplo 1250.50';
   }
 
+  // Columnas adicionales: solo las que declara el tarifario, y cada una un número (o vacía).
+  const declaradas = table.valueColumns ?? [];
+  for (const [name, value] of Object.entries(cleanValues(input.values))) {
+    if (!declaradas.includes(name)) {
+      errors.values = `El tarifario no tiene la columna de valor "${name}".`;
+    } else if (!AMOUNT_SHAPE.test(value)) {
+      errors.values = `"${name}": escribí un número, por ejemplo 1250.50`;
+    }
+  }
+
   return errors;
 }
 
@@ -381,6 +440,7 @@ export async function saveRateRow(
     table_id: input.tableId,
     key: normalizeKey(input.key, table.keyColumns.length),
     amount: input.amount.trim(),
+    extra_values: cleanValues(input.values),
     row_order: id
       ? (existing.find((r) => r.id === id)?.order ?? 0)
       : existing.reduce((max, r) => Math.max(max, r.order), 0) + 1,
@@ -412,6 +472,8 @@ export async function deleteRateRow(id: string): Promise<{ error: string | null 
 export interface BulkRow {
   key: string[];
   amount: string;
+  /** Valores de las columnas adicionales, por nombre. */
+  values?: Record<string, string>;
 }
 
 export interface BulkResult {
@@ -439,6 +501,13 @@ export async function bulkUpsertRows(
   try {
     const existing = await listRateTableRows(tableId);
 
+    // Los mismos chequeos de rango que el alta manual: un archivo no puede meter lo que la pantalla rechaza.
+    const partyVariables = table.partyId && table.keyColumns.some(isCustomKeyVar)
+      ? await listPartyVariables(table.partyId)
+      : [];
+    const problema = validateImportedRanges(table, rows, mode === 'replace' ? [] : existing, partyVariables);
+    if (problema) return { inserted: 0, replaced: 0, error: problema };
+
     if (mode === 'replace') {
       for (const row of existing) await db().delete('rateTableRow', row.id);
     }
@@ -456,12 +525,15 @@ export async function bulkUpsertRows(
       const previa = porClave.get(keyFingerprint(key));
 
       if (previa) {
-        await db().update('rateTableRow', previa.id, { amount: row.amount, active: true });
+        await db().update('rateTableRow', previa.id, {
+          amount: row.amount, extra_values: cleanValues(row.values), active: true,
+        });
         replaced += 1;
       } else {
         order += 1;
         const saved = await db().insert('rateTableRow', {
-          table_id: tableId, key, amount: row.amount, row_order: order, active: true,
+          table_id: tableId, key, amount: row.amount, extra_values: cleanValues(row.values),
+          row_order: order, active: true,
         });
         // Una clave repetida DENTRO del mismo archivo tiene que pisar, no duplicar: si no, la
         // importación mete justo la ambigüedad que el alta manual rechaza.
@@ -478,6 +550,62 @@ export async function bulkUpsertRows(
       error: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+/**
+ * Chequea los rangos de las filas que se van a importar, antes de escribir nada: bien formados, solo
+ * en columnas numéricas, con inicio ≤ fin y sin pisarse entre sí ni con las filas que se conservan.
+ * Devuelve el primer problema en palabras, o null. PURA, para poder probarla.
+ */
+export function validateImportedRanges(
+  table: Pick<RateTable, 'keyColumns'>,
+  rows: BulkRow[],
+  kept: Pick<RateTableRow, 'key'>[] = [],
+  partyVariables: PartyVariable[] = [],
+): string | null {
+  const count = table.keyColumns.length;
+  const numeric = (column: VarKey) =>
+    isRangeKeyVar(column) || partyVariables.some((v) => v.key === column && v.kind === 'NUMBER');
+
+  const keys = rows.map((r) => normalizeKey(r.key, count));
+  for (const [n, key] of keys.entries()) {
+    for (let i = 0; i < count; i += 1) {
+      const cell = key[i]!;
+      const range = parseRange(cell);
+      if (!range) {
+        if (/\.\./.test(cell)) return `Fila ${n + 1}: "${cell}" no es un rango válido. Use el formato 101..300, ..100 o 301..`;
+        continue;
+      }
+      if (!numeric(table.keyColumns[i]!)) {
+        return `Fila ${n + 1}: la columna "${table.keyColumns[i]}" no es numérica, no admite rangos ("${cell}").`;
+      }
+      if (range.from !== null && range.to !== null && range.from > range.to) {
+        return `Fila ${n + 1}: el rango "${cell}" está al revés (el inicio es mayor que el final).`;
+      }
+    }
+  }
+
+  // Dos filas que comparten el valor de todas las demás columnas y cuyos rangos se pisan darían dos tarifas al mismo valor.
+  const pisa = (a: string[], b: string[]) => a.every((cell, i) => {
+    const ra = parseRange(cell);
+    const rb = parseRange(b[i]!);
+    if (ra && rb) return rangesOverlap(ra, rb);
+    return cell.toUpperCase() === b[i]!.toUpperCase();
+  });
+  const todas = [...kept.map((r) => normalizeKey(r.key, count)), ...keys];
+  for (let a = 0; a < keys.length; a += 1) {
+    const mia = keys[a]!;
+    if (!mia.some((c) => parseRange(c))) continue;
+    for (let b = 0; b < todas.length; b += 1) {
+      // Se compara contra todas las demás (las conservadas y las del archivo), no contra sí misma.
+      if (b === kept.length + a) continue;
+      const otra = todas[b]!;
+      // Una clave idéntica no es un cruce de rangos: la carga masiva la resuelve pisando.
+      if (otra.every((c, i) => c.toUpperCase() === mia[i]!.toUpperCase())) continue;
+      if (pisa(mia, otra)) return `Fila ${a + 1}: el rango se pisa con otra fila (${otra.join(' | ')}): un mismo valor tendría dos tarifas.`;
+    }
+  }
+  return null;
 }
 
 // ── Integridad con las zonas ──────────────────────────────────────────────────────────────────

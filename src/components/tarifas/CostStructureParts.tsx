@@ -94,6 +94,7 @@ export function CostRowsTable({
       loading={loading}
       searchPlaceholder="Buscar componente, grupo o tipo de camión..."
       exportFileName={exportFileName}
+      columnsKey={`tarifas.${exportFileName}`}
       emptyMessage={emptyMessage}
       actions={actions}
     />
@@ -123,6 +124,7 @@ export function TruckSummaryTable({ summary, exportFileName }: { summary: TruckS
       getRowId={(r) => r.truckType ?? '__todos__'}
       searchPlaceholder="Buscar tipo de camión..."
       exportFileName={exportFileName}
+      columnsKey={`tarifas.${exportFileName}`}
       emptyMessage="Sin filas."
     />
   );

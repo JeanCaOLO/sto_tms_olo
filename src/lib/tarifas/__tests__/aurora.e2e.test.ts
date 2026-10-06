@@ -20,7 +20,8 @@ import { calculateTrip } from '../tripSettlement';
 import { activeStructure } from '../costStructureDataSource';
 import { allocationAddsUp } from '../allocation';
 import { ensurePartyProfile } from '../partiesDataSource';
-import { listLiquidableTrips } from '../tripsDataSource';
+import { listLiquidableTrips, listPendingTrips, listTripOrders, setOrderMark } from '../tripsDataSource';
+import { tripProgress } from '../tripOrders';
 import {
   emitSettlement, listSettlements, listTripSettlements, reliquidateSettlement, updateSettlementStatus,
   type SettlementInput,
@@ -164,7 +165,7 @@ describe.skipIf(!enabled)('Liquidador contra Aurora (transacción revertida)', {
         + r.trace.filter((l) => l.source === 'RULE').reduce((sum, l) => sum + Number(l.final), 0),
       2,
     );
-    // Los pedidos del viaje (vista tarifas_v_viaje_cargas) alimentan la auditoría y el reparto por casa.
+    // Los pedidos del viaje (vista tarifas_v_viaje_pedidos) alimentan la auditoría y el reparto por casa.
     const cargo = result.calculation.input.cargo;
     if (cargo && Number(cargo.value) > 0) {
       expect(r.margin.basis).toBe('CARGO');
@@ -172,6 +173,32 @@ describe.skipIf(!enabled)('Liquidador contra Aurora (transacción revertida)', {
       expect(r.allocation?.shares.length).toBe(cargo.parts.length);
       expect(allocationAddsUp(r.allocation!)).toBe(true);
     }
+  });
+
+  it('pedidos del viaje: se leen por guía, se marcan y los viajes incompletos se pueden auditar', async () => {
+    const todos = await listPendingTrips('all', { countryId });
+    const incompletos = await listPendingTrips('incomplete', { countryId });
+    const listos = await listPendingTrips('ready', { countryId });
+    expect(todos.length).toBe(listos.length + incompletos.length);
+    expect(incompletos.every((t) => !tripProgress(t).complete)).toBe(true);
+
+    // Un viaje con pedidos en sus guías: se marca uno, se ve la marca y se quita.
+    let conPedidos: { trip: TripRecord; orderId: string } | null = null;
+    // Cada lectura cruza el túnel: se miran pocos viajes, los que tienen guías.
+    for (const t of todos.filter((x) => x.guideCount > 0).slice(0, 3)) {
+      const orders = await listTripOrders(t.id);
+      const first = orders.find((o) => o.orderId);
+      if (first?.orderId) { conPedidos = { trip: t, orderId: first.orderId }; break; }
+    }
+    if (!conPedidos) return; // la base no trae pedidos en guías: nada que marcar
+    const { trip: viaje, orderId } = conPedidos;
+
+    expect((await setOrderMark({ trip: viaje, orderId, mark: 'DIFERIDO' })).error).toBeNull();
+    expect((await listTripOrders(viaje.id)).find((o) => o.orderId === orderId)?.mark).toBe('DIFERIDO');
+    expect((await setOrderMark({ trip: viaje, orderId, mark: 'ANULADO', reason: 'prueba E2E' })).error).toBeNull();
+    expect((await listTripOrders(viaje.id)).find((o) => o.orderId === orderId)?.mark).toBe('ANULADO');
+    expect((await setOrderMark({ trip: viaje, orderId, mark: null })).error).toBeNull();
+    expect((await listTripOrders(viaje.id)).find((o) => o.orderId === orderId)?.mark).toBeNull();
   });
 
   async function calcOk(allowSettled = false): Promise<TripCalculation> {

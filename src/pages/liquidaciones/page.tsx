@@ -15,14 +15,17 @@ import CountryScopeBar from '../../components/feature/CountryScopeBar';
 import DataModeBanner from '../../components/tarifas/DataModeBanner';
 import LiquidarViajeModal from './components/LiquidarViajeModal';
 import DetalleLiquidacionModal from './components/DetalleLiquidacionModal';
-import { useVistaLiquidador } from './components/useVistaLiquidador';
+import TripOrdersPanel from './components/TripOrdersPanel';
+import { InterruptorVista, useVistaLiquidador } from './components/useVistaLiquidador';
 import { useActiveCountry } from '../../hooks/useActiveCountry';
 import { useModulePermissions } from '../../hooks/use-module-permissions';
 import { useTarifasActor } from '../../hooks/useTarifasActor';
 import { listSettlements, updateSettlementStatus } from '../../lib/tarifas/settlementsDataSource';
-import { listLiquidableTrips } from '../../lib/tarifas/tripsDataSource';
+import { listPendingTrips } from '../../lib/tarifas/tripsDataSource';
+import { notLiquidableReason } from '../../lib/tarifas/tripContext';
+import { deliveryLabel, MARK_LABELS, tripProgress } from '../../lib/tarifas/tripOrders';
 import { formatMoney } from '../../lib/tarifas/format';
-import type { SettlementRecord, SettlementStatus, TripRecord } from '../../lib/tarifas/types';
+import type { SettlementOrder, SettlementRecord, SettlementStatus, TripRecord } from '../../lib/tarifas/types';
 
 const MARGIN_BADGE: Record<string, 'success' | 'warning' | 'danger'> = {
   OK: 'success', WARN: 'warning', CRITICAL: 'danger', LOSS: 'danger',
@@ -42,18 +45,63 @@ const STATUS_CLASSES: Record<string, string> = {
 };
 
 type Tab = 'trips' | 'history';
+/** Qué viajes pendientes se ven: los listos, los que tienen algo sin completar (auditoría) o todos. */
+type Alcance = 'ready' | 'incomplete' | 'all';
+
+const ALCANCES: { value: Alcance; label: string; hint: string }[] = [
+  { value: 'ready', label: 'Listos para liquidar', hint: 'Completados y con todos sus pedidos entregados' },
+  { value: 'incomplete', label: 'Incompletos (auditoría)', hint: 'No completados o con pedidos sin entregar' },
+  { value: 'all', label: 'Todos', hint: 'Todos los viajes sin liquidación vigente' },
+];
+
+/** Pedidos de una liquidación emitida: lo que se midió y qué pasó con cada uno. */
+function PedidosEmitidos({ orders, currency }: { orders: SettlementOrder[] | null; currency: string }) {
+  if (!orders || orders.length === 0) {
+    return <p className="text-xs text-slate-400">Esta liquidación no guardó pedidos (el viaje no los tenía cargados).</p>;
+  }
+  return (
+    <table className="w-full text-xs">
+      <thead>
+        <tr className="text-left text-slate-500">
+          <th className="py-1 pr-3 font-medium">Guía</th>
+          <th className="py-1 pr-3 font-medium">Pedido</th>
+          <th className="py-1 pr-3 font-medium">Casa comercial</th>
+          <th className="py-1 pr-3 font-medium text-right">Valor</th>
+          <th className="py-1 pr-3 font-medium">Entrega</th>
+          <th className="py-1 pr-3 font-medium">En la liquidación</th>
+        </tr>
+      </thead>
+      <tbody>
+        {orders.map((o, i) => (
+          <tr key={`${o.orderId ?? 'x'}-${i}`} className="border-t border-slate-100">
+            <td className="py-1 pr-3 font-mono">{o.guideNumber ?? '—'}</td>
+            <td className="py-1 pr-3 font-mono">{o.orderNumber ?? '—'}</td>
+            <td className="py-1 pr-3">{o.customerName ?? '—'}</td>
+            <td className="py-1 pr-3 text-right">{Number(o.value) > 0 ? formatMoney(o.value, currency) : '—'}</td>
+            <td className="py-1 pr-3">{deliveryLabel(o.deliveryStatus)}</td>
+            <td className="py-1 pr-3">
+              {MARK_LABELS[o.status]}
+              {o.reason && <span className="text-slate-400"> · {o.reason}</span>}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
 
 export default function LiquidacionesPage() {
   const { country: activeCountry, countryId, problem, selectedName, loading: loadingCountries } = useActiveCountry();
   const { canCreate, canEdit } = useModulePermissions('tarifas');
   useTarifasActor();
-  const { extendida } = useVistaLiquidador();
+  const { extendida, puedeConfigurar, setExtendida } = useVistaLiquidador();
 
   const [tab, setTab] = useState<Tab>('trips');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [error, setError] = useState('');
 
+  const [alcance, setAlcance] = useState<Alcance>('ready');
   const [trips, setTrips] = useState<TripRecord[]>([]);
   const [loadingTrips, setLoadingTrips] = useState(true);
   const [settlements, setSettlements] = useState<SettlementRecord[]>([]);
@@ -67,7 +115,8 @@ export default function LiquidacionesPage() {
     if (!countryId) return;
     setLoadingTrips(true);
     try {
-      setTrips(await listLiquidableTrips({
+      // Una sola lectura; los alcances se separan en memoria.
+      setTrips(await listPendingTrips('all', {
         countryId,
         ...(from ? { from } : {}),
         ...(to ? { to } : {}),
@@ -107,6 +156,10 @@ export default function LiquidacionesPage() {
     [settlements],
   );
 
+  const listos = useMemo(() => trips.filter((t) => t.status === 'completed' && tripProgress(t).complete), [trips]);
+  const incompletos = useMemo(() => trips.filter((t) => !tripProgress(t).complete), [trips]);
+  const visibles = alcance === 'ready' ? listos : alcance === 'incomplete' ? incompletos : trips;
+
   const kpis = useMemo(() => {
     const vigentes = settlements.filter((s) => s.status !== 'Anulado');
     const total = vigentes.reduce((sum, s) => sum + Number(s.totalAmount), 0);
@@ -131,6 +184,14 @@ export default function LiquidacionesPage() {
       render: (t) => <span className="font-mono text-xs text-teal-700">{t.routeNumber}</span>,
     },
     { key: 'routeDate', header: 'Fecha', sortable: true, accessor: (t) => t.routeDate },
+    {
+      key: 'progress', header: 'Avance', sortable: true, filterable: true,
+      accessor: (t) => tripProgress(t).label,
+      render: (t) => {
+        const p = tripProgress(t);
+        return <Badge variant={p.complete ? 'success' : 'warning'} size="sm">{p.label}</Badge>;
+      },
+    },
     {
       key: 'carrier', header: 'Transportista', sortable: true, filterable: true,
       accessor: (t) => t.carrierName ?? '', cellClassName: 'max-w-[160px] truncate',
@@ -191,6 +252,22 @@ export default function LiquidacionesPage() {
       render: (s) => <span className="font-medium text-slate-900">{formatMoney(s.totalAmount, s.currency)}</span>,
     },
     {
+      key: 'orders', header: 'Pedidos', sortable: true,
+      accessor: (s) => (s.orders ? s.orders.filter((o) => o.status !== 'ANULADO').length : 0),
+      render: (s) => {
+        if (!s.orders) return <span className="text-slate-300">—</span>;
+        const diferidos = s.orders.filter((o) => o.status === 'DIFERIDO').length;
+        const anulados = s.orders.filter((o) => o.status === 'ANULADO').length;
+        return (
+          <div className="text-xs">
+            <span>{s.orders.length - anulados} en el reparto</span>
+            {diferidos > 0 && <Badge variant="warning" size="sm" className="ml-1">{diferidos} para después</Badge>}
+            {anulados > 0 && <Badge variant="danger" size="sm" className="ml-1">{anulados} anulados</Badge>}
+          </div>
+        );
+      },
+    },
+    {
       key: 'status', header: 'Estado', sortable: true, filterable: true,
       accessor: (s) => s.status,
       render: (s) => (
@@ -237,11 +314,14 @@ export default function LiquidacionesPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-800">Liquidaciones</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Cuánto se le paga a cada transportista por cada viaje completado, y por qué.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-800">Liquidaciones</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Cuánto se le paga a cada transportista por cada viaje completado, y por qué.
+          </p>
+        </div>
+        {puedeConfigurar && <InterruptorVista extendida={extendida} onChange={setExtendida} />}
       </div>
 
       <DataModeBanner />
@@ -253,8 +333,9 @@ export default function LiquidacionesPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard title="Viajes por liquidar" value={String(trips.length)} icon="ri-route-line" color="teal" />
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <StatCard title="Listos para liquidar" value={String(listos.length)} icon="ri-route-line" color="teal" />
+        <StatCard title="Incompletos" value={String(incompletos.length)} icon="ri-error-warning-line" color="amber" />
         <StatCard title="Total liquidado" value={formatMoney(kpis.total.toFixed(2), moneda)} icon="ri-money-dollar-circle-line" color="emerald" />
         <StatCard title="Sin aprobar" value={formatMoney(kpis.pendiente.toFixed(2), moneda)} icon="ri-time-line" color="amber" />
       </div>
@@ -275,21 +356,63 @@ export default function LiquidacionesPage() {
           </div>
         </div>
 
+        {tab === 'trips' && (
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            {ALCANCES.map((a) => (
+              <button
+                key={a.value}
+                type="button"
+                title={a.hint}
+                onClick={() => setAlcance(a.value)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-full border cursor-pointer transition-colors ${
+                  alcance === a.value
+                    ? 'bg-teal-600 text-white border-teal-600'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-teal-300'}`}
+              >
+                {a.label}
+                <span className="ml-1.5 opacity-80">
+                  {a.value === 'ready' ? listos.length : a.value === 'incomplete' ? incompletos.length : trips.length}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {tab === 'trips' ? (
           <DataTable
-            data={trips}
+            data={visibles}
             columns={tripColumns}
             getRowId={(t) => t.id}
             loading={loadingTrips}
+            columnsKey={`liquidaciones.viajes.${extendida ? 'extendida' : 'simple'}`}
+            defaultHidden={extendida ? [] : ['fleet', 'driver', 'vehicle', 'weight', 'zone']}
+            renderExpanded={(t) => (
+              <TripOrdersPanel
+                trip={t}
+                currency={moneda}
+                intro="Pedidos que lleva el viaje, uno por guía de despacho. Se liquidan juntos; desde Liquidar se puede anular alguno o dejarlo para después."
+              />
+            )}
             searchPlaceholder="Buscar por viaje, transportista, conductor o placa"
             exportFileName="viajes_por_liquidar"
             emptyMessage="No hay viajes completados pendientes de liquidar"
             pageSize={25}
-            actions={(t) => (canCreate ? (
-              <Button size="sm" onClick={() => setModal({ trip: t, settlement: null })} title="Liquidar este viaje">
-                <i className="ri-calculator-line mr-1"></i>Liquidar
-              </Button>
-            ) : null)}
+            actions={(t) => {
+              if (!canCreate) return null;
+              const motivo = notLiquidableReason(t);
+              const parcial = !tripProgress(t).complete;
+              return (
+                <Button
+                  size="sm"
+                  variant={parcial ? 'secondary' : 'primary'}
+                  disabled={!!motivo}
+                  onClick={() => setModal({ trip: t, settlement: null })}
+                  title={motivo ?? (parcial ? 'Tiene pedidos sin entregar: podés anularlos o dejarlos para después' : 'Liquidar este viaje')}
+                >
+                  <i className="ri-calculator-line mr-1"></i>Liquidar
+                </Button>
+              );
+            }}
           />
         ) : (
           <DataTable
@@ -297,6 +420,8 @@ export default function LiquidacionesPage() {
             columns={columnasHistorial}
             getRowId={(s) => s.id}
             loading={loadingSettlements}
+            columnsKey={`liquidaciones.historial.${extendida ? 'extendida' : 'simple'}`}
+            renderExpanded={(s) => <PedidosEmitidos orders={s.orders} currency={s.currency} />}
             searchPlaceholder="Buscar por LIQ-, viaje o transportista"
             exportFileName="liquidaciones_historial"
             emptyMessage="No hay liquidaciones emitidas"

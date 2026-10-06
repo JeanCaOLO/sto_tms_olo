@@ -295,6 +295,7 @@ export default function CompaniasView({ classification }: { classification: Part
           loading={loading}
           searchPlaceholder="Buscar por nombre, código o identificación fiscal..."
           exportFileName={isOutsourced ? 'transportistas_a_liquidar' : 'flota_propia'}
+          columnsKey={`tarifas.${isOutsourced ? 'transportistas_a_liquidar' : 'flota_propia'}`}
           emptyMessage={`${copy.emptyTitle}. ${copy.emptyHint}`}
           actions={(profile) => (
             <>
