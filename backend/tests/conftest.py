@@ -18,12 +18,12 @@ STACK_SOURCES = {
     "eflow": BACKEND / "eflow" / "src",
     "admin": BACKEND / "admin" / "src",
     "planning": BACKEND / "planning" / "src",
-    "tarifas": BACKEND / "tarifas" / "src",
+    "oms": BACKEND / "oms" / "src",
 }
 STACK_MODULES = {"app", "table_modules", "admin_permissions", "admin_audit", "audit_maintenance", "relations", "schema", "select_parser", "select_query", "mutations",
                  "scopes", "context_queries", "eflow_queries", "live_source", "mock_source",
                  "admin_access", "admin_payload", "admin_sql", "admin_users", "admin_roles", "planning_sql", "delivery_points", "delivery_points_sql",
-                 "tarifas_schema", "tarifas_sql"}
+                 "models", "score", "regla_fecha", "analizador_observaciones", "cola_candidatos", "handoff_pedidos", "motor_reglas"}
 
 sys.path.insert(0, str(LAYER))
 

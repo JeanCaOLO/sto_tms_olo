@@ -1,0 +1,12 @@
+# Backend hexagonal Planificación 2 (Aurora PostgreSQL). pg8000 es un driver
+# 100% Python puro (sin binarios ni layer); PyJWT firma/verifica la sesión.
+# boto3 lo trae el runtime de Lambda, no va aquí.
+pg8000==1.31.2
+PyJWT==2.9.0
+# bcrypt (binario nativo) lo usa auth (lib/tms_common/passwords). Build de las
+# funciones de auth con `sam build --use-container`. Las demás no lo importan.
+bcrypt==4.2.0
+# python-tds (import pytds): driver TDS 100% Python puro para SQL Server. Solo lo
+# importa (tardíamente) EFLOW en modo live (lib/tms_common/eflow_db); en modo
+# mock no se carga. Sin binarios nativos ni layer.
+python-tds==1.16.0

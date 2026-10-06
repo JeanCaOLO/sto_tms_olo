@@ -1,0 +1,23 @@
+{
+  "stage": "units-generation",
+  "intent": "260826-modulo-oms",
+  "note": "Re-corrida ACOTADA a la rebanada delgada (2026-10-01). 2 unidades: U1 motor-reglas-oms (service, los 5 componentes de dominio como módulos internos) y U2 esquema-pedidos-oms (spec, tabla propia del OMS). Se mapean las historias de la rebanada; las diferidas/retiradas no se asignan en esta corrida.",
+  "units": [
+    { "id": "U1", "directory": "u1-motor-reglas-oms", "kind": "service" },
+    { "id": "U2", "directory": "u2-esquema-pedidos-oms", "kind": "spec" }
+  ],
+  "upstream_ids": ["US1", "US7", "US8", "US9", "US10", "US11b", "US12", "US13"],
+  "coverage": [
+    { "id": "US1",   "status": "OK", "target": "U1" },
+    { "id": "US7",   "status": "OK", "target": "U1" },
+    { "id": "US8",   "status": "OK", "target": "U1" },
+    { "id": "US9",   "status": "OK", "target": "U1" },
+    { "id": "US10",  "status": "OK", "target": "U1" },
+    { "id": "US11b", "status": "OK", "target": "U1" },
+    { "id": "US12",  "status": "OK", "target": "U1" },
+    { "id": "US13",  "status": "OK", "target": "U1" }
+  ],
+  "us9_also_targets": "U2 (esquema de la tabla destino de la escritura 1 del handoff)",
+  "deferred_not_in_this_slice": ["US2","US3","US4","US5","US6","US11","US14","US15","US16","US17","US18","US19","US20","US21","US22","US23","US24","US25","US26","US27","US30","US31","US32","US33"],
+  "retired": ["US28","US29"]
+}

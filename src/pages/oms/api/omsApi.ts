@@ -34,6 +34,51 @@ function delay<T>(data: T, ms = 350): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(data), ms));
 }
 
+// Modo DEMO: alimenta la Cola con el JSON generado por el MOTOR REAL del backend
+// (src/pages/oms/demo/) en vez de Supabase/mock + motor TS. Sirve para mostrar en
+// la tabla cómo prioriza el motor nuevo del OMS.
+//
+// POR AHORA está ENCENDIDO POR DEFECTO: abrir el OMS normal (/oms/cola) ya muestra
+// el demo, sin tener que tocar la URL ni configurar nada — así cualquiera que
+// pruebe el PR lo ve directo. Escape por si hace falta volver al flujo normal:
+//   - `?demo=0` en la URL lo APAGA y lo recuerda en la sesión (localStorage).
+//   - `?demo=1` lo vuelve a ENCENDER.
+// TODO: cuando dejemos de usar el demo, cambiar DEMO_POR_DEFECTO a false (o
+// quitar este bloque) para que la Cola vuelva a leer datos reales/Supabase.
+const DEMO_LS_KEY = 'oms.demo';
+const DEMO_POR_DEFECTO = true;
+
+function readDemoParam(): string | null {
+  if (typeof window === 'undefined') return null;
+  const fromSearch = new URLSearchParams(window.location.search).get('demo');
+  if (fromSearch !== null) return fromSearch;
+  // Soporte por si en el futuro se usa hash routing (#/oms/cola?demo=1).
+  const hash = window.location.hash;
+  const qi = hash.indexOf('?');
+  return qi >= 0 ? new URLSearchParams(hash.slice(qi)).get('demo') : null;
+}
+
+function isOmsDemo(): boolean {
+  try {
+    const param = readDemoParam();
+    if (param === '1') {
+      try { localStorage.removeItem(DEMO_LS_KEY); } catch { /* storage no disponible */ }
+      return true;
+    }
+    if (param === '0') {
+      // Apagado explícito: lo recordamos para que siga apagado al navegar.
+      try { localStorage.setItem(DEMO_LS_KEY, '0'); } catch { /* storage no disponible */ }
+      return false;
+    }
+    try {
+      if (localStorage.getItem(DEMO_LS_KEY) === '0') return false;
+    } catch { /* storage no disponible */ }
+    return DEMO_POR_DEFECTO;
+  } catch {
+    return DEMO_POR_DEFECTO;
+  }
+}
+
 // --- Persistencia mock del Simulador (localStorage) ---
 // PROTOTIPO: sin backend. El catálogo de simulaciones guardadas y el historial
 // de ejecuciones se guardan en localStorage para que la navegación se sienta
@@ -111,6 +156,15 @@ export const omsApi = {
     return delay(cofersaRoutes.filter((r) => r.country === country));
   },
   async getQueue(country: Country): Promise<QueueOrder[]> {
+    // Modo DEMO: pedidos priorizados por el motor real del backend (JSON export).
+    if (isOmsDemo()) {
+      const { corridaDemoOrders } = await import('../demo/corridaDemo');
+      const rows = corridaDemoOrders()
+        .filter((o) => o.country === country)
+        .slice()
+        .sort((a, b) => b.score - a.score);
+      return delay(rows);
+    }
     if (country === 'CR') {
       const { data, error } = await supabase.from('wms_expediciones').select('*');
       if (error) {

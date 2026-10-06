@@ -1,0 +1,49 @@
+version = 0.1
+# Deploy (solo Intelix): sam build && sam deploy --config-env <dev|qa|prod>
+# Sandbox: se despliega con OMS_SOURCE=mock (sin escrituras a Aurora ni al WMS). NO pasar a live ni a qa/prod
+# hasta reactivar nfr/infra-design (esqueleto, ver external-dependency-map.md).
+
+[dev.deploy.parameters]
+stack_name = "dev-tms-oms"
+region = "us-east-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+resolve_s3 = true
+parameter_overrides = [
+  "Environment=dev",
+  "CommonStackName=dev-tms-common-services",
+  "CommonLayerArn=/dev/tms/common-layer-arn",
+  "SubnetIds=/dev/tms/network/subnets",
+  "SecurityGroupId=/dev/tms/network/lambda-sg"
+]
+tags = ["Project=TMS", "Environment=DEV", "Name=dev-tms-oms"]
+
+[qa.deploy.parameters]
+stack_name = "qa-tms-oms"
+region = "us-east-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+resolve_s3 = true
+parameter_overrides = [
+  "Environment=qa",
+  "CommonStackName=qa-tms-common-services",
+  "CommonLayerArn=/qa/tms/common-layer-arn",
+  "SubnetIds=/qa/tms/network/subnets",
+  "SecurityGroupId=/qa/tms/network/lambda-sg"
+]
+tags = ["Project=TMS", "Environment=QA", "Name=qa-tms-oms"]
+
+[prod.deploy.parameters]
+stack_name = "prod-tms-oms"
+region = "us-east-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+resolve_s3 = true
+parameter_overrides = [
+  "Environment=prod",
+  "CommonStackName=prod-tms-common-services",
+  "CommonLayerArn=/prod/tms/common-layer-arn",
+  "SubnetIds=/prod/tms/network/subnets",
+  "SecurityGroupId=/prod/tms/network/lambda-sg"
+]
+tags = ["Project=TMS", "Environment=PROD", "Name=prod-tms-oms"]

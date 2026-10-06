@@ -5,19 +5,22 @@
 > `codekb-scope-diff` en la próxima re-ejecución para decidir si un intent
 > futuro debe ser advertido antes de sobrescribir este conocimiento.
 
-## Ejecución
+## Ejecución (re-corrida por el pivote WMH)
 
-- **Fecha de la ingeniería inversa**: 2026-08-27
+- **Fecha de la ingeniería inversa**: 2026-09-30 (re-corrida; la anterior fue el
+  2026-08-27 sobre el prototipo React+Supabase, hoy superado).
+- **Motivo**: pivote de alcance (OMS + Planificación reemplazan el WMH) + base
+  nueva ya integrada (backend Python/Lambdas/SAM). El codekb previo estaba
+  anclado al prototipo y quedó obsoleto.
 - **Intent activo**: `260826-modulo-oms`
-- **Repositorio analizado**: `sto_tms_olo` (repo único; la fila de
-  `intents.json` no registra un arreglo `repos`).
-- **Commit HEAD en el momento del escaneo**: `28d6991`
-  (`28d6991e2c4c4e0b8c60e1f09eb54f71d5503e09`).
-- **Árbol de trabajo**: con cambios sin confirmar (los artefactos de AI-DLC
-  bajo `aidlc/` y `.kiro/specs/` estaban sin versionar en el momento del
-  escaneo).
-- **Topología de la etapa**: `pipeline` — el desarrollador escaneó (enlace 1) y
-  el arquitecto sintetizó y escribió los 9 artefactos (enlace 2, final).
+- **Repositorio analizado**: `sto_tms_olo` (repo único).
+- **Commit HEAD en el momento del escaneo**: `766c224`
+  (`766c224cfba955014de4303d038e65a5280a9406`).
+- **Árbol de trabajo**: con cambios sin confirmar (artefactos de AI-DLC bajo
+  `aidlc/` en curso durante el escaneo).
+- **Topología de la etapa**: `pipeline` — developer-agent escaneó (enlace 1) y el
+  conductor sintetizó y escribió los 9 artefactos (enlace 2), con apoyo de
+  context-gatherer para el escaneo profundo del backend.
 
 ## Artefactos producidos
 
@@ -36,89 +39,73 @@ Los 9 artefactos del codekb viven en
 
 ## Naturaleza del escaneo
 
-El escaneo fue **parcial (`kind: partial`)**: se analizó en profundidad el
-núcleo de la aplicación (composición, plataforma, router, capa Supabase, hooks,
-i18n) y todos los módulos de página adyacentes al OMS (pedidos, planificación,
-tracking, guías, devoluciones, liquidaciones, contratos, reportes, clientes,
-dashboard, seed), mientras que los módulos de catálogo y las páginas de soporte
-(tiendas, países, rutas, vehículos, conductores, transportistas, configuración,
-login) se inventariaron solo en superficie. Esta profundidad se eligió para
-servir a las etapas siguientes (Requirements Analysis y Domain Design) del
-módulo OMS sin gastar presupuesto en áreas fuera de su alcance inmediato.
+Escaneo **parcial (`kind: partial`)** enfocado en lo relevante para el OMS y
+Planificación tras el pivote: el backend real (Python/Lambdas/SAM) en
+profundidad —cada `app.py` de módulo, templates SAM, Layer `tms_common`,
+scopes/permisos, planning— y el frontend en los ejes que tocan al OMS
+(`src/pages/oms/`, `src/pages/planificacion/`, `src/lib/tarifas/`, shim
+`src/lib/supabase.ts`). Verificó las decisiones C1 (backend Python/SAM), C3
+(multi-tenancy por scope, no Lambda por compañía) y C2 (no hay motor de reglas en
+backend; el motor vive en TS de frontend). El `server/` Express legacy no se
+analizó en detalle (declarado referencia de contrato).
 
 ## Scope of Analysis
 
 ```yaml
-scope_version: 1
+scope_version: 2
 kind: partial
 intent: 260826-modulo-oms
-fingerprint: 6d27d6aa8ed4155a5ce1ebbf24b8b878111b6ac6
+fingerprint: 766c224cfba955014de4303d038e65a5280a9406
 analyzed:
   paths:
-    - src/
-    - src/components/
-    - src/components/base/
-    - src/components/feature/
-    - src/hooks/
-    - src/lib/
+    - backend/
+    - backend/common-services/
+    - backend/common-services/layers/tms_common/tms_common/
+    - backend/auth/src/
+    - backend/data/src/
+    - backend/context/src/
+    - backend/eflow/src/
+    - backend/admin/src/
+    - backend/planning/src/
+    - backend/local/
+    - backend/tests/
+    - backend/README.md
+    - backend/pytest.ini
+    - backend/requirements-dev.txt
     - src/lib/supabase.ts
-    - src/router/
-    - src/i18n/
-    - src/pages/dashboard/
-    - src/pages/pedidos/
+    - src/lib/tarifas/
     - src/pages/oms/
+    - src/pages/oms/engine/
     - src/pages/planificacion/
-    - src/pages/tracking/
-    - src/pages/guias/
-    - src/pages/devoluciones/
-    - src/pages/liquidaciones/
-    - src/pages/contratos/
-    - src/pages/reportes/
-    - src/pages/clientes/
-    - src/pages/seed/
-    - eslint.config.ts
-    - eslint-rules/
-    - vite.config.ts
     - package.json
-    - tsconfig.app.json
-    - index.html
-    - CONTEXTO_PROYECTO_TMS.md
-    - PLAN_MODULO_OMS.md
+    - docs/decisions/0002-backend-lambdas-python-sam.md
+    - docs/arquitectura-tms-oms/02-to-be.md
+    - docs/wmh-actual/
   components:
-    - app-bootstrap
-    - app-layout
-    - router
-    - supabase-client
-    - auth-context
-    - i18n
-    - design-system-base
-    - sidebar-nav
-    - app-header
-    - stat-card
-    - csv-import
-    - dashboard
-    - pedidos
-    - oms-prototype
-    - planificacion
-    - tracking
-    - guias
-    - devoluciones
-    - liquidaciones
-    - contratos
-    - reportes
-    - clientes
-    - seed
-    - not-found
-    - home-dead-code
-    - eslint-rule-route-element-jsx
+    - common-services
+    - auth
+    - data
+    - context
+    - eflow
+    - admin
+    - planning
+    - tms_common-layer
+    - oms-frontend
+    - planificacion-frontend
+    - motor-tarifas
+    - supabase-client-shim
+    - priority-engine
 shallow:
   paths:
-    - src/pages/tiendas/
-    - src/pages/paises/
-    - src/pages/rutas/
-    - src/pages/vehiculos/
+    - server/
+    - sql/
+    - src/pages/reglas-tarifa/
+    - src/pages/liquidaciones/
+    - src/pages/configuracion/
+    - src/pages/clientes/
     - src/pages/conductores/
     - src/pages/transportistas/
-    - src/pages/configuracion/
-    - src/pages/login/
+    - src/pages/vehiculos/
+    - src/pages/contratos/
+    - src/components/
 ```

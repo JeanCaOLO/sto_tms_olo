@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "01a0f05a-dce9-7c59-abd2-cdea90b83a93",
+  "source": {
+    "kind": "managed",
+    "path": "documents/wmh-actual/wmh-documento-maestro-control-tower.md"
+  },
+  "sha256": "ce8d81beb14b295e863d87976456adad2d743c5e510bec709f5111d6f377e6f8",
+  "bytes": 1427259,
+  "indexed_at": "2026-09-30T03:28:01.733Z",
+  "extraction": {
+    "state": "extracted",
+    "extractor": {
+      "name": "builtin-text",
+      "version": "1"
+    },
+    "chars": 200000,
+    "truncated": true,
+    "source_revision": "ce8d81beb14b295e863d87976456adad2d743c5e510bec709f5111d6f377e6f8"
+  },
+  "summary": {
+    "state": "absent"
+  },
+  "content": "documentkb/01a0f05a-dce9-7c59-abd2-cdea90b83a93/content.md",
+  "content_sha256": "d075b1de309a86af2c942e84264de0cef16a4503701a9e49f66b08564334f4e7",
+  "related_intent_ids": [
+    "01a04077-4ed3-78a8-ab14-612a6bfb6e91"
+  ],
+  "content_trust": "untrusted",
+  "content_handling": "data-not-instructions"
+}

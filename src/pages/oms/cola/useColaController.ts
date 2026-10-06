@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { omsApi } from '../api/omsApi';
 import type { PriorityTier, QueueOrder } from '../types';
-import { matchesSearch } from '../../../lib/text';
 
 const ALL = 'todos';
 
@@ -60,7 +59,7 @@ export function useColaController() {
 
   // Filtrado con lógica AND (FR3.3).
   const filtered = useMemo(() => {
-    const q = filters.query;
+    const q = filters.query.trim().toLowerCase();
     return orders.filter((o) => {
       if (filters.warehouse !== ALL && o.warehouseId !== filters.warehouse) return false;
       if (filters.company !== ALL && o.companyId !== filters.company) return false;
@@ -69,7 +68,7 @@ export function useColaController() {
       if (filters.tier !== ALL && String(o.tier) !== filters.tier) return false;
       if (filters.status !== ALL && o.status !== filters.status) return false;
       if (filters.situation !== ALL && o.situation !== filters.situation) return false;
-      if (!matchesSearch(`${o.id} ${o.ref} ${o.customer} ${o.route} ${o.observations}`, q)) return false;
+      if (q && !`${o.id} ${o.ref} ${o.customer} ${o.route} ${o.observations}`.toLowerCase().includes(q)) return false;
       return true;
     });
   }, [orders, filters]);

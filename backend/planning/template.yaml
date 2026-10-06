@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: TMS - PLANNING | Pedidos alistados a planificar (/api/v1/planificacion/*)
+Description: TMS - PLANNING | Planificación de rutas - pedidos, planes editables y estado por viaje (/api/v1/planificacion/*)
 
 Parameters:
   Environment:
@@ -31,12 +31,14 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub ${AWS::StackName}-planning-api
-      Description: TMS - PLANNING API | Pedidos alistados por fecha de entrega para armar viajes
-      CodeUri: src/
-      Handler: app.handler
+      Description: TMS - PLANNING API | Pedidos, planes (crear/editar/confirmar/completar/cancelar) y estado por viaje
+      # Código del backend hexagonal de Planificación 2 (copia de TMS-Backend, ver backend-planif/README.md).
+      # Trae su propio lib/tms_common; la Layer queda adjunta pero este handler no la usa.
+      CodeUri: ../../backend-planif/src/
+      Handler: adapters.inbound.planificacion_api.handler
       Runtime: python3.13
       Architectures: [x86_64]
-      Timeout: 15
+      Timeout: 30
       MemorySize: 512
       Role:
         Fn::ImportValue: !Sub ${CommonStackName}-LambdaRoleArn
@@ -80,6 +82,116 @@ Resources:
       ApiId:
         Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
       RouteKey: GET /api/v1/planificacion/pedidos
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${PlanningApiIntegration}
+
+  PlanningCreatePlanRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/v1/planificacion/planes
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${PlanningApiIntegration}
+
+  PlanningListPlansRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/v1/planificacion/planes
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${PlanningApiIntegration}
+
+  PlanningGetPlanRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/v1/planificacion/planes/{id}
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${PlanningApiIntegration}
+
+  PlanningEditPlanRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: PUT /api/v1/planificacion/planes/{id}
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${PlanningApiIntegration}
+
+  PlanningConfirmPlanRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/v1/planificacion/planes/{id}/confirmar
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${PlanningApiIntegration}
+
+  PlanningCompletePlanRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/v1/planificacion/planes/{id}/completar
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${PlanningApiIntegration}
+
+  PlanningCancelPlanRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/v1/planificacion/planes/{id}/cancelar
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${PlanningApiIntegration}
+
+  PlanningCompleteTripRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/v1/planificacion/viajes/{tripId}/completar
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${PlanningApiIntegration}
+
+  PlanningCancelTripRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/v1/planificacion/viajes/{tripId}/cancelar
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${PlanningApiIntegration}
+
+  PlanningReopenTripRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/v1/planificacion/viajes/{tripId}/reabrir
       AuthorizationType: CUSTOM
       AuthorizerId:
         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId

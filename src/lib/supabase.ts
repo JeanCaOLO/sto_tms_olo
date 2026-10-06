@@ -47,11 +47,27 @@ function notify(event: AuthChangeEvent, session: AuthSession | null) {
 // Lambda (backend/common-services, output ApiUrl). Sin barra final.
 const API_BASE = (import.meta.env.VITE_API_BASE ?? "").replace(/\/$/, "");
 
+// Contexto operativo del headbar (país → almacén → compañía), persistido por
+// useOperationalContext. Se adjunta a cada llamada como headers para que el
+// backend filtre por almacén/compañía sin pasar el contexto por cada endpoint.
+function operationalHeaders(headers: Headers) {
+  try {
+    const raw = localStorage.getItem("tms_operational_context");
+    if (!raw) return;
+    const ctx = JSON.parse(raw) as { warehouseId?: string | null; customerId?: string | null };
+    if (ctx.warehouseId) headers.set("x-warehouse-id", ctx.warehouseId);
+    if (ctx.customerId) headers.set("x-customer-id", ctx.customerId);
+  } catch {
+    // localStorage no disponible — el backend cae a sus defaults
+  }
+}
+
 export async function apiFetch(path: string, init: RequestInit = {}) {
   const current = readSession();
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "application/json");
   if (current?.access_token) headers.set("Authorization", `Bearer ${current.access_token}`);
+  operationalHeaders(headers);
   const res = await fetch(`${API_BASE}/api${path}`, { ...init, headers });
   const body = await res.json().catch(() => null);
   return { ok: res.ok, status: res.status, body };

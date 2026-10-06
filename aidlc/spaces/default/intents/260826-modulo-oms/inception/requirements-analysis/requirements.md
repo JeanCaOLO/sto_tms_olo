@@ -1,38 +1,49 @@
 # Requerimientos — Módulo OMS (Order Management System)
 
 > Intent: `260826-modulo-oms`. Etapa: Requirements Analysis (Inception,
-> re-corrida). Proyecto brownfield `sto_tms_olo`. Idioma: español.
+> **re-corrida por el pivote de reemplazo del WMH**, 2026-09-30). Proyecto
+> brownfield `sto_tms_olo`. Idioma: español.
 >
-> Esta versión **corrige y reemplaza** la anterior a la luz de las decisiones
-> firmes registradas en `aidlc/spaces/default/memory/project.md` (`## Decided`)
-> y de las reuniones funcionales y de diseño de 2026-09 (Antonio, Calzadilla,
-> diseño de solución, simulador). Correcciones estructurales principales frente
-> a la versión previa:
+> Esta versión **corrige quirúrgicamente** la anterior (v2, 14 FR) a la luz del
+> pivote (`project.md` `## Decided` D1–D5 y C3-SUPERSEDE, 2026-09-29) y del
+> codekb regenerado el 2026-09-30 contra el código real (backend Python/SAM).
+> Correcciones de esta re-corrida frente a v2:
 >
-> 1. **Posicionamiento**: el OMS **lee del WMS/EFLOW, aplica reglas y escribe a
->    nivel del WMS** (cambia `estado`/`situación` y la prioridad de los
->    registros). **No** existe inserción a un "lago de datos", **no** toca el
->    WMH, **no** lee tablas intermedias. Termina en **"alistado"**.
-> 2. **Prioridad**: **numérica e invertida** (menor número = mayor prioridad),
->    atada a la fecha (regla T-1), con **score ponderado desde la primera
->    entrega**. Se elimina el modelo de niveles nombrados (`priority_tier`
->    crítico/alto/medio/bajo).
-> 3. El OMS **no calcula ni escribe fechas**; no existe "fecha de alisto".
-> 4. Motor de Reglas = **catálogo semi-configurable** (no constructor dinámico).
-> 5. **Simulador = configurador de simulaciones** (entidad persistida).
-> 6. **Multi-compañía**: Lambda por compañía; la compañía es un **filtro/selector**
->    en la UI (no un perfil).
+> 1. **Reemplazo del WMH DESDE LA SALIDA** (no progresivo): el OMS y
+>    Planificación reemplazan al WMH (Control Tower), no lo van sustituyendo
+>    incremental (D1/D2). Lo que se reemplaza está en `docs/wmh-actual/`.
+> 2. **El rediseño del flujo** pedido → TMS → OMS → WMS **entra en alcance** (D4).
+> 3. **Calendario de Rutas del OMS eliminado** (D5): FR12 se retira del cuerpo y
+>    pasa a "Fuera de alcance" con nota de deprecación (ruteo dinámico, "la ruta
+>    manda"). La épica E8/US28–US29 se retira en User Stories.
+> 4. **Multi-compañía por SCOPE** (C3-SUPERSEDE): reglas con scope
+>    CUSTOMER→WAREHOUSE→COUNTRY→GLOBAL en Lambdas compartidas por función — NO
+>    "una Lambda por compañía". Confirmado contra el código (`user_scopes`).
+> 5. **Jerarquía País→Almacén→Cliente→Cliente Final** como contexto de datos y
+>    aislamiento por scope que el OMS consume (02-to-be §2, ya implementada en el
+>    módulo `context`).
+>
+> Se mantiene intacto lo firme de v2: T-1, score ponderado, IA de observaciones,
+> Simulador-configurador, cola, panel/auditoría, seguridad. **No se re-abren** C1
+> (stack Python/Lambdas/SAM, confirmado) ni C3 (confirmado). C2 (dónde vive el
+> motor de reglas: portar el AST TS→Python vs. motor nuevo) se resuelve en
+> Domain Design.
 
 ## Análisis de intención
 
 El objetivo de negocio es **automatizar la priorización de alistamiento de
-pedidos** que hoy realiza manualmente la Torre de Control (WMH) — reemplazándola
-de forma **progresiva**. El OMS es un **intermediario** que se posiciona entre
-los pedidos del WMS/EFLOW y su preparación: **lee** los pedidos, **aplica reglas
-de negocio** para decidir cuáles se preparan y con qué prioridad, y **escribe de
-vuelta en el WMS/EFLOW** cambiando el `estado`/`situación` del pedido (de `DISP`
-a `situación = GENERADA`) y su **prioridad**. Con eso, el WMS genera
-automáticamente las tareas de picking.
+pedidos** que hoy realiza manualmente la Torre de Control (WMH). Con el pivote de
+alcance, el OMS —junto con Planificación— **reemplaza al WMH desde la salida**,
+no de forma progresiva (D1). El OMS es el eslabón que se posiciona entre los
+pedidos del WMS/EFLOW y su preparación: **lee** los pedidos, **aplica reglas de
+negocio** para decidir cuáles se preparan y con qué prioridad, y hace **dos
+escrituras con dos propósitos** (D6): (a) persiste el registro del pedido en su
+**tabla de pedidos PROPIA** (esquema OMS de `logistica_olo`) con prioridad,
+status y `situación = GENERADA` — esta es la **superficie de handoff a
+Planificación**; y (b) cambia el campo de `situación` del pedido **en el WMS/
+EFLOW** para que el WMS/EFLOW continúe con el picking. Con eso el pedido queda
+**"alistado"**, y **Planificación** lee de la **tabla propia del OMS** (no del
+WMS) para armar el viaje.
 
 Lo que el OMS **busca lograr**:
 
@@ -41,41 +52,79 @@ Lo que el OMS **busca lograr**:
 - Decidir **cuándo** preparar cada pedido (regla de fecha T-1) y con qué
   **prioridad** (número invertido), evitando el alistamiento prematuro (satura
   el muelle) y el tardío (pierde el viaje).
-- Operar **multi-compañía y multi-país** (Cofersa, EPA… en CR/VE) con reglas
-  específicas por compañía.
+- Operar **multi-país y multi-compañía** (Cofersa, EPA… en CR/VE) con reglas
+  específicas resueltas por **scope** (país → almacén → cliente).
 
-**Alcance del OMS** (firme, act. 2026-09-14): el OMS **lee** los pedidos del
-WMS/EFLOW, aplica las reglas y **cambia ciertos campos de esos registros a nivel
-del WMS** (`estado`/`situación` + prioridad). **Hasta ahí llega.** El WMS/EFLOW
-genera las tareas de picking cuando la situación queda en `GENERADA`.
+**El ciclo funcional del OMS** (Figura 7 del pivote, se mantiene):
+Ingreso de pedidos (WMS/réplica) → Enriquecimiento de datos → Evaluación de
+reglas → Priorización → Handoff a Planificación (situación `GENERADA`) →
+Auditoría.
+
+**Alcance del OMS** (D6): el OMS **lee** los pedidos del WMS/EFLOW, aplica las
+reglas, **persiste el pedido priorizado en su tabla propia** (esquema OMS, con
+prioridad + status + `situación = GENERADA`) y **cambia la `situación` del pedido
+en el WMS/EFLOW** para disparar el picking. El armado del viaje NO es del OMS: lo
+hace Planificación leyendo la tabla del OMS.
+
+**Frontera OMS ↔ Planificación** (handoff, D6): la superficie de handoff es la
+**tabla de pedidos propia del OMS** (esquema OMS de `logistica_olo`), no el WMS.
+El OMS deja ahí el pedido **alistado** (prioridad + `situación = GENERADA`, sin
+viaje asignado); **Planificación** —módulo aparte, intent
+`260825-route-planning-reqs`— lee **de esa tabla del OMS** para armar los viajes
+(ruteo dinámico multi-fuente). La escritura de `situación` en el WMS es un efecto
+aparte, solo para que el WMS/EFLOW genere el picking. Este requirements cubre
+**solo el OMS**; no absorbe los FR de Planificación.
+
+> **Nota (D6 SUPERSEDE)**: queda superado el punto de v2 de que el OMS "cambia
+> campos a nivel del WMS y HASTA AHÍ LLEGA / no toma nada de las tablas
+> intermedias". Ahora el OMS **también persiste en su propia tabla de pedidos**,
+> coherente con el reemplazo del WMH (D4) y la Figura 7. Sin cambio: lectura
+> desde WMS/EFLOW, no escribe fecha de alisto, prioridad numérica invertida, y el
+> WMS genera el picking con `situación = GENERADA`.
 
 **Fuera de alcance** (de otros módulos o a futuro): creación/asignación del
-**viaje** (Planificación/TMS), picking y guía de carga (WMS/TMS), ruteo de
-entrega, facturación/despacho (TMS, por compañía), validación de inventario por
-línea, y el rediseño completo del flujo (pedido → TMS → OMS → WMS) que queda a
-futuro. El OMS **no** modifica el WMH ni lee las tablas intermedias.
+**viaje** y el **armado de rutas / "Nuevo Viaje"** (Planificación/TMS — su propio
+intent); picking y guía de carga (WMS/TMS); ruteo de entrega; facturación/
+despacho (TMS, por compañía); validación de inventario por línea; y el
+**Calendario de Rutas del OMS** (FR12 v2, **retirado** por D5 — ver más abajo).
+El OMS **no** modifica el WMH ni lee las tablas intermedias.
+
+> **Nota de reversión (D4)**: el rediseño completo del flujo pedido → TMS → OMS →
+> WMS, que en v2 estaba "fuera de alcance a futuro", **entra en alcance** con el
+> reemplazo del WMH desde la salida. El OMS se diseña como pieza de ese flujo de
+> reemplazo, no como añadido incremental sobre el WMH.
 
 ### Actores (roles del OMS, de la Adenda del 2026-08-26)
 
 | Rol | Responsabilidad en el OMS |
 |---|---|
-| **Operador de Despacho** | Mantiene el CRUD del calendario de rutas y días de despacho en el OMS (cuya **fuente de verdad es el TMS**; el OMS lo consume). |
-| **Administrador de Módulo** | Configura el **catálogo de reglas** (activar/desactivar, peso/score, parámetros) por compañía; superusuario del módulo (no del TMS completo). |
+| **Administrador de Módulo** | Configura el **catálogo de reglas** (activar/desactivar, peso/score, parámetros) por scope; superusuario del módulo (no del TMS completo). |
 | **Jefe de Almacén** | Visibilidad y reportería del módulo; acceso a la planificación. **No bloquea ni aprueba** el flujo. |
 | **Responsable del OMS** | Monitorea el motor automatizado; ejerce el **override manual** (única intervención humana sobre el cálculo) y decide aplicar simulaciones. |
 
+> El rol **Operador de Despacho** que en v2 mantenía el "calendario de rutas del
+> OMS" se retira de este alcance junto con FR12 (D5): las rutas ya no son fijas.
+>
 > El cálculo de prioridad es **100 % automático**; **no existe** paso de
 > aprobación humana antes del alistamiento (Adenda 2026-08-26). La única
 > intervención humana es el **override manual** por un rol autorizado.
 
 ## Glosario
 
-- **OMS**: módulo que lee pedidos del WMS/EFLOW, calcula prioridad y cambia su
-  `estado`/`situación` para dejarlos "alistados" (listos para picking).
+- **OMS**: módulo que lee pedidos del WMS/EFLOW, calcula prioridad, **persiste el
+  pedido priorizado en su tabla propia** (handoff a Planificación) y **cambia la
+  `situación` del pedido en el WMS/EFLOW** para disparar el picking (D6).
+- **tabla de pedidos del OMS**: tabla propia del OMS (esquema OMS de
+  `logistica_olo`) donde persiste el pedido priorizado (prioridad, status,
+  `situación = GENERADA`); es la **superficie de handoff** que lee Planificación.
 - **WMS / EFLOW**: sistema de gestión de almacén; genera las tareas de picking
   cuando la situación pasa a `GENERADA`. Fuente de los pedidos.
-- **WMH (Torre de Control)**: sistema actual a reemplazar progresivamente. El
-  OMS **no** lo modifica.
+- **WMH (Control Tower / Torre de Control)**: sistema actual (v4.18.4.4,
+  Angular/AG Grid, BD `EFLOW_OLO`) que el OMS + Planificación **reemplazan desde
+  la salida** (D1). Su especificación vive en `docs/wmh-actual/`. El OMS **no** lo
+  modifica; lo sustituye.
+- **Planificación**: módulo que arma los viajes a partir de los pedidos que el
+  OMS deja "alistados". Intent propio `260825-route-planning-reqs`.
 - **`estado` / `situación`**: campos del pedido en EFLOW. El pedido llega en
   `estado = DISP` / `situación = DISP` (disponible). El OMS lo cambia a
   `situación = GENERADA` para mandarlo a preparar.
@@ -96,11 +145,15 @@ futuro. El OMS **no** modifica el WMH ni lee las tablas intermedias.
   UI solo permite activar/desactivar, ajustar peso y parámetros.
 - **Simulación**: entidad persistida (bitácora) que aplica un subconjunto de
   reglas activas a un conjunto de pedidos; estados `simulada` / `aplicada`.
-- **compañía**: entidad de negocio (Cofersa `0109`, EPA…) con reglas propias
-  (Lambda por compañía). El **país** se maneja dentro del código de compañía
-  (p. ej. `EPA GT`, `EPA VE`).
-- **Capa X**: capa de integración/maestros; todas las tablas llevan `compañía` y
-  `país`.
+- **scope**: ámbito jerárquico **país → almacén → cliente** con el que se aíslan
+  los datos y se resuelven las reglas (RBAC por `user_scopes`; un scope sin
+  país/almacén/cliente = GLOBAL). **Cofersa `0109`, EPA…** son **clientes**
+  (`customers`) dentro de esa jerarquía, no silos de despliegue.
+- **jerarquía de datos**: **País → Almacén → Cliente → Cliente Final → Punto de
+  entrega** (02-to-be §2, implementada en el módulo `context`). El OMS la
+  **consume** como contexto de datos y aislamiento; no la administra.
+- **Capa X**: capa de integración/maestros; todas las tablas llevan `país`,
+  `almacén` y `cliente` según corresponda (estándar de aislamiento por scope).
 
 ## Requerimientos funcionales
 
@@ -111,13 +164,17 @@ Como sistema, el OMS obtiene de EFLOW los pedidos candidatos a priorizar.
 - **FR1.1** La cola se resuelve sobre `expedición_cabecera`: pedidos con
   `fecha_de_cierre IS NULL` y `estado`/`situación` = `DISP` (y sin
   `NUMEROVIAJEWMH`, es decir sin viaje asignado). Equivale al anti-join con
-  `almacén_movimiento_carcam` (los no procesados).
+  `almacén_movimiento_carcam` (los no procesados). (Nota: en el código actual la
+  tabla staging `wms_expediciones` cumple hoy el rol de superficie de handoff;
+  con D6 esa superficie es la **tabla de pedidos propia del OMS** — reconciliar el
+  nombre/estructura en domain-design.)
 - **FR1.2** Para progreso/detalle, el OMS puede cruzar con `expedición_detalle`
   y `almacén_movimiento_carcam` por `pedido + almacén + compañía + sucursal`.
 - **FR1.3** `Journey_Orders` es **opcional** (solo para ver a qué viaje está
   asignado un pedido); no interviene en decidir la prioridad.
 - **FR1.4** El OMS lee sobre la **réplica** de `EFLOW_OLO`, no contra el
-  transaccional. (Dependencia externa: la réplica **aún no existe**, ver OQ-2.)
+  transaccional. (Dependencia externa: la réplica **aún no existe**, ver OQ-2;
+  hoy EFLOW corre en modo mock.)
 
 *Acceptance (BDD):*
 - Given un pedido con `fecha_de_cierre IS NULL` y `situación = DISP` sin viaje,
@@ -158,6 +215,9 @@ momento correcto (T-1). **Regla de la primera entrega.**
   retira); si hay capacidad ociosa se adelantan pedidos de días siguientes.
 - **FR3.4** Existe un **umbral de inyección**: el OMS solo prepara pedidos hasta
   cierta prioridad (el resto espera). El umbral es configurable (ver OQ-5).
+- **FR3.5** El resultado de cada priorización queda **auditable** con la regla,
+  su versión y los factores que la produjeron (base para `decision_log` /
+  `rule_execution_log` del diseño objetivo).
 
 ### FR4 — Override manual de prioridad
 
@@ -170,7 +230,8 @@ pedido puntual, para casos extraordinarios (camión accidentado, urgencia).
 - **FR4.2** El override es la **única** intervención humana sobre el cálculo; no
   hay aprobación de lote.
 - **FR4.3** Un usuario sin permiso de override no puede alterar la prioridad
-  (acción denegada).
+  (acción denegada). El permiso se resuelve por la matriz de permisos módulo ×
+  acción y el scope del usuario.
 
 ### FR5 — Motor de Reglas (catálogo semi-configurable)
 
@@ -184,10 +245,13 @@ crear reglas nuevas desde la UI** (su lógica vive en código).
   constructor dinámico de reglas.
 - **FR5.2** Parámetros editables por regla, según la regla: días de T-1, horas
   de corte, umbral de inyección, patrón/prioridad/ventana de cliente retira.
-- **FR5.3** El catálogo se ve **por compañía**: un selector de compañía cambia la
-  lista de reglas (cada compañía tiene su Lambda con reglas específicas).
+- **FR5.3** El catálogo y sus reglas se resuelven **por scope**
+  (CUSTOMER → WAREHOUSE → COUNTRY → GLOBAL): un selector de scope (país/almacén/
+  cliente) cambia qué reglas y parámetros aplican. La especificidad por compañía
+  se logra con una regla de scope=CUSTOMER (Cofersa/EPA son clientes), no con una
+  Lambda por compañía (C3-SUPERSEDE).
 - **FR5.4** La lógica de cada regla y, cuando aplica, su **prompt de IA**, viven
-  en la Lambda (código); **no** son editables desde la UI.
+  en el código (Lambda Python); **no** son editables desde la UI.
 
 ### FR6 — Las 5 macro-reglas
 
@@ -202,41 +266,48 @@ crear reglas nuevas desde la UI** (su lógica vive en código).
 - **FR6.4 (Regla 4 — asignación de viaje/bajada)**: **fuera de la primera
   entrega**. El OMS **no crea ni asigna el viaje** — eso es de
   **Planificación/TMS**. El OMS **consume** el viaje ya abierto y (a futuro)
-  asigna la bajada/muelle; todo lo del mismo viaje va a la misma bajada. La
-  asignación de la bajada se documenta como **futura** con esta nota de
-  propiedad.
+  asigna la bajada/muelle. La asignación de la bajada se documenta como **futura**
+  con esta nota de propiedad.
 - **FR6.5 (Regla 5 — inventario/capacidad)**: **futuro**. Validar viabilidad de
-  inventario/capacidad antes de liberar (reservas, reposiciones, callbacks al
-  ERP). No entra en el alcance actual.
+  inventario/capacidad antes de liberar. No entra en el alcance actual.
 
 ### FR7 — Análisis de observaciones con IA (Amazon Bedrock)
 
 - **FR7.1** La regla de observaciones (y su subconjunto cliente retira) se
   resuelve con un **modelo de IA nativo de Amazon Bedrock** (ultraligero),
   integrado con las Lambdas, que clasifica el texto libre y dispara acciones.
+  (Nota: hoy **no está integrado** en el código; es requerimiento a construir.)
 - **FR7.2** El **prompt vive en la Lambda** y **no es editable desde la UI**.
 - **FR7.3** Una misma observación puede producir varias salidas; la **primera
   salida a implementar es cliente retira**, dejando el modelo preparado para
   otras (cambio de dirección, cita, etc.).
 - **FR7.4** Costo objetivo: **< $1 USD/mes** para ~400 pedidos/día de Cofersa
   con texto ~40 caracteres (ver NFR2).
+- **FR7.5** Ante fallo/timeout de Bedrock, el pedido se prioriza por las demás
+  reglas (degrada sin bloquear el motor).
 
-### FR8 — Escritura de estado/situación y prioridad en el WMS/EFLOW
+### FR8 — Escritura del pedido priorizado (dos escrituras, dos propósitos)
 
-Como sistema, el OMS deja el pedido "alistado" cambiando sus campos en EFLOW.
+Como sistema, el OMS deja el pedido "alistado" con **dos escrituras** (D6).
 
-- **FR8.1** El OMS escribe en el registro del pedido en EFLOW: `estado = DISP`,
-  `situación = GENERADA` y la **prioridad** calculada. **No escribe fechas.** La
-  `fecha de expedición planificada` queda intacta (el cliente factura con ella);
-  la `fecha de generación` de EPRAC cambia sola al generar.
-- **FR8.2** El OMS **no** escribe en el WMH ni en las tablas intermedias; su
-  escritura llega **solo** al nivel del WMS/EFLOW.
-- **FR8.3** Tras dejar la situación en `GENERADA`, el WMS genera las tareas de
-  picking; a partir de ahí el pedido sale del alcance del OMS ("alistado").
+- **FR8.1 (tabla propia del OMS — handoff)** El OMS **persiste el registro del
+  pedido en su tabla de pedidos propia** (esquema OMS de `logistica_olo`) con la
+  **prioridad** calculada, el `status` y `situación = GENERADA`, en una
+  **escritura atómica** (nunca `GENERADA` sin prioridad). Esta tabla es la
+  **superficie de handoff** que consume Planificación.
+- **FR8.2 (situación en el WMS — disparo de picking)** Además, el OMS **cambia el
+  campo `situación` del pedido en el WMS/EFLOW** a `GENERADA` para que el
+  WMS/EFLOW genere el picking. Esta escritura llega **solo** al nivel del
+  WMS/EFLOW; el OMS **no** escribe en el WMH.
+- **FR8.3 No escribe fechas.** La `fecha de expedición planificada` queda intacta
+  en ambos lados (invariante NFR7); no existe "fecha de alisto".
+- **FR8.4 Handoff a Planificación.** Tras las dos escrituras, el pedido queda
+  **alistado**; **Planificación lee de la tabla del OMS** (no del WMS) para armar
+  el viaje. El armado del viaje NO es del OMS.
 
-> **Corrección aplicada**: se elimina por completo el antiguo requerimiento de
-> "inserción de pedidos priorizados al Lago de Datos". Ese modelo no aplica: el
-> OMS escribe a nivel del WMS/EFLOW.
+> **Correcciones mantenidas**: se elimina el antiguo "Lago de Datos". Y
+> **(D6 SUPERSEDE)**: el alcance ya no es "solo cambiar campos en el WMS y hasta
+> ahí"; el OMS **persiste su propia tabla de pedidos** como superficie de handoff.
 
 ### FR9 — Simulador (configurador de simulaciones)
 
@@ -250,16 +321,17 @@ simulaciones de priorización, manual o automáticamente.
   `situación`/`estado` (`DISP`, `GENERADA`…), a todos o a un subconjunto —
   incluido **re-simular sobre prioridades ya asignadas**.
 - **FR9.3** El resultado se muestra como una **tabla igual que la Cola** (todas
-  las columnas / selección de columnas), no como un recuadro de "estado actual".
+  las columnas / selección de columnas).
 - **FR9.4** La **Simulación es una entidad persistida** (bitácora): fecha, autor
   (usuario o automático), reglas usadas, filtro aplicado, estado
-  (`simulada`/`aplicada`), compañía. Pueden existir varias `simuladas`, pero
-  **solo una `aplicada` por compañía** (la última, o la que el usuario elija).
+  (`simulada`/`aplicada`), scope. Pueden existir varias `simuladas`, pero **solo
+  una `aplicada` por scope de compañía/cliente** (la última, o la que el usuario
+  elija).
 - **FR9.5** Aplicación **manual / automática / mixta**: manual = el usuario
   revisa y pulsa "Aplicar"; automática = se genera y aplica sola; mixta = se
   genera automáticamente con **ventana de revisión** y **hora de corte** (si
   nadie interviene antes, se aplica sola).
-- **FR9.6** Configuración por compañía: número de simulaciones/día,
+- **FR9.6** Configuración por scope: número de simulaciones/día,
   frecuencia/horarios, filtro de situación por simulación y modo de aplicación
   por simulación.
 
@@ -267,15 +339,15 @@ simulaciones de priorización, manual o automáticamente.
 
 - **FR10.1** La Cola entra por defecto filtrada en `situación = DISP` (+
   `fecha_de_cierre IS NULL`); el usuario puede cambiar a otras situaciones.
-- **FR10.2** Se **mantiene el filtro de almacén** (una compañía puede tener
-  varios almacenes) y se ofrece un **selector/filtro de compañía** dentro de la
-  vista (no por perfil).
-- **FR10.3** Se muestra el **nombre** de la compañía (resuelto contra el maestro,
-  no el código crudo).
+- **FR10.2** Se **mantiene el filtro de almacén** y se ofrece un **selector de
+  scope país/almacén/cliente** dentro de la vista (no por perfil). Un mismo
+  perfil ve los scopes que su RBAC permite (Cofersa/EPA como clientes).
+- **FR10.3** Se muestra el **nombre** de la compañía/cliente (resuelto contra el
+  maestro, no el código crudo).
 - **FR10.4** El usuario puede **elegir qué columnas** ve; la preferencia se
   guarda en una tabla `User Preference` (campo JSON).
 - **FR10.5** El **detalle del pedido** se muestra en un **modal** (no panel
-  lateral), para que la tabla use todo el ancho (el WMS trae muchas columnas).
+  lateral), para que la tabla use todo el ancho.
 - **FR10.6** Desde el detalle, un rol autorizado puede ejecutar el **override
   manual** (FR4).
 
@@ -287,160 +359,174 @@ simulaciones de priorización, manual o automáticamente.
   retienen ~3–5 meses.
 - **FR11.3** La **Auditoría** registra las priorizaciones ejecutadas
   distinguiendo **automático vs. manual** (usuario y motivo en el caso manual);
-  es de solo lectura.
+  es de solo lectura. Se apoya en la bitácora de auditoría por trigger de BD ya
+  existente (`audit.events`).
 
-### FR12 — Calendario de rutas y días de despacho
+### FR12 — (RETIRADO por D5 — ver "Fuera de alcance")
 
-- **FR12.1** El OMS ofrece el **CRUD** del calendario de rutas y días de
-  despacho (gated al rol administrador), pero su **fuente de verdad es el TMS**
-  (módulo de rutas); el OMS lo **consume**.
-- **FR12.2** El calendario es **por cliente/compañía** y responde a acuerdos
-  Olo↔cliente (con implicación tarifaria). Soporta calendarios independientes
-  por país.
+> **FR12 (Calendario de rutas y días de despacho) queda RETIRADO** de los
+> requerimientos activos del OMS. Con el ruteo dinámico multi-fuente ("la ruta
+> manda", D5 + mandato de Jean Carlo), las rutas dejan de ser fijas, así que no
+> hay un "calendario de rutas" que el OMS mantenga o consulte como catálogo. Se
+> conserva aquí solo como marca de deprecación para trazabilidad; su texto
+> completo y su épica (E8/US28–US29) se retiran. Ver "Fuera de alcance".
 
-### FR13 — Multi-compañía y multi-país
+### FR13 — Multi-país y multi-compañía (por scope)
 
-- **FR13.1** Las reglas son específicas por compañía → **una Lambda por
-  compañía**; la regla identifica su compañía. No se parametrizan en código.
-- **FR13.2** En la UI, la compañía es un **filtro/selector dentro de la vista**
-  (un mismo perfil ve varias compañías); **no** hay silo por perfil de compañía.
-- **FR13.3** El **país** se maneja dentro del código de compañía (p. ej.
-  `EPA GT`, `EPA VE`), evitando un filtro de país aparte.
-- **FR13.4** **Todas** las tablas del OMS llevan `compañía` y `país` como
-  columnas (estándar Capa X). El nombre de la compañía se resuelve con un
-  **maestro** (no consultando EFLOW en cada lectura).
+- **FR13.1** Las reglas específicas se resuelven **por scope**
+  (CUSTOMER → WAREHOUSE → COUNTRY → GLOBAL) en **Lambdas compartidas por
+  función**, no con una Lambda por compañía (C3-SUPERSEDE, confirmado contra el
+  código `user_scopes`). La regla de scope=CUSTOMER preserva la especificidad por
+  compañía (Cofersa/EPA son clientes).
+- **FR13.2** En la UI, el scope es un **filtro/selector dentro de la vista** (un
+  mismo perfil ve los scopes que su RBAC permite); **no** hay silo por perfil de
+  compañía.
+- **FR13.3** El **país** es el nivel superior de la jerarquía de scope (no un
+  filtro aparte pegado); `EPA GT`, `EPA VE` se modelan como cliente dentro de su
+  país.
+- **FR13.4** **Aislamiento fail-closed**: ninguna operación de un scope lee ni
+  escribe datos de otro; se garantiza en el repositorio (no solo en la UI), sobre
+  la jerarquía País→Almacén→Cliente→Cliente Final. El nombre de la compañía se
+  resuelve con un **maestro**, no consultando EFLOW en cada lectura.
 
 ### FR14 — Seguridad y control de acceso
 
-- **FR14.1** El OMS diferencia al menos tres niveles de acceso: visualización,
-  operación (override, consulta de auditoría) y administración (catálogo de
-  reglas, calendario, configuración de simulaciones).
-- **FR14.2** Delega autenticación y tokens a la capa de seguridad transversal
-  del TMS; resuelve la autorización validando el token contra la acción.
-- **FR14.3** Toda acción de escritura registra el identificador del usuario en
-  la Auditoría.
+- **FR14.1** El OMS diferencia niveles de acceso por la **matriz de permisos
+  módulo × acción** (`view/create/edit/delete/export`) más el **scope** del
+  usuario: visualización, operación (override, consulta de auditoría) y
+  administración (catálogo de reglas, configuración de simulaciones).
+- **FR14.2** Delega autenticación y tokens a la capa de seguridad transversal del
+  TMS (authorizer JWT de `common-services`); resuelve la autorización validando el
+  token contra la acción y el scope.
+- **FR14.3** Toda acción de escritura registra el identificador del usuario en la
+  Auditoría (bitácora por trigger de BD; sin usuario = `system`).
 
 ## Requerimientos no funcionales
 
 > Umbrales **provisionales**, a validar con volumen real.
 
 - **NFR1 — Frecuencia del motor**: el motor de reglas corre **al menos una vez
-  al día** (primera hora) y en las **horas de corte**, revisitando prioridades
-  (lo no alcanzado hoy sube de prioridad mañana).
+  al día** (primera hora) y en las **horas de corte**, revisitando prioridades.
 - **NFR2 — Costo de IA**: el análisis de observaciones con Bedrock cuesta
   **< $1 USD/mes** para ~400 pedidos/día (texto ~40 caracteres).
 - **NFR3 — Volumen**: referencia ~**400–500 pedidos/día** (Cofersa).
-- **NFR4 — Capacidad operativa**: ~**80 pedidos** en proceso simultáneo (límite
-  de personal); los demás esperan en cola aunque tengan prioridad.
-- **NFR5 — Aislamiento multi-compañía/país**: ninguna operación de una compañía/
-  país lee ni escribe datos de otra; se garantiza por las columnas
-  `compañía`/`país` y la Lambda por compañía.
+- **NFR4 — Capacidad operativa**: ~**80 pedidos** en proceso simultáneo; los
+  demás esperan en cola aunque tengan prioridad.
+- **NFR5 — Aislamiento multi-scope**: ninguna operación de un país/almacén/
+  cliente lee ni escribe datos de otro; se garantiza por `user_scopes` y el
+  filtrado en el repositorio (fail-closed).
 - **NFR6 — Auditabilidad**: los registros de auditoría son de solo lectura;
-  retención de métricas ~3–5 meses.
+  retención de métricas ~3–5 meses; bitácora particionada por mes.
 - **NFR7 — No modificación de fechas**: el OMS nunca escribe fechas en EFLOW
-  (invariante verificable: la `fecha de expedición planificada` queda intacta).
+  (invariante verificable).
 - **NFR8 — Consistencia de UI**: las pantallas del OMS se componen con el design
-  system existente (React), sin introducir kits de UI nuevos.
+  system existente (React), sin kits de UI nuevos.
 - **NFR9 — Lectura sobre réplica**: las consultas van contra la réplica de
-  `EFLOW_OLO`, no contra el transaccional (depende de OQ-2).
+  `EFLOW_OLO`, no contra el transaccional (depende de OQ-2; hoy mock).
+- **NFR10 — Stack de construcción**: el OMS se construye sobre el stack oficial
+  Intelix — **backend Python + AWS Lambda + SAM**, Aurora PostgreSQL, frontend
+  React (C1, confirmado contra el código). La lógica del motor de reglas corre en
+  el **backend** (no en el frontend; la TS actual es deuda del prototipo).
 
 ## Restricciones
 
-- **C1 — Alcance WMS/EFLOW**: el OMS lee y escribe **solo** a nivel del
-  WMS/EFLOW (estado/situación + prioridad). No toca el WMH ni las intermedias;
-  termina en "alistado".
-- **C2 — El OMS no crea el viaje**: la creación/asignación del viaje es de
-  Planificación/TMS; el OMS consume el viaje ya abierto.
+- **C1 — Doble escritura (D6)**: el OMS **lee** del WMS/EFLOW, **persiste** el
+  pedido priorizado en su **tabla propia** (esquema OMS — superficie de handoff) y
+  **cambia la `situación` en el WMS/EFLOW** (disparo de picking). No toca el WMH.
+- **C2 — El OMS no arma el viaje**: el armado del viaje/ruta es de
+  Planificación/TMS, que lee la **tabla del OMS**; el OMS deja el pedido alistado
+  y hace el handoff.
 - **C3 — El OMS no escribe fechas**: usa la fecha de entrega como insumo.
-- **C4 — Stack oficial Intelix**: AWS (serverless), **Python + Lambdas**
-  (backend), **React** (frontend), **PostgreSQL**, arquitectura por eventos,
-  plantillas SAM. Solo Intelix despliega. El prototipo actual sobre Supabase
-  (Readdy) **no** es el target.
-- **C5 — BD `logistica_olo`**: una sola base de datos con **esquemas por módulo**
-  (`OMS`, `TMS`); la multi-compañía se resuelve con `compañía`/`país` como
-  **columnas**, no esquema por compañía. (El enfoque de BD sigue no-oficial, ver
-  OQ-1.)
+- **C4 — Stack oficial Intelix**: AWS (serverless), **Python + Lambdas** (backend),
+  **React** (frontend), **PostgreSQL/Aurora**, plantillas SAM. Solo Intelix
+  despliega. El prototipo Supabase (Readdy) **no** es el target. (Confirmado
+  contra el código: `backend/` es Python/SAM.)
+- **C5 — Multi-tenancy por scope**: aislamiento país→almacén→cliente vía
+  `user_scopes`, en Lambdas compartidas por función; **no** una Lambda por
+  compañía (C3-SUPERSEDE).
 - **C6 — Reglas en código**: la lógica de las reglas (y los prompts de IA) vive
-  en Lambdas, no se arma desde la UI.
-- **C7 — Capa X**: todas las tablas llevan `compañía` y `país`; maestro de
-  compañías en Capa X.
+  en Lambdas Python, no se arma desde la UI.
+- **C7 — Reemplazo del WMH desde la salida** (D1): el OMS + Planificación
+  sustituyen al WMH; el diseño del OMS es pieza del flujo de reemplazo, no un
+  añadido incremental.
 
 ## Supuestos
 
-- **A1** La Torre de Control (WMH) se mantiene en paralelo durante la transición;
-  el fin último es reemplazarla, de forma progresiva.
+- **A1** El WMH (Control Tower) se reemplaza **desde la salida** (no en paralelo
+  progresivo); su especificación de referencia está en `docs/wmh-actual/`.
 - **A2** El pedido llega en `estado = DISP` / `situación = DISP` al WMS; el OMS
   lo activa cambiando la situación a `GENERADA`.
-- **A3** El motor puede regenerar/revisitar prioridades en cualquier estatus
-  salvo cuando el pedido ya está al 100%.
+- **A3** El motor puede regenerar/revisitar prioridades salvo cuando el pedido ya
+  está al 100 %.
 - **A4** Los umbrales de NFR son provisionales hasta conocer el volumen real.
+- **A5** La jerarquía País→Almacén→Cliente→Cliente Final ya está implementada
+  (módulo `context`); el OMS la consume, no la administra.
 
 ## Fuera de alcance
 
+- **Calendario de Rutas del OMS (ex-FR12 v2) — RETIRADO por D5.** Con el ruteo
+  dinámico multi-fuente ("la ruta manda"), las rutas dejan de ser fijas; ya no hay
+  un calendario de rutas que el OMS mantenga (CRUD gated a admin) ni consulte.
+  Supera los DECIDED previos "vista Calendario de Rutas ACOTADO — solo consulta"
+  (2026-09-15) y "fuente de verdad del calendario en el TMS, el OMS consume"
+  (2026-09-02). La épica E8 (US28–US29) se retira en User Stories.
+- **Armado de viajes / ruteo dinámico / "Nuevo Viaje" del WMH** — es de
+  **Planificación** (intent `260825-route-planning-reqs`), no del OMS.
 - Inserción a un "lago de datos" (**eliminado**; el OMS escribe a nivel WMS).
-- Creación/asignación del viaje (Planificación/TMS).
-- Picking, guía de carga, ruteo de entrega (WMS/TMS).
-- Facturación/despacho (TMS, reglas por compañía).
-- Regla 5 (inventario/capacidad) y priorización por línea de pedido — futuro.
-- Rediseño del flujo completo pedido → TMS → OMS → WMS — futuro.
+- Picking, guía de carga, ruteo de entrega (WMS/TMS); facturación/despacho (TMS).
+- Regla 5 (inventario/capacidad) y priorización por línea — futuro.
 - Aprobación humana de la propuesta de priorización — no existe.
 
 ## Open Questions
 
-- **OQ-1 — Base de datos**: `logistica_olo` con esquemas `OMS`/`TMS` y
-  `compañía`/`país` como columnas es la dirección actual, pero **no es oficial**;
-  cerrar con arquitectura/Calzadilla.
-- **OQ-2 — Réplica de `EFLOW_OLO`**: **no existe** hoy; hay que solicitarla (vía
-  Alfredo), definiendo tablas (`expedición_cabecera`, `almacén_movimiento_carcam`,
-  `expedición_detalle`, `Journey_Orders`, usuarios). Bloqueante para leer sin
-  pegar al transaccional.
+- **OQ-1 — Base de datos**: `logistica_olo`/`tms_olo` con `país`/`almacén`/
+  `cliente` como columnas de scope; dirección actual, a confirmar con arquitectura.
+- **OQ-2 — Réplica de `EFLOW_OLO`**: **no existe** hoy (EFLOW en mock); hay que
+  solicitarla. Bloqueante para leer sin pegar al transaccional.
 - **OQ-3 — Fecha de entrega de Cofersa**: hoy Cofersa **no** envía la fecha de
-  entrega (la llena por default con la creación). Sin ella, la Regla 1 usa el
-  fallback por ruta. Asegurar que la envíe en `fecha de expedición planificada`.
+  entrega. Sin ella, la Regla 1 usa el fallback por ruta.
 - **OQ-4 — Tabla de prioridades del cliente**: los números 1..N que define el
-  cliente están pendientes de entrega (insumo para cuando desaparezca el WMH).
-- **OQ-5 — Score vs. filtro estricto y umbral de inyección**: el modelo de
-  **score** ya está decidido; queda por cerrar con el cliente si alguna regla es
-  **obligatoria** (filtro) además de sumar peso, y a partir de qué prioridad se
-  inyecta.
+  cliente están pendientes de entrega.
+- **OQ-5 — Score vs. filtro estricto y umbral de inyección**: el modelo de score
+  ya está decidido; queda cerrar si alguna regla es obligatoria (filtro) además de
+  sumar peso, y a partir de qué prioridad se inyecta.
 - **OQ-6 — Duración de rutas y horas de corte**: las define el equipo de
-  transporte (Ricardo en CR; equipo de VE); hay que crear la regla de cortes.
+  transporte; hay que crear la regla de cortes.
 - **OQ-7 — Nomenclatura del viaje de cliente retira**: cómo el TMS genera el
-  viaje/ruta 0 de cliente retira y su identificador (con Andrey/TMS).
+  viaje/ruta 0 de cliente retira y su identificador.
+- **OQ-8 (nueva) — Gap peso/volumen del handoff**: `wms_expediciones` (header) no
+  trae peso/volumen (vienen de `EXPEDICIONESCABECERA` en EFLOW, hoy mock); llegan
+  como `null`/`capacity_known:false`. Es dependencia del handoff a Planificación,
+  no del cálculo de prioridad del OMS.
 
 ## Sources
 
-- `aidlc/spaces/default/memory/project.md` (`## Decided`, `## Corrections`) —
-  las ~20 decisiones firmes que rigen esta corrección (alcance WMS/EFLOW,
-  prioridad numérica T-1 + score, 5 macro-reglas, motor catálogo, multi-compañía,
-  fuente de datos, Capa X, stack).
-- `documents/2026-09-08-reunion-funcional-oms-reglas-priorizacion-antonio.md` —
-  5 macro-reglas, T-1, horas de corte, cliente retira, viaje/bajada, flujo de
-  estados DISP→GENERADA, prioridad numérica invertida, primera entrega = 2 reglas.
-- `documents/2026-09-14-reunion-calzadilla-cruce-tablas-prioridad.md` — fuente de
-  la cola (`expedición_cabecera` con `fecha_de_cierre IS NULL` + `DISP`;
-  anti-join con `almacén_movimiento_carcam`; `Journey_Orders` opcional;
-  `NUMEROVIAJEWMH`).
-- `documents/2026-09-14-reunion-diseno-solucion-oms-mockup-ia-datos.md` — IA de
-  Bedrock para observaciones/cliente retira, multi-compañía (Lambda por compañía,
-  selector no perfil), Capa X, réplica inexistente, Cola (default DISP, columnas
-  por usuario, nombre de compañía).
-- `documents/2026-09-15-reunion-simulador-oms-configurador-y-bd.md` — Simulador =
-  configurador de simulaciones (entidad persistida, modal previo, manual/
-  automática/mixta, una aplicada por compañía); BD `logistica_olo` con esquemas
-  `OMS`/`TMS`.
-- `documents/2026-08-26-reunion-oms-roles.md` (Adenda) — 4 roles; cálculo 100 %
-  automático sin aprobación; override manual como única intervención humana.
-- `aidlc/spaces/default/codekb/sto_tms_olo/business-overview.md`,
-  `architecture.md`, `code-structure.md` — dominio TMS, posicionamiento y design
-  system existente.
-- `aidlc/spaces/default/intents/260826-modulo-oms/inception/requirements-analysis/requirements-analysis-questions.md`
-  — decisiones de esta re-corrida (Q1–Q5 = A) y sus precisiones.
+- `aidlc/spaces/default/memory/project.md` (`## Decided` — pivote D1–D5,
+  C3-SUPERSEDE, mandato de Jean Carlo; `## Corrections`).
+- `docs/work/2026-09/2026-09-29-pivote-reemplazo-wmh.md` — D1–D5.
+- `docs/wmh-actual/` (indexado en DocumentKB) — el WMH que se reemplaza.
+- `docs/arquitectura-tms-oms/02-to-be.md` §2 (jerarquía), §4 (RBAC por scope),
+  §5 (pipeline OMS).
+- `aidlc/spaces/default/codekb/sto_tms_olo/` (business-overview, architecture,
+  code-structure, api-documentation, code-quality-assessment — regenerados
+  2026-09-30 contra el backend Python/SAM: `wms_expediciones`, scope
+  país→almacén→cliente, gap peso/volumen). El árbol real (`code-structure`)
+  confirma `backend/` (Lambdas Python/SAM) y `src/` (React + motores TS).
+- Documentos de reunión (Antonio 09-08, Calzadilla 09-14, diseño 09-14, simulador
+  09-15, roles 08-26) — invariantes del motor, T-1, cliente retira, simulador.
 
 ## Assumptions & Open Questions
 
-Ver **Supuestos** (A1–A4) y **Open Questions** (OQ-1 a OQ-7) arriba. En síntesis,
-lo que queda abierto depende de datos/arquitectura/cliente (BD, réplica, fecha de
-Cofersa, tabla de prioridades, score-vs-filtro, cortes, viaje de cliente retira)
-y no bloquea la aprobación de estos requerimientos; se cierra antes o durante el
-diseño de dominio e infraestructura.
+Ver **Supuestos** (A1–A5) y **Open Questions** (OQ-1 a OQ-8). Lo abierto depende
+de datos/arquitectura/cliente (BD, réplica, fecha de Cofersa, tabla de
+prioridades, score-vs-filtro, cortes, viaje cliente retira, gap peso/volumen) y no
+bloquea la aprobación de estos requerimientos. **C2** (dónde vive el motor de
+reglas: portar el AST TS→Python para un motor compartido OMS+TMS, o motor nuevo en
+Python, con tests de regresión sobre Liquidaciones) se resuelve en Domain Design.
+
+**Consecuencia de D6 para Domain Design**: la **tabla de pedidos propia del OMS**
+(esquema OMS de `logistica_olo`) pasa a ser una entidad/tabla explícita del OMS
+—superficie de handoff a Planificación—, además de las que ya figuraban
+(`route_dispatch_schedule`, `order_priority_*`). Reconciliar su nombre, columnas
+(prioridad, status, situación, referencia al pedido del WMS) y su relación con
+`wms_expediciones` en Domain Design.

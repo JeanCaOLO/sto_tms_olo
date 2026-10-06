@@ -36,7 +36,7 @@ recurso que se cree, cambie o borre se registra ahí en el mismo cambio.
   - Arma la Layer `tms_common` y cada Lambda con dependencias **compiladas para Linux** (`pip --platform
     manylinux2014_x86_64`), así no hace falta SAM CLI ni Docker (clave para `bcrypt`).
   - `aws cloudformation package` + `deploy` de los stacks `dev-tms-*` en orden: `common-services`, `auth`, `data`,
-    `context`, `eflow` (en modo mock), `admin`, `planning`.
+    `context`, `eflow` (en modo mock), `admin`, `planning` (código de `backend-planif/src`), `oms` (motor de reglas en mock).
   - La BD se usa con el rol de la app `tms_app` (secreto `/dev/tms/db-app`, ver `sql/18`), nunca con el dueño.
   - La Layer `tms_common` se publica por el parámetro SSM `/dev/tms/common-layer-arn` (el script lo actualiza antes de cada módulo). El build es determinista: si el código no cambió, no se publica versión nueva. **Si cambiás `tms_common`, desplegá todo** (o `common-services` y después los módulos) para que las Lambdas tomen la versión nueva.
 - `scripts/sandbox/deploy_frontend.py`: toma la `ApiUrl` de `dev-tms-common-services`, buildea con
