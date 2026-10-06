@@ -89,6 +89,10 @@ function applyOptions(rows: Row[], options: FindOptions | undefined): Row[] {
   if (offset > 0 || options.limit !== undefined) {
     result = result.slice(offset, options.limit === undefined ? undefined : offset + options.limit);
   }
+  const columns = options.columns;
+  if (columns?.length) {
+    result = result.map((row) => Object.fromEntries(columns.filter((c) => c in row).map((c) => [c, row[c]])));
+  }
   return result;
 }
 

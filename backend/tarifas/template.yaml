@@ -51,6 +51,8 @@ Resources:
       Environment:
         Variables:
           ENVIRONMENT: !Ref Environment
+          # Caché de permisos por contenedor (segundos). 0 = apagado. Ver src/tarifas_perms.py.
+          TMS_PERMS_TTL_SECONDS: '30'
           TMS_DB_SECRET_NAME:
             Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName
 

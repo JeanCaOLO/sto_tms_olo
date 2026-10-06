@@ -219,7 +219,11 @@ function failed(error: unknown): EmitSettlementResult {
 }
 
 async function nextNumber(countryId: string): Promise<string> {
-  const rows = await db().find('settlement', { where: [{ column: 'country_id', op: 'eq', value: countryId }] });
+  // Solo la columna del número: antes traía cada liquidación entera, con sus JSONB, para sacar un máximo.
+  const rows = await db().find('settlement', {
+    where: [{ column: 'country_id', op: 'eq', value: countryId }],
+    columns: ['number'],
+  });
   return nextSettlementNumber(rows.map((r) => String(r.number)));
 }
 

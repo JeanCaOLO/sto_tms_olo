@@ -171,6 +171,7 @@ CREATE INDEX IF NOT EXISTS tarifas_settlements_status_idx ON tarifas_settlements
 CREATE INDEX IF NOT EXISTS tarifas_settlements_margin_status_idx ON tarifas_settlements (margin_status);
 CREATE INDEX IF NOT EXISTS tarifas_settlements_superseded_by_idx ON tarifas_settlements (superseded_by);
 CREATE UNIQUE INDEX IF NOT EXISTS tarifas_settlements_trip_vigente_uq ON tarifas_settlements (trip_id) WHERE status <> 'Anulado';
+CREATE UNIQUE INDEX IF NOT EXISTS tarifas_settlements_country_number_uq ON tarifas_settlements (country_id, number);
 
 -- Estructura de costos
 CREATE TABLE IF NOT EXISTS tarifas_cost_structures (

@@ -9,7 +9,7 @@
 // lo que el cálculo necesita y el catálogo no tiene —redondeo, umbral de pernocta, grupos de zona—
 // sigue siendo del tarifador. Nada de esto se lee "por fuera" del ORM.
 
-import { db, type Row } from './data';
+import { db, onDataWrite, type EntityName, type Row } from './data';
 import { toCostStructure, toCostStructureRow } from './costStructureDataSource';
 import type {
   Country, CostStructure, CostStructureRow, MarginPolicy,
@@ -263,6 +263,36 @@ async function loadRateTables(
 
 export class CatalogError extends Error {}
 
+// ── Caché del catálogo ─────────────────────────────────────────────────────────────────────────
+//
+// Reglas, tarifarios, zonas y estructuras de costo cambian poco y calcular un viaje los volvía a traer
+// enteros (~14 llamadas) en cada cálculo y en cada edición. Se guardan unos segundos y se descartan:
+//   · al instante, cuando ESTA sesión escribe cualquier entidad del catálogo;
+//   · por tiempo (TTL), para los cambios que hace otra persona.
+// Las liquidaciones, los viajes y los pedidos NO pasan por acá: se leen siempre frescos.
+
+const CATALOG_TTL_MS = 60_000;
+const CATALOG_ENTITIES = new Set<EntityName>([
+  'country', 'countrySettings', 'marginPolicy', 'pricingRule', 'pricingTemplate', 'zone', 'zoneGroup',
+  'partyVariable', 'settlementParty', 'costStructure', 'costStructureRow', 'rateTable', 'rateTableRow',
+]);
+const catalogCache = new Map<string, { at: number; promise: Promise<TarifasCatalog> }>();
+
+/** Descarta el catálogo guardado. Lo llaman las escrituras del catálogo y los tests. */
+export function invalidateCatalogCache(): void {
+  catalogCache.clear();
+}
+
+onDataWrite((touched) => {
+  for (const entity of touched) {
+    if (CATALOG_ENTITIES.has(entity)) {
+      invalidateCatalogCache();
+      return;
+    }
+  }
+});
+
+
 /**
  * Carga todo lo necesario para tarifar un viaje de este país y este perfil de cálculo.
  *
@@ -271,6 +301,22 @@ export class CatalogError extends Error {}
  * Devolver un catálogo a medias produciría un total plausible calculado sobre huecos.
  */
 export async function loadTarifasCatalog(countryId: string, partyId: string | null): Promise<TarifasCatalog> {
+  // Solo contra la API: con el driver JSON (demo y tests) leer es gratis y un caché solo estorbaría.
+  if (db().kind !== 'http') return fetchCatalog(countryId, partyId);
+
+  const key = `${countryId}|${partyId ?? ''}`;
+  const hit = catalogCache.get(key);
+  if (hit && Date.now() - hit.at < CATALOG_TTL_MS) return structuredClone(await hit.promise);
+
+  const promise = fetchCatalog(countryId, partyId);
+  const entry = { at: Date.now(), promise };
+  catalogCache.set(key, entry);
+  // Un fallo (falta configuración, red) no se guarda: el siguiente intento vuelve a leer.
+  promise.catch(() => { if (catalogCache.get(key) === entry) catalogCache.delete(key); });
+  return structuredClone(await promise);
+}
+
+async function fetchCatalog(countryId: string, partyId: string | null): Promise<TarifasCatalog> {
   const country = await loadCountry(countryId);
   if (!country) {
     throw new CatalogError(

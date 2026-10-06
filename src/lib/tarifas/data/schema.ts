@@ -543,6 +543,12 @@ export const ENTITIES = {
         where: { column: 'status', op: 'neq', value: 'Anulado' },
         message: 'El viaje ya tiene una liquidación vigente. Para recalcularlo, re-liquidalo.',
       },
+      // `nextNumber` lee el máximo y suma uno: sin esto, dos emisiones simultáneas repetían el número.
+      {
+        name: 'tarifas_settlements_country_number_uq',
+        columns: ['country_id', 'number'],
+        message: 'Otra liquidación tomó ese número al mismo tiempo. Emití de nuevo.',
+      },
     ],
     columns: {
       id: idColumn(),

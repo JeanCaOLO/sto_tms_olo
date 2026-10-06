@@ -31,6 +31,7 @@ import {
   type Row,
 } from './datasource';
 import { entityDef, type EntityName } from './schema';
+import { notifyWrite } from './writeEvents';
 
 export interface HttpDataSourceOptions {
   /** URL base de la API, sin barra final. */
@@ -80,13 +81,21 @@ export class HttpDataSource implements DataSource {
   /** Lecturas idénticas en vuelo: varios componentes piden lo mismo (países, zonas…) a la vez. */
   private readonly inflight = new Map<string, Promise<unknown>>();
 
-  constructor(options: HttpDataSourceOptions, pending: TxOperation[] | null = null) {
+  /** Entidades tocadas dentro de la transacción: al confirmar se avisa a quien tenga copias. */
+  private readonly touched: Set<EntityName> | null;
+
+  constructor(
+    options: HttpDataSourceOptions,
+    pending: TxOperation[] | null = null,
+    touched: Set<EntityName> | null = null,
+  ) {
     this.baseUrl = options.baseUrl.replace(/\/$/, '');
     this.headers = options.headers ?? (() => ({}));
     // `fetch` suelto y llamado como `this.fetchImpl(...)` se invoca con `this` = el datasource y el
     // navegador lo rechaza ("Illegal invocation"): se envuelve para llamarlo siempre sobre `window`.
     this.fetchImpl = options.fetchImpl ?? ((input, init) => fetch(input, init));
     this.pending = pending;
+    this.touched = touched;
   }
 
   private url(entity: EntityName, suffix = ''): string {
@@ -166,44 +175,54 @@ export class HttpDataSource implements DataSource {
     this.assertWritable(entity, 'insert');
     if (this.pending) {
       this.pending.push({ op: 'insert', table: entityDef(entity).table, values });
+      this.touched?.add(entity);
       // Dentro de una transacción la fila definitiva la devuelve el servidor al confirmar; lo que
       // se devuelve acá es lo enviado, para que el llamador pueda seguir encadenando.
       return values;
     }
-    return (await this.request(this.url(entity), { method: 'POST', body: JSON.stringify(values) }, entity)) as Row;
+    const row = (await this.request(this.url(entity), { method: 'POST', body: JSON.stringify(values) }, entity)) as Row;
+    notifyWrite([entity]);
+    return row;
   }
 
   async update(entity: EntityName, id: string, values: Row): Promise<Row> {
     this.assertWritable(entity, 'update');
     if (this.pending) {
       this.pending.push({ op: 'update', table: entityDef(entity).table, id, values });
+      this.touched?.add(entity);
       return { ...values, id };
     }
-    return (await this.request(
+    const row = (await this.request(
       this.url(entity, `/${encodeURIComponent(id)}`),
       { method: 'PATCH', body: JSON.stringify(values) },
       entity,
       id,
     )) as Row;
+    notifyWrite([entity]);
+    return row;
   }
 
   async delete(entity: EntityName, id: string): Promise<void> {
     this.assertWritable(entity, 'delete');
     if (this.pending) {
       this.pending.push({ op: 'delete', table: entityDef(entity).table, id });
+      this.touched?.add(entity);
       return;
     }
     await this.request(this.url(entity, `/${encodeURIComponent(id)}`), { method: 'DELETE' }, entity, id);
+    notifyWrite([entity]);
   }
 
   async transaction<T>(fn: (tx: DataSource) => Promise<T>): Promise<T> {
     if (this.pending) return fn(this);
 
     const operations: TxOperation[] = [];
+    const touched = new Set<EntityName>();
     const result = await fn(
       new HttpDataSource(
         { baseUrl: this.baseUrl, headers: this.headers, fetchImpl: this.fetchImpl },
         operations,
+        touched,
       ),
     );
 
@@ -222,6 +241,7 @@ export class HttpDataSource implements DataSource {
         }
         throw new Error(`La transacción falló: ${message}`);
       }
+      notifyWrite(touched);
     }
     return result;
   }

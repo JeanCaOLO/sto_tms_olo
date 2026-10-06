@@ -121,6 +121,17 @@ def _int(value, label: str, default: int) -> int:
     return value
 
 
+def _select_list(table: Table, columns) -> str:
+    """`*` sin proyección; con `columns`, solo esas (validadas contra el manifiesto)."""
+    if columns is None:
+        return "*"
+    if not isinstance(columns, list) or not columns or not all(isinstance(c, str) for c in columns):
+        raise HttpError(400, '"columns" debe ser una lista no vacía de nombres de columna')
+    for column in columns:
+        table.column_type(column)  # valida
+    return ", ".join(quote(column) for column in dict.fromkeys(columns))
+
+
 def build_find(table: Table, options: dict | None, countries: tuple[str, ...] | None) -> tuple[str, list]:
     options = options or {}
     if not isinstance(options, dict):
@@ -128,7 +139,7 @@ def build_find(table: Table, options: dict | None, countries: tuple[str, ...] | 
     where, params = build_where(table, options.get("where"), countries)
     limit = min(_int(options.get("limit"), "limit", MAX_ROWS), MAX_ROWS)
     offset = _int(options.get("offset"), "offset", 0)
-    sql = f"SELECT * FROM {quote(table.name)} WHERE {where}{_order(table, options.get('orderBy'))} LIMIT {limit} OFFSET {offset}"
+    sql = f"SELECT {_select_list(table, options.get('columns'))} FROM {quote(table.name)} WHERE {where}{_order(table, options.get('orderBy'))} LIMIT {limit} OFFSET {offset}"
     return sql, params
 
 

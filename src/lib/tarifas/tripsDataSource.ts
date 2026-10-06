@@ -44,6 +44,8 @@ async function withVigentes(trips: TripRecord[]): Promise<TripRecord[]> {
       { column: 'trip_id', op: 'in', value: trips.map((t) => t.id) },
       { column: 'status', op: 'neq', value: 'Anulado' },
     ],
+    // Solo se necesitan los dos ids: sin esto traía cada liquidación entera con sus JSONB.
+    columns: ['id', 'trip_id'],
   });
   const porViaje = new Map(vigentes.map((s) => [String(s.trip_id), String(s.id)]));
   return trips.map((t) => ({ ...t, settlementId: porViaje.get(t.id) ?? null }));

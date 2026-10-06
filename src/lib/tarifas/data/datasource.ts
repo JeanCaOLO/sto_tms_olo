@@ -48,6 +48,11 @@ export interface FindOptions {
   orderBy?: OrderBy[];
   limit?: number;
   offset?: number;
+  /**
+   * Solo estas columnas (SELECT de la lista en vez de `*`). Para listados y consultas que no
+   * necesitan los JSONB pesados. La fila devuelta trae únicamente esas claves.
+   */
+  columns?: string[];
 }
 
 export interface DataSource {

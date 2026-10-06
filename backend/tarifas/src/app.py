@@ -34,6 +34,7 @@ from tms_common.event import json_body, parse_json_param, path_param, query_para
 from tms_common.handler import tms_handler
 from tms_common.responses import empty_response, json_response
 
+import tarifas_perms
 from tarifas_schema import Table, table as table_def
 from tarifas_sql import build_delete, build_find, build_get, build_insert, build_update
 
@@ -51,14 +52,14 @@ def _write_module(table: Table) -> str:
 
 def _reader(event: dict) -> permissions.Permissions:
     """Leer exige poder liquidar o poder configurar: el cálculo y pantallas de config leen lo mismo."""
-    caller = permissions.for_event(event)
+    caller = tarifas_perms.for_event(event)
     if not (caller.can(MODULE, "view") or caller.can(CONFIG_MODULE, "view")):
         caller.require(MODULE, "view")
     return caller
 
 
 def _writer(event: dict, table_name: str, action: str, operation: str) -> tuple[permissions.Permissions, Table]:
-    caller = permissions.for_event(event)
+    caller = tarifas_perms.for_event(event)
     table = _writable(table_name, operation)
     caller.require(_write_module(table), action)
     return caller, table
@@ -162,7 +163,7 @@ def _planned(caller: permissions.Permissions, op: object) -> tuple[str, tuple[st
 
 
 def run_transaction(event: dict) -> dict:
-    caller = permissions.for_event(event)
+    caller = tarifas_perms.for_event(event)
     ops = _body(event).get("ops")
     if not isinstance(ops, list) or not ops:
         raise HttpError(400, '"ops" debe ser una lista no vacía')

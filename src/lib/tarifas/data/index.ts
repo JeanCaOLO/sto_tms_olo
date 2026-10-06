@@ -18,6 +18,7 @@ export * from './datasource';
 export * from './schema';
 export { JsonDataSource } from './json-datasource';
 export { HttpDataSource } from './http-datasource';
+export { onDataWrite, notifyWrite } from './writeEvents';
 export { generateDdl } from './ddl';
 export { generateManifest } from './manifest';
 
