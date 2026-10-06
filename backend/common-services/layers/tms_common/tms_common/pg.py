@@ -4,9 +4,11 @@ Placeholders estilo `%s` (paramstyle "format"). Una conexión por contenedor
 Lambda, reutilizada entre invocaciones; si se cayó, se reconecta una vez.
 """
 
+import os
 import ssl
+import time
 from contextlib import contextmanager
-from typing import Callable, Iterator
+from typing import Callable, Iterator, TypeVar
 
 import pg8000.dbapi
 
@@ -20,8 +22,11 @@ _connection = None
 
 
 def _ssl_context() -> ssl.SSLContext:
-    # Paridad con server/tms-db.mjs (rejectUnauthorized: false). Pendiente:
-    # validar contra el bundle CA de RDS.
+    # Por defecto, paridad con server/tms-db.mjs (rejectUnauthorized: false). Con
+    # TMS_DB_SSL_CA (ruta al bundle CA de RDS) se valida cadena y nombre del servidor.
+    ca_file = os.environ.get("TMS_DB_SSL_CA")
+    if ca_file:
+        return ssl.create_default_context(cafile=ca_file)
     context = ssl.create_default_context()
     context.check_hostname = False
     context.verify_mode = ssl.CERT_NONE
@@ -57,14 +62,20 @@ def _run(connection, sql: str, params: list) -> list[dict]:
 
 
 INTEGRITY_CLASS = "23"  # SQLSTATE 23xxx: FK, unique, not null, check
+# Postgres pide repetir la transacción entera ante estos SQLSTATE: 40P01 (deadlock) y 40001 (serialización).
+RETRYABLE_SQLSTATES = {"40P01", "40001"}
 
 
 def _database_error(err: pg8000.dbapi.DatabaseError) -> HttpError:
     detail = err.args[0] if err.args else None
     if not isinstance(detail, dict):
         return HttpError(500, str(err))
-    status = 409 if str(detail.get("C", "")).startswith(INTEGRITY_CLASS) else 500
-    return HttpError(status, detail.get("M", str(err)))
+    sqlstate = str(detail.get("C", ""))
+    if sqlstate.startswith(INTEGRITY_CLASS):
+        return HttpError(409, detail.get("M", str(err)), code=sqlstate)
+    # El SQLSTATE solo viaja cuando el llamador puede actuar sobre él (reintentar).
+    code = sqlstate if sqlstate in RETRYABLE_SQLSTATES else None
+    return HttpError(500, detail.get("M", str(err)), code=code)
 
 
 def _live_connection():
@@ -104,3 +115,26 @@ def transaction() -> Iterator[Runner]:
     except BaseException:
         _run(connection, "ROLLBACK", [])
         raise
+
+
+T = TypeVar("T")
+
+RETRY_BACKOFF_SECONDS = 0.1
+
+
+def run_in_transaction(work: Callable[[Runner], T], retries: int = 0) -> T:
+    """`transaction()` que repite `work` ante un deadlock o un fallo de serialización.
+
+    Solo para bloques repetibles (sin efectos fuera de la base): cada intento abre una
+    transacción nueva, y si se agotan los intentos se propaga el último error.
+    """
+    attempt = 0
+    while True:
+        try:
+            with transaction() as run:
+                return work(run)
+        except HttpError as err:
+            if err.code not in RETRYABLE_SQLSTATES or attempt >= retries:
+                raise
+            attempt += 1
+            time.sleep(RETRY_BACKOFF_SECONDS * attempt)

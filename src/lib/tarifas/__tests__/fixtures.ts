@@ -4,8 +4,8 @@
 import Decimal from 'decimal.js';
 import type { EvalContext } from '../evaluator';
 import type {
-  Country, Location, MarginPolicy, OutsourcedCostRate, OwnCostParams, Rule, TripContext, VarBag,
-  Zone, ZoneGroup,
+  CalculateInput, Country, CostStructureRow, Location, MarginPolicy, Rule, TripContext,
+  VarBag, Zone, ZoneGroup,
 } from '../types';
 
 // Contexto de evaluación mínimo para probar evaluateExpr en aislamiento, sin correr todo el pipeline.
@@ -14,7 +14,6 @@ export function makeEvalContext(vars: VarBag, overrides: Partial<EvalContext> = 
     vars,
     originZoneId: 'Z_CCS',
     destZoneId: 'Z_CAR',
-    zoneLaneRates: [],
     getStageSubtotal: () => new Decimal(0),
     getRunningSubtotal: () => new Decimal(0),
     getRuleAmount: () => null,
@@ -28,8 +27,7 @@ export function makeCountryVE(): Country {
     id: 'VE',
     iso2: 'VE',
     name: 'Venezuela',
-    localCurrency: 'VES',
-    refCurrency: 'USD',
+    localCurrency: 'USD',
     roundingDecimals: 2,
     roundingMode: 'HALF_UP',
     overnightThresholdHours: 24,
@@ -54,23 +52,22 @@ export function makeGeoVE(): { zoneGroups: ZoneGroup[]; zones: Zone[]; locations
 export function makeTrip(overrides: Partial<TripContext> = {}): TripContext {
   return {
     countryId: 'VE',
+    partyId: null,
     quotedAt: '2026-07-31T10:00:00.000Z',
     originLocationId: 'L_CCS_1',
     destLocationId: 'L_CAR_1',
     km: 180,
     clientCount: 40,
-    packageCount: 40,
     weightKg: 1200,
     truckTypeId: 'TT_350',
     serviceType: 'EXPRESS',
-    fleetType: 'OWN',
+    fleetType: 'OUTSOURCED',
     carrierId: null,
     driverId: null,
     customerId: null,
     durationHours: 3,
-    tollsAmount: '0.00',
-    lateMinutes: 0,
-    incidentCount: 0,
+    truckVolumeM3: 0,
+    truckWeightTons: 0,
     ...overrides,
   };
 }
@@ -87,7 +84,6 @@ export function makeRule(overrides: Partial<Rule> & Pick<Rule, 'stage' | 'expres
     priority: 10,
     stacking: 'SUM',
     exclusionGroup: null,
-    currencyMode: 'REF',
     conditions: { p: 'ALWAYS' },
     isAdhoc: false,
     active: true,
@@ -96,25 +92,29 @@ export function makeRule(overrides: Partial<Rule> & Pick<Rule, 'stage' | 'expres
   };
 }
 
-export function makeOwnCostParams(overrides: Partial<OwnCostParams> = {}): OwnCostParams {
+/**
+ * Estructura de costos por defecto del país con las tres tasas de siempre (costo/km, depreciación/km
+ * y chofer por día), para los tests que necesitan que la flota propia tenga algún costo.
+ */
+export function makeOwnCostStructure(
+  rates: { costPerKm?: string; depreciationPerKm?: string; driverDaily?: string } = {},
+): Pick<CalculateInput, 'defaultCostStructure' | 'defaultCostStructureRows'> {
+  const { costPerKm = '1.10', depreciationPerKm = '0.18', driverDaily = '35.00' } = rates;
+  const row = (code: string, driver: CostStructureRow['driver'], amount: string, order: number): CostStructureRow => ({
+    id: `own-${code}`, structureId: 'OWN_VE', code, label: code, driver, amount, sign: 'ADD', appliesWhen: null,
+    unit: null, order, active: true, group: null, frequency: null, frequencyQty: null, unitQty: null,
+    costPerKm: null, truckType: null,
+  });
   return {
-    id: 'OWN_VE',
-    countryId: 'VE',
-    costPerKm: '1.10',
-    depreciationPerKm: '0.18',
-    driverDaily: '35.00',
-    ...overrides,
-  };
-}
-
-export function makeOutsourcedCostRate(overrides: Partial<OutsourcedCostRate> = {}): OutsourcedCostRate {
-  return {
-    id: 'OSR_1',
-    countryId: 'VE',
-    carrierId: 'CARRIER_1',
-    truckTypeId: 'TT_350',
-    flatRate: '420.00',
-    ...overrides,
+    defaultCostStructure: {
+      id: 'OWN_VE', partyId: null, countryId: 'VE', name: 'Costos de flota propia', operatingDaysPerMonth: 30,
+      params: { kmPerYear: null, fuelPrice: null, fuelEfficiency: {} }, effectiveFrom: null, active: true, notes: null,
+    },
+    defaultCostStructureRows: [
+      row('COSTO_KM', 'PER_KM', costPerKm, 1),
+      row('DEPRECIACION_KM', 'PER_KM', depreciationPerKm, 2),
+      row('CHOFER_DIA', 'PER_DAY', driverDaily, 3),
+    ],
   };
 }
 

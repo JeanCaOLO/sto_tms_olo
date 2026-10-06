@@ -1,0 +1,147 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: TMS - TARIFAS | Liquidador - API del ORM del tarifador sobre Aurora (/api/tarifas/*)
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [dev, qa, prod]
+  CommonStackName:
+    Type: String
+    Description: Stack de common-services del mismo ambiente (ej. dev-tms-common-services)
+  CommonLayerArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: Parámetro SSM con el ARN de la versión vigente de la Layer tms_common (lo actualiza scripts/sandbox/deploy_backend.py).
+  SubnetIds:
+    Type: AWS::SSM::Parameter::Value<List<String>>
+  SecurityGroupId:
+    Type: AWS::SSM::Parameter::Value<String>
+
+Conditions:
+  IsProduction: !Equals [!Ref Environment, prod]
+
+Resources:
+  TarifasApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-tarifas-api
+      RetentionInDays: !If [IsProduction, 30, 7]
+
+  TarifasApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-tarifas-api
+      Description: TMS - TARIFAS API | Viajes a liquidar (solo lectura) y datos de cálculo del liquidador
+      CodeUri: src/
+      Handler: app.handler
+      Runtime: python3.13
+      Architectures: [x86_64]
+      Timeout: 15
+      MemorySize: 512
+      Role:
+        Fn::ImportValue: !Sub ${CommonStackName}-LambdaRoleArn
+      Layers:
+        - !Ref CommonLayerArn
+      VpcConfig:
+        SubnetIds: !Ref SubnetIds
+        SecurityGroupIds: [!Ref SecurityGroupId]
+      LoggingConfig:
+        LogFormat: JSON
+        LogGroup: !Ref TarifasApiLogGroup
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+          TMS_DB_SECRET_NAME:
+            Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName
+
+  TarifasApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt TarifasApiFunction.Arn
+      PayloadFormatVersion: "2.0"
+
+  TarifasApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TarifasApiFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub
+        - arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/*/*
+        - ApiId:
+            Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+
+  # Una ruta por verbo del contrato de http-datasource.ts. `/tx` es literal: API
+  # Gateway la prioriza sobre `/{table}`.
+  TarifasTxRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/tarifas/tx
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${TarifasApiIntegration}
+
+  TarifasListRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/tarifas/{table}
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${TarifasApiIntegration}
+
+  TarifasGetRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/tarifas/{table}/{id}
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${TarifasApiIntegration}
+
+  TarifasInsertRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/tarifas/{table}
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${TarifasApiIntegration}
+
+  TarifasUpdateRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: PATCH /api/tarifas/{table}/{id}
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${TarifasApiIntegration}
+
+  TarifasDeleteRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: DELETE /api/tarifas/{table}/{id}
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${TarifasApiIntegration}
+
+Outputs:
+  TarifasApiFunctionArn:
+    Value: !GetAtt TarifasApiFunction.Arn
