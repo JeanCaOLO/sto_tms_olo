@@ -20,7 +20,7 @@ import { InterruptorVista, useVistaLiquidador } from './components/useVistaLiqui
 import { useActiveCountry } from '../../hooks/useActiveCountry';
 import { useModulePermissions } from '../../hooks/use-module-permissions';
 import { useTarifasActor } from '../../hooks/useTarifasActor';
-import { listSettlements, updateSettlementStatus } from '../../lib/tarifas/settlementsDataSource';
+import { getSettlement, listSettlementSummaries, updateSettlementStatus } from '../../lib/tarifas/settlementsDataSource';
 import { listPendingTrips } from '../../lib/tarifas/tripsDataSource';
 import { notLiquidableReason } from '../../lib/tarifas/tripContext';
 import { deliveryLabel, MARK_LABELS, tripProgress } from '../../lib/tarifas/tripOrders';
@@ -129,11 +129,21 @@ export default function LiquidacionesPage() {
     }
   }, [countryId, from, to]);
 
+  // La tabla trae las liquidaciones sin el cálculo (trace, reglas, avisos…); el desglose y re-liquidar
+  // necesitan la liquidación entera, que se lee al abrir (y así siempre está al día).
+  const abrirCompleta = useCallback(async (s: SettlementRecord, abrir: (full: SettlementRecord) => void) => {
+    try {
+      abrir((await getSettlement(s.id)) ?? s);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo leer la liquidación.');
+    }
+  }, []);
+
   const loadSettlements = useCallback(async () => {
     if (!countryId) return;
     setLoadingSettlements(true);
     try {
-      setSettlements(await listSettlements({
+      setSettlements(await listSettlementSummaries({
         countryId,
         ...(from ? { from } : {}),
         ...(to ? { to } : {}),
@@ -428,14 +438,14 @@ export default function LiquidacionesPage() {
             pageSize={25}
             actions={(s) => (
               <div className="flex items-center justify-end gap-1">
-                <Button variant="ghost" size="sm" onClick={() => setDetalle(s)} title="Ver el desglose">
+                <Button variant="ghost" size="sm" onClick={() => void abrirCompleta(s, setDetalle)} title="Ver el desglose">
                   <i className="ri-eye-line"></i>
                 </Button>
                 {canEdit && !s.supersededBy && s.status !== 'Anulado' && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setModal({ trip: null, settlement: s })}
+                    onClick={() => void abrirCompleta(s, (full) => setModal({ trip: null, settlement: full }))}
                     title="Re-liquidar el viaje"
                   >
                     <i className="ri-refresh-line"></i>

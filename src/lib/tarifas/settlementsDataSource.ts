@@ -12,7 +12,7 @@
 
 import { registrarEvento } from '../liquidador/auditLog';
 import { getActorRole } from './actor';
-import { db, UniqueViolationError, type Condition, type Row } from './data';
+import { db, entityDef, UniqueViolationError, type Condition, type Row } from './data';
 import { notLiquidableReason } from './tripContext';
 import { getTrip } from './tripsDataSource';
 import type {
@@ -108,7 +108,31 @@ export interface SettlementFilter {
   to?: string;
 }
 
-export async function listSettlements(filter: SettlementFilter = {}): Promise<SettlementRecord[]> {
+/**
+ * Columnas pesadas (el cálculo completo): la tabla de liquidaciones no las muestra, así que el listado
+ * no las trae. Al abrir el desglose o re-liquidar se lee la liquidación entera con `getSettlement`.
+ */
+const HEAVY_COLUMNS = new Set([
+  'trace', 'discarded', 'stage_subtotals', 'warnings', 'overrides', 'adhoc_rules', 'rules_used',
+  'excluded_seqs', 'returns', 'trip', 'trip_edits', 'allocation',
+]);
+
+function summaryColumns(): string[] {
+  return Object.keys(entityDef('settlement').columns).filter((c) => !HEAVY_COLUMNS.has(c));
+}
+
+/**
+ * Lo mismo que `listSettlements` pero SIN las columnas pesadas: los campos del cálculo vienen vacíos.
+ * Para tablas y KPIs; para mostrar el desglose usar `getSettlement`.
+ */
+export async function listSettlementSummaries(filter: SettlementFilter = {}): Promise<SettlementRecord[]> {
+  return listSettlements(filter, summaryColumns());
+}
+
+export async function listSettlements(
+  filter: SettlementFilter = {},
+  columns?: string[],
+): Promise<SettlementRecord[]> {
   const where: Condition[] = [];
   if (filter.countryId) where.push({ column: 'country_id', op: 'eq', value: filter.countryId });
   if (filter.partyId) where.push({ column: 'party_id', op: 'eq', value: filter.partyId });
@@ -121,6 +145,7 @@ export async function listSettlements(filter: SettlementFilter = {}): Promise<Se
   const rows = await db().find('settlement', {
     where,
     orderBy: [{ column: 'settlement_date', direction: 'desc' }, { column: 'number', direction: 'desc' }],
+    ...(columns ? { columns } : {}),
   });
   return rows.map(toDomain);
 }

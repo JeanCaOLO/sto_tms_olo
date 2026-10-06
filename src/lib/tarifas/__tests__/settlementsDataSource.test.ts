@@ -10,7 +10,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  emitSettlement, getSettlement, listSettlements, listTripSettlements, nextSettlementNumber,
+  emitSettlement, getSettlement, listSettlements, listSettlementSummaries, listTripSettlements, nextSettlementNumber,
   reliquidateSettlement, updateSettlementStatus, validateSettlement, type SettlementInput,
 } from '../settlementsDataSource';
 import { getTrip, listLiquidableTrips } from '../tripsDataSource';
@@ -325,6 +325,23 @@ describe('lista y estados', () => {
     expect(await listSettlements({ from: viaje.routeDate, to: viaje.routeDate })).toHaveLength(
       viaje.routeDate === otroViaje.routeDate ? 2 : 1,
     );
+  });
+
+  it('el listado liviano trae lo de la tabla sin el cálculo; getSettlement lo trae entero', async () => {
+    const emitida = await emitSettlement(entrada());
+    if (emitida.status !== 'saved') throw new Error('no se emitió');
+    const entera = emitida.settlement;
+    expect(entera.trace.length).toBeGreaterThan(0);
+
+    const [liviana] = await listSettlementSummaries({ tripId: viaje.id });
+    expect(liviana.id).toBe(entera.id);
+    expect(liviana.number).toBe(entera.number);
+    expect(liviana.totalAmount).toBe(entera.totalAmount);
+    expect(liviana.tripInfo.routeNumber).toBe(entera.tripInfo.routeNumber);
+    expect(liviana.trace).toEqual([]);
+    expect(liviana.rulesUsed).toEqual([]);
+
+    expect((await getSettlement(entera.id))?.trace).toEqual(entera.trace);
   });
 
   it('cambia de estado', async () => {
