@@ -1,0 +1,59 @@
+{
+  "stage": "domain-design",
+  "intent": "260826-modulo-oms",
+  "note": "Re-corrida por el pivote WMH (2026-09-30), ACOTADA a la rebanada delgada de 1ª entrega. Se mapean las historias de la rebanada a los 5 componentes en alcance; las historias de componentes DIFERIDOS se marcan Deferred (no GAP: su diseño es una corrida posterior de domain-design, no un hueco). CalendarioRutas eliminado (D5) → US28/US29 ya retiradas en user-stories.",
+  "nombres_reales_confirmados": {
+    "fuente_DDL": "docs/wms-eflow/EFLOW_OLO-ddl.sql (SQL Server, 2026-10-01).",
+    "pk": "EXPEDICIONESCABECERA PK = (IDALMACEN, IDCOMPANIA, IDSUCURSAL, IDEXPEDICION) — clave de idempotencia del handoff y del anti-join con ALMACENMOVIMIENTOS_CARCAM.",
+    "fuente_fecha_T1": "FECHAEXPEDICIONPLANIFICADA (datetime NOT NULL) en EXPEDICIONESCABECERA — fecha de entrega del cliente, insumo del T-1, el OMS NO la modifica.",
+    "estado_situacion": "estado = TPEXES, situación = TPEXSI (varchar(6), FK TIPOSINTEGRACION). Códigos DISP=disponible, GENE=generada. Cola filtra DISP; handoff escritura 2 pone TPEXSI='GENE' y TPEXES permanece 'DISP'.",
+    "prioridad": "PRIORIDAD int NOT NULL = campo numérico que escribe el OMS (también NOMBREPRIORIDAD varchar(50)).",
+    "observaciones": "OBSERVACIONESEXPEDICION varchar(500) (nivel cabecera) = texto libre que lee AnalizadorObservaciones.",
+    "filtro_cola": "FECHACIERRE datetime NULL (fecha_de_cierre IS NULL) + NUMEROVIAJEWMH bigint NULL (sin viaje).",
+    "peso_volumen_OQ8": "PESOPEDIDO_TOTAL / CUBICAJEPEDIDO_TOTAL (float NULL) existen en cabecera — el handoff puede cargarlos; OQ-8 informada, no cerrada.",
+    "borde_fallback": "FECHAEXPEDICIONPLANIFICADA es NOT NULL → el fallback (US8) se dispara por valor centinela/default (caso Cofersa), NO por NULL.",
+    "resuelve_verificar": "EXPEDICIONESCABECERA es la tabla que en DECIDED 2026-09-14 citábamos como expedición_cabecera; resuelve el [verificar] de ese DECIDED.",
+    "pendiente_catalogos": "TIPOSINTEGRACION (códigos reales) y CLIENTES/ALMACENCOMPANIA (maestro cliente/compañía para nombre + scope) — a pedir, no bloquea."
+  },
+  "upstream_ids": ["US1", "US7", "US8", "US9", "US10", "US11b", "US12", "US13"],
+  "coverage": [
+    { "id": "US1",   "status": "OK", "target": "ColaCandidatos" },
+    { "id": "US7",   "status": "OK", "target": "ReglaFecha" },
+    { "id": "US8",   "status": "OK", "target": "ReglaFecha" },
+    { "id": "US9",   "status": "OK", "target": "HandoffPedidosOMS" },
+    { "id": "US10",  "status": "OK", "target": "MotorReglasOMS" },
+    { "id": "US11b", "status": "OK", "target": "MotorReglasOMS" },
+    { "id": "US12",  "status": "OK", "target": "AnalizadorObservaciones" },
+    { "id": "US13",  "status": "OK", "target": "AnalizadorObservaciones" }
+  ],
+  "deferred": [
+    { "id": "US2",  "reason": "UICola — diferido" },
+    { "id": "US3",  "reason": "UICola / selector de scope — diferido" },
+    { "id": "US4",  "reason": "UICola — diferido" },
+    { "id": "US5",  "reason": "UICola — diferido" },
+    { "id": "US6",  "reason": "UICola (modal) — diferido" },
+    { "id": "US11", "reason": "revisita periódica — motor, diferido a corrida posterior" },
+    { "id": "US14", "reason": "override manual — diferido" },
+    { "id": "US15", "reason": "permisos override — diferido" },
+    { "id": "US16", "reason": "CatalogoReglas — diferido" },
+    { "id": "US17", "reason": "CatalogoReglas — diferido" },
+    { "id": "US18", "reason": "CatalogoReglas — diferido" },
+    { "id": "US19", "reason": "Simulador — diferido" },
+    { "id": "US20", "reason": "Simulador — diferido" },
+    { "id": "US21", "reason": "Simulador — diferido" },
+    { "id": "US22", "reason": "Simulador — diferido" },
+    { "id": "US23", "reason": "Simulador — diferido" },
+    { "id": "US24", "reason": "Simulador — diferido" },
+    { "id": "US25", "reason": "Panel — diferido" },
+    { "id": "US26", "reason": "Panel — diferido" },
+    { "id": "US27", "reason": "Auditoría completa — diferido" },
+    { "id": "US30", "reason": "aislamiento por scope — transversal, se apoya en user_scopes del backend; diferido a corrida posterior" },
+    { "id": "US31", "reason": "regla por scope — el MotorReglasOMS ya resuelve reglas por scope; selector de regla más específica se detalla en corrida posterior" },
+    { "id": "US32", "reason": "niveles de acceso — diferido (capa de seguridad transversal)" },
+    { "id": "US33", "reason": "registro de autor — diferido (Auditoría)" }
+  ],
+  "retired": [
+    { "id": "US28", "reason": "Calendario de rutas — RETIRADA en user-stories por D5" },
+    { "id": "US29", "reason": "Calendario de rutas CRUD — RETIRADA en user-stories por D5" }
+  ]
+}

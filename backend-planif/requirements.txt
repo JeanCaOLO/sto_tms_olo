@@ -9,4 +9,4 @@ bcrypt==4.2.0
 # python-tds (import pytds): driver TDS 100% Python puro para SQL Server. Solo lo
 # importa (tardíamente) EFLOW en modo live (lib/tms_common/eflow_db); en modo
 # mock no se carga. Sin binarios nativos ni layer.
-python-tds==1.15.0
+python-tds==1.16.0

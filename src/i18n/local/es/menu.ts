@@ -15,7 +15,6 @@ export default {
   'menu.omsCola': 'Cola de Priorización',
   'menu.omsReglas': 'Motor de Reglas',
   'menu.omsSimulador': 'Simulador',
-  'menu.omsRutas': 'Rutas y Días',
   'menu.omsAuditoria': 'Auditoría',
   'menu.catalogos': 'Catálogos',
   'menu.paises': 'Países',

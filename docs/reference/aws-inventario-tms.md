@@ -16,7 +16,7 @@ flowchart LR
   user["Usuario (navegador)"] --> amplify["Amplify Hosting<br/>dev-tms-frontend / sandbox<br/>SPA React"]
   user -->|"HTTPS + JWT"| apigw["API Gateway HTTP<br/>dev-tms-common-services-http-api<br/>stage dev"]
   apigw -->|"valida token"| authz["Lambda jwt-authorizer<br/>fuera de VPC"]
-  apigw --> lambdas["Lambdas por módulo<br/>auth, data, context, eflow,<br/>admin, planning"]
+  apigw --> lambdas["Lambdas por módulo<br/>auth, data, context, eflow,<br/>admin, planning, oms"]
   sched["EventBridge Scheduler<br/>días hábiles 06:00 CR"] --> maint["Lambda audit-maintenance"]
   horarios["EventBridge Scheduler<br/>dev-tms-horarios<br/>L-V 04:45 enciende / 17:00 apaga"] -.->|"start/stop"| aurora
   horarios -.->|"start/stop"| bastion
@@ -41,7 +41,7 @@ flowchart LR
 1. El usuario abre el frontend (SPA React) servido por **Amplify**.
 2. El frontend llama al **API Gateway HTTP** con el JWT de sesión. El **authorizer** (Lambda fuera de VPC) valida el
    token leyendo `/dev/tms/jwt`.
-3. API Gateway enruta a la **Lambda del módulo** (`auth`, `data`, `context`, `eflow`, `admin`, `planning`). Estas
+3. API Gateway enruta a la **Lambda del módulo** (`auth`, `data`, `context`, `eflow`, `admin`, `planning`, `oms`). Estas
    Lambdas están **dentro de la VPC** de Aurora, en subnets privadas y **sin NAT**: salen a AWS solo por endpoints VPC
    (Secrets Manager para sus credenciales, S3 gateway).
 4. Las Lambdas se conectan a **Aurora** (`db-tms-olo`, BD `tms_olo`) como el rol **`tms_app`**: lee y escribe datos,
@@ -103,7 +103,7 @@ Lo crea y actualiza `npm run deploy:sandbox` (idempotente; redesplegar sin cambi
 
 | Recurso | Identificador | Detalle |
 |---|---|---|
-| Stack | `dev-tms-common-services` | API Gateway HTTP `dev-tms-common-services-http-api` (`pmc95jqekl`, stage `dev`, CORS `*` con GET/POST/PUT/PATCH/DELETE), authorizer JWT, Layer, rol de las Lambdas. |
+| Stack | `dev-tms-common-services` | API Gateway HTTP `dev-tms-common-services-http-api` (`pmc95jqekl`, stage `dev`, CORS `*` con GET/POST/PUT/PATCH/DELETE y headers `Authorization`, `Content-Type`, `X-Warehouse-Id`, `X-Customer-Id`), authorizer JWT, Layer, rol de las Lambdas. |
 | Lambda | `dev-tms-common-services-jwt-authorizer` | 256 MB, 5 s, **fuera de VPC**. Valida el Bearer token con `/dev/tms/jwt`. |
 | Layer | `dev-tms-common-services-tms-common` | Versión vigente **5** (las anteriores se borraron). Su ARN se publica en el parámetro SSM `/dev/tms/common-layer-arn`, que leen los módulos. |
 | Stack + Lambda | `dev-tms-auth` / `dev-tms-auth-auth-api` | 512 MB, 15 s. Login, signup, sesión, logout. |
@@ -112,7 +112,8 @@ Lo crea y actualiza `npm run deploy:sandbox` (idempotente; redesplegar sin cambi
 | Stack + Lambda | `dev-tms-eflow` / `dev-tms-eflow-eflow-api` | 512 MB, 29 s. EFLOW en **mock**. |
 | Stack + Lambda | `dev-tms-admin` / `dev-tms-admin-admin-api` | 512 MB, 15 s. Usuarios, roles, permisos, auditoría. |
 | Lambda + schedule | `dev-tms-admin-audit-maintenance` | 256 MB, 30 s. Schedule `dev-tms-admin-audit-maintenance` (ENABLED): lunes a viernes 06:00 hora de Costa Rica (idempotente; no el día 1 porque puede caer en fin de semana con Aurora apagada). Probado a mano: OK. |
-| Stack + Lambda | `dev-tms-planning` / `dev-tms-planning-planning-api` | 512 MB, 15 s. Pedidos para Planificación. |
+| Stack + Lambda | `dev-tms-planning` / `dev-tms-planning-planning-api` | 512 MB, 30 s. Planificación 2 (código de `backend-planif/`): pedidos, planes (crear/editar/confirmar/completar/cancelar) y estado por viaje; 11 rutas `/api/v1/planificacion/*`. |
+| Stack + Lambda | `dev-tms-oms` / `dev-tms-oms-oms-api` | Motor de reglas del OMS (esqueleto) en **mock** (`OMS_SOURCE=mock`: no escribe en Aurora ni en el WMS). Rutas `GET /api/v1/oms/health`, `POST /api/v1/oms/corridas`. |
 | Parámetro SSM | `/dev/tms/common-layer-arn` | ARN de la versión vigente de la Layer (lo mantiene el script). |
 | App Amplify | `dev-tms-frontend` (`d1q6tzcx0ew3rk`), rama `sandbox` | Deploy manual por zip, regla SPA (toda ruta → `index.html`). |
 
@@ -174,3 +175,4 @@ Stack `dev-tms-horarios` (`infra/horarios/template.yaml`, se despliega con `depl
 | 2026-09-24 | Política: `ApiGatewayHttp` pasa a `apigateway:*` (el stage exige `apigateway:TagResource`). | Usuario |
 | 2026-09-24 | **Backend y frontend desplegados en el sandbox** (§2). Cambios para lograrlo: schedule con nombre `dev-tms-*`; la Layer se publica por SSM (`/dev/tms/common-layer-arn`) en vez de export (un export en uso bloquea versiones nuevas); build determinista; CORS con `PUT`. | Claude |
 | 2026-09-24 | Borradas las versiones 1–4 de la Layer (queda la 5, en uso). Horario de servidores: stack `dev-tms-horarios` (Aurora y bastión L-V 04:45–17:00 CR). Mantenimiento de la bitácora pasa a días hábiles 06:00. | Claude |
+| 2026-10-05 | CORS del API: se permiten los headers `X-Warehouse-Id` y `X-Customer-Id` (el frontend los manda desde `aab65fa`; sin esto el preflight fallaba). `dev-tms-planning` pasa a correr el backend de Planificación 2 (`backend-planif/src`, 11 rutas, timeout 30 s). Nuevo stack `dev-tms-oms` (motor de reglas en mock). | Claude |

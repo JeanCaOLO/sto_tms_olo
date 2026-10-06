@@ -1,0 +1,19 @@
+{
+  "stage": "code-generation",
+  "unit": "motor-reglas-oms",
+  "version": 1,
+  "writes": [
+    { "path": "backend/oms/src/models.py" },
+    { "path": "backend/oms/src/score.py" },
+    { "path": "backend/oms/src/regla_fecha.py" },
+    { "path": "backend/oms/src/analizador_observaciones.py" },
+    { "path": "backend/oms/src/cola_candidatos.py" },
+    { "path": "backend/oms/src/handoff_pedidos.py" },
+    { "path": "backend/oms/src/motor_reglas.py" },
+    { "path": "backend/oms/src/app.py" },
+    { "path": "backend/oms/template.yaml" },
+    { "path": "backend/oms/samconfig.toml" },
+    { "path": "backend/tests/test_oms.py" },
+    { "path": "backend/tests/conftest.py" }
+  ]
+}

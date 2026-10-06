@@ -1,0 +1,9 @@
+{
+  "stage": "code-generation",
+  "unit": "esquema-pedidos-oms",
+  "version": 1,
+  "writes": [
+    { "path": "sql/oms_pedidos.sql" },
+    { "path": "backend/oms/src/models.py" }
+  ]
+}

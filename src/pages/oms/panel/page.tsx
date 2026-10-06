@@ -2,7 +2,6 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import Card from '../../../components/base/Card';
 import Badge from '../../../components/base/Badge';
-import Select from '../../../components/base/Select';
 import StatCard from '../../../components/feature/StatCard';
 import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
 import { TIER_LABEL, type PriorityTier, type OmsAlert } from '../types';
@@ -36,28 +35,18 @@ const TIER_BAR: Record<PriorityTier, { dot: string; bar: string; text: string }>
 // Pantalla Panel OMS — dashboard de salud del motor (FR4).
 export default function OmsPanelPage() {
   const { t } = useTranslation();
-  const { companies, company, setCompany, kpis, alerts, distribution, loading, error } = usePanelController();
+  const { kpis, alerts, distribution, loading, error } = usePanelController();
 
   const alertColumns = buildAlertColumns(t);
   const maxCount = Math.max(1, ...distribution.map((d) => d.count));
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">{t('omsPanel.title')}</h1>
-          <p className="text-sm text-slate-600 mt-1">
-            {t('omsPanel.subtitle')}
-          </p>
-        </div>
-        <div className="w-full sm:w-56">
-          <Select
-            label={t('omsPanel.company')}
-            value={company}
-            onChange={(e) => setCompany(e.target.value)}
-            options={companies.map((c) => ({ value: c.id, label: c.name }))}
-          />
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">{t('omsPanel.title')}</h1>
+        <p className="text-sm text-slate-600 mt-1">
+          {t('omsPanel.subtitle')}
+        </p>
       </div>
 
       {loading && (

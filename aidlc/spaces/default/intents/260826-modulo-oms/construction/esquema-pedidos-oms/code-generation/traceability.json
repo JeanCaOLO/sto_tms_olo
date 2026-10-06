@@ -1,0 +1,17 @@
+{
+  "stage": "code-generation",
+  "unit": "esquema-pedidos-oms",
+  "intent": "260826-modulo-oms",
+  "kind": "spec",
+  "note": "U2 es un contrato de datos (DDL de oms.pedidos). Se verifica por consumo (tests de U1) y por aplicación del DDL. Historia de la rebanada que lo motiva: US9 (dos escrituras, D6).",
+  "upstream_ids": ["US9"],
+  "coverage": [
+    { "id": "US9", "status": "OK", "target": "sql/oms_pedidos.sql", "note": "Tabla propia del OMS = escritura 1 del handoff; superficie que lee Planificación." }
+  ],
+  "artifacts": [
+    { "path": "sql/oms_pedidos.sql", "role": "DDL de oms.pedidos" },
+    { "path": "backend/oms/src/models.py", "role": "contrato PedidoOMS (dataclass)" }
+  ],
+  "verified_by": ["backend/tests/test_oms.py"],
+  "deferred": ["Aplicación del DDL a Aurora y despliegue: dependen de reactivar infrastructure-design (gate en external-dependency-map.md)."]
+}
