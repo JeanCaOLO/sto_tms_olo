@@ -34,11 +34,13 @@ Evidencia: CloudWatch 14 días (cuenta `tms-sandbox`, us-east-2) y lectura del r
 
 También se restauró la entrada `tarifas` de `backend/tests/conftest.py`, que se había perdido en el merge con `main`.
 
-## 3. Migraciones 26 y 27: NO APLICADAS (referencia)
+## 3. Migraciones 26 y 27: APLICADAS el 2026-10-07 (aprobadas por el dueño del módulo)
 
-**Estado: no se aplican.** Crean índices y redefinen una vista en Aurora, y la regla del módulo es no tocar la estructura de AWS. Quedan en `sql/` como referencia por si el dueño de la base decide aplicarlas. Consecuencia: el número de liquidación sigue sin índice único en Aurora (dos emisiones simultáneas podrían repetir `LIQ-NNNN`; riesgo bajo, baja concurrencia). El resto de las mejoras (cachés, columnas livianas) no dependen de ellas.
+**Estado: aplicadas** con `--execute` tras aprobación explícita, y registradas en `schema_migrations`. Verificado después: los 3 índices existen, la vista devuelve 28 viajes con 68 guías y 54 entregadas, y `tms_app` conserva el `select` sobre ella.
 
-Dry-run de 26 y 27 ejecutado el 2026-10-06 contra Aurora: sin errores, ROLLBACK (la base no cambió). La 27 se probó además contra los datos reales dentro de una transacción revertida: la vista nueva devuelve las mismas 28 filas, idénticas a la actual.
+**Número de liquidación.** El índice único es `(country_id, number)`, así que cada país numera aparte. El número ahora lleva el código del país: `LIQ-VE-001`, `LIQ-CR-001`. Los ya emitidos (`LIQ-0007`) se respetan y la cuenta continúa sobre ellos: la siguiente del país es `LIQ-VE-008`. Sin código de país queda el formato anterior.
+
+Antes de aplicar, dry-run de 26 y 27 contra Aurora: sin errores, ROLLBACK (la base no cambió). La 27 se probó además contra los datos reales dentro de una transacción revertida: la vista nueva devuelve las mismas 28 filas, idénticas a la actual.
 
 Requisitos: túnel abierto (`scripts/tunel-aurora.ps1`), `.env.local` con `TMS_DB_ADMIN_*`, ventana con poca actividad.
 

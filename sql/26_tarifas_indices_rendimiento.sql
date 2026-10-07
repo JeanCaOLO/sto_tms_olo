@@ -1,4 +1,3 @@
--- NO APLICADA en Aurora: referencia. El modulo tarifas no altera la estructura de AWS (ver docs/tarifador/RUNBOOK_OPTIMIZACION_AURORA.md).
 -- ============================================================================
 -- 26 — Rendimiento del tarifador: número de liquidación sin carrera e índices de lectura.
 --
