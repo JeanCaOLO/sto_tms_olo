@@ -10,6 +10,7 @@
 // (variables, estructura de costos, tarifarios) sobre el perfil de cada transportista.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Card from '../../components/base/Card';
 import Button from '../../components/base/Button';
 import Badge from '../../components/base/Badge';
@@ -113,6 +114,25 @@ export default function CompaniasView({ classification }: { classification: Part
   useEffect(() => { if (!loadingCountries) void load(); }, [load, loadingCountries]);
 
   const currency = activeCountry?.local_currency ?? 'moneda local';
+
+  // Llegada desde una liquidación sin lógica de costos: `?carrier=<id>&open=costs|rates|variables`
+  // abre el panel de ESA compañía. Se consume una sola vez y se limpia de la URL.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const carrierId = searchParams.get('carrier');
+    const panel = searchParams.get('open');
+    if (!carrierId || loading || loadingCountries) return;
+    const profile = profiles.find((p) => p.carrierId === carrierId);
+    if (profile) {
+      if (panel === 'costs') setCostsFor(profile);
+      else if (panel === 'variables') setVariablesFor(profile);
+      else setRatesFor(profile);
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete('carrier');
+    next.delete('open');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, profiles, loading, loadingCountries]);
 
   // Las zonas del país activo, para que el tarifario pueda sugerir códigos en sus columnas.
   useEffect(() => {

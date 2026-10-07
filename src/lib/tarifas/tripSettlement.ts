@@ -14,6 +14,7 @@ import { calculate } from './index';
 import { CatalogError, loadTarifasCatalog, type TarifasCatalog } from './catalogLoader';
 import { buildCustomVarFields, missingDeclaredVars, type CustomVarField } from './customVarFields';
 import { getProfileForCarrier } from './partiesDataSource';
+import { detectMissingLogic, noLogicMessage, noRuleApplied, type NoLogicInfo } from './missingLogic';
 import { buildCalculateInput } from './settlementInput';
 import { emptyTripEdits, notLiquidableReason, toTripContext } from './tripContext';
 import { getTrip, listTripOrders } from './tripsDataSource';
@@ -45,8 +46,12 @@ export interface TripCalculation {
 
 export type TripCalculationResult =
   | { status: 'ok'; calculation: TripCalculation }
-  /** Falta configuración del país (costos, margen, redondeo): no hay cálculo posible. */
-  | { status: 'catalog-error'; message: string }
+  /**
+   * Falta configuración del país (costos, margen, redondeo) o de la compañía: no hay cálculo posible.
+   * `noLogic` viene cuando lo que falta es la lógica de costos de la flota del viaje: la pantalla
+   * ofrece el enlace para cargarla.
+   */
+  | { status: 'catalog-error'; message: string; noLogic?: NoLogicInfo }
   | { status: 'not-found'; message: string };
 
 export interface CalculateTripOptions {
@@ -102,6 +107,10 @@ export async function calculateTrip(
     throw error;
   }
 
+  // Sin lógica de costos para la flota del viaje no hay total que inventar: se dice qué falta.
+  const missing = detectMissingLogic(catalog, trip, partyId);
+  if (missing) return { status: 'catalog-error', message: noLogicMessage(missing), noLogic: missing };
+
   const context = toTripContext(trip, edits, partyId);
   // La mercancía solo alimenta la auditoría y el reparto por casa: si no se puede leer, lo que se paga
   // NO cambia. Se avisa en vez de frenar la liquidación.
@@ -130,6 +139,12 @@ export async function calculateTrip(
     // Falta una configuración que el motor exige (p. ej. la estructura de costos de la flota
     // propia): se informa como falta de catálogo en vez de romper la pantalla con una excepción.
     return { status: 'catalog-error', message: error instanceof Error ? error.message : String(error) };
+  }
+
+  // Un tercero con reglas en el catálogo pero ninguna aplicada a este viaje terminaría en cero.
+  if (issues.length === 0 && result.blockingIssues.length === 0) {
+    const none = noRuleApplied(trip, partyId, result.trace.length);
+    if (none) return { status: 'catalog-error', message: noLogicMessage(none), noLogic: none };
   }
 
   const reason = notLiquidableReason(trip);

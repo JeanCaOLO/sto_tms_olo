@@ -9,6 +9,7 @@
 // bitácora la escribe `settlementsDataSource`: acá no se registra nada.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
@@ -26,6 +27,7 @@ import {
   emitSettlement, reliquidateSettlement, type EmitSettlementResult,
 } from '../../../lib/tarifas/settlementsDataSource';
 import { formatMoney } from '../../../lib/tarifas/format';
+import { noLogicHref, type NoLogicInfo } from '../../../lib/tarifas/missingLogic';
 import TripOrdersPanel from './TripOrdersPanel';
 import { InterruptorVista, useVistaLiquidador } from './useVistaLiquidador';
 import type {
@@ -63,6 +65,8 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
   // Hay un cambio tecleado que todavía no se recalculó: no se puede emitir con un total viejo.
   const [pending, setPending] = useState(false);
   const [loadError, setLoadError] = useState('');
+  // Falta la lógica de costos de la flota del viaje: se ofrece el enlace para cargarla.
+  const [noLogic, setNoLogic] = useState<NoLogicInfo | null>(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -87,10 +91,12 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
       if (res.status !== 'ok') {
         setCalculation(null);
         setLoadError(res.message);
+        setNoLogic(res.status === 'catalog-error' ? res.noLogic ?? null : null);
         return null;
       }
       editsUsed.current = edits;
       setLoadError('');
+      setNoLogic(null);
       setCalculation(res.calculation);
       return res.calculation;
     } catch (e) {
@@ -108,6 +114,7 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
     let cancelled = false;
     setCalculation(null);
     setLoadError('');
+    setNoLogic(null);
     setError('');
     setPending(false);
     setExcludedSeqs(new Set());
@@ -287,6 +294,19 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
               {(error || loadError) && (
                 <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
                   {error || loadError}
+                  {noLogic && noLogicHref(noLogic) && (
+                    <div className="mt-2">
+                      <Link
+                        to={noLogicHref(noLogic) as string}
+                        className="inline-flex items-center gap-1 font-medium text-red-800 underline hover:text-red-900"
+                      >
+                        <i className="ri-settings-3-line"></i>
+                        {noLogic.fleet === 'OWN'
+                          ? 'Cargar la estructura de costos de esta flota propia'
+                          : 'Configurar tarifario y reglas de este transportista'}
+                      </Link>
+                    </div>
+                  )}
                 </div>
               )}
               {calculation?.notLiquidableReason && (
