@@ -161,20 +161,28 @@ export async function listTripSettlements(tripId: string): Promise<SettlementRec
 }
 
 /**
- * Siguiente número de liquidación del país: `LIQ-0001`.
+ * Siguiente número de liquidación del país: `LIQ-VE-001`, `LIQ-CR-001`… (código del país en el medio,
+ * para que un número se distinga a simple vista entre países). Sin código de país queda el formato
+ * anterior, `LIQ-0001`.
+ *
+ * La cuenta continúa sobre las liquidaciones del país en CUALQUIER formato: las `LIQ-0007` ya
+ * emitidas cuentan, y la siguiente es `LIQ-VE-008`.
  *
  * PURA sobre la lista de números existentes, para poder probarla. Se ignora en silencio todo lo que
  * no sea un sufijo numérico en vez de arrastrarlo al cálculo (ya produjo un `LIQ-0NaN`).
  */
-export function nextSettlementNumber(existentes: string[]): string {
+export function nextSettlementNumber(existentes: string[], countryCode?: string | null): string {
   const maximo = existentes.reduce((max, numero) => {
-    const match = /^LIQ-(\d+)$/.exec((numero ?? '').trim());
+    const match = /^LIQ-(?:[A-Z0-9]+-)?(\d+)$/.exec((numero ?? '').trim());
     if (!match) return max;
     const valor = Number(match[1]);
     return Number.isFinite(valor) && valor > max ? valor : max;
   }, 0);
 
-  return `LIQ-${String(maximo + 1).padStart(4, '0')}`;
+  const code = (countryCode ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return code
+    ? `LIQ-${code}-${String(maximo + 1).padStart(3, '0')}`
+    : `LIQ-${String(maximo + 1).padStart(4, '0')}`;
 }
 
 export function validateSettlement(input: SettlementInput): SettlementErrors {
@@ -245,11 +253,11 @@ function failed(error: unknown): EmitSettlementResult {
 
 async function nextNumber(countryId: string): Promise<string> {
   // Solo la columna del número: antes traía cada liquidación entera, con sus JSONB, para sacar un máximo.
-  const rows = await db().find('settlement', {
-    where: [{ column: 'country_id', op: 'eq', value: countryId }],
-    columns: ['number'],
-  });
-  return nextSettlementNumber(rows.map((r) => String(r.number)));
+  const [rows, country] = await Promise.all([
+    db().find('settlement', { where: [{ column: 'country_id', op: 'eq', value: countryId }], columns: ['number'] }),
+    db().findOne('country', countryId),
+  ]);
+  return nextSettlementNumber(rows.map((r) => String(r.number)), country ? String(country.code ?? '') : null);
 }
 
 /**

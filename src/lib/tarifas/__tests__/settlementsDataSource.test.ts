@@ -85,6 +85,24 @@ describe('nextSettlementNumber', () => {
 
   it('no se queda sin dígitos', () => {
     expect(nextSettlementNumber(['LIQ-9999'])).toBe('LIQ-10000');
+    expect(nextSettlementNumber(['LIQ-VE-999'], 've')).toBe('LIQ-VE-1000');
+  });
+
+  it('con país lleva su código en el medio: LIQ-VE-001, LIQ-CR-001', () => {
+    expect(nextSettlementNumber([], 'VE')).toBe('LIQ-VE-001');
+    expect(nextSettlementNumber([], 'cr')).toBe('LIQ-CR-001');
+    expect(nextSettlementNumber([], '  ')).toBe('LIQ-0001');
+    expect(nextSettlementNumber([], null)).toBe('LIQ-0001');
+  });
+
+  it('la cuenta continúa sobre los números viejos y los nuevos del país', () => {
+    expect(nextSettlementNumber(['LIQ-0007', 'LIQ-VE-008', 'LIQ-0003'], 'VE')).toBe('LIQ-VE-009');
+  });
+
+  it('cada país numera aparte: el mismo número puede existir en dos países', () => {
+    // La lista que recibe ya es la del país; otro país empieza de nuevo.
+    expect(nextSettlementNumber(['LIQ-VE-001'], 'VE')).toBe('LIQ-VE-002');
+    expect(nextSettlementNumber([], 'CR')).toBe('LIQ-CR-001');
   });
 });
 
@@ -139,8 +157,8 @@ describe('emitir', () => {
     const segunda = await emitSettlement(entrada({ trip: otroViaje, partyId: otroViaje.carrierId }));
     if (primera.status !== 'saved' || segunda.status !== 'saved') throw new Error('no se emitió');
 
-    expect(primera.settlement.number).toBe('LIQ-0001');
-    expect(segunda.settlement.number).toBe('LIQ-0002');
+    expect(primera.settlement.number).toBe('LIQ-VE-001');
+    expect(segunda.settlement.number).toBe('LIQ-VE-002');
     expect(primera.settlement.currency).toBe('USD');
   });
 
@@ -251,7 +269,7 @@ describe('re-liquidar', () => {
     expect(vieja?.totalAmount).toBe('400.00');
 
     expect(segunda.settlement.totalAmount).toBe('450.00');
-    expect(segunda.settlement.number).toBe('LIQ-0002');
+    expect(segunda.settlement.number).toBe('LIQ-VE-002');
 
     const historial = await listTripSettlements(viaje.id);
     expect(historial).toHaveLength(2);

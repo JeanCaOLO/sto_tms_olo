@@ -575,7 +575,7 @@ export interface SettlementRecord {
   tripId: string;
   /** Perfil de cálculo con el que se liquidó. Nulo = transportista sin perfil. */
   partyId: string | null;
-  /** Número propio del módulo: 'LIQ-0001'. */
+  /** Número propio del módulo: 'LIQ-VE-001' (antes 'LIQ-0001'). */
   number: string;
   /** Número del viaje (`route_number`), congelado. */
   tripNumber: string;

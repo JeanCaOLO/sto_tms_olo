@@ -557,7 +557,7 @@ export const ENTITIES = {
       trip_id: { type: 'uuid', references: 'trip', indexed: true },
       /** Perfil de cálculo con el que se liquidó. Nulo = transportista sin perfil. */
       party_id: { type: 'text', nullable: true, references: 'settlementParty', indexed: true },
-      /** Número propio del módulo, 'LIQ-0001'. Único por país. */
+      /** Número propio del módulo, 'LIQ-VE-001' (antes 'LIQ-0001'). Único por país. */
       number: { type: 'text', indexed: true },
       /** Número del viaje (`routes.route_number`), congelado: es el dato con el que la gente busca. */
       trip_number: { type: 'text', indexed: true },
