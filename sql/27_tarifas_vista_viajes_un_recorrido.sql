@@ -1,3 +1,4 @@
+-- NO APLICADA en Aurora: referencia. El modulo tarifas no altera la estructura de AWS (ver docs/tarifador/RUNBOOK_OPTIMIZACION_AURORA.md).
 -- ============================================================================
 -- 27 — Vista de viajes del tarifador: un solo recorrido de las guías por viaje.
 --

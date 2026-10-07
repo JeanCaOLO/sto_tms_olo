@@ -2,7 +2,7 @@
 
 Fecha: 2026-10-06. Plan elegido: **B (Balanceado)**, por fases. Regla de frescura: el catálogo (reglas, tarifarios, zonas, estructuras de costo) puede ir en caché con vida corta; liquidaciones, viajes, pedidos y marcas se leen siempre frescos.
 
-Nada de este documento toca infraestructura de Intelix: lo que requiere cambiar el cluster, el parameter group o el despliegue aparece como **solicitud** (sección 5).
+**Reglas de este módulo (2026-10-07):** no se toca nada del AWS central ni su estructura; solo se consumen y guardan datos del tarifador. No se alteran tablas externas al módulo ni otros módulos. La optimización vive en una capa entre Aurora y el módulo (backend del tarifador y front), nunca en AWS.
 
 ## 1. Qué mostró la auditoría
 
@@ -34,7 +34,9 @@ Evidencia: CloudWatch 14 días (cuenta `tms-sandbox`, us-east-2) y lectura del r
 
 También se restauró la entrada `tarifas` de `backend/tests/conftest.py`, que se había perdido en el merge con `main`.
 
-## 3. Runbook: aplicar las migraciones 26 y 27
+## 3. Migraciones 26 y 27: NO APLICADAS (referencia)
+
+**Estado: no se aplican.** Crean índices y redefinen una vista en Aurora, y la regla del módulo es no tocar la estructura de AWS. Quedan en `sql/` como referencia por si el dueño de la base decide aplicarlas. Consecuencia: el número de liquidación sigue sin índice único en Aurora (dos emisiones simultáneas podrían repetir `LIQ-NNNN`; riesgo bajo, baja concurrencia). El resto de las mejoras (cachés, columnas livianas) no dependen de ellas.
 
 Dry-run de 26 y 27 ejecutado el 2026-10-06 contra Aurora: sin errores, ROLLBACK (la base no cambió). La 27 se probó además contra los datos reales dentro de una transacción revertida: la vista nueva devuelve las mismas 28 filas, idénticas a la actual.
 
@@ -67,7 +69,7 @@ Las tablas son pequeñas (61 MB en total): los `create index` tardan milisegundo
 - [ ] Emitir una liquidación y ver que aparece sin recargar ni esperar (los datos transaccionales no pasan por caché).
 - [ ] Cambiar el permiso de un rol y comprobar que surte efecto en ≤ 30 s.
 
-## 5. Solicitudes a Intelix (no se tocan desde aquí)
+## 5. Nota informativa — FUERA DE ALCANCE, no se ejecuta ni se solicita desde este módulo
 
 | Solicitud | Por qué | Costo / riesgo |
 |---|---|---|
