@@ -4,7 +4,7 @@
 // externa `trip`, vista `tarifas_v_viajes`), igual que cualquier otro dato: por `db()`, nunca por un
 // fetch aparte.
 
-import { db, type Condition } from './data';
+import { db, type Condition, type Row } from './data';
 import { isLiquidable, toTripRecord } from './tripContext';
 import { getActorRole } from './actor';
 import { cargoFromOrders, toTripOrder, tripProgress } from './tripOrders';
@@ -69,12 +69,31 @@ export async function listTrips(filter: TripFilter = {}): Promise<TripRecord[]> 
  */
 const SIN_LIQUIDACION: Condition = { column: 'settlement_id', op: 'isNull' };
 
+/** Tope de viajes que trae la bandeja. Antes era el tope del servidor (5000) y se cortaba sin avisar. */
+export const TRIPS_LIMIT = 2000;
+
+export interface TripListOptions {
+  /** Se llama si había más viajes que el tope: la lista está recortada y conviene acotarla con filtros. */
+  onTruncated?: () => void;
+}
+
+/** Trae hasta `TRIPS_LIMIT` viajes; pide uno de más para saber si se recortó. */
+async function findTrips(where: Condition[], options: TripListOptions): Promise<Row[]> {
+  const rows = await db().find('trip', { where, orderBy: ORDEN, limit: TRIPS_LIMIT + 1 });
+  if (rows.length <= TRIPS_LIMIT) return rows;
+  options.onTruncated?.();
+  return rows.slice(0, TRIPS_LIMIT);
+}
+
 /** Viajes COMPLETADOS sin liquidación vigente: la bandeja "Viajes por liquidar". */
-export async function listLiquidableTrips(filter: Omit<TripFilter, 'status'> = {}): Promise<TripRecord[]> {
-  const rows = await db().find('trip', {
-    where: [...whereOf(filter), { column: 'status', op: 'eq', value: 'completed' }, SIN_LIQUIDACION],
-    orderBy: ORDEN,
-  });
+export async function listLiquidableTrips(
+  filter: Omit<TripFilter, 'status'> = {},
+  options: TripListOptions = {},
+): Promise<TripRecord[]> {
+  const rows = await findTrips(
+    [...whereOf(filter), { column: 'status', op: 'eq', value: 'completed' }, SIN_LIQUIDACION],
+    options,
+  );
   // `isLiquidable` es la misma regla que valida al emitir.
   return (await withVigentes(rows.map(toTripRecord))).filter(isLiquidable);
 }
@@ -95,14 +114,15 @@ export type TripScope =
 export async function listPendingTrips(
   scope: TripScope,
   filter: Omit<TripFilter, 'status'> = {},
+  options: TripListOptions = {},
 ): Promise<TripRecord[]> {
   if (scope === 'ready') {
-    return (await listLiquidableTrips(filter)).filter((t) => tripProgress(t).complete);
+    return (await listLiquidableTrips(filter, options)).filter((t) => tripProgress(t).complete);
   }
-  const rows = await db().find('trip', {
-    where: [...whereOf(filter), SIN_LIQUIDACION, { column: 'status', op: 'neq', value: 'cancelled' }],
-    orderBy: ORDEN,
-  });
+  const rows = await findTrips(
+    [...whereOf(filter), SIN_LIQUIDACION, { column: 'status', op: 'neq', value: 'cancelled' }],
+    options,
+  );
   const trips = (await withVigentes(rows.map(toTripRecord))).filter((t) => !t.settlementId && t.status !== 'cancelled');
   return scope === 'incomplete' ? trips.filter((t) => !tripProgress(t).complete) : trips;
 }

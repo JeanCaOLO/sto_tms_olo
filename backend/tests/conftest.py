@@ -25,7 +25,7 @@ STACK_MODULES = {"app", "table_modules", "admin_permissions", "admin_audit", "au
                  "scopes", "context_queries", "eflow_queries", "live_source", "mock_source",
                  "admin_access", "admin_payload", "admin_sql", "admin_users", "admin_roles", "planning_sql", "delivery_points", "delivery_points_sql",
                  "models", "score", "regla_fecha", "analizador_observaciones", "cola_candidatos", "handoff_pedidos", "motor_reglas",
-                 "tarifas_schema", "tarifas_sql", "tarifas_perms"}
+                 "tarifas_schema", "tarifas_sql", "tarifas_perms", "tarifas_db", "tarifas_metrics"}
 
 sys.path.insert(0, str(LAYER))
 

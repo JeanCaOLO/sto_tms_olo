@@ -12,7 +12,7 @@
 
 import { registrarEvento } from '../liquidador/auditLog';
 import { getActorRole } from './actor';
-import { db, entityDef, UniqueViolationError, type Condition, type Row } from './data';
+import { db, entityDef, UniqueViolationError, type Condition, type FindOptions, type Row } from './data';
 import { notLiquidableReason } from './tripContext';
 import { getTrip } from './tripsDataSource';
 import type {
@@ -55,6 +55,15 @@ export type EmitSettlementResult =
   | { status: 'blocked'; issues: CalcIssue[] }
   | { status: 'failed'; error: { message: string } };
 
+/**
+ * 'YYYY-MM-DD' de una fecha que puede venir como texto ('2026-08-28', el driver JSON y los datos
+ * viejos) o como medianoche UTC ('2026-08-28T00:00:00.000Z', lo que devuelve la API para una columna
+ * `date`). Se corta en vez de pasar por `Date` para no correrla un día según la zona horaria.
+ */
+export function dateOnly(value: unknown): string {
+  return value == null ? '' : String(value).slice(0, 10);
+}
+
 function toDomain(row: Row): SettlementRecord {
   const money = (v: unknown) => (v === null || v === undefined ? null : String(v));
   return {
@@ -64,7 +73,7 @@ function toDomain(row: Row): SettlementRecord {
     partyId: row.party_id ?? null,
     number: row.number,
     tripNumber: row.trip_number ?? '',
-    settlementDate: row.settlement_date,
+    settlementDate: dateOnly(row.settlement_date),
     status: row.status as SettlementStatus,
     tripInfo: (row.trip_info ?? {}) as TripRecord,
     tripEdits: (row.trip_edits ?? { customVars: {} }) as TripEdits,
@@ -129,10 +138,48 @@ export async function listSettlementSummaries(filter: SettlementFilter = {}): Pr
   return listSettlements(filter, summaryColumns());
 }
 
-export async function listSettlements(
+/** Filas por página del historial: lo más reciente primero; el resto se pide con `after`. */
+export const SETTLEMENT_PAGE_SIZE = 500;
+
+/** Dónde quedó la página anterior: la fecha y el número de su última liquidación. */
+export interface SettlementCursor {
+  settlement_date: string;
+  number: string;
+}
+
+export interface SettlementPage {
+  rows: SettlementRecord[];
+  /** Pasalo como `after` para la página siguiente; null = no hay más. */
+  next: SettlementCursor | null;
+}
+
+/**
+ * Una página del historial, sin las columnas pesadas, de la más nueva a la más vieja. Paginación por
+ * cursor (no `offset`): pedir la página 50 cuesta lo mismo que la primera.
+ */
+export async function listSettlementSummariesPage(
   filter: SettlementFilter = {},
-  columns?: string[],
-): Promise<SettlementRecord[]> {
+  page: { limit?: number; after?: SettlementCursor | null } = {},
+): Promise<SettlementPage> {
+  const limit = page.limit ?? SETTLEMENT_PAGE_SIZE;
+  // Se pide una de más para saber si hay página siguiente sin hacer otra consulta.
+  const rows = await db().find('settlement', {
+    ...settlementQuery(filter),
+    columns: summaryColumns(),
+    limit: limit + 1,
+    ...(page.after ? { after: { ...page.after } } : {}),
+  });
+  const shown = rows.slice(0, limit);
+  const last = shown[shown.length - 1];
+  return {
+    rows: shown.map(toDomain),
+    next: rows.length > limit && last
+      ? { settlement_date: dateOnly(last.settlement_date), number: String(last.number) }
+      : null,
+  };
+}
+
+function settlementQuery(filter: SettlementFilter): Pick<FindOptions, 'where' | 'orderBy'> {
   const where: Condition[] = [];
   if (filter.countryId) where.push({ column: 'country_id', op: 'eq', value: filter.countryId });
   if (filter.partyId) where.push({ column: 'party_id', op: 'eq', value: filter.partyId });
@@ -142,11 +189,17 @@ export async function listSettlements(
   if (filter.from) where.push({ column: 'settlement_date', op: 'gte', value: filter.from });
   if (filter.to) where.push({ column: 'settlement_date', op: 'lte', value: filter.to });
 
-  const rows = await db().find('settlement', {
+  return {
     where,
     orderBy: [{ column: 'settlement_date', direction: 'desc' }, { column: 'number', direction: 'desc' }],
-    ...(columns ? { columns } : {}),
-  });
+  };
+}
+
+export async function listSettlements(
+  filter: SettlementFilter = {},
+  columns?: string[],
+): Promise<SettlementRecord[]> {
+  const rows = await db().find('settlement', { ...settlementQuery(filter), ...(columns ? { columns } : {}) });
   return rows.map(toDomain);
 }
 

@@ -53,6 +53,18 @@ export interface FindOptions {
    * necesitan los JSONB pesados. La fila devuelta trae únicamente esas claves.
    */
   columns?: string[];
+  /**
+   * Paginación por cursor: las filas que vienen DESPUÉS de esta (la última de la página anterior).
+   * Lleva EXACTAMENTE las columnas de `orderBy`, en el mismo orden y con sus valores; todas con la
+   * misma dirección y sin NULL. Se combina con `limit`. A diferencia de `offset`, la base no lee y
+   * descarta todo lo anterior, así que "página siguiente" cuesta lo mismo con 100 filas que con 100 000.
+   */
+  after?: Record<string, unknown>;
+}
+
+export interface FindRequest {
+  entity: EntityName;
+  options?: FindOptions;
 }
 
 export interface DataSource {
@@ -60,6 +72,11 @@ export interface DataSource {
   readonly kind: 'json' | 'http';
 
   find(entity: EntityName, options?: FindOptions): Promise<Row[]>;
+  /**
+   * Varias lecturas en una sola ida y vuelta, en el mismo orden que `requests`. Opcional: el driver
+   * HTTP la resuelve con una llamada (`/tarifas/batch`); quien no la tenga recibe `findMany()`.
+   */
+  findMany?(requests: FindRequest[]): Promise<Row[][]>;
   findOne(entity: EntityName, id: string): Promise<Row | null>;
 
   /** Genera el id si `values` no lo trae. Devuelve la fila tal como quedó guardada. */
@@ -75,6 +92,12 @@ export interface DataSource {
    * estructura de costos con N filas sin dejarla a medias si una falla.
    */
   transaction<T>(fn: (tx: DataSource) => Promise<T>): Promise<T>;
+}
+
+/** `source.findMany` si existe; si no, las lecturas en paralelo. Mismo resultado, distinta cantidad de llamadas. */
+export function findMany(source: DataSource, requests: FindRequest[]): Promise<Row[][]> {
+  if (source.findMany) return source.findMany(requests);
+  return Promise.all(requests.map((request) => source.find(request.entity, request.options)));
 }
 
 // ── Errores tipados ───────────────────────────────────────────────────────────────────────────

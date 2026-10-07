@@ -68,6 +68,15 @@ function compare(a: Row, b: Row, order: OrderBy): number {
   return sign * (left < right ? -1 : 1);
 }
 
+/** ¿La fila viene después del cursor, en el orden pedido? (Tupla lexicográfica, como `(a, b) < (x, y)` en SQL.) */
+function isAfter(row: Row, after: Record<string, unknown>, orderBy: OrderBy[]): boolean {
+  for (const order of orderBy) {
+    const outcome = compare(row, { [order.column]: after[order.column] }, { ...order, direction: 'asc' });
+    if (outcome !== 0) return order.direction === 'desc' ? outcome < 0 : outcome > 0;
+  }
+  return false; // igual al cursor: ya se entregó
+}
+
 function applyOptions(rows: Row[], options: FindOptions | undefined): Row[] {
   if (!options) return rows.slice();
 
@@ -83,6 +92,15 @@ function applyOptions(rows: Row[], options: FindOptions | undefined): Row[] {
       }
       return 0;
     });
+  }
+
+  if (options.after) {
+    const after = options.after;
+    const orderBy = options.orderBy ?? [];
+    if (orderBy.length === 0 || Object.keys(after).join() !== orderBy.map((o) => o.column).join()) {
+      throw new Error('"after" debe tener exactamente las columnas de "orderBy", en el mismo orden.');
+    }
+    result = result.filter((row) => isAfter(row, after, orderBy));
   }
 
   const offset = options.offset ?? 0;

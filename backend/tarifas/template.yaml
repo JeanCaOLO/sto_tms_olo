@@ -53,6 +53,10 @@ Resources:
           ENVIRONMENT: !Ref Environment
           # Caché de permisos por contenedor (segundos). 0 = apagado. Ver src/tarifas_perms.py.
           TMS_PERMS_TTL_SECONDS: '30'
+          # Topes por sentencia (ms) de la conexión de ESTE Lambda; menores que el Timeout. 0 = apagado.
+          # Ver src/tarifas_db.py: no cambian la configuración de la base ni de otros módulos.
+          TMS_STATEMENT_TIMEOUT_MS: '10000'
+          TMS_LOCK_TIMEOUT_MS: '5000'
           TMS_DB_SECRET_NAME:
             Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName
 
@@ -84,6 +88,29 @@ Resources:
       ApiId:
         Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
       RouteKey: POST /api/tarifas/tx
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${TarifasApiIntegration}
+
+  # Lecturas por POST: varias consultas en una llamada y consultas largas que no caben en la URL.
+  TarifasBatchRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/tarifas/batch
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${TarifasApiIntegration}
+
+  TarifasFindRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/tarifas/{table}/find
       AuthorizationType: CUSTOM
       AuthorizerId:
         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId

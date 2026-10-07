@@ -34,6 +34,20 @@ Evidencia: CloudWatch 14 días (cuenta `tms-sandbox`, us-east-2) y lectura del r
 
 También se restauró la entrada `tarifas` de `backend/tests/conftest.py`, que se había perdido en el merge con `main`.
 
+### 2b. Fase 3 (2026-10-07): lecturas agrupadas, cursor, métricas, topes y estructura propia
+
+| Cambio | Archivos | Efecto |
+|---|---|---|
+| **Catálogo en 2 idas y vueltas** (antes ~14 llamadas). `POST /tarifas/batch` corre hasta 25 lecturas en una llamada; el catálogo pide todo lo independiente en la primera y las filas hijas (renglones de costos y tarifarios) en la segunda | `backend/tarifas/src/app.py` (`batch_rows`), `data/http-datasource.ts` (`findMany`), `catalogLoader.ts`, `template.yaml` (ruta nueva) | Cada llamada evitada ahorra un viaje de red y, en AWS, un contenedor Lambda posiblemente en frío. Mismas reglas de lista blanca y de países por rol que una lectura suelta. Verificado: da exactamente el mismo catálogo que leer tabla por tabla |
+| `POST /tarifas/{table}/find` | `app.py` (`find_rows`), `http-datasource.ts`, `template.yaml` | Una consulta cuya URL pasa de 6000 caracteres (p. ej. `in` con cientos de ids) va por POST en vez de romper el límite de la URL |
+| Compatibilidad de despliegue | `http-datasource.ts` | Si el backend desplegado todavía no tiene `/batch` o `/find` (404), el cliente lo recuerda y vuelve a lecturas sueltas: el frontend puede salir antes que la API |
+| **Paginación por cursor** (`after`) | `tarifas_sql.py`, `json-datasource.ts`, `settlementsDataSource.ts` (`listSettlementSummariesPage`), `liquidaciones/page.tsx` | El historial trae las 500 más recientes y "Cargar más antiguas" pide la siguiente con `(fecha, número) < cursor`: la página 50 cuesta como la primera (con `offset` la base lee y descarta todo lo anterior). Los KPI dicen "(cargadas)" cuando hay más |
+| Tope explícito en la bandeja de viajes | `tripsDataSource.ts` (`TRIPS_LIMIT = 2000`), `page.tsx` | Antes se cortaba sin avisar en 5000; ahora se pide uno de más y la pantalla avisa si hay más viajes de los que caben |
+| **Métricas** | `backend/tarifas/src/tarifas_metrics.py`, `data/metrics.ts` | Servidor: una línea EMF por request (`Route`, `DurationMs`, `Queries`, `Errors`, `ColdStart`) que CloudWatch convierte sola en métricas de `TMS/Tarifas`, sin crear nada en AWS. Cliente: `getTarifasMetrics()` (llamadas, reintentos, timeouts, lotes, aciertos del caché) |
+| **Timeout y reintentos del cliente** | `http-datasource.ts` | Cada llamada corta a los 20 s (el Lambda corta a los 15). Las LECTURAS se reintentan 2 veces ante corte de red, timeout o 502/503/504; las escrituras y `/tx` nunca |
+| **Tope de sentencia** (`statement_timeout` 10 s, `lock_timeout` 5 s) | `backend/tarifas/src/tarifas_db.py`, `template.yaml` (variables `TMS_STATEMENT_TIMEOUT_MS`, `TMS_LOCK_TIMEOUT_MS`) | Se fija por SESIÓN en la conexión del Lambda del tarifador (cada módulo tiene su propio Lambda y sus propias conexiones): no se hizo `alter role`, así que no cambia la configuración de la base ni afecta a otros módulos. Una sentencia cancelada responde 504 con un mensaje claro. Probado contra Aurora: `pg_sleep(5)` con tope de 700 ms se cancela a los 0,8 s y la conexión sigue sirviendo |
+| **Migración 28** (aplicada) | `sql/28_tarifas_fecha_e_indices_sobrantes.sql`, `data/schema.ts`, `sql/04_tarifas.sql` | `settlement_date` pasa de `text` a `date` (el cliente sigue leyendo `YYYY-MM-DD` con `dateOnly`). Se borran 17 índices de baja cardinalidad o redundantes de tablas `tarifas_*` (de 60 a 43), todos con 0 usos; menos escritura por INSERT/UPDATE. Se conservan PK, únicos, FK y bitácora |
+
 ## 3. Migraciones 26 y 27: APLICADAS el 2026-10-07 (aprobadas por el dueño del módulo)
 
 **Estado: aplicadas** con `--execute` tras aprobación explícita, y registradas en `schema_migrations`. Verificado después: los 3 índices existen, la vista devuelve 28 viajes con 68 guías y 54 entregadas, y `tms_app` conserva el `select` sobre ella.
@@ -76,7 +90,7 @@ Las tablas son pequeñas (61 MB en total): los `create index` tardan milisegundo
 | Solicitud | Por qué | Costo / riesgo |
 |---|---|---|
 | `log_min_duration_statement = 500` en el parameter group (hoy el group es el `default`, no editable: requiere uno propio) | Ver consultas lentas reales | USD 0; sin reinicio |
-| `statement_timeout` / `lock_timeout` para el rol `tms_app` (`alter role tms_app set statement_timeout = '12s'`) | Hoy una query colgada consume los 15 s de la Lambda | USD 0; probar antes |
+| ~~`statement_timeout` / `lock_timeout` para el rol `tms_app`~~ | **Resuelto dentro del módulo** (§2b): se fija por sesión en la conexión del tarifador; no se toca el rol, que comparten otros módulos | — |
 | Variable `TMS_DB_SSL_CA` en el template del tarifador | La conexión cifra pero no verifica el certificado (`docs/decisions/0002-backend-lambdas-python-sam.md`) | USD 0 |
 | `ReservedConcurrentExecutions` en la Lambda del tarifador | Acota las conexiones simultáneas contra el writer (una por contenedor) | USD 0 |
 | Decidir sobre el reader (`db-tms-olo-instance-1-reader`) | 0 conexiones en 14 días; cuesta ~USD 27/mes. Da failover y Multi-AZ | Ahorro USD 27/mes frente a menos resiliencia: decisión de negocio |
@@ -108,7 +122,8 @@ Volver a revisar índices sin uso (`pg_stat_user_indexes`) cuando las tablas ten
 2. **Un solo `/tx` al emitir: descartado.** Ahorra una llamada, pero meter la bitácora dentro de la transacción cambia el contrato actual (una bitácora caída ya no tumba una liquidación guardada) y con el caché de permisos el ahorro es mínimo. Un endpoint de "catálogo en una llamada" tampoco hace falta mientras rija el caché de 60 s.
 3. **Auditoría doble: se conserva, no es redundante.** `tarifas_audit_log` (módulo) guarda el hecho de negocio con usuario, rol y **motivo** (por qué se re-liquidó, por qué se anuló un pedido); `audit.events` (trigger del AWS central) guarda el cambio de fila. Quitar la del módulo perdería los motivos; el trigger es del AWS central y no se toca. No se cambia nada.
 4. **`route_date` y `status` indexables: fuera de alcance.** Exige un índice sobre `routes`, que es de otro módulo.
-5. **Borrar índices individuales: fuera de alcance** (estructura de Aurora) y sin evidencia con tablas pequeñas.
+5. **Borrar índices: hecho (migración 28)**, solo los de tablas `tarifas_*` y solo los de baja cardinalidad o redundantes por prefijo. No se tocó ningún índice de tablas de otros módulos.
+6. **Fase 3 hecha** (§2b): lote de lecturas, cursor, métricas, timeouts/reintentos, tope de sentencia y fecha como `date`.
 
 ## 8. KPIs para el panel
 
@@ -116,7 +131,7 @@ Volver a revisar índices sin uso (`pg_stat_user_indexes`) cuando las tablas ten
 |---|---|---|
 | Aurora (CloudWatch / Performance Insights) | CPU, DBLoad, conexiones, latencia R/W, créditos de CPU | CPU < 40 % sostenido, créditos > 100 |
 | API | p50/p95/p99 por ruta (`/tarifas/{table}`, `/tx`), 5xx, timeouts | p95 de lectura < 300 ms |
-| Cálculo | llamadas HTTP y queries por cálculo | de ~20 / ~75 a ≤ 6 / ≤ 20 (cálculo repetido) |
+| Cálculo | llamadas HTTP y queries por cálculo | de ~20 / ~75 a ≤ 6 / ≤ 20 (cálculo repetido); catálogo frío en 2 llamadas. Sale de `Queries` y `DurationMs` (EMF) y de `getTarifasMetrics()` |
 | Caché | tasa de aciertos del catálogo y de permisos | > 80 % |
 | Negocio | tiempo de emisión de una liquidación | < 1,5 s |
 | Costo | USD/mes del cluster (etiquetar por proyecto) | ≤ USD 54 hoy; ≤ USD 27 si se retira el reader |

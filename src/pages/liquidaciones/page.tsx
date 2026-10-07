@@ -20,8 +20,10 @@ import { InterruptorVista, useVistaLiquidador } from './components/useVistaLiqui
 import { useActiveCountry } from '../../hooks/useActiveCountry';
 import { useModulePermissions } from '../../hooks/use-module-permissions';
 import { useTarifasActor } from '../../hooks/useTarifasActor';
-import { getSettlement, listSettlementSummaries, updateSettlementStatus } from '../../lib/tarifas/settlementsDataSource';
-import { listPendingTrips } from '../../lib/tarifas/tripsDataSource';
+import {
+  getSettlement, listSettlementSummariesPage, updateSettlementStatus, type SettlementCursor,
+} from '../../lib/tarifas/settlementsDataSource';
+import { listPendingTrips, TRIPS_LIMIT } from '../../lib/tarifas/tripsDataSource';
 import { notLiquidableReason } from '../../lib/tarifas/tripContext';
 import { deliveryLabel, MARK_LABELS, tripProgress } from '../../lib/tarifas/tripOrders';
 import { formatMoney } from '../../lib/tarifas/format';
@@ -104,8 +106,12 @@ export default function LiquidacionesPage() {
   const [alcance, setAlcance] = useState<Alcance>('ready');
   const [trips, setTrips] = useState<TripRecord[]>([]);
   const [loadingTrips, setLoadingTrips] = useState(true);
+  const [tripsRecortados, setTripsRecortados] = useState(false);
   const [settlements, setSettlements] = useState<SettlementRecord[]>([]);
   const [loadingSettlements, setLoadingSettlements] = useState(true);
+  // El historial se pide por páginas (las más recientes primero): `siguiente` es el cursor de la próxima.
+  const [siguiente, setSiguiente] = useState<SettlementCursor | null>(null);
+  const [cargandoMas, setCargandoMas] = useState(false);
 
   // Modal de liquidar: un viaje nuevo, o la liquidación vigente que se reemplaza.
   const [modal, setModal] = useState<{ trip: TripRecord | null; settlement: SettlementRecord | null } | null>(null);
@@ -116,11 +122,13 @@ export default function LiquidacionesPage() {
     setLoadingTrips(true);
     try {
       // Una sola lectura; los alcances se separan en memoria.
+      let recortada = false;
       setTrips(await listPendingTrips('all', {
         countryId,
         ...(from ? { from } : {}),
         ...(to ? { to } : {}),
-      }));
+      }, { onTruncated: () => { recortada = true; } }));
+      setTripsRecortados(recortada);
     } catch (e) {
       setTrips([]);
       setError(e instanceof Error ? e.message : 'No se pudieron leer los viajes por liquidar.');
@@ -143,18 +151,38 @@ export default function LiquidacionesPage() {
     if (!countryId) return;
     setLoadingSettlements(true);
     try {
-      setSettlements(await listSettlementSummaries({
+      const page = await listSettlementSummariesPage({
         countryId,
         ...(from ? { from } : {}),
         ...(to ? { to } : {}),
-      }));
+      });
+      setSettlements(page.rows);
+      setSiguiente(page.next);
     } catch (e) {
       setSettlements([]);
+      setSiguiente(null);
       setError(e instanceof Error ? e.message : 'No se pudo leer el historial de liquidaciones.');
     } finally {
       setLoadingSettlements(false);
     }
   }, [countryId, from, to]);
+
+  const cargarMas = async () => {
+    if (!countryId || !siguiente) return;
+    setCargandoMas(true);
+    try {
+      const page = await listSettlementSummariesPage(
+        { countryId, ...(from ? { from } : {}), ...(to ? { to } : {}) },
+        { after: siguiente },
+      );
+      setSettlements((actuales) => [...actuales, ...page.rows]);
+      setSiguiente(page.next);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudieron leer más liquidaciones.');
+    } finally {
+      setCargandoMas(false);
+    }
+  };
 
   useEffect(() => { setError(''); void loadTrips(); void loadSettlements(); }, [loadTrips, loadSettlements]);
 
@@ -337,6 +365,13 @@ export default function LiquidacionesPage() {
       <DataModeBanner />
       <CountryScopeBar country={activeCountry} problem={problem} selectedName={selectedName} loading={loadingCountries} />
 
+      {tripsRecortados && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-3">
+          Hay más viajes pendientes de los que se pueden mostrar a la vez ({TRIPS_LIMIT}). Acotá el rango de fechas
+          para ver el resto.
+        </div>
+      )}
+
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
           {error}
@@ -346,8 +381,8 @@ export default function LiquidacionesPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard title="Listos para liquidar" value={String(listos.length)} icon="ri-route-line" color="teal" />
         <StatCard title="Incompletos" value={String(incompletos.length)} icon="ri-error-warning-line" color="amber" />
-        <StatCard title="Total liquidado" value={formatMoney(kpis.total.toFixed(2), moneda)} icon="ri-money-dollar-circle-line" color="emerald" />
-        <StatCard title="Sin aprobar" value={formatMoney(kpis.pendiente.toFixed(2), moneda)} icon="ri-time-line" color="amber" />
+        <StatCard title={siguiente ? 'Total liquidado (cargadas)' : 'Total liquidado'} value={formatMoney(kpis.total.toFixed(2), moneda)} icon="ri-money-dollar-circle-line" color="emerald" />
+        <StatCard title={siguiente ? 'Sin aprobar (cargadas)' : 'Sin aprobar'} value={formatMoney(kpis.pendiente.toFixed(2), moneda)} icon="ri-time-line" color="amber" />
       </div>
 
       <Card>
@@ -425,6 +460,7 @@ export default function LiquidacionesPage() {
             }}
           />
         ) : (
+          <div className="space-y-3">
           <DataTable
             data={settlements}
             columns={columnasHistorial}
@@ -454,6 +490,15 @@ export default function LiquidacionesPage() {
               </div>
             )}
           />
+          {siguiente && (
+            <div className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-2 text-xs text-slate-500">
+              <span>Se muestran las {settlements.length} liquidaciones más recientes; hay más antiguas.</span>
+              <Button variant="secondary" size="sm" onClick={() => void cargarMas()} disabled={cargandoMas}>
+                {cargandoMas ? "Cargando…" : "Cargar más antiguas"}
+              </Button>
+            </div>
+          )}
+          </div>
         )}
       </Card>
 

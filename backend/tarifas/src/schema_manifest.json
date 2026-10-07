@@ -810,7 +810,7 @@
           "nullable": false
         },
         "settlement_date": {
-          "type": "text",
+          "type": "date",
           "nullable": false
         },
         "status": {

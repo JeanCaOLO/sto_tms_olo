@@ -9,7 +9,7 @@
 // lo que el cálculo necesita y el catálogo no tiene —redondeo, umbral de pernocta, grupos de zona—
 // sigue siendo del tarifador. Nada de esto se lee "por fuera" del ORM.
 
-import { db, onDataWrite, type EntityName, type Row } from './data';
+import { db, findMany, onDataWrite, primaryKeyOf, recordCatalog, type EntityName, type FindRequest, type Row } from './data';
 import { toCostStructure, toCostStructureRow } from './costStructureDataSource';
 import type {
   Country, CostStructure, CostStructureRow, MarginPolicy,
@@ -95,12 +95,18 @@ function toZoneGroup(row: Row): ZoneGroup {
  */
 export async function loadZones(countryId?: string): Promise<Zone[]> {
   const [zones, groups] = await Promise.all([
-    db().find('zone', {
-      ...(countryId ? { where: [eq('country_id', countryId)] } : {}),
-      orderBy: [{ column: 'code', locale: true }],
-    }),
+    db().find('zone', zoneQuery(countryId)),
     loadZoneGroups(countryId),
   ]);
+  return buildZones(zones, groups);
+}
+
+const zoneQuery = (countryId?: string) => ({
+  ...(countryId ? { where: [eq('country_id', countryId)] } : {}),
+  orderBy: [{ column: 'code', locale: true }],
+});
+
+function buildZones(zones: Row[], groups: ZoneGroup[]): Zone[] {
   const ordered = [...groups].sort((a, b) => a.code.localeCompare(b.code));
 
   return zones
@@ -116,8 +122,10 @@ export async function loadZones(countryId?: string): Promise<Zone[]> {
     }));
 }
 
+const zoneGroupQuery = (countryId?: string) => (countryId ? { where: [eq('country_id', countryId)] } : undefined);
+
 export async function loadZoneGroups(countryId?: string): Promise<ZoneGroup[]> {
-  const rows = await db().find('zoneGroup', countryId ? { where: [eq('country_id', countryId)] } : undefined);
+  const rows = await db().find('zoneGroup', zoneGroupQuery(countryId));
   return rows.map(toZoneGroup);
 }
 
@@ -129,9 +137,16 @@ async function loadRules(countryId: string): Promise<Rule[]> {
   // OR no existe en `Where` (todo es AND): dos consultas en paralelo, país + globales, en vez de
   // traer las reglas de todos los países y descartar el resto en el cliente.
   const [ofCountry, global] = await Promise.all([
-    db().find('pricingRule', { where: [eq('country_id', countryId)] }),
-    db().find('pricingRule', { where: [{ column: 'country_id', op: 'isNull' as const }] }),
+    db().find('pricingRule', RULES_OF_COUNTRY(countryId)),
+    db().find('pricingRule', RULES_GLOBAL),
   ]);
+  return buildRules(ofCountry, global, countryId);
+}
+
+const RULES_OF_COUNTRY = (countryId: string) => ({ where: [eq('country_id', countryId)] });
+const RULES_GLOBAL = { where: [{ column: 'country_id', op: 'isNull' as const }] };
+
+function buildRules(ofCountry: Row[], global: Row[], countryId: string): Rule[] {
   return [...ofCountry, ...global]
     .map((row) => ({
       id: row.id,
@@ -162,6 +177,10 @@ async function loadRules(countryId: string): Promise<Rule[]> {
 
 async function loadMarginPolicy(countryId: string): Promise<MarginPolicy | null> {
   const [row] = await db().find('marginPolicy', { where: [eq('country_id', countryId)], limit: 1 });
+  return buildMarginPolicy(row, countryId);
+}
+
+function buildMarginPolicy(row: Row | undefined, countryId: string): MarginPolicy | null {
   if (!row) return null;
   return {
     countryId,
@@ -179,6 +198,10 @@ async function loadMarginPolicy(countryId: string): Promise<MarginPolicy | null>
 async function loadPartyVariables(partyId: string | null): Promise<PartyVariable[]> {
   if (!partyId) return [];
   const rows = await db().find('partyVariable', { where: [eq('party_id', partyId)] });
+  return buildPartyVariables(rows);
+}
+
+function buildPartyVariables(rows: Row[]): PartyVariable[] {
   return rows.map((row) => ({
     id: row.id,
     partyId: row.party_id,
@@ -196,22 +219,33 @@ async function loadPartyVariables(partyId: string | null): Promise<PartyVariable
  * Estructura activa de una compañía (`partyId`) o la estructura por defecto de un país (`countryId`,
  * la que no tiene compañía). Sin ninguno de los dos, nada.
  */
-async function loadCostStructure(scope: { partyId?: string | null; countryId?: string }): Promise<{
-  structure: CostStructure | null;
-  rows: CostStructureRow[];
-}> {
+function costStructureQuery(scope: { partyId?: string | null; countryId?: string }) {
   const where = scope.partyId
     ? [eq('party_id', scope.partyId), eq('active', true)]
     : scope.countryId
       ? [{ column: 'party_id', op: 'isNull' as const }, eq('country_id', scope.countryId), eq('active', true)]
       : null;
-  if (!where) return { structure: null, rows: [] };
+  return where ? { where, limit: 1 } : null;
+}
 
-  const [row] = await db().find('costStructure', { where, limit: 1 });
+const costRowsQuery = (structureId: string) => ({ where: [eq('structure_id', structureId)] });
+
+function buildCostStructure(row: Row | undefined, rows: Row[]): { structure: CostStructure | null; rows: CostStructureRow[] } {
+  if (!row) return { structure: null, rows: [] };
+  return { structure: toCostStructure(row), rows: rows.map(toCostStructureRow) };
+}
+
+async function loadCostStructure(scope: { partyId?: string | null; countryId?: string }): Promise<{
+  structure: CostStructure | null;
+  rows: CostStructureRow[];
+}> {
+  const query = costStructureQuery(scope);
+  if (!query) return { structure: null, rows: [] };
+
+  const [row] = await db().find('costStructure', query);
   if (!row) return { structure: null, rows: [] };
 
-  const rows = await db().find('costStructureRow', { where: [eq('structure_id', row.id)] });
-  return { structure: toCostStructure(row), rows: rows.map(toCostStructureRow) };
+  return buildCostStructure(row, await db().find('costStructureRow', costRowsQuery(row.id)));
 }
 
 /**
@@ -222,8 +256,19 @@ async function loadRateTables(
   countryId: string,
   partyId: string | null,
 ): Promise<{ tables: RateTable[]; rows: RateTableRow[] }> {
-  const all = await db().find('rateTable', { where: [eq('country_id', countryId), eq('active', true)] });
+  const all = await db().find('rateTable', rateTablesQuery(countryId));
+  const tables = pickRateTables(all, partyId);
+  const rows = tables.length
+    ? await db().find('rateTableRow', rateTableRowsQuery(tables.map((t) => t.id)))
+    : [];
+  return { tables, rows: buildRateTableRows(rows) };
+}
 
+const rateTablesQuery = (countryId: string) => ({ where: [eq('country_id', countryId), eq('active', true)] });
+const rateTableRowsQuery = (ids: string[]) => ({ where: [{ column: 'table_id', op: 'in' as const, value: ids }] });
+
+/** Los tarifarios que valen para esta compañía: los del país y los suyos (los suyos reemplazan al del mismo código). */
+function pickRateTables(all: Row[], partyId: string | null): RateTable[] {
   const tables: RateTable[] = all
     .filter((t) => !t.party_id || t.party_id === partyId)
     .map((t) => ({
@@ -239,24 +284,18 @@ async function loadRateTables(
   // Un tarifario de compañía con el MISMO código que uno de país lo reemplaza — mismo mecanismo
   // que el alcance de las reglas, para que no haya dos formas distintas de especializar.
   const codigosDeCompania = new Set(tables.filter((t) => t.partyId).map((t) => t.code));
-  const vigentes = tables.filter((t) => t.partyId || !codigosDeCompania.has(t.code));
+  return tables.filter((t) => t.partyId || !codigosDeCompania.has(t.code));
+}
 
-  const ids = vigentes.map((t) => t.id);
-  const rows = ids.length
-    ? await db().find('rateTableRow', { where: [{ column: 'table_id', op: 'in', value: ids }] })
-    : [];
-
-  return {
-    tables: vigentes,
-    rows: rows.map((r) => ({
-      id: r.id,
-      tableId: r.table_id,
-      key: r.key ?? [],
-      amount: String(r.amount),
-      order: Number(r.row_order ?? 0),
-      active: !!r.active,
-    })),
-  };
+function buildRateTableRows(rows: Row[]): RateTableRow[] {
+  return rows.map((r) => ({
+    id: r.id,
+    tableId: r.table_id,
+    key: r.key ?? [],
+    amount: String(r.amount),
+    order: Number(r.row_order ?? 0),
+    active: !!r.active,
+  }));
 }
 
 // ── El catálogo completo ──────────────────────────────────────────────────────────────────────
@@ -306,7 +345,11 @@ export async function loadTarifasCatalog(countryId: string, partyId: string | nu
 
   const key = `${countryId}|${partyId ?? ''}`;
   const hit = catalogCache.get(key);
-  if (hit && Date.now() - hit.at < CATALOG_TTL_MS) return structuredClone(await hit.promise);
+  if (hit && Date.now() - hit.at < CATALOG_TTL_MS) {
+    recordCatalog(true);
+    return structuredClone(await hit.promise);
+  }
+  recordCatalog(false);
 
   const promise = fetchCatalog(countryId, partyId);
   const entry = { at: Date.now(), promise };
@@ -316,47 +359,78 @@ export async function loadTarifasCatalog(countryId: string, partyId: string | nu
   return structuredClone(await promise);
 }
 
+/**
+ * Lee el catálogo en DOS idas y vueltas a la API (antes eran ~14): primero todo lo que se puede pedir
+ * sin saber nada más, y después las filas hijas (renglones de costo y de tarifario) de lo que apareció.
+ */
 async function fetchCatalog(countryId: string, partyId: string | null): Promise<TarifasCatalog> {
-  const country = await loadCountry(countryId);
+  const partyCost = costStructureQuery({ partyId });
+  const defaultCost = costStructureQuery({ countryId });
+
+  const requests: FindRequest[] = [
+    { entity: 'country', options: { where: [eq(primaryKeyOf('country'), countryId)], limit: 1 } },
+    { entity: 'countrySettings', options: { where: [eq('country_id', countryId)], limit: 1 } },
+    { entity: 'marginPolicy', options: { where: [eq('country_id', countryId)], limit: 1 } },
+    { entity: 'pricingRule', options: RULES_OF_COUNTRY(countryId) },
+    { entity: 'pricingRule', options: RULES_GLOBAL },
+    { entity: 'zone', options: zoneQuery(countryId) },
+    { entity: 'zoneGroup', options: zoneGroupQuery(countryId) },
+    { entity: 'rateTable', options: rateTablesQuery(countryId) },
+  ];
+  if (partyId) requests.push({ entity: 'partyVariable', options: { where: [eq('party_id', partyId)] } });
+  if (partyCost) requests.push({ entity: 'costStructure', options: partyCost });
+  if (defaultCost) requests.push({ entity: 'costStructure', options: defaultCost });
+
+  const first = await findMany(db(), requests);
+  const [countryRows, settingsRows, marginRows, ofCountry, global, zoneRows, groupRows, rateTableRows] = first;
+  let next = 8;
+  const partyVariableRows = partyId ? first[next++] : [];
+  const partyStructureRow = partyCost ? first[next++][0] : undefined;
+  const defaultStructureRow = defaultCost ? first[next++][0] : undefined;
+
+  const country = countryRows[0] ? toCountry(countryRows[0], settingsRows[0]) : null;
   if (!country) {
     throw new CatalogError(
       `El país "${countryId}" no tiene configuración de cálculo (redondeo, pernocta) en Tarifas. `
         + 'Cargala antes de liquidar.',
     );
   }
-
-  const [
-    marginPolicy, rules, zones, zoneGroups,
-    partyVariables, cost, defaultCost, rateTables,
-  ] = await Promise.all([
-    loadMarginPolicy(countryId),
-    loadRules(countryId),
-    loadZones(countryId),
-    loadZoneGroups(countryId),
-    loadPartyVariables(partyId),
-    loadCostStructure({ partyId }),
-    loadCostStructure({ countryId }),
-    loadRateTables(countryId, partyId),
-  ]);
-
+  const marginPolicy = buildMarginPolicy(marginRows[0], countryId);
   if (!marginPolicy) {
     throw new CatalogError(
       `No hay política de margen para ${country.name} en Reglas de Tarifa → Política de Margen.`,
     );
   }
 
+  const tables = pickRateTables(rateTableRows, partyId);
+
+  // Segunda tanda: las filas hijas de lo que apareció.
+  const children: FindRequest[] = [];
+  if (partyStructureRow) children.push({ entity: 'costStructureRow', options: costRowsQuery(partyStructureRow.id) });
+  if (defaultStructureRow) children.push({ entity: 'costStructureRow', options: costRowsQuery(defaultStructureRow.id) });
+  if (tables.length) children.push({ entity: 'rateTableRow', options: rateTableRowsQuery(tables.map((t) => t.id)) });
+  const second = children.length ? await findMany(db(), children) : [];
+  let child = 0;
+  const partyCostRows = partyStructureRow ? second[child++] : [];
+  const defaultCostRows = defaultStructureRow ? second[child++] : [];
+  const tableRows = tables.length ? second[child++] : [];
+
+  const groups = groupRows.map(toZoneGroup);
+  const cost = buildCostStructure(partyStructureRow, partyCostRows);
+  const defaults = buildCostStructure(defaultStructureRow, defaultCostRows);
+
   return {
     country,
-    rules,
-    zones,
-    zoneGroups,
+    rules: buildRules(ofCountry, global, countryId),
+    zones: buildZones(zoneRows, groups),
+    zoneGroups: groups,
     marginPolicy,
-    partyVariables,
+    partyVariables: buildPartyVariables(partyVariableRows),
     costStructure: cost.structure,
     costStructureRows: cost.rows,
-    defaultCostStructure: defaultCost.structure,
-    defaultCostStructureRows: defaultCost.rows,
-    rateTables: rateTables.tables,
-    rateTableRows: rateTables.rows,
+    defaultCostStructure: defaults.structure,
+    defaultCostStructureRows: defaults.rows,
+    rateTables: tables,
+    rateTableRows: buildRateTableRows(tableRows),
   };
 }

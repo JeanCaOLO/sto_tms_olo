@@ -69,3 +69,25 @@ Fuera de alcance, solo como nota para el dueño de la BD / Intelix:
 - La medición es por túnel y con datos de prueba mínimos; no es carga real. Conviene repetirla tras el primer mes de uso o con una carga sintética acordada.
 - El Lambda del Tarifador no está desplegado; el caché de permisos solo rinde una vez desplegado (lo hace Intelix).
 - Siguen sin commitear y fuera de alcance: `aidlc/spaces/default/memory/org.md`, `.agents/tasks/`, `scripts/sandbox/aws_connectivity_check.py`.
+
+---
+
+## 6. Actualización: fase 3 aplicada (2026-10-07)
+
+Se hicieron los pendientes de la sección 4 que caben dentro del módulo, incluidos los de estructura (con aprobación). Detalle en el runbook §2b.
+
+| Pendiente | Resultado |
+|---|---|
+| Catálogo en una llamada | Hecho: 2 idas y vueltas en vez de ~14 (`POST /tarifas/batch`); mismo catálogo que antes, comprobado con test |
+| Paginación | Hecho por cursor: historial de liquidaciones (500 por página, "Cargar más") y aviso explícito en la bandeja de viajes (tope 2000) |
+| Métricas de la app | Hecho: línea EMF por request (CloudWatch las convierte sola) y contadores en el cliente |
+| Timeouts y reintentos del cliente; consultas largas por POST | Hecho: 20 s por llamada, 2 reintentos solo en lecturas; `/find` por POST |
+| `statement_timeout` / `lock_timeout` | Hecho a nivel de sesión del Lambda del tarifador, sin `alter role` (el rol lo comparten otros módulos). Probado en Aurora |
+| Fecha como `date` | Hecho (migración 28), sin cambios visibles para la pantalla |
+| Borrar índices sin uso | Hecho (migración 28): 17 índices de tablas `tarifas_*` (60 a 43) |
+
+Pruebas tras los cambios: 666 tests del tarifador y 221 de backend pasan; e2e contra Aurora 7 de 7 (con ROLLBACK, ya con `date`); las consultas generadas por `after`, `columns` y rangos de fecha se ejecutaron contra Aurora real en solo lectura.
+
+Qué falta para que se note en AWS (lo hace Intelix, fuera del módulo): desplegar `backend/tarifas` (rutas `/batch` y `/find`, variables de tope y métricas). Mientras no se despliegue, el frontend sigue funcionando: ante un 404 vuelve solo a lecturas sueltas.
+
+Sin cambios: las notas de la sección 4 (`pg_stat_statements`, reader, RDS Proxy, SSL, grupo de seguridad) quedan como notas.

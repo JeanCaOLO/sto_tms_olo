@@ -17,7 +17,7 @@ import { JsonDataSource } from './json-datasource';
 export * from './datasource';
 export * from './schema';
 export { JsonDataSource } from './json-datasource';
-export { HttpDataSource } from './http-datasource';
+export { HttpDataSource, ApiError, resetHttpFeatureFlags } from './http-datasource';
 export { onDataWrite, notifyWrite } from './writeEvents';
 export { generateDdl } from './ddl';
 export { generateManifest } from './manifest';
@@ -74,3 +74,6 @@ export function db(): DataSource {
 export function setDataSource(dataSource: DataSource | null): void {
   instance = dataSource;
 }
+export {
+  getTarifasMetrics, resetTarifasMetrics, diffMetrics, recordCatalog, type TarifasMetrics,
+} from './metrics';
