@@ -100,13 +100,13 @@ from pg_stat_statements order by total_exec_time desc limit 20;
 
 Volver a revisar índices sin uso (`pg_stat_user_indexes`) cuando las tablas tengan miles de filas, antes de borrar ninguno.
 
-## 7. Siguientes pasos (aún no hechos)
+## 7. Estado de los pendientes
 
-1. **Paginación** de `listPendingTrips` (viajes por liquidar): sigue trayendo todo con tope 5000. Conviene paginar por fecha cuando el volumen lo pida.
-2. **Un solo `/tx` al emitir**: se evaluó y se dejó. Ahorra una llamada, pero meter la bitácora dentro de la transacción cambia el contrato actual (una bitácora caída ya no tumba una liquidación guardada) y con el caché de permisos el ahorro es mínimo. Un endpoint de "catálogo en una llamada" tampoco hace falta mientras rija el caché de 60 s.
-3. **`route_date` y `status` indexables**: hoy son expresiones de la vista (`to_char`, `CASE`) y no usan `idx_routes_date` ni `idx_routes_status`. Indexarlas exige un índice sobre `routes`, que es de otro módulo: se deja como solicitud al dueño de esa tabla si el volumen lo justifica.
-4. **Auditoría doble**: `tarifas_audit_log` (cliente) más `audit.events` (trigger) por cada escritura; decidir si se conserva una sola.
-5. **Borrar índices individuales** de baja cardinalidad solo con evidencia de tablas grandes (sección 6).
+1. **Viajes por liquidar: hecho.** La bandeja pide al servidor solo los viajes sin liquidación vigente y no anulados (`settlement_id is null`, `status <> cancelled`), en vez de traer todo el historial (hasta 5000) y descartar en el cliente. Es un prefiltro: lo que decide si un viaje está liquidado sigue siendo `withVigentes`, así que el resultado no cambia con el driver JSON.
+2. **Un solo `/tx` al emitir: descartado.** Ahorra una llamada, pero meter la bitácora dentro de la transacción cambia el contrato actual (una bitácora caída ya no tumba una liquidación guardada) y con el caché de permisos el ahorro es mínimo. Un endpoint de "catálogo en una llamada" tampoco hace falta mientras rija el caché de 60 s.
+3. **Auditoría doble: se conserva, no es redundante.** `tarifas_audit_log` (módulo) guarda el hecho de negocio con usuario, rol y **motivo** (por qué se re-liquidó, por qué se anuló un pedido); `audit.events` (trigger del AWS central) guarda el cambio de fila. Quitar la del módulo perdería los motivos; el trigger es del AWS central y no se toca. No se cambia nada.
+4. **`route_date` y `status` indexables: fuera de alcance.** Exige un índice sobre `routes`, que es de otro módulo.
+5. **Borrar índices individuales: fuera de alcance** (estructura de Aurora) y sin evidencia con tablas pequeñas.
 
 ## 8. KPIs para el panel
 

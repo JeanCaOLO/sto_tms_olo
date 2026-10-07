@@ -61,10 +61,18 @@ export async function listTrips(filter: TripFilter = {}): Promise<TripRecord[]> 
   return withVigentes(rows.map(toTripRecord));
 }
 
+/**
+ * Condición que descarta en el servidor los viajes que ya tienen liquidación vigente. En Aurora la
+ * vista trae `settlement_id` al día; con el driver JSON esa columna no se llena y el filtro no descarta
+ * nada. Por eso es solo un PREFILTRO: lo que decide si un viaje está liquidado sigue siendo `withVigentes`.
+ * Sin esto, cada carga de la bandeja traía todo el historial de viajes (hasta el tope de 5000).
+ */
+const SIN_LIQUIDACION: Condition = { column: 'settlement_id', op: 'isNull' };
+
 /** Viajes COMPLETADOS sin liquidación vigente: la bandeja "Viajes por liquidar". */
 export async function listLiquidableTrips(filter: Omit<TripFilter, 'status'> = {}): Promise<TripRecord[]> {
   const rows = await db().find('trip', {
-    where: [...whereOf(filter), { column: 'status', op: 'eq', value: 'completed' }],
+    where: [...whereOf(filter), { column: 'status', op: 'eq', value: 'completed' }, SIN_LIQUIDACION],
     orderBy: ORDEN,
   });
   // `isLiquidable` es la misma regla que valida al emitir.
@@ -91,7 +99,11 @@ export async function listPendingTrips(
   if (scope === 'ready') {
     return (await listLiquidableTrips(filter)).filter((t) => tripProgress(t).complete);
   }
-  const trips = (await listTrips(filter)).filter((t) => !t.settlementId && t.status !== 'cancelled');
+  const rows = await db().find('trip', {
+    where: [...whereOf(filter), SIN_LIQUIDACION, { column: 'status', op: 'neq', value: 'cancelled' }],
+    orderBy: ORDEN,
+  });
+  const trips = (await withVigentes(rows.map(toTripRecord))).filter((t) => !t.settlementId && t.status !== 'cancelled');
   return scope === 'incomplete' ? trips.filter((t) => !tripProgress(t).complete) : trips;
 }
 
