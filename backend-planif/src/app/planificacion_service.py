@@ -84,6 +84,7 @@ class PlanificacionService:
                     p,
                     order_number=(ped.order_number if ped else None),
                     customer_name=(ped.customer_name if ped else None),
+                    delivery_address=(ped.delivery_address if ped else None),
                     delivery_city=(ped.delivery_city if ped else None),
                     delivery_zone=(ped.delivery_zone if ped else None),
                     delivery_latitude=(ped.delivery_latitude if ped else None),

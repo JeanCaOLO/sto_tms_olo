@@ -15,6 +15,7 @@ def _to_pedido(row: dict) -> Pedido:
         order_number=row.get("order_number"),
         customer_id=(str(row["customer_id"]) if row.get("customer_id") else None),
         customer_name=row.get("customer_name"),
+        delivery_address=row.get("delivery_address"),
         delivery_zone=row.get("delivery_zone"),
         delivery_city=row.get("delivery_city"),
         delivery_latitude=row.get("delivery_latitude"),

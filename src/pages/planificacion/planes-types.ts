@@ -24,6 +24,7 @@ export interface PlanStop {
   // los arrastra del Pedido original). Peso/volumen null = desconocido.
   order_number: string;
   customer_name: string | null;
+  delivery_address: string | null;
   delivery_city: string | null;
   delivery_zone: string | null;
   // Coords del punto de entrega (para el mapa) — el backend las embebe.
