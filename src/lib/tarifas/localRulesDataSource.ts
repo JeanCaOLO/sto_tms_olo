@@ -10,7 +10,6 @@
 // Este archivo también traduce los errores tipados de la capa a la forma
 // `{ error: { code?, message } }` que la UI ya sabe mostrar.
 
-import { settlementCurrency } from './currency';
 import {
   db, ForeignKeyError, NotFoundError, ReadOnlyEntityError, UniqueViolationError,
   type EntityName, type FindOptions, type Row,
@@ -66,7 +65,7 @@ export async function listCountries(_organizationId: string): Promise<Row[]> {
       code: c.code,
       iso2: c.code,
       name: c.name,
-      local_currency: settlementCurrency(c.code, c.currency),
+      local_currency: c.currency,
       settings_id: s?.id ?? null,
       rounding_decimals: s?.rounding_decimals ?? null,
       rounding_mode: s?.rounding_mode ?? null,

@@ -9,7 +9,6 @@
 // lo que el cálculo necesita y el catálogo no tiene —redondeo, umbral de pernocta, grupos de zona—
 // sigue siendo del tarifador. Nada de esto se lee "por fuera" del ORM.
 
-import { settlementCurrency } from './currency';
 import { db, findMany, onDataWrite, primaryKeyOf, recordCatalog, type EntityName, type FindRequest, type Row } from './data';
 import { toCostStructure, toCostStructureRow } from './costStructureDataSource';
 import type {
@@ -49,7 +48,7 @@ function toCountry(row: Row, settings: Row | undefined): Country | null {
     id: row.id,
     iso2: row.code,
     name: row.name,
-    localCurrency: settlementCurrency(row.code, row.currency),
+    localCurrency: row.currency,
     roundingDecimals: Number(settings.rounding_decimals),
     roundingMode: settings.rounding_mode as RoundingMode,
     overnightThresholdHours: Number(settings.overnight_threshold_hours),

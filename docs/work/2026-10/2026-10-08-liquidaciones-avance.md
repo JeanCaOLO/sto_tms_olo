@@ -23,7 +23,7 @@ No se toca nada de Intelix: ni `backend/`, ni `template.yaml`, ni despliegues. E
 | Hallazgo | Cambio | Verificado |
 |---|---|---|
 | **E14** emitir fallaba | `sql/29_tarifas_settlement_date_compat_text.sql`: `settlement_date` vuelve a `text` (el backend desplegado manda `::text`). Dry-run, luego `--execute`. Solo una columna de `tarifas_settlements` | Navegador: emitir RT-DEMO-3 (7 s), Borrador → En Revisión → Aprobado → Pagado, re-liquidar (LIQ-CR-002 → LIQ-CR-003, validación de motivo vacío incluida) y anular |
-| E6 moneda | `src/lib/tarifas/currency.ts`: Costa Rica con USD en el catálogo se muestra y liquida como CRC (₡). Un solo punto de corrección; se borra cuando el catálogo corrija `countries.currency` | Navegador: "Operando en Costa Rica CRC"; 4 pruebas nuevas |
+| E6 moneda | **Revertido.** La moneda la define el módulo Catálogo (países) y el liquidador solo la consume; un ajuste local (`currency.ts`) se quitó. Costa Rica figura en USD en ese catálogo: se corrige allí, no acá | Quitado; 787 pruebas pasan |
 | E17 | Una liquidación Anulada ya no se puede reactivar (selector bloqueado con explicación) | Navegador: las 3 anuladas salen bloqueadas |
 | E10 | La bandeja marca "Anulada antes" en viajes que ya tuvieron una liquidación anulada (misma consulta de siempre, ahora con `status`) | Navegador: RT-DEMO-3 y RT-DEMO-17 |
 | E5 (ampliado) | TTL del catálogo y del perfil: 60 s → 5 min (lo que escribe la sesión se descarta al instante) | Pruebas |
