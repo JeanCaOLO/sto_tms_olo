@@ -184,19 +184,6 @@ index 67b1c56..b1a1bb0 100644
 +    finally:
 +        table = (event.get("pathParameters") or {}).get("table")
 +        tarifas_metrics.finish(key, table, status)
-diff --git a/backend/tarifas/src/schema_manifest.json b/backend/tarifas/src/schema_manifest.json
-index adf5d44..84ab18a 100644
---- a/backend/tarifas/src/schema_manifest.json
-+++ b/backend/tarifas/src/schema_manifest.json
-@@ -810,7 +810,7 @@
-           "nullable": false
-         },
-         "settlement_date": {
--          "type": "text",
-+          "type": "date",
-           "nullable": false
-         },
-         "status": {
 diff --git a/backend/tarifas/src/tarifas_db.py b/backend/tarifas/src/tarifas_db.py
 new file mode 100644
 index 0000000..fd1189a
@@ -677,7 +664,7 @@ index f65d5a3..58e9acb 100644
      caller_permissions.set(make_permissions({"tarifas": ["view"]}, countries=(CR,)))
 diff --git a/backend/tests/test_tarifas_lecturas.py b/backend/tests/test_tarifas_lecturas.py
 new file mode 100644
-index 0000000..2ba7db2
+index 0000000..b204e41
 --- /dev/null
 +++ b/backend/tests/test_tarifas_lecturas.py
 @@ -0,0 +1,218 @@
@@ -810,7 +797,7 @@ index 0000000..2ba7db2
 +         "after": {"settlement_date": "2026-08-28", "number": "LIQ-VE-010"}, "limit": 50}
 +    call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_settlements"}, query={"q": json.dumps(q)})
 +    sql, params = db.calls[-1]
-+    assert '("settlement_date", "number") < (%s::date, %s::text)' in sql
++    assert '("settlement_date", "number") < (%s::text, %s::text)' in sql
 +    assert params == ["2026-08-28", "LIQ-VE-010"]
 +    assert 'ORDER BY "settlement_date" DESC NULLS LAST, "number" DESC NULLS LAST' in sql
 +
@@ -900,7 +887,7 @@ index 0000000..2ba7db2
 +    assert response["statusCode"] == 504
 +    assert "demasiado" in body_of(response)["error"]["message"]
 diff --git a/sql/04_tarifas.sql b/sql/04_tarifas.sql
-index 7d3d3b9..7fb5383 100644
+index 7d3d3b9..c833520 100644
 --- a/sql/04_tarifas.sql
 +++ b/sql/04_tarifas.sql
 @@ -56,7 +56,6 @@ CREATE TABLE IF NOT EXISTS tarifas_settlement_parties (
@@ -932,15 +919,6 @@ index 7d3d3b9..7fb5383 100644
  
  -- Liquidación
  CREATE TABLE IF NOT EXISTS tarifas_settlements (
-@@ -128,7 +121,7 @@ CREATE TABLE IF NOT EXISTS tarifas_settlements (
-   party_id text,
-   number text NOT NULL,
-   trip_number text NOT NULL,
--  settlement_date text NOT NULL,
-+  settlement_date date NOT NULL,
-   status text NOT NULL,
-   currency text NOT NULL,
-   total_amount numeric NOT NULL,
 @@ -161,16 +154,12 @@ CREATE TABLE IF NOT EXISTS tarifas_settlements (
    CONSTRAINT tarifas_settlements_trip_id_fkey FOREIGN KEY (trip_id) REFERENCES routes (id) ON DELETE RESTRICT,
    CONSTRAINT tarifas_settlements_party_id_fkey FOREIGN KEY (party_id) REFERENCES tarifas_settlement_parties (id) ON DELETE RESTRICT
@@ -1202,3 +1180,41 @@ index 0000000..eacd824
 +drop index if exists tarifas_rate_tables_active_idx;
 +drop index if exists tarifas_rate_table_rows_active_idx;
 +drop index if exists tarifas_rate_table_rows_table_active_idx;
+diff --git a/sql/29_tarifas_settlement_date_text.sql b/sql/29_tarifas_settlement_date_text.sql
+new file mode 100644
+index 0000000..2ac1d53
+--- /dev/null
++++ b/sql/29_tarifas_settlement_date_text.sql
+@@ -0,0 +1,32 @@
++-- ============================================================================
++-- 29 — Tarifador: `settlement_date` se queda en `text` (formato AAAA-MM-DD).
++--
++-- La migración 28 la había pasado a `date`. El backend ya desplegado manda esa columna con `::text`; con
++-- `date` toda emisión de liquidación falla con
++--   column "settlement_date" is of type date but expression is of type text
++-- Para que el backend desplegado y el nuevo funcionen con LA MISMA columna, sin pasos manuales de
++-- migración al desplegar, la columna se queda en `text`. El formato ISO ordena y compara igual que una
++-- fecha, así que el orden, los filtros por rango y el cursor del historial no cambian.
++--
++-- Secuencia: la 28 (si la columna es text la pasa a date) y esta 29 (si es date la devuelve a text) dejan
++-- SIEMPRE `text`, sea cual sea el punto de partida. El manifiesto del backend
++-- (`backend/tarifas/src/schema_manifest.json`), `src/lib/tarifas/data/schema.ts` y `sql/04_tarifas.sql`
++-- dicen `text`.
++--
++-- Si más adelante se quiere `date`, hay que cambiar a la vez schema.ts, el manifiesto, el DDL y esta
++-- migración, y desplegar el backend en el mismo momento.
++--
++-- Idempotente. No pierde datos. Solo toca una columna de `tarifas_settlements`.
++-- ============================================================================
++
++do $$
++begin
++  if exists (
++    select 1 from information_schema.columns
++    where table_schema = 'public' and table_name = 'tarifas_settlements'
++      and column_name = 'settlement_date' and data_type = 'date'
++  ) then
++    alter table tarifas_settlements
++      alter column settlement_date type text using to_char(settlement_date, 'YYYY-MM-DD');
++  end if;
++end $$;

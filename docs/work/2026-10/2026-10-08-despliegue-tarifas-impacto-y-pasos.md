@@ -26,18 +26,13 @@ Las pruebas del backend de tarifas pasan (72) y la prueba contra Aurora confirma
 - Frontend: el cliente ya sabe usar `/batch` y `/find` y cae a lecturas sueltas si no existen, así que puede salir antes o después.
 - Consumidores de `/api/tarifas`: solo las pantallas del tarifador (Liquidaciones, Compañías, Reglas de Tarifa).
 
-## Orden (importa)
-1. **Desplegar**: `python scripts/sandbox/deploy_backend.py tarifas` (en Claude Code: `! python scripts/sandbox/deploy_backend.py tarifas`).
-2. **Reaplicar la migración 28** para que `settlement_date` vuelva a `date`:
-   `node --env-file=.env.local scripts/run-migration.mjs sql/28_tarifas_fecha_e_indices_sobrantes.sql --execute --force`.
-   Hacerlo ANTES del paso 1 rompe la emisión; hacerlo mucho después deja la columna en `text` con el backend nuevo, y la paginación por cursor del historial da error.
-3. Quitar `tarifas_settlements.settlement_date` de `KNOWN_DIVERGENCES` en `src/lib/tarifas/__tests__/aurora.manifest-esquema.test.ts` y correr la prueba (`TARIFAS_AURORA_MANIFEST=1`).
-4. Verificar en el navegador: `POST /api/tarifas/batch` responde 200 (hoy 404); emitir una liquidación de prueba; abrir el modal de un transportista nuevo y medir.
-5. Registrar el cambio en `docs/reference/aws-inventario-tms.md` (lo pide la guía de despliegue).
+## Pasos
+Ninguno de base de datos. `settlement_date` quedó en `text` (migración `sql/29_tarifas_settlement_date_text.sql`, ya aplicada) y el manifiesto del backend nuevo también dice `text`: el backend anterior y el nuevo funcionan con la misma base, así que el despliegue es solo el del stack `tarifas` tras el merge.
+Después, opcional: comprobar que `POST /api/tarifas/batch` responde 200 (hoy 404), emitir una liquidación de prueba y registrar el cambio en `docs/reference/aws-inventario-tms.md`.
 
 ## Rollback
 - Backend: volver a desplegar el commit anterior de `backend/tarifas` (o `aws cloudformation` rollback del stack `dev-tms-tarifas`).
-- Datos: `docs/handoff/contingencia-settlement-date-a-text.sql` devuelve `settlement_date` a `text` (idempotente).
+- Datos: no hay nada que revertir.
 
 ## Qué mejora (mediciones de antes)
 - Catálogo: de ~11 lecturas sueltas (1,2 a 6,5 s cada una al encolarse) a 2 idas y vueltas.

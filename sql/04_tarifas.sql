@@ -121,7 +121,7 @@ CREATE TABLE IF NOT EXISTS tarifas_settlements (
   party_id text,
   number text NOT NULL,
   trip_number text NOT NULL,
-  settlement_date date NOT NULL,
+  settlement_date text NOT NULL,
   status text NOT NULL,
   currency text NOT NULL,
   total_amount numeric NOT NULL,

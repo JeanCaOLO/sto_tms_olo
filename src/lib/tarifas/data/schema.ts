@@ -563,8 +563,12 @@ export const ENTITIES = {
       number: { type: 'text' },
       /** Número del viaje (`routes.route_number`), congelado: es el dato con el que la gente busca. */
       trip_number: { type: 'text', indexed: true },
-      /** Fecha del viaje, 'YYYY-MM-DD'. Es la que resolvió la vigencia de las reglas. */
-      settlement_date: { type: 'date' },
+      /**
+       * Fecha del viaje, 'YYYY-MM-DD'. Es la que resolvió la vigencia de las reglas. Va como `text` (formato ISO:
+       * ordena y compara igual que una fecha) para que el backend desplegado y el nuevo funcionen con la misma
+       * columna, sin pasos manuales de migración al desplegar.
+       */
+      settlement_date: { type: 'text' },
       /** 'Borrador' | 'En Revisión' | 'Aprobado' | 'Pagado' | 'Anulado'. */
       status: { type: 'text' },
       /** Moneda del país al emitir. Se congela: el país podría cambiarla después. */

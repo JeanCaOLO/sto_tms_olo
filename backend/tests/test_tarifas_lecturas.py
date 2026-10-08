@@ -127,7 +127,7 @@ def test_after_descendente_compara_la_tupla_con_menor_que(api):
          "after": {"settlement_date": "2026-08-28", "number": "LIQ-VE-010"}, "limit": 50}
     call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_settlements"}, query={"q": json.dumps(q)})
     sql, params = db.calls[-1]
-    assert '("settlement_date", "number") < (%s::date, %s::text)' in sql
+    assert '("settlement_date", "number") < (%s::text, %s::text)' in sql
     assert params == ["2026-08-28", "LIQ-VE-010"]
     assert 'ORDER BY "settlement_date" DESC NULLS LAST, "number" DESC NULLS LAST' in sql
 
