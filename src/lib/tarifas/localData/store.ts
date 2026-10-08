@@ -1,55 +1,89 @@
-// Almacén local del módulo de tarifas: mientras no hay acceso a una base de datos real, todo lo
-// que el motor de tarifas necesita (zonas, reglas, tasas, costos, política de margen, plantillas)
-// vive en `seed.json` + localStorage, detrás de esta única interfaz de lectura/escritura. El día
-// que exista acceso a Supabase, solo este archivo (y `localRulesDataSource.ts`, que lo consume)
-// necesitan cambiar — la UI no sabe ni le importa de dónde vienen los datos.
+// Almacén local del módulo de tarifas: semilla embebida (`seed.json`) + localStorage, detrás de
+// una única interfaz de lectura/escritura.
 //
-// Patrón calcado de `prototipoTarifador/src/data/repository.ts`: semilla embebida, validación al
-// leer, fallback silencioso a la semilla si el contenido de localStorage está corrupto o con una
-// forma inesperada, y un `resetToSeed()` para volver al punto de partida.
+// Es el respaldo del driver `JsonDataSource` (tests y modo sin conexión). En producción el módulo
+// lee y escribe Aurora por `HttpDataSource`; esto queda sin uso, sin tocar ni la UI ni el kernel.
+//
+// Además de las colecciones PROPIAS del tarifador, guarda fixtures de las entidades EXTERNAS
+// (viajes, transportistas, conductores, vehículos, zonas, países), con la misma forma que las
+// devuelve el backend. Son de solo lectura: el driver rechaza escribirlas.
+//
+// v2 (2026-10-02): modelo "el liquidador consume el catálogo y los viajes del TMS"
+// (docs/tarifador/ROADMAP.md §8). Lo guardado con la v1 —rutas, conductores y compañías propias—
+// no tiene traducción a viajes reales y NO se migra: el navegador arranca de la semilla nueva.
 
 import seedJson from './seed.json';
 
-const STORAGE_KEY = 'tarifas-liquidador:v1';
+const STORAGE_KEY = 'tarifas-liquidador:v2';
+
+type Rows = Record<string, any>[];
 
 export interface TarifasDatabase {
-  countries: Record<string, any>[];
-  zoneGroups: Record<string, any>[];
-  zones: Record<string, any>[];
-  zoneLaneRates: Record<string, any>[];
-  fxRates: Record<string, any>[];
-  pricingRules: Record<string, any>[];
-  pricingTemplates: Record<string, any>[];
-  testCarriers: Record<string, any>[];
-  ownCostParams: Record<string, any>[];
-  outsourcedCostRates: Record<string, any>[];
-  marginPolicies: Record<string, any>[];
-  auditLog: Record<string, any>[];
-  // Snapshot liviano de margen/costo por liquidación (`settlements.id` del TMS real) — la tabla
-  // real no soporta guardar esto sin una migración que todavía no se corre, así que vive acá.
-  // Ver `settlementSnapshots.ts`.
-  settlementSnapshots: Record<string, any>[];
+  // ── Externas (fixtures de solo lectura) ──
+  countries: Rows;
+  zones: Rows;
+  carriers: Rows;
+  drivers: Rows;
+  vehicles: Rows;
+  /** Viajes de guía de despacho, con la forma de la vista `tarifas_v_viajes`. */
+  trips: Rows;
+  dispatchGuides: Rows;
+  tripReturns: Rows;
+  // ── Propias ──
+  countrySettings: Rows;
+  zoneGroups: Rows;
+  pricingRules: Rows;
+  pricingTemplates: Rows;
+  /** Perfiles de cálculo, uno por transportista. Ver `data/schema.ts`. */
+  settlementParties: Rows;
+  /** Variables personalizadas declaradas por cada perfil. */
+  partyVariables: Rows;
+  /** Liquidaciones emitidas, con su desglose completo. */
+  settlements: Rows;
+  costStructures: Rows;
+  costStructureRows: Rows;
+  rateTables: Rows;
+  rateTableRows: Rows;
+  tripOrders: Rows;
+  tripOrderMarks: Rows;
+  marginPolicies: Rows;
+  auditLog: Rows;
 }
 
-const COLLECTIONS: (keyof TarifasDatabase)[] = [
-  'countries', 'zoneGroups', 'zones', 'zoneLaneRates', 'fxRates', 'pricingRules',
-  'pricingTemplates', 'testCarriers', 'ownCostParams', 'outsourcedCostRates', 'marginPolicies',
-  'auditLog', 'settlementSnapshots',
+// Exportada para que un test pueda verificar que ninguna entidad del esquema quedó fuera: una
+// colección faltante acá no rompe nada, simplemente devuelve vacío para siempre.
+export const COLLECTIONS: (keyof TarifasDatabase)[] = [
+  'countries', 'zones', 'carriers', 'drivers', 'vehicles', 'trips', 'dispatchGuides', 'tripReturns', 'tripOrders', 'tripOrderMarks',
+  'countrySettings', 'zoneGroups', 'pricingRules', 'pricingTemplates', 'settlementParties',
+  'partyVariables', 'settlements', 'costStructures', 'costStructureRows', 'rateTables',
+  'rateTableRows', 'marginPolicies', 'auditLog',
 ];
 
 function cloneSeed(): TarifasDatabase {
   // structuredClone evita que dos lecturas compartan referencias y que una mute la semilla original.
-  return structuredClone(seedJson) as TarifasDatabase;
+  return structuredClone(seedJson) as unknown as TarifasDatabase;
 }
 
-// Validación superficial pero suficiente: confirma que cada colección esperada existe y es un
-// array. No se re-valida cada regla contra RuleSchema acá (eso ya lo hace RuleModal antes de
-// guardar) — el objetivo de esta función es solo decidir si el JSON de localStorage es utilizable
-// o si hay que volver a la semilla, no re-certificar cada fila en cada lectura.
-function isValidDatabase(value: unknown): value is TarifasDatabase {
-  if (!value || typeof value !== 'object') return false;
-  return COLLECTIONS.every((key) => Array.isArray((value as Record<string, unknown>)[key]));
+/**
+ * Repara un almacén guardado al que le falte alguna colección (p.ej. una entidad nueva agregada
+ * después), conservando todo lo demás. Antes, cualquier forma inesperada hacía volver a la semilla
+ * ENTERA y borraba en silencio lo configurado.
+ */
+function migrate(parsed: unknown): TarifasDatabase | null {
+  if (!parsed || typeof parsed !== 'object') return null;
+
+  const stored = parsed as Record<string, unknown>;
+  const seed = cloneSeed();
+  const result = {} as TarifasDatabase;
+
+  for (const collection of COLLECTIONS) {
+    const existing = stored[collection];
+    result[collection] = Array.isArray(existing) ? (existing as Rows) : seed[collection];
+  }
+  return result;
 }
+
+// ── Lectura y escritura ───────────────────────────────────────────────────────────────────────
 
 function hasLocalStorage(): boolean {
   try {
@@ -64,9 +98,7 @@ export function loadDatabase(): TarifasDatabase {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return cloneSeed();
   try {
-    const parsed = JSON.parse(raw);
-    if (!isValidDatabase(parsed)) return cloneSeed();
-    return parsed;
+    return migrate(JSON.parse(raw)) ?? cloneSeed();
   } catch {
     return cloneSeed();
   }

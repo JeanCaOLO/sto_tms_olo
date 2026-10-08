@@ -1,118 +1,3804 @@
 {
   "countries": [
-    { "id": "VE", "iso2": "VE", "name": "Venezuela", "local_currency": "VES", "ref_currency": "USD", "rounding_decimals": 2, "rounding_mode": "HALF_UP", "overnight_threshold_hours": 24 },
-    { "id": "CO", "iso2": "CO", "name": "Colombia", "local_currency": "COP", "ref_currency": "USD", "rounding_decimals": 0, "rounding_mode": "HALF_EVEN", "overnight_threshold_hours": 20 },
-    { "id": "CR", "iso2": "CR", "name": "Costa Rica", "local_currency": "CRC", "ref_currency": "USD", "rounding_decimals": 2, "rounding_mode": "DOWN", "overnight_threshold_hours": 30 }
-  ],
-  "zoneGroups": [
-    { "id": "ZG_VE_CENTRO", "country_id": "VE", "code": "CENTRO", "name": "Centro", "status": "active" },
-    { "id": "ZG_VE_OCCIDENTE", "country_id": "VE", "code": "OCCIDENTE", "name": "Occidente", "status": "active" },
-    { "id": "ZG_CO_ANDINA", "country_id": "CO", "code": "ANDINA", "name": "Región Andina", "status": "active" },
-    { "id": "ZG_CO_CARIBE", "country_id": "CO", "code": "CARIBE", "name": "Región Caribe", "status": "active" },
-    { "id": "ZG_CR_VALLE", "country_id": "CR", "code": "VALLE_CENTRAL", "name": "Valle Central", "status": "active" },
-    { "id": "ZG_CR_GUANACASTE", "country_id": "CR", "code": "GUANACASTE", "name": "Guanacaste", "status": "active" },
-    { "id": "ZG_VE_SIN_GRUPO", "country_id": "VE", "code": "SIN_GRUPO", "name": "Sin grupo asignado", "status": "active" },
-    { "id": "ZG_CO_SIN_GRUPO", "country_id": "CO", "code": "SIN_GRUPO", "name": "Sin grupo asignado", "status": "active" },
-    { "id": "ZG_CR_SIN_GRUPO", "country_id": "CR", "code": "SIN_GRUPO", "name": "Sin grupo asignado", "status": "active" }
+    {
+      "id": "VE",
+      "code": "VE",
+      "name": "Venezuela",
+      "currency": "USD",
+      "status": "active"
+    },
+    {
+      "id": "CO",
+      "code": "CO",
+      "name": "Colombia",
+      "currency": "COP",
+      "status": "active"
+    },
+    {
+      "id": "CR",
+      "code": "CR",
+      "name": "Costa Rica",
+      "currency": "CRC",
+      "status": "active"
+    }
   ],
   "zones": [
-    { "id": "Z_VE_CCS", "country_id": "VE", "zone_group_id": "ZG_VE_CENTRO", "code": "CCS", "name": "Caracas", "status": "active" },
-    { "id": "Z_VE_CAR", "country_id": "VE", "zone_group_id": "ZG_VE_CENTRO", "code": "CAR", "name": "Carabobo", "status": "active" },
-    { "id": "Z_VE_ZUL", "country_id": "VE", "zone_group_id": "ZG_VE_OCCIDENTE", "code": "ZUL", "name": "Zulia", "status": "active" },
-    { "id": "Z_VE_SIN_ZONA", "country_id": "VE", "zone_group_id": "ZG_VE_SIN_GRUPO", "code": "SIN_ZONA", "name": "Sin zona asignada", "status": "active" },
-    { "id": "Z_CO_BOG", "country_id": "CO", "zone_group_id": "ZG_CO_ANDINA", "code": "BOG", "name": "Bogotá", "status": "active" },
-    { "id": "Z_CO_MED", "country_id": "CO", "zone_group_id": "ZG_CO_ANDINA", "code": "MED", "name": "Medellín", "status": "active" },
-    { "id": "Z_CO_BAQ", "country_id": "CO", "zone_group_id": "ZG_CO_CARIBE", "code": "BAQ", "name": "Barranquilla", "status": "active" },
-    { "id": "Z_CO_SIN_ZONA", "country_id": "CO", "zone_group_id": "ZG_CO_SIN_GRUPO", "code": "SIN_ZONA", "name": "Sin zona asignada", "status": "active" },
-    { "id": "Z_CR_SJO", "country_id": "CR", "zone_group_id": "ZG_CR_VALLE", "code": "SJO", "name": "San José", "status": "active" },
-    { "id": "Z_CR_ALA", "country_id": "CR", "zone_group_id": "ZG_CR_VALLE", "code": "ALA", "name": "Alajuela", "status": "active" },
-    { "id": "Z_CR_LIB", "country_id": "CR", "zone_group_id": "ZG_CR_GUANACASTE", "code": "LIB", "name": "Liberia", "status": "active" },
-    { "id": "Z_CR_SIN_ZONA", "country_id": "CR", "zone_group_id": "ZG_CR_SIN_GRUPO", "code": "SIN_ZONA", "name": "Sin zona asignada", "status": "active" }
+    {
+      "id": "Z_VE_CCS",
+      "country_id": "VE",
+      "code": "CCS",
+      "name": "Caracas",
+      "status": "active"
+    },
+    {
+      "id": "Z_VE_CAR",
+      "country_id": "VE",
+      "code": "CAR",
+      "name": "Carabobo",
+      "status": "active"
+    },
+    {
+      "id": "Z_VE_ZUL",
+      "country_id": "VE",
+      "code": "ZUL",
+      "name": "Zulia",
+      "status": "active"
+    },
+    {
+      "id": "Z_VE_TAC",
+      "country_id": "VE",
+      "code": "TAC",
+      "name": "Táchira",
+      "status": "active"
+    },
+    {
+      "id": "Z_VE_SIN_ZONA",
+      "country_id": "VE",
+      "code": "SIN_ZONA",
+      "name": "Sin zona asignada",
+      "status": "active"
+    },
+    {
+      "id": "Z_CO_BOG",
+      "country_id": "CO",
+      "code": "BOG",
+      "name": "Bogotá",
+      "status": "active"
+    },
+    {
+      "id": "Z_CO_MED",
+      "country_id": "CO",
+      "code": "MED",
+      "name": "Medellín",
+      "status": "active"
+    },
+    {
+      "id": "Z_CO_BAQ",
+      "country_id": "CO",
+      "code": "BAQ",
+      "name": "Barranquilla",
+      "status": "active"
+    },
+    {
+      "id": "Z_CO_SIN_ZONA",
+      "country_id": "CO",
+      "code": "SIN_ZONA",
+      "name": "Sin zona asignada",
+      "status": "active"
+    },
+    {
+      "id": "Z_CR_SJO",
+      "country_id": "CR",
+      "code": "SJO",
+      "name": "San José",
+      "status": "active"
+    },
+    {
+      "id": "Z_CR_ALA",
+      "country_id": "CR",
+      "code": "ALA",
+      "name": "Alajuela",
+      "status": "active"
+    },
+    {
+      "id": "Z_CR_LIB",
+      "country_id": "CR",
+      "code": "LIB",
+      "name": "Liberia",
+      "status": "active"
+    },
+    {
+      "id": "Z_CR_PUN",
+      "country_id": "CR",
+      "code": "PUN",
+      "name": "Puntarenas",
+      "status": "active"
+    },
+    {
+      "id": "Z_CR_SIN_ZONA",
+      "country_id": "CR",
+      "code": "SIN_ZONA",
+      "name": "Sin zona asignada",
+      "status": "active"
+    }
   ],
-  "zoneLaneRates": [
-    { "id": "ZLR_VE_1", "country_id": "VE", "origin_zone_id": "Z_VE_CAR", "dest_zone_id": "Z_VE_ZUL", "amount": "500.00", "currency": "USD", "status": "active" },
-    { "id": "ZLR_VE_2", "country_id": "VE", "origin_zone_id": "Z_VE_ZUL", "dest_zone_id": "Z_VE_CAR", "amount": "500.00", "currency": "USD", "status": "active" },
-    { "id": "ZLR_VE_3", "country_id": "VE", "origin_zone_id": "Z_VE_CCS", "dest_zone_id": "Z_VE_ZUL", "amount": "600.00", "currency": "USD", "status": "active" },
-    { "id": "ZLR_VE_4", "country_id": "VE", "origin_zone_id": "Z_VE_ZUL", "dest_zone_id": "Z_VE_CCS", "amount": "600.00", "currency": "USD", "status": "active" },
-    { "id": "ZLR_CO_1", "country_id": "CO", "origin_zone_id": "Z_CO_MED", "dest_zone_id": "Z_CO_BAQ", "amount": "300.00", "currency": "USD", "status": "active" },
-    { "id": "ZLR_CO_2", "country_id": "CO", "origin_zone_id": "Z_CO_BAQ", "dest_zone_id": "Z_CO_MED", "amount": "300.00", "currency": "USD", "status": "active" },
-    { "id": "ZLR_CO_3", "country_id": "CO", "origin_zone_id": "Z_CO_BOG", "dest_zone_id": "Z_CO_BAQ", "amount": "420.00", "currency": "USD", "status": "active" },
-    { "id": "ZLR_CO_4", "country_id": "CO", "origin_zone_id": "Z_CO_BAQ", "dest_zone_id": "Z_CO_BOG", "amount": "420.00", "currency": "USD", "status": "active" },
-    { "id": "ZLR_CR_1", "country_id": "CR", "origin_zone_id": "Z_CR_SJO", "dest_zone_id": "Z_CR_ALA", "amount": "150.00", "currency": "USD", "status": "active" },
-    { "id": "ZLR_CR_2", "country_id": "CR", "origin_zone_id": "Z_CR_ALA", "dest_zone_id": "Z_CR_SJO", "amount": "150.00", "currency": "USD", "status": "active" },
-    { "id": "ZLR_CR_3", "country_id": "CR", "origin_zone_id": "Z_CR_ALA", "dest_zone_id": "Z_CR_LIB", "amount": "340.00", "currency": "USD", "status": "active" },
-    { "id": "ZLR_CR_4", "country_id": "CR", "origin_zone_id": "Z_CR_LIB", "dest_zone_id": "Z_CR_ALA", "amount": "340.00", "currency": "USD", "status": "active" }
+  "carriers": [
+    {
+      "id": "SP_VE_OWN",
+      "country_id": "VE",
+      "code": "FLOTA-VE",
+      "name": "Flota Propia Venezuela",
+      "tax_id": null,
+      "is_flota_propia": true,
+      "status": "active"
+    },
+    {
+      "id": "CARRIER_VE_1",
+      "country_id": "VE",
+      "code": "TA-VE",
+      "name": "Transporte Andino",
+      "tax_id": "J-30123456-7",
+      "is_flota_propia": false,
+      "status": "active"
+    },
+    {
+      "id": "CARRIER_VE_2",
+      "country_id": "VE",
+      "code": "LC-VE",
+      "name": "Logística del Centro",
+      "tax_id": "J-30987654-3",
+      "is_flota_propia": false,
+      "status": "active"
+    },
+    {
+      "id": "SP_CO_OWN",
+      "country_id": "CO",
+      "code": "FLOTA-CO",
+      "name": "Flota Propia Colombia",
+      "tax_id": null,
+      "is_flota_propia": true,
+      "status": "active"
+    },
+    {
+      "id": "CARRIER_CO_1",
+      "country_id": "CO",
+      "code": "TC-CO",
+      "name": "Transportes del Cauca",
+      "tax_id": "900123456-7",
+      "is_flota_propia": false,
+      "status": "active"
+    },
+    {
+      "id": "CARRIER_CO_2",
+      "country_id": "CO",
+      "code": "AC-CO",
+      "name": "Andina Cargo",
+      "tax_id": "900654321-2",
+      "is_flota_propia": false,
+      "status": "active"
+    },
+    {
+      "id": "SP_CR_OWN",
+      "country_id": "CR",
+      "code": "FLOTA-CR",
+      "name": "Flota Propia Costa Rica",
+      "tax_id": null,
+      "is_flota_propia": true,
+      "status": "active"
+    },
+    {
+      "id": "CARRIER_CR_1",
+      "country_id": "CR",
+      "code": "TR-CR-001",
+      "name": "Transportes Guanacaste",
+      "tax_id": "3-101-123456",
+      "is_flota_propia": false,
+      "status": "active"
+    },
+    {
+      "id": "CARRIER_CR_2",
+      "country_id": "CR",
+      "code": "CC-CR",
+      "name": "Central Cargo CR",
+      "tax_id": "3-101-654321",
+      "is_flota_propia": false,
+      "status": "active"
+    }
   ],
-  "fxRates": [
-    { "id": "FX_VE_1", "country_id": "VE", "from_currency": "VES", "to_currency": "USD", "rate": "40.00", "rate_type": "OFFICIAL", "source": "BCV (tasa ilustrativa de demo)", "valid_from": "2020-01-01T00:00:00.000Z" },
-    { "id": "FX_CO_1", "country_id": "CO", "from_currency": "COP", "to_currency": "USD", "rate": "4000.00", "rate_type": "OFFICIAL", "source": "TRM Banco de la República (tasa ilustrativa de demo)", "valid_from": "2020-01-01T00:00:00.000Z" },
-    { "id": "FX_CR_1", "country_id": "CR", "from_currency": "CRC", "to_currency": "USD", "rate": "520.00", "rate_type": "OFFICIAL", "source": "BCCR (tasa ilustrativa de demo)", "valid_from": "2020-01-01T00:00:00.000Z" }
+  "drivers": [
+    {
+      "id": "DRV_VE_1",
+      "carrier_id": "CARRIER_VE_1",
+      "code": "DRV_VE_1",
+      "full_name": "José Ramírez",
+      "document": "V12345678",
+      "phone": "+58 414-555-1111",
+      "license_number": "B-2",
+      "status": "active"
+    },
+    {
+      "id": "DRV_VE_2",
+      "carrier_id": "CARRIER_VE_2",
+      "code": "DRV_VE_2",
+      "full_name": "Carlos Peña",
+      "document": "V87654321",
+      "phone": "+58 412-555-2222",
+      "license_number": "B-2",
+      "status": "active"
+    },
+    {
+      "id": "DRV_CO_1",
+      "carrier_id": "CARRIER_CO_1",
+      "code": "DRV_CO_1",
+      "full_name": "Fabián Ríos",
+      "document": "1012345678",
+      "phone": "+57 300-555-4141",
+      "license_number": "C2",
+      "status": "active"
+    },
+    {
+      "id": "DRV_CR_1",
+      "carrier_id": "CARRIER_CR_2",
+      "code": "DRV_CR_1",
+      "full_name": "Esteban Vargas",
+      "document": "1-2345-6789",
+      "phone": "+506 8888-8181",
+      "license_number": "B1",
+      "status": "active"
+    }
+  ],
+  "vehicles": [
+    {
+      "id": "PVT_SPVEOWN_350",
+      "carrier_id": "SP_VE_OWN",
+      "plate": "TT-350-SP_VE_OWN",
+      "vehicle_type": "TT-350",
+      "capacity_weight": "3500",
+      "capacity_volume": "20",
+      "status": "active"
+    },
+    {
+      "id": "PVT_SPVEOWN_750",
+      "carrier_id": "SP_VE_OWN",
+      "plate": "TT-750-SP_VE_OWN",
+      "vehicle_type": "TT-750",
+      "capacity_weight": "7500",
+      "capacity_volume": "45",
+      "status": "active"
+    },
+    {
+      "id": "PVT_CARVE1_350",
+      "carrier_id": "CARRIER_VE_1",
+      "plate": "TT-350-CARRIER_VE_1",
+      "vehicle_type": "TT-350",
+      "capacity_weight": "3500",
+      "capacity_volume": "20",
+      "status": "active"
+    },
+    {
+      "id": "PVT_CARVE1_750",
+      "carrier_id": "CARRIER_VE_1",
+      "plate": "TT-750-CARRIER_VE_1",
+      "vehicle_type": "TT-750",
+      "capacity_weight": "7500",
+      "capacity_volume": "45",
+      "status": "active"
+    },
+    {
+      "id": "PVT_CARVE2_350",
+      "carrier_id": "CARRIER_VE_2",
+      "plate": "TT-350-CARRIER_VE_2",
+      "vehicle_type": "TT-350",
+      "capacity_weight": "3500",
+      "capacity_volume": "20",
+      "status": "active"
+    },
+    {
+      "id": "PVT_CARVE2_750",
+      "carrier_id": "CARRIER_VE_2",
+      "plate": "TT-750-CARRIER_VE_2",
+      "vehicle_type": "TT-750",
+      "capacity_weight": "7500",
+      "capacity_volume": "45",
+      "status": "active"
+    },
+    {
+      "id": "PVT_CARVE2_550",
+      "carrier_id": "CARRIER_VE_2",
+      "plate": "TT-550-CARRIER_VE_2",
+      "vehicle_type": "TT-550",
+      "capacity_weight": "5500",
+      "capacity_volume": "30",
+      "status": "active"
+    },
+    {
+      "id": "PVT_CARCO1_350",
+      "carrier_id": "CARRIER_CO_1",
+      "plate": "TT-350-CARRIER_CO_1",
+      "vehicle_type": "TT-350",
+      "capacity_weight": "3500",
+      "capacity_volume": "20",
+      "status": "active"
+    },
+    {
+      "id": "PVT_CARCO1_750",
+      "carrier_id": "CARRIER_CO_1",
+      "plate": "TT-750-CARRIER_CO_1",
+      "vehicle_type": "TT-750",
+      "capacity_weight": "7500",
+      "capacity_volume": "45",
+      "status": "active"
+    },
+    {
+      "id": "PVT_CARCO2_350",
+      "carrier_id": "CARRIER_CO_2",
+      "plate": "TT-350-CARRIER_CO_2",
+      "vehicle_type": "TT-350",
+      "capacity_weight": "3500",
+      "capacity_volume": "20",
+      "status": "active"
+    },
+    {
+      "id": "PVT_CARCO2_750",
+      "carrier_id": "CARRIER_CO_2",
+      "plate": "TT-750-CARRIER_CO_2",
+      "vehicle_type": "TT-750",
+      "capacity_weight": "7500",
+      "capacity_volume": "45",
+      "status": "active"
+    },
+    {
+      "id": "PVT_SPCROWN_350",
+      "carrier_id": "SP_CR_OWN",
+      "plate": "TT-350-SP_CR_OWN",
+      "vehicle_type": "TT-350",
+      "capacity_weight": "3500",
+      "capacity_volume": "20",
+      "status": "active"
+    },
+    {
+      "id": "PVT_CARCR2_350",
+      "carrier_id": "CARRIER_CR_2",
+      "plate": "TT-350-CARRIER_CR_2",
+      "vehicle_type": "TT-350",
+      "capacity_weight": "3500",
+      "capacity_volume": "20",
+      "status": "active"
+    },
+    {
+      "id": "PVT_CARCR2_750",
+      "carrier_id": "CARRIER_CR_2",
+      "plate": "TT-750-CARRIER_CR_2",
+      "vehicle_type": "TT-750",
+      "capacity_weight": "7500",
+      "capacity_volume": "45",
+      "status": "active"
+    }
+  ],
+  "trips": [
+    {
+      "id": "TRIP_RT_VE_A1",
+      "country_id": "VE",
+      "route_number": "V-CAR-CCS",
+      "route_date": "2026-09-01",
+      "status": "completed",
+      "carrier_id": "CARRIER_VE_1",
+      "carrier_name": "Transporte Andino",
+      "is_flota_propia": false,
+      "driver_id": "DRV_VE_1",
+      "driver_name": "José Ramírez",
+      "driver_document": "V12345678",
+      "vehicle_id": "PVT_CARVE1_350",
+      "vehicle_plate": "TT-350-CARRIER_VE_1",
+      "vehicle_type": "TT-350",
+      "capacity_weight": "3500",
+      "capacity_volume": "20",
+      "dest_zone_id": "Z_VE_CCS",
+      "dest_zone_code": "CCS",
+      "dest_zone_name": "Caracas",
+      "total_distance": "180",
+      "total_stops": 40,
+      "completed_stops": 40,
+      "total_weight": "1200",
+      "total_volume": null,
+      "actual_start_time": "2026-09-01T12:00:00.000Z",
+      "actual_end_time": "2026-09-01T16:00:00.000Z",
+      "duration_hours": "4",
+      "guide_count": 40,
+      "return_count": 0,
+      "settlement_id": null
+    },
+    {
+      "id": "TRIP_RT_VE_A2",
+      "country_id": "VE",
+      "route_number": "V-CAR-ZUL",
+      "route_date": "2026-09-02",
+      "status": "completed",
+      "carrier_id": "CARRIER_VE_1",
+      "carrier_name": "Transporte Andino",
+      "is_flota_propia": false,
+      "driver_id": "DRV_VE_1",
+      "driver_name": "José Ramírez",
+      "driver_document": "V12345678",
+      "vehicle_id": "PVT_CARVE1_350",
+      "vehicle_plate": "TT-350-CARRIER_VE_1",
+      "vehicle_type": "TT-350",
+      "capacity_weight": "3500",
+      "capacity_volume": "20",
+      "dest_zone_id": "Z_VE_ZUL",
+      "dest_zone_code": "ZUL",
+      "dest_zone_name": "Zulia",
+      "total_distance": "260",
+      "total_stops": 20,
+      "completed_stops": 20,
+      "total_weight": "800",
+      "total_volume": null,
+      "actual_start_time": "2026-09-02T12:00:00.000Z",
+      "actual_end_time": "2026-09-02T17:00:00.000Z",
+      "duration_hours": "5",
+      "guide_count": 20,
+      "return_count": 0,
+      "settlement_id": null
+    },
+    {
+      "id": "TRIP_RT_VE_A3",
+      "country_id": "VE",
+      "route_number": "V-TAC-CCS",
+      "route_date": "2026-09-03",
+      "status": "completed",
+      "carrier_id": "CARRIER_VE_1",
+      "carrier_name": "Transporte Andino",
+      "is_flota_propia": false,
+      "driver_id": "DRV_VE_1",
+      "driver_name": "José Ramírez",
+      "driver_document": "V12345678",
+      "vehicle_id": "PVT_CARVE1_350",
+      "vehicle_plate": "TT-350-CARRIER_VE_1",
+      "vehicle_type": "TT-350",
+      "capacity_weight": "3500",
+      "capacity_volume": "20",
+      "dest_zone_id": "Z_VE_CCS",
+      "dest_zone_code": "CCS",
+      "dest_zone_name": "Caracas",
+      "total_distance": "640",
+      "total_stops": 15,
+      "completed_stops": 15,
+      "total_weight": "500",
+      "total_volume": null,
+      "actual_start_time": "2026-09-03T12:00:00.000Z",
+      "actual_end_time": "2026-09-03T22:00:00.000Z",
+      "duration_hours": "10",
+      "guide_count": 15,
+      "return_count": 0,
+      "settlement_id": null
+    },
+    {
+      "id": "TRIP_RT_VE_B1",
+      "country_id": "VE",
+      "route_number": "V-CAR-CCS",
+      "route_date": "2026-09-04",
+      "status": "completed",
+      "carrier_id": "CARRIER_VE_2",
+      "carrier_name": "Logística del Centro",
+      "is_flota_propia": false,
+      "driver_id": "DRV_VE_2",
+      "driver_name": "Carlos Peña",
+      "driver_document": "V87654321",
+      "vehicle_id": "PVT_CARVE2_350",
+      "vehicle_plate": "TT-350-CARRIER_VE_2",
+      "vehicle_type": "TT-350",
+      "capacity_weight": "3500",
+      "capacity_volume": "20",
+      "dest_zone_id": "Z_VE_CCS",
+      "dest_zone_code": "CCS",
+      "dest_zone_name": "Caracas",
+      "total_distance": "190",
+      "total_stops": 35,
+      "completed_stops": 35,
+      "total_weight": "1000",
+      "total_volume": null,
+      "actual_start_time": "2026-09-04T12:00:00.000Z",
+      "actual_end_time": "2026-09-04T16:30:00.000Z",
+      "duration_hours": "4.5",
+      "guide_count": 35,
+      "return_count": 0,
+      "settlement_id": null
+    },
+    {
+      "id": "TRIP_RT_CO_A1",
+      "country_id": "CO",
+      "route_number": "V-BOG-MED",
+      "route_date": "2026-09-05",
+      "status": "completed",
+      "carrier_id": "CARRIER_CO_1",
+      "carrier_name": "Transportes del Cauca",
+      "is_flota_propia": false,
+      "driver_id": "DRV_CO_1",
+      "driver_name": "Fabián Ríos",
+      "driver_document": "1012345678",
+      "vehicle_id": "PVT_CARCO1_350",
+      "vehicle_plate": "TT-350-CARRIER_CO_1",
+      "vehicle_type": "TT-350",
+      "capacity_weight": "3500",
+      "capacity_volume": "20",
+      "dest_zone_id": "Z_CO_MED",
+      "dest_zone_code": "MED",
+      "dest_zone_name": "Medellín",
+      "total_distance": "415",
+      "total_stops": 12,
+      "completed_stops": 12,
+      "total_weight": "1200",
+      "total_volume": null,
+      "actual_start_time": "2026-09-05T12:00:00.000Z",
+      "actual_end_time": "2026-09-05T20:00:00.000Z",
+      "duration_hours": "8",
+      "guide_count": 12,
+      "return_count": 0,
+      "settlement_id": null
+    },
+    {
+      "id": "TRIP_RT_CR_A1",
+      "country_id": "CR",
+      "route_number": "V-SJO-LIB",
+      "route_date": "2026-09-06",
+      "status": "completed",
+      "carrier_id": "SP_CR_OWN",
+      "carrier_name": "Flota Propia Costa Rica",
+      "is_flota_propia": true,
+      "driver_id": null,
+      "driver_name": null,
+      "driver_document": null,
+      "vehicle_id": "PVT_SPCROWN_350",
+      "vehicle_plate": "TT-350-SP_CR_OWN",
+      "vehicle_type": "TT-350",
+      "capacity_weight": "3500",
+      "capacity_volume": "20",
+      "dest_zone_id": "Z_CR_LIB",
+      "dest_zone_code": "LIB",
+      "dest_zone_name": "Liberia",
+      "total_distance": "220",
+      "total_stops": 25,
+      "completed_stops": 25,
+      "total_weight": "700",
+      "total_volume": null,
+      "actual_start_time": "2026-09-06T12:00:00.000Z",
+      "actual_end_time": "2026-09-06T16:00:00.000Z",
+      "duration_hours": "4",
+      "guide_count": 25,
+      "return_count": 0,
+      "settlement_id": null
+    },
+    {
+      "id": "TRIP_RT_CR_A2",
+      "country_id": "CR",
+      "route_number": "V-SJO-ALA",
+      "route_date": "2026-09-07",
+      "status": "completed",
+      "carrier_id": "CARRIER_CR_1",
+      "carrier_name": "Transportes Guanacaste",
+      "is_flota_propia": false,
+      "driver_id": null,
+      "driver_name": null,
+      "driver_document": null,
+      "vehicle_id": null,
+      "vehicle_plate": null,
+      "vehicle_type": null,
+      "capacity_weight": null,
+      "capacity_volume": null,
+      "dest_zone_id": "Z_CR_ALA",
+      "dest_zone_code": "ALA",
+      "dest_zone_name": "Alajuela",
+      "total_distance": "20",
+      "total_stops": 40,
+      "completed_stops": 40,
+      "total_weight": "550",
+      "total_volume": null,
+      "actual_start_time": "2026-09-07T12:00:00.000Z",
+      "actual_end_time": "2026-09-07T13:30:00.000Z",
+      "duration_hours": "1.5",
+      "guide_count": 40,
+      "return_count": 0,
+      "settlement_id": null
+    },
+    {
+      "id": "TRIP_RT_CR_A3",
+      "country_id": "CR",
+      "route_number": "V-ALA-LIB",
+      "route_date": "2026-09-08",
+      "status": "completed",
+      "carrier_id": "CARRIER_CR_1",
+      "carrier_name": "Transportes Guanacaste",
+      "is_flota_propia": false,
+      "driver_id": null,
+      "driver_name": null,
+      "driver_document": null,
+      "vehicle_id": null,
+      "vehicle_plate": null,
+      "vehicle_type": null,
+      "capacity_weight": null,
+      "capacity_volume": null,
+      "dest_zone_id": "Z_CR_LIB",
+      "dest_zone_code": "LIB",
+      "dest_zone_name": "Liberia",
+      "total_distance": "215",
+      "total_stops": 18,
+      "completed_stops": 18,
+      "total_weight": "900",
+      "total_volume": null,
+      "actual_start_time": "2026-09-08T12:00:00.000Z",
+      "actual_end_time": "2026-09-08T16:00:00.000Z",
+      "duration_hours": "4",
+      "guide_count": 18,
+      "return_count": 0,
+      "settlement_id": null
+    },
+    {
+      "id": "TRIP_RT_CR_B1",
+      "country_id": "CR",
+      "route_number": "V-LIB-ALA",
+      "route_date": "2026-09-09",
+      "status": "completed",
+      "carrier_id": "CARRIER_CR_2",
+      "carrier_name": "Central Cargo CR",
+      "is_flota_propia": false,
+      "driver_id": "DRV_CR_1",
+      "driver_name": "Esteban Vargas",
+      "driver_document": "1-2345-6789",
+      "vehicle_id": "PVT_CARCR2_350",
+      "vehicle_plate": "TT-350-CARRIER_CR_2",
+      "vehicle_type": "TT-350",
+      "capacity_weight": "3500",
+      "capacity_volume": "20",
+      "dest_zone_id": "Z_CR_ALA",
+      "dest_zone_code": "ALA",
+      "dest_zone_name": "Alajuela",
+      "total_distance": "215",
+      "total_stops": 15,
+      "completed_stops": 15,
+      "total_weight": "850",
+      "total_volume": null,
+      "actual_start_time": "2026-09-09T12:00:00.000Z",
+      "actual_end_time": "2026-09-09T16:00:00.000Z",
+      "duration_hours": "4",
+      "guide_count": 15,
+      "return_count": 0,
+      "settlement_id": null
+    },
+    {
+      "id": "TRIP_RT_CR_B2",
+      "country_id": "CR",
+      "route_number": "V-PUN-LIB",
+      "route_date": "2026-09-10",
+      "status": "completed",
+      "carrier_id": "CARRIER_CR_1",
+      "carrier_name": "Transportes Guanacaste",
+      "is_flota_propia": false,
+      "driver_id": null,
+      "driver_name": null,
+      "driver_document": null,
+      "vehicle_id": null,
+      "vehicle_plate": null,
+      "vehicle_type": null,
+      "capacity_weight": null,
+      "capacity_volume": null,
+      "dest_zone_id": "Z_CR_LIB",
+      "dest_zone_code": "LIB",
+      "dest_zone_name": "Liberia",
+      "total_distance": "110",
+      "total_stops": 30,
+      "completed_stops": 30,
+      "total_weight": "700",
+      "total_volume": null,
+      "actual_start_time": "2026-09-10T12:00:00.000Z",
+      "actual_end_time": "2026-09-10T14:00:00.000Z",
+      "duration_hours": "2",
+      "guide_count": 30,
+      "return_count": 0,
+      "settlement_id": null
+    },
+    {
+      "id": "TRIP_PLANIFICADO_1",
+      "country_id": "VE",
+      "route_number": "V-PLAN-1",
+      "route_date": "2026-09-01",
+      "status": "planned",
+      "carrier_id": "CARRIER_VE_1",
+      "carrier_name": "Transporte Andino",
+      "is_flota_propia": false,
+      "driver_id": "DRV_VE_1",
+      "driver_name": "José Ramírez",
+      "driver_document": "V12345678",
+      "vehicle_id": "PVT_CARVE1_350",
+      "vehicle_plate": "TT-350-CARRIER_VE_1",
+      "vehicle_type": "TT-350",
+      "capacity_weight": "3500",
+      "capacity_volume": "20",
+      "dest_zone_id": "Z_VE_CCS",
+      "dest_zone_code": "CCS",
+      "dest_zone_name": "Caracas",
+      "total_distance": "180",
+      "total_stops": 40,
+      "completed_stops": 40,
+      "total_weight": "1200",
+      "total_volume": null,
+      "actual_start_time": null,
+      "actual_end_time": null,
+      "duration_hours": null,
+      "guide_count": 40,
+      "return_count": 0,
+      "settlement_id": null
+    }
+  ],
+  "dispatchGuides": [],
+  "tripReturns": [],
+  "countrySettings": [
+    {
+      "id": "CSET_VE",
+      "country_id": "VE",
+      "rounding_decimals": 2,
+      "rounding_mode": "HALF_UP",
+      "overnight_threshold_hours": 24
+    },
+    {
+      "id": "CSET_CO",
+      "country_id": "CO",
+      "rounding_decimals": 0,
+      "rounding_mode": "HALF_EVEN",
+      "overnight_threshold_hours": 20
+    },
+    {
+      "id": "CSET_CR",
+      "country_id": "CR",
+      "rounding_decimals": 2,
+      "rounding_mode": "DOWN",
+      "overnight_threshold_hours": 30
+    }
+  ],
+  "zoneGroups": [
+    {
+      "id": "ZG_VE_CENTRO",
+      "country_id": "VE",
+      "code": "CENTRO",
+      "name": "Centro",
+      "status": "active",
+      "zone_codes": [
+        "CCS",
+        "CAR"
+      ]
+    },
+    {
+      "id": "ZG_VE_OCCIDENTE",
+      "country_id": "VE",
+      "code": "OCCIDENTE",
+      "name": "Occidente",
+      "status": "active",
+      "zone_codes": [
+        "ZUL",
+        "TAC"
+      ]
+    },
+    {
+      "id": "ZG_CO_ANDINA",
+      "country_id": "CO",
+      "code": "ANDINA",
+      "name": "Región Andina",
+      "status": "active",
+      "zone_codes": [
+        "BOG",
+        "MED"
+      ]
+    },
+    {
+      "id": "ZG_CO_CARIBE",
+      "country_id": "CO",
+      "code": "CARIBE",
+      "name": "Región Caribe",
+      "status": "active",
+      "zone_codes": [
+        "BAQ"
+      ]
+    },
+    {
+      "id": "ZG_CR_VALLE",
+      "country_id": "CR",
+      "code": "VALLE_CENTRAL",
+      "name": "Valle Central",
+      "status": "active",
+      "zone_codes": [
+        "SJO",
+        "ALA"
+      ]
+    },
+    {
+      "id": "ZG_CR_GUANACASTE",
+      "country_id": "CR",
+      "code": "GUANACASTE",
+      "name": "Guanacaste",
+      "status": "active",
+      "zone_codes": [
+        "LIB",
+        "PUN"
+      ]
+    },
+    {
+      "id": "ZG_VE_SIN_GRUPO",
+      "country_id": "VE",
+      "code": "SIN_GRUPO",
+      "name": "Sin grupo asignado",
+      "status": "active",
+      "zone_codes": [
+        "SIN_ZONA"
+      ]
+    },
+    {
+      "id": "ZG_CO_SIN_GRUPO",
+      "country_id": "CO",
+      "code": "SIN_GRUPO",
+      "name": "Sin grupo asignado",
+      "status": "active",
+      "zone_codes": [
+        "SIN_ZONA"
+      ]
+    },
+    {
+      "id": "ZG_CR_SIN_GRUPO",
+      "country_id": "CR",
+      "code": "SIN_GRUPO",
+      "name": "Sin grupo asignado",
+      "status": "active",
+      "zone_codes": [
+        "SIN_ZONA"
+      ]
+    }
   ],
   "pricingRules": [
-    { "id": "RULE_VE_R1", "country_id": "VE", "code": "R1", "name": "Zona Caracas → Carabobo", "stage": "BASE", "priority": 10, "stacking": "EXCLUSIVE", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "AND", "args": [{ "p": "EQ", "left": "originZone", "right": "CCS" }, { "p": "EQ", "left": "destZone", "right": "CAR" }] }, "expression": { "op": "FIXED", "amount": "400.00" }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_VE_R2", "country_id": "VE", "code": "R2", "name": "Tarifa por cliente", "stage": "VARIABLE", "priority": 20, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "GT", "left": "clientCount", "right": 0 }, "expression": { "op": "PER_UNIT", "unit": "clientCount", "rate": "2.00" }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_VE_R3", "country_id": "VE", "code": "R3", "name": "Servicio Express", "stage": "MODIFIER", "priority": 30, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "EQ", "left": "serviceType", "right": "EXPRESS" }, "expression": { "op": "FIXED", "amount": "30.00" }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_VE_ZONE_FALLBACK", "country_id": "VE", "code": "R_ZONE_FALLBACK", "name": "Zona (tabla general con respaldo por km)", "stage": "BASE", "priority": 50, "stacking": "EXCLUSIVE", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "ALWAYS" }, "expression": { "op": "LOOKUP_ZONE", "fallback": { "op": "PER_KM", "rate": "1.20" } }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_VE_OVERNIGHT", "country_id": "VE", "code": "R_OVERNIGHT", "name": "Pernocta", "stage": "SURCHARGE", "priority": 10, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "GT", "left": "overnightNights", "right": 0 }, "expression": { "op": "PER_UNIT", "unit": "overnightNights", "rate": "15.00" }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_VE_TOLLS", "country_id": "VE", "code": "R_TOLLS", "name": "Peajes", "stage": "SURCHARGE", "priority": 20, "stacking": "SUM", "exclusion_group": null, "currency_mode": "LOCAL", "conditions": { "p": "GT", "left": "tollsAmount", "right": 0 }, "expression": { "op": "PER_UNIT", "unit": "tollsAmount", "rate": "1" }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_VE_LATE_PENALTY", "country_id": "VE", "code": "R_LATE_PENALTY", "name": "Penalización por retraso", "stage": "ADJUSTMENT", "priority": 10, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "GT", "left": "lateMinutes", "right": 0 }, "expression": { "op": "TIERED", "unit": "lateMinutes", "tiers": [{ "upTo": 15, "amount": "0.00" }, { "upTo": 60, "amount": "-10.00" }, { "upTo": null, "amount": "-25.00" }] }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_VE_VOLUME_DISCOUNT", "country_id": "VE", "code": "R_VOLUME_DISCOUNT", "name": "Descuento por volumen (>50 clientes)", "stage": "ADJUSTMENT", "priority": 20, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "GT", "left": "clientCount", "right": 50 }, "expression": { "op": "PERCENT", "pct": "-0.03", "base": { "of": "RUNNING_SUBTOTAL" } }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_VE_MAX_INCIDENT_FIXED", "country_id": "VE", "code": "R_INCIDENT_FIXED", "name": "Recargo por incidente (fijo)", "stage": "SURCHARGE", "priority": 30, "stacking": "MAX", "exclusion_group": "incident_surcharge", "currency_mode": "REF", "conditions": { "p": "GT", "left": "incidentCount", "right": 0 }, "expression": { "op": "FIXED", "amount": "15.00" }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_VE_MAX_INCIDENT_PER_UNIT", "country_id": "VE", "code": "R_INCIDENT_PER_UNIT", "name": "Recargo por incidente (por incidente)", "stage": "SURCHARGE", "priority": 40, "stacking": "MAX", "exclusion_group": "incident_surcharge", "currency_mode": "REF", "conditions": { "p": "GT", "left": "incidentCount", "right": 1 }, "expression": { "op": "PER_UNIT", "unit": "incidentCount", "rate": "10.00" }, "is_adhoc": false, "active": true, "version": 1 },
-
-    { "id": "RULE_CO_R1", "country_id": "CO", "code": "R1", "name": "Zona Bogotá → Medellín", "stage": "BASE", "priority": 10, "stacking": "EXCLUSIVE", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "AND", "args": [{ "p": "EQ", "left": "originZone", "right": "BOG" }, { "p": "EQ", "left": "destZone", "right": "MED" }] }, "expression": { "op": "FIXED", "amount": "350.00" }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_CO_R2", "country_id": "CO", "code": "R2", "name": "Tarifa por cliente", "stage": "VARIABLE", "priority": 20, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "GT", "left": "clientCount", "right": 0 }, "expression": { "op": "PER_UNIT", "unit": "clientCount", "rate": "1.50" }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_CO_R3", "country_id": "CO", "code": "R3", "name": "Servicio Express", "stage": "MODIFIER", "priority": 30, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "EQ", "left": "serviceType", "right": "EXPRESS" }, "expression": { "op": "FIXED", "amount": "20.00" }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_CO_ZONE_FALLBACK", "country_id": "CO", "code": "R_ZONE_FALLBACK", "name": "Zona (tabla general con respaldo por km)", "stage": "BASE", "priority": 50, "stacking": "EXCLUSIVE", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "ALWAYS" }, "expression": { "op": "LOOKUP_ZONE", "fallback": { "op": "PER_KM", "rate": "1.00" } }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_CO_OVERNIGHT", "country_id": "CO", "code": "R_OVERNIGHT", "name": "Pernocta", "stage": "SURCHARGE", "priority": 10, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "GT", "left": "overnightNights", "right": 0 }, "expression": { "op": "PER_UNIT", "unit": "overnightNights", "rate": "12.00" }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_CO_TOLLS", "country_id": "CO", "code": "R_TOLLS", "name": "Peajes", "stage": "SURCHARGE", "priority": 20, "stacking": "SUM", "exclusion_group": null, "currency_mode": "LOCAL", "conditions": { "p": "GT", "left": "tollsAmount", "right": 0 }, "expression": { "op": "PER_UNIT", "unit": "tollsAmount", "rate": "1" }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_CO_LATE_PENALTY", "country_id": "CO", "code": "R_LATE_PENALTY", "name": "Penalización por retraso", "stage": "ADJUSTMENT", "priority": 10, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "GT", "left": "lateMinutes", "right": 0 }, "expression": { "op": "TIERED", "unit": "lateMinutes", "tiers": [{ "upTo": 15, "amount": "0.00" }, { "upTo": 60, "amount": "-8.00" }, { "upTo": null, "amount": "-20.00" }] }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_CO_VOLUME_DISCOUNT", "country_id": "CO", "code": "R_VOLUME_DISCOUNT", "name": "Descuento por volumen (>50 clientes)", "stage": "ADJUSTMENT", "priority": 20, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "GT", "left": "clientCount", "right": 50 }, "expression": { "op": "PERCENT", "pct": "-0.04", "base": { "of": "RUNNING_SUBTOTAL" } }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_CO_MAX_INCIDENT_FIXED", "country_id": "CO", "code": "R_INCIDENT_FIXED", "name": "Recargo por incidente (fijo)", "stage": "SURCHARGE", "priority": 30, "stacking": "MAX", "exclusion_group": "incident_surcharge", "currency_mode": "REF", "conditions": { "p": "GT", "left": "incidentCount", "right": 0 }, "expression": { "op": "FIXED", "amount": "12.00" }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_CO_MAX_INCIDENT_PER_UNIT", "country_id": "CO", "code": "R_INCIDENT_PER_UNIT", "name": "Recargo por incidente (por incidente)", "stage": "SURCHARGE", "priority": 40, "stacking": "MAX", "exclusion_group": "incident_surcharge", "currency_mode": "REF", "conditions": { "p": "GT", "left": "incidentCount", "right": 1 }, "expression": { "op": "PER_UNIT", "unit": "incidentCount", "rate": "8.00" }, "is_adhoc": false, "active": true, "version": 1 },
-
-    { "id": "RULE_CR_R1", "country_id": "CR", "code": "R1", "name": "Zona San José → Liberia", "stage": "BASE", "priority": 10, "stacking": "EXCLUSIVE", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "AND", "args": [{ "p": "EQ", "left": "originZone", "right": "SJO" }, { "p": "EQ", "left": "destZone", "right": "LIB" }] }, "expression": { "op": "FIXED", "amount": "380.00" }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_CR_R2", "country_id": "CR", "code": "R2", "name": "Tarifa por cliente", "stage": "VARIABLE", "priority": 20, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "GT", "left": "clientCount", "right": 0 }, "expression": { "op": "PER_UNIT", "unit": "clientCount", "rate": "1.80" }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_CR_R3", "country_id": "CR", "code": "R3", "name": "Servicio Express", "stage": "MODIFIER", "priority": 30, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "EQ", "left": "serviceType", "right": "EXPRESS" }, "expression": { "op": "FIXED", "amount": "22.00" }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_CR_ZONE_FALLBACK", "country_id": "CR", "code": "R_ZONE_FALLBACK", "name": "Zona (tabla general con respaldo por km)", "stage": "BASE", "priority": 50, "stacking": "EXCLUSIVE", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "ALWAYS" }, "expression": { "op": "LOOKUP_ZONE", "fallback": { "op": "PER_KM", "rate": "1.30" } }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_CR_OVERNIGHT", "country_id": "CR", "code": "R_OVERNIGHT", "name": "Pernocta", "stage": "SURCHARGE", "priority": 10, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "GT", "left": "overnightNights", "right": 0 }, "expression": { "op": "PER_UNIT", "unit": "overnightNights", "rate": "18.00" }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_CR_TOLLS", "country_id": "CR", "code": "R_TOLLS", "name": "Peajes", "stage": "SURCHARGE", "priority": 20, "stacking": "SUM", "exclusion_group": null, "currency_mode": "LOCAL", "conditions": { "p": "GT", "left": "tollsAmount", "right": 0 }, "expression": { "op": "PER_UNIT", "unit": "tollsAmount", "rate": "1" }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_CR_LATE_PENALTY", "country_id": "CR", "code": "R_LATE_PENALTY", "name": "Penalización por retraso", "stage": "ADJUSTMENT", "priority": 10, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "GT", "left": "lateMinutes", "right": 0 }, "expression": { "op": "TIERED", "unit": "lateMinutes", "tiers": [{ "upTo": 15, "amount": "0.00" }, { "upTo": 60, "amount": "-9.00" }, { "upTo": null, "amount": "-22.00" }] }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_CR_VOLUME_DISCOUNT", "country_id": "CR", "code": "R_VOLUME_DISCOUNT", "name": "Descuento por volumen (>50 clientes)", "stage": "ADJUSTMENT", "priority": 20, "stacking": "SUM", "exclusion_group": null, "currency_mode": "REF", "conditions": { "p": "GT", "left": "clientCount", "right": 50 }, "expression": { "op": "PERCENT", "pct": "-0.035", "base": { "of": "RUNNING_SUBTOTAL" } }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_CR_MAX_INCIDENT_FIXED", "country_id": "CR", "code": "R_INCIDENT_FIXED", "name": "Recargo por incidente (fijo)", "stage": "SURCHARGE", "priority": 30, "stacking": "MAX", "exclusion_group": "incident_surcharge", "currency_mode": "REF", "conditions": { "p": "GT", "left": "incidentCount", "right": 0 }, "expression": { "op": "FIXED", "amount": "14.00" }, "is_adhoc": false, "active": true, "version": 1 },
-    { "id": "RULE_CR_MAX_INCIDENT_PER_UNIT", "country_id": "CR", "code": "R_INCIDENT_PER_UNIT", "name": "Recargo por incidente (por incidente)", "stage": "SURCHARGE", "priority": 40, "stacking": "MAX", "exclusion_group": "incident_surcharge", "currency_mode": "REF", "conditions": { "p": "GT", "left": "incidentCount", "right": 1 }, "expression": { "op": "PER_UNIT", "unit": "incidentCount", "rate": "9.00" }, "is_adhoc": false, "active": true, "version": 1 }
+    {
+      "id": "RULE_VE_R1",
+      "country_id": "VE",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R1",
+      "name": "Zona Caracas → Carabobo",
+      "stage": "BASE",
+      "priority": 10,
+      "stacking": "EXCLUSIVE",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "AND",
+        "args": [
+          {
+            "p": "EQ",
+            "left": "originZone",
+            "right": "CCS"
+          },
+          {
+            "p": "EQ",
+            "left": "destZone",
+            "right": "CAR"
+          }
+        ]
+      },
+      "expression": {
+        "op": "FIXED",
+        "amount": "400.00"
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_VE_R2",
+      "country_id": "VE",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R2",
+      "name": "Tarifa por cliente",
+      "stage": "VARIABLE",
+      "priority": 20,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "GT",
+        "left": "clientCount",
+        "right": 0
+      },
+      "expression": {
+        "op": "PER_UNIT",
+        "unit": "clientCount",
+        "rate": "2.00"
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_VE_R3",
+      "country_id": "VE",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R3",
+      "name": "Servicio Express",
+      "stage": "MODIFIER",
+      "priority": 30,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "EQ",
+        "left": "serviceType",
+        "right": "EXPRESS"
+      },
+      "expression": {
+        "op": "FIXED",
+        "amount": "30.00"
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_VE_ZONE_FALLBACK",
+      "country_id": "VE",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R_ZONE_FALLBACK",
+      "name": "Zona (tarifario ZONAS con respaldo por km)",
+      "stage": "BASE",
+      "priority": 50,
+      "stacking": "EXCLUSIVE",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "ALWAYS"
+      },
+      "expression": {
+        "op": "LOOKUP_TABLE",
+        "table": "ZONAS",
+        "fallback": {
+          "op": "PER_KM",
+          "rate": "1.20"
+        }
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_VE_OVERNIGHT",
+      "country_id": "VE",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R_OVERNIGHT",
+      "name": "Pernocta",
+      "stage": "SURCHARGE",
+      "priority": 10,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "GT",
+        "left": "overnightNights",
+        "right": 0
+      },
+      "expression": {
+        "op": "PER_UNIT",
+        "unit": "overnightNights",
+        "rate": "15.00"
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_VE_TOLLS",
+      "country_id": "VE",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R_TOLLS",
+      "name": "Peajes",
+      "stage": "SURCHARGE",
+      "priority": 20,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "GT",
+        "left": "custom:monto_peajes",
+        "right": 0
+      },
+      "expression": {
+        "op": "PER_UNIT",
+        "unit": "custom:monto_peajes",
+        "rate": "1"
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_VE_LATE_PENALTY",
+      "country_id": "VE",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R_LATE_PENALTY",
+      "name": "Penalización por retraso",
+      "stage": "ADJUSTMENT",
+      "priority": 10,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "GT",
+        "left": "custom:minutos_atraso",
+        "right": 0
+      },
+      "expression": {
+        "op": "TIERED",
+        "unit": "custom:minutos_atraso",
+        "tiers": [
+          {
+            "upTo": 15,
+            "amount": "0.00"
+          },
+          {
+            "upTo": 60,
+            "amount": "-10.00"
+          },
+          {
+            "upTo": null,
+            "amount": "-25.00"
+          }
+        ]
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_VE_VOLUME_DISCOUNT",
+      "country_id": "VE",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R_VOLUME_DISCOUNT",
+      "name": "Descuento por volumen (>50 clientes)",
+      "stage": "ADJUSTMENT",
+      "priority": 20,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "GT",
+        "left": "clientCount",
+        "right": 50
+      },
+      "expression": {
+        "op": "PERCENT",
+        "pct": "-0.03",
+        "base": {
+          "of": "RUNNING_SUBTOTAL"
+        }
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_VE_MAX_INCIDENT_FIXED",
+      "country_id": "VE",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R_INCIDENT_FIXED",
+      "name": "Recargo por incidente (fijo)",
+      "stage": "SURCHARGE",
+      "priority": 30,
+      "stacking": "MAX",
+      "exclusion_group": "incident_surcharge",
+      "conditions": {
+        "p": "GT",
+        "left": "custom:incidencias",
+        "right": 0
+      },
+      "expression": {
+        "op": "FIXED",
+        "amount": "15.00"
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_VE_MAX_INCIDENT_PER_UNIT",
+      "country_id": "VE",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R_INCIDENT_PER_UNIT",
+      "name": "Recargo por incidente (por incidente)",
+      "stage": "SURCHARGE",
+      "priority": 40,
+      "stacking": "MAX",
+      "exclusion_group": "incident_surcharge",
+      "conditions": {
+        "p": "GT",
+        "left": "custom:incidencias",
+        "right": 1
+      },
+      "expression": {
+        "op": "PER_UNIT",
+        "unit": "custom:incidencias",
+        "rate": "10.00"
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_VE_RECOLECTAS",
+      "country_id": "VE",
+      "scope": "PARTY",
+      "party_id": "CARRIER_VE_1",
+      "code": "R_RECOLECTAS",
+      "name": "Recolectas (Transporte Andino)",
+      "stage": "VARIABLE",
+      "priority": 60,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "GT",
+        "left": "custom:recolectas",
+        "right": 0
+      },
+      "expression": {
+        "op": "PER_UNIT",
+        "unit": "custom:recolectas",
+        "rate": "25.00"
+      },
+      "description": "Se cobran las recolectas atendidas en el viaje, a razón de 25.00 USD cada una.",
+      "reason": "Acuerdo comercial con Transporte Andino: recolecta posterior a la entrega.",
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_VE_ESPERA",
+      "country_id": "VE",
+      "scope": "PARTY",
+      "party_id": "CARRIER_VE_1",
+      "code": "R_ESPERA",
+      "name": "Horas de espera (Transporte Andino)",
+      "stage": "VARIABLE",
+      "priority": 61,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "GT",
+        "left": "custom:horas_espera",
+        "right": 0
+      },
+      "expression": {
+        "op": "PER_UNIT",
+        "unit": "custom:horas_espera",
+        "rate": "8.00"
+      },
+      "description": "Se cobran las horas de espera cargadas en el viaje, a razón de 8.00 USD cada hora.",
+      "reason": "Variable propia de la compañía: horas de espera en destino.",
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CO_R1",
+      "country_id": "CO",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R1",
+      "name": "Zona Bogotá → Medellín",
+      "stage": "BASE",
+      "priority": 10,
+      "stacking": "EXCLUSIVE",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "AND",
+        "args": [
+          {
+            "p": "EQ",
+            "left": "originZone",
+            "right": "BOG"
+          },
+          {
+            "p": "EQ",
+            "left": "destZone",
+            "right": "MED"
+          }
+        ]
+      },
+      "expression": {
+        "op": "FIXED",
+        "amount": "350.00"
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CO_R2",
+      "country_id": "CO",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R2",
+      "name": "Tarifa por cliente",
+      "stage": "VARIABLE",
+      "priority": 20,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "GT",
+        "left": "clientCount",
+        "right": 0
+      },
+      "expression": {
+        "op": "PER_UNIT",
+        "unit": "clientCount",
+        "rate": "1.50"
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CO_R3",
+      "country_id": "CO",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R3",
+      "name": "Servicio Express",
+      "stage": "MODIFIER",
+      "priority": 30,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "EQ",
+        "left": "serviceType",
+        "right": "EXPRESS"
+      },
+      "expression": {
+        "op": "FIXED",
+        "amount": "20.00"
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CO_ZONE_FALLBACK",
+      "country_id": "CO",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R_ZONE_FALLBACK",
+      "name": "Zona (tarifario ZONAS con respaldo por km)",
+      "stage": "BASE",
+      "priority": 50,
+      "stacking": "EXCLUSIVE",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "ALWAYS"
+      },
+      "expression": {
+        "op": "LOOKUP_TABLE",
+        "table": "ZONAS",
+        "fallback": {
+          "op": "PER_KM",
+          "rate": "1.00"
+        }
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CO_OVERNIGHT",
+      "country_id": "CO",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R_OVERNIGHT",
+      "name": "Pernocta",
+      "stage": "SURCHARGE",
+      "priority": 10,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "GT",
+        "left": "overnightNights",
+        "right": 0
+      },
+      "expression": {
+        "op": "PER_UNIT",
+        "unit": "overnightNights",
+        "rate": "12.00"
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CO_TOLLS",
+      "country_id": "CO",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R_TOLLS",
+      "name": "Peajes",
+      "stage": "SURCHARGE",
+      "priority": 20,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "GT",
+        "left": "custom:monto_peajes",
+        "right": 0
+      },
+      "expression": {
+        "op": "PER_UNIT",
+        "unit": "custom:monto_peajes",
+        "rate": "1"
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CO_LATE_PENALTY",
+      "country_id": "CO",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R_LATE_PENALTY",
+      "name": "Penalización por retraso",
+      "stage": "ADJUSTMENT",
+      "priority": 10,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "GT",
+        "left": "custom:minutos_atraso",
+        "right": 0
+      },
+      "expression": {
+        "op": "TIERED",
+        "unit": "custom:minutos_atraso",
+        "tiers": [
+          {
+            "upTo": 15,
+            "amount": "0.00"
+          },
+          {
+            "upTo": 60,
+            "amount": "-8.00"
+          },
+          {
+            "upTo": null,
+            "amount": "-20.00"
+          }
+        ]
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CO_VOLUME_DISCOUNT",
+      "country_id": "CO",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R_VOLUME_DISCOUNT",
+      "name": "Descuento por volumen (>50 clientes)",
+      "stage": "ADJUSTMENT",
+      "priority": 20,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "GT",
+        "left": "clientCount",
+        "right": 50
+      },
+      "expression": {
+        "op": "PERCENT",
+        "pct": "-0.04",
+        "base": {
+          "of": "RUNNING_SUBTOTAL"
+        }
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CO_MAX_INCIDENT_FIXED",
+      "country_id": "CO",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R_INCIDENT_FIXED",
+      "name": "Recargo por incidente (fijo)",
+      "stage": "SURCHARGE",
+      "priority": 30,
+      "stacking": "MAX",
+      "exclusion_group": "incident_surcharge",
+      "conditions": {
+        "p": "GT",
+        "left": "custom:incidencias",
+        "right": 0
+      },
+      "expression": {
+        "op": "FIXED",
+        "amount": "12.00"
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CO_MAX_INCIDENT_PER_UNIT",
+      "country_id": "CO",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R_INCIDENT_PER_UNIT",
+      "name": "Recargo por incidente (por incidente)",
+      "stage": "SURCHARGE",
+      "priority": 40,
+      "stacking": "MAX",
+      "exclusion_group": "incident_surcharge",
+      "conditions": {
+        "p": "GT",
+        "left": "custom:incidencias",
+        "right": 1
+      },
+      "expression": {
+        "op": "PER_UNIT",
+        "unit": "custom:incidencias",
+        "rate": "8.00"
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CO_MATERIAL_AVERIADO",
+      "country_id": "CO",
+      "scope": "PARTY",
+      "party_id": "CARRIER_CO_1",
+      "code": "R_MATERIAL_AVERIADO",
+      "name": "Descuento por material averiado (Transportes del Cauca)",
+      "stage": "ADJUSTMENT",
+      "priority": 15,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "GT",
+        "left": "custom:material_averiado",
+        "right": 0
+      },
+      "expression": {
+        "op": "PER_UNIT",
+        "unit": "custom:material_averiado",
+        "rate": "-15000"
+      },
+      "description": "Se descuentan 15.000 COP por cada unidad con material averiado reportada en el viaje.",
+      "reason": "Política de materiales averiados de Transportes del Cauca: varía por compañía, no es un caso especial del motor.",
+      "effect": "DECREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CO_ZONA_RIESGO",
+      "country_id": "CO",
+      "scope": "PARTY",
+      "party_id": "CARRIER_CO_1",
+      "code": "R_ZONA_RIESGO",
+      "name": "Recargo zona de riesgo (Transportes del Cauca)",
+      "stage": "SURCHARGE",
+      "priority": 25,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "EQ",
+        "left": "custom:zona_riesgo",
+        "right": "ALTA"
+      },
+      "expression": {
+        "op": "FIXED",
+        "amount": "50000"
+      },
+      "description": "Recargo fijo de 50.000 COP cuando el viaje se marca en zona de riesgo alta.",
+      "reason": "Acuerdo comercial: cobertura de seguridad en zonas de riesgo.",
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CO_PESO_ESCALON",
+      "country_id": "CO",
+      "scope": "PARTY",
+      "party_id": "CARRIER_CO_1",
+      "code": "R_PESO_ESCALON",
+      "name": "Tarifa por peso en escalones (Transportes del Cauca)",
+      "stage": "VARIABLE",
+      "priority": 35,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "GT",
+        "left": "weightKg",
+        "right": 0
+      },
+      "expression": {
+        "op": "TIERED",
+        "unit": "weightKg",
+        "mode": "RATE",
+        "tiers": [
+          {
+            "upTo": 500,
+            "amount": "50"
+          },
+          {
+            "upTo": 1500,
+            "amount": "80"
+          },
+          {
+            "upTo": null,
+            "amount": "100"
+          }
+        ]
+      },
+      "description": "Tarifa por kilo según el tramo de peso: el tramo fija la tarifa de todo el peso del viaje.",
+      "reason": "Contrato con Transportes del Cauca: escalón RATE por peso.",
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CO_PARADAS_PROGRESIVA",
+      "country_id": "CO",
+      "scope": "PARTY",
+      "party_id": "CARRIER_CO_1",
+      "code": "R_PARADAS_PROGRESIVA",
+      "name": "Recargo por paradas, marginal (Transportes del Cauca)",
+      "stage": "VARIABLE",
+      "priority": 36,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "GT",
+        "left": "clientCount",
+        "right": 0
+      },
+      "expression": {
+        "op": "TIERED",
+        "unit": "clientCount",
+        "mode": "PROGRESSIVE",
+        "tiers": [
+          {
+            "upTo": 5,
+            "amount": "2000"
+          },
+          {
+            "upTo": 15,
+            "amount": "1500"
+          },
+          {
+            "upTo": null,
+            "amount": "1000"
+          }
+        ]
+      },
+      "description": "Recargo por parada, marginal: cada tramo cobra solo las paradas que caen dentro de él.",
+      "reason": "Contrato con Transportes del Cauca: escalón PROGRESSIVE por paradas.",
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CR_R1",
+      "country_id": "CR",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R1",
+      "name": "Zona San José → Liberia",
+      "stage": "BASE",
+      "priority": 10,
+      "stacking": "EXCLUSIVE",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "AND",
+        "args": [
+          {
+            "p": "EQ",
+            "left": "originZone",
+            "right": "SJO"
+          },
+          {
+            "p": "EQ",
+            "left": "destZone",
+            "right": "LIB"
+          }
+        ]
+      },
+      "expression": {
+        "op": "FIXED",
+        "amount": "380.00"
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CR_R2",
+      "country_id": "CR",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R2",
+      "name": "Tarifa por cliente",
+      "stage": "VARIABLE",
+      "priority": 20,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "GT",
+        "left": "clientCount",
+        "right": 0
+      },
+      "expression": {
+        "op": "PER_UNIT",
+        "unit": "clientCount",
+        "rate": "1.80"
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CR_R3",
+      "country_id": "CR",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R3",
+      "name": "Servicio Express",
+      "stage": "MODIFIER",
+      "priority": 30,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "EQ",
+        "left": "serviceType",
+        "right": "EXPRESS"
+      },
+      "expression": {
+        "op": "FIXED",
+        "amount": "22.00"
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CR_ZONE_FALLBACK",
+      "country_id": "CR",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R_ZONE_FALLBACK",
+      "name": "Zona (tarifario ZONAS con respaldo por km)",
+      "stage": "BASE",
+      "priority": 50,
+      "stacking": "EXCLUSIVE",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "ALWAYS"
+      },
+      "expression": {
+        "op": "LOOKUP_TABLE",
+        "table": "ZONAS",
+        "fallback": {
+          "op": "PER_KM",
+          "rate": "1.30"
+        }
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CR_OVERNIGHT",
+      "country_id": "CR",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R_OVERNIGHT",
+      "name": "Pernocta",
+      "stage": "SURCHARGE",
+      "priority": 10,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "GT",
+        "left": "overnightNights",
+        "right": 0
+      },
+      "expression": {
+        "op": "PER_UNIT",
+        "unit": "overnightNights",
+        "rate": "18.00"
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CR_TOLLS",
+      "country_id": "CR",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R_TOLLS",
+      "name": "Peajes",
+      "stage": "SURCHARGE",
+      "priority": 20,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "GT",
+        "left": "custom:monto_peajes",
+        "right": 0
+      },
+      "expression": {
+        "op": "PER_UNIT",
+        "unit": "custom:monto_peajes",
+        "rate": "1"
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CR_LATE_PENALTY",
+      "country_id": "CR",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R_LATE_PENALTY",
+      "name": "Penalización por retraso",
+      "stage": "ADJUSTMENT",
+      "priority": 10,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "GT",
+        "left": "custom:minutos_atraso",
+        "right": 0
+      },
+      "expression": {
+        "op": "TIERED",
+        "unit": "custom:minutos_atraso",
+        "tiers": [
+          {
+            "upTo": 15,
+            "amount": "0.00"
+          },
+          {
+            "upTo": 60,
+            "amount": "-9.00"
+          },
+          {
+            "upTo": null,
+            "amount": "-22.00"
+          }
+        ]
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CR_VOLUME_DISCOUNT",
+      "country_id": "CR",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R_VOLUME_DISCOUNT",
+      "name": "Descuento por volumen (>50 clientes)",
+      "stage": "ADJUSTMENT",
+      "priority": 20,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "GT",
+        "left": "clientCount",
+        "right": 50
+      },
+      "expression": {
+        "op": "PERCENT",
+        "pct": "-0.035",
+        "base": {
+          "of": "RUNNING_SUBTOTAL"
+        }
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CR_MAX_INCIDENT_FIXED",
+      "country_id": "CR",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R_INCIDENT_FIXED",
+      "name": "Recargo por incidente (fijo)",
+      "stage": "SURCHARGE",
+      "priority": 30,
+      "stacking": "MAX",
+      "exclusion_group": "incident_surcharge",
+      "conditions": {
+        "p": "GT",
+        "left": "custom:incidencias",
+        "right": 0
+      },
+      "expression": {
+        "op": "FIXED",
+        "amount": "14.00"
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CR_MAX_INCIDENT_PER_UNIT",
+      "country_id": "CR",
+      "scope": "COUNTRY",
+      "party_id": null,
+      "code": "R_INCIDENT_PER_UNIT",
+      "name": "Recargo por incidente (por incidente)",
+      "stage": "SURCHARGE",
+      "priority": 40,
+      "stacking": "MAX",
+      "exclusion_group": "incident_surcharge",
+      "conditions": {
+        "p": "GT",
+        "left": "custom:incidencias",
+        "right": 1
+      },
+      "expression": {
+        "op": "PER_UNIT",
+        "unit": "custom:incidencias",
+        "rate": "9.00"
+      },
+      "description": null,
+      "reason": null,
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_VE_RECARGO_MINIMO",
+      "country_id": "VE",
+      "scope": "PARTY",
+      "party_id": "CARRIER_VE_2",
+      "code": "R_RECARGO_MINIMO",
+      "name": "Recargo por servicio, mínimo garantizado (Logística del Centro)",
+      "stage": "SURCHARGE",
+      "priority": 25,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "ALWAYS"
+      },
+      "expression": {
+        "op": "MAX",
+        "args": [
+          {
+            "op": "FIXED",
+            "amount": "20.00"
+          },
+          {
+            "op": "PER_UNIT",
+            "unit": "custom:recolectas",
+            "rate": "8.00"
+          }
+        ]
+      },
+      "description": "Recargo por servicio: el mayor entre 20.00 USD fijos y 8.00 USD por cada recolecta, para que nunca cobre menos que el piso.",
+      "reason": "Acuerdo comercial con Logística del Centro: piso de recargo por servicio.",
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_VE_RECARGO_TOPE",
+      "country_id": "VE",
+      "scope": "PARTY",
+      "party_id": "CARRIER_VE_2",
+      "code": "R_RECARGO_TOPE",
+      "name": "Recargo por gestión, con tope (Logística del Centro)",
+      "stage": "SURCHARGE",
+      "priority": 26,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "ALWAYS"
+      },
+      "expression": {
+        "op": "MIN",
+        "args": [
+          {
+            "op": "FIXED",
+            "amount": "40.00"
+          },
+          {
+            "op": "PER_UNIT",
+            "unit": "clientCount",
+            "rate": "2.00"
+          }
+        ]
+      },
+      "description": "Recargo por gestión: el menor entre 2.00 USD por cliente y un tope de 40.00 USD, para que nunca cobre más que el tope.",
+      "reason": "Acuerdo comercial con Logística del Centro: tope de recargo por gestión.",
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_VE_RECARGO_PESO_MIXTO",
+      "country_id": "VE",
+      "scope": "PARTY",
+      "party_id": "CARRIER_VE_2",
+      "code": "R_RECARGO_PESO_MIXTO",
+      "name": "Recargo por peso, mixto (Logística del Centro)",
+      "stage": "VARIABLE",
+      "priority": 65,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "ALWAYS"
+      },
+      "expression": {
+        "op": "IF",
+        "cond": {
+          "p": "GT",
+          "left": "weightKg",
+          "right": 800
+        },
+        "then": {
+          "op": "PER_UNIT",
+          "unit": "weightKg",
+          "rate": "0.05"
+        },
+        "else": {
+          "op": "FIXED",
+          "amount": "5.00"
+        }
+      },
+      "description": "Viajes pesados (>800 kg) pagan por kilo; los livianos pagan un fijo de 5.00 USD.",
+      "reason": "Acuerdo comercial con Logística del Centro: tarifa mixta según peso del viaje.",
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CO_ZONE_FALLBACK_CAUCA",
+      "country_id": "CO",
+      "scope": "PARTY",
+      "party_id": "CARRIER_CO_1",
+      "code": "R_ZONE_FALLBACK",
+      "name": "Zona (tarifario ZONAS, respaldo propio de Transportes del Cauca)",
+      "stage": "BASE",
+      "priority": 50,
+      "stacking": "EXCLUSIVE",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "ALWAYS"
+      },
+      "expression": {
+        "op": "LOOKUP_TABLE",
+        "table": "ZONAS",
+        "fallback": {
+          "op": "PER_KM",
+          "rate": "1.35"
+        }
+      },
+      "description": "Mismo código que la regla de país: la reemplaza sólo para Transportes del Cauca, con un respaldo por km más alto por su acuerdo comercial en lanes sin fila en el tarifario.",
+      "reason": "Acuerdo comercial con Transportes del Cauca: respaldo por km propio.",
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CO_PESO_BLOQUE",
+      "country_id": "CO",
+      "scope": "PARTY",
+      "party_id": "CARRIER_CO_2",
+      "code": "R_PESO_BLOQUE",
+      "name": "Recargo por bloques de peso (Andina Cargo)",
+      "stage": "VARIABLE",
+      "priority": 37,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "GT",
+        "left": "weightKg",
+        "right": 1000
+      },
+      "expression": {
+        "op": "PER_BLOCK",
+        "unit": "weightKg",
+        "blockSize": 500,
+        "amount": "18000"
+      },
+      "description": "Recargo de 18.000 COP por cada bloque completo de 500 kg, para viajes de más de 1.000 kg.",
+      "reason": "Acuerdo comercial con Andina Cargo: recargo por bloques de peso en cargas pesadas.",
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CR_REFRIGERACION",
+      "country_id": "CR",
+      "scope": "PARTY",
+      "party_id": "CARRIER_CR_1",
+      "code": "R_REFRIGERACION",
+      "name": "Refrigeración en tránsito, con tope (Transportes Guanacaste)",
+      "stage": "VARIABLE",
+      "priority": 62,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "GT",
+        "left": "custom:refrigeracion_horas",
+        "right": 0
+      },
+      "expression": {
+        "op": "CLAMP",
+        "value": {
+          "op": "PER_UNIT",
+          "unit": "custom:refrigeracion_horas",
+          "rate": "1200"
+        },
+        "max": "7200"
+      },
+      "description": "Se cobran 1.200 CRC por cada hora de refrigeración en tránsito, con un tope de 7.200 CRC por viaje (6 horas).",
+      "reason": "Variable propia de la compañía: horas de carga refrigerada, con tope por viaje.",
+      "effect": "INCREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": null,
+      "effective_to": null,
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    },
+    {
+      "id": "RULE_CR_PROMO_LANZAMIENTO",
+      "country_id": "CR",
+      "scope": "PARTY",
+      "party_id": "CARRIER_CR_2",
+      "code": "R_PROMO_LANZAMIENTO",
+      "name": "Promo de lanzamiento (Central Cargo CR)",
+      "stage": "ADJUSTMENT",
+      "priority": 5,
+      "stacking": "SUM",
+      "exclusion_group": null,
+      "conditions": {
+        "p": "ALWAYS"
+      },
+      "expression": {
+        "op": "FIXED",
+        "amount": "-8000"
+      },
+      "description": "Descuento de lanzamiento de 8.000 CRC, vigente solo noviembre-diciembre de 2025.",
+      "reason": "Promoción comercial de lanzamiento con Central Cargo CR, acordada por tiempo limitado.",
+      "effect": "DECREASE",
+      "builder": null,
+      "condition_builder": null,
+      "effective_from": "2025-11-01",
+      "effective_to": "2025-12-31",
+      "is_adhoc": false,
+      "active": true,
+      "version": 1
+    }
   ],
   "pricingTemplates": [
-    { "id": "TPL_VE_1", "country_id": "VE", "name": "Caracas → Carabobo Express 40 clientes", "trip": { "originLocationId": "Z_VE_CCS", "destLocationId": "Z_VE_CAR", "km": 180, "clientCount": 40, "packageCount": 40, "weightKg": 1200, "truckTypeId": "TT-350", "serviceType": "EXPRESS", "fleetType": "OWN", "carrierId": null, "customerId": null, "durationHours": 3, "tollsAmount": "0.00", "lateMinutes": 0, "incidentCount": 0 } },
-    { "id": "TPL_CO_1", "country_id": "CO", "name": "Bogotá → Medellín Express 30 clientes", "trip": { "originLocationId": "Z_CO_BOG", "destLocationId": "Z_CO_MED", "km": 415, "clientCount": 30, "packageCount": 30, "weightKg": 900, "truckTypeId": "TT-350", "serviceType": "EXPRESS", "fleetType": "OWN", "carrierId": null, "customerId": null, "durationHours": 8, "tollsAmount": "50000.00", "lateMinutes": 0, "incidentCount": 0 } },
-    { "id": "TPL_CR_1", "country_id": "CR", "name": "San José → Liberia Express 25 clientes", "trip": { "originLocationId": "Z_CR_SJO", "destLocationId": "Z_CR_LIB", "km": 220, "clientCount": 25, "packageCount": 25, "weightKg": 700, "truckTypeId": "TT-350", "serviceType": "EXPRESS", "fleetType": "OWN", "carrierId": null, "customerId": null, "durationHours": 4, "tollsAmount": "0.00", "lateMinutes": 0, "incidentCount": 0 } }
+    {
+      "id": "TPL_VE_1",
+      "country_id": "VE",
+      "name": "Caracas → Carabobo Express 40 clientes (flota propia)",
+      "trip": {
+        "partyId": "SP_VE_OWN",
+        "quotedAt": "2026-09-01T10:00:00.000Z",
+        "originLocationId": "Z_VE_CCS",
+        "destLocationId": "Z_VE_CAR",
+        "km": 180,
+        "clientCount": 40,
+        "weightKg": 1200,
+        "truckTypeId": "TT-350",
+        "serviceType": "EXPRESS",
+        "fleetType": "OWN",
+        "carrierId": null,
+        "customerId": null,
+        "durationHours": 3,
+        "expectedTotal": "718.67",
+        "customVars": {
+          "custom:bultos": 40
+        }
+      }
+    },
+    {
+      "id": "TPL_VE_2",
+      "country_id": "VE",
+      "name": "Carabobo → Caracas, recolectas y espera (Transporte Andino)",
+      "trip": {
+        "partyId": "CARRIER_VE_1",
+        "quotedAt": "2026-09-01T10:00:00.000Z",
+        "originLocationId": "Z_VE_CAR",
+        "destLocationId": "Z_VE_CCS",
+        "km": 180,
+        "clientCount": 40,
+        "weightKg": 1200,
+        "truckTypeId": "TT-350",
+        "serviceType": "STANDARD",
+        "fleetType": "OUTSOURCED",
+        "carrierId": "CARRIER_VE_1",
+        "driverId": "DRV_VE_1",
+        "customerId": null,
+        "durationHours": 4,
+        "customVars": {
+          "custom:horas_espera": 3,
+          "custom:peajes": 3,
+          "custom:monto_peajes": 18,
+          "custom:recolectas": 2,
+          "custom:bultos": 120
+        },
+        "expectedTotal": "672.00"
+      }
+    },
+    {
+      "id": "TPL_VE_3",
+      "country_id": "VE",
+      "name": "Táchira → Caracas, tarifario con comodín (Transporte Andino)",
+      "trip": {
+        "partyId": "CARRIER_VE_1",
+        "quotedAt": "2026-09-01T10:00:00.000Z",
+        "originLocationId": "Z_VE_TAC",
+        "destLocationId": "Z_VE_CCS",
+        "km": 640,
+        "clientCount": 15,
+        "weightKg": 500,
+        "truckTypeId": "TT-350",
+        "serviceType": "STANDARD",
+        "fleetType": "OUTSOURCED",
+        "carrierId": "CARRIER_VE_1",
+        "driverId": "DRV_VE_1",
+        "customerId": null,
+        "durationHours": 10,
+        "customVars": {
+          "custom:horas_espera": 0,
+          "custom:peajes": 4,
+          "custom:monto_peajes": 24,
+          "custom:bultos": 40
+        },
+        "expectedTotal": "604.00"
+      }
+    },
+    {
+      "id": "TPL_CO_1",
+      "country_id": "CO",
+      "name": "Bogotá → Medellín Express 30 clientes, sin tolerancia de costo por km (flota propia)",
+      "trip": {
+        "partyId": "SP_CO_OWN",
+        "quotedAt": "2026-09-01T10:00:00.000Z",
+        "originLocationId": "Z_CO_BOG",
+        "destLocationId": "Z_CO_MED",
+        "km": 415,
+        "clientCount": 30,
+        "weightKg": 900,
+        "truckTypeId": "TT-350",
+        "serviceType": "EXPRESS",
+        "fleetType": "OWN",
+        "carrierId": null,
+        "customerId": null,
+        "durationHours": 8,
+        "expectedTotal": "1068",
+        "customVars": {
+          "custom:bultos": 30
+        }
+      }
+    },
+    {
+      "id": "TPL_CO_2",
+      "country_id": "CO",
+      "name": "Medellín → Bogotá, sin fila propia (Andina Cargo)",
+      "trip": {
+        "partyId": "CARRIER_CO_2",
+        "quotedAt": "2026-09-01T10:00:00.000Z",
+        "originLocationId": "Z_CO_MED",
+        "destLocationId": "Z_CO_BOG",
+        "km": 415,
+        "clientCount": 20,
+        "weightKg": 600,
+        "truckTypeId": "TT-350",
+        "serviceType": "STANDARD",
+        "fleetType": "OUTSOURCED",
+        "carrierId": "CARRIER_CO_2",
+        "customerId": null,
+        "durationHours": 8,
+        "expectedTotal": "445",
+        "customVars": {
+          "custom:bultos": 20
+        }
+      }
+    },
+    {
+      "id": "TPL_CO_3",
+      "country_id": "CO",
+      "name": "Bogotá → Medellín, variables propias y escalones (Transportes del Cauca)",
+      "trip": {
+        "partyId": "CARRIER_CO_1",
+        "quotedAt": "2026-09-01T10:00:00.000Z",
+        "originLocationId": "Z_CO_BOG",
+        "destLocationId": "Z_CO_MED",
+        "km": 415,
+        "clientCount": 12,
+        "weightKg": 1200,
+        "truckTypeId": "TT-350",
+        "serviceType": "STANDARD",
+        "fleetType": "OUTSOURCED",
+        "carrierId": "CARRIER_CO_1",
+        "customerId": null,
+        "durationHours": 8,
+        "customVars": {
+          "custom:material_averiado": 2,
+          "custom:zona_riesgo": "ALTA",
+          "custom:bultos": 12
+        },
+        "expectedTotal": "136868"
+      }
+    },
+    {
+      "id": "TPL_CR_1",
+      "country_id": "CR",
+      "name": "San José → Liberia Express 25 clientes (flota propia)",
+      "trip": {
+        "partyId": "SP_CR_OWN",
+        "quotedAt": "2026-09-01T10:00:00.000Z",
+        "originLocationId": "Z_CR_SJO",
+        "destLocationId": "Z_CR_LIB",
+        "km": 220,
+        "clientCount": 25,
+        "weightKg": 700,
+        "truckTypeId": "TT-350",
+        "serviceType": "EXPRESS",
+        "fleetType": "OWN",
+        "carrierId": null,
+        "customerId": null,
+        "durationHours": 4,
+        "expectedTotal": "746.39",
+        "customVars": {
+          "custom:bultos": 25
+        }
+      }
+    },
+    {
+      "id": "TPL_CR_2",
+      "country_id": "CR",
+      "name": "San José → Liberia, promo vigente (Central Cargo CR, dic 2025)",
+      "trip": {
+        "partyId": "CARRIER_CR_2",
+        "quotedAt": "2025-12-10T09:00:00.000Z",
+        "originLocationId": "Z_CR_SJO",
+        "destLocationId": "Z_CR_LIB",
+        "km": 220,
+        "clientCount": 25,
+        "weightKg": 700,
+        "truckTypeId": "TT-350",
+        "serviceType": "STANDARD",
+        "fleetType": "OUTSOURCED",
+        "carrierId": "CARRIER_CR_2",
+        "customerId": null,
+        "durationHours": 4,
+        "expectedTotal": "4425.00",
+        "customVars": {
+          "custom:peajes": 2,
+          "custom:monto_peajes": 12000,
+          "custom:bultos": 25
+        }
+      }
+    },
+    {
+      "id": "TPL_CR_3",
+      "country_id": "CR",
+      "name": "San José → Liberia, promo vencida (Central Cargo CR, 2026)",
+      "trip": {
+        "partyId": "CARRIER_CR_2",
+        "quotedAt": "2026-09-01T09:00:00.000Z",
+        "originLocationId": "Z_CR_SJO",
+        "destLocationId": "Z_CR_LIB",
+        "km": 220,
+        "clientCount": 25,
+        "weightKg": 700,
+        "truckTypeId": "TT-350",
+        "serviceType": "STANDARD",
+        "fleetType": "OUTSOURCED",
+        "carrierId": "CARRIER_CR_2",
+        "customerId": null,
+        "durationHours": 4,
+        "expectedTotal": "12425.00",
+        "customVars": {
+          "custom:peajes": 2,
+          "custom:monto_peajes": 12000,
+          "custom:bultos": 25
+        }
+      }
+    }
   ],
-  "testCarriers": [
-    { "id": "CARRIER_VE_1", "name": "Transporte Andino (VE)" },
-    { "id": "CARRIER_VE_2", "name": "Logística del Centro (VE)" },
-    { "id": "CARRIER_CO_1", "name": "Transportes del Cauca (CO)" },
-    { "id": "CARRIER_CO_2", "name": "Andina Cargo (CO)" },
-    { "id": "CARRIER_CR_1", "name": "Transportes Guanacaste (CR)" },
-    { "id": "CARRIER_CR_2", "name": "Central Cargo CR (CR)" }
+  "settlementParties": [
+    {
+      "id": "SP_VE_OWN",
+      "carrier_id": "SP_VE_OWN",
+      "status": "active",
+      "notes": "Flota propia — costeada contra la estructura de costos (CSTR_VE_OWN), no contra tarifa de tercero."
+    },
+    {
+      "id": "CARRIER_VE_1",
+      "carrier_id": "CARRIER_VE_1",
+      "status": "active",
+      "notes": null
+    },
+    {
+      "id": "CARRIER_VE_2",
+      "carrier_id": "CARRIER_VE_2",
+      "status": "active",
+      "notes": null
+    },
+    {
+      "id": "SP_CO_OWN",
+      "carrier_id": "SP_CO_OWN",
+      "status": "active",
+      "notes": "Deliberadamente sin catálogo de vehículos: demuestra el borde C8 (catálogo vacío avisa, no rompe)."
+    },
+    {
+      "id": "CARRIER_CO_1",
+      "carrier_id": "CARRIER_CO_1",
+      "status": "active",
+      "notes": null
+    },
+    {
+      "id": "CARRIER_CO_2",
+      "carrier_id": "CARRIER_CO_2",
+      "status": "active",
+      "notes": null
+    },
+    {
+      "id": "SP_CR_OWN",
+      "carrier_id": "SP_CR_OWN",
+      "status": "active",
+      "notes": null
+    },
+    {
+      "id": "CARRIER_CR_1",
+      "carrier_id": "CARRIER_CR_1",
+      "status": "active",
+      "notes": null
+    },
+    {
+      "id": "CARRIER_CR_2",
+      "carrier_id": "CARRIER_CR_2",
+      "status": "active",
+      "notes": null
+    }
   ],
-  "ownCostParams": [
-    { "id": "OWN_VE", "country_id": "VE", "cost_per_km": "1.10", "depreciation_per_km": "0.18", "driver_daily": "35.00" },
-    { "id": "OWN_CO", "country_id": "CO", "cost_per_km": "0.95", "depreciation_per_km": "0.15", "driver_daily": "28.00" },
-    { "id": "OWN_CR", "country_id": "CR", "cost_per_km": "1.05", "depreciation_per_km": "0.20", "driver_daily": "40.00" }
+  "partyVariables": [
+    {
+      "id": "PV_VE1_ESPERA",
+      "party_id": "CARRIER_VE_1",
+      "key": "custom:horas_espera",
+      "label": "Horas de espera",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "horas",
+      "active": true
+    },
+    {
+      "id": "PV_CO1_AVERIADO",
+      "party_id": "CARRIER_CO_1",
+      "key": "custom:material_averiado",
+      "label": "Unidades con material averiado",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "unidades",
+      "active": true
+    },
+    {
+      "id": "PV_CO1_RIESGO",
+      "party_id": "CARRIER_CO_1",
+      "key": "custom:zona_riesgo",
+      "label": "Zona de riesgo",
+      "kind": "TEXT",
+      "origin": "PER_TRIP",
+      "default_value": "",
+      "unit": null,
+      "active": true
+    },
+    {
+      "id": "PV_CR1_REFRIGERACION",
+      "party_id": "CARRIER_CR_1",
+      "key": "custom:refrigeracion_horas",
+      "label": "Horas de refrigeración",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "horas",
+      "active": true
+    },
+    {
+      "id": "PV_SP_VE_OWN_MONTO_PEAJES",
+      "party_id": "SP_VE_OWN",
+      "key": "custom:monto_peajes",
+      "label": "Monto de peajes",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "moneda",
+      "active": true
+    },
+    {
+      "id": "PV_SP_VE_OWN_MINUTOS_ATRASO",
+      "party_id": "SP_VE_OWN",
+      "key": "custom:minutos_atraso",
+      "label": "Minutos de atraso",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "min",
+      "active": true
+    },
+    {
+      "id": "PV_SP_VE_OWN_INCIDENCIAS",
+      "party_id": "SP_VE_OWN",
+      "key": "custom:incidencias",
+      "label": "Incidencias",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "incidencias",
+      "active": true
+    },
+    {
+      "id": "PV_CARRIER_VE_1_MONTO_PEAJES",
+      "party_id": "CARRIER_VE_1",
+      "key": "custom:monto_peajes",
+      "label": "Monto de peajes",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "moneda",
+      "active": true
+    },
+    {
+      "id": "PV_CARRIER_VE_1_MINUTOS_ATRASO",
+      "party_id": "CARRIER_VE_1",
+      "key": "custom:minutos_atraso",
+      "label": "Minutos de atraso",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "min",
+      "active": true
+    },
+    {
+      "id": "PV_CARRIER_VE_1_INCIDENCIAS",
+      "party_id": "CARRIER_VE_1",
+      "key": "custom:incidencias",
+      "label": "Incidencias",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "incidencias",
+      "active": true
+    },
+    {
+      "id": "PV_CARRIER_VE_1_RECOLECTAS",
+      "party_id": "CARRIER_VE_1",
+      "key": "custom:recolectas",
+      "label": "Recolectas",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "recolectas",
+      "active": true
+    },
+    {
+      "id": "PV_CARRIER_VE_2_MONTO_PEAJES",
+      "party_id": "CARRIER_VE_2",
+      "key": "custom:monto_peajes",
+      "label": "Monto de peajes",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "moneda",
+      "active": true
+    },
+    {
+      "id": "PV_CARRIER_VE_2_MINUTOS_ATRASO",
+      "party_id": "CARRIER_VE_2",
+      "key": "custom:minutos_atraso",
+      "label": "Minutos de atraso",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "min",
+      "active": true
+    },
+    {
+      "id": "PV_CARRIER_VE_2_INCIDENCIAS",
+      "party_id": "CARRIER_VE_2",
+      "key": "custom:incidencias",
+      "label": "Incidencias",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "incidencias",
+      "active": true
+    },
+    {
+      "id": "PV_CARRIER_VE_2_RECOLECTAS",
+      "party_id": "CARRIER_VE_2",
+      "key": "custom:recolectas",
+      "label": "Recolectas",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "recolectas",
+      "active": true
+    },
+    {
+      "id": "PV_SP_CO_OWN_MONTO_PEAJES",
+      "party_id": "SP_CO_OWN",
+      "key": "custom:monto_peajes",
+      "label": "Monto de peajes",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "moneda",
+      "active": true
+    },
+    {
+      "id": "PV_SP_CO_OWN_MINUTOS_ATRASO",
+      "party_id": "SP_CO_OWN",
+      "key": "custom:minutos_atraso",
+      "label": "Minutos de atraso",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "min",
+      "active": true
+    },
+    {
+      "id": "PV_SP_CO_OWN_INCIDENCIAS",
+      "party_id": "SP_CO_OWN",
+      "key": "custom:incidencias",
+      "label": "Incidencias",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "incidencias",
+      "active": true
+    },
+    {
+      "id": "PV_CARRIER_CO_1_MONTO_PEAJES",
+      "party_id": "CARRIER_CO_1",
+      "key": "custom:monto_peajes",
+      "label": "Monto de peajes",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "moneda",
+      "active": true
+    },
+    {
+      "id": "PV_CARRIER_CO_1_MINUTOS_ATRASO",
+      "party_id": "CARRIER_CO_1",
+      "key": "custom:minutos_atraso",
+      "label": "Minutos de atraso",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "min",
+      "active": true
+    },
+    {
+      "id": "PV_CARRIER_CO_1_INCIDENCIAS",
+      "party_id": "CARRIER_CO_1",
+      "key": "custom:incidencias",
+      "label": "Incidencias",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "incidencias",
+      "active": true
+    },
+    {
+      "id": "PV_CARRIER_CO_2_MONTO_PEAJES",
+      "party_id": "CARRIER_CO_2",
+      "key": "custom:monto_peajes",
+      "label": "Monto de peajes",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "moneda",
+      "active": true
+    },
+    {
+      "id": "PV_CARRIER_CO_2_MINUTOS_ATRASO",
+      "party_id": "CARRIER_CO_2",
+      "key": "custom:minutos_atraso",
+      "label": "Minutos de atraso",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "min",
+      "active": true
+    },
+    {
+      "id": "PV_CARRIER_CO_2_INCIDENCIAS",
+      "party_id": "CARRIER_CO_2",
+      "key": "custom:incidencias",
+      "label": "Incidencias",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "incidencias",
+      "active": true
+    },
+    {
+      "id": "PV_SP_CR_OWN_MONTO_PEAJES",
+      "party_id": "SP_CR_OWN",
+      "key": "custom:monto_peajes",
+      "label": "Monto de peajes",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "moneda",
+      "active": true
+    },
+    {
+      "id": "PV_SP_CR_OWN_MINUTOS_ATRASO",
+      "party_id": "SP_CR_OWN",
+      "key": "custom:minutos_atraso",
+      "label": "Minutos de atraso",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "min",
+      "active": true
+    },
+    {
+      "id": "PV_SP_CR_OWN_INCIDENCIAS",
+      "party_id": "SP_CR_OWN",
+      "key": "custom:incidencias",
+      "label": "Incidencias",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "incidencias",
+      "active": true
+    },
+    {
+      "id": "PV_CARRIER_CR_1_MONTO_PEAJES",
+      "party_id": "CARRIER_CR_1",
+      "key": "custom:monto_peajes",
+      "label": "Monto de peajes",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "moneda",
+      "active": true
+    },
+    {
+      "id": "PV_CARRIER_CR_1_MINUTOS_ATRASO",
+      "party_id": "CARRIER_CR_1",
+      "key": "custom:minutos_atraso",
+      "label": "Minutos de atraso",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "min",
+      "active": true
+    },
+    {
+      "id": "PV_CARRIER_CR_1_INCIDENCIAS",
+      "party_id": "CARRIER_CR_1",
+      "key": "custom:incidencias",
+      "label": "Incidencias",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "incidencias",
+      "active": true
+    },
+    {
+      "id": "PV_CARRIER_CR_2_MONTO_PEAJES",
+      "party_id": "CARRIER_CR_2",
+      "key": "custom:monto_peajes",
+      "label": "Monto de peajes",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "moneda",
+      "active": true
+    },
+    {
+      "id": "PV_CARRIER_CR_2_MINUTOS_ATRASO",
+      "party_id": "CARRIER_CR_2",
+      "key": "custom:minutos_atraso",
+      "label": "Minutos de atraso",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "min",
+      "active": true
+    },
+    {
+      "id": "PV_CARRIER_CR_2_INCIDENCIAS",
+      "party_id": "CARRIER_CR_2",
+      "key": "custom:incidencias",
+      "label": "Incidencias",
+      "kind": "NUMBER",
+      "origin": "PER_TRIP",
+      "default_value": "0",
+      "unit": "incidencias",
+      "active": true
+    }
   ],
-  "outsourcedCostRates": [
-    { "id": "OSR_VE_1", "country_id": "VE", "carrier_id": "CARRIER_VE_1", "truck_type_id": "TT-350", "flat_rate": "420.00" },
-    { "id": "OSR_VE_2", "country_id": "VE", "carrier_id": "CARRIER_VE_2", "truck_type_id": "TT-750", "flat_rate": "650.00" },
-    { "id": "OSR_CO_1", "country_id": "CO", "carrier_id": "CARRIER_CO_1", "truck_type_id": "TT-350", "flat_rate": "300.00" },
-    { "id": "OSR_CO_2", "country_id": "CO", "carrier_id": "CARRIER_CO_2", "truck_type_id": "TT-750", "flat_rate": "480.00" },
-    { "id": "OSR_CR_1", "country_id": "CR", "carrier_id": "CARRIER_CR_1", "truck_type_id": "TT-350", "flat_rate": "360.00" },
-    { "id": "OSR_CR_2", "country_id": "CR", "carrier_id": "CARRIER_CR_2", "truck_type_id": "TT-750", "flat_rate": "560.00" }
+  "settlements": [],
+  "costStructures": [
+    {
+      "id": "CSTR_VE_OWN",
+      "party_id": "SP_VE_OWN",
+      "country_id": "VE",
+      "name": "Estructura de costos — Flota Propia Venezuela",
+      "operating_days_per_month": 30,
+      "effective_from": null,
+      "active": true,
+      "notes": null,
+      "params": {
+        "kmPerYear": null,
+        "fuelPrice": null,
+        "fuelEfficiency": {}
+      }
+    },
+    {
+      "id": "CSTR_CO_OWN",
+      "party_id": "SP_CO_OWN",
+      "country_id": "CO",
+      "name": "Estructura de costos — Flota Propia Colombia",
+      "operating_days_per_month": 26,
+      "effective_from": null,
+      "active": true,
+      "notes": null,
+      "params": {
+        "kmPerYear": null,
+        "fuelPrice": null,
+        "fuelEfficiency": {}
+      }
+    },
+    {
+      "id": "CSTR_CR_OWN",
+      "party_id": "SP_CR_OWN",
+      "country_id": "CR",
+      "name": "Estructura de costos — Flota Propia Costa Rica",
+      "operating_days_per_month": 30,
+      "effective_from": null,
+      "active": true,
+      "notes": "Mismos cuatro componentes y la misma proporción entre ellos que el archivo real del cliente (Estructura_Costos_Transporte.xlsx: conductor, ayudante, depreciación y mantenimiento por km del camión activo T3 3-4.5 Ton), reescalados a los montos de este tarifario de demo.",
+      "params": {
+        "kmPerYear": null,
+        "fuelPrice": null,
+        "fuelEfficiency": {}
+      }
+    },
+    {
+      "id": "CSTR_VE_DEFAULT",
+      "party_id": null,
+      "country_id": "VE",
+      "name": "Costos de flota propia — por defecto (VE)",
+      "operating_days_per_month": 30,
+      "params": {
+        "kmPerYear": null,
+        "fuelPrice": null,
+        "fuelEfficiency": {}
+      },
+      "effective_from": null,
+      "active": true,
+      "notes": "Convertida de los parámetros de costo por país."
+    },
+    {
+      "id": "CSTR_CO_DEFAULT",
+      "party_id": null,
+      "country_id": "CO",
+      "name": "Costos de flota propia — por defecto (CO)",
+      "operating_days_per_month": 30,
+      "params": {
+        "kmPerYear": null,
+        "fuelPrice": null,
+        "fuelEfficiency": {}
+      },
+      "effective_from": null,
+      "active": true,
+      "notes": "Convertida de los parámetros de costo por país."
+    },
+    {
+      "id": "CSTR_CR_DEFAULT",
+      "party_id": null,
+      "country_id": "CR",
+      "name": "Costos de flota propia — por defecto (CR)",
+      "operating_days_per_month": 30,
+      "params": {
+        "kmPerYear": null,
+        "fuelPrice": null,
+        "fuelEfficiency": {}
+      },
+      "effective_from": null,
+      "active": true,
+      "notes": "Convertida de los parámetros de costo por país."
+    }
+  ],
+  "costStructureRows": [
+    {
+      "id": "CROW_VE_1",
+      "structure_id": "CSTR_VE_OWN",
+      "code": "SALARIO_CHOFER",
+      "label": "Nómina del conductor",
+      "driver": "PER_MONTH_PRORATED",
+      "amount": "350",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": "USD/mes",
+      "row_order": 1,
+      "active": true
+    },
+    {
+      "id": "CROW_VE_2",
+      "structure_id": "CSTR_VE_OWN",
+      "code": "PRESTACIONES",
+      "label": "Prestaciones sociales",
+      "driver": "PER_MONTH_PRORATED",
+      "amount": "90",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": "USD/mes",
+      "row_order": 2,
+      "active": true
+    },
+    {
+      "id": "CROW_VE_3",
+      "structure_id": "CSTR_VE_OWN",
+      "code": "VIATICOS",
+      "label": "Viáticos del conductor",
+      "driver": "PER_DAY",
+      "amount": "20",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": "USD/día",
+      "row_order": 3,
+      "active": true
+    },
+    {
+      "id": "CROW_VE_4",
+      "structure_id": "CSTR_VE_OWN",
+      "code": "COMBUSTIBLE",
+      "label": "Combustible",
+      "driver": "PER_KM",
+      "amount": "0.35",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": "USD/km",
+      "row_order": 4,
+      "active": true
+    },
+    {
+      "id": "CROW_VE_5",
+      "structure_id": "CSTR_VE_OWN",
+      "code": "DEPRECIACION",
+      "label": "Depreciación del camión",
+      "driver": "PER_KM",
+      "amount": "0.15",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": "USD/km",
+      "row_order": 5,
+      "active": true
+    },
+    {
+      "id": "CROW_VE_6",
+      "structure_id": "CSTR_VE_OWN",
+      "code": "GASTOS_VIAJE",
+      "label": "Gastos fijos por viaje",
+      "driver": "FIXED",
+      "amount": "15",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": "USD/viaje",
+      "row_order": 6,
+      "active": true
+    },
+    {
+      "id": "CROW_VE_7",
+      "structure_id": "CSTR_VE_OWN",
+      "code": "MANTENIMIENTO",
+      "label": "Mantenimiento por parada",
+      "driver": "PER_CLIENT",
+      "amount": "1.5",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": "USD/parada",
+      "row_order": 7,
+      "active": true
+    },
+    {
+      "id": "CROW_VE_9",
+      "structure_id": "CSTR_VE_OWN",
+      "code": "COORDINACION",
+      "label": "Coordinación y torre de control",
+      "driver": "PER_HOUR",
+      "amount": "3",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": "USD/hora",
+      "row_order": 9,
+      "active": true
+    },
+    {
+      "id": "CROW_VE_10",
+      "structure_id": "CSTR_VE_OWN",
+      "code": "RECARGO_CABEZAL",
+      "label": "Depreciación adicional (cabezal T3 / TT-750)",
+      "driver": "PER_KM",
+      "amount": "0.10",
+      "sign": "ADD",
+      "applies_when": {
+        "p": "EQ",
+        "left": "truckTypeId",
+        "right": "TT-750"
+      },
+      "unit": "USD/km",
+      "row_order": 10,
+      "active": true
+    },
+    {
+      "id": "CROW_CO_1",
+      "structure_id": "CSTR_CO_OWN",
+      "code": "SALARIO_CHOFER",
+      "label": "Nómina del conductor",
+      "driver": "PER_MONTH_PRORATED",
+      "amount": "700",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": "COP/mes",
+      "row_order": 1,
+      "active": true
+    },
+    {
+      "id": "CROW_CO_2",
+      "structure_id": "CSTR_CO_OWN",
+      "code": "PRESTACIONES",
+      "label": "Prestaciones sociales",
+      "driver": "PER_MONTH_PRORATED",
+      "amount": "180",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": "COP/mes",
+      "row_order": 2,
+      "active": true
+    },
+    {
+      "id": "CROW_CO_3",
+      "structure_id": "CSTR_CO_OWN",
+      "code": "VIATICOS",
+      "label": "Viáticos del conductor",
+      "driver": "PER_DAY",
+      "amount": "25",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": "COP/día",
+      "row_order": 3,
+      "active": true
+    },
+    {
+      "id": "CROW_CO_4",
+      "structure_id": "CSTR_CO_OWN",
+      "code": "COMBUSTIBLE",
+      "label": "Combustible",
+      "driver": "PER_KM",
+      "amount": "0.90",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": "COP/km",
+      "row_order": 4,
+      "active": true
+    },
+    {
+      "id": "CROW_CO_5",
+      "structure_id": "CSTR_CO_OWN",
+      "code": "DEPRECIACION",
+      "label": "Depreciación del camión",
+      "driver": "PER_KM",
+      "amount": "0.35",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": "COP/km",
+      "row_order": 5,
+      "active": true
+    },
+    {
+      "id": "CROW_CO_6",
+      "structure_id": "CSTR_CO_OWN",
+      "code": "GASTOS_VIAJE",
+      "label": "Gastos fijos por viaje (peajes internos, papelería)",
+      "driver": "FIXED",
+      "amount": "15",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": "COP/viaje",
+      "row_order": 6,
+      "active": true
+    },
+    {
+      "id": "CROW_CO_7",
+      "structure_id": "CSTR_CO_OWN",
+      "code": "MANTENIMIENTO",
+      "label": "Mantenimiento por parada",
+      "driver": "PER_CLIENT",
+      "amount": "1.2",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": "COP/parada",
+      "row_order": 7,
+      "active": true
+    },
+    {
+      "id": "CROW_CO_9",
+      "structure_id": "CSTR_CO_OWN",
+      "code": "COORDINACION",
+      "label": "Coordinación y torre de control",
+      "driver": "PER_HOUR",
+      "amount": "3",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": "COP/hora",
+      "row_order": 9,
+      "active": true
+    },
+    {
+      "id": "CROW_CR_1",
+      "structure_id": "CSTR_CR_OWN",
+      "code": "COSTOS_CONDUCTOR",
+      "label": "Costos del conductor (salario, aguinaldo, seguro, marchamo, DEKRA, uniforme), a escala de este tarifario",
+      "driver": "PER_MONTH_PRORATED",
+      "amount": "5200",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": "CRC/mes",
+      "row_order": 1,
+      "active": true
+    },
+    {
+      "id": "CROW_CR_2",
+      "structure_id": "CSTR_CR_OWN",
+      "code": "COSTOS_AYUDANTE",
+      "label": "Costos del ayudante (salario, aguinaldo), a escala de este tarifario",
+      "driver": "PER_MONTH_PRORATED",
+      "amount": "4200",
+      "sign": "ADD",
+      "applies_when": {
+        "p": "EQ",
+        "left": "truckTypeId",
+        "right": "TT-750"
+      },
+      "unit": "CRC/mes",
+      "row_order": 2,
+      "active": true
+    },
+    {
+      "id": "CROW_CR_3",
+      "structure_id": "CSTR_CR_OWN",
+      "code": "DEPRECIACION",
+      "label": "Depreciación mensual (camión activo T3, 3-4.5 Ton), a escala de este tarifario",
+      "driver": "PER_MONTH_PRORATED",
+      "amount": "1550",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": "CRC/mes",
+      "row_order": 3,
+      "active": true
+    },
+    {
+      "id": "CROW_CR_4",
+      "structure_id": "CSTR_CR_OWN",
+      "code": "MANTENIMIENTO",
+      "label": "Mantenimiento por km (componentes del camión activo T3), a escala de este tarifario",
+      "driver": "PER_KM",
+      "amount": "0.27",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": "CRC/km",
+      "row_order": 4,
+      "active": true
+    },
+    {
+      "id": "CROW_CR_5",
+      "structure_id": "CSTR_CR_OWN",
+      "code": "GASTOS_VIAJE",
+      "label": "Gastos administrativos por viaje",
+      "driver": "FIXED",
+      "amount": "15",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": "CRC/viaje",
+      "row_order": 5,
+      "active": true
+    },
+    {
+      "id": "CROW_VE_DEF_1",
+      "structure_id": "CSTR_VE_DEFAULT",
+      "code": "COSTO_KM",
+      "label": "Costo operativo por km",
+      "driver": "PER_KM",
+      "amount": "1.10",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": null,
+      "row_order": 1,
+      "active": true
+    },
+    {
+      "id": "CROW_VE_DEF_2",
+      "structure_id": "CSTR_VE_DEFAULT",
+      "code": "DEPRECIACION_KM",
+      "label": "Depreciación por km",
+      "driver": "PER_KM",
+      "amount": "0.18",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": null,
+      "row_order": 2,
+      "active": true
+    },
+    {
+      "id": "CROW_VE_DEF_3",
+      "structure_id": "CSTR_VE_DEFAULT",
+      "code": "CHOFER_DIA",
+      "label": "Chofer (por día)",
+      "driver": "PER_DAY",
+      "amount": "35.00",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": null,
+      "row_order": 3,
+      "active": true
+    },
+    {
+      "id": "CROW_CO_DEF_1",
+      "structure_id": "CSTR_CO_DEFAULT",
+      "code": "COSTO_KM",
+      "label": "Costo operativo por km",
+      "driver": "PER_KM",
+      "amount": "0.95",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": null,
+      "row_order": 1,
+      "active": true
+    },
+    {
+      "id": "CROW_CO_DEF_2",
+      "structure_id": "CSTR_CO_DEFAULT",
+      "code": "DEPRECIACION_KM",
+      "label": "Depreciación por km",
+      "driver": "PER_KM",
+      "amount": "0.15",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": null,
+      "row_order": 2,
+      "active": true
+    },
+    {
+      "id": "CROW_CO_DEF_3",
+      "structure_id": "CSTR_CO_DEFAULT",
+      "code": "CHOFER_DIA",
+      "label": "Chofer (por día)",
+      "driver": "PER_DAY",
+      "amount": "28.00",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": null,
+      "row_order": 3,
+      "active": true
+    },
+    {
+      "id": "CROW_CR_DEF_1",
+      "structure_id": "CSTR_CR_DEFAULT",
+      "code": "COSTO_KM",
+      "label": "Costo operativo por km",
+      "driver": "PER_KM",
+      "amount": "1.05",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": null,
+      "row_order": 1,
+      "active": true
+    },
+    {
+      "id": "CROW_CR_DEF_2",
+      "structure_id": "CSTR_CR_DEFAULT",
+      "code": "DEPRECIACION_KM",
+      "label": "Depreciación por km",
+      "driver": "PER_KM",
+      "amount": "0.20",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": null,
+      "row_order": 2,
+      "active": true
+    },
+    {
+      "id": "CROW_CR_DEF_3",
+      "structure_id": "CSTR_CR_DEFAULT",
+      "code": "CHOFER_DIA",
+      "label": "Chofer (por día)",
+      "driver": "PER_DAY",
+      "amount": "40.00",
+      "sign": "ADD",
+      "applies_when": null,
+      "unit": null,
+      "row_order": 3,
+      "active": true
+    }
+  ],
+  "rateTables": [
+    {
+      "id": "RT_ZONAS_VE",
+      "country_id": "VE",
+      "party_id": null,
+      "code": "ZONAS",
+      "name": "Tarifas por zona",
+      "key_columns": [
+        "originZone",
+        "destZone"
+      ],
+      "active": true
+    },
+    {
+      "id": "RT_ZONAS_CO",
+      "country_id": "CO",
+      "party_id": null,
+      "code": "ZONAS",
+      "name": "Tarifas por zona",
+      "key_columns": [
+        "originZone",
+        "destZone"
+      ],
+      "active": true
+    },
+    {
+      "id": "RT_ZONAS_CR",
+      "country_id": "CR",
+      "party_id": null,
+      "code": "ZONAS",
+      "name": "Tarifas por zona",
+      "key_columns": [
+        "originZone",
+        "destZone"
+      ],
+      "active": true
+    }
+  ],
+  "rateTableRows": [
+    {
+      "id": "RTR_VE_1",
+      "table_id": "RT_ZONAS_VE",
+      "key": [
+        "CAR",
+        "ZUL"
+      ],
+      "amount": "500.00",
+      "row_order": 1,
+      "active": true
+    },
+    {
+      "id": "RTR_VE_2",
+      "table_id": "RT_ZONAS_VE",
+      "key": [
+        "ZUL",
+        "CAR"
+      ],
+      "amount": "500.00",
+      "row_order": 2,
+      "active": true
+    },
+    {
+      "id": "RTR_VE_3",
+      "table_id": "RT_ZONAS_VE",
+      "key": [
+        "CCS",
+        "ZUL"
+      ],
+      "amount": "600.00",
+      "row_order": 3,
+      "active": true
+    },
+    {
+      "id": "RTR_VE_4",
+      "table_id": "RT_ZONAS_VE",
+      "key": [
+        "ZUL",
+        "CCS"
+      ],
+      "amount": "600.00",
+      "row_order": 4,
+      "active": true
+    },
+    {
+      "id": "RTR_VE_5",
+      "table_id": "RT_ZONAS_VE",
+      "key": [
+        "CAR",
+        "CCS"
+      ],
+      "amount": "500.00",
+      "row_order": 5,
+      "active": true
+    },
+    {
+      "id": "RTR_ZLR_VE_7",
+      "table_id": "RT_ZONAS_VE",
+      "key": [
+        "*",
+        "CCS"
+      ],
+      "amount": "550.00",
+      "row_order": 6,
+      "active": true
+    },
+    {
+      "id": "RTR_CO_1",
+      "table_id": "RT_ZONAS_CO",
+      "key": [
+        "MED",
+        "BAQ"
+      ],
+      "amount": "300.00",
+      "row_order": 1,
+      "active": true
+    },
+    {
+      "id": "RTR_CO_2",
+      "table_id": "RT_ZONAS_CO",
+      "key": [
+        "BAQ",
+        "MED"
+      ],
+      "amount": "300.00",
+      "row_order": 2,
+      "active": true
+    },
+    {
+      "id": "RTR_CO_3",
+      "table_id": "RT_ZONAS_CO",
+      "key": [
+        "BOG",
+        "BAQ"
+      ],
+      "amount": "420.00",
+      "row_order": 3,
+      "active": true
+    },
+    {
+      "id": "RTR_CO_4",
+      "table_id": "RT_ZONAS_CO",
+      "key": [
+        "BAQ",
+        "BOG"
+      ],
+      "amount": "420.00",
+      "row_order": 4,
+      "active": true
+    },
+    {
+      "id": "RTR_CR_1",
+      "table_id": "RT_ZONAS_CR",
+      "key": [
+        "SJO",
+        "ALA"
+      ],
+      "amount": "150.00",
+      "row_order": 1,
+      "active": true
+    },
+    {
+      "id": "RTR_CR_2",
+      "table_id": "RT_ZONAS_CR",
+      "key": [
+        "ALA",
+        "SJO"
+      ],
+      "amount": "150.00",
+      "row_order": 2,
+      "active": true
+    },
+    {
+      "id": "RTR_CR_3",
+      "table_id": "RT_ZONAS_CR",
+      "key": [
+        "ALA",
+        "LIB"
+      ],
+      "amount": "340.00",
+      "row_order": 3,
+      "active": true
+    },
+    {
+      "id": "RTR_CR_4",
+      "table_id": "RT_ZONAS_CR",
+      "key": [
+        "LIB",
+        "ALA"
+      ],
+      "amount": "340.00",
+      "row_order": 4,
+      "active": true
+    },
+    {
+      "id": "RTR_ZLR_CR_5",
+      "table_id": "RT_ZONAS_CR",
+      "key": [
+        "*",
+        "LIB"
+      ],
+      "amount": "300.00",
+      "row_order": 5,
+      "active": true
+    }
   ],
   "marginPolicies": [
-    { "id": "MP_VE", "country_id": "VE", "warn_below": 0.15, "critical_below": 0.1, "require_reason_below": 0.15, "block_on_loss": true },
-    { "id": "MP_CO", "country_id": "CO", "warn_below": 0.2, "critical_below": 0.12, "require_reason_below": 0.2, "block_on_loss": true },
-    { "id": "MP_CR", "country_id": "CR", "warn_below": 0.18, "critical_below": 0.08, "require_reason_below": 0.18, "block_on_loss": false }
+    {
+      "id": "MP_VE",
+      "country_id": "VE",
+      "warn_below": 0.15,
+      "critical_below": 0.1,
+      "require_reason_below": 0.15,
+      "block_on_loss": true
+    },
+    {
+      "id": "MP_CO",
+      "country_id": "CO",
+      "warn_below": 0.2,
+      "critical_below": 0.12,
+      "require_reason_below": 0.2,
+      "block_on_loss": true
+    },
+    {
+      "id": "MP_CR",
+      "country_id": "CR",
+      "warn_below": 0.18,
+      "critical_below": 0.08,
+      "require_reason_below": 0.18,
+      "block_on_loss": false
+    }
   ],
   "auditLog": [],
-  "settlementSnapshots": []
+  "tripOrders": [
+    {
+      "id": "TORD_1",
+      "route_id": "TRIP_RT_VE_A1",
+      "guide_number": "GD-0001",
+      "sequence_number": 1,
+      "delivery_status": "delivered",
+      "order_id": "ORD_1",
+      "order_number": "PED-1001",
+      "customer_id": "CUST_EPA",
+      "customer_code": "EPA",
+      "customer_name": "EPA",
+      "value": "3000.00",
+      "weight_kg": 300,
+      "volume_m3": 1.5,
+      "items": 10,
+      "mark": null,
+      "mark_reason": null
+    },
+    {
+      "id": "TORD_2",
+      "route_id": "TRIP_RT_VE_A1",
+      "guide_number": "GD-0002",
+      "sequence_number": 2,
+      "delivery_status": "delivered",
+      "order_id": "ORD_2",
+      "order_number": "PED-1002",
+      "customer_id": "CUST_EPA",
+      "customer_code": "EPA",
+      "customer_name": "EPA",
+      "value": "500.00",
+      "weight_kg": 50,
+      "volume_m3": 1.5,
+      "items": 10,
+      "mark": null,
+      "mark_reason": null
+    },
+    {
+      "id": "TORD_3",
+      "route_id": "TRIP_RT_VE_A1",
+      "guide_number": "GD-0003",
+      "sequence_number": 3,
+      "delivery_status": "pending",
+      "order_id": "ORD_3",
+      "order_number": "PED-1003",
+      "customer_id": "CUST_COF",
+      "customer_code": "COF",
+      "customer_name": "Cofersa",
+      "value": "1500.00",
+      "weight_kg": 150,
+      "volume_m3": 1.5,
+      "items": 10,
+      "mark": null,
+      "mark_reason": null
+    }
+  ],
+  "tripOrderMarks": []
 }

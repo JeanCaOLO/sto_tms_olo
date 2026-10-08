@@ -1,238 +1,385 @@
-import { useState, useEffect } from 'react';
+// El Probador del motor.
+//
+// Qué es: el banco de pruebas donde se arma un viaje y se ve el total con su desglose, sin emitir
+// nada. Sirve para dos cosas distintas y las dos importan — entender por qué una regla cobra lo que
+// cobra, y demostrarle a alguien que el cálculo hace lo que se dice que hace.
+//
+// Dos modos:
+//
+//   · **Desde un viaje**: se elige un viaje COMPLETADO de guía de despacho y se calcula con
+//     `calculateTrip`, el mismo camino que usa la liquidación. Los datos del viaje son de solo
+//     lectura; lo único que se prueba a mano son las variables personalizadas de la compañía.
+//   · **Viaje libre**: se arma un `TripContext` a mano, para inventar combinaciones que ningún
+//     viaje real produce — que es justamente lo que un probador tiene que permitir. Peajes,
+//     recolectas y demás van como variables propias de la compañía (`custom:*`).
+//
+// Las plantillas son escenarios: cada una declara cuánto **debe** dar, el Probador muestra el
+// veredicto, y un test recorre todas y se pone rojo si un total se movió.
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Card from '../../../components/base/Card';
 import Button from '../../../components/base/Button';
-import Badge from '../../../components/base/Badge';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
-import { calculate, deriveContext } from '../../../lib/tarifas';
-import { listRulesAndZonesForTesting, listTemplates } from '../../../lib/tarifas/localRulesDataSource';
+import CalcBreakdownPanel from '../../../components/tarifas/CalcBreakdownPanel';
+import { calculate } from '../../../lib/tarifas';
+import {
+  CatalogError, loadCountries, loadTarifasCatalog, type TarifasCatalog,
+} from '../../../lib/tarifas/catalogLoader';
+import { buildCalculateInput } from '../../../lib/tarifas/settlementInput';
+import { listCarrierProfiles } from '../../../lib/tarifas/partiesDataSource';
+import { listTruckTypes, type TruckTypeOption } from '../../../lib/tarifas/vehiclesDataSource';
+import { listTrips } from '../../../lib/tarifas/tripsDataSource';
+import { calculateTrip } from '../../../lib/tarifas/tripSettlement';
+import { describeTrip } from '../../../lib/tarifas/tripContext';
+import { listTemplates, saveTemplate } from '../../../lib/tarifas/localRulesDataSource';
+import {
+  buildCustomVarFields, constantVars, initialCustomVarValues, parseCustomVarValues,
+} from '../../../lib/tarifas/customVarFields';
+import {
+  checkScenario, toScenario, toTemplateRow, type ScenarioCheck, type TemplateScenario,
+} from '../../../lib/tarifas/templateScenarios';
+import { formatMoney } from '../../../lib/tarifas/format';
+import type { CarrierProfile } from '../../../lib/tarifas/parties';
 import type {
-  CalcResult, CalculateInput, Country, FleetType, Location, Rule, ServiceType, Zone, ZoneGroup,
+  CalcResult, FleetType, Rule, ServiceType, TripContext, TripRecord, Zone,
 } from '../../../lib/tarifas/types';
 
 interface RuleTesterProps {
   organizationId: string;
 }
 
-const STAGE_LABELS: Record<string, string> = {
-  BASE: 'Base', VARIABLE: 'Variable', MODIFIER: 'Modificador',
-  SURCHARGE: 'Recargo', ADJUSTMENT: 'Ajuste', TAX: 'Impuesto',
-};
+type Modo = 'viaje' | 'libre';
 
-const MARGIN_BADGE_VARIANT: Record<string, 'success' | 'warning' | 'danger'> = {
-  OK: 'success', WARN: 'warning', CRITICAL: 'danger', LOSS: 'danger',
-};
+/** El viaje del modo libre: lo que en el modo viaje aporta guía de despacho, acá se teclea. */
+interface ViajeLibre {
+  originZoneId: string;
+  destZoneId: string;
+  km: string;
+  clientCount: string;
+  weightKg: string;
+  durationHours: string;
+  truckTypeId: string;
+  truckVolumeM3: string;
+  truckWeightTons: string;
+  fleetType: FleetType;
+  customerId: string;
+  carrierId: string;
+}
 
-const MARGIN_STATUS_LABEL: Record<string, string> = {
-  OK: 'OK', WARN: 'Atención', CRITICAL: 'Crítico', LOSS: 'Pérdida',
-};
+const viajeLibreInicial = (): ViajeLibre => ({
+  originZoneId: '', destZoneId: '',
+  km: '100', clientCount: '5', weightKg: '500', durationHours: '4',
+  truckTypeId: '', truckVolumeM3: '0', truckWeightTons: '0',
+  fleetType: 'OWN', customerId: '', carrierId: '',
+});
+
+/** Lo del día del viaje libre: no sale de la compañía, es de esta prueba. */
+interface DatosDelDia {
+  quotedAt: string;
+  serviceType: ServiceType;
+}
+
+const hoy = () => new Date().toISOString().slice(0, 10);
+
+const diaInicial = (): DatosDelDia => ({ quotedAt: hoy(), serviceType: 'STANDARD' });
+
+/** Lo que se muestra de un cálculo, sea de viaje o libre. */
+interface Calculo {
+  result: CalcResult;
+  trip: TripContext;
+  rules: Rule[];
+}
+
+const mensajeDe = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
 
 export default function RuleTester({ organizationId }: RuleTesterProps) {
-  const [loadingData, setLoadingData] = useState(true);
-  const [countries, setCountries] = useState<any[]>([]);
-  const [zones, setZones] = useState<Zone[]>([]);
-  const [zoneGroups, setZoneGroups] = useState<ZoneGroup[]>([]);
-  const [rawRules, setRawRules] = useState<any[]>([]);
-  const [rawZoneLaneRates, setRawZoneLaneRates] = useState<any[]>([]);
-  const [rawFxRates, setRawFxRates] = useState<any[]>([]);
-  const [rawOwnCostParams, setRawOwnCostParams] = useState<any[]>([]);
-  const [rawOutsourcedCostRates, setRawOutsourcedCostRates] = useState<any[]>([]);
-  const [rawMarginPolicies, setRawMarginPolicies] = useState<any[]>([]);
-  const [carriers, setCarriers] = useState<any[]>([]);
-  const [templates, setTemplates] = useState<any[]>([]);
-  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [cargando, setCargando] = useState(true);
+  const [calculando, setCalculando] = useState(false);
+  const [modo, setModo] = useState<Modo>('viaje');
+  const [countryId, setCountryId] = useState('');
 
-  const [trip, setTrip] = useState({
-    countryId: '',
-    originZoneId: '',
-    destZoneId: '',
-    quotedAt: new Date().toISOString().split('T')[0],
-    km: 100,
-    clientCount: 5,
-    packageCount: 20,
-    weightKg: 500,
-    truckTypeId: 'CAMION-1',
-    serviceType: 'STANDARD' as ServiceType,
-    fleetType: 'OWN' as FleetType,
-    carrierId: '',
-    customerId: '',
-    durationHours: 4,
-    tollsAmount: '0',
-    lateMinutes: 0,
-    incidentCount: 0,
-  });
+  const [countries, setCountries] = useState<{ id: string; name: string }[]>([]);
+  const [carriers, setCarriers] = useState<CarrierProfile[]>([]);
+  const [trips, setTrips] = useState<TripRecord[]>([]);
+  const [loadingTrips, setLoadingTrips] = useState(false);
+  const [truckTypes, setTruckTypes] = useState<TruckTypeOption[]>([]);
+  const [templates, setTemplates] = useState<Record<string, unknown>[]>([]);
 
-  const [result, setResult] = useState<CalcResult | null>(null);
+  const [tripId, setTripId] = useState('');
+  /** Perfil del transportista del viaje elegido: lo informa el último cálculo. */
+  const [viajePartyId, setViajePartyId] = useState<string | null>(null);
+  const [libre, setLibre] = useState<ViajeLibre>(viajeLibreInicial());
+  const [dia, setDia] = useState<DatosDelDia>(diaInicial());
+  const [customRaw, setCustomRaw] = useState<Record<string, string>>({});
+
+  const [catalog, setCatalog] = useState<TarifasCatalog | null>(null);
+  const [catalogError, setCatalogError] = useState('');
+
+  const [escenarioId, setEscenarioId] = useState('');
+  const [calculo, setCalculo] = useState<Calculo | null>(null);
   const [error, setError] = useState('');
+  const [guardando, setGuardando] = useState(false);
 
-  const loadData = async () => {
-    setLoadingData(true);
+  // Valores de variables que trae una plantilla y que hay que reponer DESPUÉS de que se regeneren
+  // los campos de la compañía. Sin esto, aplicar un escenario cargaba sus variables y el efecto que
+  // reinicia los campos las pisaba con el valor por defecto un instante después.
+  const pendientes = useRef<Record<string, string> | null>(null);
+
+  const libreCarrier = useMemo(
+    () => carriers.find((c) => c.carrierId === libre.carrierId) ?? null,
+    [carriers, libre.carrierId],
+  );
+  const partyId = modo === 'viaje' ? viajePartyId : (libreCarrier?.partyId ?? null);
+  const trip = useMemo(() => trips.find((t) => t.id === tripId) ?? null, [trips, tripId]);
+
+  // ── Carga ─────────────────────────────────────────────────────────────────────────────────
+
+  const recargar = useCallback(async () => {
+    setCargando(true);
+    setError('');
     try {
-      const raw = await listRulesAndZonesForTesting(organizationId);
-      setCountries(raw.countries);
-      setZoneGroups(raw.zoneGroups.map((g: any) => ({ id: g.id, countryId: g.country_id ?? '', code: g.code, name: g.name })));
-      const mappedZones: Zone[] = raw.zones.map((z: any) => ({ id: z.id, countryId: z.country_id ?? '', zoneGroupId: z.zone_group_id ?? null, code: z.code, name: z.name }));
-      setZones(mappedZones);
-      setRawRules(raw.rules);
-      setRawZoneLaneRates(raw.zoneLaneRates);
-      setRawFxRates(raw.fxRates);
-      setRawOwnCostParams(raw.ownCostParams);
-      setRawOutsourcedCostRates(raw.outsourcedCostRates);
-      setRawMarginPolicies(raw.marginPolicies);
-      setCarriers(raw.carriers);
-      setTemplates(await listTemplates(organizationId));
-
-      setTrip((prev) => ({
-        ...prev,
-        countryId: prev.countryId || raw.countries[0]?.id || '',
-        originZoneId: prev.originZoneId || mappedZones[0]?.id || '',
-        destZoneId: prev.destZoneId || mappedZones[1]?.id || mappedZones[0]?.id || '',
-      }));
+      const paises = await loadCountries();
+      setCountries(paises.map((c) => ({ id: c.id, name: c.name })));
+      setCountryId((prev) => prev || paises[0]?.id || '');
+      setTemplates(await listTemplates(organizationId) as Record<string, unknown>[]);
+    } catch (e) {
+      console.error('Error cargando el probador:', e);
+      setError(mensajeDe(e, 'No se pudieron cargar los países ni los escenarios.'));
     } finally {
-      setLoadingData(false);
+      setCargando(false);
     }
-  };
-
-  useEffect(() => {
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [organizationId]);
 
-  const runCalculation = () => {
-    setError('');
-    setResult(null);
+  useEffect(() => { void recargar(); }, [recargar]);
+
+  useEffect(() => {
+    if (!countryId) return;
+    let vigente = true;
+    setLoadingTrips(true);
+    void (async () => {
+      try {
+        const [t, c, trucks] = await Promise.all([
+          listTrips({ countryId, status: 'completed' }),
+          listCarrierProfiles({ countryId }),
+          listTruckTypes(),
+        ]);
+        if (!vigente) return;
+        setTrips(t);
+        setCarriers(c);
+        setTruckTypes(trucks);
+      } catch (e) {
+        console.error('Error cargando viajes del probador:', e);
+        if (vigente) setError(mensajeDe(e, 'No se pudieron cargar los viajes del país.'));
+      } finally {
+        if (vigente) setLoadingTrips(false);
+      }
+    })();
+    return () => { vigente = false; };
+  }, [countryId]);
+
+  // ── El catálogo del motor ─────────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!countryId) { setCatalog(null); return; }
+    let vigente = true;
+    setCatalogError('');
+    void loadTarifasCatalog(countryId, partyId)
+      .then((c) => { if (vigente) setCatalog(c); })
+      .catch((e) => {
+        if (!vigente) return;
+        setCatalog(null);
+        setCatalogError(e instanceof CatalogError ? e.message : mensajeDe(e, 'No se pudo cargar el catálogo del país.'));
+      });
+    return () => { vigente = false; };
+  }, [countryId, partyId]);
+
+  // Estable entre renders: si fuera un `??` suelto, sería un arreglo nuevo cada vez y el efecto
+  // que elige las zonas por defecto se dispararía sin parar.
+  const zones: Zone[] = useMemo(() => catalog?.zones ?? [], [catalog]);
+
+  const customFields = useMemo(
+    () => buildCustomVarFields(catalog?.partyVariables ?? []),
+    [catalog],
+  );
+  const constantes = useMemo(
+    () => constantVars(catalog?.partyVariables ?? []),
+    [catalog],
+  );
+
+  useEffect(() => {
+    const base = initialCustomVarValues(customFields);
+    if (pendientes.current) {
+      for (const key of Object.keys(base)) {
+        const traido = pendientes.current[key];
+        if (traido !== undefined) base[key] = traido;
+      }
+      pendientes.current = null;
+    }
+    setCustomRaw(base);
+  }, [customFields]);
+
+  // Zonas por defecto para el modo libre: sin ellas, toda regla por zona queda muda.
+  useEffect(() => {
+    if (zones.length === 0) return;
+    setLibre((prev) => (prev.originZoneId
+      ? prev
+      : { ...prev, originZoneId: zones[0].id, destZoneId: zones[1]?.id ?? zones[0].id }));
+  }, [zones]);
+
+  // ── El cálculo ────────────────────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    let vigente = true;
+
+    const terminar = (c: Calculo | null, mensaje = '') => {
+      if (!vigente) return;
+      setCalculo(c);
+      setError(mensaje);
+      setCalculando(false);
+    };
+
+    const { values, errors } = parseCustomVarValues(customFields, customRaw);
+    if (Object.keys(errors).length > 0) { terminar(null, Object.values(errors).join(' ')); return undefined; }
+
+    if (modo === 'viaje') {
+      if (!trip) { terminar(null); return undefined; }
+      setCalculando(true);
+      void calculateTrip(trip, { customVars: values }, { allowSettled: true })
+        .then((r) => {
+          if (!vigente) return;
+          if (r.status !== 'ok') { terminar(null, r.message); return; }
+          const c = r.calculation;
+          setViajePartyId((prev) => (prev === c.partyId ? prev : c.partyId));
+          terminar({
+            result: { ...c.result, warnings: c.warnings, blockingIssues: c.blockingIssues },
+            trip: c.input.trip,
+            rules: c.input.rules,
+          });
+        })
+        .catch((e) => {
+          console.error('Error en el probador del motor:', e);
+          terminar(null, mensajeDe(e, 'No se pudo calcular el viaje.'));
+        });
+      return () => { vigente = false; };
+    }
+
+    // Viaje libre: se necesita el catálogo del país.
+    if (!catalog) { terminar(null); return undefined; }
     try {
-      const countryRow = countries.find((c: any) => c.id === trip.countryId) as any;
-      if (!countryRow) throw new Error('Elegí un país.');
-      const country: Country = {
-        id: countryRow.id,
-        iso2: countryRow.iso2,
-        name: countryRow.name,
-        localCurrency: countryRow.local_currency,
-        refCurrency: countryRow.ref_currency,
-        roundingDecimals: countryRow.rounding_decimals,
-        roundingMode: countryRow.rounding_mode,
-        overnightThresholdHours: countryRow.overnight_threshold_hours,
+      const fleetType: FleetType = libreCarrier
+        ? (libreCarrier.classification === 'OWN' ? 'OWN' : 'OUTSOURCED')
+        : libre.fleetType;
+      const armado: TripContext = {
+        countryId,
+        partyId: libreCarrier?.partyId ?? null,
+        quotedAt: new Date(dia.quotedAt).toISOString(),
+        originLocationId: libre.originZoneId,
+        destLocationId: libre.destZoneId,
+        km: Number(libre.km) || 0,
+        clientCount: Number(libre.clientCount) || 0,
+        weightKg: Number(libre.weightKg) || 0,
+        truckTypeId: libre.truckTypeId,
+        serviceType: dia.serviceType,
+        fleetType,
+        carrierId: libreCarrier?.carrierId ?? null,
+        driverId: null,
+        customerId: libre.customerId || null,
+        durationHours: Number(libre.durationHours) || 0,
+        truckVolumeM3: Number(libre.truckVolumeM3) || 0,
+        truckWeightTons: Number(libre.truckWeightTons) || 0,
+        customVars: values,
       };
-
-      const originZone = zones.find((z) => z.id === trip.originZoneId);
-      const destZone = zones.find((z) => z.id === trip.destZoneId);
-      const locations: Location[] = [
-        ...(originZone ? [{ id: originZone.id, countryId: originZone.countryId, zoneId: originZone.id, code: originZone.code, name: originZone.name }] : []),
-        ...(destZone ? [{ id: destZone.id, countryId: destZone.countryId, zoneId: destZone.id, code: destZone.code, name: destZone.name }] : []),
-      ];
-
-      // Mismo fallback que src/lib/tarifas/repository.ts::mapRuleRow: country_id nulo = regla
-      // global, se "estampa" el país del viaje actual (resolveRules filtra por countryId exacto).
-      const mappedRules: Rule[] = rawRules.map((r: any) => ({
-        id: r.id, countryId: r.country_id ?? trip.countryId, code: r.code, name: r.name, stage: r.stage,
-        priority: r.priority, stacking: r.stacking, exclusionGroup: r.exclusion_group ?? null,
-        currencyMode: r.currency_mode, conditions: r.conditions, expression: r.expression,
-        isAdhoc: !!r.is_adhoc, active: !!r.active, version: r.version,
-      }));
-
-      const ownCostParamsRow = rawOwnCostParams.find((p: any) => p.country_id === trip.countryId);
-      if (!ownCostParamsRow) {
-        throw new Error('No hay parámetros de costo propio configurados para este país — cargalos en la pestaña Costos.');
-      }
-      const marginPolicyRow = rawMarginPolicies.find((p: any) => p.country_id === trip.countryId);
-      if (!marginPolicyRow) {
-        throw new Error('No hay política de margen configurada para este país — cargala en la pestaña Política de Margen.');
-      }
-
-      const input: CalculateInput = {
-        country,
-        ownCostParams: {
-          id: ownCostParamsRow.id,
-          countryId: trip.countryId,
-          costPerKm: String(ownCostParamsRow.cost_per_km),
-          depreciationPerKm: String(ownCostParamsRow.depreciation_per_km),
-          driverDaily: String(ownCostParamsRow.driver_daily),
-        },
-        outsourcedCostRates: rawOutsourcedCostRates
-          .filter((r: any) => r.country_id === trip.countryId)
-          .map((r: any) => ({
-            id: r.id, countryId: trip.countryId, carrierId: r.carrier_id, truckTypeId: r.truck_type_id,
-            flatRate: String(r.flat_rate),
-          })),
-        marginPolicy: {
-          countryId: trip.countryId,
-          warnBelow: Number(marginPolicyRow.warn_below),
-          criticalBelow: Number(marginPolicyRow.critical_below),
-          requireReasonBelow: Number(marginPolicyRow.require_reason_below),
-          blockOnLoss: !!marginPolicyRow.block_on_loss,
-        },
-        trip: {
-          countryId: trip.countryId,
-          quotedAt: new Date(trip.quotedAt).toISOString(),
-          originLocationId: originZone?.id ?? '',
-          destLocationId: destZone?.id ?? '',
-          km: Number(trip.km),
-          clientCount: Number(trip.clientCount),
-          packageCount: Number(trip.packageCount),
-          weightKg: Number(trip.weightKg),
-          truckTypeId: trip.truckTypeId,
-          serviceType: trip.serviceType,
-          fleetType: trip.fleetType,
-          carrierId: trip.carrierId || null,
-          driverId: null,
-          customerId: trip.customerId || null,
-          durationHours: Number(trip.durationHours),
-          tollsAmount: trip.tollsAmount || '0',
-          lateMinutes: Number(trip.lateMinutes),
-          incidentCount: Number(trip.incidentCount),
-        },
-        rules: mappedRules,
-        zones,
-        zoneGroups,
-        locations,
-        zoneLaneRates: rawZoneLaneRates
-          .filter((r) => r.country_id === trip.countryId)
-          .map((r) => ({ id: r.id, countryId: trip.countryId, originZoneId: r.origin_zone_id, destZoneId: r.dest_zone_id, amount: String(r.amount) })),
-        fxRates: rawFxRates
-          .filter((r) => r.country_id === trip.countryId)
-          .map((r) => ({ id: r.id, countryId: trip.countryId, from: r.from_currency, to: r.to_currency, rate: String(r.rate), type: r.rate_type, source: r.source ?? '', validFrom: r.valid_from })),
-      };
-
-      const calcResult = calculate(input);
-      const derived = deriveContext(input);
-      setResult(calcResult);
-      if (derived.originZoneId === '' || derived.destZoneId === '') {
-        setError('Aviso: no se resolvió zona origen y/o destino (revisá que las zonas elegidas existan) — las reglas que condicionen por zona no van a matchear.');
-      }
-    } catch (err: any) {
+      const { input, issues, warnings } = buildCalculateInput(catalog, armado);
+      const calc = calculate(input);
+      calc.warnings = [...warnings, ...calc.warnings];
+      calc.blockingIssues = [...issues, ...calc.blockingIssues];
+      terminar({ result: calc, trip: input.trip, rules: catalog.rules });
+    } catch (err) {
       console.error('Error en el probador del motor:', err);
-      setError(err?.message || 'Ocurrió un error evaluando las reglas. Revisá el JSON de condiciones/expresiones en modo avanzado.');
+      terminar(null, mensajeDe(err, 'No se pudo evaluar. Revisá el JSON de condiciones o expresiones en modo avanzado.'));
+    }
+    return () => { vigente = false; };
+  }, [modo, trip, libre, libreCarrier, dia, customFields, customRaw, catalog, countryId]);
+
+  const result = calculo?.result ?? null;
+
+  // ── Escenarios ────────────────────────────────────────────────────────────────────────────
+
+  const escenario: TemplateScenario | null = useMemo(() => {
+    const row = templates.find((t) => t.id === escenarioId);
+    return row ? toScenario(row as never) : null;
+  }, [templates, escenarioId]);
+
+  const veredicto: ScenarioCheck | null = useMemo(
+    () => (escenario && result ? checkScenario(escenario, result.totalLiquidado) : null),
+    [escenario, result],
+  );
+
+  const aplicarEscenario = (id: string) => {
+    setEscenarioId(id);
+    const row = templates.find((t) => t.id === id);
+    if (!row) return;
+
+    const s = toScenario(row as never);
+    const t = s.trip;
+
+    // Un escenario guardado describe un viaje entero, no un viaje real: se carga en modo libre.
+    setModo('libre');
+    setCountryId(s.countryId || countryId);
+    setLibre({
+      originZoneId: t.originLocationId,
+      destZoneId: t.destLocationId,
+      km: String(t.km),
+      clientCount: String(t.clientCount),
+      weightKg: String(t.weightKg),
+      durationHours: String(t.durationHours),
+      truckTypeId: t.truckTypeId,
+      truckVolumeM3: String(t.truckVolumeM3),
+      truckWeightTons: String(t.truckWeightTons),
+      fleetType: t.fleetType,
+      customerId: t.customerId ?? '',
+      carrierId: carriers.find((c) => c.partyId && c.partyId === t.partyId)?.carrierId ?? '',
+    });
+    setDia({ quotedAt: t.quotedAt.slice(0, 10), serviceType: t.serviceType });
+
+    const vars: Record<string, string> = {};
+    for (const [k, v] of Object.entries(t.customVars ?? {})) vars[k] = String(v);
+    pendientes.current = vars;
+    setCustomRaw((prev) => ({ ...prev, ...vars }));
+  };
+
+  /**
+   * Fija el total actual como el esperado del escenario.
+   *
+   * Es deliberadamente un acto explícito: un total que se movió puede ser una mejora o una
+   * regresión, y la única forma de distinguirlas es que alguien mire el número nuevo y lo acepte.
+   */
+  const fijarEsperado = async () => {
+    if (!escenario || !result || !calculo) return;
+    setGuardando(true);
+    setError('');
+    try {
+      const fila = toTemplateRow({
+        id: escenario.id,
+        name: escenario.name,
+        countryId: escenario.countryId,
+        trip: calculo.trip,
+        expectedTotal: result.totalLiquidado,
+      });
+      await saveTemplate(organizationId, fila as never, escenario.id);
+      setTemplates(await listTemplates(organizationId) as Record<string, unknown>[]);
+    } catch (e) {
+      console.error('Error fijando el total esperado:', e);
+      setError(mensajeDe(e, 'No se pudo guardar el total esperado.'));
+    } finally {
+      setGuardando(false);
     }
   };
 
-  const applyTemplate = (id: string) => {
-    setSelectedTemplateId(id);
-    const tpl = templates.find((t) => t.id === id);
-    if (!tpl?.trip) return;
-    const t = tpl.trip;
-    setTrip((prev) => ({
-      ...prev,
-      countryId: tpl.country_id ?? prev.countryId,
-      originZoneId: t.originLocationId ?? prev.originZoneId,
-      destZoneId: t.destLocationId ?? prev.destZoneId,
-      km: t.km ?? prev.km,
-      clientCount: t.clientCount ?? prev.clientCount,
-      packageCount: t.packageCount ?? prev.packageCount,
-      weightKg: t.weightKg ?? prev.weightKg,
-      truckTypeId: t.truckTypeId ?? prev.truckTypeId,
-      serviceType: t.serviceType ?? prev.serviceType,
-      fleetType: t.fleetType ?? prev.fleetType,
-      carrierId: t.carrierId ?? '',
-      customerId: t.customerId ?? '',
-      durationHours: t.durationHours ?? prev.durationHours,
-      tollsAmount: t.tollsAmount ?? prev.tollsAmount,
-      lateMinutes: t.lateMinutes ?? prev.lateMinutes,
-      incidentCount: t.incidentCount ?? prev.incidentCount,
-    }));
-  };
+  // ── Pantalla ──────────────────────────────────────────────────────────────────────────────
 
-  if (loadingData) {
+  if (cargando) {
     return (
       <Card>
         <div className="text-center py-10 text-slate-500">
@@ -244,121 +391,245 @@ export default function RuleTester({ organizationId }: RuleTesterProps) {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* ── El viaje ──────────────────────────────────────────────────────────────────── */}
       <Card>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
             <i className="ri-flask-line text-teal-600"></i>
-            Datos del viaje de prueba
+            El viaje de prueba
           </h3>
-          <Button variant="secondary" size="sm" onClick={loadData}>
+          <Button variant="secondary" size="sm" onClick={() => void recargar()}>
             <i className="ri-refresh-line"></i>
-            Recargar datos
+            Recargar
           </Button>
         </div>
 
         <div className="space-y-3">
           {templates.length > 0 && (
             <Select
-              label="Cargar plantilla"
-              value={selectedTemplateId}
-              onChange={(e) => applyTemplate(e.target.value)}
-              options={[{ value: '', label: 'Sin plantilla (viaje manual)' }, ...templates.map((t) => ({ value: t.id, label: t.name }))]}
+              label="Escenario guardado"
+              value={escenarioId}
+              onChange={(e) => (e.target.value ? aplicarEscenario(e.target.value) : setEscenarioId(''))}
+              options={[
+                { value: '', label: 'Ninguno — armar el viaje a mano' },
+                ...templates.map((t) => ({ value: String(t.id), label: String(t.name) })),
+              ]}
             />
           )}
+
           <Select
             label="País"
-            value={trip.countryId}
-            onChange={(e) => setTrip({ ...trip, countryId: e.target.value })}
-            options={countries.map((c: any) => ({ value: c.id, label: c.name }))}
+            value={countryId}
+            onChange={(e) => { setCountryId(e.target.value); setTripId(''); setViajePartyId(null); setEscenarioId(''); }}
+            options={countries.map((c) => ({ value: c.id, label: c.name }))}
           />
 
-          <div className="grid grid-cols-2 gap-3">
-            <Select
-              label="Zona origen"
-              value={trip.originZoneId}
-              onChange={(e) => setTrip({ ...trip, originZoneId: e.target.value })}
-              options={zones.map((z) => ({ value: z.id, label: `${z.code} - ${z.name}` }))}
-            />
-            <Select
-              label="Zona destino"
-              value={trip.destZoneId}
-              onChange={(e) => setTrip({ ...trip, destZoneId: e.target.value })}
-              options={zones.map((z) => ({ value: z.id, label: `${z.code} - ${z.name}` }))}
-            />
+          {/* Los dos modos ───────────────────────────────────────────────────────────── */}
+          <div className="flex rounded-lg border border-slate-200 p-0.5 bg-slate-50">
+            {([['viaje', 'Desde un viaje'], ['libre', 'Viaje libre']] as const).map(([valor, label]) => (
+              <button
+                key={valor}
+                type="button"
+                onClick={() => setModo(valor)}
+                className={`flex-1 text-xs py-1.5 rounded-md cursor-pointer transition ${
+                  modo === valor ? 'bg-white shadow-sm font-medium text-slate-800' : 'text-slate-500'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-
-          {zones.length === 0 && (
-            <p className="text-xs text-amber-600">No hay zonas todavía — creá al menos una en la pestaña Zonas.</p>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Km" type="number" value={trip.km} onChange={(e) => setTrip({ ...trip, km: Number(e.target.value) })} />
-            <Input label="Paradas/clientes" type="number" value={trip.clientCount} onChange={(e) => setTrip({ ...trip, clientCount: Number(e.target.value) })} />
-            <Input label="Entregas/bultos" type="number" value={trip.packageCount} onChange={(e) => setTrip({ ...trip, packageCount: Number(e.target.value) })} />
-            <Input label="Peso (kg)" type="number" value={trip.weightKg} onChange={(e) => setTrip({ ...trip, weightKg: Number(e.target.value) })} />
-            <Input label="Duración (horas)" type="number" value={trip.durationHours} onChange={(e) => setTrip({ ...trip, durationHours: Number(e.target.value) })} />
-            <Input label="Peajes" value={trip.tollsAmount} onChange={(e) => setTrip({ ...trip, tollsAmount: e.target.value })} />
-            <Input label="Minutos de atraso" type="number" value={trip.lateMinutes} onChange={(e) => setTrip({ ...trip, lateMinutes: Number(e.target.value) })} />
-            <Input label="Incidentes" type="number" value={trip.incidentCount} onChange={(e) => setTrip({ ...trip, incidentCount: Number(e.target.value) })} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Select
-              label="Tipo de servicio"
-              value={trip.serviceType}
-              onChange={(e) => setTrip({ ...trip, serviceType: e.target.value as ServiceType })}
-              options={[{ value: 'STANDARD', label: 'Estándar' }, { value: 'EXPRESS', label: 'Express' }, { value: 'DEDICATED', label: 'Dedicado' }]}
-            />
-            <Select
-              label="Flota"
-              value={trip.fleetType}
-              onChange={(e) => setTrip({ ...trip, fleetType: e.target.value as FleetType })}
-              options={[{ value: 'OWN', label: 'Propia' }, { value: 'OUTSOURCED', label: 'Tercerizada' }]}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Tipo de vehículo" value={trip.truckTypeId} onChange={(e) => setTrip({ ...trip, truckTypeId: e.target.value })} />
-            <Input label="Fecha" type="date" value={trip.quotedAt} onChange={(e) => setTrip({ ...trip, quotedAt: e.target.value })} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            {trip.fleetType === 'OUTSOURCED' && carriers.length > 0 ? (
-              <Select
-                label="Transportista"
-                value={trip.carrierId}
-                onChange={(e) => setTrip({ ...trip, carrierId: e.target.value })}
-                options={[{ value: '', label: 'Elegir...' }, ...carriers.map((c) => ({ value: c.id, label: c.name }))]}
-              />
-            ) : (
-              <Input
-                label="Transportista (id libre)"
-                value={trip.carrierId}
-                onChange={(e) => setTrip({ ...trip, carrierId: e.target.value })}
-                placeholder={trip.fleetType === 'OUTSOURCED' ? 'Requerido para outsourcing' : 'Dejá vacío para flota propia'}
-              />
-            )}
-            <Input label="Cliente (id libre)" value={trip.customerId} onChange={(e) => setTrip({ ...trip, customerId: e.target.value })} />
-          </div>
-
-          <p className="text-xs text-slate-400">
-            El motor calcula cuánto se le debe liquidar (pagar) al transportista por este viaje —
-            la bifurcación nómina (flota propia) / cuentas por pagar (tercerizada) la deciden las
-            reglas activas condicionadas por "Flota", no un cálculo aparte.
+          <p className="text-[11px] text-slate-400 -mt-1">
+            {modo === 'viaje'
+              ? 'Igual que la liquidación: el viaje completado aporta zona, kilómetros, paradas, peso y vehículo.'
+              : 'Para inventar combinaciones que ningún viaje produce y ver qué reglas se despiertan.'}
           </p>
 
-          <Button className="w-full" onClick={runCalculation} disabled={zones.length === 0 || rawRules.length === 0}>
-            <i className="ri-play-line mr-2"></i>
-            Calcular
-          </Button>
-          {rawRules.length === 0 && <p className="text-xs text-amber-600">No hay reglas todavía — creá al menos una en la pestaña Reglas.</p>}
+          {catalogError && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              {catalogError}
+            </p>
+          )}
+
+          {modo === 'viaje' ? (
+            <>
+              <Select
+                label="Viaje completado *"
+                value={tripId}
+                onChange={(e) => { setTripId(e.target.value); setViajePartyId(null); }}
+                options={[
+                  {
+                    value: '',
+                    label: loadingTrips
+                      ? 'Cargando viajes…'
+                      : trips.length === 0 ? 'No hay viajes completados en este país' : 'Elegir viaje…',
+                  },
+                  ...trips.map((t) => ({
+                    value: t.id,
+                    label: `${t.routeNumber} · ${t.routeDate} · ${t.carrierName ?? 'sin transportista'}`,
+                  })),
+                ]}
+              />
+
+              {trip && (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
+                  <p className="text-[11px] text-slate-500 uppercase font-medium mb-2">
+                    Del viaje {trip.routeNumber}
+                  </p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-y-2 gap-x-4 text-xs">
+                    {describeTrip(trip).map((d) => <Dato key={d.label} label={d.label} valor={d.value} />)}
+                  </div>
+                  {trip.carrierId && !viajePartyId && !calculando && (
+                    <p className="text-[11px] text-slate-500 mt-2">
+                      El transportista no tiene perfil de cálculo: se prueba solo con las reglas del país.
+                    </p>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <Select
+                label="Compañía (opcional)"
+                value={libre.carrierId}
+                onChange={(e) => setLibre({ ...libre, carrierId: e.target.value })}
+                options={[
+                  { value: '', label: 'Sin compañía (solo reglas del país)' },
+                  ...carriers.map((c) => ({
+                    value: c.carrierId,
+                    label: `${c.name} · ${c.classification === 'OWN' ? 'flota propia' : 'tercero'}`,
+                  })),
+                ]}
+              />
+
+              <div className="grid grid-cols-2 gap-3">
+                <Select
+                  label="Zona origen"
+                  value={libre.originZoneId}
+                  onChange={(e) => setLibre({ ...libre, originZoneId: e.target.value })}
+                  options={zones.map((z) => ({ value: z.id, label: `${z.code} — ${z.name}` }))}
+                />
+                <Select
+                  label="Zona destino"
+                  value={libre.destZoneId}
+                  onChange={(e) => setLibre({ ...libre, destZoneId: e.target.value })}
+                  options={zones.map((z) => ({ value: z.id, label: `${z.code} — ${z.name}` }))}
+                />
+              </div>
+
+              {zones.length === 0 && (
+                <p className="text-xs text-amber-600">
+                  No hay zonas en este país — se dan de alta en Catálogos, o ninguna regla por zona
+                  podrá aplicar.
+                </p>
+              )}
+
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <Input label="Km" type="number" value={libre.km} onChange={(e) => setLibre({ ...libre, km: e.target.value })} />
+                <Input label="Paradas completadas" type="number" value={libre.clientCount} onChange={(e) => setLibre({ ...libre, clientCount: e.target.value })} />
+                <Input label="Peso (kg)" type="number" value={libre.weightKg} onChange={(e) => setLibre({ ...libre, weightKg: e.target.value })} />
+                <Input label="Duración (h)" type="number" value={libre.durationHours} onChange={(e) => setLibre({ ...libre, durationHours: e.target.value })} />
+                <div>
+                  <Input
+                    label="Tipo de camión"
+                    value={libre.truckTypeId}
+                    onChange={(e) => setLibre({ ...libre, truckTypeId: e.target.value })}
+                    list="probador-truck-types"
+                  />
+                  <datalist id="probador-truck-types">
+                    {truckTypes.map((t) => <option key={t.code} value={t.code} />)}
+                  </datalist>
+                </div>
+                <Input label="Volumen (m³)" type="number" value={libre.truckVolumeM3} onChange={(e) => setLibre({ ...libre, truckVolumeM3: e.target.value })} />
+                <Input label="Capacidad (t)" type="number" value={libre.truckWeightTons} onChange={(e) => setLibre({ ...libre, truckWeightTons: e.target.value })} />
+                <Input label="Cliente (id libre)" value={libre.customerId} onChange={(e) => setLibre({ ...libre, customerId: e.target.value })} />
+              </div>
+
+              {!libreCarrier && (
+                <Select
+                  label="Flota"
+                  value={libre.fleetType}
+                  onChange={(e) => setLibre({ ...libre, fleetType: e.target.value as FleetType })}
+                  options={[{ value: 'OWN', label: 'Propia' }, { value: 'OUTSOURCED', label: 'Tercerizada' }]}
+                />
+              )}
+              {libreCarrier && (
+                <p className="text-[11px] text-slate-400">
+                  La flota la define el transportista elegido, no se teclea: es su única fuente de verdad.
+                </p>
+              )}
+
+              <div className="border-t border-slate-200 pt-3">
+                <p className="text-[11px] text-slate-500 uppercase font-medium mb-2">Lo del día</p>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <Input label="Fecha" type="date" value={dia.quotedAt} onChange={(e) => setDia({ ...dia, quotedAt: e.target.value })} />
+                  <Select
+                    label="Servicio"
+                    value={dia.serviceType}
+                    onChange={(e) => setDia({ ...dia, serviceType: e.target.value as ServiceType })}
+                    options={[
+                      { value: 'STANDARD', label: 'Estándar' },
+                      { value: 'EXPRESS', label: 'Express' },
+                      { value: 'DEDICATED', label: 'Dedicado' },
+                    ]}
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Variables de la compañía ──────────────────────────────────────────────────── */}
+          {(customFields.length > 0 || constantes.length > 0) && (
+            <div className="border-t border-slate-200 pt-3">
+              <p className="text-[11px] text-slate-500 uppercase font-medium mb-2">
+                Variables de la compañía
+              </p>
+              {customFields.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {customFields.map((f) => (
+                    <Input
+                      key={f.key}
+                      label={f.unit ? `${f.label} (${f.unit})` : f.label}
+                      type={f.kind === 'NUMBER' ? 'number' : 'text'}
+                      value={customRaw[f.key] ?? ''}
+                      onChange={(e) => setCustomRaw({ ...customRaw, [f.key]: e.target.value })}
+                    />
+                  ))}
+                </div>
+              )}
+              {constantes.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {constantes.map((c) => (
+                    <span key={c.key} className="px-2 py-1 text-xs bg-slate-100 rounded-full text-slate-600">
+                      {c.label}: <strong>{c.defaultValue}</strong>
+                      <span className="text-slate-400 ml-1">fija de la compañía</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {customFields.length === 0 && (
+            <p className="text-[11px] text-slate-400">
+              Peajes, recolectas, atrasos e incidencias se prueban como variables propias de la
+              compañía: se declaran en su ficha y aparecen acá como campos.
+            </p>
+          )}
+
+          <p className="text-xs text-slate-400">
+            Acá no se emite nada: es el mismo cálculo que hará la liquidación, con los mismos datos.
+            La bifurcación nómina (flota propia) / cuentas por pagar (tercero) la deciden las reglas
+            condicionadas por flota, no un cálculo aparte.
+          </p>
         </div>
       </Card>
 
+      {/* ── El resultado ──────────────────────────────────────────────────────────────── */}
       <Card>
         <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
           <i className="ri-file-list-3-line text-teal-600"></i>
-          Resultado
+          ¿Por qué este total?
+          {calculando && <i className="ri-loader-4-line animate-spin text-slate-400"></i>}
         </h3>
 
         {error && (
@@ -368,86 +639,74 @@ export default function RuleTester({ organizationId }: RuleTesterProps) {
           </div>
         )}
 
-        {!result && !error && <p className="text-sm text-slate-400">Completá los datos y hacé click en Calcular.</p>}
-
-        {result && (
-          <div className="space-y-4">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200">
-                    <th className="text-left py-2 font-semibold text-slate-600">Etapa</th>
-                    <th className="text-left py-2 font-semibold text-slate-600">Regla</th>
-                    <th className="text-right py-2 font-semibold text-slate-600">Monto</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.trace.map((line) => (
-                    <tr key={line.seq} className="border-b border-slate-100">
-                      <td className="py-2 text-slate-600">{STAGE_LABELS[line.stage] || line.stage}</td>
-                      <td className="py-2 text-slate-800">{line.label} <span className="text-xs text-slate-400">({line.ruleCode})</span></td>
-                      <td className="py-2 text-right font-medium text-slate-900">${line.final}</td>
-                    </tr>
-                  ))}
-                  {result.trace.length === 0 && (
-                    <tr><td colSpan={3} className="py-4 text-center text-slate-400">Ninguna regla activa aplica.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex justify-between items-center pt-3 border-t-2 border-teal-200">
-              <span className="font-bold text-slate-900">Total a liquidar al transportista</span>
-              <span className="text-xl font-bold text-teal-600">${result.totalLiquidado}</span>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2">
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-600">Costo operativo estimado ({result.cost.modelId})</span>
-                <span className="font-semibold text-slate-800">${result.cost.total}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-600">Margen vs. costo operativo</span>
-                <span className="flex items-center gap-2">
-                  <span className="font-semibold text-slate-800">${result.margin.amount} ({(Number(result.margin.pct) * 100).toFixed(1)}%)</span>
-                  <Badge variant={MARGIN_BADGE_VARIANT[result.margin.status]}>{MARGIN_STATUS_LABEL[result.margin.status]}</Badge>
-                </span>
-              </div>
-              {result.margin.action !== 'NONE' && (
-                <p className="text-xs text-amber-700">
-                  {result.margin.action === 'BLOCK'
-                    ? 'Esta combinación bloquearía la aprobación de una liquidación real (pérdida con blockOnLoss activo).'
-                    : 'Esta combinación exigiría un motivo para aprobar una liquidación real.'}
-                </p>
-              )}
-            </div>
-
-            {result.discarded.length > 0 && (
-              <div>
-                <h4 className="text-xs font-semibold text-slate-500 uppercase mb-2">Descartadas</h4>
-                <ul className="space-y-1">
-                  {result.discarded.map((d, i) => (
-                    <li key={i} className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-                      <span className="font-medium">{d.ruleCode}</span> ({d.reason}) — {d.detail}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+        {veredicto && result && (
+          <div
+            className={`mb-4 rounded-lg px-4 py-3 border text-sm ${
+              veredicto.verdict === 'OK'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : veredicto.verdict === 'MOVIO'
+                  ? 'bg-red-50 border-red-200 text-red-800'
+                  : 'bg-slate-50 border-slate-200 text-slate-600'
+            }`}
+          >
+            {veredicto.verdict === 'OK' && (
+              <>
+                <i className="ri-check-line mr-1"></i>
+                Este escenario sigue dando lo que declara:{' '}
+                <strong>{formatMoney(veredicto.expected!, result.currency)}</strong>.
+              </>
             )}
-
-            {result.warnings.length > 0 && (
-              <div>
-                <h4 className="text-xs font-semibold text-slate-500 uppercase mb-2">Avisos</h4>
-                <ul className="space-y-1">
-                  {result.warnings.map((w, i) => (
-                    <li key={i} className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">{w}</li>
-                  ))}
-                </ul>
+            {veredicto.verdict === 'MOVIO' && (
+              <>
+                <i className="ri-error-warning-line mr-1"></i>
+                El total se movió: esperaba <strong>{formatMoney(veredicto.expected!, result.currency)}</strong>{' '}
+                y da <strong>{formatMoney(veredicto.actual, result.currency)}</strong>{' '}
+                (diferencia {veredicto.drift}). Si el cambio es correcto, fijá el total nuevo.
+              </>
+            )}
+            {veredicto.verdict === 'SIN_ESPERADO' && (
+              <>Este escenario no declara un total esperado: no verifica nada todavía.</>
+            )}
+            {veredicto.verdict !== 'OK' && (
+              <div className="mt-2">
+                <Button variant="secondary" size="sm" onClick={() => void fijarEsperado()} disabled={guardando}>
+                  <i className="ri-bookmark-line mr-1"></i>
+                  Fijar {formatMoney(veredicto.actual, result.currency)} como el total esperado
+                </Button>
               </div>
             )}
           </div>
         )}
+
+        {!result && !error && !calculando && (
+          <p className="text-sm text-slate-400">
+            {modo === 'viaje'
+              ? 'Elegí un viaje completado para ver el desglose.'
+              : 'Completá el viaje para ver el desglose.'}
+          </p>
+        )}
+
+        {result && calculo && (
+          <CalcBreakdownPanel
+            result={result}
+            ctx={{
+              rules: calculo.rules,
+              customLabels: Object.fromEntries(
+                [...customFields, ...constantes].map((f) => [f.key, f.label]),
+              ),
+            }}
+          />
+        )}
       </Card>
+    </div>
+  );
+}
+
+function Dato({ label, valor }: { label: string; valor: string }) {
+  return (
+    <div>
+      <span className="block text-slate-400">{label}</span>
+      <span className="text-slate-700 font-medium">{valor}</span>
     </div>
   );
 }

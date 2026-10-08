@@ -43,6 +43,23 @@ const OMS_GROUP: MenuGroup = {
   ],
 };
 
+// Liquidaciones (liquidar/leer) cuelga del permiso 'tarifas'. Flota Propia, Flota Externa y
+// Reglas de Tarifa son configuración (reglas, tarifarios, costos, variables, margen) y cuelgan de
+// 'tarifas.config', el mismo módulo que exige el backend para escribir: un rol sin él no ve esas
+// entradas ni entra por URL.
+const TARIFAS_GROUP: MenuGroup = {
+  type: 'group',
+  icon: 'ri-money-dollar-circle-line',
+  label: 'Tarifas',
+  i18nKey: 'menu.tarifas',
+  children: [
+    { icon: 'ri-money-dollar-circle-line', label: 'Liquidaciones', i18nKey: 'menu.liquidaciones', path: '/liquidaciones', permKey: 'tarifas' },
+    { icon: 'ri-home-gear-line', label: 'Flota Propia', i18nKey: 'menu.flotaPropia', path: '/tarifas/flota-propia', permKey: 'tarifas.config' },
+    { icon: 'ri-truck-line', label: 'Flota Externa', i18nKey: 'menu.flotaExterna', path: '/tarifas/transportistas', permKey: 'tarifas.config' },
+    { icon: 'ri-price-tag-3-line', label: 'Reglas de Tarifa', i18nKey: 'menu.reglasTarifa', path: '/reglas-tarifa', permKey: 'tarifas.config' },
+  ],
+};
+
 const CATALOGOS_GROUP: MenuGroup = {
   type: 'group',
   icon: 'ri-book-2-line',
@@ -76,7 +93,7 @@ export const navItems: NavItem[] = [
   { icon: 'ri-arrow-go-back-line', label: 'Devoluciones', i18nKey: 'menu.devoluciones', path: '/devoluciones', permKey: 'devoluciones' },
 
   { type: 'section', label: 'Gestión Financiera y Comercial', i18nKey: 'menu.sectionFinance' },
-  { icon: 'ri-money-dollar-circle-line', label: 'Tarifas', i18nKey: 'menu.tarifas', path: '/liquidaciones', permKey: 'tarifas' },
+  TARIFAS_GROUP,
   { icon: 'ri-file-paper-line', label: 'Contratos', i18nKey: 'menu.contratos', path: '/contratos', comingSoon: true, permKey: 'contratos' },
 
   { type: 'section', label: 'Administración y Análisis', i18nKey: 'menu.sectionAdmin' },

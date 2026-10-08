@@ -35,8 +35,9 @@ def _clear_actor(event: dict) -> None:
         logger.exception("No se pudo limpiar el actor de auditoría en %s", route_key(event))
 
 
-def _tms_error(status: int, message: str) -> dict:
-    return json_response(status, {"data": None, "error": {"message": message}})
+def _tms_error(status: int, message: str, code: str | None = None) -> dict:
+    error = {"message": message, **({"code": code} if code else {})}
+    return json_response(status, {"data": None, "error": error})
 
 
 def tms_handler(routes: dict[str, Route]) -> Callable[[dict, object], dict]:
@@ -48,7 +49,7 @@ def tms_handler(routes: dict[str, Route]) -> Callable[[dict, object], dict]:
         try:
             return dispatch(routes, event)
         except HttpError as err:
-            return _tms_error(err.status, str(err))
+            return _tms_error(err.status, str(err), getattr(err, "code", None))
         except Exception:
             # El detalle queda en CloudWatch; al cliente no se le filtran internals.
             logger.exception("Fallo no controlado en %s", route_key(event))

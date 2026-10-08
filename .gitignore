@@ -114,3 +114,5 @@ backend/.pytest_cache/
 
 # Artefactos de despliegue al sandbox (scripts/sandbox/)
 build/
+
+.test
