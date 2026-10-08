@@ -93,15 +93,14 @@ for h in heads:
     ruta = (h['RUTA'] or '').strip(); dz = zone_name.get(ruta.zfill(2)) or zone_name.get(ruta)
     cli = dec(h['cliente']) or ''; direccion = dec(h['direccion']) or ''
     addr = (cli + ("\n" + direccion if direccion else "")).strip() or '(sin direccion)'
-    trip = str(h['NUMEROVIAJEWMH']) if h['NUMEROVIAJEWMH'] else None
-    notes = f"EFLOW real COFERSA · viaje WMH {trip} · factura {h['FACTURA']} · ruta {ruta}"
+    notes = f"EFLOW real COFERSA · factura {h['FACTURA']} · ruta {ruta}"
     ac.execute("""INSERT INTO orders (id,organization_id,store_id,customer_id,order_number,invoice_number,
       order_date,delivery_date,total_weight,total_volume,total_items,delivery_address,delivery_city,
-      delivery_latitude,delivery_longitude,delivery_zone,priority,status,notes,wms_trip_number,created_at,updated_at)
-      VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'assigned',%s,%s,now(),now())""",
+      delivery_latitude,delivery_longitude,delivery_zone,priority,status,notes,created_at,updated_at)
+      VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'assigned',%s,now(),now())""",
       (oid, ORG, store_id, COFERSA, on, (str(h['FACTURA']) if h['FACTURA'] else None), h['dcrea'], fecha,
        h['PESOPEDIDO_TOTAL'], h['CUBICAJEPEDIDO_TOTAL'], len(lines), addr, city_of(direccion),
-       h['LATITUD'], h['LONGITUD'], dz, (str(h['PRIORIDAD']) if h['PRIORIDAD'] is not None else None), notes, trip))
+       h['LATITUD'], h['LONGITUD'], dz, (str(h['PRIORIDAD']) if h['PRIORIDAD'] is not None else None), notes))
     for ln in lines:
         ac.execute("""INSERT INTO order_items (id,order_id,product_code,product_name,quantity,weight,volume,guia_fiscal,created_at)
           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,now())""",
