@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import CapacityBar from './CapacityBar';
 import TripMapa, { type ParadaMapa } from './TripMapa';
 import ParadaModal from './ParadaModal';
+import PuntoModal from './PuntoModal';
 import ViajePedidosModal from './ViajePedidosModal';
 import { coloresPorPunto } from '../colores-parada';
 import { cancelarViaje, completarViaje, reabrirViaje } from '../planes-api';
@@ -43,8 +44,26 @@ export default function PlanTripCard({
 }: Props) {
   const { t } = useTranslation();
   const [paradaSel, setParadaSel] = useState<PlanStop | null>(null);
+  const [puntoSel, setPuntoSel] = useState<PlanStop[] | null>(null);
   const [verPedidos, setVerPedidos] = useState(false);
+  const [verTodasParadas, setVerTodasParadas] = useState(false);
   const [procesando, setProcesando] = useState(false);
+
+  // Click en un pin del mapa: si ese punto (coordenadas) tiene varios pedidos,
+  // abre la tabla del punto (PuntoModal); si es uno solo, va directo al detalle.
+  function abrirDesdeMapa(orderId: string) {
+    const stop = trip.stops.find((s) => s.order_id === orderId);
+    if (!stop) return;
+    const mismoPunto = trip.stops.filter(
+      (s) =>
+        s.delivery_latitude != null &&
+        s.delivery_longitude != null &&
+        s.delivery_latitude === stop.delivery_latitude &&
+        s.delivery_longitude === stop.delivery_longitude,
+    );
+    if (mismoPunto.length > 1) setPuntoSel(mismoPunto);
+    else setParadaSel(stop);
+  }
 
   const ACCIONES = { completar: completarViaje, cancelar: cancelarViaje, reabrir: reabrirViaje };
 
@@ -172,14 +191,11 @@ export default function PlanTripCard({
 
       {/* Mapa de la ruta por calles (OSRM) con las paradas numeradas. */}
       <div className="p-3">
-        <TripMapa
-          paradas={paradasMapa}
-          onParadaClick={(id) => setParadaSel(trip.stops.find((s) => s.order_id === id) ?? null)}
-        />
+        <TripMapa paradas={paradasMapa} onParadaClick={abrirDesdeMapa} />
       </div>
 
       <ol className="px-4 pb-4 space-y-1.5">
-        {trip.stops.map((s) => {
+        {(verTodasParadas ? trip.stops : trip.stops.slice(0, 3)).map((s) => {
           const nombre = s.customer_name || s.order_number || s.order_id.slice(0, 8);
           return (
             <li
@@ -226,10 +242,33 @@ export default function PlanTripCard({
         {trip.stops.length === 0 && (
           <li className="text-xs text-slate-400 italic py-1">{t('planning.noStops')}</li>
         )}
+        {trip.stops.length > 3 && (
+          <li>
+            <button
+              type="button"
+              onClick={() => setVerTodasParadas((v) => !v)}
+              className="w-full mt-1 text-xs font-semibold text-teal-700 hover:text-teal-800 hover:bg-teal-50 rounded py-1.5 cursor-pointer inline-flex items-center justify-center gap-1"
+            >
+              <i className={verTodasParadas ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'}></i>
+              {verTodasParadas
+                ? t('planning.viewLessStops')
+                : t('planning.viewAllStops', { count: trip.stops.length })}
+            </button>
+          </li>
+        )}
       </ol>
 
-      <ParadaModal parada={paradaSel} onClose={() => setParadaSel(null)} />
+      <PuntoModal
+        stops={puntoSel}
+        color={puntoSel ? colorDe.get(puntoSel[0].order_id) : undefined}
+        onVerDetalle={(s) => setParadaSel(s)}
+        onClose={() => setPuntoSel(null)}
+      />
       {verPedidos && <ViajePedidosModal trip={trip} onClose={() => setVerPedidos(false)} />}
+      {/* El detalle de parada va DE ÚLTIMO: mismo z-index que los otros modales,
+          así que debe ir después en el DOM para quedar ENCIMA (p.ej. al abrir el
+          detalle desde la tabla del punto). */}
+      <ParadaModal parada={paradaSel} onClose={() => setParadaSel(null)} />
     </div>
   );
 }
