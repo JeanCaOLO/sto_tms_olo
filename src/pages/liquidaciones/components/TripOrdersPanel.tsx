@@ -20,8 +20,14 @@ interface Props {
   currency: string;
   /** Con permiso de liquidar y viaje liquidable: muestra las acciones de cada pedido. */
   editable?: boolean;
-  /** Se llama después de cambiar una marca, para que quien la usa recalcule. */
-  onChanged?: () => void;
+  /**
+   * Pedidos ya leídos por quien usa el panel (el modal de liquidar los trae con el cálculo). Con esto el
+   * panel NO vuelve a pedirlos: antes cada apertura del modal leía pedidos y marcas dos o tres veces.
+   * Tras cambiar una marca, `onChanged` debe recalcular y devolver nuevos `orders`.
+   */
+  orders?: TripOrder[];
+  /** Se llama después de cambiar una marca, para que quien la usa recalcule. Si devuelve una promesa, se espera. */
+  onChanged?: () => void | Promise<unknown>;
   /** Texto de arriba (cambia entre la fila extendida y el modal). */
   intro?: string;
 }
@@ -30,9 +36,12 @@ const MARK_VARIANT: Record<string, 'default' | 'warning' | 'danger'> = {
   ANULADO: 'danger', DIFERIDO: 'warning',
 };
 
-export default function TripOrdersPanel({ trip, currency, editable = false, onChanged, intro }: Props) {
-  const [orders, setOrders] = useState<TripOrder[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function TripOrdersPanel({ trip, currency, editable = false, orders: given, onChanged, intro }: Props) {
+  const controlled = given !== undefined;
+  const [ownOrders, setOrders] = useState<TripOrder[]>([]);
+  const [ownLoading, setLoading] = useState(!controlled);
+  const orders = controlled ? given : ownOrders;
+  const loading = controlled ? false : ownLoading;
   const [error, setError] = useState('');
   // Pedido al que se le está pidiendo el motivo de la anulación.
   const [annulling, setAnnulling] = useState<string | null>(null);
@@ -40,6 +49,7 @@ export default function TripOrdersPanel({ trip, currency, editable = false, onCh
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
+    if (controlled) return;
     setLoading(true);
     try {
       setOrders(await listTripOrders(trip.id));
@@ -50,7 +60,7 @@ export default function TripOrdersPanel({ trip, currency, editable = false, onCh
     } finally {
       setLoading(false);
     }
-  }, [trip.id]);
+  }, [trip.id, controlled]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -63,8 +73,13 @@ export default function TripOrdersPanel({ trip, currency, editable = false, onCh
     if (err) { setError(err); return; }
     setAnnulling(null);
     setReason('');
-    // El recálculo de quien usa el panel y la recarga de la tabla son independientes: van a la vez
-    // (antes uno esperaba al otro y la pantalla tardaba la suma de las dos).
+    if (controlled) {
+      // Quien usa el panel recalcula y con eso trae los pedidos nuevos: una sola lectura.
+      setBusy(true);
+      try { await onChanged?.(); } finally { setBusy(false); }
+      return;
+    }
+    // Sin pedidos dados, el recálculo de quien lo usa y la recarga de la tabla van a la vez.
     onChanged?.();
     await load();
   };

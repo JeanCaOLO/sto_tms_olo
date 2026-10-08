@@ -89,7 +89,8 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
   const runCalc = async (edits: TripEdits) => {
     const seq = ++calcSeq.current;
     try {
-      const res = await calculateTrip(tripRead.current ?? tripId, edits, { allowSettled: reliquidando });
+      // El viaje que ya trae la bandeja evita pedirlo de nuevo (dos lecturas); la emisión lo valida otra vez.
+      const res = await calculateTrip(tripRead.current ?? trip ?? tripId, edits, { allowSettled: reliquidando });
       if (seq !== calcSeq.current) return null;
       if (res.status !== 'ok') {
         setCalculation(null);
@@ -135,14 +136,20 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
 
     void (async () => {
       const initial = settlement?.tripEdits ?? emptyTripEdits();
+      // Las devoluciones no dependen del cálculo: se piden a la vez para no sumar su espera.
+      const returnsRequest = settlement
+        ? null
+        : listTripReturns(tripId).then((rows) => ({ rows }), (failure: unknown) => ({ failure }));
       const calc = await runCalc(initial);
       if (cancelled) return;
       if (calc) {
         setCustomRaw({ ...initialCustomVarValues(calc.customVarFields), ...toRaw(initial) });
       }
-      if (!settlement) {
+      if (returnsRequest) {
+        const outcome = await returnsRequest;
         try {
-          const precargadas = await listTripReturns(tripId);
+          if ('failure' in outcome) throw outcome.failure;
+          const precargadas = outcome.rows;
           if (!cancelled) setReturns(precargadas);
         } catch (e) {
           console.error('No se pudieron leer las devoluciones del viaje:', e);
@@ -255,7 +262,8 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
       trip={calculation.trip}
       currency={currency}
       editable
-      onChanged={() => { void runCalc(editsUsed.current); }}
+      orders={calculation.orders}
+      onChanged={() => runCalc(editsUsed.current)}
       intro={'Cada guía lleva un pedido. Anular saca el pedido del reparto; "Liquidar después" lo deja con su proforma '
         + 'pendiente. Ninguna de las dos cambia lo que se le paga al transportista.'}
     />
