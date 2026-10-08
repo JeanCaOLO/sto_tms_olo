@@ -13,7 +13,7 @@
 
 import { apiFetch } from '../../lib/supabase';
 import { getFallbackPedidosParaPlanificar, offsetDayIso } from './fallback-pedidos';
-import type { Pedido } from './types';
+import type { Articulo, Pedido } from './types';
 
 // Día objetivo por defecto: mañana (hoy + 1).
 export function fechaEntregaObjetivo(): string {
@@ -41,5 +41,18 @@ export async function fetchPedidosParaPlanificar(
     return data.map(normalizar);
   } catch {
     return getFallbackPedidosParaPlanificar(fechaEntrega);
+  }
+}
+
+// Artículos (líneas) de un pedido, para el modal de detalle del pin.
+//   GET /api/v1/planificacion/pedidos/{order_id}/articulos → { data: Articulo[] }
+// Sin backend o pedido mock, devuelve [] (el modal muestra "sin artículos").
+export async function fetchArticulosDePedido(orderId: string): Promise<Articulo[]> {
+  try {
+    const { ok, body } = await apiFetch(`/v1/planificacion/pedidos/${orderId}/articulos`);
+    const data = body?.data as Articulo[] | undefined;
+    return ok && Array.isArray(data) ? data : [];
+  } catch {
+    return [];
   }
 }

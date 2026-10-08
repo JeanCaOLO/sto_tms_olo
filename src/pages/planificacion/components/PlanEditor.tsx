@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePlanes } from '../use-planes';
 import { useNuevosPedidos } from '../use-nuevos-pedidos';
@@ -5,6 +6,7 @@ import { useZonasNombre } from '../use-zonas-nombre';
 import type { MockContext } from '../planes-api';
 import PlanTripCard from './PlanTripCard';
 import type { PlanStatus } from '../planes-types';
+import type { Pedido } from '../types';
 
 interface Props {
   fecha: string;
@@ -44,6 +46,14 @@ export default function PlanEditor({ fecha, pedidosCount, vehiculosCount, ctx, d
     ? plan.trips.reduce((acc, tr) => acc + tr.stops.length, 0) + plan.unassigned_order_numbers.length
     : null;
   const nuevosPedidos = useNuevosPedidos(fecha, pedidosEnPlan);
+
+  // Para mostrar el DETALLE de los pedidos sin asignar (el plan solo trae sus
+  // números): se resuelve contra los pedidos del día que ya tiene el contexto.
+  const pedidosPorNumero = useMemo(() => {
+    const m = new Map<string, Pedido>();
+    for (const p of ctx.pedidos) m.set(p.order_number, p);
+    return m;
+  }, [ctx.pedidos]);
 
   const confirmarPlan = async () => {
     await confirmar();
@@ -126,6 +136,46 @@ export default function PlanEditor({ fecha, pedidosCount, vehiculosCount, ctx, d
         </div>
       )}
 
+      {plan && (plan.unassigned_order_numbers?.length ?? 0) > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <p className="text-sm font-semibold text-amber-800 flex items-center gap-2">
+            <i className="ri-alert-line"></i>
+            {plan.unassigned_order_numbers.length} {t('planning.unassigned')}
+          </p>
+          <p className="text-xs text-amber-700 mt-1">{t('planning.unassignedHint')}</p>
+          <p className="text-xs text-amber-700 mt-2">{t('planning.unassignedDetailHint')}</p>
+          <div className="mt-2 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[11px] uppercase tracking-wide text-amber-700/70 border-b border-amber-200">
+                  <th className="py-1 pr-2 font-medium">{t('planning.customer')}</th>
+                  <th className="py-1 pr-2 font-medium">{t('planning.orderNumber')}</th>
+                  <th className="py-1 pr-2 font-medium">{t('planning.zone')}</th>
+                  <th className="py-1 pl-2 font-medium text-right">{t('planning.weight')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {plan.unassigned_order_numbers.map((num) => {
+                  const p = pedidosPorNumero.get(num);
+                  return (
+                    <tr key={num} className="border-b border-amber-100/60 last:border-0">
+                      <td className="py-1.5 pr-2 text-amber-900 font-medium">{p?.customer_name || '—'}</td>
+                      <td className="py-1.5 pr-2 text-amber-800 font-mono text-xs">{num}</td>
+                      <td className="py-1.5 pr-2 text-amber-800">
+                        {nombreDe(p?.delivery_zone || '') || p?.delivery_zone || '—'}
+                      </td>
+                      <td className="py-1.5 pl-2 text-right text-amber-800">
+                        {p?.total_weight != null ? `${p.total_weight} kg` : '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {plan && plan.trips.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {plan.trips.map((trip, i) => (
@@ -144,15 +194,6 @@ export default function PlanEditor({ fecha, pedidosCount, vehiculosCount, ctx, d
         </div>
       )}
 
-      {plan && (plan.unassigned_order_numbers?.length ?? 0) > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-          <p className="text-sm font-semibold text-amber-800 flex items-center gap-2">
-            <i className="ri-alert-line"></i>
-            {plan.unassigned_order_numbers.length} {t('planning.unassigned')}
-          </p>
-          <p className="text-xs text-amber-700 mt-1">{t('planning.unassignedHint')}</p>
-        </div>
-      )}
     </div>
   );
 }

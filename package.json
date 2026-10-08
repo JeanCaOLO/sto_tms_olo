@@ -59,6 +59,7 @@
     "preview": "vite preview",
     "server": "node --env-file=.env.local server/index.mjs",
     "api:local": "python backend-planif/serve.py",
+    "ws:local": "node ws-local.mjs",
     "api:local:base": "python backend/local/serve.py",
     "type-check": "tsc --noEmit --project tsconfig.app.json",
     "test": "vitest run",

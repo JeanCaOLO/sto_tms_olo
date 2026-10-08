@@ -47,6 +47,13 @@ def list_pedidos(event: dict) -> dict:
     return ok([pedido_to_dict(p) for p in pedidos])
 
 
+# GET /pedidos/{id}/articulos  → líneas/artículos del pedido
+def list_articulos(event: dict) -> dict:
+    wiring.resolve_context(event)
+    svc = wiring.build_service()
+    return ok(svc.articulos_de_pedido(path_param(event, "id")))
+
+
 # POST /planes  { plan_date, warehouse_id? }
 def crear_plan(event: dict) -> dict:
     body = _body_with_context(event)
@@ -125,6 +132,7 @@ def _translate_domain_errors(route):
 
 _RAW_ROUTES = {
     "GET /api/v1/planificacion/pedidos": list_pedidos,
+    "GET /api/v1/planificacion/pedidos/{id}/articulos": list_articulos,
     "POST /api/v1/planificacion/planes": crear_plan,
     "GET /api/v1/planificacion/planes": listar_planes,
     "GET /api/v1/planificacion/planes/{id}": obtener_plan,
