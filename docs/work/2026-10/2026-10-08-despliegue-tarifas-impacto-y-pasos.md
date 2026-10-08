@@ -37,7 +37,7 @@ Las pruebas del backend de tarifas pasan (72) y la prueba contra Aurora confirma
 
 ## Rollback
 - Backend: volver a desplegar el commit anterior de `backend/tarifas` (o `aws cloudformation` rollback del stack `dev-tms-tarifas`).
-- Datos: `sql/29_tarifas_settlement_date_compat_text.sql` devuelve `settlement_date` a `text` (idempotente).
+- Datos: `docs/handoff/contingencia-settlement-date-a-text.sql` devuelve `settlement_date` a `text` (idempotente).
 
 ## Qué mejora (mediciones de antes)
 - Catálogo: de ~11 lecturas sueltas (1,2 a 6,5 s cada una al encolarse) a 2 idas y vueltas.

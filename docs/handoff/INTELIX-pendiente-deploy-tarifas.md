@@ -3,7 +3,7 @@
 Fecha: 2026-10-08. Rama de trabajo: `dylan-tarifas`. Nadie ha desplegado esto: todo se probó con el backend corriendo **en local** contra Aurora (sin tocar AWS). El despliegue lo hace el líder del equipo tras el merge a `main`.
 
 ## Qué hay que desplegar
-Solo el stack `tarifas` (`backend/tarifas/`). Cambios entre lo que está desplegado (`628c083`) y la rama: 8 archivos, todos dentro de `backend/tarifas/`. El diff exacto está en `docs/handoff/tarifas-backend-pendiente.patch` (incluye las migraciones 26 a 29).
+Solo el stack `tarifas` (`backend/tarifas/`). Cambios entre lo que está desplegado (`628c083`) y la rama: 8 archivos, todos dentro de `backend/tarifas/`. El diff exacto está en `docs/handoff/tarifas-backend-pendiente.patch` (incluye las migraciones 26 a 28).
 
 | Cambio | Archivo | Para qué |
 |---|---|---|
@@ -19,14 +19,14 @@ Ningún otro stack importa nada de `tarifas`; la capa común (`tms_common`) y el
 
 ## Orden del despliegue (importa)
 1. Merge de la rama a `main` y despliegue del stack `tarifas`.
-2. Reaplicar la migración 28 en Aurora: `node --env-file=.env.local scripts/run-migration.mjs sql/28_tarifas_fecha_e_indices_sobrantes.sql --execute --force`. **Estado actual de la base de pruebas:** la migración 29 está aplicada (`settlement_date` es `text`) porque el backend desplegado todavía manda `::text`. Con el backend nuevo la columna debe volver a `date`; solo la 28 la devuelve (solo cambia el tipo si la columna es `text`).
+2. Reaplicar la migración 28 en Aurora: `node --env-file=.env.local scripts/run-migration.mjs sql/28_tarifas_fecha_e_indices_sobrantes.sql --execute --force`. **Estado actual de la base de pruebas:** la contingencia de `settlement_date` a text está aplicada (`settlement_date` es `text`) porque el backend desplegado todavía manda `::text`. Con el backend nuevo la columna debe volver a `date`; solo la 28 la devuelve (solo cambia el tipo si la columna es `text`).
    - Si se aplica la 28 **antes** de desplegar, emitir liquidaciones falla (`column "settlement_date" is of type date but expression is of type text`).
    - Si se despliega y no se aplica la 28, funciona todo salvo el historial paginado por cursor y los filtros por fecha, que comparan `text` con `date`.
 3. En `src/lib/tarifas/__tests__/aurora.manifest-esquema.test.ts` quitar `tarifas_settlements.settlement_date` de `KNOWN_DIVERGENCES` y correr `TARIFAS_AURORA_MANIFEST=1 npx vitest run src/lib/tarifas/__tests__/aurora.manifest-esquema.test.ts`.
 4. Verificar en el navegador: `POST /api/tarifas/batch` responde 200 (hoy 404), emitir una liquidación de prueba y abrir el modal de un transportista que no se haya abierto antes.
 5. Registrar el cambio en `docs/reference/aws-inventario-tms.md`.
 
-Rollback: volver al commit anterior de `backend/tarifas`; la base se devuelve con `sql/29_tarifas_settlement_date_compat_text.sql`.
+Rollback: volver al commit anterior de `backend/tarifas`; la base se devuelve con `docs/handoff/contingencia-settlement-date-a-text.sql`.
 
 ## Qué se probó (backend en local, `127.0.0.1:4010`, Aurora por túnel)
 Mismas pantallas y viajes que la auditoría del 2026-10-07. Los tiempos locales NO son los de AWS (el servidor local atiende una petición a la vez y cada consulta pasa por el túnel, ~85 ms), sirven para comparar versiones y contar llamadas.
@@ -45,3 +45,6 @@ También se comprobó con `scripts/verify-tarifas-date-local.py` (transacción c
 
 ## Para entregar sin hacer push
 `docs/handoff/tarifas-backend-pendiente.patch` contiene el diff completo. Si el líder prefiere tomarlo de GitHub, hay que subir la rama `dylan-tarifas`: tiene commits locales que aún no están en el remoto.
+
+## Nota sobre la contingencia de `settlement_date`
+`docs/handoff/contingencia-settlement-date-a-text.sql` NO es parte de la secuencia `sql/NN`: es lo que se aplicó solo en la base de pruebas (columna a `text`) porque el backend desplegado era anterior. Está fuera de `sql/` a propósito: si un runner de migraciones la ejecutara después de la 28, devolvería la columna a `text` y el backend nuevo fallaría en el historial paginado y los filtros por fecha. Al desplegar, aplicar solo la 28.

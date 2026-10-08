@@ -1,5 +1,9 @@
 -- ============================================================================
--- 29 — Tarifador: `settlement_date` vuelve a `text` mientras el backend desplegado sea el anterior a la 28.
+-- CONTINGENCIA (NO es una migración de la secuencia sql/NN): `settlement_date` vuelve a `text` mientras el
+-- backend desplegado sea el anterior a la 28.
+--
+-- NO aplicar al desplegar el backend nuevo: la 28 deja la columna en `date` y esto la devolvería a `text`.
+-- Se aplicó solo en la base de pruebas, el 2026-10-08, porque el backend desplegado era anterior.
 --
 -- Por qué: la migración 28 pasó `tarifas_settlements.settlement_date` a `date`, pero el backend
 -- desplegado de `backend/tarifas` todavía manda esa columna con `::text` (su manifiesto de esquema es

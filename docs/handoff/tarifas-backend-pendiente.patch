@@ -547,6 +547,450 @@ index f4a913b..6a87f22 100644
    TarifasListRoute:
      Type: AWS::ApiGatewayV2::Route
      Properties:
+diff --git a/backend/tests/conftest.py b/backend/tests/conftest.py
+index 7cf1bca..bf01395 100644
+--- a/backend/tests/conftest.py
++++ b/backend/tests/conftest.py
+@@ -18,12 +18,14 @@ STACK_SOURCES = {
+     "eflow": BACKEND / "eflow" / "src",
+     "admin": BACKEND / "admin" / "src",
+     "planning": BACKEND / "planning" / "src",
++    "oms": BACKEND / "oms" / "src",
+     "tarifas": BACKEND / "tarifas" / "src",
+ }
+ STACK_MODULES = {"app", "table_modules", "admin_permissions", "admin_audit", "audit_maintenance", "relations", "schema", "select_parser", "select_query", "mutations",
+                  "scopes", "context_queries", "eflow_queries", "live_source", "mock_source",
+                  "admin_access", "admin_payload", "admin_sql", "admin_users", "admin_roles", "planning_sql", "delivery_points", "delivery_points_sql",
+-                 "tarifas_schema", "tarifas_sql"}
++                 "models", "score", "regla_fecha", "analizador_observaciones", "cola_candidatos", "handoff_pedidos", "motor_reglas",
++                 "tarifas_schema", "tarifas_sql", "tarifas_perms", "tarifas_db", "tarifas_metrics"}
+ 
+ sys.path.insert(0, str(LAYER))
+ 
+diff --git a/backend/tests/test_permissions_cache.py b/backend/tests/test_permissions_cache.py
+new file mode 100644
+index 0000000..7be0149
+--- /dev/null
++++ b/backend/tests/test_permissions_cache.py
+@@ -0,0 +1,75 @@
++"""Caché de permisos del tarifador: ahorra las queries de cada request sin dejar datos viejos más de TTL.
++Vive en backend/tarifas (tarifas_perms); la capa común no cambia."""
++
++import pytest
++
++from conftest import http_event, load_stack_module, make_permissions
++from tms_common import permissions
++
++
++@pytest.fixture
++def real(monkeypatch):
++    perms = load_stack_module("tarifas", "tarifas_perms")
++    perms.clear_cache()
++    monkeypatch.setenv("TMS_PERMS_TTL_SECONDS", "30")
++    calls = []
++    clock = {"now": 1000.0}
++
++    def fake_for_event(event):
++        calls.append(event["requestContext"]["authorizer"]["lambda"]["sub"])
++        return make_permissions(is_admin=True)
++
++    monkeypatch.setattr(permissions, "for_event", fake_for_event)
++    monkeypatch.setattr(perms.time, "monotonic", lambda: clock["now"])
++    yield perms, calls, clock
++    perms.clear_cache()
++
++
++def event(user_id="u1"):
++    return http_event("GET /x", user={"id": user_id, "email": "a@b.c"})
++
++
++def test_second_request_inside_ttl_does_not_query(real):
++    perms, calls, _ = real
++    perms.for_event(event())
++    perms.for_event(event())
++    assert calls == ["u1"]
++
++
++def test_expires_after_ttl(real):
++    perms, calls, clock = real
++    perms.for_event(event())
++    clock["now"] += 31
++    perms.for_event(event())
++    assert calls == ["u1", "u1"]
++
++
++def test_each_user_has_own_entry(real):
++    perms, calls, _ = real
++    perms.for_event(event("u1"))
++    perms.for_event(event("u2"))
++    assert calls == ["u1", "u2"]
++
++
++@pytest.mark.parametrize("value", ["0", "", "abc"])
++def test_off_by_default_or_invalid(real, monkeypatch, value):
++    perms, calls, _ = real
++    monkeypatch.setenv("TMS_PERMS_TTL_SECONDS", value)
++    perms.for_event(event())
++    perms.for_event(event())
++    assert calls == ["u1", "u1"]
++
++
++def test_errors_are_not_cached(real, monkeypatch):
++    perms, calls, _ = real
++    from tms_common.errors import HttpError
++
++    def boom(event):
++        calls.append("x")
++        raise HttpError(403, "inactivo")
++
++    monkeypatch.setattr(permissions, "for_event", boom)
++    for _ in range(2):
++        with pytest.raises(HttpError):
++            perms.for_event(event())
++    assert calls == ["x", "x"]
+diff --git a/backend/tests/test_tarifas.py b/backend/tests/test_tarifas.py
+index f65d5a3..58e9acb 100644
+--- a/backend/tests/test_tarifas.py
++++ b/backend/tests/test_tarifas.py
+@@ -119,6 +119,22 @@ def test_el_limite_tiene_tope(api):
+     assert "LIMIT 5000" in db.calls[-1][0]
+ 
+ 
++def test_columnas_proyecta_solo_las_pedidas_y_las_valida(api):
++    app, db = api
++    q = {"where": [{"column": "country_id", "op": "eq", "value": "CR"}], "columns": ["number", "number", "id"]}
++    call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_settlements"}, query={"q": json.dumps(q)})
++    assert db.calls[-1][0].startswith('SELECT "number", "id" FROM "tarifas_settlements"')
++
++
++@pytest.mark.parametrize("columns", [[], "number", [1], ["no_existe"], ["id; drop table x"]])
++def test_columnas_invalidas_son_400(api, columns):
++    app, db = api
++    q = {"columns": columns}
++    response = call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_settlements"}, query={"q": json.dumps(q)})
++    assert response["statusCode"] == 400
++    assert db.calls == []
++
++
+ def test_un_rol_acotado_solo_ve_sus_paises(api, caller_permissions):
+     app, db = api
+     caller_permissions.set(make_permissions({"tarifas": ["view"]}, countries=(CR,)))
+diff --git a/backend/tests/test_tarifas_lecturas.py b/backend/tests/test_tarifas_lecturas.py
+new file mode 100644
+index 0000000..2ba7db2
+--- /dev/null
++++ b/backend/tests/test_tarifas_lecturas.py
+@@ -0,0 +1,218 @@
++"""Lecturas nuevas del tarifador: /batch, /find por POST, paginación por cursor (`after`), métricas
++por request y topes de tiempo de sentencia. Todo dentro de backend/tarifas; la capa común no cambia."""
++
++import json
++
++import pytest
++
++from conftest import body_of, http_event, load_stack_module, make_permissions
++from tms_common import pg
++from tms_common.errors import HttpError
++
++USER = {"id": "auth-1", "email": "liquidador@ologistics.com"}
++CR = "22222222-2222-2222-2222-222222222221"
++
++
++class FakeDb:
++    def __init__(self):
++        self.calls = []
++        self.results = None  # lista de respuestas por llamada; si es None, siempre [{"id": "x"}]
++        self.error = None
++
++    def query(self, sql, params=()):
++        self.calls.append((sql, list(params)))
++        if self.error:
++            raise self.error
++        if self.results is not None:
++            return self.results[len(self.calls) - 1]
++        return [{"id": "x"}]
++
++
++@pytest.fixture
++def api(monkeypatch):
++    db = FakeDb()
++    monkeypatch.setattr(pg, "query", db.query)
++    app = load_stack_module("tarifas")
++    metrics = load_stack_module("tarifas", "tarifas_metrics")
++    tdb = load_stack_module("tarifas", "tarifas_db")
++    tdb.reset_session()
++    return app, db, metrics, tdb
++
++
++def call(app, route, *, path=None, query=None, body=None):
++    return app.handler(http_event(route, path=path, query=query, body=body, user=USER), None)
++
++
++# ── /batch ─────────────────────────────────────────────────────────────────────────────────────
++
++def test_batch_corre_varias_lecturas_y_devuelve_un_array_por_consulta(api):
++    app, db, *_ = api
++    db.results = [[{"id": "a"}], [{"id": "b"}, {"id": "c"}]]
++    body = {"queries": [
++        {"table": "tarifas_pricing_rules", "q": {"where": [{"column": "country_id", "op": "eq", "value": CR}]}},
++        {"table": "tarifas_zone_groups"},
++    ]}
++    response = call(app, "POST /api/tarifas/batch", body=body)
++
++    assert response["statusCode"] == 200
++    assert body_of(response) == [[{"id": "a"}], [{"id": "b"}, {"id": "c"}]]
++    assert len(db.calls) == 2
++    assert 'FROM "tarifas_pricing_rules"' in db.calls[0][0] and 'FROM "tarifas_zone_groups"' in db.calls[1][0]
++    assert db.calls[0][1] == [CR]
++
++
++def test_batch_no_registra_actor_de_auditoria_porque_no_escribe(api, audit_calls):
++    app, db, *_ = api
++    call(app, "POST /api/tarifas/batch", body={"queries": [{"table": "tarifas_zone_groups"}]})
++    assert not [c for c in audit_calls if c[0] in ("bind", "clear")]
++
++
++def test_batch_respeta_la_lista_blanca_y_el_filtro_de_paises(api, caller_permissions):
++    app, db, *_ = api
++    caller_permissions.set(make_permissions({"tarifas": ["view"]}, countries=(CR,)))
++    call(app, "POST /api/tarifas/batch", body={"queries": [{"table": "tarifas_settlements"}]})
++    assert "country_id = ANY" in db.calls[0][0] and db.calls[0][1] == [[CR]]
++
++    bad = call(app, "POST /api/tarifas/batch", body={"queries": [{"table": "usuarios_secretos"}]})
++    assert bad["statusCode"] in (400, 404)
++
++
++def test_batch_exige_poder_leer(api, caller_permissions):
++    app, db, *_ = api
++    caller_permissions.set(make_permissions({"guias": ["view"]}))
++    response = call(app, "POST /api/tarifas/batch", body={"queries": [{"table": "tarifas_zone_groups"}]})
++    assert response["statusCode"] == 403 and db.calls == []
++
++
++@pytest.mark.parametrize("body", [{}, {"queries": []}, {"queries": "x"}, {"queries": ["x"]}])
++def test_batch_valida_la_forma(api, body):
++    app, db, *_ = api
++    assert call(app, "POST /api/tarifas/batch", body=body)["statusCode"] == 400
++    assert db.calls == []
++
++
++def test_batch_tiene_tope(api):
++    app, db, *_ = api
++    body = {"queries": [{"table": "tarifas_zone_groups"}] * (app.MAX_BATCH + 1)}
++    assert call(app, "POST /api/tarifas/batch", body=body)["statusCode"] == 400
++    assert db.calls == []
++
++
++# ── /{table}/find ──────────────────────────────────────────────────────────────────────────────
++
++def test_find_por_post_equivale_al_get_con_q_en_el_cuerpo(api, audit_calls):
++    app, db, *_ = api
++    q = {"where": [{"column": "status", "op": "eq", "value": "completed"}], "limit": 10}
++    response = call(app, "POST /api/tarifas/{table}/find", path={"table": "tarifas_v_viajes"}, body=q)
++
++    assert response["statusCode"] == 200 and body_of(response) == [{"id": "x"}]
++    sql, params = db.calls[-1]
++    assert 'FROM "tarifas_v_viajes"' in sql and "LIMIT 10" in sql and params == ["completed"]
++    assert not [c for c in audit_calls if c[0] == "bind"]
++
++
++def test_find_por_post_soporta_in_con_miles_de_ids(api):
++    app, db, *_ = api
++    ids = [f"id-{n}" for n in range(3000)]
++    call(app, "POST /api/tarifas/{table}/find", path={"table": "tarifas_settlements"},
++         body={"where": [{"column": "trip_id", "op": "in", "value": ids}]})
++    assert db.calls[-1][1] == [ids]
++
++
++# ── Paginación por cursor ──────────────────────────────────────────────────────────────────────
++
++def test_after_descendente_compara_la_tupla_con_menor_que(api):
++    app, db, *_ = api
++    q = {"orderBy": [{"column": "settlement_date", "direction": "desc"}, {"column": "number", "direction": "desc"}],
++         "after": {"settlement_date": "2026-08-28", "number": "LIQ-VE-010"}, "limit": 50}
++    call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_settlements"}, query={"q": json.dumps(q)})
++    sql, params = db.calls[-1]
++    assert '("settlement_date", "number") < (%s::date, %s::text)' in sql
++    assert params == ["2026-08-28", "LIQ-VE-010"]
++    assert 'ORDER BY "settlement_date" DESC NULLS LAST, "number" DESC NULLS LAST' in sql
++
++
++def test_after_ascendente_usa_mayor_que(api):
++    app, db, *_ = api
++    q = {"orderBy": [{"column": "number"}], "after": {"number": "LIQ-VE-010"}}
++    call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_settlements"}, query={"q": json.dumps(q)})
++    assert '("number") > (%s::text)' in db.calls[-1][0]
++
++
++@pytest.mark.parametrize("q", [
++    {"after": {"number": "x"}},  # sin orderBy
++    {"orderBy": [{"column": "number"}], "after": {"otra": "x"}},  # columnas distintas
++    {"orderBy": [{"column": "settlement_date", "direction": "desc"}, {"column": "number"}],
++     "after": {"settlement_date": "2026-01-01", "number": "x"}},  # direcciones mezcladas
++    {"orderBy": [{"column": "number"}], "after": {"number": None}},  # NULL
++    {"orderBy": [{"column": "number"}], "after": []},
++])
++def test_after_invalido_es_400(api, q):
++    app, db, *_ = api
++    response = call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_settlements"}, query={"q": json.dumps(q)})
++    assert response["statusCode"] == 400 and db.calls == []
++
++
++# ── Métricas ───────────────────────────────────────────────────────────────────────────────────
++
++def test_cada_request_imprime_una_linea_emf_con_duracion_y_sentencias(api, capsys):
++    app, db, *_ = api
++    call(app, "POST /api/tarifas/batch", body={"queries": [{"table": "tarifas_zone_groups"}, {"table": "zones"}]})
++    lines = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith("{")]
++    line = lines[-1]
++    assert line["Route"] == "POST /api/tarifas/batch" and line["Status"] == 200
++    assert line["Queries"] == 2 and line["Errors"] == 0 and line["DurationMs"] >= 0
++    assert line["_aws"]["CloudWatchMetrics"][0]["Namespace"] == "TMS/Tarifas"
++
++
++def test_el_primer_request_marca_arranque_en_frio_y_los_demas_no(api, capsys):
++    app, db, metrics, _ = api
++    metrics._cold_start = True
++    call(app, "POST /api/tarifas/batch", body={"queries": [{"table": "tarifas_zone_groups"}]})
++    call(app, "POST /api/tarifas/batch", body={"queries": [{"table": "tarifas_zone_groups"}]})
++    lines = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith("{")]
++    assert [l["ColdStart"] for l in lines[-2:]] == [1, 0]
++
++
++def test_un_error_5xx_cuenta_como_error(api, capsys):
++    app, db, *_ = api
++    db.error = RuntimeError("boom")
++    call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_zone_groups"})
++    line = [json.loads(l) for l in capsys.readouterr().out.splitlines() if l.startswith("{")][-1]
++    assert line["Status"] == 500 and line["Errors"] == 1
++
++
++# ── Topes de tiempo de sentencia ───────────────────────────────────────────────────────────────
++
++def test_sin_variables_de_entorno_no_se_toca_la_conexion(api, monkeypatch):
++    app, db, _, tdb = api
++    monkeypatch.delenv("TMS_STATEMENT_TIMEOUT_MS", raising=False)
++    monkeypatch.setattr(pg, "_live_connection", lambda: pytest.fail("no debía abrir la conexión"), raising=False)
++    tdb.query("SELECT 1")
++    assert db.calls == [("SELECT 1", [])]
++
++
++def test_con_tope_se_fija_una_vez_por_conexion(api, monkeypatch):
++    app, db, _, tdb = api
++    monkeypatch.setenv("TMS_STATEMENT_TIMEOUT_MS", "10000")
++    monkeypatch.setenv("TMS_LOCK_TIMEOUT_MS", "5000")
++    sets, connection = [], object()
++    monkeypatch.setattr(pg, "_live_connection", lambda: connection, raising=False)
++    monkeypatch.setattr(pg, "_run", lambda c, sql, params: sets.append((sql, params)) or [], raising=False)
++
++    tdb.query("SELECT 1")
++    tdb.query("SELECT 2")
++    assert len(sets) == 1 and sets[0][1] == ["10000", "5000"] and "set_config" in sets[0][0]
++
++    connection_2 = object()  # el contenedor reconectó: hay que volver a fijarlo
++    monkeypatch.setattr(pg, "_live_connection", lambda: connection_2, raising=False)
++    tdb.query("SELECT 3")
++    assert len(sets) == 2
++
++
++def test_una_sentencia_cancelada_por_tiempo_es_504_con_mensaje_claro(api):
++    app, db, *_ = api
++    db.error = HttpError(500, "canceling statement due to statement timeout")
++    response = call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_zone_groups"})
++    assert response["statusCode"] == 504
++    assert "demasiado" in body_of(response)["error"]["message"]
+diff --git a/sql/04_tarifas.sql b/sql/04_tarifas.sql
+index 7d3d3b9..7fb5383 100644
+--- a/sql/04_tarifas.sql
++++ b/sql/04_tarifas.sql
+@@ -56,7 +56,6 @@ CREATE TABLE IF NOT EXISTS tarifas_settlement_parties (
+   notes text,
+   CONSTRAINT tarifas_settlement_parties_carrier_id_fkey FOREIGN KEY (carrier_id) REFERENCES carriers (id) ON DELETE RESTRICT
+ );
+-CREATE INDEX IF NOT EXISTS tarifas_settlement_parties_status_idx ON tarifas_settlement_parties (status);
+ 
+ -- Regla de tarifa
+ CREATE TABLE IF NOT EXISTS tarifas_pricing_rules (
+@@ -86,12 +85,7 @@ CREATE TABLE IF NOT EXISTS tarifas_pricing_rules (
+   CONSTRAINT tarifas_pricing_rules_party_id_fkey FOREIGN KEY (party_id) REFERENCES tarifas_settlement_parties (id) ON DELETE CASCADE
+ );
+ CREATE INDEX IF NOT EXISTS tarifas_pricing_rules_country_id_idx ON tarifas_pricing_rules (country_id);
+-CREATE INDEX IF NOT EXISTS tarifas_pricing_rules_scope_idx ON tarifas_pricing_rules (scope);
+ CREATE INDEX IF NOT EXISTS tarifas_pricing_rules_party_id_idx ON tarifas_pricing_rules (party_id);
+-CREATE INDEX IF NOT EXISTS tarifas_pricing_rules_stage_idx ON tarifas_pricing_rules (stage);
+-CREATE INDEX IF NOT EXISTS tarifas_pricing_rules_active_idx ON tarifas_pricing_rules (active);
+-CREATE INDEX IF NOT EXISTS tarifas_pricing_rules_effective_from_idx ON tarifas_pricing_rules (effective_from);
+-CREATE INDEX IF NOT EXISTS tarifas_pricing_rules_effective_to_idx ON tarifas_pricing_rules (effective_to);
+ 
+ -- Plantilla de viaje
+ CREATE TABLE IF NOT EXISTS tarifas_pricing_templates (
+@@ -118,7 +112,6 @@ CREATE TABLE IF NOT EXISTS tarifas_party_variables (
+ );
+ CREATE INDEX IF NOT EXISTS tarifas_party_variables_party_id_idx ON tarifas_party_variables (party_id);
+ CREATE INDEX IF NOT EXISTS tarifas_party_variables_key_idx ON tarifas_party_variables (key);
+-CREATE INDEX IF NOT EXISTS tarifas_party_variables_active_idx ON tarifas_party_variables (active);
+ 
+ -- Liquidación
+ CREATE TABLE IF NOT EXISTS tarifas_settlements (
+@@ -128,7 +121,7 @@ CREATE TABLE IF NOT EXISTS tarifas_settlements (
+   party_id text,
+   number text NOT NULL,
+   trip_number text NOT NULL,
+-  settlement_date text NOT NULL,
++  settlement_date date NOT NULL,
+   status text NOT NULL,
+   currency text NOT NULL,
+   total_amount numeric NOT NULL,
+@@ -161,16 +154,12 @@ CREATE TABLE IF NOT EXISTS tarifas_settlements (
+   CONSTRAINT tarifas_settlements_trip_id_fkey FOREIGN KEY (trip_id) REFERENCES routes (id) ON DELETE RESTRICT,
+   CONSTRAINT tarifas_settlements_party_id_fkey FOREIGN KEY (party_id) REFERENCES tarifas_settlement_parties (id) ON DELETE RESTRICT
+ );
+-CREATE INDEX IF NOT EXISTS tarifas_settlements_country_id_idx ON tarifas_settlements (country_id);
+ CREATE INDEX IF NOT EXISTS tarifas_settlements_trip_id_idx ON tarifas_settlements (trip_id);
+ CREATE INDEX IF NOT EXISTS tarifas_settlements_party_id_idx ON tarifas_settlements (party_id);
+-CREATE INDEX IF NOT EXISTS tarifas_settlements_number_idx ON tarifas_settlements (number);
+ CREATE INDEX IF NOT EXISTS tarifas_settlements_trip_number_idx ON tarifas_settlements (trip_number);
+-CREATE INDEX IF NOT EXISTS tarifas_settlements_settlement_date_idx ON tarifas_settlements (settlement_date);
+-CREATE INDEX IF NOT EXISTS tarifas_settlements_status_idx ON tarifas_settlements (status);
+-CREATE INDEX IF NOT EXISTS tarifas_settlements_margin_status_idx ON tarifas_settlements (margin_status);
+ CREATE INDEX IF NOT EXISTS tarifas_settlements_superseded_by_idx ON tarifas_settlements (superseded_by);
+ CREATE UNIQUE INDEX IF NOT EXISTS tarifas_settlements_trip_vigente_uq ON tarifas_settlements (trip_id) WHERE status <> 'Anulado';
++CREATE UNIQUE INDEX IF NOT EXISTS tarifas_settlements_country_number_uq ON tarifas_settlements (country_id, number);
+ 
+ -- Estructura de costos
+ CREATE TABLE IF NOT EXISTS tarifas_cost_structures (
+@@ -188,7 +177,6 @@ CREATE TABLE IF NOT EXISTS tarifas_cost_structures (
+ );
+ CREATE INDEX IF NOT EXISTS tarifas_cost_structures_party_id_idx ON tarifas_cost_structures (party_id);
+ CREATE INDEX IF NOT EXISTS tarifas_cost_structures_country_id_idx ON tarifas_cost_structures (country_id);
+-CREATE INDEX IF NOT EXISTS tarifas_cost_structures_active_idx ON tarifas_cost_structures (active);
+ 
+ -- Fila de estructura de costos
+ CREATE TABLE IF NOT EXISTS tarifas_cost_structure_rows (
+@@ -212,7 +200,6 @@ CREATE TABLE IF NOT EXISTS tarifas_cost_structure_rows (
+   CONSTRAINT tarifas_cost_structure_rows_structure_id_fkey FOREIGN KEY (structure_id) REFERENCES tarifas_cost_structures (id) ON DELETE CASCADE
+ );
+ CREATE INDEX IF NOT EXISTS tarifas_cost_structure_rows_structure_id_idx ON tarifas_cost_structure_rows (structure_id);
+-CREATE INDEX IF NOT EXISTS tarifas_cost_structure_rows_active_idx ON tarifas_cost_structure_rows (active);
+ 
+ -- Tabla de tarifas
+ CREATE TABLE IF NOT EXISTS tarifas_rate_tables (
+@@ -230,7 +217,6 @@ CREATE TABLE IF NOT EXISTS tarifas_rate_tables (
+ CREATE INDEX IF NOT EXISTS tarifas_rate_tables_country_id_idx ON tarifas_rate_tables (country_id);
+ CREATE INDEX IF NOT EXISTS tarifas_rate_tables_party_id_idx ON tarifas_rate_tables (party_id);
+ CREATE INDEX IF NOT EXISTS tarifas_rate_tables_code_idx ON tarifas_rate_tables (code);
+-CREATE INDEX IF NOT EXISTS tarifas_rate_tables_active_idx ON tarifas_rate_tables (active);
+ 
+ -- Fila de tabla de tarifas
+ CREATE TABLE IF NOT EXISTS tarifas_rate_table_rows (
+@@ -244,7 +230,6 @@ CREATE TABLE IF NOT EXISTS tarifas_rate_table_rows (
+   CONSTRAINT tarifas_rate_table_rows_table_id_fkey FOREIGN KEY (table_id) REFERENCES tarifas_rate_tables (id) ON DELETE CASCADE
+ );
+ CREATE INDEX IF NOT EXISTS tarifas_rate_table_rows_table_id_idx ON tarifas_rate_table_rows (table_id);
+-CREATE INDEX IF NOT EXISTS tarifas_rate_table_rows_active_idx ON tarifas_rate_table_rows (active);
+ 
+ -- Política de margen
+ CREATE TABLE IF NOT EXISTS tarifas_margin_policies (
 diff --git a/sql/26_tarifas_indices_rendimiento.sql b/sql/26_tarifas_indices_rendimiento.sql
 new file mode 100644
 index 0000000..a2ecfd6
@@ -758,42 +1202,3 @@ index 0000000..eacd824
 +drop index if exists tarifas_rate_tables_active_idx;
 +drop index if exists tarifas_rate_table_rows_active_idx;
 +drop index if exists tarifas_rate_table_rows_table_active_idx;
-diff --git a/sql/29_tarifas_settlement_date_compat_text.sql b/sql/29_tarifas_settlement_date_compat_text.sql
-new file mode 100644
-index 0000000..b7954eb
---- /dev/null
-+++ b/sql/29_tarifas_settlement_date_compat_text.sql
-@@ -0,0 +1,33 @@
-+-- ============================================================================
-+-- 29 — Tarifador: `settlement_date` vuelve a `text` mientras el backend desplegado sea el anterior a la 28.
-+--
-+-- Por qué: la migración 28 pasó `tarifas_settlements.settlement_date` a `date`, pero el backend
-+-- desplegado de `backend/tarifas` todavía manda esa columna con `::text` (su manifiesto de esquema es
-+-- anterior). Resultado: TODA emisión de liquidación falla con
-+--   column "settlement_date" is of type date but expression is of type text
-+-- (el UPDATE de estados no se ve afectado porque no toca esa columna).
-+--
-+-- Qué hace: solo cambia el tipo de esa columna a text conservando el formato AAAA-MM-DD. El índice
-+-- compuesto (country_id, settlement_date desc, number desc) se reconstruye solo, y como el formato es
-+-- ISO el orden de texto es el mismo que el de fecha. Los demás cambios de la 28 (índices borrados)
-+-- NO se tocan.
-+--
-+-- Cuándo deshacerla: cuando el backend desplegado traiga el manifiesto con `settlement_date` = date
-+-- (el del repo ya lo trae), volver a aplicar la 28:
-+--   node --env-file=.env.local scripts/run-migration.mjs sql/28_tarifas_fecha_e_indices_sobrantes.sql --execute --force
-+-- (la 28 solo cambia el tipo si la columna es text). Ver docs/tarifador/RUNBOOK_OPTIMIZACION_AURORA.md §2b.
-+--
-+-- Idempotente. No pierde datos. Solo toca una tabla del tarifador.
-+-- ============================================================================
-+
-+do $$
-+begin
-+  if exists (
-+    select 1 from information_schema.columns
-+    where table_schema = 'public' and table_name = 'tarifas_settlements'
-+      and column_name = 'settlement_date' and data_type = 'date'
-+  ) then
-+    alter table tarifas_settlements
-+      alter column settlement_date type text using to_char(settlement_date, 'YYYY-MM-DD');
-+  end if;
-+end $$;
