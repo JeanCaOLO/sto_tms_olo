@@ -13,7 +13,7 @@
 import { calculate } from './index';
 import { CatalogError, loadTarifasCatalog, type TarifasCatalog } from './catalogLoader';
 import { buildCustomVarFields, missingDeclaredVars, type CustomVarField } from './customVarFields';
-import { getProfileForCarrier } from './partiesDataSource';
+import { getProfileForCarrierCached } from './partiesDataSource';
 import { detectMissingLogic, noLogicMessage, noRuleApplied, type NoLogicInfo } from './missingLogic';
 import { buildCalculateInput } from './settlementInput';
 import { emptyTripEdits, notLiquidableReason, toTripContext } from './tripContext';
@@ -96,7 +96,14 @@ export async function calculateTrip(
   const trip = typeof tripOrId === 'string' ? await getTrip(tripOrId) : tripOrId;
   if (!trip) return { status: 'not-found', message: 'El viaje no existe.' };
 
-  const profile = trip.carrierId ? await getProfileForCarrier(trip.carrierId) : null;
+  // Los pedidos del viaje no dependen del perfil ni del catálogo: se piden a la vez para no sumar sus
+  // idas y vueltas a las del perfil y el catálogo (cada una cuesta lo mismo que cualquier otra).
+  const ordersRequest = listTripOrders(trip.id).then(
+    (rows) => ({ rows, failure: null as unknown }),
+    (failure: unknown) => ({ rows: [] as TripOrder[], failure }),
+  );
+
+  const profile = trip.carrierId ? await getProfileForCarrierCached(trip.carrierId) : null;
   const partyId = profile && profile.status !== 'inactive' ? profile.id : null;
 
   let catalog: TarifasCatalog;
@@ -114,16 +121,12 @@ export async function calculateTrip(
   const context = toTripContext(trip, edits, partyId);
   // La mercancía solo alimenta la auditoría y el reparto por casa: si no se puede leer, lo que se paga
   // NO cambia. Se avisa en vez de frenar la liquidación.
-  let cargo: CargoSummary | null = null;
-  let orders: TripOrder[] = [];
-  let cargoWarning: string | null = null;
-  try {
-    orders = await listTripOrders(trip.id);
-    cargo = cargoFromOrders(orders);
-  } catch (error) {
-    cargoWarning = 'No se pudo leer la mercancía del viaje (pedidos de sus guías): no habrá ganancia/pérdida de '
-      + `auditoría ni reparto por casa comercial. ${error instanceof Error ? error.message : ''}`.trim();
-  }
+  const { rows: orders, failure } = await ordersRequest;
+  const cargo: CargoSummary | null = failure ? null : cargoFromOrders(orders);
+  const cargoWarning: string | null = failure
+    ? 'No se pudo leer la mercancía del viaje (pedidos de sus guías): no habrá ganancia/pérdida de '
+      + `auditoría ni reparto por casa comercial. ${failure instanceof Error ? failure.message : ''}`.trim()
+    : null;
   const { input, issues, warnings } = buildCalculateInput(catalog, context, {
     ...(cargo ? { cargo } : {}),
     ...(options.overrides ? { overrides: options.overrides } : {}),

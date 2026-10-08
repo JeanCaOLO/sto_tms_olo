@@ -3,7 +3,7 @@
 // Misma forma de retorno que el resto del módulo para que las pantallas manejen los fallos igual.
 // Todo por la capa de datos (`./data`): los transportistas se leen como entidad externa.
 
-import { db, ForeignKeyError, NotFoundError, UniqueViolationError, type Condition } from './data';
+import { db, ForeignKeyError, NotFoundError, onDataWrite, UniqueViolationError, type Condition } from './data';
 import {
   mergeCarriersWithProfiles,
   type CarrierProfile,
@@ -64,6 +64,27 @@ export async function getProfileForCarrier(carrierId: string): Promise<Settlemen
     limit: 1,
   });
   return (row as SettlementPartyRow | undefined) ?? null;
+}
+
+// El perfil de un transportista casi no cambia y cada recálculo de una liquidación lo pedía de nuevo
+// (una ida y vuelta de más). Mismo criterio que el catálogo: unos segundos de caché, descartada al
+// instante cuando esta sesión escribe un perfil y por tiempo para lo que cambie otra persona.
+const PROFILE_TTL_MS = 60_000;
+const profileCache = new Map<string, { at: number; promise: Promise<SettlementPartyRow | null> }>();
+
+onDataWrite((touched) => {
+  if (touched.has('settlementParty') || touched.has('carrier')) profileCache.clear();
+});
+
+/** Como `getProfileForCarrier`, pero con la caché de arriba. Solo contra la API (con el driver JSON leer es gratis). */
+export async function getProfileForCarrierCached(carrierId: string): Promise<SettlementPartyRow | null> {
+  if (db().kind !== 'http') return getProfileForCarrier(carrierId);
+  const hit = profileCache.get(carrierId);
+  if (hit && Date.now() - hit.at < PROFILE_TTL_MS) return hit.promise;
+  const entry = { at: Date.now(), promise: getProfileForCarrier(carrierId) };
+  profileCache.set(carrierId, entry);
+  entry.promise.catch(() => { if (profileCache.get(carrierId) === entry) profileCache.delete(carrierId); });
+  return entry.promise;
 }
 
 /**

@@ -46,7 +46,7 @@ export interface ActiveCountryState {
 
 export function useActiveCountry(): ActiveCountryState {
   const ctx = useOperationalContext();
-  const { countries: permitted } = usePermissions();
+  const { countries: permitted, loading: loadingPermissions } = usePermissions();
   const [countries, setCountries] = useState<TarifasCountry[]>([]);
   const [loadingList, setLoadingList] = useState(true);
 
@@ -69,7 +69,9 @@ export function useActiveCountry(): ActiveCountryState {
       ? visible.find((c) => c.id === selected.id || c.iso2 === selected.code) ?? null
       : null;
 
-    const loading = loadingList || ctx.loading;
+    // Mientras los permisos cargan, `permitted` viene vacío y ningún país parece "visible": sin esperar
+    // acá se mostraba un falso "no está disponible en el tarifador" durante varios segundos.
+    const loading = loadingList || ctx.loading || loadingPermissions;
     let problem: CountryProblem = null;
     if (!loading) {
       if (!ctx.selectedCountryId) problem = 'none-selected';
@@ -86,5 +88,5 @@ export function useActiveCountry(): ActiveCountryState {
       loading,
       reload,
     };
-  }, [countries, ctx.countries, ctx.selectedCountryId, ctx.loading, loadingList, permitted, reload]);
+  }, [countries, ctx.countries, ctx.selectedCountryId, ctx.loading, loadingList, loadingPermissions, permitted, reload]);
 }

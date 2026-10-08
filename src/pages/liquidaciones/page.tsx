@@ -438,6 +438,7 @@ export default function LiquidacionesPage() {
                 intro="Pedidos que lleva el viaje, uno por guía de despacho. Se liquidan juntos; desde Liquidar se puede anular alguno o dejarlo para después."
               />
             )}
+            searchHidden
             searchPlaceholder="Buscar por viaje, transportista, conductor o placa"
             exportFileName="viajes_por_liquidar"
             emptyMessage="No hay viajes completados pendientes de liquidar"

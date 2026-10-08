@@ -221,7 +221,7 @@ export default function CompaniasView({ classification }: { classification: Part
         sortable: true,
         render: (p: CarrierProfile) => (p.taxId
           ? <span className="text-slate-600">{p.taxId}</span>
-          : <span className="text-amber-600 text-xs">Falta — no se le puede liquidar</span>),
+          : <span className="text-amber-600 text-xs">Falta — se necesita para pagarle</span>),
       } satisfies DataTableColumn<CarrierProfile>]
       : []),
     {

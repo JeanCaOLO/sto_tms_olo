@@ -63,8 +63,10 @@ export default function TripOrdersPanel({ trip, currency, editable = false, onCh
     if (err) { setError(err); return; }
     setAnnulling(null);
     setReason('');
-    await load();
+    // El recálculo de quien usa el panel y la recarga de la tabla son independientes: van a la vez
+    // (antes uno esperaba al otro y la pantalla tardaba la suma de las dos).
     onChanged?.();
+    await load();
   };
 
   const pendientes = orders.filter((o) => !isDelivered(o) && o.mark !== 'ANULADO').length;

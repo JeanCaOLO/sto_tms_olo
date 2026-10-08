@@ -82,11 +82,14 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
   // Lo que se calculó: es lo que se guarda, aunque después se siga tecleando.
   const editsUsed = useRef<TripEdits>(emptyTripEdits());
   const calcSeq = useRef(0);
+  // El viaje ya leído: los recálculos (editar una variable, anular un pedido) lo reusan en vez de
+  // volver a pedirlo. Lo que cambia entre cálculos —pedidos y marcas— se lee siempre fresco.
+  const tripRead = useRef<TripRecord | null>(null);
 
   const runCalc = async (edits: TripEdits) => {
     const seq = ++calcSeq.current;
     try {
-      const res = await calculateTrip(tripId, edits, { allowSettled: reliquidando });
+      const res = await calculateTrip(tripRead.current ?? tripId, edits, { allowSettled: reliquidando });
       if (seq !== calcSeq.current) return null;
       if (res.status !== 'ok') {
         setCalculation(null);
@@ -95,8 +98,11 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
         return null;
       }
       editsUsed.current = edits;
+      tripRead.current = res.calculation.trip;
       setLoadError('');
       setNoLogic(null);
+      // Un error anterior (p. ej. una emisión fallida) no se queda pegado si lo siguiente funcionó.
+      setError('');
       setCalculation(res.calculation);
       return res.calculation;
     } catch (e) {
@@ -112,6 +118,7 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
   useEffect(() => {
     if (!isOpen || !tripId) return;
     let cancelled = false;
+    tripRead.current = null;
     setCalculation(null);
     setLoadError('');
     setNoLogic(null);
@@ -552,10 +559,13 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
                 {simple ? (
                   pending && <p className="text-xs text-slate-400"><i className="ri-loader-4-line animate-spin mr-1"></i>Recalculando…</p>
                 ) : (
-                  <h3 className="text-sm font-semibold text-slate-700">
-                    ¿Por qué este total?
-                    {pending && <i className="ri-loader-4-line animate-spin ml-2 text-slate-400"></i>}
-                  </h3>
+                  // Sin cálculo (p. ej. falta la lógica de costos) no hay total que explicar.
+                  calculation && (
+                    <h3 className="text-sm font-semibold text-slate-700">
+                      ¿Por qué este total?
+                      {pending && <i className="ri-loader-4-line animate-spin ml-2 text-slate-400"></i>}
+                    </h3>
+                  )
                 )}
 
                 {blocking.length > 0 && (

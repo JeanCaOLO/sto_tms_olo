@@ -44,6 +44,9 @@ interface DataTableProps<T> {
   columnsKey?: string;
   // Columnas ocultas mientras la persona no haya elegido otra cosa (requiere columnsKey).
   defaultHidden?: string[];
+  // Opcional: la búsqueda también mira las columnas ocultas (por defecto solo las que se ven). Útil
+  // cuando el placeholder promete buscar por algo (p. ej. la placa) que la vista simple no muestra.
+  searchHidden?: boolean;
   // Opcional: filas que se pueden extender. Si devuelve contenido, la fila lleva un botón para
   // desplegarlo debajo (por ejemplo, el detalle de un viaje).
   renderExpanded?: (row: T) => ReactNode;
@@ -190,6 +193,7 @@ export default function DataTable<T>({
   onExport,
   columnsKey,
   defaultHidden,
+  searchHidden = false,
   renderExpanded,
   canExpand,
 }: DataTableProps<T>) {
@@ -278,10 +282,11 @@ export default function DataTable<T>({
 
   const searched = useMemo(() => {
     if (!search.trim()) return filteredByColumns;
+    const searchable = searchHidden ? orderedAll : columns;
     return filteredByColumns.filter((row) =>
-      columns.some((col) => matchesSearch(col.accessor(row), search))
+      searchable.some((col) => matchesSearch(col.accessor(row), search))
     );
-  }, [filteredByColumns, search, columns]);
+  }, [filteredByColumns, search, columns, orderedAll, searchHidden]);
 
   const sorted = useMemo(() => {
     if (!sort) return searched;

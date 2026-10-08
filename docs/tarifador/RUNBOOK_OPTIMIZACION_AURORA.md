@@ -48,6 +48,16 @@ También se restauró la entrada `tarifas` de `backend/tests/conftest.py`, que s
 | **Tope de sentencia** (`statement_timeout` 10 s, `lock_timeout` 5 s) | `backend/tarifas/src/tarifas_db.py`, `template.yaml` (variables `TMS_STATEMENT_TIMEOUT_MS`, `TMS_LOCK_TIMEOUT_MS`) | Se fija por SESIÓN en la conexión del Lambda del tarifador (cada módulo tiene su propio Lambda y sus propias conexiones): no se hizo `alter role`, así que no cambia la configuración de la base ni afecta a otros módulos. Una sentencia cancelada responde 504 con un mensaje claro. Probado contra Aurora: `pg_sleep(5)` con tope de 700 ms se cancela a los 0,8 s y la conexión sigue sirviendo |
 | **Migración 28** (aplicada) | `sql/28_tarifas_fecha_e_indices_sobrantes.sql`, `data/schema.ts`, `sql/04_tarifas.sql` | `settlement_date` pasa de `text` a `date` (el cliente sigue leyendo `YYYY-MM-DD` con `dateOnly`). Se borran 17 índices de baja cardinalidad o redundantes de tablas `tarifas_*` (de 60 a 43), todos con 0 usos; menos escritura por INSERT/UPDATE. Se conservan PK, únicos, FK y bitácora |
 
+## 2b. Orden obligatorio: migración de esquema y despliegue del backend (lección del 2026-10-07)
+
+Una migración que cambia el tipo de una columna se rompe si el backend desplegado conserva el manifiesto viejo. Pasó con la migración 28: `settlement_date` ya era `date` en Aurora, el backend desplegado seguía mandando `text` y **toda emisión de liquidación falló** con `column "settlement_date" is of type date but expression is of type text`. El mismo despliegue atrasado dejó la API sin `POST /tarifas/batch` (404), por eso el catálogo se leía en ~11 llamadas sueltas en vez de 2.
+
+Para cada migración que toque columnas de una tabla `tarifas_*`:
+1. Regenerar el manifiesto: `npm run tarifas:manifest` y commitear `backend/tarifas/src/schema_manifest.json`.
+2. Verificar contra Aurora (túnel abierto, solo lectura): `TARIFAS_AURORA_MANIFEST=1 npx vitest run src/lib/tarifas/__tests__/aurora.manifest-esquema.test.ts`. Debe pasar.
+3. Pedir a Intelix el despliegue de `backend/tarifas` **antes o junto con** aplicar la migración (los despliegues los hace solo Intelix).
+4. Después de aplicar y desplegar, comprobar en el navegador: emitir una liquidación de prueba y confirmar que `POST /api/tarifas/batch` responde 200 (no 404).
+
 ## 3. Migraciones 26 y 27: APLICADAS el 2026-10-07 (aprobadas por el dueño del módulo)
 
 **Estado: aplicadas** con `--execute` tras aprobación explícita, y registradas en `schema_migrations`. Verificado después: los 3 índices existen, la vista devuelve 28 viajes con 68 guías y 54 entregadas, y `tms_app` conserva el `select` sobre ella.

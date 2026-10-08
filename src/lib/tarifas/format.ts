@@ -16,9 +16,21 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
   CRC: '₡',
 };
 
+/**
+ * Agrupa los miles de un decimal exacto en texto ("28224.50" -> "28,224.50") sin pasar por `Number`,
+ * para no perder precisión en importes grandes. Si no es un decimal reconocible, lo devuelve igual.
+ */
+export function groupThousands(amount: string): string {
+  const match = /^(-?)(\d+)(\.\d+)?$/.exec(amount.trim());
+  if (!match) return amount;
+  const [, sign, integer, fraction = ''] = match;
+  return `${sign}${integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${fraction}`;
+}
+
 export function formatMoney(amount: string, currency: string): string {
   const symbol = CURRENCY_SYMBOLS[currency];
-  return symbol ? `${symbol}${amount}` : `${amount} ${currency}`;
+  const value = groupThousands(amount);
+  return symbol ? `${symbol}${value}` : `${value} ${currency}`;
 }
 
 export function formatPct(fraction: string): string {
