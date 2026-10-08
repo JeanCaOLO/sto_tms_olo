@@ -28,6 +28,10 @@ export function guideNumber(plan: RoutePlan, trip: PlanTrip): string {
   return `G-${plan.plan_date}-${String(trip.sequence_order).padStart(2, '0')}`;
 }
 
+// Formatea un peso en kg sin ruido de float (0.1+0.2 → "0.3 kg", no "0.300…04").
+export const fmtKg = (n: number | null | undefined): string =>
+  n == null ? '—' : `${Number(n.toFixed(2))} kg`;
+
 export interface TotalesGuia {
   paradas: number;
   pedidos: number; // 1 parada = 1 pedido

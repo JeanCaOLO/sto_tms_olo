@@ -9,10 +9,13 @@ import { fetchArticulosDePedido } from '../planificacion/plan-pedidos-api';
 // ponytail: fetchArticulosDePedido ya atrapa errores y devuelve []; no
 // distinguimos "falló" de "vacío" (ambos = "Sin artículos"). Si se necesita
 // reintento por parada, hacer que la API señale el fallo.
+// ponytail: N peticiones concurrentes (una por parada) sin límite. OK para
+// viajes de pocas paradas; si uno real pasa de ~20, agregar un endpoint batch
+// de artículos o un límite de concurrencia.
 export function useArticulosGuia(orderIds: string[]) {
   const [porPedido, setPorPedido] = useState<Map<string, Articulo[]>>(new Map());
   const [cargando, setCargando] = useState(true);
-  const clave = orderIds.join(',');
+  const clave = JSON.stringify(orderIds); // estable y sin colisión por comas en ids
 
   useEffect(() => {
     let vivo = true;

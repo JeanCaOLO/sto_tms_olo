@@ -1,4 +1,5 @@
 import type { Articulo } from '../../planificacion/types';
+import { fmtKg } from '../guia-model';
 
 const DASH = '—';
 
@@ -28,7 +29,7 @@ export default function ArticulosTabla({ articulos }: { articulos: Articulo[] })
             <td className="py-1 pr-2 text-slate-800 print:text-black">{a.product_name}</td>
             <td className="py-1 pr-2 text-right text-slate-600 print:text-black">{a.quantity}</td>
             <td className="py-1 pr-2 text-right text-slate-600 print:text-black">
-              {a.weight != null ? `${a.weight} kg` : DASH}
+              {fmtKg(a.weight)}
             </td>
             {hayGuia && <td className="py-1 pl-2 font-mono text-xs text-slate-500 print:text-black">{a.guia_fiscal || DASH}</td>}
           </tr>

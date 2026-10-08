@@ -1,6 +1,6 @@
 import type { Articulo } from '../../planificacion/types';
 import type { PlanStop } from '../../planificacion/planes-types';
-import { totalesDeGuia, type Guia } from '../guia-model';
+import { fmtKg, totalesDeGuia, type Guia } from '../guia-model';
 import ArticulosTabla from './ArticulosTabla';
 
 const DASH = '—';
@@ -19,7 +19,7 @@ export default function GuiaImprimible({ guia, porPedido, impresoEl }: Props) {
   const t = totalesDeGuia(guia);
 
   return (
-    <div id="guia-imprimible" className="hidden text-black">
+    <div id="guia-imprimible" className="hidden text-black pb-12">
       <header className="mb-4">
         <div className="flex items-start justify-between">
           <div>
@@ -36,7 +36,7 @@ export default function GuiaImprimible({ guia, porPedido, impresoEl }: Props) {
         <div className="flex gap-6 border border-black rounded mt-3 px-3 py-2 text-sm font-semibold">
           <span>Paradas: {t.paradas}</span>
           <span>Pedidos: {t.pedidos}</span>
-          <span>Peso total: {t.peso} kg</span>
+          <span>Peso total: {fmtKg(t.peso)}</span>
           {t.volumen != null && <span>Volumen: {t.volumen} m³</span>}
         </div>
       </header>
@@ -71,7 +71,7 @@ function ParadaBloque({ stop, articulos }: { stop: PlanStop; articulos: Articulo
           <span className="font-semibold">{stop.customer_name || DASH}</span>
           <span className="font-mono text-xs text-black/60">{stop.order_number || ''}</span>
         </div>
-        <span className="text-sm">{stop.total_weight != null ? `${stop.total_weight} kg` : ''}</span>
+        <span className="text-sm">{stop.total_weight != null ? fmtKg(stop.total_weight) : ''}</span>
       </div>
       <p className="text-sm mt-0.5">{stop.delivery_address || DASH}</p>
       {ubic && <p className="text-xs text-black/60">{ubic}</p>}

@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Badge from '../../../components/base/Badge';
 import Button from '../../../components/base/Button';
 import ArticulosTabla from './ArticulosTabla';
 import GuiaImprimible from './GuiaImprimible';
 import { useArticulosGuia } from '../use-articulos-guia';
-import { totalesDeGuia, type Guia } from '../guia-model';
+import { fmtKg, totalesDeGuia, type Guia } from '../guia-model';
 import type { PlanStop } from '../../planificacion/planes-types';
 import type { Articulo } from '../../planificacion/types';
 
@@ -14,9 +14,11 @@ interface Props {
 }
 
 const DASH = '—';
+// inset:0 (top+bottom fijos) daría al bloque alto de UNA página y recortaría los
+// impresos multipágina; solo top/left/right para que el contenido fluya y pagine.
 const PRINT_CSS = `@media print {
   body { visibility: hidden; }
-  #guia-imprimible { visibility: visible; display: block !important; position: absolute; inset: 0; width: 100%; }
+  #guia-imprimible { visibility: visible; display: block !important; position: absolute; top: 0; left: 0; right: 0; width: 100%; }
   #guia-imprimible * { visibility: visible; }
 }
 @page { margin: 14mm; }`;
@@ -30,16 +32,23 @@ export default function GuideDetailModal({ guia, onClose }: Props) {
   const { porPedido, cargando } = useArticulosGuia(stops.map((s) => s.order_id));
   const [abierta, setAbierta] = useState<string | null>(null);
   const t = totalesDeGuia(guia);
-  const impresoEl = new Date().toLocaleString('es-ES');
+  const impresoEl = useMemo(() => new Date().toLocaleString('es-ES'), []); // congelado al abrir
+
+  // Cerrar con Escape (lo más esperado en un modal).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="guia-titulo">
       <style>{PRINT_CSS}</style>
 
       <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto print:hidden">
         <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <h2 className="text-xl font-bold text-slate-800 font-mono">{guia.guide_number}</h2>
+            <h2 id="guia-titulo" className="text-xl font-bold text-slate-800 font-mono">{guia.guide_number}</h2>
             {guia.plan_status === 'completed' ? <Badge variant="success">Completada</Badge> : <Badge variant="info">Confirmada</Badge>}
           </div>
           <div className="flex items-center gap-2">
@@ -62,7 +71,7 @@ export default function GuideDetailModal({ guia, onClose }: Props) {
             ))}
           </div>
           <div className="flex flex-wrap gap-4 bg-slate-50 rounded-lg px-4 py-2 text-sm font-semibold text-slate-700">
-            <span>Paradas: {t.paradas}</span><span>Pedidos: {t.pedidos}</span><span>Peso: {t.peso} kg</span>
+            <span>Paradas: {t.paradas}</span><span>Pedidos: {t.pedidos}</span><span>Peso: {fmtKg(t.peso)}</span>
             {t.volumen != null && <span>Volumen: {t.volumen} m³</span>}
           </div>
 
@@ -93,7 +102,7 @@ function ParadaFila({ stop, articulos, cargando, abierta, onToggle }: {
         <span className="text-slate-800 font-medium truncate max-w-[10rem]">{stop.customer_name || DASH}</span>
         <span className="text-slate-400 font-mono text-xs hidden sm:inline">{stop.order_number || ''}</span>
         <span className="text-slate-500 text-xs ml-auto truncate max-w-[9rem]">{ubic}</span>
-        <span className="text-slate-600 text-sm">{stop.total_weight != null ? `${stop.total_weight} kg` : ''}</span>
+        <span className="text-slate-600 text-sm">{stop.total_weight != null ? fmtKg(stop.total_weight) : ''}</span>
         <i className={`ri-arrow-down-s-line text-slate-400 transition-transform ${abierta ? 'rotate-180' : ''}`}></i>
       </button>
       {abierta && (
