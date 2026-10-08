@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useOperationalContext } from '../../hooks/useOperationalContext';
 import { fetchPedidosParaPlanificar } from './plan-pedidos-api';
+import { currentAccessToken } from '../../lib/supabase';
 
 // Avisa si entraron pedidos NUEVOS para el día ya planificado (→ hay que
 // "Regenerar plan"). Esto es lo que pidió Jean/Palencia: una alerta en vivo.
@@ -9,7 +10,8 @@ import { fetchPedidosParaPlanificar } from './plan-pedidos-api';
 // (`ws-local.mjs`, ws://localhost:4100) empuja un aviso cuando entran pedidos;
 // al recibirlo recalculamos el conteo real contra el backend. Si el server WS
 // no está corriendo, el polling de respaldo mantiene la alerta (más lento).
-// En AWS esto pasa a API Gateway WebSocket cambiando SOLO `WS_URL`; la UI
+// En AWS es API Gateway WebSocket (stack dev-tms-realtime; el build recibe la
+// URL wss:// en VITE_WS_URL y la conexión lleva el JWT en `?token=`). La UI
 // (badge en el botón) no cambia. Mantener el WS detrás de este único hook es
 // a propósito.
 const INTERVALO_MS = 15000;
@@ -42,7 +44,7 @@ export function useNuevosPedidos(fecha: string, pedidosEnPlan: number | null): n
     // Si el server WS no está, onerror/onclose no rompen nada (queda el poll).
     let ws: WebSocket | null = null;
     try {
-      ws = new WebSocket(WS_URL);
+      ws = new WebSocket(urlConToken(WS_URL));
       ws.onmessage = () => chequear();
     } catch {
       /* URL inválida o WS no disponible: seguimos solo con polling */
@@ -56,4 +58,12 @@ export function useNuevosPedidos(fecha: string, pedidosEnPlan: number | null): n
   }, [fecha, pedidosEnPlan, selectedCountryId, selectedWarehouseId, selectedCustomerId]);
 
   return nuevos;
+}
+
+// API Gateway WebSocket no admite headers en el handshake del navegador: el JWT
+// de sesión va en la query y $connect lo valida. ws-local.mjs lo ignora.
+function urlConToken(url: string): string {
+  const token = currentAccessToken();
+  if (!token) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
 }

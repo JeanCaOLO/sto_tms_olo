@@ -1,0 +1,42 @@
+version = 0.1
+# Deploy (solo Intelix): sam build && sam deploy --config-env <dev|qa|prod>
+# Sandbox: python scripts/sandbox/deploy_backend.py realtime (y después el frontend, que toma la URL wss://).
+
+[dev.deploy.parameters]
+stack_name = "dev-tms-realtime"
+region = "us-east-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+resolve_s3 = true
+parameter_overrides = [
+  "Environment=dev",
+  "CommonStackName=dev-tms-common-services",
+  "CommonLayerArn=/dev/tms/common-layer-arn"
+]
+tags = ["Project=TMS", "Environment=DEV", "Name=dev-tms-realtime"]
+
+[qa.deploy.parameters]
+stack_name = "qa-tms-realtime"
+region = "us-east-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+resolve_s3 = true
+parameter_overrides = [
+  "Environment=qa",
+  "CommonStackName=qa-tms-common-services",
+  "CommonLayerArn=/qa/tms/common-layer-arn"
+]
+tags = ["Project=TMS", "Environment=QA", "Name=qa-tms-realtime"]
+
+[prod.deploy.parameters]
+stack_name = "prod-tms-realtime"
+region = "us-east-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+resolve_s3 = true
+parameter_overrides = [
+  "Environment=prod",
+  "CommonStackName=prod-tms-common-services",
+  "CommonLayerArn=/prod/tms/common-layer-arn"
+]
+tags = ["Project=TMS", "Environment=PROD", "Name=prod-tms-realtime"]

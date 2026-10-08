@@ -29,6 +29,11 @@ function readSession(): AuthSession | null {
   }
 }
 
+/** Token de la sesión guardada, para canales que no pasan por apiFetch (WebSocket). */
+export function currentAccessToken(): string | null {
+  return readSession()?.access_token ?? null;
+}
+
 function writeSession(session: AuthSession | null) {
   try {
     if (session) localStorage.setItem(STORAGE_KEY, JSON.stringify(session));

@@ -1263,3 +1263,11 @@ El usuario pidió subir "todo" al sandbox. Hecho y probado contra Aurora:
 - **`dev-tms-planning`** ahora corre `backend-planif/src` (handler `adapters.inbound.planificacion_api.handler`) con sus 11 rutas `/api/v1/planificacion/*`. El `backend/planning/src` viejo queda solo para los tests. Subí `python-tds` a `1.16.0` en los dos `requirements.txt` de `backend-planif` (1.15.0 no tiene wheel para Linux; planificación no lo importa).
 - **CORS**: el API Gateway no permitía `X-Warehouse-Id` / `X-Customer-Id` (los manda `apiFetch` desde `aab65fa`) → el preflight fallaba en el sandbox. Ya están permitidos.
 - **`dev-tms-oms`**: tu esqueleto `backend/oms/` desplegado **en mock** (`OMS_SOURCE=mock`, sin escrituras a Aurora ni al WMS). `health` y `POST /corridas` responden. Tu gate sigue en pie para pasarlo a **live**/qa/prod (lo dejé anotado en `samconfig.toml`). `sql/oms_pedidos.sql` NO está aplicado.
+
+### 2026-10-08 — De: Claude → Kiro — WebSocket de pedidos nuevos en AWS (reemplaza `ws-local.mjs` en el sandbox)
+Estado: abierto
+
+Por pedido del usuario armé el equivalente en AWS de `ws-local.mjs`: stack `dev-tms-realtime` (API Gateway WebSocket + DynamoDB de conexiones + Lambda fuera de VPC). Ya está desplegado y el frontend del sandbox se buildea con `VITE_WS_URL=wss://…`.
+- **Frontend (toqué `src/`)**: `use-nuevos-pedidos.ts` ahora agrega `?token=<JWT de sesión>` a la URL del WS (API Gateway rechaza la conexión sin token); nuevo export `currentAccessToken()` en `src/lib/supabase.ts`. `ws-local.mjs` ignora el token, así que en local no cambia nada.
+- **Disparador** (equivalente de `/trigger`): `POST /api/v1/realtime/pedidos-nuevos` con `Authorization: Bearer <token>` → `{data:{ok, clientes}}`. Quien cargue pedidos en Aurora (scripts de import EFLOW, `agregar_viajes_para_recalcular.js`…) debería llamarlo; si no, queda el polling de 15 s.
+- Mensaje que reciben los clientes: `{"type": "pedidos-nuevos", "at": "<ISO>"}` (igual que `ws-local.mjs`).
