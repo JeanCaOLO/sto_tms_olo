@@ -112,7 +112,7 @@ Lo crea y actualiza `npm run deploy:sandbox` (idempotente; redesplegar sin cambi
 | Stack + Lambda | `dev-tms-eflow` / `dev-tms-eflow-eflow-api` | 512 MB, 29 s. EFLOW en **mock**. |
 | Stack + Lambda | `dev-tms-admin` / `dev-tms-admin-admin-api` | 512 MB, 15 s. Usuarios, roles, permisos, auditoría. |
 | Lambda + schedule | `dev-tms-admin-audit-maintenance` | 256 MB, 30 s. Schedule `dev-tms-admin-audit-maintenance` (ENABLED): lunes a viernes 06:00 hora de Costa Rica (idempotente; no el día 1 porque puede caer en fin de semana con Aurora apagada). Probado a mano: OK. |
-| Stack + Lambda | `dev-tms-planning` / `dev-tms-planning-planning-api` | 512 MB, 30 s. Planificación 2 (código de `backend-planif/`): pedidos, planes (crear/editar/confirmar/completar/cancelar) y estado por viaje; 11 rutas `/api/v1/planificacion/*`. |
+| Stack + Lambda | `dev-tms-planning` / `dev-tms-planning-planning-api` | 512 MB, 30 s. Planificación 2 (código de `backend-planif/`): pedidos, planes (crear/editar/confirmar/completar/cancelar) y estado por viaje, artículos por pedido; 12 rutas `/api/v1/planificacion/*`. |
 | Stack + Lambda | `dev-tms-oms` / `dev-tms-oms-oms-api` | Motor de reglas del OMS (esqueleto) en **mock** (`OMS_SOURCE=mock`: no escribe en Aurora ni en el WMS). Rutas `GET /api/v1/oms/health`, `POST /api/v1/oms/corridas`. |
 | Stack + Lambda | `dev-tms-tarifas` / `dev-tms-tarifas-tarifas-api` | Tarifador / liquidador sobre Aurora (tablas `tarifas_*`, migraciones `sql/19`–`25`). Rutas `/api/tarifas/{table}` (GET/POST/PATCH/DELETE) y `POST /api/tarifas/tx`; valida contra `src/schema_manifest.json`. |
 | Parámetro SSM | `/dev/tms/common-layer-arn` | ARN de la versión vigente de la Layer (lo mantiene el script). |
@@ -179,3 +179,4 @@ Stack `dev-tms-horarios` (`infra/horarios/template.yaml`, se despliega con `depl
 | 2026-10-05 | CORS del API: se permiten los headers `X-Warehouse-Id` y `X-Customer-Id` (el frontend los manda desde `aab65fa`; sin esto el preflight fallaba). `dev-tms-planning` pasa a correr el backend de Planificación 2 (`backend-planif/src`, 11 rutas, timeout 30 s). Nuevo stack `dev-tms-oms` (motor de reglas en mock). | Claude |
 | 2026-10-06 | Política IAM `iam-deploy-policy` (creada hoy por otro equipo) adjunta a `ext.claude` con un deny `SoloRegionesDelProyecto` que solo permitía `us-east-1` y bloqueaba el sandbox; se agregó `us-east-2` a esa lista. | Usuario |
 | 2026-10-06 | Nuevo stack `dev-tms-tarifas`. Redesplegados todos los módulos (cambió la Layer `tms_common`) y el frontend. | Claude |
+| 2026-10-08 | `dev-tms-planning`: ruta nueva `GET /api/v1/planificacion/pedidos/{id}/articulos`. Frontend redesplegado (guías desde el plan, pedidos nuevos por polling: el WebSocket aún no existe en AWS). | Claude |
