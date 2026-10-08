@@ -1,4 +1,5 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -48,6 +49,9 @@ interface DataTableProps<T> {
   // desplegarlo debajo (por ejemplo, el detalle de un viaje).
   renderExpanded?: (row: T) => ReactNode;
   canExpand?: (row: T) => boolean;
+  // Opcional: cuántas filas se ven a la vez. Si hay más, la tabla se desplaza por dentro (encabezado
+  // fijo) en vez de alargar la pantalla. Sin esta prop la tabla crece con sus filas, como siempre.
+  maxVisibleRows?: number;
 }
 
 export interface ColumnLayout {
@@ -93,12 +97,15 @@ function ColumnFilterMenu<T>({
   selected,
   onChange,
   onClose,
+  anchor,
 }: {
   column: DataTableColumn<T>;
   data: T[];
   selected: Set<string> | null;
   onChange: (values: Set<string> | null) => void;
   onClose: () => void;
+  /** Si viene, el menú se dibuja flotando en el <body> bajo este punto (tablas con scroll interno). */
+  anchor?: DOMRect | null;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState('');
@@ -133,10 +140,15 @@ function ColumnFilterMenu<T>({
     onChange(next.size === 0 ? null : next);
   };
 
-  return (
+  const floating = anchor
+    ? { top: anchor.bottom + 4, left: Math.max(8, Math.min(anchor.left, window.innerWidth - 232)) }
+    : null;
+
+  const menu = (
     <div
       ref={ref}
-      className="absolute z-20 mt-1 w-56 bg-white border border-slate-200 rounded-lg shadow-lg p-2 text-left"
+      className={`${floating ? 'fixed z-50' : 'absolute z-20'} mt-1 w-56 bg-white border border-slate-200 rounded-lg shadow-lg p-2 text-left`}
+      style={floating ?? undefined}
       onClick={(e) => e.stopPropagation()}
     >
       <input
@@ -171,6 +183,7 @@ function ColumnFilterMenu<T>({
       </div>
     </div>
   );
+  return floating ? createPortal(menu, document.body) : menu;
 }
 
 export default function DataTable<T>({
@@ -192,6 +205,7 @@ export default function DataTable<T>({
   defaultHidden,
   renderExpanded,
   canExpand,
+  maxVisibleRows,
 }: DataTableProps<T>) {
   const { t } = useTranslation();
   const location = useLocation();
@@ -199,6 +213,34 @@ export default function DataTable<T>({
   const [sort, setSort] = useState<{ key: string; direction: SortDirection } | null>(null);
   const [columnFilters, setColumnFilters] = useState<Record<string, Set<string> | null>>({});
   const [openFilterKey, setOpenFilterKey] = useState<string | null>(null);
+  const [filterAnchor, setFilterAnchor] = useState<DOMRect | null>(null);
+  const scrolls = maxVisibleRows !== undefined;
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const [measuredHeight, setMeasuredHeight] = useState<number | null>(null);
+  const [viewportWidth, setViewportWidth] = useState(0);
+  // El alto real de las N primeras filas (las celdas largas se parten en varias líneas); mientras no
+  // se pueda medir, una estimación: encabezado de ~2.75 rem más ~3.25 rem por fila.
+  useLayoutEffect(() => {
+    if (!scrolls) return;
+    const el = scrollerRef.current;
+    if (!el) return;
+    const rows = Array.from(el.querySelectorAll('tbody > tr')).slice(0, maxVisibleRows);
+    const head = el.querySelector('thead')?.getBoundingClientRect().height ?? 0;
+    const total = head + rows.reduce((sum, row) => sum + row.getBoundingClientRect().height, 0);
+    const next = rows.length >= maxVisibleRows && total > 0 ? Math.ceil(total) : null;
+    setMeasuredHeight((prev) => (prev === next ? prev : next));
+  });
+  useEffect(() => {
+    if (!scrolls) return undefined;
+    const onResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [scrolls]);
+  void viewportWidth; // solo fuerza una nueva medición al cambiar el ancho de la ventana
+  const scrollStyle = scrolls
+    ? { maxHeight: measuredHeight !== null ? `${measuredHeight}px` : `${2.75 + 3.25 * maxVisibleRows}rem` }
+    : undefined;
+  const stickyTh = scrolls ? ' sticky top-0 z-10 bg-slate-50' : '';
   const paginated = initialPageSize !== undefined;
   const [pageSize, setPageSize] = useState(initialPageSize ?? pageSizeOptions[0]);
   const [page, setPage] = useState(1);
@@ -454,11 +496,11 @@ export default function DataTable<T>({
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div ref={scrollerRef} className={scrolls ? 'overflow-auto' : 'overflow-x-auto'} style={scrollStyle}>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
-              {expandable && <th className="w-8 px-2 py-3" aria-label="Extender"></th>}
+              {expandable && <th className={`w-8 px-2 py-3${stickyTh}`} aria-label="Extender"></th>}
               {columns.map((col) => (
                 <th
                   key={col.key}
@@ -467,7 +509,7 @@ export default function DataTable<T>({
                   onDragOver={columnsKey ? (e) => { if (dragKey) e.preventDefault(); } : undefined}
                   onDrop={columnsKey ? () => { if (dragKey) moveColumn(dragKey, col.key); setDragKey(null); } : undefined}
                   onDragEnd={columnsKey ? () => setDragKey(null) : undefined}
-                  className={`relative px-4 py-3 font-semibold text-slate-700 whitespace-nowrap ${
+                  className={`relative${stickyTh} px-4 py-3 font-semibold text-slate-700 whitespace-nowrap ${
                     col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'
                   } ${col.headerClassName ?? ''}`}
                 >
@@ -489,7 +531,10 @@ export default function DataTable<T>({
                     {col.filterable && (
                       <button
                         type="button"
-                        onClick={() => setOpenFilterKey(openFilterKey === col.key ? null : col.key)}
+                        onClick={(e) => {
+                          setFilterAnchor(scrolls ? e.currentTarget.getBoundingClientRect() : null);
+                          setOpenFilterKey(openFilterKey === col.key ? null : col.key);
+                        }}
                         className={`cursor-pointer ${columnFilters[col.key] ? 'text-teal-600' : 'text-slate-400 hover:text-slate-600'}`}
                       >
                         <i className="ri-filter-3-fill text-xs"></i>
@@ -503,12 +548,13 @@ export default function DataTable<T>({
                       selected={columnFilters[col.key] ?? null}
                       onChange={(values) => setColumnFilters((prev) => ({ ...prev, [col.key]: values }))}
                       onClose={() => setOpenFilterKey(null)}
+                      anchor={scrolls ? filterAnchor : null}
                     />
                   )}
                 </th>
               ))}
               {actions && (
-                <th className="px-4 py-3 font-semibold text-slate-700 text-right whitespace-nowrap">{actionsHeader}</th>
+                <th className={`px-4 py-3 font-semibold text-slate-700 text-right whitespace-nowrap${stickyTh}`}>{actionsHeader}</th>
               )}
             </tr>
           </thead>

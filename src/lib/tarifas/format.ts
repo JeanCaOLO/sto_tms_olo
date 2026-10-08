@@ -4,6 +4,7 @@
 
 import type { BaseRef, BuiltinVarKey, DiscardReason, Stage, VarKey } from './types';
 import type { Pred } from './types';
+import { pctToDisplay, toDecimal } from './money';
 
 /**
  * Símbolo de cada moneda que el módulo maneja hoy. Antes esto era un `if (currency === 'USD')` y
@@ -22,7 +23,7 @@ export function formatMoney(amount: string, currency: string): string {
 }
 
 export function formatPct(fraction: string): string {
-  return `${(Number(fraction) * 100).toFixed(2)}%`;
+  return `${pctToDisplay(fraction)}%`;
 }
 
 export const STAGE_LABELS: Record<Stage, string> = {
@@ -140,7 +141,7 @@ export function formatInputs(inputs: Record<string, string | number>): string {
   }
   if (keys.includes('pct') && keys.includes('base')) {
     const baseOf = String(inputs.base) as BaseRef['of'];
-    return `${(Number(inputs.pct) * 100).toFixed(2)}% de ${BASE_REF_LABELS[baseOf] ?? inputs.base}`;
+    return `${pctToDisplay(String(inputs.pct))}% de ${BASE_REF_LABELS[baseOf] ?? inputs.base}`;
   }
   if (keys.includes('cada') && keys.includes('amount')) {
     const unitKey = keys.find((k) => k !== 'cada' && k !== 'amount')!;
@@ -148,7 +149,7 @@ export function formatInputs(inputs: Record<string, string | number>): string {
   }
   // Fila de una estructura de costos: unidades del viaje × importe de la fila.
   if (keys.includes('unidades') && keys.includes('importe')) {
-    return `${Number(inputs.unidades)} × ${inputs.importe}`;
+    return `${toDecimal(String(inputs.unidades)).toDecimalPlaces(0).toString()} × ${inputs.importe}`;
   }
   // Componente que se repite: km del viaje × costo por km.
   if (keys.includes('costo por km') && keys.includes('km')) {

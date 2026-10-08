@@ -1,0 +1,37 @@
+// Descripciones del tarifador: botones.
+
+import type { HintMap } from '../../../components/base/hintKey';
+
+export const BOTONES: HintMap = {
+  'Liquidar': 'Abre el cálculo de este viaje para revisarlo y emitir su liquidación.',
+  'Emitir liquidación': 'Guarda la liquidación con su desglose congelado.',
+  'Descargar PDF': 'Abre la proforma completa para imprimir o guardar como PDF.',
+  'Ver el desglose completo': 'Muestra el cálculo línea por línea.',
+  'Ver menos': 'Pliega el detalle.',
+  'Ver más pedidos devoluciones y desglose': 'Muestra los pedidos, las devoluciones y el desglose del total.',
+  'Anular': 'Saca el pedido del reparto entre casas comerciales; pide un motivo.',
+  'Liquidar después': 'Deja el pedido en el reparto, con su proforma pendiente.',
+  'Incluir': 'Vuelve a incluir el pedido en el reparto.',
+  'Agregar': 'Agrega una fila.',
+  'Cerrar': 'Cierra esta ventana.',
+  'Cancelar': 'Cierra sin guardar los cambios.',
+  'Atrás': 'Vuelve al paso anterior.',
+  'Continuar': 'Sigue con el siguiente paso.',
+  'Recargar': 'Vuelve a leer los datos.',
+  'Nueva Regla': 'Crea una regla de cálculo nueva.',
+  'Guardar cambios': 'Guarda los cambios de esta regla.',
+  'Crear regla': 'Guarda la regla nueva.',
+  'Nuevo tarifario': 'Crea una tabla de precios nueva.',
+  'Agregar condición': 'Suma otra condición para que la regla aplique.',
+  'Agregar tramo': 'Suma un tramo de escalones.',
+  'Probar': 'Calcula un ejemplo con la regla tal como está, sin guardarla.',
+  'Descargar plantilla': 'Baja el archivo de Excel con el formato que se debe llenar.',
+  'Subir plantilla': 'Carga la plantilla de Excel y reemplaza toda la estructura de costos.',
+  'Importar una hoja suelta': 'Agrega o reemplaza conceptos desde una hoja de Excel.',
+  'Importar planilla': 'Carga las filas del tarifario desde un archivo.',
+  'Guardar parámetros': 'Guarda el nombre y los días operativos de la estructura.',
+  'Ver qué se va a importar': 'Muestra la vista previa antes de guardar.',
+  'Fijar como el total esperado': 'Guarda este resultado como el valor que debe dar el escenario.',
+  'Volver a la automática': 'Quita el ajuste manual y usa de nuevo el cálculo automático.',
+  'Ver': 'Abre la regla en modo lectura.',
+};

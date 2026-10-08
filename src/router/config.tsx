@@ -1,5 +1,6 @@
 import { lazy } from 'react';
 import { Navigate, RouteObject } from 'react-router-dom';
+import TarifadorHints from '../components/tarifas/TarifadorHints';
 
 const HomePage = lazy(() => import('../pages/home/page'));
 const LoginPage = lazy(() => import('../pages/login/page'));
@@ -15,8 +16,7 @@ const TiendasPage = lazy(() => import('../pages/tiendas/page'));
 const PaisesPage = lazy(() => import('../pages/paises/page'));
 const TransportistasPage = lazy(() => import('../pages/transportistas/page'));
 const ReglasTarifaPage = lazy(() => import('../pages/reglas-tarifa/page'));
-const FlotaPropiaPage = lazy(() => import('../pages/companias/flota-propia/page'));
-const TransportistasLiquidarPage = lazy(() => import('../pages/companias/terceros/page'));
+const CostosFlotaPage = lazy(() => import('../pages/companias/costos-flota/page'));
 const LiquidacionesPage = lazy(() => import('../pages/liquidaciones/page'));
 const ConfiguracionPage = lazy(() => import('../pages/configuracion/page'));
 const AuditoriaPage = lazy(() => import('../pages/auditoria/page'));
@@ -90,19 +90,24 @@ const routes: RouteObject[] = [
   },
   {
     path: '/reglas-tarifa',
-    element: <ReglasTarifaPage />
+    element: <TarifadorHints><ReglasTarifaPage /></TarifadorHints>
   },
   {
+    path: '/tarifas/costos-flota',
+    element: <TarifadorHints><CostosFlotaPage /></TarifadorHints>
+  },
+  // Rutas anteriores: se conservan como redirección para no romper enlaces guardados.
+  {
     path: '/tarifas/flota-propia',
-    element: <FlotaPropiaPage />
+    element: <Navigate to="/tarifas/costos-flota?flota=propia" replace />
   },
   {
     path: '/tarifas/transportistas',
-    element: <TransportistasLiquidarPage />
+    element: <Navigate to="/tarifas/costos-flota?flota=externa" replace />
   },
   {
     path: '/liquidaciones',
-    element: <LiquidacionesPage />
+    element: <TarifadorHints><LiquidacionesPage /></TarifadorHints>
   },
   {
     path: '/configuracion',

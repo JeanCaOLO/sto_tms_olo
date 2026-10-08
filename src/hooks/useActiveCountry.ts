@@ -49,11 +49,17 @@ export function useActiveCountry(): ActiveCountryState {
   const { countries: permitted } = usePermissions();
   const [countries, setCountries] = useState<TarifasCountry[]>([]);
   const [loadingList, setLoadingList] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     setLoadingList(true);
+    setLoadError(null);
     try {
       setCountries((await listCountries('')) as TarifasCountry[]);
+    } catch (e) {
+      console.error('Error cargando países del tarifador:', e);
+      setCountries([]);
+      setLoadError(e instanceof Error ? e.message : 'Error al cargar países');
     } finally {
       setLoadingList(false);
     }

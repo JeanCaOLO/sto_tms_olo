@@ -21,11 +21,14 @@ const ROUNDING_MODES = [
 ];
 
 // Configuración de cálculo del país: redondeo y umbral de pernocta. La moneda es del catálogo.
+const DEFAULT_FORM = { rounding_decimals: '2', rounding_mode: 'HALF_UP', overnight_threshold_hours: '12' };
+const MAX_ROUNDING_DECIMALS = 6;
+
 export default function CountrySettingsCard({ countryId, currency }: Props) {
   const { canEdit } = useModulePermissions('tarifas.config');
   const [loading, setLoading] = useState(true);
   const [configured, setConfigured] = useState(false);
-  const [form, setForm] = useState({ rounding_decimals: '2', rounding_mode: 'HALF_UP', overnight_threshold_hours: '12' });
+  const [form, setForm] = useState(DEFAULT_FORM);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
 
@@ -39,13 +42,14 @@ export default function CountrySettingsCard({ countryId, currency }: Props) {
         if (!vigente) return;
         const row = rows.find((c) => c.id === countryId);
         setConfigured(!!row?.settings_id);
-        if (row?.settings_id) {
-          setForm({
-            rounding_decimals: String(row.rounding_decimals),
-            rounding_mode: String(row.rounding_mode),
-            overnight_threshold_hours: String(row.overnight_threshold_hours),
-          });
-        }
+        // Sin configuración propia se vuelve a los valores por defecto: no arrastrar los del país anterior.
+        setForm(row?.settings_id
+          ? {
+              rounding_decimals: String(row.rounding_decimals),
+              rounding_mode: String(row.rounding_mode),
+              overnight_threshold_hours: String(row.overnight_threshold_hours),
+            }
+          : DEFAULT_FORM);
       })
       .catch((error) => {
         console.error('Error cargando configuración del país:', error);
@@ -56,10 +60,11 @@ export default function CountrySettingsCard({ countryId, currency }: Props) {
   }, [countryId]);
 
   const handleSave = async () => {
-    const decimals = Number(form.rounding_decimals);
-    const hours = Number(form.overnight_threshold_hours);
-    if (!Number.isInteger(decimals) || decimals < 0 || decimals > 6) {
-      setMessage({ kind: 'error', text: 'Los decimales deben ser un entero entre 0 y 6.' });
+    // Number('') es 0: un campo vacío no debe guardarse como "0 decimales" ni "0 horas".
+    const decimals = form.rounding_decimals.trim() === '' ? NaN : Number(form.rounding_decimals);
+    const hours = form.overnight_threshold_hours.trim() === '' ? NaN : Number(form.overnight_threshold_hours);
+    if (!Number.isInteger(decimals) || decimals < 0 || decimals > MAX_ROUNDING_DECIMALS) {
+      setMessage({ kind: 'error', text: `Los decimales deben ser un entero entre 0 y ${MAX_ROUNDING_DECIMALS}.` });
       return;
     }
     if (!Number.isInteger(hours) || hours < 0) {

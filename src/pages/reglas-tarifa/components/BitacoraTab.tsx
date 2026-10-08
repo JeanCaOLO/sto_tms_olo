@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Card from '../../../components/base/Card';
 import Button from '../../../components/base/Button';
 import { listarEventos } from '../../../lib/liquidador/auditLog';
@@ -49,22 +49,34 @@ export default function BitacoraTab() {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const load = async () => {
-    setLoading(true);
-    setErrorMsg('');
-    try {
-      setEventos(await listarEventos());
-    } catch (error: any) {
-      console.error('Error cargando bitácora:', error);
-      setErrorMsg('No se pudo cargar la bitácora de auditoría.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const load = useCallback(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setErrorMsg('');
+      try {
+        const data = await listarEventos();
+        if (!cancelled) {
+          setEventos(data);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Error cargando bitácora:', error);
+          setErrorMsg('No se pudo cargar la bitácora de auditoría.');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
-    load();
-  }, []);
+    const cleanup = load();
+    return cleanup;
+  }, [load]);
 
   return (
     <Card>
@@ -94,10 +106,11 @@ export default function BitacoraTab() {
 
       {loading ? (
         <div className="text-center py-10 text-slate-500"><i className="ri-loader-4-line animate-spin text-2xl"></i></div>
-      ) : eventos.length === 0 ? (
+      ) : !errorMsg && eventos.length === 0 ? (
         <p className="text-sm text-slate-400 text-center py-10">Todavía no hay eventos registrados.</p>
-      ) : (
+      ) : !errorMsg && (
         <DataTable
+          maxVisibleRows={5}
           data={eventos}
           columns={columns}
           getRowId={(ev) => String(ev.id)}

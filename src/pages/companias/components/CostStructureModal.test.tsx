@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 //
 // La ficha de una compañía tiene que mostrar la estructura de costos que realmente se liquida: la
-// propia, o —si no tiene— la del país cargada en Reglas de Tarifa → Costos.
+// propia, o —si no tiene— la del país cargada en Costos Flota → Estructura del país.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -12,6 +12,11 @@ import type { CarrierProfile } from '../../../lib/tarifas/parties';
 
 vi.mock('../../../hooks/use-module-permissions', () => ({
   useModulePermissions: () => ({ canCreate: true, canEdit: true, canDelete: true, canView: true }),
+}));
+
+// El modal registra en la bitácora con el usuario real: sin AuthProvider, useAuth lanzaría.
+vi.mock('../../../hooks/useAuth', () => ({
+  useAuth: () => ({ appUser: { full_name: 'Auditor de prueba', email: 'auditor@example.com' } }),
 }));
 
 const profile = (classification: 'OWN' | 'OUTSOURCED'): CarrierProfile => ({
