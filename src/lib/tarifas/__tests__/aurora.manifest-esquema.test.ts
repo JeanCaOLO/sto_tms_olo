@@ -31,6 +31,13 @@ const PG_TYPE: Record<string, string> = {
   uuid: 'uuid',
 };
 
+// Diferencias CONOCIDAS y temporales entre el manifiesto del repo y Aurora. Cada una lleva su motivo y
+// cuándo quitarla; una diferencia que no esté acá hace fallar la prueba.
+//   · settlement_date: el manifiesto del repo dice `date` (migración 28), pero el backend desplegado es
+//     anterior y manda `::text`, así que en Aurora la columna vuelve a ser text (sql/29). Quitar esta
+//     línea cuando el backend desplegado traiga el manifiesto nuevo y se reaplique la 28.
+const KNOWN_DIVERGENCES = new Set(['tarifas_settlements.settlement_date']);
+
 interface Manifest {
   tables: Record<string, { columns: Record<string, { type: string }> }>;
 }
@@ -78,6 +85,7 @@ describe.skipIf(!enabled)('Manifiesto del backend contra el esquema de Aurora', 
     const problems: string[] = [];
     for (const [table, def] of Object.entries(manifest.tables)) {
       for (const [column, { type }] of Object.entries(def.columns)) {
+        if (KNOWN_DIVERGENCES.has(`${table}.${column}`)) continue;
         const actual = real.get(`${table}.${column}`);
         const expected = PG_TYPE[type];
         if (!expected) problems.push(`${table}.${column}: tipo de manifiesto desconocido "${type}"`);

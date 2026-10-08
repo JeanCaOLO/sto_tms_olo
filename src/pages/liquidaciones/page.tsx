@@ -25,6 +25,7 @@ import {
 } from '../../lib/tarifas/settlementsDataSource';
 import { listPendingTrips, TRIPS_LIMIT } from '../../lib/tarifas/tripsDataSource';
 import { notLiquidableReason } from '../../lib/tarifas/tripContext';
+import { prefetchTripCatalog } from '../../lib/tarifas/tripSettlement';
 import { deliveryLabel, MARK_LABELS, tripProgress } from '../../lib/tarifas/tripOrders';
 import { formatMoney } from '../../lib/tarifas/format';
 import type { SettlementOrder, SettlementRecord, SettlementStatus, TripRecord } from '../../lib/tarifas/types';
@@ -219,7 +220,14 @@ export default function LiquidacionesPage() {
     {
       key: 'routeNumber', header: 'Viaje', sortable: true,
       accessor: (t) => t.routeNumber,
-      render: (t) => <span className="font-mono text-xs text-teal-700">{t.routeNumber}</span>,
+      render: (t) => (
+        <span className="inline-flex items-center gap-1.5">
+          <span className="font-mono text-xs text-teal-700">{t.routeNumber}</span>
+          {t.hadAnnulledSettlement && (
+            <span title="Este viaje ya tuvo una liquidación y se anuló"><Badge variant="warning" size="sm">Anulada antes</Badge></span>
+          )}
+        </span>
+      ),
     },
     { key: 'routeDate', header: 'Fecha', sortable: true, accessor: (t) => t.routeDate },
     {
@@ -312,8 +320,10 @@ export default function LiquidacionesPage() {
         <select
           value={s.status}
           onChange={(e) => void cambiarEstado(s, e.target.value as SettlementStatus)}
-          disabled={!canEdit || !!s.supersededBy}
-          title={s.supersededBy ? 'Reemplazada al re-liquidar: no se puede reactivar' : undefined}
+          disabled={!canEdit || !!s.supersededBy || s.status === 'Anulado'}
+          title={s.supersededBy
+            ? 'Reemplazada al re-liquidar: no se puede reactivar'
+            : s.status === 'Anulado' ? 'Anulada: el viaje vuelve a Viajes por liquidar para emitir una liquidación nueva' : undefined}
           className={`text-xs rounded-full px-2.5 py-1 border-0 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${STATUS_CLASSES[s.status] ?? ''}`}
         >
           {ESTADOS.map((e) => <option key={e} value={e}>{e}</option>)}
@@ -453,6 +463,8 @@ export default function LiquidacionesPage() {
                   variant={parcial ? 'secondary' : 'primary'}
                   disabled={!!motivo}
                   onClick={() => setModal({ trip: t, settlement: null })}
+                  onMouseEnter={() => { if (!motivo) void prefetchTripCatalog(t); }}
+                  onFocus={() => { if (!motivo) void prefetchTripCatalog(t); }}
                   title={motivo ?? (parcial ? 'Tiene pedidos sin entregar: podés anularlos o dejarlos para después' : 'Liquidar este viaje')}
                 >
                   <i className="ri-calculator-line mr-1"></i>Liquidar

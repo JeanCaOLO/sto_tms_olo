@@ -9,6 +9,7 @@
 // lo que el cálculo necesita y el catálogo no tiene —redondeo, umbral de pernocta, grupos de zona—
 // sigue siendo del tarifador. Nada de esto se lee "por fuera" del ORM.
 
+import { settlementCurrency } from './currency';
 import { db, findMany, onDataWrite, primaryKeyOf, recordCatalog, type EntityName, type FindRequest, type Row } from './data';
 import { toCostStructure, toCostStructureRow } from './costStructureDataSource';
 import type {
@@ -48,7 +49,7 @@ function toCountry(row: Row, settings: Row | undefined): Country | null {
     id: row.id,
     iso2: row.code,
     name: row.name,
-    localCurrency: row.currency,
+    localCurrency: settlementCurrency(row.code, row.currency),
     roundingDecimals: Number(settings.rounding_decimals),
     roundingMode: settings.rounding_mode as RoundingMode,
     overnightThresholdHours: Number(settings.overnight_threshold_hours),
@@ -310,7 +311,9 @@ export class CatalogError extends Error {}
 //   · por tiempo (TTL), para los cambios que hace otra persona.
 // Las liquidaciones, los viajes y los pedidos NO pasan por acá: se leen siempre frescos.
 
-const CATALOG_TTL_MS = 60_000;
+// 5 min: reglas, tarifarios y zonas casi no cambian, y sin `/batch` en el backend cada lectura del
+// catálogo cuesta ~9 s (11 lecturas sueltas que se encolan). Lo que escribe esta sesión se descarta al instante.
+const CATALOG_TTL_MS = 5 * 60_000;
 const CATALOG_ENTITIES = new Set<EntityName>([
   'country', 'countrySettings', 'marginPolicy', 'pricingRule', 'pricingTemplate', 'zone', 'zoneGroup',
   'partyVariable', 'settlementParty', 'costStructure', 'costStructureRow', 'rateTable', 'rateTableRow',

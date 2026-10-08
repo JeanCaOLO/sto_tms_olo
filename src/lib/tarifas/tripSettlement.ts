@@ -171,6 +171,23 @@ export async function calculateTrip(
   };
 }
 
+/**
+ * Calienta el perfil y el catálogo del transportista de un viaje, para que abrir su liquidación no
+ * pague esa espera (la primera vez por transportista es lo más lento de abrir el modal). Se pide
+ * cuando la persona muestra intención —pasa el cursor o enfoca "Liquidar"— y no al cargar la lista,
+ * para no disparar el catálogo de todos los transportistas a la vez. Nunca lanza: si falla, el
+ * cálculo real lo vuelve a intentar y muestra el error de verdad.
+ */
+export async function prefetchTripCatalog(trip: Pick<TripRecord, 'carrierId' | 'countryId'>): Promise<void> {
+  try {
+    const profile = trip.carrierId ? await getProfileForCarrierCached(trip.carrierId) : null;
+    const partyId = profile && profile.status !== 'inactive' ? profile.id : null;
+    await loadTarifasCatalog(trip.countryId, partyId);
+  } catch {
+    // Solo es una ayuda: sin ella todo sigue funcionando.
+  }
+}
+
 function emptyResult(catalog: TarifasCatalog, issues: CalcIssue[]): CalcResult {
   const currency = catalog.country.localCurrency;
   return {

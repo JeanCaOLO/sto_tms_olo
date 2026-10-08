@@ -58,6 +58,8 @@ Para cada migración que toque columnas de una tabla `tarifas_*`:
 3. Pedir a Intelix el despliegue de `backend/tarifas` **antes o junto con** aplicar la migración (los despliegues los hace solo Intelix).
 4. Después de aplicar y desplegar, comprobar en el navegador: emitir una liquidación de prueba y confirmar que `POST /api/tarifas/batch` responde 200 (no 404).
 
+**Estado actual (2026-10-08): migración 29 aplicada.** Mientras el backend desplegado sea el anterior, `sql/29_tarifas_settlement_date_compat_text.sql` deja `tarifas_settlements.settlement_date` en `text` y la emisión funciona (probado: emitir, pasar por Borrador → En Revisión → Aprobado → Pagado, re-liquidar y anular). Cuando el backend desplegado traiga el manifiesto con `date`, reaplicar la 28 (`scripts/run-migration.mjs sql/28_tarifas_fecha_e_indices_sobrantes.sql --execute --force`) y quitar `tarifas_settlements.settlement_date` de `KNOWN_DIVERGENCES` en `aurora.manifest-esquema.test.ts`.
+
 ## 3. Migraciones 26 y 27: APLICADAS el 2026-10-07 (aprobadas por el dueño del módulo)
 
 **Estado: aplicadas** con `--execute` tras aprobación explícita, y registradas en `schema_migrations`. Verificado después: los 3 índices existen, la vista devuelve 28 viajes con 68 guías y 54 entregadas, y `tms_app` conserva el `select` sobre ella.

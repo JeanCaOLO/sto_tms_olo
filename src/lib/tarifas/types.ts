@@ -537,6 +537,8 @@ export interface TripRecord {
   returnCount: number;
   /** Liquidación vigente del viaje, o nulo si todavía no se liquidó. */
   settlementId: string | null;
+  /** El viaje ya tuvo una liquidación y se anuló: vuelve a la bandeja para liquidarse de nuevo. */
+  hadAnnulledSettlement?: boolean;
 }
 
 /**

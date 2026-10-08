@@ -69,7 +69,7 @@ export async function getProfileForCarrier(carrierId: string): Promise<Settlemen
 // El perfil de un transportista casi no cambia y cada recálculo de una liquidación lo pedía de nuevo
 // (una ida y vuelta de más). Mismo criterio que el catálogo: unos segundos de caché, descartada al
 // instante cuando esta sesión escribe un perfil y por tiempo para lo que cambie otra persona.
-const PROFILE_TTL_MS = 60_000;
+const PROFILE_TTL_MS = 5 * 60_000;
 const profileCache = new Map<string, { at: number; promise: Promise<SettlementPartyRow | null> }>();
 
 onDataWrite((touched) => {

@@ -39,16 +39,24 @@ function whereOf(filter: TripFilter): Condition[] {
  */
 async function withVigentes(trips: TripRecord[]): Promise<TripRecord[]> {
   if (trips.length === 0) return trips;
-  const vigentes = await db().find('settlement', {
-    where: [
-      { column: 'trip_id', op: 'in', value: trips.map((t) => t.id) },
-      { column: 'status', op: 'neq', value: 'Anulado' },
-    ],
-    // Solo se necesitan los dos ids: sin esto traía cada liquidación entera con sus JSONB.
-    columns: ['id', 'trip_id'],
+  // Una sola consulta con las liquidaciones del viaje (vigentes y anuladas): la vigente da
+  // `settlementId` y, si hubo alguna anulada, se marca para que la bandeja lo diga.
+  const delViaje = await db().find('settlement', {
+    where: [{ column: 'trip_id', op: 'in', value: trips.map((t) => t.id) }],
+    // Solo se necesitan estos campos: sin esto traía cada liquidación entera con sus JSONB.
+    columns: ['id', 'trip_id', 'status'],
   });
-  const porViaje = new Map(vigentes.map((s) => [String(s.trip_id), String(s.id)]));
-  return trips.map((t) => ({ ...t, settlementId: porViaje.get(t.id) ?? null }));
+  const porViaje = new Map<string, string>();
+  const conAnulada = new Set<string>();
+  for (const s of delViaje) {
+    if (s.status === 'Anulado') conAnulada.add(String(s.trip_id));
+    else porViaje.set(String(s.trip_id), String(s.id));
+  }
+  return trips.map((t) => ({
+    ...t,
+    settlementId: porViaje.get(t.id) ?? null,
+    ...(conAnulada.has(t.id) ? { hadAnnulledSettlement: true } : {}),
+  }));
 }
 
 const ORDEN = [
