@@ -10,6 +10,7 @@
 import Button from '../../../components/base/Button';
 import Badge from '../../../components/base/Badge';
 import CalcBreakdownPanel, { AllocationBlock } from '../../../components/tarifas/CalcBreakdownPanel';
+import { BASE_METHODS } from '../../../lib/tarifas/baseMethods';
 import { formatMoney } from '../../../lib/tarifas/format';
 import { describeReturn } from '../../../lib/tarifas/returnsNote';
 import { InterruptorVista, useVistaLiquidador } from './useVistaLiquidador';
@@ -89,6 +90,15 @@ export default function DetalleLiquidacionModal({ settlement, onClose }: Props) 
               </span>
             )}
           </div>
+
+          {settlement.baseChange && (
+            <div className="text-xs bg-teal-50 border border-teal-200 text-teal-800 rounded-lg px-3 py-2">
+              <i className="ri-exchange-line mr-1"></i>
+              Base cambiada a <strong>{BASE_METHODS[settlement.baseChange.method]?.label ?? settlement.baseChange.method}</strong>
+              {' · '}{settlement.baseChange.source.label}
+              {settlement.baseChange.changedBy ? ` · por ${settlement.baseChange.changedBy}` : ''}
+            </div>
+          )}
 
           {settlement.returns.length > 0 && (
             <div className="border border-slate-200 rounded-lg p-4">

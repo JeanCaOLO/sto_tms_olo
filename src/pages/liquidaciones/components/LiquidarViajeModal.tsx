@@ -28,10 +28,11 @@ import {
 } from '../../../lib/tarifas/settlementsDataSource';
 import { formatMoney } from '../../../lib/tarifas/format';
 import { noLogicHref, type NoLogicInfo } from '../../../lib/tarifas/missingLogic';
+import BaseMethodPanel from './BaseMethodPanel';
 import TripOrdersPanel from './TripOrdersPanel';
 import { InterruptorVista, useVistaLiquidador } from './useVistaLiquidador';
 import type {
-  SettlementRecord, SettlementReturn, SettlementStatus, TripEdits, TripRecord,
+  BaseMethodId, SettlementRecord, SettlementReturn, SettlementStatus, TripEdits, TripRecord,
 } from '../../../lib/tarifas/types';
 
 interface Props {
@@ -78,6 +79,8 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
   const [reason, setReason] = useState('');
   // Vista simple: el detalle (pedidos, devoluciones, desglose) queda plegado detrás de "Ver más".
   const [verMas, setVerMas] = useState(false);
+  // Tipo de cobro que reemplaza a la base por defecto. Null = la base de siempre.
+  const [baseMethod, setBaseMethod] = useState<BaseMethodId | null>(null);
 
   // Lo que se calculó: es lo que se guarda, aunque después se siga tecleando.
   const editsUsed = useRef<TripEdits>(emptyTripEdits());
@@ -85,12 +88,18 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
   // El viaje ya leído: los recálculos (editar una variable, anular un pedido) lo reusan en vez de
   // volver a pedirlo. Lo que cambia entre cálculos —pedidos y marcas— se lee siempre fresco.
   const tripRead = useRef<TripRecord | null>(null);
+  // Lo mismo para la base elegida: cada recálculo (variables, pedidos) tiene que respetarla.
+  const baseUsed = useRef<BaseMethodId | null>(null);
 
-  const runCalc = async (edits: TripEdits) => {
+  const runCalc = async (edits: TripEdits, extra: { fresh?: boolean } = {}) => {
     const seq = ++calcSeq.current;
     try {
       // El viaje que ya trae la bandeja evita pedirlo de nuevo (dos lecturas); la emisión lo valida otra vez.
-      const res = await calculateTrip(tripRead.current ?? trip ?? tripId, edits, { allowSettled: reliquidando });
+      const res = await calculateTrip(tripRead.current ?? trip ?? tripId, edits, {
+        allowSettled: reliquidando,
+        baseOverride: baseUsed.current ? { method: baseUsed.current } : null,
+        ...extra,
+      });
       if (seq !== calcSeq.current) return null;
       if (res.status !== 'ok') {
         setCalculation(null);
@@ -130,6 +139,10 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
     setStatus('Borrador');
     setReason('');
     setVerMas(false);
+    // Al re-liquidar se parte de la base con la que se emitió la anterior.
+    const baseInicial = settlement?.baseChange?.method ?? null;
+    baseUsed.current = baseInicial;
+    setBaseMethod(baseInicial);
     setCustomRaw({});
     setReturns(settlement?.returns ?? []);
     setLoading(true);
@@ -209,6 +222,14 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
     setCustomRaw((prev) => ({ ...prev, [key]: value }));
   };
 
+  // Cambiar el tipo de cobro de la base recalcula con lo mismo que ya estaba cargado.
+  const changeBase = (method: BaseMethodId | null) => {
+    baseUsed.current = method;
+    setBaseMethod(method);
+    setPending(true);
+    void runCalc(editsUsed.current).finally(() => setPending(false));
+  };
+
   const handleEmitir = async () => {
     if (!calculation || !totals || !effectiveResult) return;
     setError('');
@@ -227,7 +248,10 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
       // Navegar usa catálogo y perfil de hasta unos minutos; pagar no. Se recalcula sin cachés y, si
       // otra persona cambió una tarifa, una regla o un pedido en ese rato, se muestra lo nuevo y se
       // pide confirmar en vez de emitir con el valor viejo.
-      const check = await recheckBeforeEmit(calculation, editsUsed.current, { allowSettled: reliquidando });
+      const check = await recheckBeforeEmit(calculation, editsUsed.current, {
+        allowSettled: reliquidando,
+        baseOverride: baseUsed.current ? { method: baseUsed.current } : null,
+      });
       if (check.status === 'failed') { setError(check.message); return; }
       if (check.status === 'changed') {
         const antes = formatMoney(calculation.result.totalLiquidado, calculation.result.currency);
@@ -253,6 +277,10 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
         calc: effectiveResult,
         rulesUsed: calculation.input.rules.filter((r) => calculation.result.trace.some((l) => l.ruleId === r.id)),
         excludedSeqs: [...excludedSeqs],
+        // Quién y cuándo lo cambió lo completa la capa de datos al guardar.
+        baseChange: calculation.result.base
+          ? { ...calculation.result.base, changedBy: null, changedAt: '' }
+          : null,
         returns,
         orders: calculation.orders.length > 0 ? snapshotOrders(calculation.orders) : null,
         totalAmount: totals.total,
@@ -380,6 +408,19 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
                       </p>
                     )}
                   </section>
+
+                  {/* ── Base del cálculo ────────────────────────────────────────────────── */}
+                  <BaseMethodPanel
+                    calculation={calculation}
+                    value={baseMethod}
+                    onChange={changeBase}
+                    busy={pending || saving}
+                    extendida={!simple}
+                    onRuleCreated={() => {
+                      setPending(true);
+                      void runCalc(editsUsed.current, { fresh: true }).finally(() => setPending(false));
+                    }}
+                  />
 
                   {/* ── 2 · Variables del transportista ─────────────────────────────────── */}
                   {(calculation.customVarFields.length > 0 || (!simple && constantes.length > 0)) && (

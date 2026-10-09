@@ -146,6 +146,7 @@ CREATE TABLE IF NOT EXISTS tarifas_settlements (
   adhoc_rules jsonb NOT NULL,
   rules_used jsonb NOT NULL,
   excluded_seqs jsonb NOT NULL,
+  base_change jsonb,
   returns jsonb NOT NULL,
   superseded_by text,
   created_at timestamptz NOT NULL,

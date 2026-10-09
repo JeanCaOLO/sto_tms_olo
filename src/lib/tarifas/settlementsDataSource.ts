@@ -17,7 +17,7 @@ import { notLiquidableReason } from './tripContext';
 import { getTrip } from './tripsDataSource';
 import type {
   Allocation, CalcIssue, CalcResult, MarginStatus, Override, Rule, SettlementOrder, SettlementRecord, SettlementReturn,
-  SettlementStatus, Stage, TraceLine, TripContext, TripEdits, TripRecord,
+  SettlementBaseChange, SettlementStatus, Stage, TraceLine, TripContext, TripEdits, TripRecord,
 } from './types';
 
 export interface SettlementInput {
@@ -39,6 +39,8 @@ export interface SettlementInput {
   rulesUsed?: Rule[];
   /** Líneas que el liquidador destildó. */
   excludedSeqs?: number[];
+  /** Quién cambió la base de cálculo y a qué. Solo si la cambió. */
+  baseChange?: SettlementBaseChange | null;
   returns?: SettlementReturn[];
   /** Foto de los pedidos del viaje y qué se hizo con cada uno. */
   orders?: SettlementOrder[] | null;
@@ -99,6 +101,7 @@ function toDomain(row: Row): SettlementRecord {
     adhocRules: (row.adhoc_rules ?? []) as Rule[],
     rulesUsed: (row.rules_used ?? []) as Rule[],
     excludedSeqs: (row.excluded_seqs ?? []) as number[],
+    baseChange: (row.base_change ?? null) as SettlementBaseChange | null,
     returns: (row.returns ?? []) as SettlementReturn[],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -123,7 +126,7 @@ export interface SettlementFilter {
  */
 const HEAVY_COLUMNS = new Set([
   'trace', 'discarded', 'stage_subtotals', 'warnings', 'overrides', 'adhoc_rules', 'rules_used',
-  'excluded_seqs', 'returns', 'trip', 'trip_edits', 'allocation',
+  'excluded_seqs', 'base_change', 'returns', 'trip', 'trip_edits', 'allocation',
 ]);
 
 function summaryColumns(): string[] {
@@ -288,6 +291,10 @@ function rowValues(input: SettlementInput, trip: TripRecord, ahora: string): Row
     adhoc_rules: input.adhocRules ?? [],
     rules_used: input.rulesUsed ?? [],
     excluded_seqs: input.excludedSeqs ?? [],
+    // Solo se escribe cuando hay cambio: así la base por defecto no exige la columna nueva en la base.
+    ...(input.baseChange
+      ? { base_change: { ...input.baseChange, changedBy: input.baseChange.changedBy ?? usuarioActual(), changedAt: ahora } }
+      : {}),
     returns: input.returns ?? [],
     superseded_by: null,
     updated_at: ahora,
@@ -461,6 +468,7 @@ function resumen(row: Row): Row {
     total: row.total_amount,
     moneda: row.currency,
     margen: row.margin_status,
+    ...(row.base_change ? { base: (row.base_change as { method?: string }).method } : {}),
   };
 }
 

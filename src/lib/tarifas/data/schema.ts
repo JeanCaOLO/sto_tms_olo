@@ -608,6 +608,8 @@ export const ENTITIES = {
       rules_used: { type: 'jsonb' },
       /** Líneas destildadas: se excluyeron del total y hay que poder decir cuáles. */
       excluded_seqs: { type: 'jsonb' },
+      /** Base de cálculo cambiada por el liquidador (tipo de cobro, fuente, quién y cuándo). Nulo = base por defecto. */
+      base_change: { type: 'jsonb', nullable: true },
       /** Devoluciones informadas. No afectan el pago; se registran para la auditoría. */
       returns: { type: 'jsonb' },
       /** Liquidación que reemplazó a esta al re-liquidar. Nulo = no fue reemplazada. */

@@ -44,6 +44,14 @@ interface RuleModalProps {
   /** País activo del módulo: toda regla nueva nace en él. */
   country: { id: string; name: string; local_currency?: string } | null;
   usuarioActivo: string;
+  /** Valores iniciales de una regla NUEVA (p. ej. desde el liquidador: etapa BASE y operador del tipo de cobro). */
+  defaults?: {
+    stage?: Stage;
+    /** Compañía dueña: la regla nace con alcance PARTY. */
+    partyId?: string | null;
+    operator?: BuilderOperator;
+    variable?: NumericVarKey | null;
+  };
 }
 
 const STAGE_OPTIONS: { value: Stage; label: string }[] = [
@@ -100,7 +108,7 @@ const emptyBuilder = (): RuleBuilderForm => ({
 });
 
 export default function RuleModal({
-  isOpen, onClose, onSuccess, rule, organizationId, country, usuarioActivo,
+  isOpen, onClose, onSuccess, rule, organizationId, country, usuarioActivo, defaults,
 }: RuleModalProps) {
   const { canCreate, canEdit } = useModulePermissions('tarifas.config');
   const [loading, setLoading] = useState(false);
@@ -223,8 +231,9 @@ export default function RuleModal({
       }
     } else {
       setFormData({
-        code: '', name: '', country_id: country?.id ?? '', stage: 'SURCHARGE', priority: 10, stacking: 'SUM',
-        exclusion_group: '', scope: 'COUNTRY', party_id: '',
+        code: '', name: '', country_id: country?.id ?? '', stage: defaults?.stage ?? 'SURCHARGE', priority: 10,
+        stacking: 'SUM', exclusion_group: '',
+        scope: defaults?.partyId ? 'PARTY' : 'COUNTRY', party_id: defaults?.partyId ?? '',
         reason: '', active: true,
         effective_from: '', effective_to: '',
       });
@@ -233,7 +242,11 @@ export default function RuleModal({
       setConditionRows([emptyConditionRow()]);
       setConditionRowErrors({});
       setAdvancedConditionsJson('{ "p": "ALWAYS" }');
-      setBuilder(emptyBuilder());
+      setBuilder({
+        ...emptyBuilder(),
+        ...(defaults?.operator ? { operator: defaults.operator } : {}),
+        ...(defaults?.variable !== undefined ? { variable: defaults.variable } : {}),
+      });
       setAdvancedExpressionJson('{ "op": "FIXED", "amount": "0" }');
       setDescription('');
       setDescriptionTouched(false);

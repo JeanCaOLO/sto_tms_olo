@@ -616,6 +616,8 @@ export interface SettlementRecord {
   rulesUsed: Rule[];
   /** Líneas que el liquidador destildó: se excluyeron del total. */
   excludedSeqs: number[];
+  /** Base de cálculo cambiada por el liquidador. Nulo = se usó la base por defecto. */
+  baseChange?: SettlementBaseChange | null;
   returns: SettlementReturn[];
   createdAt: string;
   updatedAt: string;
@@ -888,7 +890,11 @@ export type DiscardReason =
   /** La fecha del viaje cae fuera del período de vigencia de la regla. */
   | 'OUT_OF_PERIOD'
   /** La regla tiene una forma que el kernel no sabe leer: operador o condición desconocidos. */
-  | 'RULE_BROKEN';
+  | 'RULE_BROKEN'
+  /** El liquidador cambió la base de cálculo: esta regla BASE (o la estructura de costos) ya no aplica. */
+  | 'BASE_REEMPLAZADA'
+  /** Cobra el mismo concepto que la base elegida (p. ej. otra regla por km): se omite para no cobrar doble. */
+  | 'DUPLICA_BASE';
 export interface DiscardedRule {
   ruleCode: string;
   reason: DiscardReason;
@@ -914,6 +920,46 @@ export interface CalcIssue {
   ruleCode?: string;
 }
 
+// ── Cambio de base de cálculo ─────────────────────────────────────────────────────────────────
+// La fase BASE sale por defecto de la estructura de costos (flota propia) o de las reglas BASE
+// (terceros). El liquidador puede cambiarla por otro tipo de cobro; solo cambia la base, las demás
+// fases siguen igual.
+
+/** Tipos de cobro que puede tomar la base. TENDERING existe en el catálogo pero no tiene mecánica definida. */
+export type BaseMethodId = 'PER_KM' | 'PER_UNIT' | 'FIXED' | 'VOLUME' | 'TENDERING';
+
+/** De dónde sale la base elegida. */
+export type BaseSourceKind = 'RULE' | 'RATE_TABLE' | 'COST_STRUCTURE';
+
+export interface BaseSource {
+  kind: BaseSourceKind;
+  /** Código de la regla / del tarifario, o id de la estructura de costos. */
+  ref: string;
+  /** Nombre legible para la persona. */
+  label: string;
+}
+
+/** Lo que pide el liquidador: qué tipo de cobro usar como base. */
+export interface BaseOverride {
+  method: BaseMethodId;
+}
+
+/** Cómo se resolvió la base elegida: es lo que se muestra y lo que se guarda al emitir. */
+export interface BaseInfo {
+  method: BaseMethodId;
+  source: BaseSource;
+  /** Códigos de las reglas BASE (o de la estructura de costos) que dejaron de aplicar. */
+  replaced: string[];
+  /** Reglas de otras fases que cobraban lo mismo que la base y se omitieron. */
+  duplicates: { ruleCode: string; detail: string }[];
+}
+
+/** La base elegida tal como queda en la liquidación emitida (auditoría). */
+export interface SettlementBaseChange extends BaseInfo {
+  changedBy: string | null;
+  changedAt: string;
+}
+
 // El motor calcula cuánto se le debe LIQUIDAR (pagar) al transportista por el viaje — nunca un
 // cobro a un cliente. No hay "costo interno vs cobrado" que comparar (no existe margen de venta en
 // este módulo): la misma regla de negocio (propio → nómina, outsourcing → cuentas por pagar) se
@@ -937,6 +983,8 @@ export interface CalcResult {
   warnings: string[];
   /** Problemas que hacen que el total NO sea confiable. Vacío = la liquidación se puede emitir. */
   blockingIssues: CalcIssue[];
+  /** Presente solo si el liquidador cambió la base de cálculo. */
+  base?: BaseInfo;
 }
 
 // ── Entrada de calculate() — todo lo que el kernel necesita, nada implícito ───────────────────
@@ -966,6 +1014,8 @@ export interface CalculateInput {
   marginPolicy: MarginPolicy;
   overrides?: Record<string, Override>; // indexados por ruleCode
   adhocRules?: Rule[]; // reglas del viaje actual, no persistidas
+  /** Tipo de cobro que reemplaza a la base por defecto. Sin él, la base es la de siempre. */
+  baseOverride?: BaseOverride;
 }
 
 // ── Proformas — viajes emitidos y persistidos ─────────────────────────────────────────────────

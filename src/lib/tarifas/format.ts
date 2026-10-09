@@ -92,6 +92,8 @@ export const DISCARD_REASON_LABELS: Record<DiscardReason, string> = {
   OVERRIDDEN_BY_PARTY: 'Sobrescrita por la compañía',
   OUT_OF_PERIOD: 'Fuera de vigencia',
   RULE_BROKEN: 'Regla ilegible',
+  BASE_REEMPLAZADA: 'Reemplazada por la base elegida',
+  DUPLICA_BASE: 'Ya cobrado en la base',
 };
 
 /**

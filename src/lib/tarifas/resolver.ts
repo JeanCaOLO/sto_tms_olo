@@ -159,6 +159,11 @@ export interface ResolveResult {
    * `runChargePipeline` cuando llega a ellos, con los montos reales.
    */
   applied: Rule[];
+  /**
+   * Reglas que rigen para este viaje (alcance, vigencia y condición) ANTES de competir por etapa. Son
+   * las que el liquidador podría elegir como base aunque hoy pierdan frente a otra (EXCLUSIVE).
+   */
+  candidates: Rule[];
   discarded: DiscardedRule[];
   warnings: string[];
 }
@@ -371,5 +376,5 @@ export function resolveRules(
 
   const applied = winners.sort(compareRules);
 
-  return { applied, discarded, warnings };
+  return { applied, candidates: [...matched].sort(compareRules), discarded, warnings };
 }

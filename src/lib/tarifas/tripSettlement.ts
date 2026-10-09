@@ -10,7 +10,7 @@
 //
 // Todo lo que se lee pasa por la capa de datos; lo que se calcula no lee nada.
 
-import { calculate } from './index';
+import { calculate, listBaseMethods, type BaseMethodOption } from './index';
 import { CatalogError, loadTarifasCatalog, type TarifasCatalog } from './catalogLoader';
 import { buildCustomVarFields, missingDeclaredVars, type CustomVarField } from './customVarFields';
 import { getProfileForCarrierCached } from './partiesDataSource';
@@ -20,7 +20,8 @@ import { emptyTripEdits, notLiquidableReason, toTripContext } from './tripContex
 import { getTrip, listTripOrders } from './tripsDataSource';
 import { cargoFromOrders } from './tripOrders';
 import type {
-  CalcIssue, CalcResult, CalculateInput, CargoSummary, Override, Rule, TripContext, TripEdits, TripOrder, TripRecord,
+  BaseOverride, CalcIssue, CalcResult, CalculateInput, CargoSummary, Override, Rule, TripContext, TripEdits, TripOrder,
+  TripRecord,
 } from './types';
 
 export interface TripCalculation {
@@ -36,6 +37,8 @@ export interface TripCalculation {
   context: TripContext;
   input: CalculateInput;
   result: CalcResult;
+  /** Tipos de cobro que puede tomar la base de este viaje, con su fuente o el motivo del bloqueo. */
+  baseMethods: BaseMethodOption[];
   /** Problemas del armado + del motor que impiden emitir. */
   blockingIssues: CalcIssue[];
   /** Avisos del armado + del motor. */
@@ -57,6 +60,8 @@ export type TripCalculationResult =
 export interface CalculateTripOptions {
   overrides?: Record<string, Override>;
   adhocRules?: Rule[];
+  /** Tipo de cobro que reemplaza a la base por defecto. Sin él se calcula como siempre. */
+  baseOverride?: BaseOverride | null;
   /** Para re-liquidar: se ignora que el viaje ya tenga una liquidación vigente. */
   allowSettled?: boolean;
   /**
@@ -136,6 +141,7 @@ export async function calculateTrip(
     ...(cargo ? { cargo } : {}),
     ...(options.overrides ? { overrides: options.overrides } : {}),
     ...(options.adhocRules ? { adhocRules: options.adhocRules } : {}),
+    ...(options.baseOverride ? { baseOverride: options.baseOverride } : {}),
   });
 
   // Con un problema de armado (p.ej. zona inexistente) el motor no puede correr: se devuelve un
@@ -169,6 +175,7 @@ export async function calculateTrip(
       context,
       input,
       result,
+      baseMethods: issues.length > 0 ? [] : listBaseMethods(input),
       blockingIssues: [...issues, ...(issues.length > 0 ? [] : result.blockingIssues)],
       warnings: [...warnings, ...(cargoWarning ? [cargoWarning] : []), ...result.warnings],
       notLiquidableReason: ignorable ? null : reason,
@@ -188,6 +195,7 @@ export function calculationSignature(c: TripCalculation): string {
     cost: c.result.cost.total,
     margin: c.result.margin.status,
     trace: c.result.trace.map((l) => [l.ruleId, l.ruleVersion ?? null, l.final]),
+    base: c.result.base ? [c.result.base.method, c.result.base.source.ref] : null,
     blocking: c.blockingIssues.map((i) => i.code),
     orders: c.orders.map((o) => [o.guideId, o.mark]),
   });
