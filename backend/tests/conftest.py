@@ -20,6 +20,7 @@ STACK_SOURCES = {
     "planning": BACKEND / "planning" / "src",
     "oms": BACKEND / "oms" / "src",
     "tarifas": BACKEND / "tarifas" / "src",
+    "realtime": BACKEND / "realtime" / "src",
 }
 STACK_MODULES = {"app", "table_modules", "admin_permissions", "admin_audit", "audit_maintenance", "relations", "schema", "select_parser", "select_query", "mutations",
                  "scopes", "context_queries", "eflow_queries", "live_source", "mock_source",

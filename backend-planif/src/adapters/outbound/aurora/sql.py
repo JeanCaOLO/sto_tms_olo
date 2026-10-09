@@ -44,6 +44,19 @@ WHERE o.organization_id = %s
 ORDER BY o.priority NULLS LAST, delivery_zone, o.order_number
 """
 
+# Artículos (líneas) de un pedido, para el modal de detalle del pin.
+ITEMS_BY_ORDER_SQL = """
+SELECT product_code,
+       product_name,
+       quantity,
+       weight::float  AS weight,
+       volume::float  AS volume,
+       guia_fiscal
+FROM order_items
+WHERE order_id = %s::uuid
+ORDER BY product_name NULLS LAST, product_code
+"""
+
 ORDERS_BY_IDS_SQL = """
 SELECT o.id, o.order_number, o.customer_id, c.name AS customer_name,
        COALESCE(z.name, dp.wms_zone_code, o.delivery_zone) AS delivery_zone,
