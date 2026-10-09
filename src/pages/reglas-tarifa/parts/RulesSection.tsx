@@ -26,6 +26,7 @@ export function RulesSection({
     <Card>
       <DataTable
         maxVisibleRows={5}
+        initialColumnFilters={{ active: ['Activa'] }}
         data={rules}
         columns={columns}
         getRowId={(r) => String(r.id)}

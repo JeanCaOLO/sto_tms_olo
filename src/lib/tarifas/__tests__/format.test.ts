@@ -31,7 +31,12 @@ describe('formatMoney', () => {
     expect(formatMoney('150000.00', 'CRC')).toBe('₡150,000.00');
   });
 
+  it('en Venezuela usa Bs. y separadores es-VE (punto miles, coma decimales)', () => {
+    expect(formatMoney('1500.00', 'VES')).toBe('Bs.1.500,00');
+    expect(formatMoney('1234567.5', 'VES')).toBe('Bs.1.234.567,5');
+  });
+
   it('con una moneda sin símbolo la pone al final', () => {
-    expect(formatMoney('1500.00', 'VES')).toBe('1,500.00 VES');
+    expect(formatMoney('1500.00', 'PEN')).toBe('1,500.00 PEN');
   });
 });

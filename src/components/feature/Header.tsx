@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import ViewAsToggle from './ViewAsToggle';
 import { useSidebar } from '../../hooks/useSidebar';
 import ContextSelector from './ContextSelector';
 import NotificationsMenu from './NotificationsMenu';
@@ -81,7 +80,6 @@ export default function Header() {
         </div>
       </div>
 
-      <ViewAsToggle />
       <div className="flex items-center gap-3">
         {/* Selector de idioma */}
         <LanguageSwitcher />
