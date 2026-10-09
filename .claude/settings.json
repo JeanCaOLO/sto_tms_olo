@@ -1,13 +1,18 @@
 {
+  "env": {
+    "MAX_THINKING_TOKENS": "10000",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "haiku"
+  },
+  "model": "sonnet",
   "enabledPlugins": {
     "javascript-typescript@claude-code-workflows": true,
     "database-design@claude-code-workflows": true,
     "backend-api-security@claude-code-workflows": true,
     "cloud-infrastructure@claude-code-workflows": true
   },
-  "model": "sonnet",
-  "env": {
-    "MAX_THINKING_TOKENS": "10000",
-    "CLAUDE_CODE_SUBAGENT_MODEL": "haiku"
+  "permissions": {
+    "allow": [
+      "PowerShell(powershell -ExecutionPolicy Bypass -File scripts/tunel-aurora.ps1*)"
+    ]
   }
 }
