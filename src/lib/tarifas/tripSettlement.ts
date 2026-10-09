@@ -10,16 +10,18 @@
 //
 // Todo lo que se lee pasa por la capa de datos; lo que se calcula no lee nada.
 
-import { calculate } from './index';
+import { calculate, listBaseMethods, type BaseMethodOption } from './index';
 import { CatalogError, loadTarifasCatalog, type TarifasCatalog } from './catalogLoader';
 import { buildCustomVarFields, missingDeclaredVars, type CustomVarField } from './customVarFields';
-import { getProfileForCarrier } from './partiesDataSource';
+import { getProfileForCarrierCached } from './partiesDataSource';
+import { detectMissingLogic, noLogicMessage, noRuleApplied, type NoLogicInfo } from './missingLogic';
 import { buildCalculateInput } from './settlementInput';
 import { emptyTripEdits, notLiquidableReason, toTripContext } from './tripContext';
 import { getTrip, listTripOrders } from './tripsDataSource';
 import { cargoFromOrders } from './tripOrders';
 import type {
-  CalcIssue, CalcResult, CalculateInput, CargoSummary, Override, Rule, TripContext, TripEdits, TripOrder, TripRecord,
+  BaseOverride, CalcIssue, CalcResult, CalculateInput, CargoSummary, Override, Rule, TripContext, TripEdits, TripOrder,
+  TripRecord,
 } from './types';
 
 export interface TripCalculation {
@@ -35,6 +37,8 @@ export interface TripCalculation {
   context: TripContext;
   input: CalculateInput;
   result: CalcResult;
+  /** Tipos de cobro que puede tomar la base de este viaje, con su fuente o el motivo del bloqueo. */
+  baseMethods: BaseMethodOption[];
   /** Problemas del armado + del motor que impiden emitir. */
   blockingIssues: CalcIssue[];
   /** Avisos del armado + del motor. */
@@ -45,15 +49,26 @@ export interface TripCalculation {
 
 export type TripCalculationResult =
   | { status: 'ok'; calculation: TripCalculation }
-  /** Falta configuración del país (costos, margen, redondeo): no hay cálculo posible. */
-  | { status: 'catalog-error'; message: string }
+  /**
+   * Falta configuración del país (costos, margen, redondeo) o de la compañía: no hay cálculo posible.
+   * `noLogic` viene cuando lo que falta es la lógica de costos de la flota del viaje: la pantalla
+   * ofrece el enlace para cargarla.
+   */
+  | { status: 'catalog-error'; message: string; noLogic?: NoLogicInfo }
   | { status: 'not-found'; message: string };
 
 export interface CalculateTripOptions {
   overrides?: Record<string, Override>;
   adhocRules?: Rule[];
+  /** Tipo de cobro que reemplaza a la base por defecto. Sin él se calcula como siempre. */
+  baseOverride?: BaseOverride | null;
   /** Para re-liquidar: se ignora que el viaje ya tenga una liquidación vigente. */
   allowSettled?: boolean;
+  /**
+   * Salta las cachés del catálogo y del perfil y lee todo de nuevo. Es lo que se usa justo antes de
+   * emitir: navegar puede usar datos de hasta unos minutos, pagar no.
+   */
+  fresh?: boolean;
 }
 
 /** Claves de variables que nombran las reglas, a cualquier profundidad de condición/expresión. */
@@ -91,34 +106,42 @@ export async function calculateTrip(
   const trip = typeof tripOrId === 'string' ? await getTrip(tripOrId) : tripOrId;
   if (!trip) return { status: 'not-found', message: 'El viaje no existe.' };
 
-  const profile = trip.carrierId ? await getProfileForCarrier(trip.carrierId) : null;
+  // Los pedidos del viaje no dependen del perfil ni del catálogo: se piden a la vez para no sumar sus
+  // idas y vueltas a las del perfil y el catálogo (cada una cuesta lo mismo que cualquier otra).
+  const ordersRequest = listTripOrders(trip.id).then(
+    (rows) => ({ rows, failure: null as unknown }),
+    (failure: unknown) => ({ rows: [] as TripOrder[], failure }),
+  );
+
+  const profile = trip.carrierId ? await getProfileForCarrierCached(trip.carrierId, { fresh: options.fresh }) : null;
   const partyId = profile && profile.status !== 'inactive' ? profile.id : null;
 
   let catalog: TarifasCatalog;
   try {
-    catalog = await loadTarifasCatalog(trip.countryId, partyId);
+    catalog = await loadTarifasCatalog(trip.countryId, partyId, { fresh: options.fresh });
   } catch (error) {
     if (error instanceof CatalogError) return { status: 'catalog-error', message: error.message };
     throw error;
   }
 
+  // Sin lógica de costos para la flota del viaje no hay total que inventar: se dice qué falta.
+  const missing = detectMissingLogic(catalog, trip, partyId);
+  if (missing) return { status: 'catalog-error', message: noLogicMessage(missing), noLogic: missing };
+
   const context = toTripContext(trip, edits, partyId);
   // La mercancía solo alimenta la auditoría y el reparto por casa: si no se puede leer, lo que se paga
   // NO cambia. Se avisa en vez de frenar la liquidación.
-  let cargo: CargoSummary | null = null;
-  let orders: TripOrder[] = [];
-  let cargoWarning: string | null = null;
-  try {
-    orders = await listTripOrders(trip.id);
-    cargo = cargoFromOrders(orders);
-  } catch (error) {
-    cargoWarning = 'No se pudo leer la mercancía del viaje (pedidos de sus guías): no habrá ganancia/pérdida de '
-      + `auditoría ni reparto por casa comercial. ${error instanceof Error ? error.message : ''}`.trim();
-  }
+  const { rows: orders, failure } = await ordersRequest;
+  const cargo: CargoSummary | null = failure ? null : cargoFromOrders(orders);
+  const cargoWarning: string | null = failure
+    ? 'No se pudo leer la mercancía del viaje (pedidos de sus guías): no habrá ganancia/pérdida de '
+      + `auditoría ni reparto por casa comercial. ${failure instanceof Error ? failure.message : ''}`.trim()
+    : null;
   const { input, issues, warnings } = buildCalculateInput(catalog, context, {
     ...(cargo ? { cargo } : {}),
     ...(options.overrides ? { overrides: options.overrides } : {}),
     ...(options.adhocRules ? { adhocRules: options.adhocRules } : {}),
+    ...(options.baseOverride ? { baseOverride: options.baseOverride } : {}),
   });
 
   // Con un problema de armado (p.ej. zona inexistente) el motor no puede correr: se devuelve un
@@ -130,6 +153,12 @@ export async function calculateTrip(
     // Falta una configuración que el motor exige (p. ej. la estructura de costos de la flota
     // propia): se informa como falta de catálogo en vez de romper la pantalla con una excepción.
     return { status: 'catalog-error', message: error instanceof Error ? error.message : String(error) };
+  }
+
+  // Un tercero con reglas en el catálogo pero ninguna aplicada a este viaje terminaría en cero.
+  if (issues.length === 0 && result.blockingIssues.length === 0) {
+    const none = noRuleApplied(trip, partyId, result.trace.length);
+    if (none) return { status: 'catalog-error', message: noLogicMessage(none), noLogic: none };
   }
 
   const reason = notLiquidableReason(trip);
@@ -146,11 +175,69 @@ export async function calculateTrip(
       context,
       input,
       result,
+      baseMethods: issues.length > 0 ? [] : listBaseMethods(input),
       blockingIssues: [...issues, ...(issues.length > 0 ? [] : result.blockingIssues)],
       warnings: [...warnings, ...(cargoWarning ? [cargoWarning] : []), ...result.warnings],
       notLiquidableReason: ignorable ? null : reason,
     },
   };
+}
+
+/**
+ * Huella de lo que se pagaría: total, líneas del cálculo (regla, versión y monto final), problemas
+ * bloqueantes, perfil y marca de cada pedido. Dos cálculos con la misma huella pagan lo mismo.
+ */
+export function calculationSignature(c: TripCalculation): string {
+  return JSON.stringify({
+    partyId: c.partyId,
+    total: c.result.totalLiquidado,
+    currency: c.result.currency,
+    cost: c.result.cost.total,
+    margin: c.result.margin.status,
+    trace: c.result.trace.map((l) => [l.ruleId, l.ruleVersion ?? null, l.final]),
+    base: c.result.base ? [c.result.base.method, c.result.base.source.ref] : null,
+    blocking: c.blockingIssues.map((i) => i.code),
+    orders: c.orders.map((o) => [o.guideId, o.mark]),
+  });
+}
+
+export type FreshCheck =
+  | { status: 'same' }
+  | { status: 'changed'; calculation: TripCalculation }
+  | { status: 'failed'; message: string };
+
+/**
+ * Vuelve a calcular SIN cachés lo mismo que la persona tiene en pantalla y dice si el resultado cambió.
+ * Contra la API las cachés del catálogo y del perfil duran minutos; si otra persona cambió una tarifa
+ * en ese rato, emitir con el cálculo de la pantalla pagaría un valor viejo.
+ */
+export async function recheckBeforeEmit(
+  shown: TripCalculation,
+  edits: TripEdits,
+  options: CalculateTripOptions = {},
+): Promise<FreshCheck> {
+  const res = await calculateTrip(shown.trip, edits, { ...options, fresh: true });
+  if (res.status !== 'ok') return { status: 'failed', message: res.message };
+  return calculationSignature(res.calculation) === calculationSignature(shown)
+    ? { status: 'same' }
+    : { status: 'changed', calculation: res.calculation };
+}
+
+/**
+ * Calienta el perfil y el catálogo del transportista de un viaje, para que abrir su liquidación no
+ * pague esa espera (la primera vez por transportista es lo más lento de abrir el modal). Se pide
+ * cuando la persona muestra intención —pasa el cursor o enfoca "Liquidar"— y no al cargar la lista,
+ * para no disparar el catálogo de todos los transportistas a la vez. Nunca lanza: si falla, el
+ * cálculo real lo vuelve a intentar y muestra el error de verdad.
+ */
+export async function prefetchTripCatalog(trip: Pick<TripRecord, 'carrierId' | 'countryId'>): Promise<void> {
+  try {
+    const profile = trip.carrierId ? await getProfileForCarrierCached(trip.carrierId) : null;
+    const partyId = profile && profile.status !== 'inactive' ? profile.id : null;
+    await loadTarifasCatalog(trip.countryId, partyId);
+  } catch {
+    // Solo es una ayuda: sin ella todo sigue funcionando.
+  }
 }
 
 function emptyResult(catalog: TarifasCatalog, issues: CalcIssue[]): CalcResult {

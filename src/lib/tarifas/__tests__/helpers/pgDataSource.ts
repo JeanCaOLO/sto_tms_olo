@@ -6,16 +6,19 @@
 // error de Postgres (unicidad, FK) no deje abortada la transacción exterior del test.
 
 import { randomBytes } from 'node:crypto';
-import type { Client } from 'pg';
+import { types, type Client } from 'pg';
 import {
   AppendOnlyError, ForeignKeyError, NotFoundError, ReadOnlyEntityError, UniqueViolationError,
   type DataSource, type FindOptions, type Row,
 } from '../../data/datasource';
 import { columnNames, entityDef, primaryKeyOf, type ColumnType, type EntityName } from '../../data/schema';
 
+// Igual que la API real (tms_common): una columna `date` llega como medianoche UTC, sin correrla por zona horaria.
+types.setTypeParser(1082, (value: string) => `${value}T00:00:00.000Z`);
+
 const CAST: Record<ColumnType, string> = {
   text: 'text', int: 'integer', numeric: 'numeric', boolean: 'boolean',
-  jsonb: 'jsonb', timestamptz: 'timestamptz', uuid: 'uuid',
+  jsonb: 'jsonb', timestamptz: 'timestamptz', date: 'date', uuid: 'uuid',
 };
 
 const q = (identifier: string) => `"${identifier.replace(/"/g, '""')}"`;

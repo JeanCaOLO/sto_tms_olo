@@ -26,6 +26,8 @@ export type ColumnType =
   | 'boolean'
   | 'jsonb'
   | 'timestamptz'
+  // Fecha sin hora ('YYYY-MM-DD'). La API la devuelve como medianoche UTC: leerla con `dateOnly`.
+  | 'date'
   // Ids del TMS. En el JSON viaja como string, igual que en node-postgres.
   | 'uuid';
 
@@ -427,11 +429,11 @@ export const ENTITIES = {
       // Nullable = regla global (aplica a cualquier país configurado).
       country_id: countryRef({ nullable: true }),
       // 'COUNTRY' | 'PARTY'. Nullable: las reglas anteriores al alcance son todas de país.
-      scope: { type: 'text', nullable: true, indexed: true },
+      scope: { type: 'text', nullable: true },
       party_id: { type: 'text', nullable: true, references: 'settlementParty', onDelete: 'cascade', indexed: true },
       code: { type: 'text' },
       name: { type: 'text' },
-      stage: { type: 'text', indexed: true },
+      stage: { type: 'text' },
       priority: { type: 'int' },
       stacking: { type: 'text' },
       exclusion_group: { type: 'text', nullable: true },
@@ -452,12 +454,12 @@ export const ENTITIES = {
       // reabrir en el formulario simple. Nulo = condición en modo avanzado, o "Siempre".
       condition_builder: { type: 'jsonb', nullable: true },
       is_adhoc: { type: 'boolean' },
-      active: { type: 'boolean', indexed: true },
+      active: { type: 'boolean' },
       // Vigencia, en 'YYYY-MM-DD' y con AMBOS extremos inclusivos. Nulo = sin límite por ese lado.
       // Se compara contra la fecha del VIAJE: sin esto, editar una tarifa cambiaba el resultado de
       // liquidaciones ya calculadas y no había forma de recalcular una vieja.
-      effective_from: { type: 'text', nullable: true, indexed: true },
-      effective_to: { type: 'text', nullable: true, indexed: true },
+      effective_from: { type: 'text', nullable: true },
+      effective_to: { type: 'text', nullable: true },
       version: { type: 'int' },
     },
   },
@@ -490,7 +492,7 @@ export const ENTITIES = {
       id: idColumn(),
       carrier_id: { type: 'uuid', references: 'carrier', unique: true, indexed: true },
       // Baja lógica: un perfil referenciado por tarifas o liquidaciones históricas nunca se borra.
-      status: { type: 'text', indexed: true }, // 'active' | 'inactive'
+      status: { type: 'text' }, // 'active' | 'inactive'
       notes: { type: 'text', nullable: true },
     },
   },
@@ -519,7 +521,7 @@ export const ENTITIES = {
       default_value: { type: 'text', nullable: true },
       /** Unidad para mostrar junto al número ("horas", "kg"). Solo presentación. */
       unit: { type: 'text', nullable: true },
-      active: { type: 'boolean', indexed: true },
+      active: { type: 'boolean' },
     },
   },
 
@@ -543,29 +545,39 @@ export const ENTITIES = {
         where: { column: 'status', op: 'neq', value: 'Anulado' },
         message: 'El viaje ya tiene una liquidación vigente. Para recalcularlo, re-liquidalo.',
       },
+      // `nextNumber` lee el máximo y suma uno: sin esto, dos emisiones simultáneas repetían el número.
+      {
+        name: 'tarifas_settlements_country_number_uq',
+        columns: ['country_id', 'number'],
+        message: 'Otra liquidación tomó ese número al mismo tiempo. Emití de nuevo.',
+      },
     ],
     columns: {
       id: idColumn(),
-      country_id: countryRef(),
+      country_id: countryRef({ indexed: false }),
       /** El viaje liquidado (`routes.id`). RESTRICT: un viaje liquidado no se borra. */
       trip_id: { type: 'uuid', references: 'trip', indexed: true },
       /** Perfil de cálculo con el que se liquidó. Nulo = transportista sin perfil. */
       party_id: { type: 'text', nullable: true, references: 'settlementParty', indexed: true },
-      /** Número propio del módulo, 'LIQ-0001'. Único por país. */
-      number: { type: 'text', indexed: true },
+      /** Número propio del módulo, 'LIQ-VE-001' (antes 'LIQ-0001'). Único por país. */
+      number: { type: 'text' },
       /** Número del viaje (`routes.route_number`), congelado: es el dato con el que la gente busca. */
       trip_number: { type: 'text', indexed: true },
-      /** Fecha del viaje, 'YYYY-MM-DD'. Es la que resolvió la vigencia de las reglas. */
-      settlement_date: { type: 'text', indexed: true },
+      /**
+       * Fecha del viaje, 'YYYY-MM-DD'. Es la que resolvió la vigencia de las reglas. Va como `text` (formato ISO:
+       * ordena y compara igual que una fecha) para que el backend desplegado y el nuevo funcionen con la misma
+       * columna, sin pasos manuales de migración al desplegar.
+       */
+      settlement_date: { type: 'text' },
       /** 'Borrador' | 'En Revisión' | 'Aprobado' | 'Pagado' | 'Anulado'. */
-      status: { type: 'text', indexed: true },
+      status: { type: 'text' },
       /** Moneda del país al emitir. Se congela: el país podría cambiarla después. */
       currency: { type: 'text' },
       total_amount: { type: 'numeric' },
       notes: { type: 'text', nullable: true },
       /** Sin efecto desde 2026-10-05 (el margen es informativo). Se conserva para liquidaciones anteriores. */
       margin_reason: { type: 'text', nullable: true },
-      margin_status: { type: 'text', nullable: true, indexed: true },
+      margin_status: { type: 'text', nullable: true },
       margin_amount: { type: 'numeric', nullable: true },
       margin_pct: { type: 'numeric', nullable: true },
       cost_total: { type: 'numeric', nullable: true },
@@ -596,6 +608,8 @@ export const ENTITIES = {
       rules_used: { type: 'jsonb' },
       /** Líneas destildadas: se excluyeron del total y hay que poder decir cuáles. */
       excluded_seqs: { type: 'jsonb' },
+      /** Base de cálculo cambiada por el liquidador (tipo de cobro, fuente, quién y cuándo). Nulo = base por defecto. */
+      base_change: { type: 'jsonb', nullable: true },
       /** Devoluciones informadas. No afectan el pago; se registran para la auditoría. */
       returns: { type: 'jsonb' },
       /** Liquidación que reemplazó a esta al re-liquidar. Nulo = no fue reemplazada. */
@@ -621,7 +635,7 @@ export const ENTITIES = {
       /** { kmPerYear, fuelPrice, fuelEfficiency: { <tipo de camión>: km/L } }. Ver `CostStructureParams`. */
       params: { type: 'jsonb' },
       effective_from: { type: 'timestamptz', nullable: true },
-      active: { type: 'boolean', indexed: true },
+      active: { type: 'boolean' },
       notes: { type: 'text', nullable: true },
     },
   },
@@ -645,7 +659,7 @@ export const ENTITIES = {
       applies_when: { type: 'jsonb', nullable: true },
       unit: { type: 'text', nullable: true },
       row_order: { type: 'int' },
-      active: { type: 'boolean', indexed: true },
+      active: { type: 'boolean' },
       /** Grupo de presentación: conductor | ayudante | otros | depreciacion | mantenimiento. */
       cost_group: { type: 'text', nullable: true },
       /** Componente que se repite: 'km' | 'year' | 'month'. Si está, la fila cuesta costo por km × km del viaje. */
@@ -681,7 +695,7 @@ export const ENTITIES = {
       key_columns: { type: 'jsonb' },
       /** Columnas de valor adicionales al principal (nombres). Nulo o vacío = un solo valor por fila. */
       value_columns: { type: 'jsonb', nullable: true },
-      active: { type: 'boolean', indexed: true },
+      active: { type: 'boolean' },
     },
   },
 
@@ -699,7 +713,7 @@ export const ENTITIES = {
       /** Valores de las columnas adicionales del tarifario, por nombre. */
       extra_values: { type: 'jsonb', nullable: true },
       row_order: { type: 'int' },
-      active: { type: 'boolean', indexed: true },
+      active: { type: 'boolean' },
     },
   },
 

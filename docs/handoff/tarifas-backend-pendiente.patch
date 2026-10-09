@@ -1,0 +1,1220 @@
+diff --git a/backend/tarifas/src/app.py b/backend/tarifas/src/app.py
+index 67b1c56..b1a1bb0 100644
+--- a/backend/tarifas/src/app.py
++++ b/backend/tarifas/src/app.py
+@@ -8,6 +8,8 @@ Implementa el contrato de `src/lib/tarifas/data/http-datasource.ts`:
+     PATCH  /api/tarifas/{table}/{id}       -> Row      body = campos a mezclar
+     DELETE /api/tarifas/{table}/{id}       -> 204
+     POST   /api/tarifas/tx                 -> Row[]    body = { ops: [...] }, todo o nada
++    POST   /api/tarifas/batch              -> Row[][]  body = { queries: [{ table, q }] }, varias lecturas en una llamada
++    POST   /api/tarifas/{table}/find       -> Row[]    body = q (igual que GET, para consultas largas que no caben en la URL)
+ 
+ `{table}` es el nombre de tabla (o vista) del registro de esquema; se valida
+ contra `schema_manifest.json` (ver `tarifas_schema.py`).
+@@ -28,12 +30,15 @@ Reglas:
+     SQLSTATE en `error.code` (23503 / 23505).
+ """
+ 
+-from tms_common import permissions, pg
++from tms_common import permissions
+ from tms_common.errors import HttpError
+-from tms_common.event import json_body, parse_json_param, path_param, query_params
++from tms_common.event import json_body, parse_json_param, path_param, query_params, route_key
+ from tms_common.handler import tms_handler
+ from tms_common.responses import empty_response, json_response
+ 
++import tarifas_db
++import tarifas_metrics
++import tarifas_perms
+ from tarifas_schema import Table, table as table_def
+ from tarifas_sql import build_delete, build_find, build_get, build_insert, build_update
+ 
+@@ -41,6 +46,7 @@ MODULE = "tarifas"
+ CONFIG_MODULE = "tarifas.config"
+ # Lo único que escribe quien liquida; todo lo demás es configuración.
+ LIQUIDATION_TABLES = frozenset({"tarifas_settlements", "tarifas_audit_log", "tarifas_trip_order_marks"})
++MAX_BATCH = 25  # lecturas por llamada de /batch: el catálogo de un cálculo usa ~11
+ TX_RETRIES = 2  # reintentos ante deadlock (40P01) o fallo de serialización (40001)
+ TX_OPERATIONS = {"insert": "create", "update": "edit", "delete": "delete"}
+ 
+@@ -51,14 +57,14 @@ def _write_module(table: Table) -> str:
+ 
+ def _reader(event: dict) -> permissions.Permissions:
+     """Leer exige poder liquidar o poder configurar: el cálculo y pantallas de config leen lo mismo."""
+-    caller = permissions.for_event(event)
++    caller = tarifas_perms.for_event(event)
+     if not (caller.can(MODULE, "view") or caller.can(CONFIG_MODULE, "view")):
+         caller.require(MODULE, "view")
+     return caller
+ 
+ 
+ def _writer(event: dict, table_name: str, action: str, operation: str) -> tuple[permissions.Permissions, Table]:
+-    caller = permissions.for_event(event)
++    caller = tarifas_perms.for_event(event)
+     table = _writable(table_name, operation)
+     caller.require(_write_module(table), action)
+     return caller, table
+@@ -101,13 +107,40 @@ def list_rows(event: dict) -> dict:
+     table = _table(path_param(event, "table"))
+     options = parse_json_param(query_params(event).get("q"), "q")
+     sql, params = build_find(table, options, caller.country_filter)
+-    return json_response(200, pg.query(sql, params))
++    return json_response(200, tarifas_db.query(sql, params))
++
++
++def find_rows(event: dict) -> dict:
++    """Lo mismo que `list_rows`, con `q` en el cuerpo: una consulta con miles de ids no cabe en la URL."""
++    caller = _reader(event)
++    table = _table(path_param(event, "table"))
++    sql, params = build_find(table, _body(event), caller.country_filter)
++    return json_response(200, tarifas_db.query(sql, params))
++
++
++def batch_rows(event: dict) -> dict:
++    """Varias lecturas en UNA llamada: el catálogo de un cálculo eran ~14 requests, una por tabla.
++
++    Cada consulta lleva las mismas reglas que `list_rows` (lista blanca, filtro de países del rol).
++    Devuelve un array de resultados en el mismo orden que `queries`. Es solo lectura."""
++    caller = _reader(event)
++    queries = _body(event).get("queries")
++    if not isinstance(queries, list) or not queries:
++        raise HttpError(400, '"queries" debe ser una lista no vacía de { table, q }')
++    if len(queries) > MAX_BATCH:
++        raise HttpError(400, f'"queries" admite hasta {MAX_BATCH} consultas por llamada')
++    planned = []
++    for item in queries:
++        if not isinstance(item, dict):
++            raise HttpError(400, "Cada consulta debe ser un objeto { table, q }")
++        planned.append(build_find(_table(str(item.get("table"))), item.get("q"), caller.country_filter))
++    return json_response(200, [tarifas_db.query(sql, params) for sql, params in planned])
+ 
+ 
+ def get_row(event: dict) -> dict:
+     caller = _reader(event)
+     table = _table(path_param(event, "table"))
+-    rows = pg.query(*build_get(table, path_param(event, "id"), caller.country_filter))
++    rows = tarifas_db.query(*build_get(table, path_param(event, "id"), caller.country_filter))
+     if not rows:
+         raise HttpError(404, f"{table.label} no encontrado.")
+     return json_response(200, rows[0])
+@@ -119,14 +152,14 @@ def insert_row(event: dict) -> dict:
+     caller, table = _writer(event, path_param(event, "table"), "create", "insert")
+     values = _body(event)
+     _require_country(caller, table, values)
+-    return json_response(200, pg.query(*build_insert(table, values))[0])
++    return json_response(200, tarifas_db.query(*build_insert(table, values))[0])
+ 
+ 
+ def update_row(event: dict) -> dict:
+     caller, table = _writer(event, path_param(event, "table"), "edit", "update")
+     values = _body(event)
+     _require_country(caller, table, values)
+-    rows = pg.query(*build_update(table, path_param(event, "id"), values, caller.country_filter))
++    rows = tarifas_db.query(*build_update(table, path_param(event, "id"), values, caller.country_filter))
+     if not rows:
+         raise HttpError(404, f"{table.label} no encontrado.")
+     return json_response(200, rows[0])
+@@ -134,7 +167,7 @@ def update_row(event: dict) -> dict:
+ 
+ def delete_row(event: dict) -> dict:
+     caller, table = _writer(event, path_param(event, "table"), "delete", "delete")
+-    rows = pg.query(*build_delete(table, path_param(event, "id"), caller.country_filter))
++    rows = tarifas_db.query(*build_delete(table, path_param(event, "id"), caller.country_filter))
+     if not rows:
+         raise HttpError(404, f"{table.label} no encontrado.")
+     return empty_response(204)
+@@ -162,7 +195,7 @@ def _planned(caller: permissions.Permissions, op: object) -> tuple[str, tuple[st
+ 
+ 
+ def run_transaction(event: dict) -> dict:
+-    caller = permissions.for_event(event)
++    caller = tarifas_perms.for_event(event)
+     ops = _body(event).get("ops")
+     if not isinstance(ops, list) or not ops:
+         raise HttpError(400, '"ops" debe ser una lista no vacía')
+@@ -179,14 +212,22 @@ def run_transaction(event: dict) -> dict:
+         return results
+ 
+     # Las operaciones ya están planificadas (solo SQL), así que repetir ante deadlock es seguro.
+-    results = pg.run_in_transaction(apply, retries=TX_RETRIES)
++    results = tarifas_db.run_in_transaction(apply, retries=TX_RETRIES)
+     return json_response(200, results)
+ 
+ 
+ # El orden importa para el servidor local (serve.py busca la primera ruta que
+ # calza): `/tx` va antes que `/{table}`. API Gateway prioriza la ruta literal.
++# Lecturas que viajan por POST (cuerpo grande): no son escrituras, así que no pasan por la
++# auditoría de actor de `tms_handler` (2 sentencias extra por request).
++READ_POSTS = {
++    "POST /api/tarifas/batch": batch_rows,
++    "POST /api/tarifas/{table}/find": find_rows,
++}
++
+ ROUTES = {
+     "POST /api/tarifas/tx": run_transaction,
++    **READ_POSTS,
+     "GET /api/tarifas/{table}": list_rows,
+     "GET /api/tarifas/{table}/{id}": get_row,
+     "POST /api/tarifas/{table}": insert_row,
+@@ -194,4 +235,26 @@ ROUTES = {
+     "DELETE /api/tarifas/{table}/{id}": delete_row,
+ }
+ 
+-handler = tms_handler(ROUTES)
++def _as_get(key: str) -> str:
++    return "GET " + key.split(" ", 1)[1]
++
++
++_writes = tms_handler({key: fn for key, fn in ROUTES.items() if key not in READ_POSTS})
++_reads = tms_handler({_as_get(key): fn for key, fn in READ_POSTS.items()})
++
++
++def handler(event: dict, context: object) -> dict:
++    """Despacha la request y deja una línea de métricas (ver `tarifas_metrics`)."""
++    key = route_key(event)
++    tarifas_metrics.start()
++    status = 500
++    try:
++        if key in READ_POSTS:
++            response = _reads({**event, "routeKey": _as_get(key)}, context)
++        else:
++            response = _writes(event, context)
++        status = response.get("statusCode", 200)
++        return response
++    finally:
++        table = (event.get("pathParameters") or {}).get("table")
++        tarifas_metrics.finish(key, table, status)
+diff --git a/backend/tarifas/src/tarifas_db.py b/backend/tarifas/src/tarifas_db.py
+new file mode 100644
+index 0000000..fd1189a
+--- /dev/null
++++ b/backend/tarifas/src/tarifas_db.py
+@@ -0,0 +1,83 @@
++"""Acceso a Aurora del tarifador: cuenta las sentencias de cada request y fija topes de tiempo.
++
++Envuelve `tms_common.pg` sin modificarlo (la capa común es de todos los módulos).
++
++Topes (variables de entorno del Lambda del tarifador, en milisegundos; 0 = apagado, que es el valor
++por defecto en código y en los tests):
++  - `TMS_STATEMENT_TIMEOUT_MS`: una sentencia que tarde más se cancela en el servidor. Debe ser menor
++    que el timeout del Lambda: así la base libera la conexión en vez de seguir trabajando para una
++    request que ya murió.
++  - `TMS_LOCK_TIMEOUT_MS`: cuánto espera una sentencia por un bloqueo de otra.
++Se fijan por SESIÓN en la conexión de este contenedor (cada módulo tiene su propio Lambda, y por lo
++tanto sus propias conexiones): no cambia la configuración de la base ni del rol, y no afecta a otros
++módulos. Si la conexión se recrea, se vuelven a fijar en la siguiente sentencia.
++"""
++
++import os
++
++from tms_common import pg
++from tms_common.errors import HttpError
++
++import tarifas_metrics
++
++SET_LIMITS_SQL = "SELECT set_config('statement_timeout', %s, false), set_config('lock_timeout', %s, false)"
++_configured: dict = {"connection": None}
++
++
++def _milliseconds(name: str) -> int:
++    try:
++        return max(0, int(float(os.environ.get(name, "0"))))
++    except ValueError:
++        return 0
++
++
++def reset_session() -> None:
++    _configured["connection"] = None
++
++
++def _ensure_limits() -> None:
++    statement, lock = _milliseconds("TMS_STATEMENT_TIMEOUT_MS"), _milliseconds("TMS_LOCK_TIMEOUT_MS")
++    if statement <= 0 and lock <= 0:
++        return
++    try:
++        connection = pg._live_connection()
++        if _configured["connection"] is connection:
++            return
++        pg._run(connection, SET_LIMITS_SQL, [str(statement), str(lock)])
++        _configured["connection"] = connection
++    except Exception:
++        # Sin conexión todavía: la sentencia real la recrea y el tope se fija en la siguiente.
++        _configured["connection"] = None
++
++
++def _slow(err: HttpError) -> HttpError:
++    message = str(err)
++    if "statement timeout" in message or "lock timeout" in message:
++        return HttpError(504, "La consulta tardó demasiado y se canceló. Probá con un filtro más acotado.")
++    return err
++
++
++def query(sql: str, params: list | tuple = ()) -> list[dict]:
++    _ensure_limits()
++    tarifas_metrics.count_query()
++    try:
++        return pg.query(sql, params)
++    except HttpError as err:
++        raise _slow(err) from err
++
++
++def run_in_transaction(work, retries: int = 0):
++    """`pg.run_in_transaction` contando cada sentencia de la transacción."""
++    _ensure_limits()
++
++    def counted(run):
++        def counting(sql, params=()):
++            tarifas_metrics.count_query()
++            return run(sql, params)
++
++        return work(counting)
++
++    try:
++        return pg.run_in_transaction(counted, retries=retries)
++    except HttpError as err:
++        raise _slow(err) from err
+diff --git a/backend/tarifas/src/tarifas_metrics.py b/backend/tarifas/src/tarifas_metrics.py
+new file mode 100644
+index 0000000..c86f4fe
+--- /dev/null
++++ b/backend/tarifas/src/tarifas_metrics.py
+@@ -0,0 +1,58 @@
++"""Métricas de aplicación del tarifador, sin infraestructura nueva.
++
++Cada request imprime UNA línea en el formato EMF (Embedded Metric Format) de CloudWatch: CloudWatch la
++convierte sola en métricas del espacio `TMS/Tarifas` (duración, sentencias SQL, errores, arranques en
++frío) sin que nadie cree nada en AWS. Si la línea no se lee como métrica (por ejemplo, en local), queda
++como un log estructurado igual de útil: `Route`, `Table`, `DurationMs`, `Queries`, `Status`.
++
++Lambda atiende una request por contenedor, así que el estado del request actual puede ser global.
++"""
++
++import json
++import time
++
++NAMESPACE = "TMS/Tarifas"
++
++_cold_start = True
++_current = {"queries": 0, "started": 0.0}
++
++
++def count_query() -> None:
++    """Una sentencia SQL enviada a la base en el request actual."""
++    _current["queries"] += 1
++
++
++def start() -> None:
++    _current["queries"] = 0
++    _current["started"] = time.perf_counter()
++
++
++def finish(route: str, table: str | None, status: int) -> dict:
++    """Imprime y devuelve la línea de métricas del request que termina."""
++    global _cold_start
++    duration_ms = round((time.perf_counter() - _current["started"]) * 1000, 1)
++    line = {
++        "_aws": {
++            "Timestamp": int(time.time() * 1000),
++            "CloudWatchMetrics": [{
++                "Namespace": NAMESPACE,
++                "Dimensions": [["Route"]],
++                "Metrics": [
++                    {"Name": "DurationMs", "Unit": "Milliseconds"},
++                    {"Name": "Queries", "Unit": "Count"},
++                    {"Name": "Errors", "Unit": "Count"},
++                    {"Name": "ColdStart", "Unit": "Count"},
++                ],
++            }],
++        },
++        "Route": route,
++        "Table": table or "",
++        "Status": status,
++        "DurationMs": duration_ms,
++        "Queries": _current["queries"],
++        "Errors": 1 if status >= 500 else 0,
++        "ColdStart": 1 if _cold_start else 0,
++    }
++    _cold_start = False
++    print(json.dumps(line, separators=(",", ":")))
++    return line
+diff --git a/backend/tarifas/src/tarifas_perms.py b/backend/tarifas/src/tarifas_perms.py
+new file mode 100644
+index 0000000..af6e9a5
+--- /dev/null
++++ b/backend/tarifas/src/tarifas_perms.py
+@@ -0,0 +1,44 @@
++"""Permisos del que llama, con caché corta por contenedor (solo para el tarifador).
++
++`permissions.for_event` cuesta 3-4 queries y cada request HTTP la pagaba: calcular un viaje son ~20
++requests. Acá se guarda el resultado `TMS_PERMS_TTL_SECONDS` segundos (0 = apagado, que es el valor por
++defecto en código y en los tests; el template del tarifador lo enciende). Un cambio de rol o de permisos
++llega como mucho en ese tiempo. Solo se guardan resultados exitosos: un 401/403 se reevalúa siempre.
++La capa común `tms_common` no se toca: los demás módulos siguen consultando en cada request.
++"""
++
++import os
++import time
++
++from tms_common import permissions
++from tms_common.event import auth_user
++
++MAX_ENTRIES = 500  # un contenedor largo no acumula usuarios sin límite
++_cache: dict[str, tuple[float, permissions.Permissions]] = {}
++
++
++def ttl_seconds() -> float:
++    try:
++        return float(os.environ.get("TMS_PERMS_TTL_SECONDS", "0"))
++    except ValueError:
++        return 0.0
++
++
++def clear_cache() -> None:
++    _cache.clear()
++
++
++def for_event(event: dict) -> permissions.Permissions:
++    ttl = ttl_seconds()
++    if ttl <= 0:
++        return permissions.for_event(event)
++    user_id = auth_user(event)["id"]
++    now = time.monotonic()
++    hit = _cache.get(user_id)
++    if hit and now - hit[0] < ttl:
++        return hit[1]
++    perms = permissions.for_event(event)
++    if len(_cache) >= MAX_ENTRIES:
++        _cache.clear()
++    _cache[user_id] = (now, perms)
++    return perms
+diff --git a/backend/tarifas/src/tarifas_schema.py b/backend/tarifas/src/tarifas_schema.py
+index 1a559f0..4d5b446 100644
+--- a/backend/tarifas/src/tarifas_schema.py
++++ b/backend/tarifas/src/tarifas_schema.py
+@@ -26,6 +26,7 @@ SQL_CASTS = {
+     "boolean": "boolean",
+     "jsonb": "jsonb",
+     "timestamptz": "timestamptz",
++    "date": "date",
+     "uuid": "uuid",
+ }
+ 
+diff --git a/backend/tarifas/src/tarifas_sql.py b/backend/tarifas/src/tarifas_sql.py
+index 6fd8092..4bf4639 100644
+--- a/backend/tarifas/src/tarifas_sql.py
++++ b/backend/tarifas/src/tarifas_sql.py
+@@ -8,7 +8,11 @@ JSON no se comporte distinto contra Aurora:
+   - `eq` con valor null es IS NULL; `neq` es IS DISTINCT FROM (una fila con
+     NULL cumple `neq`, igual que `undefined !== 'x'` en JS);
+   - `in` con lista vacía no trae nada;
+-  - el orden pone los NULL al final.
++  - el orden pone los NULL al final;
++  - `after` (paginación por cursor): trae las filas que vienen DESPUÉS de la última de la página
++    anterior, comparando la tupla de las columnas del orden. Exige `orderBy` con la misma dirección en
++    todas las columnas y columnas sin NULL; es lo que mantiene barato el "página siguiente" aunque el
++    historial crezca (un OFFSET grande lee y descarta todo lo anterior).
+ 
+ Ningún identificador del cliente entra al SQL sin pasar por `tarifas_schema`.
+ """
+@@ -82,7 +86,30 @@ def country_clause(table: Table, countries: tuple[str, ...] | None) -> tuple[str
+     return clause, [list(countries)]
+ 
+ 
+-def build_where(table: Table, where: list | None, countries: tuple[str, ...] | None) -> tuple[str, list]:
++def _after(table: Table, after, order_by) -> tuple[str, list]:
++    """Condición de cursor: `(a, b) < (%s, %s)` si el orden es descendente, `>` si es ascendente."""
++    if not isinstance(after, dict) or not after:
++        raise HttpError(400, '"after" debe ser un objeto { columna: valor } con las columnas del orden')
++    if not isinstance(order_by, list) or not order_by:
++        raise HttpError(400, '"after" requiere "orderBy"')
++    columns = [str(item.get("column")) if isinstance(item, dict) else "" for item in order_by]
++    directions = {"desc" if isinstance(item, dict) and item.get("direction") == "desc" else "asc" for item in order_by}
++    if len(directions) != 1:
++        raise HttpError(400, '"after" exige la misma dirección en todas las columnas de "orderBy"')
++    if list(after) != columns:
++        raise HttpError(400, '"after" debe tener exactamente las columnas de "orderBy", en el mismo orden')
++    for column in columns:
++        table.column_type(column)  # valida
++        if after[column] is None:
++            raise HttpError(400, f'"after" no admite NULL (columna "{column}")')
++    operator = "<" if directions == {"desc"} else ">"
++    names = ", ".join(quote(c) for c in columns)
++    holders = ", ".join(placeholder(table, c) for c in columns)
++    return f"({names}) {operator} ({holders})", [param(table, c, after[c]) for c in columns]
++
++
++def build_where(table: Table, where: list | None, countries: tuple[str, ...] | None,
++                after=None, order_by=None) -> tuple[str, list]:
+     if where is not None and not isinstance(where, list):
+         raise HttpError(400, '"where" debe ser una lista de condiciones')
+     parts, params = [], []
+@@ -90,6 +117,10 @@ def build_where(table: Table, where: list | None, countries: tuple[str, ...] | N
+         sql, args = _condition(table, condition)
+         parts.append(sql)
+         params.extend(args)
++    if after is not None:
++        sql, args = _after(table, after, order_by)
++        parts.append(sql)
++        params.extend(args)
+     country_sql, country_args = country_clause(table, countries)
+     if country_sql:
+         parts.append(country_sql)
+@@ -121,14 +152,25 @@ def _int(value, label: str, default: int) -> int:
+     return value
+ 
+ 
++def _select_list(table: Table, columns) -> str:
++    """`*` sin proyección; con `columns`, solo esas (validadas contra el manifiesto)."""
++    if columns is None:
++        return "*"
++    if not isinstance(columns, list) or not columns or not all(isinstance(c, str) for c in columns):
++        raise HttpError(400, '"columns" debe ser una lista no vacía de nombres de columna')
++    for column in columns:
++        table.column_type(column)  # valida
++    return ", ".join(quote(column) for column in dict.fromkeys(columns))
++
++
+ def build_find(table: Table, options: dict | None, countries: tuple[str, ...] | None) -> tuple[str, list]:
+     options = options or {}
+     if not isinstance(options, dict):
+         raise HttpError(400, '"q" debe ser un objeto { where, orderBy, limit, offset }')
+-    where, params = build_where(table, options.get("where"), countries)
++    where, params = build_where(table, options.get("where"), countries, options.get("after"), options.get("orderBy"))
+     limit = min(_int(options.get("limit"), "limit", MAX_ROWS), MAX_ROWS)
+     offset = _int(options.get("offset"), "offset", 0)
+-    sql = f"SELECT * FROM {quote(table.name)} WHERE {where}{_order(table, options.get('orderBy'))} LIMIT {limit} OFFSET {offset}"
++    sql = f"SELECT {_select_list(table, options.get('columns'))} FROM {quote(table.name)} WHERE {where}{_order(table, options.get('orderBy'))} LIMIT {limit} OFFSET {offset}"
+     return sql, params
+ 
+ 
+diff --git a/backend/tarifas/template.yaml b/backend/tarifas/template.yaml
+index f4a913b..6a87f22 100644
+--- a/backend/tarifas/template.yaml
++++ b/backend/tarifas/template.yaml
+@@ -51,6 +51,12 @@ Resources:
+       Environment:
+         Variables:
+           ENVIRONMENT: !Ref Environment
++          # Caché de permisos por contenedor (segundos). 0 = apagado. Ver src/tarifas_perms.py.
++          TMS_PERMS_TTL_SECONDS: '30'
++          # Topes por sentencia (ms) de la conexión de ESTE Lambda; menores que el Timeout. 0 = apagado.
++          # Ver src/tarifas_db.py: no cambian la configuración de la base ni de otros módulos.
++          TMS_STATEMENT_TIMEOUT_MS: '10000'
++          TMS_LOCK_TIMEOUT_MS: '5000'
+           TMS_DB_SECRET_NAME:
+             Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName
+ 
+@@ -87,6 +93,29 @@ Resources:
+         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+       Target: !Sub integrations/${TarifasApiIntegration}
+ 
++  # Lecturas por POST: varias consultas en una llamada y consultas largas que no caben en la URL.
++  TarifasBatchRoute:
++    Type: AWS::ApiGatewayV2::Route
++    Properties:
++      ApiId:
++        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
++      RouteKey: POST /api/tarifas/batch
++      AuthorizationType: CUSTOM
++      AuthorizerId:
++        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
++      Target: !Sub integrations/${TarifasApiIntegration}
++
++  TarifasFindRoute:
++    Type: AWS::ApiGatewayV2::Route
++    Properties:
++      ApiId:
++        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
++      RouteKey: POST /api/tarifas/{table}/find
++      AuthorizationType: CUSTOM
++      AuthorizerId:
++        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
++      Target: !Sub integrations/${TarifasApiIntegration}
++
+   TarifasListRoute:
+     Type: AWS::ApiGatewayV2::Route
+     Properties:
+diff --git a/backend/tests/conftest.py b/backend/tests/conftest.py
+index 7cf1bca..bf01395 100644
+--- a/backend/tests/conftest.py
++++ b/backend/tests/conftest.py
+@@ -18,12 +18,14 @@ STACK_SOURCES = {
+     "eflow": BACKEND / "eflow" / "src",
+     "admin": BACKEND / "admin" / "src",
+     "planning": BACKEND / "planning" / "src",
++    "oms": BACKEND / "oms" / "src",
+     "tarifas": BACKEND / "tarifas" / "src",
+ }
+ STACK_MODULES = {"app", "table_modules", "admin_permissions", "admin_audit", "audit_maintenance", "relations", "schema", "select_parser", "select_query", "mutations",
+                  "scopes", "context_queries", "eflow_queries", "live_source", "mock_source",
+                  "admin_access", "admin_payload", "admin_sql", "admin_users", "admin_roles", "planning_sql", "delivery_points", "delivery_points_sql",
+-                 "tarifas_schema", "tarifas_sql"}
++                 "models", "score", "regla_fecha", "analizador_observaciones", "cola_candidatos", "handoff_pedidos", "motor_reglas",
++                 "tarifas_schema", "tarifas_sql", "tarifas_perms", "tarifas_db", "tarifas_metrics"}
+ 
+ sys.path.insert(0, str(LAYER))
+ 
+diff --git a/backend/tests/test_permissions_cache.py b/backend/tests/test_permissions_cache.py
+new file mode 100644
+index 0000000..7be0149
+--- /dev/null
++++ b/backend/tests/test_permissions_cache.py
+@@ -0,0 +1,75 @@
++"""Caché de permisos del tarifador: ahorra las queries de cada request sin dejar datos viejos más de TTL.
++Vive en backend/tarifas (tarifas_perms); la capa común no cambia."""
++
++import pytest
++
++from conftest import http_event, load_stack_module, make_permissions
++from tms_common import permissions
++
++
++@pytest.fixture
++def real(monkeypatch):
++    perms = load_stack_module("tarifas", "tarifas_perms")
++    perms.clear_cache()
++    monkeypatch.setenv("TMS_PERMS_TTL_SECONDS", "30")
++    calls = []
++    clock = {"now": 1000.0}
++
++    def fake_for_event(event):
++        calls.append(event["requestContext"]["authorizer"]["lambda"]["sub"])
++        return make_permissions(is_admin=True)
++
++    monkeypatch.setattr(permissions, "for_event", fake_for_event)
++    monkeypatch.setattr(perms.time, "monotonic", lambda: clock["now"])
++    yield perms, calls, clock
++    perms.clear_cache()
++
++
++def event(user_id="u1"):
++    return http_event("GET /x", user={"id": user_id, "email": "a@b.c"})
++
++
++def test_second_request_inside_ttl_does_not_query(real):
++    perms, calls, _ = real
++    perms.for_event(event())
++    perms.for_event(event())
++    assert calls == ["u1"]
++
++
++def test_expires_after_ttl(real):
++    perms, calls, clock = real
++    perms.for_event(event())
++    clock["now"] += 31
++    perms.for_event(event())
++    assert calls == ["u1", "u1"]
++
++
++def test_each_user_has_own_entry(real):
++    perms, calls, _ = real
++    perms.for_event(event("u1"))
++    perms.for_event(event("u2"))
++    assert calls == ["u1", "u2"]
++
++
++@pytest.mark.parametrize("value", ["0", "", "abc"])
++def test_off_by_default_or_invalid(real, monkeypatch, value):
++    perms, calls, _ = real
++    monkeypatch.setenv("TMS_PERMS_TTL_SECONDS", value)
++    perms.for_event(event())
++    perms.for_event(event())
++    assert calls == ["u1", "u1"]
++
++
++def test_errors_are_not_cached(real, monkeypatch):
++    perms, calls, _ = real
++    from tms_common.errors import HttpError
++
++    def boom(event):
++        calls.append("x")
++        raise HttpError(403, "inactivo")
++
++    monkeypatch.setattr(permissions, "for_event", boom)
++    for _ in range(2):
++        with pytest.raises(HttpError):
++            perms.for_event(event())
++    assert calls == ["x", "x"]
+diff --git a/backend/tests/test_tarifas.py b/backend/tests/test_tarifas.py
+index f65d5a3..58e9acb 100644
+--- a/backend/tests/test_tarifas.py
++++ b/backend/tests/test_tarifas.py
+@@ -119,6 +119,22 @@ def test_el_limite_tiene_tope(api):
+     assert "LIMIT 5000" in db.calls[-1][0]
+ 
+ 
++def test_columnas_proyecta_solo_las_pedidas_y_las_valida(api):
++    app, db = api
++    q = {"where": [{"column": "country_id", "op": "eq", "value": "CR"}], "columns": ["number", "number", "id"]}
++    call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_settlements"}, query={"q": json.dumps(q)})
++    assert db.calls[-1][0].startswith('SELECT "number", "id" FROM "tarifas_settlements"')
++
++
++@pytest.mark.parametrize("columns", [[], "number", [1], ["no_existe"], ["id; drop table x"]])
++def test_columnas_invalidas_son_400(api, columns):
++    app, db = api
++    q = {"columns": columns}
++    response = call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_settlements"}, query={"q": json.dumps(q)})
++    assert response["statusCode"] == 400
++    assert db.calls == []
++
++
+ def test_un_rol_acotado_solo_ve_sus_paises(api, caller_permissions):
+     app, db = api
+     caller_permissions.set(make_permissions({"tarifas": ["view"]}, countries=(CR,)))
+diff --git a/backend/tests/test_tarifas_lecturas.py b/backend/tests/test_tarifas_lecturas.py
+new file mode 100644
+index 0000000..b204e41
+--- /dev/null
++++ b/backend/tests/test_tarifas_lecturas.py
+@@ -0,0 +1,218 @@
++"""Lecturas nuevas del tarifador: /batch, /find por POST, paginación por cursor (`after`), métricas
++por request y topes de tiempo de sentencia. Todo dentro de backend/tarifas; la capa común no cambia."""
++
++import json
++
++import pytest
++
++from conftest import body_of, http_event, load_stack_module, make_permissions
++from tms_common import pg
++from tms_common.errors import HttpError
++
++USER = {"id": "auth-1", "email": "liquidador@ologistics.com"}
++CR = "22222222-2222-2222-2222-222222222221"
++
++
++class FakeDb:
++    def __init__(self):
++        self.calls = []
++        self.results = None  # lista de respuestas por llamada; si es None, siempre [{"id": "x"}]
++        self.error = None
++
++    def query(self, sql, params=()):
++        self.calls.append((sql, list(params)))
++        if self.error:
++            raise self.error
++        if self.results is not None:
++            return self.results[len(self.calls) - 1]
++        return [{"id": "x"}]
++
++
++@pytest.fixture
++def api(monkeypatch):
++    db = FakeDb()
++    monkeypatch.setattr(pg, "query", db.query)
++    app = load_stack_module("tarifas")
++    metrics = load_stack_module("tarifas", "tarifas_metrics")
++    tdb = load_stack_module("tarifas", "tarifas_db")
++    tdb.reset_session()
++    return app, db, metrics, tdb
++
++
++def call(app, route, *, path=None, query=None, body=None):
++    return app.handler(http_event(route, path=path, query=query, body=body, user=USER), None)
++
++
++# ── /batch ─────────────────────────────────────────────────────────────────────────────────────
++
++def test_batch_corre_varias_lecturas_y_devuelve_un_array_por_consulta(api):
++    app, db, *_ = api
++    db.results = [[{"id": "a"}], [{"id": "b"}, {"id": "c"}]]
++    body = {"queries": [
++        {"table": "tarifas_pricing_rules", "q": {"where": [{"column": "country_id", "op": "eq", "value": CR}]}},
++        {"table": "tarifas_zone_groups"},
++    ]}
++    response = call(app, "POST /api/tarifas/batch", body=body)
++
++    assert response["statusCode"] == 200
++    assert body_of(response) == [[{"id": "a"}], [{"id": "b"}, {"id": "c"}]]
++    assert len(db.calls) == 2
++    assert 'FROM "tarifas_pricing_rules"' in db.calls[0][0] and 'FROM "tarifas_zone_groups"' in db.calls[1][0]
++    assert db.calls[0][1] == [CR]
++
++
++def test_batch_no_registra_actor_de_auditoria_porque_no_escribe(api, audit_calls):
++    app, db, *_ = api
++    call(app, "POST /api/tarifas/batch", body={"queries": [{"table": "tarifas_zone_groups"}]})
++    assert not [c for c in audit_calls if c[0] in ("bind", "clear")]
++
++
++def test_batch_respeta_la_lista_blanca_y_el_filtro_de_paises(api, caller_permissions):
++    app, db, *_ = api
++    caller_permissions.set(make_permissions({"tarifas": ["view"]}, countries=(CR,)))
++    call(app, "POST /api/tarifas/batch", body={"queries": [{"table": "tarifas_settlements"}]})
++    assert "country_id = ANY" in db.calls[0][0] and db.calls[0][1] == [[CR]]
++
++    bad = call(app, "POST /api/tarifas/batch", body={"queries": [{"table": "usuarios_secretos"}]})
++    assert bad["statusCode"] in (400, 404)
++
++
++def test_batch_exige_poder_leer(api, caller_permissions):
++    app, db, *_ = api
++    caller_permissions.set(make_permissions({"guias": ["view"]}))
++    response = call(app, "POST /api/tarifas/batch", body={"queries": [{"table": "tarifas_zone_groups"}]})
++    assert response["statusCode"] == 403 and db.calls == []
++
++
++@pytest.mark.parametrize("body", [{}, {"queries": []}, {"queries": "x"}, {"queries": ["x"]}])
++def test_batch_valida_la_forma(api, body):
++    app, db, *_ = api
++    assert call(app, "POST /api/tarifas/batch", body=body)["statusCode"] == 400
++    assert db.calls == []
++
++
++def test_batch_tiene_tope(api):
++    app, db, *_ = api
++    body = {"queries": [{"table": "tarifas_zone_groups"}] * (app.MAX_BATCH + 1)}
++    assert call(app, "POST /api/tarifas/batch", body=body)["statusCode"] == 400
++    assert db.calls == []
++
++
++# ── /{table}/find ──────────────────────────────────────────────────────────────────────────────
++
++def test_find_por_post_equivale_al_get_con_q_en_el_cuerpo(api, audit_calls):
++    app, db, *_ = api
++    q = {"where": [{"column": "status", "op": "eq", "value": "completed"}], "limit": 10}
++    response = call(app, "POST /api/tarifas/{table}/find", path={"table": "tarifas_v_viajes"}, body=q)
++
++    assert response["statusCode"] == 200 and body_of(response) == [{"id": "x"}]
++    sql, params = db.calls[-1]
++    assert 'FROM "tarifas_v_viajes"' in sql and "LIMIT 10" in sql and params == ["completed"]
++    assert not [c for c in audit_calls if c[0] == "bind"]
++
++
++def test_find_por_post_soporta_in_con_miles_de_ids(api):
++    app, db, *_ = api
++    ids = [f"id-{n}" for n in range(3000)]
++    call(app, "POST /api/tarifas/{table}/find", path={"table": "tarifas_settlements"},
++         body={"where": [{"column": "trip_id", "op": "in", "value": ids}]})
++    assert db.calls[-1][1] == [ids]
++
++
++# ── Paginación por cursor ──────────────────────────────────────────────────────────────────────
++
++def test_after_descendente_compara_la_tupla_con_menor_que(api):
++    app, db, *_ = api
++    q = {"orderBy": [{"column": "settlement_date", "direction": "desc"}, {"column": "number", "direction": "desc"}],
++         "after": {"settlement_date": "2026-08-28", "number": "LIQ-VE-010"}, "limit": 50}
++    call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_settlements"}, query={"q": json.dumps(q)})
++    sql, params = db.calls[-1]
++    assert '("settlement_date", "number") < (%s::text, %s::text)' in sql
++    assert params == ["2026-08-28", "LIQ-VE-010"]
++    assert 'ORDER BY "settlement_date" DESC NULLS LAST, "number" DESC NULLS LAST' in sql
++
++
++def test_after_ascendente_usa_mayor_que(api):
++    app, db, *_ = api
++    q = {"orderBy": [{"column": "number"}], "after": {"number": "LIQ-VE-010"}}
++    call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_settlements"}, query={"q": json.dumps(q)})
++    assert '("number") > (%s::text)' in db.calls[-1][0]
++
++
++@pytest.mark.parametrize("q", [
++    {"after": {"number": "x"}},  # sin orderBy
++    {"orderBy": [{"column": "number"}], "after": {"otra": "x"}},  # columnas distintas
++    {"orderBy": [{"column": "settlement_date", "direction": "desc"}, {"column": "number"}],
++     "after": {"settlement_date": "2026-01-01", "number": "x"}},  # direcciones mezcladas
++    {"orderBy": [{"column": "number"}], "after": {"number": None}},  # NULL
++    {"orderBy": [{"column": "number"}], "after": []},
++])
++def test_after_invalido_es_400(api, q):
++    app, db, *_ = api
++    response = call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_settlements"}, query={"q": json.dumps(q)})
++    assert response["statusCode"] == 400 and db.calls == []
++
++
++# ── Métricas ───────────────────────────────────────────────────────────────────────────────────
++
++def test_cada_request_imprime_una_linea_emf_con_duracion_y_sentencias(api, capsys):
++    app, db, *_ = api
++    call(app, "POST /api/tarifas/batch", body={"queries": [{"table": "tarifas_zone_groups"}, {"table": "zones"}]})
++    lines = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith("{")]
++    line = lines[-1]
++    assert line["Route"] == "POST /api/tarifas/batch" and line["Status"] == 200
++    assert line["Queries"] == 2 and line["Errors"] == 0 and line["DurationMs"] >= 0
++    assert line["_aws"]["CloudWatchMetrics"][0]["Namespace"] == "TMS/Tarifas"
++
++
++def test_el_primer_request_marca_arranque_en_frio_y_los_demas_no(api, capsys):
++    app, db, metrics, _ = api
++    metrics._cold_start = True
++    call(app, "POST /api/tarifas/batch", body={"queries": [{"table": "tarifas_zone_groups"}]})
++    call(app, "POST /api/tarifas/batch", body={"queries": [{"table": "tarifas_zone_groups"}]})
++    lines = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith("{")]
++    assert [l["ColdStart"] for l in lines[-2:]] == [1, 0]
++
++
++def test_un_error_5xx_cuenta_como_error(api, capsys):
++    app, db, *_ = api
++    db.error = RuntimeError("boom")
++    call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_zone_groups"})
++    line = [json.loads(l) for l in capsys.readouterr().out.splitlines() if l.startswith("{")][-1]
++    assert line["Status"] == 500 and line["Errors"] == 1
++
++
++# ── Topes de tiempo de sentencia ───────────────────────────────────────────────────────────────
++
++def test_sin_variables_de_entorno_no_se_toca_la_conexion(api, monkeypatch):
++    app, db, _, tdb = api
++    monkeypatch.delenv("TMS_STATEMENT_TIMEOUT_MS", raising=False)
++    monkeypatch.setattr(pg, "_live_connection", lambda: pytest.fail("no debía abrir la conexión"), raising=False)
++    tdb.query("SELECT 1")
++    assert db.calls == [("SELECT 1", [])]
++
++
++def test_con_tope_se_fija_una_vez_por_conexion(api, monkeypatch):
++    app, db, _, tdb = api
++    monkeypatch.setenv("TMS_STATEMENT_TIMEOUT_MS", "10000")
++    monkeypatch.setenv("TMS_LOCK_TIMEOUT_MS", "5000")
++    sets, connection = [], object()
++    monkeypatch.setattr(pg, "_live_connection", lambda: connection, raising=False)
++    monkeypatch.setattr(pg, "_run", lambda c, sql, params: sets.append((sql, params)) or [], raising=False)
++
++    tdb.query("SELECT 1")
++    tdb.query("SELECT 2")
++    assert len(sets) == 1 and sets[0][1] == ["10000", "5000"] and "set_config" in sets[0][0]
++
++    connection_2 = object()  # el contenedor reconectó: hay que volver a fijarlo
++    monkeypatch.setattr(pg, "_live_connection", lambda: connection_2, raising=False)
++    tdb.query("SELECT 3")
++    assert len(sets) == 2
++
++
++def test_una_sentencia_cancelada_por_tiempo_es_504_con_mensaje_claro(api):
++    app, db, *_ = api
++    db.error = HttpError(500, "canceling statement due to statement timeout")
++    response = call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_zone_groups"})
++    assert response["statusCode"] == 504
++    assert "demasiado" in body_of(response)["error"]["message"]
+diff --git a/sql/04_tarifas.sql b/sql/04_tarifas.sql
+index 7d3d3b9..c833520 100644
+--- a/sql/04_tarifas.sql
++++ b/sql/04_tarifas.sql
+@@ -56,7 +56,6 @@ CREATE TABLE IF NOT EXISTS tarifas_settlement_parties (
+   notes text,
+   CONSTRAINT tarifas_settlement_parties_carrier_id_fkey FOREIGN KEY (carrier_id) REFERENCES carriers (id) ON DELETE RESTRICT
+ );
+-CREATE INDEX IF NOT EXISTS tarifas_settlement_parties_status_idx ON tarifas_settlement_parties (status);
+ 
+ -- Regla de tarifa
+ CREATE TABLE IF NOT EXISTS tarifas_pricing_rules (
+@@ -86,12 +85,7 @@ CREATE TABLE IF NOT EXISTS tarifas_pricing_rules (
+   CONSTRAINT tarifas_pricing_rules_party_id_fkey FOREIGN KEY (party_id) REFERENCES tarifas_settlement_parties (id) ON DELETE CASCADE
+ );
+ CREATE INDEX IF NOT EXISTS tarifas_pricing_rules_country_id_idx ON tarifas_pricing_rules (country_id);
+-CREATE INDEX IF NOT EXISTS tarifas_pricing_rules_scope_idx ON tarifas_pricing_rules (scope);
+ CREATE INDEX IF NOT EXISTS tarifas_pricing_rules_party_id_idx ON tarifas_pricing_rules (party_id);
+-CREATE INDEX IF NOT EXISTS tarifas_pricing_rules_stage_idx ON tarifas_pricing_rules (stage);
+-CREATE INDEX IF NOT EXISTS tarifas_pricing_rules_active_idx ON tarifas_pricing_rules (active);
+-CREATE INDEX IF NOT EXISTS tarifas_pricing_rules_effective_from_idx ON tarifas_pricing_rules (effective_from);
+-CREATE INDEX IF NOT EXISTS tarifas_pricing_rules_effective_to_idx ON tarifas_pricing_rules (effective_to);
+ 
+ -- Plantilla de viaje
+ CREATE TABLE IF NOT EXISTS tarifas_pricing_templates (
+@@ -118,7 +112,6 @@ CREATE TABLE IF NOT EXISTS tarifas_party_variables (
+ );
+ CREATE INDEX IF NOT EXISTS tarifas_party_variables_party_id_idx ON tarifas_party_variables (party_id);
+ CREATE INDEX IF NOT EXISTS tarifas_party_variables_key_idx ON tarifas_party_variables (key);
+-CREATE INDEX IF NOT EXISTS tarifas_party_variables_active_idx ON tarifas_party_variables (active);
+ 
+ -- Liquidación
+ CREATE TABLE IF NOT EXISTS tarifas_settlements (
+@@ -161,16 +154,12 @@ CREATE TABLE IF NOT EXISTS tarifas_settlements (
+   CONSTRAINT tarifas_settlements_trip_id_fkey FOREIGN KEY (trip_id) REFERENCES routes (id) ON DELETE RESTRICT,
+   CONSTRAINT tarifas_settlements_party_id_fkey FOREIGN KEY (party_id) REFERENCES tarifas_settlement_parties (id) ON DELETE RESTRICT
+ );
+-CREATE INDEX IF NOT EXISTS tarifas_settlements_country_id_idx ON tarifas_settlements (country_id);
+ CREATE INDEX IF NOT EXISTS tarifas_settlements_trip_id_idx ON tarifas_settlements (trip_id);
+ CREATE INDEX IF NOT EXISTS tarifas_settlements_party_id_idx ON tarifas_settlements (party_id);
+-CREATE INDEX IF NOT EXISTS tarifas_settlements_number_idx ON tarifas_settlements (number);
+ CREATE INDEX IF NOT EXISTS tarifas_settlements_trip_number_idx ON tarifas_settlements (trip_number);
+-CREATE INDEX IF NOT EXISTS tarifas_settlements_settlement_date_idx ON tarifas_settlements (settlement_date);
+-CREATE INDEX IF NOT EXISTS tarifas_settlements_status_idx ON tarifas_settlements (status);
+-CREATE INDEX IF NOT EXISTS tarifas_settlements_margin_status_idx ON tarifas_settlements (margin_status);
+ CREATE INDEX IF NOT EXISTS tarifas_settlements_superseded_by_idx ON tarifas_settlements (superseded_by);
+ CREATE UNIQUE INDEX IF NOT EXISTS tarifas_settlements_trip_vigente_uq ON tarifas_settlements (trip_id) WHERE status <> 'Anulado';
++CREATE UNIQUE INDEX IF NOT EXISTS tarifas_settlements_country_number_uq ON tarifas_settlements (country_id, number);
+ 
+ -- Estructura de costos
+ CREATE TABLE IF NOT EXISTS tarifas_cost_structures (
+@@ -188,7 +177,6 @@ CREATE TABLE IF NOT EXISTS tarifas_cost_structures (
+ );
+ CREATE INDEX IF NOT EXISTS tarifas_cost_structures_party_id_idx ON tarifas_cost_structures (party_id);
+ CREATE INDEX IF NOT EXISTS tarifas_cost_structures_country_id_idx ON tarifas_cost_structures (country_id);
+-CREATE INDEX IF NOT EXISTS tarifas_cost_structures_active_idx ON tarifas_cost_structures (active);
+ 
+ -- Fila de estructura de costos
+ CREATE TABLE IF NOT EXISTS tarifas_cost_structure_rows (
+@@ -212,7 +200,6 @@ CREATE TABLE IF NOT EXISTS tarifas_cost_structure_rows (
+   CONSTRAINT tarifas_cost_structure_rows_structure_id_fkey FOREIGN KEY (structure_id) REFERENCES tarifas_cost_structures (id) ON DELETE CASCADE
+ );
+ CREATE INDEX IF NOT EXISTS tarifas_cost_structure_rows_structure_id_idx ON tarifas_cost_structure_rows (structure_id);
+-CREATE INDEX IF NOT EXISTS tarifas_cost_structure_rows_active_idx ON tarifas_cost_structure_rows (active);
+ 
+ -- Tabla de tarifas
+ CREATE TABLE IF NOT EXISTS tarifas_rate_tables (
+@@ -230,7 +217,6 @@ CREATE TABLE IF NOT EXISTS tarifas_rate_tables (
+ CREATE INDEX IF NOT EXISTS tarifas_rate_tables_country_id_idx ON tarifas_rate_tables (country_id);
+ CREATE INDEX IF NOT EXISTS tarifas_rate_tables_party_id_idx ON tarifas_rate_tables (party_id);
+ CREATE INDEX IF NOT EXISTS tarifas_rate_tables_code_idx ON tarifas_rate_tables (code);
+-CREATE INDEX IF NOT EXISTS tarifas_rate_tables_active_idx ON tarifas_rate_tables (active);
+ 
+ -- Fila de tabla de tarifas
+ CREATE TABLE IF NOT EXISTS tarifas_rate_table_rows (
+@@ -244,7 +230,6 @@ CREATE TABLE IF NOT EXISTS tarifas_rate_table_rows (
+   CONSTRAINT tarifas_rate_table_rows_table_id_fkey FOREIGN KEY (table_id) REFERENCES tarifas_rate_tables (id) ON DELETE CASCADE
+ );
+ CREATE INDEX IF NOT EXISTS tarifas_rate_table_rows_table_id_idx ON tarifas_rate_table_rows (table_id);
+-CREATE INDEX IF NOT EXISTS tarifas_rate_table_rows_active_idx ON tarifas_rate_table_rows (active);
+ 
+ -- Política de margen
+ CREATE TABLE IF NOT EXISTS tarifas_margin_policies (
+diff --git a/sql/26_tarifas_indices_rendimiento.sql b/sql/26_tarifas_indices_rendimiento.sql
+new file mode 100644
+index 0000000..a2ecfd6
+--- /dev/null
++++ b/sql/26_tarifas_indices_rendimiento.sql
+@@ -0,0 +1,37 @@
++-- ============================================================================
++-- 26 — Rendimiento del tarifador: número de liquidación sin carrera e índices de lectura.
++--
++--   * (country_id, number) ÚNICO en tarifas_settlements. `nextNumber` calcula el siguiente número
++--     leyendo el máximo; sin unicidad, dos emisiones simultáneas podían repetir `LIQ-NNNN`. Con el
++--     índice, la segunda falla con 23505 y la app lo informa en vez de duplicar. Si ya hay números
++--     repetidos NO se crea (se avisa): corregirlos a mano y volver a correr.
++--   * (country_id, settlement_date desc, number desc): la lista de liquidaciones filtra por país y
++--     ordena por fecha y número.
++--   * (table_id, active) en filas de tarifario: se leen siempre por tarifario y solo las activas.
++--
++-- Aditiva e idempotente. No borra nada: los índices individuales de baja cardinalidad quedan hasta
++-- medirlos con pg_stat_user_indexes (ver docs/tarifador/RUNBOOK_OPTIMIZACION_AURORA.md).
++--
++-- ROLLBACK:
++--   drop index if exists tarifas_settlements_country_number_uq;
++--   drop index if exists tarifas_settlements_country_date_idx;
++--   drop index if exists tarifas_rate_table_rows_table_active_idx;
++-- ============================================================================
++
++do $$
++begin
++  if exists (
++    select 1 from tarifas_settlements group by country_id, number having count(*) > 1
++  ) then
++    raise warning 'tarifas_settlements tiene números repetidos por país: no se crea el índice único. Revisar con: select country_id, number, count(*) from tarifas_settlements group by 1, 2 having count(*) > 1;';
++  else
++    create unique index if not exists tarifas_settlements_country_number_uq
++      on tarifas_settlements (country_id, number);
++  end if;
++end $$;
++
++create index if not exists tarifas_settlements_country_date_idx
++  on tarifas_settlements (country_id, settlement_date desc, number desc);
++
++create index if not exists tarifas_rate_table_rows_table_active_idx
++  on tarifas_rate_table_rows (table_id, active);
+diff --git a/sql/27_tarifas_vista_viajes_un_recorrido.sql b/sql/27_tarifas_vista_viajes_un_recorrido.sql
+new file mode 100644
+index 0000000..d196769
+--- /dev/null
++++ b/sql/27_tarifas_vista_viajes_un_recorrido.sql
+@@ -0,0 +1,79 @@
++-- ============================================================================
++-- 27 — Vista de viajes del tarifador: un solo recorrido de las guías por viaje.
++--
++-- `tarifas_v_viajes` calculaba `guide_count` y `delivered_guides` con dos subconsultas sobre
++-- `dispatch_guides` por cada viaje. Ahora es una sola (`cross join lateral`). Mismas columnas, mismo
++-- orden y mismos valores: solo cambia cómo se calculan (CREATE OR REPLACE VIEW lo exige).
++--
++-- No se tocan las tablas de otros módulos (`routes`, `dispatch_guides`): `route_date` y `status` siguen
++-- siendo expresiones de la vista; indexarlas exigiría un índice sobre `routes`, que no es del tarifador.
++--
++-- Idempotente. ROLLBACK: volver a correr la definición de `tarifas_v_viajes` de sql/24.
++-- ============================================================================
++
++create or replace view tarifas_v_viajes as
++select r.id,
++       s.country_id,
++       r.route_number,
++       to_char(r.route_date, 'YYYY-MM-DD') as route_date,
++       case lower(btrim(coalesce(r.status, '')))
++         when 'completada' then 'completed' when 'completado' then 'completed' when 'completed' then 'completed'
++         when 'planificada' then 'planned' when 'planificado' then 'planned' when 'planned' then 'planned'
++         when 'en_ruta' then 'in_progress' when 'en ruta' then 'in_progress' when 'en tránsito' then 'in_progress'
++         when 'in_progress' then 'in_progress' when 'active' then 'in_progress' when 'despachado' then 'in_progress'
++         when 'anulado' then 'cancelled' when 'anulada' then 'cancelled' when 'cancelled' then 'cancelled'
++         else lower(btrim(coalesce(r.status, '')))
++       end as status,
++       r.carrier_id,
++       c.name as carrier_name,
++       c.is_flota_propia,
++       r.driver_id,
++       d.full_name as driver_name,
++       d.document as driver_document,
++       r.vehicle_id,
++       v.plate as vehicle_plate,
++       v.vehicle_type,
++       v.capacity_weight,
++       v.capacity_volume,
++       r.route_type_id as dest_zone_id,
++       z.code as dest_zone_code,
++       z.name as dest_zone_name,
++       r.total_distance,
++       r.total_stops,
++       r.completed_stops,
++       r.total_weight,
++       r.total_volume,
++       r.actual_start_time,
++       r.actual_end_time,
++       case when r.actual_start_time is not null and r.actual_end_time > r.actual_start_time
++            then round((extract(epoch from (r.actual_end_time - r.actual_start_time)) / 3600)::numeric, 2)
++       end as duration_hours,
++       gc.guide_count,
++       (select count(*)::int
++          from returns rt join dispatch_guides g on g.id = rt.dispatch_guide_id
++         where g.route_id = r.id) as return_count,
++       (select st.id from tarifas_settlements st
++         where st.trip_id = r.id and st.status <> 'Anulado'
++         limit 1) as settlement_id,
++       gc.delivered_guides
++  from routes r
++  join stores s on s.id = r.store_id
++  left join carriers c on c.id = r.carrier_id
++  left join drivers d on d.id = r.driver_id
++  left join vehicles v on v.id = r.vehicle_id
++  left join zones z on z.id = r.route_type_id
++  -- Una sola lectura de las guías del viaje para los dos conteos (antes eran dos subconsultas).
++  cross join lateral (
++    select count(*)::int as guide_count,
++           (count(*) filter (where lower(coalesce(g.delivery_status, '')) = 'delivered'))::int as delivered_guides
++      from dispatch_guides g
++     where g.route_id = r.id
++  ) gc;
++
++do $$
++begin
++  if exists (select 1 from pg_roles where rolname = 'tms_app') then
++    execute 'revoke all on public.tarifas_v_viajes from tms_app';
++    execute 'grant select on public.tarifas_v_viajes to tms_app';
++  end if;
++end $$;
+diff --git a/sql/28_tarifas_fecha_e_indices_sobrantes.sql b/sql/28_tarifas_fecha_e_indices_sobrantes.sql
+new file mode 100644
+index 0000000..eacd824
+--- /dev/null
++++ b/sql/28_tarifas_fecha_e_indices_sobrantes.sql
+@@ -0,0 +1,77 @@
++-- ============================================================================
++-- 28 — Tarifador: la fecha de la liquidación pasa a `date` y se quitan índices que no sirven.
++--
++--   * tarifas_settlements.settlement_date: text -> date. Se ordena y se filtra por rango; con `date`
++--     Postgres compara fechas de verdad (y rechaza '2026-13-45'). Solo cambia el tipo: la app sigue
++--     leyendo 'YYYY-MM-DD' (el API devuelve medianoche UTC y el cliente se queda con la fecha).
++--     Se rebuilda el índice compuesto (country_id, settlement_date desc, number desc) solo.
++--     Si alguna fila no tiene formato AAAA-MM-DD NO se cambia el tipo (se avisa).
++--   * Índices que se borran (todas tablas propias del tarifador):
++--       - de baja cardinalidad, que Postgres no usa para filtrar: `active`, `stage`, `scope`,
++--         `status`, `margin_status`, `effective_from/to` (el motor filtra vigencia en el cliente);
++--       - redundantes: `tarifas_settlements_country_id_idx` (lo cubre (country_id, number)),
++--         `tarifas_settlements_number_idx` y `tarifas_settlements_settlement_date_idx` (toda lista
++--         filtra por país: lo cubren los dos compuestos), y `tarifas_rate_table_rows_table_active_idx`
++--         (nunca se filtra por `active` en el servidor; basta `table_id`).
++--     Todos con 0 usos en pg_stat_user_indexes. Cada índice de más cuesta en cada INSERT/UPDATE.
++--     Se conservan: claves primarias, únicos, FK (country_id, party_id, trip_id, structure_id,
++--     table_id), bitácora (entity, entity_id, created_at), trip_number y superseded_by.
++--
++-- Idempotente. Con DROP INDEX no se pierde ningún dato.
++--
++-- ROLLBACK (recrear lo borrado; el tipo date -> text conserva el formato AAAA-MM-DD):
++--   alter table tarifas_settlements alter column settlement_date type text using to_char(settlement_date, 'YYYY-MM-DD');
++--   create index if not exists tarifas_settlements_settlement_date_idx on tarifas_settlements (settlement_date);
++--   create index if not exists tarifas_settlements_country_id_idx on tarifas_settlements (country_id);
++--   create index if not exists tarifas_settlements_number_idx on tarifas_settlements (number);
++--   create index if not exists tarifas_settlements_status_idx on tarifas_settlements (status);
++--   create index if not exists tarifas_settlements_margin_status_idx on tarifas_settlements (margin_status);
++--   create index if not exists tarifas_settlement_parties_status_idx on tarifas_settlement_parties (status);
++--   create index if not exists tarifas_pricing_rules_scope_idx on tarifas_pricing_rules (scope);
++--   create index if not exists tarifas_pricing_rules_stage_idx on tarifas_pricing_rules (stage);
++--   create index if not exists tarifas_pricing_rules_active_idx on tarifas_pricing_rules (active);
++--   create index if not exists tarifas_pricing_rules_effective_from_idx on tarifas_pricing_rules (effective_from);
++--   create index if not exists tarifas_pricing_rules_effective_to_idx on tarifas_pricing_rules (effective_to);
++--   create index if not exists tarifas_party_variables_active_idx on tarifas_party_variables (active);
++--   create index if not exists tarifas_cost_structures_active_idx on tarifas_cost_structures (active);
++--   create index if not exists tarifas_cost_structure_rows_active_idx on tarifas_cost_structure_rows (active);
++--   create index if not exists tarifas_rate_tables_active_idx on tarifas_rate_tables (active);
++--   create index if not exists tarifas_rate_table_rows_active_idx on tarifas_rate_table_rows (active);
++--   create index if not exists tarifas_rate_table_rows_table_active_idx on tarifas_rate_table_rows (table_id, active);
++-- ============================================================================
++
++do $$
++begin
++  if exists (
++    select 1 from information_schema.columns
++    where table_schema = 'public' and table_name = 'tarifas_settlements'
++      and column_name = 'settlement_date' and data_type = 'text'
++  ) then
++    if exists (select 1 from tarifas_settlements where settlement_date !~ '^\d{4}-\d{2}-\d{2}$') then
++      raise warning 'tarifas_settlements.settlement_date tiene valores que no son AAAA-MM-DD: no se cambia el tipo.';
++    else
++      -- El índice solo-fecha se borra antes: se recrearía para nada.
++      drop index if exists tarifas_settlements_settlement_date_idx;
++      alter table tarifas_settlements
++        alter column settlement_date type date using settlement_date::date;
++    end if;
++  end if;
++end $$;
++
++drop index if exists tarifas_settlements_settlement_date_idx;
++drop index if exists tarifas_settlements_country_id_idx;
++drop index if exists tarifas_settlements_number_idx;
++drop index if exists tarifas_settlements_status_idx;
++drop index if exists tarifas_settlements_margin_status_idx;
++drop index if exists tarifas_settlement_parties_status_idx;
++drop index if exists tarifas_pricing_rules_scope_idx;
++drop index if exists tarifas_pricing_rules_stage_idx;
++drop index if exists tarifas_pricing_rules_active_idx;
++drop index if exists tarifas_pricing_rules_effective_from_idx;
++drop index if exists tarifas_pricing_rules_effective_to_idx;
++drop index if exists tarifas_party_variables_active_idx;
++drop index if exists tarifas_cost_structures_active_idx;
++drop index if exists tarifas_cost_structure_rows_active_idx;
++drop index if exists tarifas_rate_tables_active_idx;
++drop index if exists tarifas_rate_table_rows_active_idx;
++drop index if exists tarifas_rate_table_rows_table_active_idx;
+diff --git a/sql/29_tarifas_settlement_date_text.sql b/sql/29_tarifas_settlement_date_text.sql
+new file mode 100644
+index 0000000..2ac1d53
+--- /dev/null
++++ b/sql/29_tarifas_settlement_date_text.sql
+@@ -0,0 +1,32 @@
++-- ============================================================================
++-- 29 — Tarifador: `settlement_date` se queda en `text` (formato AAAA-MM-DD).
++--
++-- La migración 28 la había pasado a `date`. El backend ya desplegado manda esa columna con `::text`; con
++-- `date` toda emisión de liquidación falla con
++--   column "settlement_date" is of type date but expression is of type text
++-- Para que el backend desplegado y el nuevo funcionen con LA MISMA columna, sin pasos manuales de
++-- migración al desplegar, la columna se queda en `text`. El formato ISO ordena y compara igual que una
++-- fecha, así que el orden, los filtros por rango y el cursor del historial no cambian.
++--
++-- Secuencia: la 28 (si la columna es text la pasa a date) y esta 29 (si es date la devuelve a text) dejan
++-- SIEMPRE `text`, sea cual sea el punto de partida. El manifiesto del backend
++-- (`backend/tarifas/src/schema_manifest.json`), `src/lib/tarifas/data/schema.ts` y `sql/04_tarifas.sql`
++-- dicen `text`.
++--
++-- Si más adelante se quiere `date`, hay que cambiar a la vez schema.ts, el manifiesto, el DDL y esta
++-- migración, y desplegar el backend en el mismo momento.
++--
++-- Idempotente. No pierde datos. Solo toca una columna de `tarifas_settlements`.
++-- ============================================================================
++
++do $$
++begin
++  if exists (
++    select 1 from information_schema.columns
++    where table_schema = 'public' and table_name = 'tarifas_settlements'
++      and column_name = 'settlement_date' and data_type = 'date'
++  ) then
++    alter table tarifas_settlements
++      alter column settlement_date type text using to_char(settlement_date, 'YYYY-MM-DD');
++  end if;
++end $$;

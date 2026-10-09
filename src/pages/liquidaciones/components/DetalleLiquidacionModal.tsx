@@ -10,10 +10,14 @@
 import Button from '../../../components/base/Button';
 import Badge from '../../../components/base/Badge';
 import CalcBreakdownPanel, { AllocationBlock } from '../../../components/tarifas/CalcBreakdownPanel';
+import { BASE_METHODS } from '../../../lib/tarifas/baseMethods';
 import { formatMoney } from '../../../lib/tarifas/format';
 import { describeReturn } from '../../../lib/tarifas/returnsNote';
+import { useState } from 'react';
 import { InterruptorVista, useVistaLiquidador } from './useVistaLiquidador';
-import type { CalcResult, SettlementRecord } from '../../../lib/tarifas/types';
+import { usePrintProforma } from '../hooks/usePrintProforma';
+import { settlementToResult } from '../parts/settlementResult';
+import type { SettlementRecord } from '../../../lib/tarifas/types';
 
 interface Props {
   settlement: SettlementRecord | null;
@@ -22,35 +26,12 @@ interface Props {
 
 export default function DetalleLiquidacionModal({ settlement, onClose }: Props) {
   const { puedeConfigurar, extendida, setExtendida } = useVistaLiquidador();
+  const { print, printPortal } = usePrintProforma();
+  const [completo, setCompleto] = useState(false);
   if (!settlement) return null;
 
-  // Se rearma el resultado desde lo guardado. Los campos que el panel necesita están todos
-  // persistidos justamente para esto.
-  const result: CalcResult = {
-    trace: settlement.trace,
-    discarded: settlement.discarded,
-    stageSubtotals: settlement.stageSubtotals,
-    totalLiquidado: settlement.totalAmount,
-    currency: settlement.currency,
-    cost: {
-      total: settlement.costTotal ?? '0',
-      breakdown: [],
-      modelId: settlement.costModelId ?? '—',
-      currency: settlement.currency,
-    },
-    margin: {
-      amount: settlement.marginAmount ?? '0',
-      pct: settlement.marginPct ?? '0',
-      status: settlement.marginStatus ?? 'OK',
-      basis: settlement.cargoValue ? 'CARGO' : 'NONE',
-      cargoValue: settlement.cargoValue ?? '0',
-      expense: settlement.totalAmount,
-      currency: settlement.currency,
-    },
-    allocation: settlement.allocation,
-    warnings: settlement.warnings,
-    blockingIssues: [],
-  };
+  // Se rearma el resultado desde lo guardado: los campos que el panel necesita están todos persistidos.
+  const result = settlementToResult(settlement);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -90,6 +71,15 @@ export default function DetalleLiquidacionModal({ settlement, onClose }: Props) 
             )}
           </div>
 
+          {settlement.baseChange && (
+            <div className="text-xs bg-teal-50 border border-teal-200 text-teal-800 rounded-lg px-3 py-2">
+              <i className="ri-exchange-line mr-1"></i>
+              Base cambiada a <strong>{BASE_METHODS[settlement.baseChange.method]?.label ?? settlement.baseChange.method}</strong>
+              {' · '}{settlement.baseChange.source.label}
+              {settlement.baseChange.changedBy ? ` · por ${settlement.baseChange.changedBy}` : ''}
+            </div>
+          )}
+
           {settlement.returns.length > 0 && (
             <div className="border border-slate-200 rounded-lg p-4">
               <h4 className="text-xs font-semibold text-slate-600 uppercase mb-2">
@@ -111,8 +101,19 @@ export default function DetalleLiquidacionModal({ settlement, onClose }: Props) 
             ctx={{ rules: [...settlement.rulesUsed, ...settlement.adhocRules] }}
             excludedSeqs={settlement.excludedSeqs}
             total={settlement.totalAmount}
-            fixedLevel={extendida ? undefined : 'resumen'}
+            fixedLevel={extendida || completo ? undefined : 'resumen'}
           />
+          {!extendida && (
+            <button
+              type="button"
+              onClick={() => setCompleto((v) => !v)}
+              aria-expanded={completo}
+              className="text-sm font-medium text-teal-700 hover:underline cursor-pointer"
+            >
+              <i className={`${completo ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} mr-1`} />
+              {completo ? 'Ver menos' : 'Ver el desglose completo'}
+            </button>
+          )}
 
           {settlement.notes && (
             <div className="border border-slate-200 rounded-lg p-4">
@@ -122,10 +123,15 @@ export default function DetalleLiquidacionModal({ settlement, onClose }: Props) 
           )}
         </div>
 
-        <div className="sticky bottom-0 bg-white flex justify-end px-6 py-4 border-t border-slate-200">
+        <div className="sticky bottom-0 bg-white flex justify-end gap-2 px-6 py-4 border-t border-slate-200">
+          <Button variant="secondary" onClick={() => print(settlement)}>
+            <i className="ri-file-pdf-2-line mr-2"></i>
+            Descargar PDF
+          </Button>
           <Button variant="secondary" onClick={onClose}>Cerrar</Button>
         </div>
       </div>
+      {printPortal}
     </div>
   );
 }

@@ -8,7 +8,11 @@ JSON no se comporte distinto contra Aurora:
   - `eq` con valor null es IS NULL; `neq` es IS DISTINCT FROM (una fila con
     NULL cumple `neq`, igual que `undefined !== 'x'` en JS);
   - `in` con lista vacía no trae nada;
-  - el orden pone los NULL al final.
+  - el orden pone los NULL al final;
+  - `after` (paginación por cursor): trae las filas que vienen DESPUÉS de la última de la página
+    anterior, comparando la tupla de las columnas del orden. Exige `orderBy` con la misma dirección en
+    todas las columnas y columnas sin NULL; es lo que mantiene barato el "página siguiente" aunque el
+    historial crezca (un OFFSET grande lee y descarta todo lo anterior).
 
 Ningún identificador del cliente entra al SQL sin pasar por `tarifas_schema`.
 """
@@ -82,12 +86,39 @@ def country_clause(table: Table, countries: tuple[str, ...] | None) -> tuple[str
     return clause, [list(countries)]
 
 
-def build_where(table: Table, where: list | None, countries: tuple[str, ...] | None) -> tuple[str, list]:
+def _after(table: Table, after, order_by) -> tuple[str, list]:
+    """Condición de cursor: `(a, b) < (%s, %s)` si el orden es descendente, `>` si es ascendente."""
+    if not isinstance(after, dict) or not after:
+        raise HttpError(400, '"after" debe ser un objeto { columna: valor } con las columnas del orden')
+    if not isinstance(order_by, list) or not order_by:
+        raise HttpError(400, '"after" requiere "orderBy"')
+    columns = [str(item.get("column")) if isinstance(item, dict) else "" for item in order_by]
+    directions = {"desc" if isinstance(item, dict) and item.get("direction") == "desc" else "asc" for item in order_by}
+    if len(directions) != 1:
+        raise HttpError(400, '"after" exige la misma dirección en todas las columnas de "orderBy"')
+    if list(after) != columns:
+        raise HttpError(400, '"after" debe tener exactamente las columnas de "orderBy", en el mismo orden')
+    for column in columns:
+        table.column_type(column)  # valida
+        if after[column] is None:
+            raise HttpError(400, f'"after" no admite NULL (columna "{column}")')
+    operator = "<" if directions == {"desc"} else ">"
+    names = ", ".join(quote(c) for c in columns)
+    holders = ", ".join(placeholder(table, c) for c in columns)
+    return f"({names}) {operator} ({holders})", [param(table, c, after[c]) for c in columns]
+
+
+def build_where(table: Table, where: list | None, countries: tuple[str, ...] | None,
+                after=None, order_by=None) -> tuple[str, list]:
     if where is not None and not isinstance(where, list):
         raise HttpError(400, '"where" debe ser una lista de condiciones')
     parts, params = [], []
     for condition in where or []:
         sql, args = _condition(table, condition)
+        parts.append(sql)
+        params.extend(args)
+    if after is not None:
+        sql, args = _after(table, after, order_by)
         parts.append(sql)
         params.extend(args)
     country_sql, country_args = country_clause(table, countries)
@@ -121,14 +152,25 @@ def _int(value, label: str, default: int) -> int:
     return value
 
 
+def _select_list(table: Table, columns) -> str:
+    """`*` sin proyección; con `columns`, solo esas (validadas contra el manifiesto)."""
+    if columns is None:
+        return "*"
+    if not isinstance(columns, list) or not columns or not all(isinstance(c, str) for c in columns):
+        raise HttpError(400, '"columns" debe ser una lista no vacía de nombres de columna')
+    for column in columns:
+        table.column_type(column)  # valida
+    return ", ".join(quote(column) for column in dict.fromkeys(columns))
+
+
 def build_find(table: Table, options: dict | None, countries: tuple[str, ...] | None) -> tuple[str, list]:
     options = options or {}
     if not isinstance(options, dict):
         raise HttpError(400, '"q" debe ser un objeto { where, orderBy, limit, offset }')
-    where, params = build_where(table, options.get("where"), countries)
+    where, params = build_where(table, options.get("where"), countries, options.get("after"), options.get("orderBy"))
     limit = min(_int(options.get("limit"), "limit", MAX_ROWS), MAX_ROWS)
     offset = _int(options.get("offset"), "offset", 0)
-    sql = f"SELECT * FROM {quote(table.name)} WHERE {where}{_order(table, options.get('orderBy'))} LIMIT {limit} OFFSET {offset}"
+    sql = f"SELECT {_select_list(table, options.get('columns'))} FROM {quote(table.name)} WHERE {where}{_order(table, options.get('orderBy'))} LIMIT {limit} OFFSET {offset}"
     return sql, params
 
 

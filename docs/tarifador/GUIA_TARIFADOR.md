@@ -114,8 +114,8 @@ dibujar. Redondeo y moneda salen de la configuración del país.
  Motor (puro, sin I/O)        src/lib/tarifas/ (evaluator, resolver, cost, margin…)
         │
  ORM (interfaz DataSource)    src/lib/tarifas/data/   db()
-        ├─ json      → semilla local en el navegador (por defecto)
-        └─ postgres  → HTTP  →  backend/tarifas (Lambda)  →  Aurora `tms_olo`
+        └─ HTTP  →  backend/tarifas (Lambda)  →  Aurora `tms_olo`   (única fuente; sin variable de entorno)
+           (las pruebas inyectan un almacén en memoria: src/lib/tarifas/__tests__/helpers/memory)
 ```
 
 | Para… | Usar |
@@ -152,15 +152,14 @@ del navegador se juntan en una sola petición.
 | Ruta | Para qué |
 |---|---|
 | `/liquidaciones` | Pestaña **Viajes por liquidar** con tres alcances: *Listos para liquidar* (completados y 100 % entregados), *Incompletos (auditoría)* (no completados o con pedidos sin entregar) y *Todos*. Cada viaje se **extiende** (botón `+`) para ver sus pedidos uno por uno. **Historial**: estado, ver desglose, pedidos que se emitieron (incluidos / anulados / para después), re-liquidar con motivo. Modal *Liquidar viaje*: vista **simple** por defecto (viaje, variables, total, reparto por casa, y un **Ver más** con scroll interno: pedidos, desglose y devoluciones) o **extendida** (quien tiene `tarifas.config`, con interruptor). En *Pedidos del viaje* se puede anular un pedido (con motivo) o dejarlo para liquidar después. |
-| `/tarifas/flota-propia` | **Solo con `tarifas.config`.** Transportistas propios (lista del catálogo, solo lectura): estructura de costos (con plantilla), tarifarios, variables, desactivar/reactivar perfil. |
-| `/tarifas/transportistas` | Lo mismo para terceros. Solo `tarifas.config`. |
-| `/reglas-tarifa` | **Solo con `tarifas.config`.** Reglas, Zonas (solo lectura + grupos), Tarifarios, Costos (estructura de la flota propia del país), Alerta de auditoría (+ cálculo del país), Plantillas, Resumen, Probador, Bitácora. |
+| `/tarifas/costos-flota` | **Solo con `tarifas.config`.** «Costos Flota»: pestañas Flota Propia / Flota Externa (`?flota=propia\|externa`). Transportistas del catálogo (solo lectura): estructura de costos (con plantilla), tarifarios, variables, desactivar/reactivar perfil. Las rutas antiguas `/tarifas/flota-propia` y `/tarifas/transportistas` redirigen aquí. |
+| `/reglas-tarifa` | **Solo con `tarifas.config`.** Reglas, Tarifarios, Costos (estructura de la flota propia del país), Alerta de auditoría (+ cálculo del país), Probador, Bitácora. (Zonas, Plantillas y Resumen se retiraron el 2026-10-08; las zonas se leen del catálogo.) |
 
 **Dos niveles de usuario.** Quien solo liquida (`tarifas`) ve *Liquidaciones* en modo simple: datos del viaje, variables por viaje, total y Emitir, con un "por qué este total" plegado. Quien configura (`tarifas.config`, los roles administradores lo tienen por código) ve además las pantallas de configuración y la vista extendida del desglose. Cada línea del desglose dice su origen (regla del país, regla del transportista —y si reemplaza a la del país—, gasto de la estructura de costos) y las reglas del catálogo traen un enlace para abrirlas.
 
 **Columnas.** Toda tabla del módulo trae el botón **Columnas**: ocultar/mostrar y reordenar (con flechas o arrastrando el título). La elección se recuerda en el navegador por tabla; *Restablecer* vuelve a la de fábrica (en la vista simple de Liquidaciones algunas columnas arrancan ocultas).
 
-**Estructura de costos en la ficha de la compañía.** Si la compañía no tiene estructura propia se muestra la **del país** (la de Reglas de Tarifa → Costos), que es la que se liquida; se puede copiar como propia para ajustarla. Un tercero la ve solo como referencia (no se liquida con ella). No se permite agregar un concepto suelto que tape a la del país: primero se copia o se sube la plantilla completa.
+**Estructura de costos en la ficha de la compañía.** Si la compañía no tiene estructura propia se muestra la **del país** (la de Costos Flota → Estructura del país), que es la que se liquida; se puede copiar como propia para ajustarla. Un tercero la ve solo como referencia (no se liquida con ella). No se permite agregar un concepto suelto que tape a la del país: primero se copia o se sube la plantilla completa.
 
 El **Probador** calcula "desde un viaje" completado (mismo camino que la liquidación) o con un "viaje
 libre" armado a mano. No emite nada.
@@ -169,18 +168,9 @@ libre" armado a mano. No emite nada.
 
 ## 6. Cómo ponerlo a funcionar
 
-El módulo tiene tres modos. Se elige con `VITE_TARIFAS_DATASOURCE` en `.env.local` (o `.env`).
+El módulo siempre lee y escribe Aurora a través de `backend/tarifas`: no hay modo demo, ni datos de prueba en la app, ni variable de entorno para cambiar la fuente. Hay dos formas de tener ese backend:
 
-### Modo A — Local (`json`, por defecto)
-
-Datos de demostración en el navegador. No necesita red, base ni backend.
-
-1. `npm install` y `npm run dev` (http://localhost:3000).
-2. Sin `VITE_TARIFAS_DATASOURCE` (o `=json`). Los viajes, transportistas y zonas vienen de la semilla.
-
-Sirve para desarrollar la interfaz y probar reglas. Los tests corren siempre en este modo.
-
-### Modo B — Aurora desde tu máquina (`postgres` + Lambda local)
+### Modo A — Aurora desde tu máquina (Lambda local)
 
 Es el modo para probar con datos reales sin desplegar nada.
 
@@ -188,7 +178,7 @@ Es el modo para probar con datos reales sin desplegar nada.
    horario): `powershell -ExecutionPolicy Bypass -File scripts/tunel-aurora.ps1` → `localhost:15432`.
    Requisitos y detalle: [`docs/guides/tunel-ssm-a-rds.md`](../guides/tunel-ssm-a-rds.md).
 2. **`.env.local`:** `TMS_DB_HOST=localhost`, `TMS_DB_PORT=15432`, `TMS_DB_NAME=tms_olo`, `TMS_DB_USER`,
-   `TMS_DB_PASSWORD`, `JWT_SECRET`, y `VITE_TARIFAS_DATASOURCE=postgres`. (Las credenciales no se
+   `TMS_DB_PASSWORD` y `JWT_SECRET`. (Las credenciales no se
    versionan.)
 3. **API local:** `npm run api:local:base` → Lambdas en `:4000` (incluye `tarifas`).
 4. **Front:** `npm run dev`. El proxy de Vite envía `/api/*` a `:4000`. Iniciar sesión con un usuario
@@ -199,7 +189,7 @@ Es el modo para probar con datos reales sin desplegar nada.
 > consulta), así que las pantallas tardan varios segundos. En Lambda dentro de la VPC la conexión se
 > reutiliza y la latencia es de milisegundos. No es un indicador del rendimiento real.
 
-### Modo C — Aurora desplegado (producción / sandbox)
+### Modo B — Aurora desplegado (producción / sandbox)
 
 Lo despliega **solo Intelix**.
 
@@ -207,7 +197,7 @@ Lo despliega **solo Intelix**.
    (primero sin `--execute` para el dry-run, que hace ROLLBACK). Ya aplicada en Aurora; el runner la
    registra en `schema_migrations` y no la reaplica.
 2. Backend: `npm run tarifas:manifest`, luego `cd backend/tarifas && sam build && sam deploy --config-env dev`.
-3. Front: build con `VITE_TARIFAS_DATASOURCE=postgres`. `VITE_TARIFAS_API_URL` es opcional
+3. Front: build normal. `VITE_TARIFAS_API_URL` es opcional
    (por defecto `${VITE_API_BASE}/api`). El cliente envía el JWT de `tms_session` solo.
 
 Guía de despliegue general: [`docs/guides/despliegue-sandbox.md`](../guides/despliegue-sandbox.md).
@@ -222,7 +212,7 @@ El liquidador no inventa datos de negocio. Para liquidar viajes de un país hay 
    viajes: "la zona de destino no existe").
 2. **Reglas de Tarifa → Política de margen → Cálculo del país:** decimales, modo de redondeo y umbral
    de pernocta (la migración sembró 2, HALF_UP y 24 h para Costa Rica).
-3. **Flota propia:** la **estructura de costos**. Descargue la plantilla en *Reglas de Tarifa → Costos*
+3. **Flota propia:** la **estructura de costos**. Descargue la plantilla en *Costos Flota → Flota Propia → Estructura del país*
    (país) o en *Flota propia → Estructura de costos* (un transportista), llénela, súbala, revise la vista
    previa (errores por hoja y fila, totales por camión) y guarde. Sin estructura el liquidador avisa y no calcula.
    La plantilla es un libro de 3 hojas:
@@ -297,7 +287,7 @@ serialización (`40001`).
 | 405 al guardar | Se intentó escribir una entidad externa (catálogo). Se edita en Catálogos. |
 | 409 al guardar | Clave duplicada o referencia en uso. |
 | El manifiesto no coincide | Correr `npm run tarifas:manifest` y redesplegar el backend. |
-| Tests fallan solo en tu máquina | Revisa que `vitest.config.ts` fije `VITE_TARIFAS_DATASOURCE=json`. |
+| Tests fallan solo en tu máquina | Revisa que `vitest.config.ts` cargue `src/test/setupTarifas.ts` (almacén en memoria). |
 
 ---
 

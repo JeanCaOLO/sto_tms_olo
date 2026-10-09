@@ -95,9 +95,13 @@ export function OperationalContextProvider({ children }: { children: ReactNode }
 
   useEffect(() => {
     if (!session) return;
-    apiFetch('/v1/countries').then(({ ok, body }) => {
-      if (ok && body?.data) setCountries(body.data);
-    });
+    apiFetch('/v1/countries')
+      .then(({ ok, body }) => {
+        if (ok && body?.data) setCountries(body.data);
+      })
+      .catch((e) => {
+        console.error('Error al cargar países:', e);
+      });
   }, [session]);
 
   // Limpia selecciones inválidas (prompt de implementación §17: "evitar
@@ -117,10 +121,20 @@ export function OperationalContextProvider({ children }: { children: ReactNode }
       setWarehouses([]);
       return;
     }
-    apiFetch(`/v1/countries/${selectedCountryId}/warehouses`).then(({ ok, body }) => {
-      if (ok && body?.data) setWarehouses(body.data);
-      else setWarehouses([]);
-    });
+    const currentCountryId = selectedCountryId;
+    apiFetch(`/v1/countries/${selectedCountryId}/warehouses`)
+      .then(({ ok, body }) => {
+        if (currentCountryId === selectedCountryId) {
+          if (ok && body?.data) setWarehouses(body.data);
+          else setWarehouses([]);
+        }
+      })
+      .catch((e) => {
+        if (currentCountryId === selectedCountryId) {
+          console.error('Error al cargar almacenes:', e);
+          setWarehouses([]);
+        }
+      });
   }, [session, selectedCountryId]);
 
   useEffect(() => {
@@ -135,10 +149,20 @@ export function OperationalContextProvider({ children }: { children: ReactNode }
       setCustomers([]);
       return;
     }
-    apiFetch(`/v1/warehouses/${selectedWarehouseId}/customers`).then(({ ok, body }) => {
-      if (ok && body?.data) setCustomers(body.data);
-      else setCustomers([]);
-    });
+    const currentWarehouseId = selectedWarehouseId;
+    apiFetch(`/v1/warehouses/${selectedWarehouseId}/customers`)
+      .then(({ ok, body }) => {
+        if (currentWarehouseId === selectedWarehouseId) {
+          if (ok && body?.data) setCustomers(body.data);
+          else setCustomers([]);
+        }
+      })
+      .catch((e) => {
+        if (currentWarehouseId === selectedWarehouseId) {
+          console.error('Error al cargar clientes:', e);
+          setCustomers([]);
+        }
+      });
   }, [session, selectedWarehouseId]);
 
   useEffect(() => {
