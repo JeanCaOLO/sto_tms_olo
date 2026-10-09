@@ -59,6 +59,11 @@ export interface CalculateTripOptions {
   adhocRules?: Rule[];
   /** Para re-liquidar: se ignora que el viaje ya tenga una liquidación vigente. */
   allowSettled?: boolean;
+  /**
+   * Salta las cachés del catálogo y del perfil y lee todo de nuevo. Es lo que se usa justo antes de
+   * emitir: navegar puede usar datos de hasta unos minutos, pagar no.
+   */
+  fresh?: boolean;
 }
 
 /** Claves de variables que nombran las reglas, a cualquier profundidad de condición/expresión. */
@@ -103,12 +108,12 @@ export async function calculateTrip(
     (failure: unknown) => ({ rows: [] as TripOrder[], failure }),
   );
 
-  const profile = trip.carrierId ? await getProfileForCarrierCached(trip.carrierId) : null;
+  const profile = trip.carrierId ? await getProfileForCarrierCached(trip.carrierId, { fresh: options.fresh }) : null;
   const partyId = profile && profile.status !== 'inactive' ? profile.id : null;
 
   let catalog: TarifasCatalog;
   try {
-    catalog = await loadTarifasCatalog(trip.countryId, partyId);
+    catalog = await loadTarifasCatalog(trip.countryId, partyId, { fresh: options.fresh });
   } catch (error) {
     if (error instanceof CatalogError) return { status: 'catalog-error', message: error.message };
     throw error;
@@ -169,6 +174,45 @@ export async function calculateTrip(
       notLiquidableReason: ignorable ? null : reason,
     },
   };
+}
+
+/**
+ * Huella de lo que se pagaría: total, líneas del cálculo (regla, versión y monto final), problemas
+ * bloqueantes, perfil y marca de cada pedido. Dos cálculos con la misma huella pagan lo mismo.
+ */
+export function calculationSignature(c: TripCalculation): string {
+  return JSON.stringify({
+    partyId: c.partyId,
+    total: c.result.totalLiquidado,
+    currency: c.result.currency,
+    cost: c.result.cost.total,
+    margin: c.result.margin.status,
+    trace: c.result.trace.map((l) => [l.ruleId, l.ruleVersion ?? null, l.final]),
+    blocking: c.blockingIssues.map((i) => i.code),
+    orders: c.orders.map((o) => [o.guideId, o.mark]),
+  });
+}
+
+export type FreshCheck =
+  | { status: 'same' }
+  | { status: 'changed'; calculation: TripCalculation }
+  | { status: 'failed'; message: string };
+
+/**
+ * Vuelve a calcular SIN cachés lo mismo que la persona tiene en pantalla y dice si el resultado cambió.
+ * Contra la API las cachés del catálogo y del perfil duran minutos; si otra persona cambió una tarifa
+ * en ese rato, emitir con el cálculo de la pantalla pagaría un valor viejo.
+ */
+export async function recheckBeforeEmit(
+  shown: TripCalculation,
+  edits: TripEdits,
+  options: CalculateTripOptions = {},
+): Promise<FreshCheck> {
+  const res = await calculateTrip(shown.trip, edits, { ...options, fresh: true });
+  if (res.status !== 'ok') return { status: 'failed', message: res.message };
+  return calculationSignature(res.calculation) === calculationSignature(shown)
+    ? { status: 'same' }
+    : { status: 'changed', calculation: res.calculation };
 }
 
 /**

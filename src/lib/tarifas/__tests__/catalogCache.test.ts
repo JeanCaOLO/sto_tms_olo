@@ -69,6 +69,16 @@ describe('caché del catálogo contra la API', () => {
     expect(api.lecturas).toBe(antes);
   });
 
+  it('`fresh` salta la caché, lee de nuevo y deja lo leído guardado', async () => {
+    await loadTarifasCatalog('VE', null);
+    const antes = api.lecturas;
+    await loadTarifasCatalog('VE', null, { fresh: true });
+    expect(api.lecturas).toBeGreaterThan(antes);
+    const tras = api.lecturas;
+    await loadTarifasCatalog('VE', null); // la lectura fresca quedó en la caché
+    expect(api.lecturas).toBe(tras);
+  });
+
   it('un fallo no se guarda', async () => {
     await expect(loadTarifasCatalog('ZZ', null)).rejects.toThrow();
     const antes = api.lecturas;

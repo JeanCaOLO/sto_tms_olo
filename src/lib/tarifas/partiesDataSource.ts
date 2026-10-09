@@ -77,10 +77,13 @@ onDataWrite((touched) => {
 });
 
 /** Como `getProfileForCarrier`, pero con la caché de arriba. Solo contra la API (con el driver JSON leer es gratis). */
-export async function getProfileForCarrierCached(carrierId: string): Promise<SettlementPartyRow | null> {
+export async function getProfileForCarrierCached(
+  carrierId: string,
+  options: { fresh?: boolean } = {},
+): Promise<SettlementPartyRow | null> {
   if (db().kind !== 'http') return getProfileForCarrier(carrierId);
   const hit = profileCache.get(carrierId);
-  if (hit && Date.now() - hit.at < PROFILE_TTL_MS) return hit.promise;
+  if (!options.fresh && hit && Date.now() - hit.at < PROFILE_TTL_MS) return hit.promise;
   const entry = { at: Date.now(), promise: getProfileForCarrier(carrierId) };
   profileCache.set(carrierId, entry);
   entry.promise.catch(() => { if (profileCache.get(carrierId) === entry) profileCache.delete(carrierId); });

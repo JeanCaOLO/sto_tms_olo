@@ -14,7 +14,7 @@ import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
 import CalcBreakdownPanel, { AllocationBlock } from '../../../components/tarifas/CalcBreakdownPanel';
-import { calculateTrip, type TripCalculation } from '../../../lib/tarifas/tripSettlement';
+import { calculateTrip, recheckBeforeEmit, type TripCalculation } from '../../../lib/tarifas/tripSettlement';
 import { listTripReturns } from '../../../lib/tarifas/tripsDataSource';
 import { describeTrip, emptyTripEdits } from '../../../lib/tarifas/tripContext';
 import { snapshotOrders, tripProgress } from '../../../lib/tarifas/tripOrders';
@@ -224,6 +224,24 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
 
     setSaving(true);
     try {
+      // Navegar usa catálogo y perfil de hasta unos minutos; pagar no. Se recalcula sin cachés y, si
+      // otra persona cambió una tarifa, una regla o un pedido en ese rato, se muestra lo nuevo y se
+      // pide confirmar en vez de emitir con el valor viejo.
+      const check = await recheckBeforeEmit(calculation, editsUsed.current, { allowSettled: reliquidando });
+      if (check.status === 'failed') { setError(check.message); return; }
+      if (check.status === 'changed') {
+        const antes = formatMoney(calculation.result.totalLiquidado, calculation.result.currency);
+        const ahora = formatMoney(check.calculation.result.totalLiquidado, check.calculation.result.currency);
+        tripRead.current = check.calculation.trip;
+        setCalculation(check.calculation);
+        setExcludedSeqs(new Set()); // los números de línea pudieron cambiar
+        setError(
+          'Las tarifas, reglas o pedidos cambiaron mientras revisaba esta liquidación. '
+          + `Total anterior ${antes}, total actual ${ahora}. Revise el desglose y emita de nuevo.`,
+        );
+        return;
+      }
+
       const input = {
         trip: calculation.trip,
         partyId: calculation.partyId,

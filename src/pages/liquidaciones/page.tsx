@@ -4,7 +4,7 @@
 // "Viajes por liquidar" es la bandeja de entrada; "Historial" son las liquidaciones emitidas, con
 // su estado y la cadena de re-liquidaciones (un viaje tiene UNA vigente).
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Card from '../../components/base/Card';
 import Button from '../../components/base/Button';
 import Input from '../../components/base/Input';
@@ -92,6 +92,11 @@ function PedidosEmitidos({ orders, currency }: { orders: SettlementOrder[] | nul
     </table>
   );
 }
+
+/** Tiempo que el cursor debe quedarse sobre "Liquidar" para calentar el catálogo. */
+const PREFETCH_DELAY_MS = 300;
+/** Si la pestaña estuvo oculta más de esto, al volver se relee la bandeja. */
+const REFRESH_ON_RETURN_MS = 60_000;
 
 export default function LiquidacionesPage() {
   const { country: activeCountry, countryId, problem, selectedName, loading: loadingCountries } = useActiveCountry();
@@ -187,7 +192,35 @@ export default function LiquidacionesPage() {
 
   useEffect(() => { setError(''); void loadTrips(); void loadSettlements(); }, [loadTrips, loadSettlements]);
 
-  const reload = () => { void loadTrips(); void loadSettlements(); };
+  const lastLoadAt = useRef(Date.now());
+  const reload = () => { lastLoadAt.current = Date.now(); void loadTrips(); void loadSettlements(); };
+
+  // Al volver a la pestaña después de un rato se relee la bandeja: otra persona pudo liquidar o cambiar
+  // viajes. Es una sola lectura y solo cuando la pestaña vuelve a ser visible, no un sondeo.
+  useEffect(() => { lastLoadAt.current = Date.now(); }, [loadTrips, loadSettlements]);
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible' || Date.now() - lastLoadAt.current < REFRESH_ON_RETURN_MS) return;
+      lastLoadAt.current = Date.now();
+      void loadTrips();
+      void loadSettlements();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [loadTrips, loadSettlements]);
+
+  // Calentar el catálogo solo si el cursor se queda sobre "Liquidar": recorrer la tabla con el mouse no
+  // dispara una lectura por fila (cada una es una invocación del Lambda).
+  const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelPrefetch = () => {
+    if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
+    prefetchTimer.current = null;
+  };
+  const schedulePrefetch = (t: TripRecord) => {
+    cancelPrefetch();
+    prefetchTimer.current = setTimeout(() => { void prefetchTripCatalog(t); }, PREFETCH_DELAY_MS);
+  };
+  useEffect(() => cancelPrefetch, []);
 
   const moneda = activeCountry?.local_currency ?? '';
   const numeroDe = useMemo(
@@ -463,8 +496,10 @@ export default function LiquidacionesPage() {
                   variant={parcial ? 'secondary' : 'primary'}
                   disabled={!!motivo}
                   onClick={() => setModal({ trip: t, settlement: null })}
-                  onMouseEnter={() => { if (!motivo) void prefetchTripCatalog(t); }}
-                  onFocus={() => { if (!motivo) void prefetchTripCatalog(t); }}
+                  onMouseEnter={() => { if (!motivo) schedulePrefetch(t); }}
+                  onFocus={() => { if (!motivo) schedulePrefetch(t); }}
+                  onMouseLeave={cancelPrefetch}
+                  onBlur={cancelPrefetch}
                   title={motivo ?? (parcial ? 'Tiene pedidos sin entregar: podés anularlos o dejarlos para después' : 'Liquidar este viaje')}
                 >
                   <i className="ri-calculator-line mr-1"></i>Liquidar

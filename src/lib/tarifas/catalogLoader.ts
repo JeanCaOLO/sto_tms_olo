@@ -341,13 +341,19 @@ onDataWrite((touched) => {
  * parámetros de costo o su política de margen—, con un mensaje que dice dónde configurarlo.
  * Devolver un catálogo a medias produciría un total plausible calculado sobre huecos.
  */
-export async function loadTarifasCatalog(countryId: string, partyId: string | null): Promise<TarifasCatalog> {
+export async function loadTarifasCatalog(
+  countryId: string,
+  partyId: string | null,
+  options: { fresh?: boolean } = {},
+): Promise<TarifasCatalog> {
   // Solo contra la API: con el driver JSON (demo y tests) leer es gratis y un caché solo estorbaría.
   if (db().kind !== 'http') return fetchCatalog(countryId, partyId);
 
   const key = `${countryId}|${partyId ?? ''}`;
   const hit = catalogCache.get(key);
-  if (hit && Date.now() - hit.at < CATALOG_TTL_MS) {
+  // `fresh` salta la caché (se usa antes de emitir, donde un dato viejo se paga) pero deja lo leído
+  // guardado para que lo que se haga después en la pantalla ya parta de lo último.
+  if (!options.fresh && hit && Date.now() - hit.at < CATALOG_TTL_MS) {
     recordCatalog(true);
     return structuredClone(await hit.promise);
   }
