@@ -1,24 +1,19 @@
-// Los pedidos de un viaje (una guía de despacho = un pedido).
-//
-// Sirve para dos cosas:
-//   - Auditar: ver qué pedidos lleva el viaje y cuáles faltan por entregar (solo lectura).
-//   - Liquidar por partes: anular un pedido (no entra en el reparto) o dejarlo para liquidar después
-//     (sigue repartiéndose su parte, pero su proforma queda pendiente). Ninguna de las dos cambia lo
-//     que se le paga al transportista.
+// Trip orders (dispatch guides). Shows delivery status and order marks (annul/defer).
 
 import { useCallback, useEffect, useState } from 'react';
 import Badge from '../../../components/base/Badge';
 import Button from '../../../components/base/Button';
 import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
-import { listTripOrders, setOrderMark } from '../../../lib/tarifas/tripsDataSource';
+import { listTripOrders } from '../../../lib/tarifas/tripsDataSource';
 import { deliveryLabel, isDelivered, MARK_LABELS } from '../../../lib/tarifas/tripOrders';
 import { formatMoney } from '../../../lib/tarifas/format';
+import { toDecimal } from '../../../lib/tarifas/money';
+import { useOrderMarking } from '../hooks/useOrderMarking';
 import type { OrderMark, TripOrder, TripRecord } from '../../../lib/tarifas/types';
 
 interface Props {
   trip: Pick<TripRecord, 'id' | 'countryId'>;
   currency: string;
-  /** Con permiso de liquidar y viaje liquidable: muestra las acciones de cada pedido. */
   editable?: boolean;
   /**
    * Pedidos ya leídos por quien usa el panel (el modal de liquidar los trae con el cálculo). Con esto el
@@ -28,7 +23,6 @@ interface Props {
   orders?: TripOrder[];
   /** Se llama después de cambiar una marca, para que quien la usa recalcule. Si devuelve una promesa, se espera. */
   onChanged?: () => void | Promise<unknown>;
-  /** Texto de arriba (cambia entre la fila extendida y el modal). */
   intro?: string;
 }
 
@@ -36,17 +30,16 @@ const MARK_VARIANT: Record<string, 'default' | 'warning' | 'danger'> = {
   ANULADO: 'danger', DIFERIDO: 'warning',
 };
 
-export default function TripOrdersPanel({ trip, currency, editable = false, orders: given, onChanged, intro }: Props) {
+export default function TripOrdersPanel({
+  trip, currency, editable = false, orders: given, onChanged, intro,
+}: Props) {
   const controlled = given !== undefined;
   const [ownOrders, setOrders] = useState<TripOrder[]>([]);
   const [ownLoading, setLoading] = useState(!controlled);
   const orders = controlled ? given : ownOrders;
   const loading = controlled ? false : ownLoading;
   const [error, setError] = useState('');
-  // Pedido al que se le está pidiendo el motivo de la anulación.
-  const [annulling, setAnnulling] = useState<string | null>(null);
-  const [reason, setReason] = useState('');
-  const [busy, setBusy] = useState(false);
+  const { annulling, setAnnulling, reason, setReason, busy, apply } = useOrderMarking(trip);
 
   const load = useCallback(async () => {
     if (controlled) return;
@@ -64,24 +57,18 @@ export default function TripOrdersPanel({ trip, currency, editable = false, orde
 
   useEffect(() => { void load(); }, [load]);
 
-  const apply = async (order: TripOrder, mark: OrderMark | null, why?: string) => {
-    if (!order.orderId) return;
-    setBusy(true);
-    setError('');
-    const { error: err } = await setOrderMark({ trip, orderId: order.orderId, mark, reason: why });
-    setBusy(false);
-    if (err) { setError(err); return; }
-    setAnnulling(null);
-    setReason('');
-    if (controlled) {
+  const handleMarkOrder = async (order: TripOrder, mark: OrderMark, why?: string) => {
+    const success = await apply(order, mark, why);
+    if (success) {
+      setError('');
       // Quien usa el panel recalcula y con eso trae los pedidos nuevos: una sola lectura.
-      setBusy(true);
-      try { await onChanged?.(); } finally { setBusy(false); }
-      return;
+      if (controlled) { await onChanged?.(); return; }
+      // Sin pedidos dados, el recálculo de quien lo usa y la recarga de la tabla van a la vez.
+      onChanged?.();
+      await load();
+    } else {
+      setError('Error al cambiar la marca del pedido');
     }
-    // Sin pedidos dados, el recálculo de quien lo usa y la recarga de la tabla van a la vez.
-    onChanged?.();
-    await load();
   };
 
   const pendientes = orders.filter((o) => !isDelivered(o) && o.mark !== 'ANULADO').length;
@@ -94,7 +81,7 @@ export default function TripOrdersPanel({ trip, currency, editable = false, orde
     {
       key: 'value', header: 'Valor', sortable: true, align: 'right',
       accessor: (o) => Number(o.value),
-      render: (o) => (Number(o.value) > 0 ? formatMoney(o.value, currency) : <span className="text-slate-300">—</span>),
+      render: (o) => (toDecimal(o.value).greaterThan(0) ? formatMoney(o.value, currency) : <span className="text-slate-300">—</span>),
     },
     { key: 'weight', header: 'Peso (kg)', sortable: true, align: 'right', accessor: (o) => o.weightKg },
     {
@@ -121,13 +108,14 @@ export default function TripOrdersPanel({ trip, currency, editable = false, orde
       {intro && <p className="text-xs text-slate-500">{intro}</p>}
       {pendientes > 0 && (
         <p className="text-xs text-amber-700">
-          <i className="ri-error-warning-line mr-1"></i>
+          <i className="ri-error-warning-line mr-1" />
           {pendientes} pedido{pendientes === 1 ? '' : 's'} sin entregar en este viaje.
         </p>
       )}
       {error && <p className="text-xs text-red-600">{error}</p>}
 
       <DataTable
+        maxVisibleRows={5}
         data={orders}
         columns={columns}
         getRowId={(o) => o.guideId}
@@ -146,28 +134,28 @@ export default function TripOrdersPanel({ trip, currency, editable = false, orde
                 aria-label="Motivo de la anulación"
                 className="w-44 px-2 py-1 text-xs border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-teal-500"
               />
-              <Button size="sm" variant="danger" disabled={busy || !reason.trim()} onClick={() => void apply(o, 'ANULADO', reason)}>
+              <Button size="sm" variant="danger" disabled={busy || !reason.trim()} onClick={() => void handleMarkOrder(o, 'ANULADO', reason)}>
                 Anular
               </Button>
               <Button size="sm" variant="ghost" onClick={() => { setAnnulling(null); setReason(''); }}>
-                <i className="ri-close-line"></i>
+                <i className="ri-close-line" />
               </Button>
             </div>
           ) : (
             <div className="flex items-center gap-1">
               {o.mark && (
-                <Button size="sm" variant="secondary" disabled={busy || !o.orderId} onClick={() => void apply(o, null)} title="Volver a incluir el pedido">
+                <Button size="sm" variant="secondary" disabled={busy || !o.orderId} onClick={() => void handleMarkOrder(o, null)} title="Volver a incluir el pedido">
                   Incluir
                 </Button>
               )}
               {o.mark !== 'DIFERIDO' && (
-                <Button size="sm" variant="secondary" disabled={busy || !o.orderId} onClick={() => void apply(o, 'DIFERIDO')} title="Se reparte su parte, pero su proforma queda pendiente">
+                <Button size="sm" variant="secondary" disabled={busy || !o.orderId} onClick={() => void handleMarkOrder(o, 'DIFERIDO')} title="Se reparte su parte, pero su proforma queda pendiente">
                   Liquidar después
                 </Button>
               )}
               {o.mark !== 'ANULADO' && (
                 <Button size="sm" variant="ghost" disabled={busy || !o.orderId} onClick={() => { setAnnulling(o.guideId); setReason(''); }} title="Sacar el pedido del reparto">
-                  <i className="ri-prohibited-line"></i>
+                  <i className="ri-prohibited-line" />
                 </Button>
               )}
             </div>

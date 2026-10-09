@@ -68,8 +68,8 @@ export interface FindRequest {
 }
 
 export interface DataSource {
-  /** Qué driver está activo. Útil para avisos en la UI ("estás sobre datos locales"). */
-  readonly kind: 'json' | 'http';
+  /** Qué driver está activo. */
+  readonly kind: 'http';
 
   find(entity: EntityName, options?: FindOptions): Promise<Row[]>;
   /**

@@ -4,14 +4,15 @@
 // cuando ESTA sesión escribe algo del catálogo. Lo transaccional (liquidaciones, viajes) no lo descarta.
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { HttpDataSource, JsonDataSource, notifyWrite, onDataWrite, setDataSource, type DataSource, type FindOptions } from '../data';
+import { HttpDataSource, notifyWrite, onDataWrite, setDataSource, type DataSource, type FindOptions } from '../data';
+import { MemoryDataSource } from './helpers/memory/driver';
 import { invalidateCatalogCache, loadTarifasCatalog } from '../catalogLoader';
 
-/** Un JsonDataSource que se hace pasar por la API y cuenta las lecturas. */
+/** Un MemoryDataSource que se hace pasar por la API y cuenta las lecturas. */
 class ApiFalsa implements DataSource {
   readonly kind = 'http' as const;
   lecturas = 0;
-  private readonly json = new JsonDataSource();
+  private readonly json = new MemoryDataSource();
   find(entity: Parameters<DataSource['find']>[0], options?: FindOptions) { this.lecturas += 1; return this.json.find(entity, options); }
   findOne(entity: Parameters<DataSource['findOne']>[0], id: string) { this.lecturas += 1; return this.json.findOne(entity, id); }
   insert(...a: Parameters<DataSource['insert']>) { return this.json.insert(...a); }
@@ -27,7 +28,7 @@ beforeEach(() => {
   api = new ApiFalsa();
   setDataSource(api);
 });
-afterEach(() => { setDataSource(null); invalidateCatalogCache(); });
+afterEach(() => { setDataSource(new MemoryDataSource()); invalidateCatalogCache(); });
 
 describe('caché del catálogo contra la API', () => {
   it('la segunda carga del mismo país y perfil no lee nada', async () => {

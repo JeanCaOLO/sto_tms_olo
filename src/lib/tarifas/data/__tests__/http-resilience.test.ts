@@ -6,6 +6,8 @@ import { HttpDataSource, resetHttpFeatureFlags } from '../http-datasource';
 import { diffMetrics, getTarifasMetrics } from '../metrics';
 import { findMany } from '../datasource';
 
+type RequestInit = NonNullable<Parameters<typeof fetch>[1]>;
+
 const json = (status: number, body: unknown) =>
   new Response(status === 204 ? null : JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 

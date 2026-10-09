@@ -65,14 +65,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(s);
         setUser(s?.user ?? null);
         if (s?.user) {
-          fetchAppUser(s.user.id).finally(() => setLoading(false));
+          void fetchAppUser(s.user.id).finally(() => setLoading(false));
         } else {
           setLoading(false);
         }
       })
-      .catch(() => {
+      .catch((e) => {
         // Backend inalcanzable al restaurar sesión: tratamos como "sin sesión"
         // y dejamos que el usuario inicie sesión (real o, si aplica, mock).
+        console.error('Error al obtener sesión:', e);
         setLoading(false);
       });
 
@@ -80,13 +81,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(s);
       setUser(s?.user ?? null);
       if (s?.user) {
-        fetchAppUser(s.user.id);
+        void fetchAppUser(s.user.id);
       } else {
         setAppUser(null);
       }
     });
 
     return () => { subscription.unsubscribe(); };
+    // Suscripción única al montar; `fetchAppUser` solo usa setters estables.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const signIn = async (email: string, password: string): Promise<{ error: string | null }> => {

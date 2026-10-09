@@ -4,13 +4,14 @@
 // están anulados, en vez de traer todo el historial y descartar en el cliente.
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { JsonDataSource, setDataSource, type DataSource, type FindOptions } from '../data';
+import { setDataSource, type DataSource, type FindOptions } from '../data';
+import { MemoryDataSource } from './helpers/memory/driver';
 import { listPendingTrips } from '../tripsDataSource';
 
 class Espia implements DataSource {
-  readonly kind = 'json' as const;
+  readonly kind = 'http' as const;
   consultas: { entity: string; options?: FindOptions }[] = [];
-  private readonly json = new JsonDataSource();
+  private readonly json = new MemoryDataSource();
   find(entity: Parameters<DataSource['find']>[0], options?: FindOptions) { this.consultas.push({ entity, options }); return this.json.find(entity, options); }
   findOne(...a: Parameters<DataSource['findOne']>) { return this.json.findOne(...a); }
   insert(...a: Parameters<DataSource['insert']>) { return this.json.insert(...a); }
@@ -21,7 +22,7 @@ class Espia implements DataSource {
 
 let espia: Espia;
 beforeEach(() => { localStorage.clear(); espia = new Espia(); setDataSource(espia); });
-afterEach(() => setDataSource(null));
+afterEach(() => setDataSource(new MemoryDataSource()));
 
 const columnasDeViajes = () => espia.consultas
   .filter((c) => c.entity === 'trip')

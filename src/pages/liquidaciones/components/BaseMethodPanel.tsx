@@ -9,9 +9,8 @@
 
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../../../hooks/useAuth';
 import { usePermissions } from '../../../hooks/usePermissions';
-import RuleModal from '../../reglas-tarifa/components/RuleModal';
+import CrearReglaBase from './CrearReglaBase';
 import { BASE_RULE_TEMPLATES, describeCurrentBase, sourceSentence } from '../../../lib/tarifas/baseMethods';
 import { formatInputs, formatMoney } from '../../../lib/tarifas/format';
 import type { TripCalculation } from '../../../lib/tarifas/tripSettlement';
@@ -168,32 +167,5 @@ export default function BaseMethodPanel({ calculation, value, onChange, busy, ex
         />
       )}
     </section>
-  );
-}
-
-/** Formulario de reglas precargado para una regla BASE. Solo se monta para administradores. */
-function CrearReglaBase({ isOpen, onClose, onCreated, calculation, template }: {
-  isOpen: boolean;
-  onClose: () => void;
-  onCreated: () => void;
-  calculation: TripCalculation;
-  template: (typeof BASE_RULE_TEMPLATES)[keyof typeof BASE_RULE_TEMPLATES] | null;
-}) {
-  const { appUser } = useAuth();
-  const { country } = calculation.input;
-  return (
-    <RuleModal
-      isOpen={isOpen}
-      onClose={onClose}
-      onSuccess={onCreated}
-      organizationId={appUser?.organization_id || ''}
-      country={{ id: country.id, name: country.name, local_currency: country.localCurrency }}
-      usuarioActivo={appUser?.full_name || appUser?.email || 'Usuario'}
-      defaults={{
-        stage: 'BASE',
-        partyId: calculation.partyId,
-        ...(template ? { operator: template.operator, variable: template.variable } : {}),
-      }}
-    />
   );
 }

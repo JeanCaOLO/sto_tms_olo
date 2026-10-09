@@ -4,7 +4,8 @@
 // abierta, emitir con el cálculo mostrado pagaría un valor viejo.
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { JsonDataSource, setDataSource, type DataSource, type FindOptions } from '../data';
+import { setDataSource, type DataSource, type FindOptions } from '../data';
+import { MemoryDataSource } from './helpers/memory/driver';
 import { invalidateCatalogCache } from '../catalogLoader';
 import { calculateTrip, calculationSignature, recheckBeforeEmit } from '../tripSettlement';
 import { listPendingTrips } from '../tripsDataSource';
@@ -12,7 +13,7 @@ import type { TripCalculation } from '../tripSettlement';
 
 class ApiFalsa implements DataSource {
   readonly kind = 'http' as const;
-  readonly json = new JsonDataSource();
+  readonly json = new MemoryDataSource();
   find(entity: Parameters<DataSource['find']>[0], options?: FindOptions) { return this.json.find(entity, options); }
   findOne(entity: Parameters<DataSource['findOne']>[0], id: string) { return this.json.findOne(entity, id); }
   insert(...a: Parameters<DataSource['insert']>) { return this.json.insert(...a); }
@@ -28,10 +29,10 @@ beforeEach(() => {
   api = new ApiFalsa();
   setDataSource(api);
 });
-afterEach(() => { setDataSource(null); invalidateCatalogCache(); });
+afterEach(() => { setDataSource(new MemoryDataSource()); invalidateCatalogCache(); });
 
 async function firstCalculation(): Promise<TripCalculation | null> {
-  const trips = await listPendingTrips({});
+  const trips = await listPendingTrips('all', {});
   for (const t of trips) {
     const res = await calculateTrip(t);
     if (res.status === 'ok' && res.calculation.result.trace.length > 0) return res.calculation;

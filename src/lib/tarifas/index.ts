@@ -12,7 +12,8 @@
 // del entorno.
 
 import { allocateTotal } from './allocation';
-import { applyBaseOverride, describeBaseMethods, type BaseMethodOption } from './baseMethods';
+import { describeBaseMethods, type BaseMethodOption } from './baseMethods';
+import { applyBaseOverride } from './baseOverride';
 import { computeCost } from './cost';
 import { runChargePipeline } from './evaluator';
 import { computeMargin } from './margin';

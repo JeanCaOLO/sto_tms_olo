@@ -4,11 +4,12 @@
 // en dos idas y vueltas.
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { db, JsonDataSource, setDataSource, type DataSource, type FindOptions, type FindRequest } from '../data';
+import { db, setDataSource, type DataSource, type FindOptions, type FindRequest } from '../data';
+import { MemoryDataSource } from './helpers/memory/driver';
 import { invalidateCatalogCache, loadTarifasCatalog } from '../catalogLoader';
 import { dateOnly, listSettlementSummariesPage, listSettlements } from '../settlementsDataSource';
 
-const sinCache = () => { localStorage.clear(); invalidateCatalogCache(); setDataSource(null); };
+const sinCache = () => { localStorage.clear(); invalidateCatalogCache(); setDataSource(new MemoryDataSource()); };
 afterEach(sinCache);
 
 /** La semilla no trae liquidaciones: se siembran 5 con fechas y números distintos (una repetida a propósito). */
@@ -28,7 +29,7 @@ describe('after (driver JSON)', () => {
   const orden = [{ column: 'settlement_date', direction: 'desc' as const }, { column: 'number', direction: 'desc' as const }];
 
   it('descendente: trae lo que viene después del cursor, sin repetirlo', async () => {
-    const db = new JsonDataSource();
+    const db = new MemoryDataSource();
     const todas = await db.find('settlement', { orderBy: orden });
     expect(todas.length).toBeGreaterThan(2);
     const cursor = { settlement_date: todas[1].settlement_date, number: todas[1].number };
@@ -38,7 +39,7 @@ describe('after (driver JSON)', () => {
   });
 
   it('recorrer por páginas de 2 junta exactamente lo mismo que una sola lectura', async () => {
-    const db = new JsonDataSource();
+    const db = new MemoryDataSource();
     const todas = await db.find('settlement', { orderBy: orden });
     const vistas: string[] = [];
     let after: Record<string, unknown> | undefined;
@@ -53,7 +54,7 @@ describe('after (driver JSON)', () => {
   });
 
   it('rechaza un cursor que no coincide con el orden', async () => {
-    await expect(new JsonDataSource().find('settlement', { orderBy: orden, after: { number: 'x' } })).rejects.toThrow('after');
+    await expect(new MemoryDataSource().find('settlement', { orderBy: orden, after: { number: 'x' } })).rejects.toThrow('after');
   });
 });
 
@@ -99,7 +100,7 @@ describe('el catálogo se lee en dos idas y vueltas', () => {
     idas = 0;
     sueltas = 0;
     tandas: number[] = [];
-    private readonly json = new JsonDataSource();
+    private readonly json = new MemoryDataSource();
     async find(entity: Parameters<DataSource['find']>[0], options?: FindOptions) { this.idas += 1; this.sueltas += 1; return this.json.find(entity, options); }
     async findMany(requests: FindRequest[]) {
       this.idas += 1;
@@ -126,7 +127,7 @@ describe('el catálogo se lee en dos idas y vueltas', () => {
     setDataSource(new Contador());
     const agrupado = await loadTarifasCatalog('VE', null);
     invalidateCatalogCache();
-    setDataSource(new JsonDataSource());
+    setDataSource(new MemoryDataSource());
     const suelto = await loadTarifasCatalog('VE', null);
     expect(agrupado).toEqual(suelto);
   });

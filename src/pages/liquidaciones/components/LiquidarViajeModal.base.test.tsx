@@ -23,7 +23,7 @@ vi.mock('../../../hooks/useAuth', () => ({
 let trip: TripRecord;
 const renderModal = () => render(
   <MemoryRouter>
-    <LiquidarViajeModal isOpen trip={trip} onClose={() => {}} onSaved={() => {}} />
+    <LiquidarViajeModal isOpen trip={trip} settlement={null} onClose={() => {}} onSaved={() => {}} />
   </MemoryRouter>,
 );
 
