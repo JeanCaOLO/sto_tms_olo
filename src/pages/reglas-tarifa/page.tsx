@@ -11,6 +11,7 @@ import BitacoraTab from './components/BitacoraTab';
 import HelpButton from './components/HelpButton';
 import { useTarifasActor } from '../../hooks/useTarifasActor';
 import CountryScopeBar from '../../components/feature/CountryScopeBar';
+import ViewAsToggle from '../../components/feature/ViewAsToggle';
 import { useActiveCountry } from '../../hooks/useActiveCountry';
 import { useModulePermissions } from '../../hooks/use-module-permissions';
 import { useReglasTarifaController } from './hooks/useReglasTarifaController';
@@ -49,6 +50,7 @@ export default function ReglasTarifaPage() {
         <p className="text-sm text-slate-500 mt-1">Reglas de liquidación al transportista configurables</p>
       </div>
       <div className="flex items-center gap-3">
+        <ViewAsToggle />
         {canCreate && controller.activeTab === 'reglas' && (
           <Button onClick={() => { controller.setSelectedRule(null); controller.setIsRuleModalOpen(true); }}>
             <i className="ri-add-line mr-2"></i>

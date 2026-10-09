@@ -15,7 +15,12 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
   USD: '$',
   COP: '$',
   CRC: '₡',
+  VES: 'Bs.',
+  VEF: 'Bs.',
 };
+
+/** Monedas cuyo país escribe los importes con punto para miles y coma para decimales (es-VE). */
+const COMMA_DECIMAL_CURRENCIES = new Set(['VES', 'VEF']);
 
 /**
  * Agrupa los miles de un decimal exacto en texto ("28224.50" -> "28,224.50") sin pasar por `Number`,
@@ -28,9 +33,23 @@ export function groupThousands(amount: string): string {
   return `${sign}${integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${fraction}`;
 }
 
-export function formatMoney(amount: string, currency: string): string {
+/**
+ * Moneda que se MUESTRA en pantalla en vez de la que trae el dato (solo presentación). Hoy Costa Rica
+ * se ve en colones aunque `countries.currency` y las liquidaciones ya emitidas digan USD. Lo fija
+ * `useActiveCountry` según el país activo; null = se muestra la moneda del dato.
+ */
+let displayCurrencyOverride: string | null = null;
+export function setDisplayCurrencyOverride(currency: string | null): void {
+  displayCurrencyOverride = currency;
+}
+
+export function formatMoney(amount: string, dataCurrency: string): string {
+  const currency = displayCurrencyOverride ?? dataCurrency;
   const symbol = CURRENCY_SYMBOLS[currency];
-  const value = groupThousands(amount);
+  const grouped = groupThousands(amount);
+  const value = COMMA_DECIMAL_CURRENCIES.has(currency)
+    ? grouped.replace(/[.,]/g, (c) => (c === ',' ? '.' : ','))
+    : grouped;
   return symbol ? `${symbol}${value}` : `${value} ${currency}`;
 }
 

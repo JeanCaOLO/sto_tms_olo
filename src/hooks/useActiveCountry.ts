@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { listCountries } from '../lib/tarifas/localRulesDataSource';
+import { setDisplayCurrencyOverride } from '../lib/tarifas/format';
 import { useOperationalContext } from './useOperationalContext';
 import { usePermissions } from './usePermissions';
 
@@ -85,9 +86,13 @@ export function useActiveCountry(): ActiveCountryState {
       else if (match.settings_id === null) problem = 'not-configured';
     }
 
+    // Costa Rica se muestra en colones aunque la BD diga USD (solo presentación, ver format.ts).
+    const shown = match && match.iso2 === 'CR' ? { ...match, local_currency: 'CRC' } : match;
+    setDisplayCurrencyOverride(shown?.iso2 === 'CR' ? 'CRC' : null);
+
     return {
       countries: visible,
-      country: problem === 'none-selected' || problem === 'not-available' ? null : match,
+      country: problem === 'none-selected' || problem === 'not-available' ? null : shown,
       countryId: problem === 'none-selected' || problem === 'not-available' ? '' : match?.id ?? '',
       selectedName: selected?.name ?? null,
       problem,

@@ -55,6 +55,9 @@ interface DataTableProps<T> {
   // Opcional: cuántas filas se ven a la vez. Si hay más, la tabla se desplaza por dentro (encabezado
   // fijo) en vez de alargar la pantalla. Sin esta prop la tabla crece con sus filas, como siempre.
   maxVisibleRows?: number;
+  // Opcional: filtros de columna ya aplicados al abrir la tabla ({ clave: [valores visibles] }). El
+  // usuario puede quitarlos desde el encabezado de la columna.
+  initialColumnFilters?: Record<string, string[]>;
 }
 
 export interface ColumnLayout {
@@ -210,12 +213,15 @@ export default function DataTable<T>({
   renderExpanded,
   canExpand,
   maxVisibleRows,
+  initialColumnFilters,
 }: DataTableProps<T>) {
   const { t } = useTranslation();
   const location = useLocation();
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<{ key: string; direction: SortDirection } | null>(null);
-  const [columnFilters, setColumnFilters] = useState<Record<string, Set<string> | null>>({});
+  const [columnFilters, setColumnFilters] = useState<Record<string, Set<string> | null>>(() =>
+    Object.fromEntries(Object.entries(initialColumnFilters ?? {}).map(([key, values]) => [key, new Set(values)])),
+  );
   const [openFilterKey, setOpenFilterKey] = useState<string | null>(null);
   const [filterAnchor, setFilterAnchor] = useState<DOMRect | null>(null);
   const scrolls = maxVisibleRows !== undefined;

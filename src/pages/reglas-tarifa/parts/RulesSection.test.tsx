@@ -35,4 +35,21 @@ describe('RulesSection', () => {
     expect(screen.getByText('Sobrescribe')).toBeTruthy();
     expect(screen.getByText('Heredada (sobrescrita)')).toBeTruthy();
   });
+
+  it('al entrar solo muestra las reglas activas (filtro preactivado)', () => {
+    const mixed: RuleRow[] = [
+      { ...rules[0], id: 'R3', code: 'ON', name: 'Regla encendida' },
+      { ...rules[0], id: 'R4', code: 'OFF', name: 'Regla apagada', active: false },
+    ];
+    render(
+      <MemoryRouter>
+        <RulesSection
+          rules={mixed} parties={parties} loading={false}
+          canCreate canEdit canDelete onNew={() => {}} onEdit={() => {}} onDelete={() => {}}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText('Regla encendida')).toBeTruthy();
+    expect(screen.queryByText('Regla apagada')).toBeNull();
+  });
 });

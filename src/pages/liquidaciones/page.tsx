@@ -8,6 +8,7 @@ import Input from '../../components/base/Input';
 import DataTable from '../../components/base/DataTable';
 import StatCard from '../../components/feature/StatCard';
 import CountryScopeBar from '../../components/feature/CountryScopeBar';
+import ViewAsToggle from '../../components/feature/ViewAsToggle';
 import LiquidarViajeModal from './components/LiquidarViajeModal';
 import DetalleLiquidacionModal from './components/DetalleLiquidacionModal';
 import TripOrdersPanel from './components/TripOrdersPanel';
@@ -72,7 +73,10 @@ export default function LiquidacionesPage() {
             Cuánto se le paga a cada transportista por cada viaje completado, y por qué.
           </p>
         </div>
-        {puedeConfigurar && <InterruptorVista extendida={extendida} onChange={setExtendida} />}
+        <div className="flex flex-wrap items-center gap-3">
+          <ViewAsToggle />
+          {puedeConfigurar && <InterruptorVista extendida={extendida} onChange={setExtendida} />}
+        </div>
       </div>
 
       <CountryScopeBar country={activeCountry} problem={problem} selectedName={selectedName} loading={loadingCountries} />
