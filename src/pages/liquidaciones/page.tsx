@@ -8,11 +8,10 @@ import Input from '../../components/base/Input';
 import DataTable from '../../components/base/DataTable';
 import StatCard from '../../components/feature/StatCard';
 import CountryScopeBar from '../../components/feature/CountryScopeBar';
-import ViewAsToggle from '../../components/feature/ViewAsToggle';
 import LiquidarViajeModal from './components/LiquidarViajeModal';
 import DetalleLiquidacionModal from './components/DetalleLiquidacionModal';
 import TripOrdersPanel from './components/TripOrdersPanel';
-import { InterruptorVista } from './components/InterruptorVista';
+import { PageHeader } from './parts/PageHeader';
 import { useActiveCountry } from '../../hooks/useActiveCountry';
 import { useModulePermissions } from '../../hooks/use-module-permissions';
 import { useTarifasActor } from '../../hooks/useTarifasActor';
@@ -66,18 +65,7 @@ export default function LiquidacionesPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-800">Liquidaciones</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Cuánto se le paga a cada transportista por cada viaje completado, y por qué.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <ViewAsToggle />
-          {puedeConfigurar && <InterruptorVista extendida={extendida} onChange={setExtendida} />}
-        </div>
-      </div>
+      <PageHeader puedeConfigurar={puedeConfigurar} extendida={extendida} onChange={setExtendida} />
 
       <CountryScopeBar country={activeCountry} problem={problem} selectedName={selectedName} loading={loadingCountries} />
 
