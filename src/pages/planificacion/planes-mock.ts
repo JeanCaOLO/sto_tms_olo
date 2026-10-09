@@ -67,6 +67,7 @@ export function construirDraft(fecha: string, ctx: Contexto): RoutePlan {
     const stops = v.pedidos.map((p, j) => stopDe(p, j + 1));
     return recalcularTotales({
       id: nuevoId('trip'),
+      status: 'pending',
       vehicle_id: veh.id,
       driver_id: v.slot.conductorId || null,
       delivery_zone: v.destino,

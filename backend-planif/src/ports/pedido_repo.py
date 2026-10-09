@@ -25,3 +25,8 @@ class PedidoRepo(Protocol):
     def por_ids(self, order_ids: list[str]) -> list[Pedido]:
         """Pedidos concretos por id (para revalidar capacidad en el PUT)."""
         ...
+
+    def articulos_de(self, order_id: str) -> list[dict]:
+        """Líneas/artículos de un pedido (order_items) para el detalle del pin.
+        Lista vacía si no hay o si la tabla no existe."""
+        ...

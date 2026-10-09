@@ -87,6 +87,17 @@ Resources:
         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
       Target: !Sub integrations/${PlanningApiIntegration}
 
+  PlanningOrderItemsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/v1/planificacion/pedidos/{id}/articulos
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${PlanningApiIntegration}
+
   PlanningCreatePlanRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:

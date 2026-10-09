@@ -5,7 +5,7 @@ from __future__ import annotations
 from domain.models import Pedido
 from adapters.outbound.aurora import mocks
 from adapters.outbound.aurora.schema_probe import tabla_existe
-from adapters.outbound.aurora.sql import ORDERS_BY_IDS_SQL, ORDERS_SQL
+from adapters.outbound.aurora.sql import ITEMS_BY_ORDER_SQL, ORDERS_BY_IDS_SQL, ORDERS_SQL
 from lib.tms_common import pg
 
 
@@ -48,3 +48,18 @@ class AuroraPedidoRepo:
             return [p for p in mocks.MOCK_PEDIDOS if p.id in set(order_ids)]
         rows = pg.query(ORDERS_BY_IDS_SQL, [order_ids])
         return [_to_pedido(r) for r in rows]
+
+    def articulos_de(self, order_id: str) -> list[dict]:
+        if not order_id or not tabla_existe("order_items"):
+            return []
+        return [
+            {
+                "product_code": r.get("product_code"),
+                "product_name": r.get("product_name"),
+                "quantity": r.get("quantity"),
+                "weight": r.get("weight"),
+                "volume": r.get("volume"),
+                "guia_fiscal": r.get("guia_fiscal"),
+            }
+            for r in pg.query(ITEMS_BY_ORDER_SQL, [order_id])
+        ]

@@ -11,11 +11,14 @@ function planDePrueba(): RoutePlan {
     customer_name: null,
     delivery_city: null,
     delivery_zone: null,
+    delivery_latitude: null,
+    delivery_longitude: null,
     total_weight: null,
     total_volume: null,
   });
   const trip = (id: string, ids: string[]) => ({
     id,
+    status: 'pending' as const,
     vehicle_id: `v-${id}`,
     driver_id: null,
     delivery_zone: id,

@@ -1,79 +1,131 @@
+import { useState } from 'react';
 import Badge from '../../../components/base/Badge';
+import Button from '../../../components/base/Button';
+import ParadaModal from '../../planificacion/components/ParadaModal';
+import type { PlanStop } from '../../planificacion/planes-types';
+import type { Guia } from '../guia-model';
 
-interface GuideDetail {
-  guide_number: string;
-  sequence_number: number;
-  status: string;
-  delivery_status: 'pending' | 'in_transit' | 'delivered' | 'failed';
-  recipient_name: string | null;
-  planned_arrival_time: string | null;
-  actual_arrival_time: string | null;
-  notes: string | null;
-  routes?: {
-    route_number: string;
-    route_date: string;
-    total_stops: number;
-    completed_stops: number;
-    drivers?: { full_name: string };
-    vehicles?: { plate: string };
-  };
-}
-
-interface GuideDetailModalProps {
-  guide: GuideDetail;
+interface Props {
+  guia: Guia;
   onClose: () => void;
 }
 
-const DELIVERY_STATUS_CONFIG = {
-  pending: { label: 'Pendiente', variant: 'warning' as const },
-  in_transit: { label: 'En Tránsito', variant: 'info' as const },
-  delivered: { label: 'Entregada', variant: 'success' as const },
-  failed: { label: 'Con Incidencias', variant: 'danger' as const },
-};
+const DASH = '—';
+const fecha = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('es-ES');
 
-const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString('es-ES') : '—');
+// Detalle de una guía de despacho = un viaje con sus paradas en secuencia.
+// Informativo + imprimible (window.print, aislado con #guia-imprimible). Clic
+// en una parada abre su detalle con los artículos (ParadaModal, reutilizado).
+export default function GuideDetailModal({ guia, onClose }: Props) {
+  const [parada, setParada] = useState<PlanStop | null>(null);
+  const stops = [...guia.trip.stops].sort((a, b) => a.stop_order - b.stop_order);
 
-// Vista de SOLO LECTURA de una guía (una parada de una ruta) - separada del
-// formulario de edición (GuideModal). El botón "ojo" abre esta; "editar" abre
-// GuideModal. Antes ambos abrían el mismo formulario, lo que confundía "no
-// funciona" con "no hay una vista de detalle real".
-export default function GuideDetailModal({ guide, onClose }: GuideDetailModalProps) {
-  const statusConfig = DELIVERY_STATUS_CONFIG[guide.delivery_status] ?? DELIVERY_STATUS_CONFIG.pending;
+  const datos: [string, string][] = [
+    ['Fecha', fecha(guia.plan_date)],
+    ['Ruta / Zona', guia.zona || DASH],
+    ['Conductor', guia.conductor],
+    ['Vehículo', guia.vehiculo],
+    ['Paradas', String(guia.paradas)],
+    ['Peso total', guia.peso != null ? `${guia.peso} kg` : DASH],
+  ];
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+      <style>{`@media print {
+        body * { visibility: hidden !important; }
+        #guia-imprimible, #guia-imprimible * { visibility: visible !important; }
+        #guia-imprimible { position: absolute; left: 0; top: 0; width: 100%; padding: 16px; }
+        .no-print { display: none !important; }
+      }`}</style>
+
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between no-print">
           <div className="flex items-center gap-3">
-            <h2 className="text-xl font-bold text-slate-800">{guide.guide_number}</h2>
-            <Badge variant={statusConfig.variant}>{statusConfig.label}</Badge>
+            <h2 className="text-xl font-bold text-slate-800 font-mono">{guia.guide_number}</h2>
+            {guia.plan_status === 'completed' ? (
+              <Badge variant="success">Completada</Badge>
+            ) : (
+              <Badge variant="info">Confirmada</Badge>
+            )}
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
-            aria-label="Cerrar"
-          >
-            <i className="ri-close-line text-xl"></i>
-          </button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={() => window.print()}>
+              <i className="ri-printer-line mr-1"></i>Imprimir
+            </Button>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+              aria-label="Cerrar"
+            >
+              <i className="ri-close-line text-xl"></i>
+            </button>
+          </div>
         </div>
 
-        <div className="p-6 grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-          <div className="flex justify-between col-span-2"><span className="text-slate-500">Ruta</span><span className="text-slate-900 font-medium">{guide.routes?.route_number ?? '—'}</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">Fecha</span><span className="text-slate-900">{guide.routes?.route_date ? new Date(guide.routes.route_date).toLocaleDateString('es-ES') : '—'}</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">Parada</span><span className="text-slate-900">{guide.sequence_number} / {guide.routes?.total_stops ?? '—'}</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">Conductor</span><span className="text-slate-900">{guide.routes?.drivers?.full_name ?? '—'}</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">Vehículo</span><span className="text-slate-900">{guide.routes?.vehicles?.plate ?? '—'}</span></div>
-          <div className="flex justify-between col-span-2"><span className="text-slate-500">Destinatario</span><span className="text-slate-900">{guide.recipient_name ?? '—'}</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">Llegada planificada</span><span className="text-slate-900">{fmt(guide.planned_arrival_time)}</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">Llegada real</span><span className="text-slate-900">{fmt(guide.actual_arrival_time)}</span></div>
-          {guide.notes && (
-            <div className="col-span-2 pt-2 border-t border-slate-100">
-              <span className="text-slate-500 block mb-1">Notas</span>
-              <span className="text-slate-700">{guide.notes}</span>
-            </div>
-          )}
+        <div id="guia-imprimible" className="p-6">
+          <div className="hidden print:block mb-4">
+            <h1 className="text-2xl font-bold">Guía de Despacho {guia.guide_number}</h1>
+          </div>
+
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm mb-5">
+            {datos.map(([k, v]) => (
+              <div key={k} className="flex justify-between border-b border-slate-100 py-1">
+                <span className="text-slate-500">{k}</span>
+                <span className="text-slate-900 font-medium text-right">{v}</span>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-[11px] uppercase tracking-wide text-slate-400 font-medium mb-2">Paradas de la ruta</p>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-[11px] uppercase tracking-wide text-slate-400 border-b border-slate-200">
+                <th className="py-1.5 pr-2 font-medium w-8">#</th>
+                <th className="py-1.5 pr-2 font-medium">Cliente</th>
+                <th className="py-1.5 pr-2 font-medium">Pedido</th>
+                <th className="py-1.5 pr-2 font-medium">Ubicación</th>
+                <th className="py-1.5 pl-2 font-medium text-right">Peso</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stops.map((s) => (
+                <tr
+                  key={s.id || s.order_id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setParada(s)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setParada(s);
+                    }
+                  }}
+                  className="border-b border-slate-50 cursor-pointer hover:bg-slate-50 print:cursor-auto"
+                  title="Ver artículos del pedido"
+                >
+                  <td className="py-2 pr-2 font-semibold text-teal-600">{s.stop_order}</td>
+                  <td className="py-2 pr-2 text-slate-800 font-medium">{s.customer_name || DASH}</td>
+                  <td className="py-2 pr-2 text-slate-500 font-mono text-xs">{s.order_number || DASH}</td>
+                  <td className="py-2 pr-2 text-slate-600">
+                    {[s.delivery_city, s.delivery_zone].filter(Boolean).join(' · ') || DASH}
+                  </td>
+                  <td className="py-2 pl-2 text-right text-slate-600">
+                    {s.total_weight != null ? `${s.total_weight} kg` : DASH}
+                  </td>
+                </tr>
+              ))}
+              {stops.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="py-4 text-center text-slate-400">Sin paradas</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          <p className="text-[11px] text-slate-400 mt-2 no-print">Tocá una parada para ver los artículos del pedido.</p>
         </div>
       </div>
+
+      {parada && <ParadaModal parada={parada} onClose={() => setParada(null)} />}
     </div>
   );
 }

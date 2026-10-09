@@ -39,9 +39,21 @@ recurso que se cree, cambie o borre se registra ahí en el mismo cambio.
     `context`, `eflow` (en modo mock), `admin`, `planning` (código de `backend-planif/src`), `oms` (motor de reglas en mock).
   - La BD se usa con el rol de la app `tms_app` (secreto `/dev/tms/db-app`, ver `sql/18`), nunca con el dueño.
   - La Layer `tms_common` se publica por el parámetro SSM `/dev/tms/common-layer-arn` (el script lo actualiza antes de cada módulo). El build es determinista: si el código no cambió, no se publica versión nueva. **Si cambiás `tms_common`, desplegá todo** (o `common-services` y después los módulos) para que las Lambdas tomen la versión nueva.
-- `scripts/sandbox/deploy_frontend.py`: toma la `ApiUrl` de `dev-tms-common-services`, buildea con
-  `VITE_API_BASE`, y publica en Amplify (app `dev-tms-frontend`, rama `sandbox`; la crea si no existe, con la regla
+- `scripts/sandbox/deploy_frontend.py`: toma la `ApiUrl` de `dev-tms-common-services` y la `WebSocketUrl` de
+  `dev-tms-realtime`, buildea con `VITE_API_BASE` y `VITE_WS_URL`, y publica en Amplify (app `dev-tms-frontend`, rama `sandbox`; la crea si no existe, con la regla
   de SPA).
+
+## Avisos en vivo (WebSocket)
+
+El stack `dev-tms-realtime` es el equivalente en AWS de `ws-local.mjs`: la pantalla de Planificación se conecta al
+WebSocket (con el JWT de sesión en `?token=`) y, al recibir `{"type": "pedidos-nuevos"}`, recalcula cuántos pedidos
+nuevos hay. **Quien carga pedidos en Aurora debe avisar** con:
+
+```bash
+curl -X POST "$API/api/v1/realtime/pedidos-nuevos" -H "Authorization: Bearer <token de sesión>"
+```
+
+Si nadie avisa, la pantalla sigue detectándolos por polling cada 15 s.
 
 ## Horario de servidores
 

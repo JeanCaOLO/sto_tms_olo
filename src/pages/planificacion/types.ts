@@ -1,3 +1,13 @@
+// Línea/artículo de un pedido (order_items), para el detalle del pin.
+export interface Articulo {
+  product_code: string;
+  product_name: string;
+  quantity: number;
+  weight: number | null;
+  volume: number | null;
+  guia_fiscal: string | null;
+}
+
 export interface Pedido {
   id: string;
   order_number: string;
