@@ -5,7 +5,6 @@ import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from './hooks/useAuth'
 import { MOCK_AUTH_ENABLED } from './lib/mock-auth'
-import MockRoleSwitch from './components/feature/MockRoleSwitch'
 
 // Modo mock (solo DEV): el tarifador usa el cliente HTTP real contra un backend simulado en memoria,
 // con datos demo, en vez de Aurora.
@@ -16,6 +15,5 @@ createRoot(document.getElementById('root')!).render(
     <AuthProvider>
       <App />
     </AuthProvider>
-    {MOCK_AUTH_ENABLED && <MockRoleSwitch />}
   </StrictMode>,
 )

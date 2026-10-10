@@ -25,7 +25,7 @@ Por qué: un mock que acepta lo que el backend rechaza oculta errores hasta cone
 | `src/hooks/useOperationalContext.tsx` | Usa `mockContextResponse` en modo mock y arranca en Costa Rica. |
 | `src/hooks/usePermissions.tsx` | En modo mock devuelve los permisos del rol de prueba (antes, siempre administrador) y reacciona al cambio de rol. |
 | `src/hooks/useAuth.tsx` | `enterMock()` llama `rememberMockActor()`. |
-| `src/components/feature/MockRoleSwitch.tsx` | Selector «Rol de prueba» (Administrador, Solo liquidar, Solo configurar) en la esquina inferior izquierda; solo en modo mock. |
+| `src/components/feature/MockRoleSwitch.tsx` | Selector «Rol de prueba» (Administrador, Solo liquidar, Solo configurar) en la parte inferior central (solo en las pantallas del tarifador); solo en modo mock. |
 | `src/pages/auditoria/audit-api.ts` | No envía eventos al backend en modo mock. |
 
 ## 3. Semilla demo regenerada (`scripts/build-demo-seed.ts` → `data/memory/seed.demo.json`)

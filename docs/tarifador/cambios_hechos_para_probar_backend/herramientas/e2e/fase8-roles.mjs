@@ -1,6 +1,6 @@
 import { session, go, step, mainText, bodyText, shot, finish } from './lib.mjs';
 const ctx = await session(); const p = ctx.page;
-const setRole = async (label) => { await p.getByLabel('Rol de prueba del modo mock').selectOption({ label }); await p.waitForTimeout(800); };
+const setRole = async (label) => { await p.getByRole('group', { name: 'Rol de prueba del modo mock' }).getByRole('button', { name: label }).click(); await p.waitForTimeout(800); };
 
 await step(ctx, 'RO1 «Solo liquidar»: configuración en solo lectura', async () => {
   await setRole('Solo liquidar');
