@@ -11,17 +11,15 @@ import CountryScopeBar from '../../components/feature/CountryScopeBar';
 import ViewAsToggle from '../../components/feature/ViewAsToggle';
 import LiquidarViajeModal from './components/LiquidarViajeModal';
 import DetalleLiquidacionModal from './components/DetalleLiquidacionModal';
-import TripOrdersPanel from './components/TripOrdersPanel';
+import LiquidarLoteModal from './components/lote/LiquidarLoteModal';
 import { InterruptorVista } from './components/InterruptorVista';
 import { useActiveCountry } from '../../hooks/useActiveCountry';
 import { useModulePermissions } from '../../hooks/use-module-permissions';
 import { useTarifasActor } from '../../hooks/useTarifasActor';
 import { useLiquidacionesController } from './hooks/useLiquidacionesController';
 import { useLiquidadorVista } from './hooks/useLiquidadorVista';
-import { notLiquidableReason } from '../../lib/tarifas/tripContext';
-import { tripProgress } from '../../lib/tarifas/tripOrders';
 import { formatMoney } from '../../lib/tarifas/format';
-import { tripColumns } from './parts/tripColumns';
+import { TripsTable } from './parts/TripsTable';
 import { getSettlementColumns, getSettlementColumnsExtended } from './parts/settlementColumns';
 import { PedidosEmitidos } from './parts/PedidosEmitidos';
 import { LoadMoreBar, TruncatedNotice } from './parts/ListNotices';
@@ -37,11 +35,12 @@ export default function LiquidacionesPage() {
   const {
     tab, setTab, from, setFrom, to, setTo, error, trips, loadingTrips, settlements,
     loadingSettlements, changeStatus, listos, incompletos, kpis,
-    tripsRecortados, siguiente, cargandoMas, loadMore, openFull, prefetchProps, onEmitted, emitida,
+    tripsRecortados, siguiente, cargandoMas, loadMore, openFull, prefetchProps, onEmitted, onBatchEmitted, emitida,
   } = useLiquidacionesController(countryId);
 
   const [alcance, setAlcance] = useState<'ready' | 'incomplete' | 'all'>('ready');
   const [modal, setModal] = useState<{ trip: TripRecord | null; settlement: SettlementRecord | null } | null>(null);
+  const [lote, setLote] = useState<TripRecord[] | null>(null);
   const [detalle, setDetalle] = useState<SettlementRecord | null>(null);
 
   const visibles = useMemo(
@@ -135,44 +134,15 @@ export default function LiquidacionesPage() {
         )}
 
         {tab === 'trips' ? (
-          <DataTable
-            maxVisibleRows={5}
-            data={visibles}
-            columns={tripColumns}
-            getRowId={(t) => t.id}
+          <TripsTable
+            trips={visibles}
             loading={loadingTrips}
-            columnsKey={`liquidaciones.viajes.${extendida ? 'extendida' : 'simple'}`}
-            defaultHidden={extendida ? [] : ['fleet', 'driver', 'vehicle', 'weight', 'zone']}
-            renderExpanded={(t) => (
-              <TripOrdersPanel
-                trip={t}
-                currency={moneda}
-                intro="Pedidos que lleva el viaje, uno por guía de despacho. Se liquidan juntos; desde Liquidar se puede anular alguno o dejarlo para después."
-              />
-            )}
-            searchHidden
-            searchPlaceholder="Buscar por viaje, transportista, conductor o placa"
-            exportFileName="viajes_por_liquidar"
-            emptyMessage="No hay viajes completados pendientes de liquidar"
-            pageSize={25}
-            actions={(t) => {
-              if (!canCreate) return null;
-              const motivo = notLiquidableReason(t);
-              const parcial = !tripProgress(t).complete;
-              return (
-                <Button
-                  size="sm"
-                  variant={parcial ? 'secondary' : 'primary'}
-                  disabled={!!motivo}
-                  onClick={() => setModal({ trip: t, settlement: null })}
-                  {...prefetchProps(t, !!motivo)}
-                  title={motivo ?? (parcial ? 'Tiene pedidos sin entregar: podés anularlos o dejarlos para después' : 'Liquidar este viaje')}
-                >
-                  <i className="ri-calculator-line mr-1" />
-                  Liquidar
-                </Button>
-              );
-            }}
+            extendida={extendida}
+            canCreate={canCreate}
+            currency={moneda}
+            prefetchProps={prefetchProps}
+            onLiquidar={(t) => setModal({ trip: t, settlement: null })}
+            onLiquidarLote={setLote}
           />
         ) : (
           <div className="space-y-3">
@@ -218,6 +188,8 @@ export default function LiquidacionesPage() {
         onClose={() => setModal(null)}
         onSaved={onEmitted}
       />
+
+      {lote && <LiquidarLoteModal trips={lote} onClose={() => setLote(null)} onEmitted={onBatchEmitted} />}
 
       <DetalleLiquidacionModal settlement={detalle} onClose={() => setDetalle(null)} />
     </div>

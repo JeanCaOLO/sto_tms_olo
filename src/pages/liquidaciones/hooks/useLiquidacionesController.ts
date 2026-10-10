@@ -43,6 +43,20 @@ export function useLiquidacionesController(countryId: string | null) {
     notify(`Liquidación ${saved.number} emitida. Quedó en el Historial.`, 'success');
   };
 
+  /** Tras una tanda de emisión en lote: relee y avisa; pasa al Historial cuando ya no queda nada por emitir. */
+  const onBatchEmitted = (saved: SettlementRecord[], todas: boolean) => {
+    markLoaded();
+    reloadAll();
+    if (todas) setTab('history');
+    setEmitida(saved[saved.length - 1]?.id ?? null);
+    notify(
+      saved.length === 1
+        ? `Liquidación ${saved[0].number} emitida. Quedó en el Historial.`
+        : `${saved.length} liquidaciones emitidas (${saved[0].number} a ${saved[saved.length - 1].number}). Quedaron en el Historial.`,
+      'success',
+    );
+  };
+
   const changeStatus = async (s: SettlementRecord, status: SettlementStatus) => {
     const shouldCancel = status === 'Anulado' && !window.confirm(`¿Anular ${s.number}? Esta acción no se puede deshacer.`);
     if (shouldCancel) return;
@@ -64,7 +78,7 @@ export function useLiquidacionesController(countryId: string | null) {
     tab, setTab, from, setFrom, to, setTo, error, setError,
     ...tripsState, ...settlementsState, ...rowActions,
     reload: () => { markLoaded(); reloadAll(); },
-    changeStatus, listos, incompletos, onEmitted, emitida,
+    changeStatus, listos, incompletos, onEmitted, onBatchEmitted, emitida,
     kpis: useMemo(() => computeKPIs(settlements), [settlements]),
   };
 }

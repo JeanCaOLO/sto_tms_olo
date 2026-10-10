@@ -1,5 +1,5 @@
 import {
-  deleteRule, listRules, listZones,
+  deleteRule, listRules, listZones, saveRule,
 } from '../../../lib/tarifas/localRulesDataSource';
 import { listCarrierProfiles } from '../../../lib/tarifas/partiesDataSource';
 import { registrarEventoSeguro } from '../../../lib/liquidador/auditLog';
@@ -44,6 +44,29 @@ export async function deleteRuleWithAudit(
     rol: getActorRole(),
     antes: rule,
     despues: null,
+  });
+  return { ok: true };
+}
+
+/** Activa o desactiva una regla (solo cambia `active`) y lo deja en la bitácora. */
+export async function setRuleActiveWithAudit(
+  organizationId: string,
+  rule: RuleRow,
+  active: boolean,
+  userName: string,
+): Promise<RuleDeleteResult> {
+  const { error } = await saveRule(organizationId, { active }, rule.id);
+  if (error) {
+    return { ok: false, error };
+  }
+  await registrarEventoSeguro({
+    entidad: 'pricing_rules',
+    entidadId: rule.id,
+    accion: 'UPDATE',
+    usuario: userName,
+    rol: getActorRole(),
+    antes: rule,
+    despues: { ...rule, active },
   });
   return { ok: true };
 }

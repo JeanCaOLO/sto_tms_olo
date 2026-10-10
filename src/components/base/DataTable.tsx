@@ -21,6 +21,16 @@ export interface DataTableColumn<T> {
   cellClassName?: string;
 }
 
+/** Selección de filas (opcional): casilla por fila y una barra de acciones que aparece con filas marcadas. */
+export interface RowSelection<T> {
+  selected: Set<string>;
+  onChange: (next: Set<string>) => void;
+  /** Motivo por el que una fila no se puede marcar (queda deshabilitada y lo muestra); null = se puede. */
+  disabledReason?: (row: T) => string | null;
+  /** Acciones de la barra, solo visibles con filas marcadas. Recibe los ids marcados. */
+  bar: (ids: string[]) => ReactNode;
+}
+
 interface DataTableProps<T> {
   data: T[];
   columns: DataTableColumn<T>[];
@@ -58,6 +68,8 @@ interface DataTableProps<T> {
   // Opcional: filtros de columna ya aplicados al abrir la tabla ({ clave: [valores visibles] }). El
   // usuario puede quitarlos desde el encabezado de la columna.
   initialColumnFilters?: Record<string, string[]>;
+  // Opcional: activa la selección de filas (casillas + barra de acciones). Sin ella la tabla no cambia.
+  selection?: RowSelection<T>;
 }
 
 export interface ColumnLayout {
@@ -214,6 +226,7 @@ export default function DataTable<T>({
   canExpand,
   maxVisibleRows,
   initialColumnFilters,
+  selection,
 }: DataTableProps<T>) {
   const { t } = useTranslation();
   const location = useLocation();
@@ -314,7 +327,7 @@ export default function DataTable<T>({
     return next;
   });
   const expandable = !!renderExpanded;
-  const spanAll = columns.length + (actions ? 1 : 0) + (expandable ? 1 : 0);
+  const spanAll = columns.length + (actions ? 1 : 0) + (expandable ? 1 : 0) + (selection ? 1 : 0);
 
   const filteredByColumns = useMemo(() => {
     return data.filter((row) =>
@@ -399,6 +412,30 @@ export default function DataTable<T>({
       const permKey = permKeyForPath(location.pathname);
       if (permKey) postAuditEvent('export', permKey, { rows: rows.length, format: 'xlsx' });
     }
+  };
+
+  // Solo cuentan las marcadas que se ven (con los filtros y la búsqueda de ahora): una fila oculta no se
+  // puede revisar, así que ninguna acción en lote debe alcanzarla.
+  const selectedIds = selection ? sorted.map(getRowId).filter((id) => selection.selected.has(id)) : [];
+  const pageSelectable = selection ? visibleRows.filter((r) => !selection.disabledReason?.(r)) : [];
+  const onPage = pageSelectable.filter((r) => selection?.selected.has(getRowId(r)));
+  const allOnPage = pageSelectable.length > 0 && onPage.length === pageSelectable.length;
+  const someOnPage = onPage.length > 0;
+  const toggleRow = (id: string) => {
+    if (!selection) return;
+    const next = new Set(selection.selected);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    selection.onChange(next);
+  };
+  const togglePage = () => {
+    if (!selection) return;
+    const next = new Set(selection.selected);
+    for (const r of pageSelectable) {
+      if (allOnPage) next.delete(getRowId(r));
+      else next.add(getRowId(r));
+    }
+    selection.onChange(next);
   };
 
   const activeFilterCount = Object.values(columnFilters).filter((v) => v !== undefined && v !== null).length;
@@ -507,10 +544,40 @@ export default function DataTable<T>({
         </div>
       </div>
 
+      {selection && selectedIds.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 px-4 py-2 border-b border-teal-100 bg-teal-50/70 text-sm" role="toolbar" aria-label="Acciones sobre lo seleccionado">
+          <span className="font-medium text-teal-800">
+            {selectedIds.length === 1 ? '1 seleccionado' : `${selectedIds.length} seleccionados`}
+          </span>
+          <div className="flex flex-wrap items-center gap-2">{selection.bar(selectedIds)}</div>
+          <button
+            type="button"
+            onClick={() => selection.onChange(new Set())}
+            className="ml-auto text-xs text-teal-700 hover:underline cursor-pointer"
+          >
+            Quitar selección
+          </button>
+        </div>
+      )}
+
       <div ref={scrollerRef} className={scrolls ? 'overflow-auto' : 'overflow-x-auto'} style={scrollStyle}>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
+              {selection && (
+                <th className={`w-8 px-2 py-3${stickyTh}`}>
+                  <input
+                    type="checkbox"
+                    ref={(el) => { if (el) el.indeterminate = someOnPage && !allOnPage; }}
+                    checked={allOnPage}
+                    disabled={pageSelectable.length === 0}
+                    onChange={togglePage}
+                    aria-label="Marcar las filas de esta página"
+                    title="Marcar las filas de esta página"
+                    className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                  />
+                </th>
+              )}
               {expandable && <th className={`w-8 px-2 py-3${stickyTh}`} aria-label="Extender"></th>}
               {columns.map((col) => (
                 <th
@@ -593,6 +660,24 @@ export default function DataTable<T>({
                   onClick={() => onRowClick?.(row)}
                   className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${onRowClick ? 'cursor-pointer' : ''} ${selectedRowId && rowId === selectedRowId ? 'bg-teal-50' : ''}`}
                 >
+                  {selection && (
+                    <td className="w-8 px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                      {(() => {
+                        const reason = selection.disabledReason?.(row) ?? null;
+                        return (
+                          <input
+                            type="checkbox"
+                            checked={selection.selected.has(rowId)}
+                            disabled={!!reason}
+                            title={reason ?? undefined}
+                            onChange={() => toggleRow(rowId)}
+                            aria-label={`Marcar fila ${rowId}`}
+                            className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                          />
+                        );
+                      })()}
+                    </td>
+                  )}
                   {expandable && (
                     <td className="w-8 px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                       {rowCanExpand && (

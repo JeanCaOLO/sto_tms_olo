@@ -82,6 +82,15 @@ Orden por prioridad. En cada paso: qué hacer, qué debe pasar y, si no pasa, d�
 1. Dos pestañas con el mismo viaje: emitir en ambas. La segunda debe mostrar «El viaje ya tiene una liquidación vigente…».
 2. Dos personas emitiendo viajes distintos a la vez: ninguna debe quedar con número `LIQ-…` repetido (si colisiona, el segundo intento lo reasigna y, si falla, muestra «No se pudo asignar el número… intenta de nuevo»).
 
+## 9b. Lotes (`funciones_para_añadir/`)
+
+1. Liquidaciones → Por Liquidar: marcar 3 viajes listos → «Liquidar 3 viajes» → «Emitir 3 liquidaciones». Deben salir 3 `LIQ-…` consecutivos y distintos, en el Historial, con la última resaltada. Verificar en `tarifas_settlements` (3 filas, `trip_id` distintos, `superseded_by` nulo) y en `tarifas_audit_log` (3 eventos de emisión).
+2. Provocar un fallo en un viaje del lote (por ejemplo, cambiar una tarifa en otra pestaña antes de emitir): los demás se emiten, el fallido queda abierto con su mensaje y el menú no se cierra. Al corregirlo y pulsar de nuevo solo se intenta ese.
+3. Abrir un lote de 10 viajes: medir cuánto tarda en calcular todo y si la Lambda en frío da algún timeout. Si pasa, bajar `MAX_LOTE` (`parts/TripsTable.tsx`).
+4. Reglas: desactivar 2 reglas en lote. Cada una debe verse como un `PATCH` con solo `{"active": false}` (sin `updated_at`, sin `version`); en `tarifas_pricing_rules` solo cambia `active`, y `tarifas_audit_log` tiene un `UPDATE` por regla.
+5. Reglas: eliminar en lote una regla libre y otra referenciada por liquidaciones. La libre se borra; la otra devuelve 409 `23503` y el resumen dice «está referenciada en liquidaciones existentes.».
+6. Con «Ver como» Liquidador no deben aparecer las casillas de reglas (solo lectura).
+
 ## 10. Interfaz abierta
 
 - Reglas duplicadas (R2): crear una regla activa con el mismo código y alcance que otra vigente debe pedir confirmación; una versión con vigencia que no se pisa no.

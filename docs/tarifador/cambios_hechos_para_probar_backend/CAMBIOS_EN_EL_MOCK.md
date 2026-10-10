@@ -50,6 +50,14 @@ Por qué: un mock que acepta lo que el backend rechaza oculta errores hasta cone
 
 Evaluadas y **no aplicadas**: P7 (perfil + tarifario en una transacción; rompería la idempotencia de `ensurePartyProfile`), P6a (filtrar plantillas por país: el listado multipaís del Probador es intencional y 5 pruebas de caracterización lo fijan; se revirtió), R1 (el usuario prefirió dejar el filtro «Activa» por defecto), C1 (sin cambios ni aviso).
 
+## 4b. Funciones nuevas (2026-10-10, ver `funciones_para_añadir/`)
+
+No tocan el mock ni el backend: usan las operaciones que ya existen, así que el backend simulado las cubre sin cambios.
+
+- `DataTable`: prop opcional `selection` (casillas, casilla del encabezado por página, barra de acciones). Sin ella nada cambia.
+- Liquidaciones: marcar varios viajes listos y liquidarlos en un solo menú (`components/lote/*`, `hooks/useEmitTrip.ts`, `parts/TripsTable.tsx`, `onBatchEmitted` en el controlador). La emisión del modal de un viaje se extrajo a `useEmitTrip` sin cambiar su comportamiento, y la tabla se movió de `page.tsx` a `TripsTable.tsx` (la página queda en 197 líneas, bajo el máximo de 200).
+- Reglas: activar, desactivar y eliminar varias a la vez (`api/bulkRules.ts`, `hooks/useRuleBulk.ts`, `setRuleActiveWithAudit`).
+
 ## 5. Pruebas nuevas
 
 - `data/memory/fakeBackend.test.ts` — contrato del backend simulado (400, 405, 403, 409, tx, tipos).

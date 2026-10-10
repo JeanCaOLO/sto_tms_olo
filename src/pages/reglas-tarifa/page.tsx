@@ -31,6 +31,7 @@ export default function ReglasTarifaPage() {
     organizationId,
     countryId,
     userName,
+    canEdit,
     canDelete,
   });
 
@@ -75,6 +76,7 @@ export default function ReglasTarifaPage() {
             onNew={() => { controller.setSelectedRule(null); controller.setIsRuleModalOpen(true); }}
             onEdit={(r) => { controller.setSelectedRule(r); controller.setIsRuleModalOpen(true); }}
             onDelete={(r) => { controller.setRuleToDelete(r); controller.setRuleDeleteError(''); }}
+            onBulk={(action, rules) => void controller.startBulk(action, rules)}
           />
         );
       case 'tarifarios':
@@ -121,6 +123,16 @@ export default function ReglasTarifaPage() {
         organizationId={organizationId}
         country={activeCountry}
         usuarioActivo={userName}
+      />
+
+      <DeleteConfirmModal
+        isOpen={!!controller.toDelete}
+        onClose={() => controller.setToDelete(null)}
+        onConfirm={controller.confirmBulkDelete}
+        title={controller.toDelete?.length === 1 ? 'Eliminar regla' : `Eliminar ${controller.toDelete?.length ?? 0} reglas`}
+        description={`¿Seguro que querés eliminar ${controller.toDelete?.map((r) => `"${r.code}"`).join(', ')}? Esta acción no se puede deshacer.`}
+        errorMessage={controller.bulkError}
+        busy={controller.bulkBusy}
       />
 
       <DeleteConfirmModal

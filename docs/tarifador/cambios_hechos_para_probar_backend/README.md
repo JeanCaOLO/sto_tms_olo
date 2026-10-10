@@ -37,6 +37,7 @@ Resumen en [`HALLAZGOS.md`](HALLAZGOS.md). Los dos ejemplos que dio el usuario:
 | [`CHECKLIST_PRUEBA_BACKEND.md`](CHECKLIST_PRUEBA_BACKEND.md) | Pasos concretos para verificar con Aurora, con resultado esperado y consultas SQL de solo lectura. |
 | [`PARCHES_PROPUESTOS/`](PARCHES_PROPUESTOS/) | Cambios propuestos que NO se aplicaron (migración, backend). |
 | [`herramientas/`](herramientas/) | Script de repetición de cargas contra el backend Python, evidencia de H9 y los recorridos de navegador. |
+| [`funciones_para_añadir/`](funciones_para_añadir/) | Funciones nuevas sobre el mock (selección múltiple, liquidar varios viajes, acciones en lote de reglas): concepto, objetivo, implementación y uso. |
 | [`COMANDOS.md`](COMANDOS.md) | Cómo levantar el mock, regenerar la semilla, correr pruebas y los recorridos. |
 
 ## Reglas del usuario para esta sesión
@@ -51,4 +52,4 @@ Resumen en [`HALLAZGOS.md`](HALLAZGOS.md). Los dos ejemplos que dio el usuario:
 - Verificar todo lo de `CHECKLIST_PRUEBA_BACKEND.md` con el túnel activo.
 - Decididas en la última ronda: P17a aplicada (el Probador arranca en el país global), P16a descartada (sin cambios de backend: no existe un rol «solo configura»), P1b descartada (la bitácora basta) y O1 resuelta con un aviso en el panel de pedidos.
 - R2 resuelta con un aviso sin bloqueo al guardar una regla repetida. Abierta, de negocio: C1 (estructura de costos propia de un tercero; sin cambios por decisión del usuario).
-- `npm run lint` falla en `HEAD` por errores previos (`src/pages/liquidaciones/page.tsx` tiene 204 líneas contra un máximo de 200; varios tests usan `process` sin declararlo). No se tocaron.
+- `npm run lint` falla en `HEAD` por un error previo: varios tests usan `process` sin declarar. No se tocó. (El de `liquidaciones/page.tsx`, con 204 líneas, ya no existe: se extrajo `TripsTable`.)
