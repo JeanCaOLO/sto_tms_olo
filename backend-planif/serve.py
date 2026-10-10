@@ -1,7 +1,7 @@
 """Runner local del backend de Planificacion hexagonal (copia del repo TMS-Backend).
 
 Traido al monorepo sin tocar `backend/`. Sirve auth + context + data + admin +
-eflow + planificacion. Puerto configurable con PLANIF_PORT (default 4000).
+eflow + planificacion + tarifas (la Lambda de `backend/tarifas/`). Puerto configurable con PLANIF_PORT (default 4000).
 Lee `.env.local` / `.env` de la raiz del repo (TMS_DB_*, JWT_SECRET) igual que
 `backend/local/serve.py`. SIN secretos hardcodeados. Requiere el tunel a Aurora
 en localhost:15432.
@@ -110,6 +110,30 @@ MODULES = [
     (eflow_handler, EFLOW_ROUTES), (planif_handler, PLANIF_ROUTES),
 ]
 
+
+def _load_tarifas():
+    """Lambda de tarifas (`backend/tarifas/`), la misma que sirve `api:local:base`.
+
+    Vive en el monorepo, no en la copia de TMS-Backend: se carga desde ahi con su layer `tms_common`
+    (paquete de primer nivel, distinto de `lib.tms_common`) y con un nombre de modulo propio para no
+    chocar con el `app` de este runner. Los `sys.path` se AGREGAN al final: no tapan nada de arriba.
+    """
+    import importlib.util
+    backend = REPO_ROOT / "backend"
+    sys.path.append(str(backend / "common-services" / "layers" / "tms_common"))
+    sys.path.append(str(backend / "tarifas" / "src"))
+    spec = importlib.util.spec_from_file_location("tarifas_app", backend / "tarifas" / "src" / "app.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.handler, module.ROUTES
+
+
+try:
+    MODULES.append(_load_tarifas())
+except Exception as exc:  # el resto del runner (planificacion) sigue sirviendo
+    print("[backend-planif] ADVERTENCIA: /api/tarifas NO disponible (%s: %s). "
+          "Revise `pip install -r backend/requirements-dev.txt`." % (type(exc).__name__, exc), flush=True)
+
 COMPILED = []
 for mod_handler, routes in MODULES:
     for key in routes:
@@ -160,20 +184,23 @@ class H(BaseHTTPRequestHandler):
             self.send_response(500); self.send_header("Content-Type", "application/json")
             self.send_header("Access-Control-Allow-Origin", "*"); self.end_headers()
             self.wfile.write(json.dumps({"data": None, "error": {"message": "runner: %s" % e}}).encode()); return
-        body = resp.get("body") or "{}"
-        self.send_response(resp.get("statusCode", 200))
+        status = resp.get("statusCode", 200)
+        self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
-        self.wfile.write(body.encode("utf-8"))
+        if status != 204:  # un 204 (DELETE de tarifas) no lleva cuerpo
+            self.wfile.write((resp.get("body") or "{}").encode("utf-8"))
 
     do_GET = _handle
     do_POST = _handle
     do_PUT = _handle
+    do_PATCH = _handle
+    do_DELETE = _handle
 
     def do_OPTIONS(self):
         self.send_response(204); self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET,POST,PUT,OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "*"); self.end_headers()
 
 

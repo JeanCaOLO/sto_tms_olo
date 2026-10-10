@@ -5,7 +5,9 @@ monorepo **sin tocar `backend/` ni `server/`**.
 
 Es un **superconjunto** del backend original: tiene **todas** sus rutas
 (auth/context/data/admin/eflow/catálogos/viajes) **más** la planificación mejorada
-(planes editables, estado por viaje, confirmar/completar/cancelar/reabrir). Por eso
+(planes editables, estado por viaje, confirmar/completar/cancelar/reabrir) **y la Lambda de
+tarifas** (`/api/tarifas/*`, cargada desde `backend/tarifas/`; Tarifas y Liquidaciones la usan).
+Por eso
 corre **un solo servidor en `:4000`** — no hace falta levantar el original aparte.
 
 ## Scripts
