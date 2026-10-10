@@ -21,7 +21,7 @@ import { useCompaniasList } from './hooks/useCompaniasList';
 import { useCountryZones } from './hooks/useCountryZones';
 import type { CarrierProfile, PartyClassification } from '../../lib/tarifas/parties';
 import { useAuth } from '../../hooks/useAuth';
-import { registrarEvento } from '../../lib/liquidador/auditLog';
+import { registrarEventoSeguro } from '../../lib/liquidador/auditLog';
 import { getActorRole } from '../../lib/tarifas/actor';
 import { useModulePermissions } from '../../hooks/use-module-permissions';
 import { useTarifasActor } from '../../hooks/useTarifasActor';
@@ -101,7 +101,7 @@ export default function CompaniasView({ classification }: { classification: Part
   }, [searchParams, setSearchParams, profiles, loading, loadingCountries]);
 
   const handleToggle = async (profile: CarrierProfile) => {
-    const result = await handleToggleStatus(profile, usuarioActivo, getActorRole, registrarEvento);
+    const result = await handleToggleStatus(profile, usuarioActivo, getActorRole, registrarEventoSeguro);
     if (result.error) setActionError(result.error);
   };
 

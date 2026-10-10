@@ -5,7 +5,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { setDataSource, type DataSource, type FindOptions } from '../data';
-import { MemoryDataSource } from './helpers/memory/driver';
+import { MemoryDataSource } from '../data/memory/driver';
 import { listPendingTrips } from '../tripsDataSource';
 
 class Espia implements DataSource {

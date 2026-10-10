@@ -2,7 +2,7 @@ import {
   deleteRule, listRules, listZones,
 } from '../../../lib/tarifas/localRulesDataSource';
 import { listCarrierProfiles } from '../../../lib/tarifas/partiesDataSource';
-import { registrarEvento } from '../../../lib/liquidador/auditLog';
+import { registrarEventoSeguro } from '../../../lib/liquidador/auditLog';
 import { getActorRole } from '../../../lib/tarifas/actor';
 import type { CarrierProfile } from '../../../lib/tarifas/parties';
 import type { RuleRow, ZoneRow } from '../types';
@@ -36,18 +36,14 @@ export async function deleteRuleWithAudit(
   if (error) {
     return { ok: false, error };
   }
-  try {
-    await registrarEvento({
-      entidad: 'pricing_rules',
-      entidadId: ruleId,
-      accion: 'DELETE',
-      usuario: userName,
-      rol: getActorRole(),
-      antes: rule,
-      despues: null,
-    });
-  } catch (auditError) {
-    console.error('Error registrando evento de auditoría:', auditError);
-  }
+  await registrarEventoSeguro({
+    entidad: 'pricing_rules',
+    entidadId: ruleId,
+    accion: 'DELETE',
+    usuario: userName,
+    rol: getActorRole(),
+    antes: rule,
+    despues: null,
+  });
   return { ok: true };
 }

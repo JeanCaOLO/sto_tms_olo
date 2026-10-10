@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase, type AuthSession as Session, type AuthUser as User } from '../lib/supabase';
-import { MOCK_AUTH_ENABLED, mockAppUser, mockSession, mockUser, type AppUser } from '../lib/mock-auth';
+import { MOCK_AUTH_ENABLED, mockAppUser, mockSession, mockUser, rememberMockActor, type AppUser } from '../lib/mock-auth';
 
 interface AuthContextType {
   session: Session | null;
@@ -49,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // real NO está disponible Y `VITE_MOCK_AUTH=true`. No es la puerta principal:
   // es una red de seguridad para probar en local/PR sin backend.
   const enterMock = (): { error: null } => {
+    rememberMockActor();
     setSession(mockSession);
     setUser(mockUser);
     setAppUser(mockAppUser);

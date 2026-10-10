@@ -3,14 +3,9 @@
 import { db, type Row } from '../data';
 import type { CostStructureParams } from '../types';
 import { toCostStructure } from './schema';
+import { newId } from './ids';
 import { validateStructure } from './validation';
 import type { CostRowInput, ApplyTemplateInput, ApplyTemplateResult } from './types';
-
-/** Mismo formato que `genId` del driver JSON: `<prefijo>_<ms base36>_<6 hex>`. */
-function newId(prefix: string): string {
-  const random = Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0');
-  return `${prefix}_${Date.now().toString(36)}_${random}`;
-}
 
 function rowValues(structureId: string, input: CostRowInput, order: number): Row {
   return {

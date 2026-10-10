@@ -1,5 +1,6 @@
 import { importRows, saveStructure, type CostRowInput } from '../../../lib/tarifas/costStructureDataSource';
-import { registrarEvento } from '../../../lib/liquidador/auditLog';
+import { registrarEventoSeguro } from '../../../lib/liquidador/auditLog';
+import { notify } from '../../../lib/notify';
 import { getActorRole } from '../../../lib/tarifas/actor';
 import type { CostStructure } from '../../../lib/tarifas/types';
 import { INHERITED_MESSAGE } from '../components/cost-structure/rowInput';
@@ -37,6 +38,7 @@ export function useCostActions(p: Params) {
       if (result.status === 'invalid') { setError(Object.values(result.errors).join(' ')); return; }
       if (result.status === 'failed') { setError(result.error.message); return; }
       await load();
+      notify('Parámetros de la estructura de costos guardados.', 'success');
     } catch (e) {
       setError(messageOf(e));
     }
@@ -61,7 +63,7 @@ export function useCostActions(p: Params) {
     const result = await importRows(target.id, imported, mode);
     if (result.error) throw new Error(result.error);
 
-    await registrarEvento({
+    await registrarEventoSeguro({
       entidad: 'cost_structure',
       entidadId: target.id,
       accion: 'UPDATE',

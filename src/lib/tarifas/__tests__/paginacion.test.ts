@@ -5,7 +5,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { db, setDataSource, type DataSource, type FindOptions, type FindRequest } from '../data';
-import { MemoryDataSource } from './helpers/memory/driver';
+import { MemoryDataSource } from '../data/memory/driver';
 import { invalidateCatalogCache, loadTarifasCatalog } from '../catalogLoader';
 import { dateOnly, listSettlementSummariesPage, listSettlements } from '../settlementsDataSource';
 

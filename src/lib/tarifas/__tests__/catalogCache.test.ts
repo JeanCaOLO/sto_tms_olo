@@ -5,7 +5,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { HttpDataSource, notifyWrite, onDataWrite, setDataSource, type DataSource, type FindOptions } from '../data';
-import { MemoryDataSource } from './helpers/memory/driver';
+import { MemoryDataSource } from '../data/memory/driver';
 import { invalidateCatalogCache, loadTarifasCatalog } from '../catalogLoader';
 
 /** Un MemoryDataSource que se hace pasar por la API y cuenta las lecturas. */

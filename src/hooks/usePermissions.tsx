@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useAuth } from './useAuth';
-import { MOCK_AUTH_ENABLED } from '../lib/mock-auth';
+import { MOCK_AUTH_ENABLED, MOCK_ROLE_EVENT, getMockRole, mockPermissionsFor } from '../lib/mock-auth';
 import { getMyPermissions, type MyPermissions, type PermAction } from '../pages/configuracion/admin/admin-api';
 
 interface PermissionsContextType {
@@ -40,13 +40,6 @@ function readViewAs(): ViewAs {
   }
 }
 
-const ADMIN_ALL: MyPermissions = {
-  role: null,
-  is_admin: true,
-  modules: {},
-  countries: { all: true, ids: [] },
-};
-
 const PermissionsContext = createContext<PermissionsContextType | undefined>(undefined);
 
 export function PermissionsProvider({ children }: { children: ReactNode }) {
@@ -60,9 +53,12 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (MOCK_AUTH_ENABLED) {
-      setPermissions(ADMIN_ALL);
+      // Rol de pruebas del mock (selector de la esquina); por defecto, administrador.
+      const apply = () => setPermissions(mockPermissionsFor(getMockRole()) as MyPermissions);
+      apply();
       setLoading(false);
-      return;
+      window.addEventListener(MOCK_ROLE_EVENT, apply);
+      return () => window.removeEventListener(MOCK_ROLE_EVENT, apply);
     }
     if (!session) {
       setPermissions(null);

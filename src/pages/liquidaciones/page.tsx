@@ -36,8 +36,8 @@ export default function LiquidacionesPage() {
 
   const {
     tab, setTab, from, setFrom, to, setTo, error, trips, loadingTrips, settlements,
-    loadingSettlements, reload, changeStatus, listos, incompletos, kpis,
-    tripsRecortados, siguiente, cargandoMas, loadMore, openFull, prefetchProps,
+    loadingSettlements, changeStatus, listos, incompletos, kpis,
+    tripsRecortados, siguiente, cargandoMas, loadMore, openFull, prefetchProps, onEmitted, emitida,
   } = useLiquidacionesController(countryId);
 
   const [alcance, setAlcance] = useState<'ready' | 'incomplete' | 'all'>('ready');
@@ -180,7 +180,7 @@ export default function LiquidacionesPage() {
             maxVisibleRows={5}
             data={settlements}
             columns={settlementCols}
-            getRowId={(s) => s.id}
+            getRowId={(s) => s.id} selectedRowId={emitida}
             loading={loadingSettlements}
             columnsKey={`liquidaciones.historial.${extendida ? 'extendida' : 'simple'}`}
             renderExpanded={(s) => <PedidosEmitidos orders={s.orders} currency={s.currency} />}
@@ -216,7 +216,7 @@ export default function LiquidacionesPage() {
         trip={modal?.trip ?? null}
         settlement={modal?.settlement ?? null}
         onClose={() => setModal(null)}
-        onSaved={(saved) => { reload(); setDetalle(saved); }}
+        onSaved={onEmitted}
       />
 
       <DetalleLiquidacionModal settlement={detalle} onClose={() => setDetalle(null)} />

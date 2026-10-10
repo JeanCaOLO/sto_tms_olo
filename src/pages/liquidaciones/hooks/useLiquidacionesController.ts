@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { updateStatus } from '../api/liquidacionesApi';
 import { tripProgress } from '../../../lib/tarifas/tripOrders';
+import { notify } from '../../../lib/notify';
 import { computeKPIs } from './computeKPIs';
 import { useRefreshOnReturn } from './useRefreshOnReturn';
 import { useSettlementsLoader } from './useSettlementsLoader';
@@ -15,6 +16,8 @@ export function useLiquidacionesController(countryId: string | null) {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [error, setError] = useState('');
+  // Liquidación recién emitida: se resalta en el Historial.
+  const [emitida, setEmitida] = useState<string | null>(null);
   const tripsState = useTripsLoader(countryId, from, to, setError);
   const settlementsState = useSettlementsLoader(countryId, from, to, setError);
   const { trips, loadTrips } = tripsState;
@@ -30,6 +33,15 @@ export function useLiquidacionesController(countryId: string | null) {
     // `reloadAll` solo agrupa las dos cargas: se relee cuando cambia alguna de ellas (país o fechas).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadTrips, loadSettlements]);
+
+  /** Tras emitir o re-liquidar: relee, pasa al Historial y resalta la liquidación nueva. */
+  const onEmitted = (saved: SettlementRecord) => {
+    markLoaded();
+    reloadAll();
+    setTab('history');
+    setEmitida(saved.id);
+    notify(`Liquidación ${saved.number} emitida. Quedó en el Historial.`, 'success');
+  };
 
   const changeStatus = async (s: SettlementRecord, status: SettlementStatus) => {
     const shouldCancel = status === 'Anulado' && !window.confirm(`¿Anular ${s.number}? Esta acción no se puede deshacer.`);
@@ -52,7 +64,7 @@ export function useLiquidacionesController(countryId: string | null) {
     tab, setTab, from, setFrom, to, setTo, error, setError,
     ...tripsState, ...settlementsState, ...rowActions,
     reload: () => { markLoaded(); reloadAll(); },
-    changeStatus, listos, incompletos,
+    changeStatus, listos, incompletos, onEmitted, emitida,
     kpis: useMemo(() => computeKPIs(settlements), [settlements]),
   };
 }

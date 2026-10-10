@@ -5,7 +5,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { setDataSource, type DataSource, type FindOptions } from '../data';
-import { MemoryDataSource } from './helpers/memory/driver';
+import { MemoryDataSource } from '../data/memory/driver';
 import { invalidateCatalogCache } from '../catalogLoader';
 import { calculateTrip, calculationSignature, recheckBeforeEmit } from '../tripSettlement';
 import { listPendingTrips } from '../tripsDataSource';

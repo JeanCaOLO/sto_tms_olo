@@ -1,0 +1,10 @@
+--- a/src/pages/reglas-tarifa/components/rule-modal/ruleSubmit.ts	2026-10-10 12:58:59.093800893 -0400
++++ b/src/pages/reglas-tarifa/components/rule-modal/ruleSubmit.ts	2026-10-10 12:58:59.095714254 -0400
+@@ -73,7 +73,6 @@
+     effective_from: candidate.effectiveFrom,
+     effective_to: candidate.effectiveTo,
+     version: isEdit ? candidate.version + 1 : 1,
+-    updated_at: new Date().toISOString(),
+   };
+ }
+ 

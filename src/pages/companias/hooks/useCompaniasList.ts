@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { listCarrierProfiles, deactivateParty, reactivateParty } from '../../../lib/tarifas/partiesDataSource';
 import type { CarrierProfile, PartyClassification } from '../../../lib/tarifas/parties';
-import type { registrarEvento as registrarEventoFn } from '../../../lib/liquidador/auditLog';
+import type { registrarEventoSeguro as registrarEventoFn } from '../../../lib/liquidador/auditLog';
 
 export function useCompaniasList(classification: PartyClassification, countryId: string | undefined, loadingCountries: boolean) {
   const [profiles, setProfiles] = useState<CarrierProfile[]>([]);

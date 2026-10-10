@@ -9,7 +9,7 @@
 //
 // La fuente es SIEMPRE el backend (`HttpDataSource`): no hay variable para cambiarla ni datos de
 // prueba en la app. Las pruebas inyectan un almacén en memoria con `setDataSource`
-// (`__tests__/helpers/memory`).
+// (`data/memory`).
 
 import { STORAGE_KEY } from '../../supabase';
 import type { DataSource } from './datasource';

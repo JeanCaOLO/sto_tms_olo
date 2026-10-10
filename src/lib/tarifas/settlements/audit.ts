@@ -1,6 +1,6 @@
 // Auditoría de liquidaciones.
 
-import { registrarEvento } from '../../liquidador/auditLog';
+import { registrarEventoSeguro } from '../../liquidador/auditLog';
 import { getActorRole } from '../actor';
 
 /** Correo del usuario logueado (sesión del TMS, misma clave que `src/lib/supabase.ts`). */
@@ -26,18 +26,14 @@ export async function auditar(
   motivo: string | undefined,
 ): Promise<void> {
   // La bitácora no debe tumbar una liquidación ya guardada: si falla, la operación sigue valiendo.
-  try {
-    await registrarEvento({
-      entidad: 'settlement',
-      entidadId,
-      accion,
-      usuario: usuarioActual(),
-      rol: getActorRole(),
-      antes,
-      despues,
-      ...(motivo ? { motivo } : {}),
-    });
-  } catch (error) {
-    console.error('[tarifas] No se pudo registrar la bitácora de la liquidación', error);
-  }
+  await registrarEventoSeguro({
+    entidad: 'settlement',
+    entidadId,
+    accion,
+    usuario: usuarioActual(),
+    rol: getActorRole(),
+    antes,
+    despues,
+    ...(motivo ? { motivo } : {}),
+  });
 }
