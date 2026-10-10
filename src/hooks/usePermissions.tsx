@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useAuth } from './useAuth';
-import { MOCK_AUTH_ENABLED, MOCK_ROLE_EVENT, getMockRole, mockPermissionsFor } from '../lib/mock-auth';
+import { MOCK_AUTH_ENABLED } from '../lib/mock-auth';
+import { PREVIEW_KEY, readViewAs, type ViewAs } from '../lib/viewAs';
 import { getMyPermissions, type MyPermissions, type PermAction } from '../pages/configuracion/admin/admin-api';
 
 interface PermissionsContextType {
@@ -23,22 +24,19 @@ interface PermissionsContextType {
   reload: () => void;
 }
 
-export type ViewAs = 'desarrollador' | 'liquidador';
+export type { ViewAs };
 
 // Lo que ve y puede hacer el rol Liquidador: liquidar, y solo LEER la configuración del tarifador.
 const LIQUIDADOR_VIEW: Record<string, PermAction[]> = {
   tarifas: ['view', 'create', 'edit', 'export'],
   'tarifas.config': ['view', 'export'],
 };
-const PREVIEW_KEY = 'tarifador.viewAs';
-
-function readViewAs(): ViewAs {
-  try {
-    return sessionStorage.getItem(PREVIEW_KEY) === 'liquidador' ? 'liquidador' : 'desarrollador';
-  } catch {
-    return 'desarrollador';
-  }
-}
+const ADMIN_ALL: MyPermissions = {
+  role: null,
+  is_admin: true,
+  modules: {},
+  countries: { all: true, ids: [] },
+};
 
 const PermissionsContext = createContext<PermissionsContextType | undefined>(undefined);
 
@@ -53,12 +51,9 @@ export function PermissionsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (MOCK_AUTH_ENABLED) {
-      // Rol de pruebas del mock (selector de la esquina); por defecto, administrador.
-      const apply = () => setPermissions(mockPermissionsFor(getMockRole()) as MyPermissions);
-      apply();
+      setPermissions(ADMIN_ALL);
       setLoading(false);
-      window.addEventListener(MOCK_ROLE_EVENT, apply);
-      return () => window.removeEventListener(MOCK_ROLE_EVENT, apply);
+      return;
     }
     if (!session) {
       setPermissions(null);

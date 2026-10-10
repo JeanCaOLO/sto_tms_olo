@@ -3,7 +3,8 @@
 import type { Table } from './schema';
 import { HttpFail } from './errors';
 
-export type MockRole = 'admin' | 'liquidar' | 'configurar';
+/** `admin` = quien configura (Desarrollador/administrador); `liquidar` = el Liquidador. */
+export type MockRole = 'admin' | 'liquidar';
 type Action = 'view' | 'create' | 'edit' | 'delete';
 
 export const MODULE = 'tarifas';
@@ -15,7 +16,6 @@ const ACTION_OF = { insert: 'create', update: 'edit', delete: 'delete' } as cons
 const GRANTS: Record<MockRole, Record<string, Action[]> | 'all'> = {
   admin: 'all',
   liquidar: { [MODULE]: ['view', 'create', 'edit'], [CONFIG_MODULE]: ['view'] },
-  configurar: { [MODULE]: ['view'], [CONFIG_MODULE]: ['view', 'create', 'edit', 'delete'] },
 };
 
 export function permissionsFor(role: () => MockRole) {

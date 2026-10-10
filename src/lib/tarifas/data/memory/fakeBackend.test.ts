@@ -124,12 +124,12 @@ describe('solo lectura, solo agregar y permisos', () => {
     expect((await db.find('pricingRule')).length).toBeGreaterThan(0); // leer sí puede
   });
 
-  it('un rol que solo configura no puede escribir la bitácora (403)', async () => {
-    role = 'configurar';
+  it('el Liquidador sí escribe la bitácora de lo que liquida', async () => {
+    role = 'liquidar';
     await expect(db.insert('auditLog', {
-      entity: 'x', entity_id: '1', action: 'CREATE', user_name: 'u', role: 'r', before: null, after: null, reason: null,
+      entity: 'settlement', entity_id: '1', action: 'CREATE', user_name: 'u', role: 'Liquidador', before: null, after: null, reason: null,
       created_at: '2026-10-10T00:00:00.000Z',
-    })).rejects.toMatchObject({ status: 403 });
+    })).resolves.toBeDefined();
   });
 });
 

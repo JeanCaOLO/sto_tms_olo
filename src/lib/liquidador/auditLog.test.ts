@@ -3,21 +3,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setDataSource } from '../tarifas/data';
 import { HttpDataSource } from '../tarifas/data/http-datasource';
-import { createFakeBackend, type MockRole } from '../tarifas/data/memory/fakeBackend';
+import { createFakeBackend } from '../tarifas/data/memory/fakeBackend';
 import { onAuditFailure, registrarEventoSeguro } from './auditLog';
 
-let role: MockRole = 'admin';
 const evento = { entidad: 'pricing_rules', entidadId: 'r1', accion: 'UPDATE' as const, usuario: 'u@x.com', rol: 'Rol' };
+const sinPermiso = async () => new Response(
+  JSON.stringify({ data: null, error: { message: 'Tu rol no tiene permiso para "create" en "tarifas".' } }),
+  { status: 403, headers: { 'Content-Type': 'application/json' } },
+);
 
-beforeEach(() => {
-  role = 'admin';
-  setDataSource(new HttpDataSource({ baseUrl: 'http://mock.local/api', fetchImpl: createFakeBackend({ role: () => role }), retries: 0 }));
-  vi.spyOn(console, 'error').mockImplementation(() => undefined);
-});
+beforeEach(() => vi.spyOn(console, 'error').mockImplementation(() => undefined));
 afterEach(() => vi.restoreAllMocks());
 
 describe('registrarEventoSeguro', () => {
-  it('registra y devuelve true cuando el rol puede escribir la bitácora', async () => {
+  it('registra y devuelve true cuando la bitácora acepta el evento', async () => {
+    setDataSource(new HttpDataSource({ baseUrl: 'http://mock.local/api', fetchImpl: createFakeBackend(), retries: 0 }));
     const listener = vi.fn();
     const off = onAuditFailure(listener);
     expect(await registrarEventoSeguro(evento)).toBe(true);
@@ -25,8 +25,8 @@ describe('registrarEventoSeguro', () => {
     off();
   });
 
-  it('con un rol que solo configura (403) no lanza, devuelve false y avisa', async () => {
-    role = 'configurar';
+  it('si la bitácora responde 403 no lanza, devuelve false y avisa', async () => {
+    setDataSource(new HttpDataSource({ baseUrl: 'http://mock.local/api', fetchImpl: sinPermiso as unknown as typeof fetch, retries: 0 }));
     const listener = vi.fn();
     const off = onAuditFailure(listener);
     await expect(registrarEventoSeguro(evento)).resolves.toBe(false);

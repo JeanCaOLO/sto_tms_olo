@@ -116,6 +116,7 @@ describe('RuleModal (caracterización)', () => {
   });
 
   it('un código repetido avisa que ya existe', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     const rules = await listRules('ORG');
     const existente = rules.find((r) => r.country_id === 'VE')!;
     open();
@@ -124,6 +125,22 @@ describe('RuleModal (caracterización)', () => {
     type('Importe en VES *', '10');
     submit();
     await waitFor(() => expect(onSuccess.mock.calls.length + (document.body.textContent?.includes('Ya existe') ? 1 : 0)).toBeGreaterThan(0));
+  });
+
+  it('una regla activa repetida pide confirmar y, si se rechaza, no se guarda', async () => {
+    const confirmar = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const rules = await listRules('ORG');
+    const existente = rules.find((r) => r.country_id === 'VE' && r.active === true && !r.party_id && !r.effective_from && !r.effective_to)!;
+    const antes = (await listRules('ORG')).length;
+    open();
+    type('Código *', String(existente.code));
+    type('Nombre *', 'Duplicada sin confirmar');
+    type('Importe en VES *', '10');
+    submit();
+    await waitFor(() => expect(confirmar).toHaveBeenCalled());
+    expect(String(confirmar.mock.calls[0][0])).toContain(String(existente.code));
+    expect((await listRules('ORG')).length).toBe(antes);
+    expect(onSuccess).not.toHaveBeenCalled();
   });
   it.each(['FIXED', 'TIMES', 'PER_BLOCK', 'PERCENT', 'TIERED', 'RATE_TABLE'])('cálculo con operador %s', async (op) => {
     open();

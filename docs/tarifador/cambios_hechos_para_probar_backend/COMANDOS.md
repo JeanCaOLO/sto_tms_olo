@@ -5,7 +5,7 @@ Desde la raíz del repo.
 ## Levantar el mock (sin túnel)
 
 1. `.env.local` con `VITE_MOCK_AUTH=true`.
-2. `npm run dev` → http://localhost:3000, iniciar sesión con cualquier credencial. Rol de prueba: selector de la parte inferior central (solo en las pantallas del tarifador). Volver a la semilla: `__tarifasMockReset()` en la consola del navegador.
+2. `npm run dev` → http://localhost:3000, iniciar sesión con cualquier credencial. Rol: «Ver como» Liquidador / Desarrollador, abajo a la derecha. Volver a la semilla: `__tarifasMockReset()` en la consola del navegador.
 
 **Aviso sobre Tailwind.** El `package.json`/`package-lock.json` sin commitear del usuario piden `tailwindcss ^4.3.3`, que rompe el CSS (`[postcss] It looks like you're trying to use tailwindcss directly as a PostCSS plugin`). Remedios, de menos a más invasivo:
 - Solo para probar, sin tocar esos archivos: `npm i --no-save --no-package-lock tailwindcss@3.4.19` (un `npm install` o `npm ci` lo deshace).

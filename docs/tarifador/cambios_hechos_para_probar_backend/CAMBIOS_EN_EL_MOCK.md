@@ -11,21 +11,20 @@ Todo está en el árbol de trabajo (`git status`), sin commit. Rama `josef`.
 | `src/lib/tarifas/data/memory/{driver,filtering,integrity,store}.ts` | El almacén en memoria que antes vivía en `__tests__/helpers/memory/` (movido con `git mv`). Ahora es código de la app, usado por las pruebas y por el mock. `store.ts` ya no importa ninguna semilla: `setSeed()` la fija, y expone `enablePersistence()` (localStorage) y `resetToSeed()`. |
 | `src/lib/tarifas/data/memory/fakeBackend/` | **Backend simulado.** Un `fetch` que contesta el contrato de `backend/tarifas/src/app.py` sobre el almacén en memoria. Usa `generateManifest()` (el mismo registro que genera el manifiesto del backend). Replica: columna desconocida → 400; entidades externas y bitácora → 405; permisos por módulo → 403; tipos (uuid, int, numeric, boolean, fecha) y NOT NULL como Postgres (409 con 23502); FK y unicidad → 409 con 23503/23505; `/tx` todo-o-nada con 404 si una fila no existe; `numeric` devuelto como texto; topes de 5.000 filas y 25 consultas por `/batch`. Archivos: `index.ts` (rutas), `schema.ts` (lista blanca, tipos, consultas), `permissions.ts`, `errors.ts`. |
 | `src/lib/tarifas/data/memory/installMock.ts` | Carga `seed.demo.json`, activa la persistencia (`tarifas-mock:v2`) y hace `setDataSource(new HttpDataSource({ fetchImpl: createFakeBackend(...) }))`. Expone `window.__tarifasMockReset()`. |
-| `src/main.tsx` | `if (MOCK_AUTH_ENABLED) await import('./lib/tarifas/data/memory/installMock')`. `MOCK_AUTH_ENABLED` exige `import.meta.env.DEV`: no llega al build desplegado. También monta `MockRoleSwitch`. |
+| `src/main.tsx` | `if (MOCK_AUTH_ENABLED) await import('./lib/tarifas/data/memory/installMock')`. `MOCK_AUTH_ENABLED` exige `import.meta.env.DEV`: no llega al build desplegado. |
 | `src/lib/tarifas/data/memory/mockIds.ts` | Ids uuid de CR, VE y CO, compartidos por la semilla y el contexto operativo mock. |
 | `src/test/setupTarifas.ts` | Las pruebas fijan su propia semilla (`__tests__/fixtures/seed.json`) con `setSeed`; esa semilla no entra al bundle. |
 
 Por qué: un mock que acepta lo que el backend rechaza oculta errores hasta conectar el túnel. Con el cliente HTTP real, los caminos del driver (por ejemplo, que una transacción devuelva lo enviado) se ejercitan igual que con Aurora. Se comprobó que con el código viejo el mock reproduce exactamente los dos errores reales (H1 y H9).
 
-## 2. Contexto operativo, sesión y rol de prueba
+## 2. Contexto operativo, sesión y rol
 
 | Archivo | Qué cambió |
 |---|---|
-| `src/lib/mock-auth.ts` | `mockContextResponse` (países CR/VE/CO, almacenes, clientes, scope global) con los ids de `mockIds.ts`; `MockRole`, `getMockRole/setMockRole`, `mockPermissionsFor(role)`; `rememberMockActor()` (escribe `tms_session` sin token y lo borra al cerrar la página, para que la bitácora muestre el autor). |
+| `src/lib/mock-auth.ts` | `mockContextResponse` (países CR/VE/CO, almacenes, clientes, scope global) con los ids de `mockIds.ts`; `rememberMockActor()` (escribe `tms_session` sin token y lo borra al cerrar la página, para que la bitácora muestre el autor). |
 | `src/hooks/useOperationalContext.tsx` | Usa `mockContextResponse` en modo mock y arranca en Costa Rica. |
-| `src/hooks/usePermissions.tsx` | En modo mock devuelve los permisos del rol de prueba (antes, siempre administrador) y reacciona al cambio de rol. |
+| `src/lib/viewAs.ts` (nuevo), `src/hooks/usePermissions.tsx` | «Ver como» (Liquidador/Desarrollador) pasa a `lib/viewAs.ts` para que `installMock.ts` pueda leerlo; `usePermissions` sigue igual que en `main` (administrador en modo mock). El backend simulado usa «Ver como» como rol: Liquidador solo escribe liquidaciones y bitácora. |
 | `src/hooks/useAuth.tsx` | `enterMock()` llama `rememberMockActor()`. |
-| `src/components/feature/MockRoleSwitch.tsx` | Selector «Rol de prueba» (Administrador, Solo liquidar, Solo configurar) en la parte inferior central (solo en las pantallas del tarifador); solo en modo mock. |
 | `src/pages/auditoria/audit-api.ts` | No envía eventos al backend en modo mock. |
 
 ## 3. Semilla demo regenerada (`scripts/build-demo-seed.ts` → `data/memory/seed.demo.json`)
@@ -45,8 +44,11 @@ Por qué: un mock que acepta lo que el backend rechaza oculta errores hasta cone
 | P9 | `MargenPolicyTab.tsx`, `CountrySettingsCard.tsx` | Botones «Guardar umbrales» y «Guardar cálculo del país»; aviso «Umbrales guardados.». |
 | P8 | `src/lib/notify.ts` (nuevo), `useCostActions.ts`, `useToast.tsx` | Aviso al guardar parámetros de la estructura de costos. `notify()` permite avisar desde código que no es un componente. |
 | P13 | `useLiquidacionesController.ts`, `liquidaciones/page.tsx` | Tras emitir o re-liquidar: relee, cambia a «Historial», resalta la fila nueva y avisa «Liquidación LIQ-… emitida». Ya no abre el detalle encima de la lista. |
+| P17a | `reglas-tarifa/page.tsx`, `RuleTester.tsx`, `rule-tester/useTesterBase.ts` | El Probador arranca en el país del selector global (`initialCountryId`) y conserva su selector propio. |
+| O1 | `liquidaciones/components/LiquidarViajeBody.tsx` (+ snapshot) | Aviso en el panel de pedidos: las marcas se guardan al momento, aunque se cierre sin emitir. |
+| R2 | `rule-modal/ruleOverlap.ts` (nuevo), `useRuleSubmit.ts`, `RuleModal.test.tsx` | Al guardar una regla activa, si otra regla activa tiene el mismo código, país y compañía y su vigencia se pisa, se pide confirmar (`window.confirm`); no bloquea. |
 
-Evaluadas y **no aplicadas**: P7 (perfil + tarifario en una transacción; rompería la idempotencia de `ensurePartyProfile`), P6a (filtrar plantillas por país: el listado multipaís del Probador es intencional y 5 pruebas de caracterización lo fijan; se revirtió), R1 (el usuario prefirió dejar el filtro «Activa» por defecto).
+Evaluadas y **no aplicadas**: P7 (perfil + tarifario en una transacción; rompería la idempotencia de `ensurePartyProfile`), P6a (filtrar plantillas por país: el listado multipaís del Probador es intencional y 5 pruebas de caracterización lo fijan; se revirtió), R1 (el usuario prefirió dejar el filtro «Activa» por defecto), C1 (sin cambios ni aviso).
 
 ## 5. Pruebas nuevas
 

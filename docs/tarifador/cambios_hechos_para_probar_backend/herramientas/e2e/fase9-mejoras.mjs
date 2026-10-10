@@ -28,23 +28,4 @@ await step(ctx, 'P8 costos: aviso al guardar parámetros', async () => {
   await p.locator('.fixed button:has-text("Guardar parámetros")').click(); await p.waitForTimeout(1500);
   return `aviso: ${await toast()}`;
 });
-await step(ctx, 'P16b rol «Solo configurar»: la bitácora falla y se avisa', async () => {
-  await p.locator('.fixed button:has-text("Cerrar")').last().click().catch(() => {});
-  await p.getByRole('group', { name: 'Rol de prueba del modo mock' }).getByRole('button', { name: 'Solo configurar' }).click(); await p.waitForTimeout(600);
-  await go(ctx, '/reglas-tarifa');
-  await p.getByRole('button', { name: 'Nueva Regla' }).click(); await p.waitForTimeout(500);
-  await p.getByPlaceholder('BONO-PEAJES').fill('R_AUD_TOAST'); await p.getByPlaceholder('Bono por peaje transitado').fill('Regla con aviso de bitácora');
-  await p.locator('input[placeholder="20.00"]').fill('100');
-  await p.getByRole('button', { name: 'Crear regla' }).click(); await p.waitForTimeout(1800);
-  await shot(ctx, 'f9-aviso-bitacora');
-  return `regla guardada=${(await mainText(ctx)).includes('R_AUD_TOAST')}; aviso: ${await toast()}`;
-});
-await step(ctx, 'P6a Probador: solo plantillas del país activo', async () => {
-  await p.getByRole('group', { name: 'Rol de prueba del modo mock' }).getByRole('button', { name: 'Administrador' }).click(); await p.waitForTimeout(500);
-  await p.locator('select').first().selectOption({ label: 'Venezuela' }); await p.waitForTimeout(1500);
-  await go(ctx, '/reglas-tarifa');
-  await p.getByRole('button', { name: 'Probador' }).first().click(); await p.waitForTimeout(1800);
-  const opts = await p.locator('main select').first().locator('option').allInnerTexts();
-  return `Venezuela → ${opts.length - 1} plantillas: ${opts.slice(1).join(' | ')}`;
-});
 await finish(ctx, 'fase9');

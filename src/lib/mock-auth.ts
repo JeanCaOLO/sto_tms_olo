@@ -1,5 +1,4 @@
 import type { AuthSession as Session, AuthUser as User } from './supabase';
-import type { MockRole } from './tarifas/data/memory/fakeBackend';
 import { MOCK_COUNTRY_IDS } from './tarifas/data/memory/mockIds';
 
 export interface Role {
@@ -91,53 +90,6 @@ export function mockContextResponse(path: string): MockApiResult | null {
   const cu = /^\/v1\/warehouses\/([^/]+)\/customers$/.exec(path);
   if (cu) return ok(MOCK_CUSTOMERS.filter((c) => c.warehouse_id === cu[1]));
   return null;
-}
-
-// ── Rol de pruebas del mock ──────────────────────────────────────────────────────────────────
-// El mock siempre entraba como administrador, así que los botones deshabilitados por rol y los 403 del
-// backend nunca se veían. `MockRoleSwitch` (solo en modo mock) cambia el rol; el backend simulado
-// (`tarifas/data/memory/fakeBackend.ts`) y `usePermissions` leen el mismo valor.
-export type { MockRole } from './tarifas/data/memory/fakeBackend';
-
-const MOCK_ROLE_KEY = 'tarifas-mock:role';
-export const MOCK_ROLE_EVENT = 'tarifas-mock-role';
-export const MOCK_ROLES: { value: MockRole; label: string }[] = [
-  { value: 'admin', label: 'Administrador' },
-  { value: 'liquidar', label: 'Solo liquidar' },
-  { value: 'configurar', label: 'Solo configurar' },
-];
-
-export function getMockRole(): MockRole {
-  try {
-    const stored = localStorage.getItem(MOCK_ROLE_KEY);
-    return MOCK_ROLES.some((r) => r.value === stored) ? (stored as MockRole) : 'admin';
-  } catch {
-    return 'admin';
-  }
-}
-
-export function setMockRole(role: MockRole): void {
-  try {
-    localStorage.setItem(MOCK_ROLE_KEY, role);
-  } catch {
-    // Sin almacenamiento: el cambio vale solo hasta recargar.
-  }
-  window.dispatchEvent(new Event(MOCK_ROLE_EVENT));
-}
-
-/** Permisos que devuelve `/me/permissions` para cada rol de prueba (mismos módulos que usa el tarifador). */
-export function mockPermissionsFor(role: MockRole) {
-  const all = { role: null, is_admin: true, modules: {}, countries: { all: true, ids: [] } } as const;
-  if (role === 'admin') return all;
-  const modules: Record<string, string[]> = role === 'liquidar'
-    ? { tarifas: ['view', 'create', 'edit', 'export'], 'tarifas.config': ['view', 'export'] }
-    : { tarifas: ['view', 'export'], 'tarifas.config': ['view', 'create', 'edit', 'delete', 'export'] };
-  return {
-    role: { id: `mock-role-${role}`, name: MOCK_ROLES.find((r) => r.value === role)?.label ?? role },
-    is_admin: false,
-    modules,
-    countries: { all: true, ids: [] },
-  };
 }
 
 // ── Sesión del TMS para la bitácora ──────────────────────────────────────────────────────────

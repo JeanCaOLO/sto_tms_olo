@@ -4,7 +4,7 @@
 // un build desplegado.
 //
 // Lo que se edite persiste en `localStorage`; `window.__tarifasMockReset()` vuelve a la semilla.
-// Rol de las pruebas de permisos: ver `getMockRole` en `lib/mock-auth.ts`.
+// Permisos: el backend simulado sigue a «Ver como» (`lib/viewAs.ts`).
 // `window.__tarifasOpLog` junta las escrituras que hizo la app: se guardan con JSON.stringify(window.__tarifasOpLog)
 // y se pasan por `docs/tarifador/cambios_hechos_para_probar_backend/herramientas/replay_payloads.py`.
 
@@ -12,7 +12,7 @@ import demoSeed from './seed.demo.json';
 import { setDataSource } from '../index';
 import { HttpDataSource } from '../http-datasource';
 import { invalidateCatalogCache } from '../../catalogLoader';
-import { getMockRole } from '../../../mock-auth';
+import { readViewAs } from '../../../viewAs';
 import { createFakeBackend, type WriteOp } from './fakeBackend';
 import { enablePersistence, resetToSeed, setSeed } from './store';
 
@@ -24,7 +24,8 @@ enablePersistence(MOCK_STORAGE_KEY);
 setDataSource(new HttpDataSource({
   baseUrl: 'http://mock.local/api',
   fetchImpl: createFakeBackend({
-    role: getMockRole,
+    // El rol sigue a «Ver como»: Liquidador solo escribe liquidaciones y bitácora, como el rol real.
+    role: () => (readViewAs() === 'liquidador' ? 'liquidar' : 'admin'),
     latencyMs: 40,
     // Registro de las escrituras para repetirlas contra el backend real: `window.__tarifasOpLog`.
     onWrite: (op) => { (window.__tarifasOpLog ??= []).push(op); },

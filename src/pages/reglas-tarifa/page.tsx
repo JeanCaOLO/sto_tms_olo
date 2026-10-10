@@ -87,7 +87,7 @@ export default function ReglasTarifaPage() {
           </div>
         );
       case 'probador':
-        return <RuleTester organizationId={organizationId} />;
+        return <RuleTester organizationId={organizationId} initialCountryId={countryId} />;
       case 'bitacora':
         return <BitacoraTab />;
       default:

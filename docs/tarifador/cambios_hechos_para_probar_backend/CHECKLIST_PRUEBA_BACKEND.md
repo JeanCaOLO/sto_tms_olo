@@ -58,11 +58,11 @@ Orden por prioridad. En cada paso: qué hacer, qué debe pasar y, si no pasa, d�
 
 ## 6. Roles y bitácora (B2, H7)
 
-1. Con un usuario que solo tenga `tarifas.config`: guardar una regla.
-   - **Esperado:** se guarda y aparece el aviso amarillo «El cambio se guardó, pero no quedó registrado en la bitácora (Tu rol no tiene permiso para "create" en "tarifas")». SQL: `select entity, entity_id, action, user_name, created_at from tarifas_audit_log order by created_at desc limit 5;` → sin fila de ese cambio.
-   - **Decisión pendiente:** P16a (permitir la bitácora al módulo de configuración, ver `PARCHES_PROPUESTOS/P16a-…`).
-2. Con un usuario que solo tenga `tarifas`: la configuración debe verse en solo lectura (sin «Nueva Regla» ni acciones de edición); emitir una liquidación funciona.
-3. Con un usuario con país restringido: las listas solo muestran su país.
+1. Con un usuario Liquidador (módulo `tarifas` completo y `tarifas.config` solo de lectura): la configuración debe verse en solo lectura (sin «Nueva Regla» ni acciones de edición); emitir una liquidación funciona y deja su fila en `tarifas_audit_log`. Si intenta escribir configuración por la API, 403.
+2. Con un usuario Desarrollador/administrador: guardar una regla deja su fila en la bitácora. SQL: `select entity, entity_id, action, user_name, created_at from tarifas_audit_log order by created_at desc limit 5;`
+3. Si alguna vez falla la bitácora (cualquier causa), debe aparecer el aviso amarillo «El cambio se guardó, pero no quedó registrado en la bitácora…» y el cambio debe quedar guardado.
+4. Con un usuario con país restringido: las listas solo muestran su país.
+5. Probador: con «Operando en Venezuela» arriba, debe arrancar en Venezuela (P17a).
 
 ## 7. Tarifarios
 
@@ -84,8 +84,8 @@ Orden por prioridad. En cada paso: qué hacer, qué debe pasar y, si no pasa, d�
 
 ## 10. Interfaz abierta
 
-- Probador (P6-2): con «Operando en Venezuela» arriba, ¿arranca en Colombia? Decidir P17a/b/c.
-- Reglas duplicadas (R2) y estructura propia de un tercero (C1): confirmar con negocio si son válidas.
+- Reglas duplicadas (R2): crear una regla activa con el mismo código y alcance que otra vigente debe pedir confirmación; una versión con vigencia que no se pisa no.
+- Estructura de costos propia de un tercero (C1): confirmar con negocio si se usa (por ejemplo para la auditoría de ganancia).
 
 ## Al terminar
 

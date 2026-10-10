@@ -49,5 +49,6 @@ Resumen en [`HALLAZGOS.md`](HALLAZGOS.md). Los dos ejemplos que dio el usuario:
 ## Pendientes que quedaron abiertos
 
 - Verificar todo lo de `CHECKLIST_PRUEBA_BACKEND.md` con el túnel activo.
-- Decisiones sin tomar: P17 (país inicial del Probador), P16a (permitir la bitácora al módulo `tarifas.config`, backend), P1b (columna `updated_at` en `tarifas_pricing_rules`). Ver `HALLAZGOS.md`.
+- Decididas en la última ronda: P17a aplicada (el Probador arranca en el país global), P16a descartada (sin cambios de backend: no existe un rol «solo configura»), P1b descartada (la bitácora basta) y O1 resuelta con un aviso en el panel de pedidos.
+- R2 resuelta con un aviso sin bloqueo al guardar una regla repetida. Abierta, de negocio: C1 (estructura de costos propia de un tercero; sin cambios por decisión del usuario).
 - `npm run lint` falla en `HEAD` por errores previos (`src/pages/liquidaciones/page.tsx` tiene 204 líneas contra un máximo de 200; varios tests usan `process` sin declararlo). No se tocaron.
