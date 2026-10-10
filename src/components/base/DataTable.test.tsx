@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+﻿// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, it, expect } from 'vitest';
 import { render, screen, fireEvent, within, cleanup } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
@@ -39,7 +39,7 @@ describe('DataTable filtro por columna', () => {
     const filterIcon = document.querySelector('.ri-filter-3-fill')!.closest('button')!;
     fireEvent.click(filterIcon);
     // En el menú, marcar EPA.
-    const menu = document.querySelector('.absolute.z-20')!;
+    const menu = document.querySelector('.fixed.z-50')!;
     const epaCheckbox = within(menu as HTMLElement).getByLabelText('EPA');
     fireEvent.click(epaCheckbox);
     // La tabla ahora muestra solo EPA, ninguna fila Cofersa en el cuerpo.
@@ -74,7 +74,7 @@ describe('DataTable filtro Cliente con accessor anidado + paginación', () => {
     // Ícono de filtro de la columna Cliente (única filterable).
     const filterIcon = document.querySelector('.ri-filter-3-fill')!.closest('button') as HTMLElement;
     fireEvent.click(filterIcon);
-    const menu = document.querySelector('.absolute.z-20') as HTMLElement;
+    const menu = document.querySelector('.fixed.z-50') as HTMLElement;
     expect(menu).not.toBeNull();
     const epaLabel = within(menu).getByText('EPA').closest('label')!;
     fireEvent.click(within(epaLabel).getByRole('checkbox'));
@@ -221,5 +221,15 @@ describe('DataTable maxVisibleRows (scroll interno)', () => {
     const menu = document.querySelector('.fixed.z-50') as HTMLElement;
     expect(menu).not.toBeNull();
     expect(document.querySelector('table')!.contains(menu)).toBe(false);
+  });
+
+  it('también sin scroll interno: el filtro y el menú de columnas salen de la tabla (no se recortan)', () => {
+    renderWithRouter(<DataTable data={points} columns={pointCols} getRowId={(p) => p.id} columnsKey="t" />);
+    fireEvent.click(document.querySelector('.ri-filter-3-fill')!.closest('button') as HTMLElement);
+    const menu = document.querySelector('.fixed.z-50') as HTMLElement;
+    expect(menu).not.toBeNull();
+    expect(menu.parentElement).toBe(document.body);
+    fireEvent.click(document.querySelector('.ri-layout-column-line')!.closest('button') as HTMLElement);
+    expect(document.querySelectorAll('.fixed.z-50').length).toBe(2);
   });
 });

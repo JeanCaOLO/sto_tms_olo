@@ -110,8 +110,9 @@ function ColumnFilterMenu<T>({
   selected: Set<string> | null;
   onChange: (values: Set<string> | null) => void;
   onClose: () => void;
-  /** Si viene, el menú se dibuja flotando en el <body> bajo este punto (tablas con scroll interno). */
-  anchor?: DOMRect | null;
+  /** Botón que lo abre. El menú se dibuja siempre flotando en el <body> bajo este punto, para que ni el
+   *  `overflow` de la tabla ni el de la tarjeta lo recorten (con la tabla angosta quedaba escondido). */
+  anchor: DOMRect;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState('');
@@ -119,10 +120,24 @@ function ColumnFilterMenu<T>({
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+      const target = e.target as Element;
+      // El botón del filtro se encarga de abrir/cerrar; si no, mousedown cierra y el click reabre.
+      if (target.closest?.('[data-filter-trigger]')) return;
+      if (ref.current && !ref.current.contains(target)) onClose();
+    };
+    // El menú está anclado a una posición fija: al desplazar la página o cambiar el tamaño se cierra.
+    const dismiss = (e: Event) => {
+      if (e.target instanceof Node && ref.current?.contains(e.target)) return;
+      onClose();
     };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    window.addEventListener('scroll', dismiss, true);
+    window.addEventListener('resize', dismiss);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      window.removeEventListener('scroll', dismiss, true);
+      window.removeEventListener('resize', dismiss);
+    };
   }, [onClose]);
 
   const uniqueValues = useMemo(() => {
@@ -146,15 +161,18 @@ function ColumnFilterMenu<T>({
     onChange(next.size === 0 ? null : next);
   };
 
-  const floating = anchor
-    ? { top: anchor.bottom + 4, left: Math.max(8, Math.min(anchor.left, window.innerWidth - 232)) }
-    : null;
+  // ~260 px de alto máximo (buscador + lista de 12 rem): si no cabe debajo, se abre hacia arriba.
+  const opensUp = anchor.bottom + 270 > window.innerHeight && anchor.top > 270;
+  const floating = {
+    ...(opensUp ? { bottom: window.innerHeight - anchor.top + 4 } : { top: anchor.bottom + 4 }),
+    left: Math.max(8, Math.min(anchor.left, window.innerWidth - 232)),
+  };
 
-  const menu = (
+  return createPortal(
     <div
       ref={ref}
-      className={`${floating ? 'fixed z-50' : 'absolute z-20'} mt-1 w-56 bg-white border border-slate-200 rounded-lg shadow-lg p-2 text-left`}
-      style={floating ?? undefined}
+      className="fixed z-50 w-56 bg-white border border-slate-200 rounded-lg shadow-lg p-2 text-left"
+      style={floating}
       onClick={(e) => e.stopPropagation()}
     >
       <input
@@ -187,9 +205,9 @@ function ColumnFilterMenu<T>({
           <p className="text-xs text-slate-400 px-0.5 py-1">{t('table.noMatches')}</p>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
-  return floating ? createPortal(menu, document.body) : menu;
 }
 
 export default function DataTable<T>({
@@ -259,6 +277,8 @@ export default function DataTable<T>({
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const columnsMenuRef = useRef<HTMLDivElement>(null);
+  const columnsPanelRef = useRef<HTMLDivElement>(null);
+  const [columnsAnchor, setColumnsAnchor] = useState<DOMRect | null>(null);
 
   // Las columnas que se ven: en el orden elegido y sin las ocultas. Siempre queda al menos una.
   const orderedAll = useMemo(() => applyColumnLayout(allColumns, layout), [allColumns, layout]);
@@ -302,10 +322,22 @@ export default function DataTable<T>({
   useEffect(() => {
     if (!columnsMenuOpen) return undefined;
     const handler = (e: MouseEvent) => {
-      if (columnsMenuRef.current && !columnsMenuRef.current.contains(e.target as Node)) setColumnsMenuOpen(false);
+      const target = e.target as Node;
+      if (columnsMenuRef.current?.contains(target) || columnsPanelRef.current?.contains(target)) return;
+      setColumnsMenuOpen(false);
+    };
+    const dismiss = (e: Event) => {
+      if (e.target instanceof Node && columnsPanelRef.current?.contains(e.target)) return;
+      setColumnsMenuOpen(false);
     };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    window.addEventListener('scroll', dismiss, true);
+    window.addEventListener('resize', dismiss);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      window.removeEventListener('scroll', dismiss, true);
+      window.removeEventListener('resize', dismiss);
+    };
   }, [columnsMenuOpen]);
 
   const toggleExpanded = (id: string) => setExpanded((prev) => {
@@ -431,7 +463,10 @@ export default function DataTable<T>({
             <div className="relative" ref={columnsMenuRef}>
               <button
                 type="button"
-                onClick={() => setColumnsMenuOpen((open) => !open)}
+                onClick={(e) => {
+                  setColumnsAnchor(e.currentTarget.getBoundingClientRect());
+                  setColumnsMenuOpen((open) => !open);
+                }}
                 aria-expanded={columnsMenuOpen}
                 className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-slate-50 text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer whitespace-nowrap"
               >
@@ -441,8 +476,12 @@ export default function DataTable<T>({
                   <span className="text-[10px] bg-teal-100 text-teal-700 rounded-full px-1.5">{layout.hidden.length} ocultas</span>
                 )}
               </button>
-              {columnsMenuOpen && (
-                <div className="absolute right-0 z-30 mt-1 w-64 bg-white border border-slate-200 rounded-lg shadow-lg p-2 text-left">
+              {columnsMenuOpen && columnsAnchor && createPortal(
+                <div
+                  ref={columnsPanelRef}
+                  className="fixed z-50 w-64 bg-white border border-slate-200 rounded-lg shadow-lg p-2 text-left"
+                  style={{ top: columnsAnchor.bottom + 4, left: Math.max(8, Math.min(columnsAnchor.right - 256, window.innerWidth - 264)) }}
+                >
                   <div className="flex items-center justify-between px-1 pb-1.5 text-xs text-slate-500">
                     <span>Mostrar y ordenar</span>
                     <button
@@ -492,7 +531,8 @@ export default function DataTable<T>({
                     })}
                   </ul>
                   <p className="text-[11px] text-slate-400 px-1 pt-1.5">También podés arrastrar el título de una columna.</p>
-                </div>
+                </div>,
+                document.body,
               )}
             </div>
           )}
@@ -542,8 +582,9 @@ export default function DataTable<T>({
                     {col.filterable && (
                       <button
                         type="button"
+                        data-filter-trigger
                         onClick={(e) => {
-                          setFilterAnchor(scrolls ? e.currentTarget.getBoundingClientRect() : null);
+                          setFilterAnchor(e.currentTarget.getBoundingClientRect());
                           setOpenFilterKey(openFilterKey === col.key ? null : col.key);
                         }}
                         className={`cursor-pointer ${columnFilters[col.key] ? 'text-teal-600' : 'text-slate-400 hover:text-slate-600'}`}
@@ -552,14 +593,14 @@ export default function DataTable<T>({
                       </button>
                     )}
                   </div>
-                  {col.filterable && openFilterKey === col.key && (
+                  {col.filterable && openFilterKey === col.key && filterAnchor && (
                     <ColumnFilterMenu
                       column={col}
                       data={data}
                       selected={columnFilters[col.key] ?? null}
                       onChange={(values) => setColumnFilters((prev) => ({ ...prev, [col.key]: values }))}
                       onClose={() => setOpenFilterKey(null)}
-                      anchor={scrolls ? filterAnchor : null}
+                      anchor={filterAnchor}
                     />
                   )}
                 </th>
