@@ -42,6 +42,13 @@ Orden por prioridad. En cada paso: qué hacer, qué debe pasar y, si no pasa, d�
 2. Si hay: en «Por liquidar» aparecen en «Listos». «Liquidar» debe mostrar el aviso rojo «No se puede emitir: El viaje no tiene zona de destino… Asígnale el tipo de ruta (zona) en guía de despacho» con «Emitir liquidación» deshabilitado.
 3. Anotar qué otros avisos de bloqueo salen con datos reales (zona de otro país, total negativo, regla que depende de otra, falta de base) y cuántos viajes afectan: eso dice cuánto trabajo de datos falta antes de poder liquidar todo.
 
+## 4b. Marcas de pedido y devoluciones (O1)
+
+1. «Liquidar viaje» → **Vista extendida** → sección «Pedidos del viaje»: anular un pedido (con motivo) y dejar otro en «Liquidar después».
+   - **Esperado:** cada marca es un `POST /tarifas/tx` (insert o update de `tarifas_trip_order_marks`); el total a pagar no cambia. Cancelar el modal sin emitir deja las marcas guardadas. SQL: `select order_id, mark, reason, actor from tarifas_trip_order_marks where trip_id = '<trip_id>';`
+   - Emitir: el Historial debe mostrar «N en el reparto», «1 para después», «1 anulados».
+2. Un viaje con devoluciones (`select count(*) from returns`): el modal muestra «Devoluciones · N», informativas.
+
 ## 5. Re-liquidar y anular
 
 1. En el Historial, «Re-liquidar el viaje» sobre una liquidación en `Borrador`, escribir el motivo y confirmar.
@@ -59,7 +66,7 @@ Orden por prioridad. En cada paso: qué hacer, qué debe pasar y, si no pasa, d�
 
 ## 7. Tarifarios
 
-1. Crear un tarifario de compañía; agregar, editar y quitar filas; importar un CSV (`docs/tarifador/demo-data/tarifario-beval-zona.csv`) y un XLSX con 300 filas o más.
+1. Crear un tarifario de compañía; agregar, editar y quitar filas; importar con «Importar planilla» (mapear columnas, formato de números, modo Actualizar o Reemplazar todo) un CSV (`docs/tarifador/demo-data/tarifario-beval-zona.csv`) y un XLSX con 300 filas o más.
    - **Esperado:** el `POST /tarifas/tx` de la importación responde antes del timeout; las filas quedan con `row_order` consecutivo. SQL: `select count(*), min(row_order), max(row_order) from tarifas_rate_table_rows where table_id = '<id>';`
 2. Si falla la creación del tarifario justo después de crear el perfil (T3), queda una compañía «Configurada» sin tarifarios; reintentar debe reutilizarla.
 

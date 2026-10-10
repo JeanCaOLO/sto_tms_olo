@@ -23,7 +23,12 @@ Auditoría del 2026-10-10 hecha **sin Aurora**: lectura trazada de `backend/tari
 | M-UX1 | Botones «Actualizar»/«Guardar» parecidos en Alerta Margen; los umbrales no avisaban al guardar. | UX | **Corregido** (P9). | No |
 | C2 | Guardar parámetros de la estructura de costos no avisaba. | UX | **Corregido** (P8). | No |
 | T3 | Crear tarifario de compañía hace dos escrituras sueltas (perfil + tarifario); si falla la segunda queda un perfil «Configurado» sin nada. | Riesgo bajo | P7 evaluada y no aplicada (rompería la idempotencia de `ensurePartyProfile`). | Sí |
+| O1 | Las marcas de pedido («Anular», «Liquidar después») solo se pueden poner en la **Vista extendida** del modal de liquidar, y se **guardan al instante** en `tarifas_trip_order_marks`: cancelar el modal después no las deshace, y no cambian el total a pagar (por diseño). | Comportamiento a confirmar | Abierto: ¿deben guardarse recién al emitir? ¿deben estar también en la vista simple? | Sí (comprobar en Aurora que la marca queda) |
 | L-lint | `npm run lint` falla en `HEAD`: `liquidaciones/page.tsx` tiene 204 líneas contra un máximo de 200 y varios tests usan `process` sin declararlo. | Previo | No se tocó. | No |
+
+## Cubierto en navegador después del primer informe
+
+Marcas de pedido (anular y liquidar después, emitir con marcas: el Historial muestra «10 en el reparto, 1 para después, 1 anulados»), devoluciones (informativas, no cambian el pago), importar un CSV de tarifario (Beval, formato español, modo «Actualizar»: cinco `update` por `/tx` más la bitácora, todos válidos contra el backend). «Descargar PDF» no produce errores de consola; el contenido de la impresión no se pudo verificar en un navegador sin interfaz.
 
 ## Cómo se confirmó cada bug
 

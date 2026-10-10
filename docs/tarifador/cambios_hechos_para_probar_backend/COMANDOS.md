@@ -38,7 +38,7 @@ En `herramientas/e2e/`. Requieren el mock levantado (`AUDIT_BASE`, por defecto h
 
     node docs/tarifador/cambios_hechos_para_probar_backend/herramientas/e2e/fase2-reglas.mjs
 
-Scripts: `fase2-reglas` (reglas: crear, desactivar, reactivar), `fase3-6-config` (tarifarios, margen, país, Probador), `fase4-costos` y `fase4b-primer-componente` (costos, H9), `fase7-liquidar`, `fase7-liquidar-paises Venezuela`, `fase7b-estados` (emitir, estados, anular, re-liquidar), `fase7c-bloqueo` (viaje sin zona), `fase8-roles` (roles y bitácora), `fase9-mejoras` (avisos). Escriben capturas en `herramientas/capturas/` y las escrituras en `herramientas/oplog.json` (ambos ignorados por git).
+Scripts: `fase2-reglas` (reglas: crear, desactivar, reactivar), `fase3-6-config` (tarifarios, margen, país, Probador), `fase4-costos` y `fase4b-primer-componente` (costos, H9), `fase7-liquidar`, `fase7-liquidar-paises Venezuela`, `fase7b-estados` (emitir, estados, anular, re-liquidar), `fase7c-bloqueo` (viaje sin zona), `fase8-roles` (roles y bitácora), `fase9-mejoras` (avisos), `fase7d-pedidos-devoluciones` (marcas y devoluciones), `fase3b-importar` (importar CSV de tarifario), `fase7e-pdf`. Escriben capturas en `herramientas/capturas/` y las escrituras en `herramientas/oplog.json` (ambos ignorados por git).
 
 ## Evidencia de H9
 

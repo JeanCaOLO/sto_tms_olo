@@ -1,0 +1,31 @@
+import { session, go, step, harvest, bodyText, shot, finish } from './lib.mjs';
+const R = '/home/misterclon/Documents/OLOGISTICO/TMS/TARIFADOR/sto_tms_olo/docs/tarifador/demo-data/';
+const ctx = await session({ country: 'Venezuela' }); const p = ctx.page;
+const modal = () => p.locator('.fixed.inset-0').last();
+const count = async () => (await bodyText(ctx)).match(/Filas de [A-Z_0-9]+.*?(\d+) registros/)?.[1];
+await step(ctx, 'I1 importar CSV (Beval) en modo «Actualizar»', async () => {
+  await go(ctx, '/reglas-tarifa');
+  await p.getByRole('button', { name: 'Tarifarios' }).first().click(); await p.waitForTimeout(1000);
+  await p.locator('main table tbody tr', { hasText: 'BEVAL_ORIGEN_DESTINO' }).first().click({ position: { x: 30, y: 10 } }); await p.waitForTimeout(1500);
+  const antes = await count();
+  await p.getByRole('button', { name: 'Importar planilla' }).click(); await p.waitForTimeout(800);
+  await modal().locator('input[type=file]').setInputFiles(R + 'tarifario-beval-zona.csv'); await p.waitForTimeout(1200);
+  const sels = modal().locator('select');
+  await sels.nth(1).selectOption({ label: 'Español — 1.234,56' }).catch(() => {});
+  await sels.nth(2).selectOption({ label: '1 · Zona Origen' });
+  await sels.nth(3).selectOption({ label: '2 · Zona Destino' });
+  await sels.nth(4).selectOption({ label: '3 · Tarifa' });
+  await shot(ctx, 'f3b-mapeo');
+  const aviso = (await modal().innerText()).match(/(\d+) filas? (?:con|sin|inválid|descartad)[^.]{0,100}/i)?.[0] ?? '';
+  await p.locator('button:has-text("Importar 5 filas")').click(); await p.waitForTimeout(2500);
+  const ops = await harvest(ctx);
+  const filas = await p.locator('main table').last().locator('tbody tr').evaluateAll((t) => t.map((r) => r.innerText.replace(/\s+/g, ' ')));
+  return `filas ${antes} → ${await count()}; aviso previo: "${aviso}"; ops: ${[...new Set(ops.map((o) => `${o.op}:${o.table}`))].join(', ')}; primeras: ${filas.slice(0, 5).join(' | ')}`;
+});
+await step(ctx, 'I2 agregar una fila a mano con importe', async () => {
+  await p.getByPlaceholder('1250.00').fill('777');
+  await p.getByRole('button', { name: 'Agregar' }).click(); await p.waitForTimeout(1200);
+  const ops = await harvest(ctx);
+  return `ops: ${ops.map((o) => o.op + ':' + o.table + ':' + JSON.stringify(o.values?.key)).join(', ')}`;
+});
+await finish(ctx, 'fase3b');
