@@ -33,7 +33,8 @@ load_env_files()
 from tms_common import audit, pg  # noqa: E402
 
 from delivery_points_csv import DeliveryPointRow, read_rows  # noqa: E402
-from ingest_delivery_points_sql import (CREATE_STAGE_SQL, CUSTOMER_SQL, INSERT_FINAL_CUSTOMERS_SQL,  # noqa: E402
+from ingest_delivery_points_sql import (ASSIGN_ZONES_BY_MAP_SQL, CREATE_STAGE_SQL, CUSTOMER_SQL,  # noqa: E402
+                                        EXPLICIT_ZONE_SOURCE_SQL, INSERT_FINAL_CUSTOMERS_SQL,
                                         INSERT_POINTS_SQL, REPORT_SQL, STAGE_COLUMNS, UPDATE_ADDRESSES_SQL,
                                         UPDATE_POINTS_SQL)
 
@@ -63,11 +64,13 @@ def ingest(run: pg.Runner, customer_code: str, rows: list[DeliveryPointRow]) -> 
     load_stage(run, rows)
     new_final_customers = len(run(INSERT_FINAL_CUSTOMERS_SQL, [customer_id]))
     updated_addresses = len(run(UPDATE_ADDRESSES_SQL, [customer_id]))
-    updated_points = len(run(UPDATE_POINTS_SQL, [country_id, customer_id]))
+    run(EXPLICIT_ZONE_SOURCE_SQL)
+    updated_points = len(run(UPDATE_POINTS_SQL, [customer_id, country_id]))
     new_points = len(run(INSERT_POINTS_SQL, [customer_id, country_id, country_id]))
+    zoned_by_map = run(ASSIGN_ZONES_BY_MAP_SQL, [country_id])[0]["changed"]
     report = {"filas del CSV": len(rows), "clientes finales nuevos": new_final_customers,
               "puntos nuevos": new_points, "puntos actualizados": updated_points,
-              "direcciones actualizadas": updated_addresses}
+              "direcciones actualizadas": updated_addresses, "puntos ubicados por mapa": zoned_by_map}
     for item in run(REPORT_SQL, [country_id]):
         report[item["label"]] = item["total"]
     return report

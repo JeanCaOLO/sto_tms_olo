@@ -44,12 +44,17 @@ WHERE a.id = dp.address_id
 RETURNING a.id
 """
 
+# Zona del punto (sql/34): la ruta del WMS manda solo si resuelve a una zona
+# y el usuario no la fijó a mano; si no, se conserva la que tenga (p. ej. la
+# del mapa). Corre con tms.zone_source_explicit = 'on' (EXPLICIT_ZONE_SOURCE_SQL).
 UPDATE_POINTS_SQL = """
 UPDATE delivery_points p
 SET name = s.name, route_code = s.route_code, wms_zone_code = s.wms_zone_code, active = s.active,
-    zone_id = (SELECT z.id FROM zones z WHERE z.country_id = %s AND z.code = s.zone_code),
+    zone_id = CASE WHEN p.zone_source <> 'manual' AND rz.id IS NOT NULL THEN rz.id ELSE p.zone_id END,
+    zone_source = CASE WHEN p.zone_source <> 'manual' AND rz.id IS NOT NULL THEN 'wms' ELSE p.zone_source END,
     updated_at = now()
 """ + _POINT_OF_ROW + """
+LEFT JOIN zones rz ON rz.country_id = %s AND rz.code = s.zone_code
 WHERE p.id = dp.id
 RETURNING p.id
 """
@@ -72,10 +77,11 @@ WITH missing AS (
   RETURNING id
 )
 INSERT INTO delivery_points (final_customer_id, address_id, external_code, name, is_default, active,
-                             zone_id, route_code, wms_zone_code)
+                             zone_id, zone_source, route_code, wms_zone_code)
 SELECT m.final_customer_id, m.address_id, m.code, m.name, m.is_default, m.active,
-       (SELECT z.id FROM zones z WHERE z.country_id = %s AND z.code = m.zone_code), m.route_code, m.wms_zone_code
+       rz.id, CASE WHEN rz.id IS NOT NULL THEN 'wms' ELSE 'map' END, m.route_code, m.wms_zone_code
 FROM missing m
+LEFT JOIN zones rz ON rz.country_id = %s AND rz.code = m.zone_code
 RETURNING id
 """
 
@@ -86,3 +92,8 @@ SELECT CASE WHEN z.id IS NULL THEN 'sin zona en catálogo' ELSE 'con zona' END, 
 FROM stage_points s LEFT JOIN zones z ON z.country_id = %s AND z.code = s.zone_code
 GROUP BY z.id IS NULL
 """
+
+# Zonas por mapa (sql/34): la ingesta fija zone_source ella misma, y al final los
+# puntos sin zona del WMS ('map') caen en la cerca que los contenga.
+EXPLICIT_ZONE_SOURCE_SQL = "SELECT set_config('tms.zone_source_explicit', 'on', true)"
+ASSIGN_ZONES_BY_MAP_SQL = "SELECT assign_zones_by_map(%s) AS changed"

@@ -16,7 +16,10 @@ import delivery_points_sql as sql
 from scopes import authorize
 
 ADDRESS_FIELDS = ("line1", "line2", "city", "state")
-POINT_FIELDS = ("name", "delivery_instructions", "zone_id", "route_code", "active")
+POINT_FIELDS = ("name", "delivery_instructions", "zone_id", "zone_source", "route_code", "active")
+# Zona del punto (sql/34): elegir una zona la deja 'manual'; mandar zone_source='map'
+# la devuelve a automática (la calcula la cerca del mapa). 'wms' solo la pone la ingesta.
+EDITABLE_ZONE_SOURCES = ("map", "manual")
 GEO_OK, GEO_PENDING = "OK", "PENDING"
 LAT_RANGE, LON_RANGE = (-90.0, 90.0), (-180.0, 180.0)
 MODULE = "puntos_entrega"
@@ -112,6 +115,8 @@ def update_point(event: dict) -> dict:
     fields = {key: (body[key] or None) if key != "active" else bool(body[key]) for key in POINT_FIELDS if key in body}
     if "name" in fields and not fields["name"]:
         raise HttpError(400, "El nombre es obligatorio")
+    if "zone_source" in fields and fields["zone_source"] not in EDITABLE_ZONE_SOURCES:
+        raise HttpError(400, "zone_source debe ser 'map' (automática) o 'manual'")
     with pg.transaction() as run:
         if fields:
             assignments = ", ".join(f"{column} = %s" for column in fields)

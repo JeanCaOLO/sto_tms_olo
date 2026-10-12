@@ -100,6 +100,22 @@ def test_update_point_and_address_without_coordinates_is_pending(setup):
     assert _sql(db, "UPDATE addresses")[0][6] == "PENDING"
 
 
+def test_update_can_send_point_back_to_automatic_zone(setup):
+    app, db = setup()
+    body = {"zone_source": "map"}
+    response = app.handler(http_event("PATCH /api/v1/delivery-points/{id}", path={"id": "dp-1"}, body=body, user=USER), None)
+    assert response["statusCode"] == 200
+    assert _sql(db, "UPDATE delivery_points SET zone_source")[0] == ["map", "dp-1"]
+
+
+@pytest.mark.parametrize("source", ["wms", "", "otra"])
+def test_update_rejects_zone_sources_the_user_cannot_set(setup, source):
+    app, db = setup()
+    response = app.handler(http_event("PATCH /api/v1/delivery-points/{id}", path={"id": "dp-1"},
+                                      body={"zone_source": source}, user=USER), None)
+    assert response["statusCode"] == 400 and not _sql(db, "UPDATE delivery_points")
+
+
 def test_delete_removes_point_and_its_address(setup):
     app, db = setup()
     response = app.handler(http_event("DELETE /api/v1/delivery-points/{id}", path={"id": "dp-1"}, user=USER), None)
