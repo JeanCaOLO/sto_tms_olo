@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { supabase, apiFetch } from '../../lib/supabase';
+import { useOperationalContext } from '../../hooks/useOperationalContext';
 import Button from '../../components/base/Button';
 import Badge from '../../components/base/Badge';
 import DataTable, { type DataTableColumn } from '../../components/base/DataTable';
@@ -60,24 +61,54 @@ export default function TiendasPage() {
   const [selectedPoint, setSelectedPoint] = useState<DeliveryPoint | null>(null);
   const [pointToDelete, setPointToDelete] = useState<DeliveryPoint | null>(null);
   const [saveError, setSaveError] = useState<string>('');
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const { canCreate, canEdit, canDelete } = useModulePermissions('puntos_entrega');
+  const { selectedCountryId, selectedWarehouseId, selectedCustomerId } = useOperationalContext();
   const { t } = useTranslation();
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  // Paginación SERVIDOR: solo trae la página pedida con offset+limit (antes
-  // traía los ~10k puntos de una vez y el DataTable paginaba en memoria).
-  // `count: 'exact'` da el total sin paginar para pintar "X de N".
-  useEffect(() => { fetchPoints(); }, [page, pageSize]);
+  // Búsqueda server-side con debounce (300ms): no busca en memoria sobre la
+  // página, manda ilike("name|external_code") al backend.
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(id);
+  }, [search]);
+
+  // Cualquier cambio de filtro/contexto/búsqueda vuelve a la página 1.
+  useEffect(() => {
+    setPage(1);
+  }, [selectedCountryId, selectedWarehouseId, selectedCustomerId, debouncedSearch, pageSize]);
+
+  // Paginación + filtros SERVIDOR: trae solo la página pedida (offset+limit) ya
+  // filtrada por país → almacén → cliente (contexto global) y búsqueda. Antes
+  // traía los ~10k puntos de una vez y filtraba/paginaba en memoria.
+  // `count: 'exact'` da el total (ya filtrado) sin paginar para pintar "X de N".
+  useEffect(() => { fetchPoints(); },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [page, pageSize, selectedCountryId, selectedWarehouseId, selectedCustomerId, debouncedSearch]);
+
+  // Cada pedido lleva un número: si llega una respuesta vieja (p. ej. la de la página anterior
+  // al cambiar un filtro), se descarta para no pisar la más reciente.
+  const lastRequest = useRef(0);
 
   const fetchPoints = async () => {
+    const request = ++lastRequest.current;
     setLoading(true);
     const from = (page - 1) * pageSize;
-    const { data, error, count } = await supabase
+    // Columnas de filtro por tabla padre (contrato de Claude, canal 2026-10-12):
+    // usan el NOMBRE de la tabla, no el alias del embed.
+    let q = supabase
       .from('delivery_points')
       .select(LIST_SELECT, { count: 'exact' })
-      .order('name', { ascending: true })
-      .range(from, from + pageSize - 1);
+      .order('name', { ascending: true });
+    if (selectedCountryId) q = q.eq('final_customers.customers.country_id', selectedCountryId);
+    if (selectedWarehouseId) q = q.eq('final_customers.customers.warehouse_id', selectedWarehouseId);
+    if (selectedCustomerId) q = q.eq('final_customers.customer_id', selectedCustomerId);
+    if (debouncedSearch) q = q.ilike('name|external_code', `%${debouncedSearch}%`);
+    const { data, error, count } = await q.range(from, from + pageSize - 1);
+    if (request !== lastRequest.current) return;
     if (!error) {
       setPoints((data as DeliveryPoint[]) || []);
       if (typeof count === 'number') setTotal(count);
@@ -158,7 +189,6 @@ export default function TiendasPage() {
       header: t('deliveryPoints.colCustomer'),
       accessor: (p) => p.final_customer?.customer?.name ?? '',
       sortable: true,
-      filterable: true,
       render: (p) => {
         const customer = p.final_customer?.customer;
         return customer ? (
@@ -174,7 +204,6 @@ export default function TiendasPage() {
       header: t('deliveryPoints.colZone'),
       accessor: (p) => p.zone?.name ?? '',
       sortable: true,
-      filterable: true,
       render: (p) => (
         <>
           <div className="text-sm text-slate-700">{p.zone?.name ?? <span className="text-slate-300">—</span>}</div>
@@ -201,7 +230,6 @@ export default function TiendasPage() {
       key: 'geocoding',
       header: t('deliveryPoints.colGeocoding'),
       accessor: (p) => p.address?.geocoding_status ?? '',
-      filterable: true,
       render: (p) => {
         const status = p.address?.geocoding_status ?? '';
         const conf = GEO_CONFIG[status];
@@ -214,7 +242,6 @@ export default function TiendasPage() {
       key: 'active',
       header: t('deliveryPoints.colStatus'),
       accessor: (p) => (p.active ? t('deliveryPoints.active') : t('deliveryPoints.inactive')),
-      filterable: true,
       render: (p) => (
         <Badge variant={p.active ? 'success' : 'danger'} size="sm">
           {p.active ? t('deliveryPoints.active') : t('deliveryPoints.inactive')}
@@ -244,11 +271,24 @@ export default function TiendasPage() {
           <h1 className="text-2xl font-bold text-slate-900">{t('deliveryPoints.title')}</h1>
           <p className="text-sm text-slate-500 mt-0.5">{t('deliveryPoints.subtitle')}</p>
         </div>
-        {canCreate && (
-          <Button variant="primary" onClick={openNew} icon={<i className="ri-add-line"></i>}>
-            {t('deliveryPoints.new')}
-          </Button>
-        )}
+        <div className="flex items-center gap-3">
+          <div className="relative min-w-[240px]">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center text-slate-400">
+              <i className="ri-search-line text-sm"></i>
+            </div>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t('deliveryPoints.search')}
+              className="w-full pl-10 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+            />
+          </div>
+          {canCreate && (
+            <Button variant="primary" onClick={openNew} icon={<i className="ri-add-line"></i>}>
+              {t('deliveryPoints.new')}
+            </Button>
+          )}
+        </div>
       </div>
 
       {saveError && (
@@ -281,7 +321,7 @@ export default function TiendasPage() {
         data={points}
         columns={columns}
         getRowId={(p) => p.id}
-        searchPlaceholder={t('deliveryPoints.search')}
+        hideSearch
         exportFileName="puntos_de_entrega"
         emptyMessage={t('deliveryPoints.empty')}
         loading={loading}

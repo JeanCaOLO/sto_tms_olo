@@ -152,6 +152,11 @@ class QueryBuilder implements PromiseLike<PgResult> {
     this.filters.push([column, "in", values]);
     return this;
   }
+  /** Búsqueda case-insensitive. `column` admite "a|b" para OR entre columnas. El `%` lo pone el llamador. */
+  ilike(column: string, pattern: string) {
+    this.filters.push([column, "ilike", pattern]);
+    return this;
+  }
 
   order(column: string, opts?: { ascending?: boolean }) {
     this.orderSpec = { column, ascending: opts?.ascending !== false };
@@ -167,8 +172,7 @@ class QueryBuilder implements PromiseLike<PgResult> {
    * Paginación servidor estilo supabase-js: filas en el rango inclusivo
    * [from, to]. Manda offset=from y limit=to-from+1 a /api/data. Combinar con
    * .select(cols, { count: 'exact' }) para recibir el total sin paginar en
-   * `count`. ponytail: el backend genérico debe respetar `offset` (ver canal
-   * 2026-10-12); hasta entonces, offset se ignora del lado servidor.
+   * `count`. El backend genérico `/api/data` respeta `offset` desde 2026-10-12.
    */
   range(from: number, to: number) {
     const start = Math.max(0, Math.trunc(from));

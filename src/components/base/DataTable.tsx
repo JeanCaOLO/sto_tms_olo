@@ -48,6 +48,9 @@ interface DataTableProps<T> {
   // Opcional: la búsqueda también mira las columnas ocultas (por defecto solo las que se ven). Útil
   // cuando el placeholder promete buscar por algo (p. ej. la placa) que la vista simple no muestra.
   searchHidden?: boolean;
+  // Opcional: oculta el buscador interno (búsqueda en memoria). Úsalo cuando la pantalla hace la
+  // búsqueda del lado del servidor y el buscador interno (que solo ve las filas cargadas) confundiría.
+  hideSearch?: boolean;
   // Opcional: filas que se pueden extender. Si devuelve contenido, la fila lleva un botón para
   // desplegarlo debajo (por ejemplo, el detalle de un viaje).
   renderExpanded?: (row: T) => ReactNode;
@@ -210,6 +213,7 @@ export default function DataTable<T>({
   columnsKey,
   defaultHidden,
   searchHidden = false,
+  hideSearch = false,
   renderExpanded,
   canExpand,
   maxVisibleRows,
@@ -406,17 +410,21 @@ export default function DataTable<T>({
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-slate-100 bg-white/70 backdrop-blur-sm">
-        <div className="relative flex-1 min-w-[220px] max-w-sm">
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center text-slate-400">
-            <i className="ri-search-line text-sm"></i>
+        {hideSearch ? (
+          <div className="flex-1 min-w-[220px]" />
+        ) : (
+          <div className="relative flex-1 min-w-[220px] max-w-sm">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center text-slate-400">
+              <i className="ri-search-line text-sm"></i>
+            </div>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={searchPlaceholder ?? t('table.search')}
+              className="w-full pl-10 pr-4 py-2 text-sm bg-white/80 backdrop-blur border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
+            />
           </div>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={searchPlaceholder ?? t('table.search')}
-            className="w-full pl-10 pr-4 py-2 text-sm bg-white/80 backdrop-blur border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
-          />
-        </div>
+        )}
         <div className="flex items-center gap-3">
           {activeFilterCount > 0 && (
             <button

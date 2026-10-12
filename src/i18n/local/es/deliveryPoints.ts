@@ -13,7 +13,7 @@ export default {
   'deliveryPoints.colAddress': 'Dirección',
   'deliveryPoints.colGeocoding': 'Geocodificación',
   'deliveryPoints.colStatus': 'Estado',
-  'deliveryPoints.search': 'Buscar en esta página...',
+  'deliveryPoints.search': 'Buscar por nombre o código...',
   'deliveryPoints.empty': 'No se encontraron puntos de entrega',
   'deliveryPoints.geoOk': 'Geocodificado',
   'deliveryPoints.geoPending': 'Sin coordenadas',
