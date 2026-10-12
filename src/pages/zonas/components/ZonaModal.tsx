@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
+import ZoneMap, { type GeoJSONGeometry, type ZoneShape } from './ZoneMap';
 
 interface Pais {
   id: string;
@@ -15,26 +17,41 @@ interface ZonaModalProps {
   onClose: () => void;
   onSuccess: () => void;
   zona?: any;
+  // Las demás zonas del país elegido, para pintarlas de fondo mientras se dibuja.
+  siblings?: ZoneShape[];
 }
 
-// Modal de Zona. Tabla `zones` (antes `route_types`, renombrada por backend en
-// sql/09). Una zona pertenece a un país (obligatorio) y tiene un `code` único
-// por país (código de ruta del WMS). Alta sin país → 409.
-export default function ZonaModal({ isOpen, onClose, onSuccess, zona }: ZonaModalProps) {
+const DEFAULT_COLOR = '#0ea5e9';
+const COLOR_PRESETS = ['#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#64748b'];
+
+// Modal de Zona con MAPA. Tabla `zones` (sql/09 + geocerca en sql/34).
+// Una zona pertenece a un país (obligatorio); se dibuja su geocerca (polígono)
+// sobre el mapa de ese país. El `code` de una zona EXISTENTE es de solo lectura:
+// las reglas de tarifa y la ingesta del WMS lo usan (aviso de Claude, canal
+// 2026-10-12), cambiarlo rompería esos cruces.
+export default function ZonaModal({ isOpen, onClose, onSuccess, zona, siblings = [] }: ZonaModalProps) {
   const { appUser } = useAuth();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [paises, setPaises] = useState<Pais[]>([]);
-  const [formData, setFormData] = useState({ code: '', name: '', country_id: '', status: 'active' });
+  const [form, setForm] = useState({ code: '', name: '', country_id: '', status: 'active', color: DEFAULT_COLOR });
+  const [geofence, setGeofence] = useState<GeoJSONGeometry | null>(null);
+  const [error, setError] = useState('');
+
+  const isEdit = !!zona;
 
   useEffect(() => {
     if (!isOpen) return;
     loadPaises();
-    setFormData({
+    setForm({
       code: zona?.code || '',
       name: zona?.name || '',
       country_id: zona?.country_id || '',
       status: zona?.status || 'active',
+      color: zona?.color || DEFAULT_COLOR,
     });
+    setGeofence(zona?.geofence ?? null);
+    setError('');
   }, [zona, isOpen]);
 
   const loadPaises = async () => {
@@ -47,32 +64,41 @@ export default function ZonaModal({ isOpen, onClose, onSuccess, zona }: ZonaModa
     if (data) setPaises(data);
   };
 
+  const countryName = paises.find((p) => p.id === form.country_id)?.name ?? null;
+  // Fondo: las otras zonas del país elegido (no la que se edita).
+  const backdrop = siblings.filter((s) => s.id !== zona?.id);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!appUser?.organization_id) return;
+    if (!form.country_id) { setError(t('zones.errCountry')); return; }
     setLoading(true);
+    setError('');
     try {
-      const payload = {
-        code: formData.code || null,
-        name: formData.name,
-        country_id: formData.country_id || null,
-        status: formData.status,
+      const payload: Record<string, unknown> = {
+        name: form.name,
+        country_id: form.country_id,
+        status: form.status,
+        color: form.color || null,
+        geofence: geofence,
         updated_at: new Date().toISOString(),
       };
-      if (zona) {
-        const { error } = await supabase.from('zones').update(payload).eq('id', zona.id);
-        if (error) throw error;
+      // El code solo se escribe al crear; al editar es inmutable (lo usan tarifas/WMS).
+      if (!isEdit) payload.code = form.code || null;
+
+      if (isEdit) {
+        const { error: err } = await supabase.from('zones').update(payload).eq('id', zona.id);
+        if (err) throw err;
       } else {
-        const { error } = await supabase
+        const { error: err } = await supabase
           .from('zones')
           .insert({ ...payload, organization_id: appUser.organization_id });
-        if (error) throw error;
+        if (err) throw err;
       }
       onSuccess();
       onClose();
-    } catch (error: any) {
-      console.error('Error al guardar zona:', error);
-      alert(error.message || 'Error al guardar la zona');
+    } catch (err: any) {
+      setError(err?.message || t('zones.errSave'));
     } finally {
       setLoading(false);
     }
@@ -82,58 +108,110 @@ export default function ZonaModal({ isOpen, onClose, onSuccess, zona }: ZonaModa
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-slate-900">{zona ? 'Editar Zona' : 'Nueva Zona'}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+      <div className="bg-white rounded-lg w-full max-w-5xl max-h-[92vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between z-10">
+          <h2 className="text-xl font-semibold text-slate-900">{isEdit ? t('zones.editTitle') : t('zones.new')}</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600" aria-label={t('common.cancel')}>
             <i className="ri-close-line text-2xl"></i>
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <Input
-            label="Código"
-            value={formData.code}
-            onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-            placeholder="Ej: 01, 04, 16 (código de ruta WMS)"
-          />
+        <form onSubmit={handleSubmit} className="p-6 grid grid-cols-1 lg:grid-cols-5 gap-6">
+          {/* Datos */}
+          <div className="lg:col-span-2 space-y-4">
+            <Select
+              label={t('zones.colCountry')}
+              value={form.country_id}
+              onChange={(e) => setForm({ ...form, country_id: e.target.value })}
+              required
+              options={[
+                { value: '', label: t('zones.selectCountry') },
+                ...paises.map((p) => ({ value: p.id, label: p.name })),
+              ]}
+            />
 
-          <Input
-            label="Nombre de la Zona"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            required
-            placeholder="Ej: GAM, Zona Norte, Guanacaste"
-          />
+            <div>
+              <Input
+                label={t('zones.code')}
+                value={form.code}
+                onChange={(e) => setForm({ ...form, code: e.target.value })}
+                disabled={isEdit}
+                placeholder="Z1, Z2…"
+              />
+              {isEdit && <p className="text-xs text-amber-600 mt-1"><i className="ri-lock-line"></i> {t('zones.codeLocked')}</p>}
+            </div>
 
-          <Select
-            label="País"
-            value={formData.country_id}
-            onChange={(e) => setFormData({ ...formData, country_id: e.target.value })}
-            required
-            options={[
-              { value: '', label: 'Seleccionar país' },
-              ...paises.map((p) => ({ value: p.id, label: p.name })),
-            ]}
-          />
+            <Input
+              label={t('zones.name')}
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              required
+              placeholder="Z1 · Casco Central"
+            />
 
-          <Select
-            label="Estado"
-            value={formData.status}
-            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-            required
-            options={[
-              { value: 'active', label: 'Activo' },
-              { value: 'inactive', label: 'Inactivo' },
-            ]}
-          />
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">{t('zones.color')}</label>
+              <div className="flex items-center gap-2 flex-wrap">
+                {COLOR_PRESETS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setForm({ ...form, color: c })}
+                    aria-label={c}
+                    className={`w-7 h-7 rounded-full border-2 cursor-pointer ${form.color === c ? 'border-slate-900' : 'border-white shadow'}`}
+                    style={{ backgroundColor: c }}
+                  />
+                ))}
+                <input
+                  type="color"
+                  value={form.color}
+                  onChange={(e) => setForm({ ...form, color: e.target.value })}
+                  className="w-8 h-8 rounded cursor-pointer border border-slate-200"
+                  aria-label={t('zones.color')}
+                />
+              </div>
+            </div>
 
-          <div className="flex gap-3 pt-4">
+            <Select
+              label={t('zones.colStatus')}
+              value={form.status}
+              onChange={(e) => setForm({ ...form, status: e.target.value })}
+              required
+              options={[
+                { value: 'active', label: t('zones.active') },
+                { value: 'inactive', label: t('zones.inactive') },
+              ]}
+            />
+
+            <p className="text-xs text-slate-500">{geofence ? t('zones.fenceSet') : t('zones.fenceHint')}</p>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+          </div>
+
+          {/* Mapa */}
+          <div className="lg:col-span-3">
+            {form.country_id ? (
+              <ZoneMap
+                shapes={backdrop}
+                countryName={countryName}
+                editable
+                initialGeometry={zona?.geofence ?? null}
+                editColor={form.color}
+                onDraw={setGeofence}
+                className="h-[460px] w-full rounded-lg border border-slate-200"
+              />
+            ) : (
+              <div className="h-[460px] w-full rounded-lg border border-dashed border-slate-300 flex items-center justify-center text-slate-400 text-sm">
+                {t('zones.pickCountryFirst')}
+              </div>
+            )}
+          </div>
+
+          <div className="lg:col-span-5 flex gap-3 pt-2 border-t border-slate-100">
             <Button type="button" variant="secondary" onClick={onClose} disabled={loading} className="flex-1">
-              Cancelar
+              {t('common.cancel')}
             </Button>
             <Button type="submit" disabled={loading} className="flex-1">
-              {loading ? 'Guardando...' : zona ? 'Actualizar' : 'Crear'}
+              {loading ? t('zones.saving') : t('common.save')}
             </Button>
           </div>
         </form>
