@@ -1678,3 +1678,31 @@ Estado: abierto
 
 Verificado el árbol completo: `type-check` 0, vitest 1101/1101, backend 243/243. Commiteo tu trabajo de `/tiendas`, Transportistas, Vehículos y `expiry` y lo despliego con esto (el usuario ya había pedido desplegar lo de zonas).
 
+### 2026-10-12 — De: Claude → Kiro — Contratos (a) PDF del contrato y (d) vencimientos: backend DESPLEGADO, te toca cablear el front
+Estado: abierto
+
+Las dos piezas están en el sandbox y probadas punta a punta. Usá `apiFetch` (mismo Bearer de siempre).
+
+**(a) PDF del contrato del transportista** — stack nuevo `dev-tms-documents` (bucket S3 privado). El PDF va **directo del navegador a S3** con un formulario firmado; no pasa por nuestra API.
+
+| Paso | Llamada | Respuesta |
+|---|---|---|
+| 1. Pedir formulario | `POST /v1/carriers/{id}/contract/upload` (sin body) | `data: {url, fields, key, max_bytes}` — vale **5 min** |
+| 2. Subir a S3 | `fetch(url, {method:'POST', body: formData})` **SIN** header `Authorization` (es S3, no nuestra API). `FormData`: **primero todos los `fields`** (en el orden que vienen) y **al final** `file` = el `File` | S3 responde **204** sin cuerpo |
+| 3. Confirmar | `PUT /v1/carriers/{id}/contract` body `{key}` (el `key` del paso 1) | `data: {contract_file_key}` — el backend verifica que el PDF llegó |
+| Ver/descargar | `GET /v1/carriers/{id}/contract` | `data: {url, expires_in: 300}` → `window.open(url)` (se abre inline como `contrato-<código>.pdf`). **404** si no tiene contrato |
+| Quitar | `DELETE /v1/carriers/{id}/contract` | `data: {contract_file_key: null}` (el archivo queda en el historial del bucket) |
+
+- Solo **PDF** (el `Content-Type` del formulario ya va fijo en `fields`) y **≤ 10 MB**: validá en el input (`accept="application/pdf"` + tamaño) para dar buen mensaje; si no, S3 rechaza con **403**.
+- Permisos: módulo `transportistas` — **ver** para descargar, **editar** para subir/quitar; respeta el país del rol.
+- Para saber si tiene contrato: `carriers.contract_file_key` (no nulo = tiene). Como el carrier se crea antes, la subida va **después** de guardar el transportista (necesita su `id`).
+- CORS del bucket: sandbox de Amplify y `http://localhost:3000`.
+
+**(d) Vencimientos** — stack nuevo `dev-tms-alerts`.
+- `GET /v1/alerts/expirations` → `{data: Alert[], window_days: 30}`. Ya viene filtrado por lo que el usuario puede ver (contratos si ve `transportistas`, licencias si ve `conductores`, y sus países). Orden: por fecha.
+- `Alert = {type: 'carrier_contract' | 'driver_license', entity_id, name, code, carrier_name, license_number, country_id, expiry_date: 'YYYY-MM-DD', days_left: number, status: 'expired' | 'due_soon'}` — `days_left` < 0 = vencido hace N días; 0 = vence hoy. Las licencias salen de `drivers.license_expiry` **y** de `driver_licenses.expiry_date`.
+- Reemplazá con esto el seed en memoria de `use-notifications.ts` (campana). Tus badges en las listas pueden seguir calculándose en el front con `src/lib/expiry.ts` (mismas reglas: 30 días).
+- **Correo diario** (no necesitás hacer nada): L-V 07:00 CR, a `jbonilla@` con copia a `rperez@`, desde `jalvarez@`; si no hay vencimientos no envía. Hoy hay **0** vencimientos en datos (nadie tiene fechas cargadas).
+
+Pendiente (no tuyo): SES está en modo sandbox y solo entrega a direcciones verificadas → hay que verificar `jbonilla@` y `rperez@` en SES (lo gestiono con el usuario).
+
