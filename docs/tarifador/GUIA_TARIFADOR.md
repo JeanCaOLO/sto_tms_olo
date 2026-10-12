@@ -180,7 +180,7 @@ Es el modo para probar con datos reales sin desplegar nada.
 2. **`.env.local`:** `TMS_DB_HOST=localhost`, `TMS_DB_PORT=15432`, `TMS_DB_NAME=tms_olo`, `TMS_DB_USER`,
    `TMS_DB_PASSWORD` y `JWT_SECRET`. (Las credenciales no se
    versionan.)
-3. **API local:** `npm run api:local:base` → Lambdas en `:4000` (incluye `tarifas`).
+3. **API local:** `npm run api:local:base` → Lambdas en `:4000` (incluye `tarifas`). Corre `backend/local/serve.py`, que ejecuta tal cual las Lambdas de `backend/`: es el código que se despliega. `npm run api:local` corre `backend-planif/serve.py`, una copia del backend de Planificación que **no** tiene `tarifas`; no sirve para este módulo.
 4. **Front:** `npm run dev`. El proxy de Vite envía `/api/*` a `:4000`. Iniciar sesión con un usuario
    del TMS (`scripts/create-dev-user.mjs` crea uno).
 5. Si cambió `data/schema.ts`: `npm run tarifas:manifest` (regenera `backend/tarifas/src/schema_manifest.json`).
@@ -298,7 +298,7 @@ serialización (`40001`).
 | "Elija un país en el selector de la parte superior" | El selector global está en "Todos los países". |
 | Un viaje de flota propia no calcula costo por camión | Revise que `tipo_camion` de la plantilla coincida con el tipo de vehículo del catálogo (aparece como aviso en la vista previa). |
 | "La zona de destino no existe" | La zona del viaje no tiene `code` en el catálogo. |
-| Páginas en blanco o 401 en `/api/tarifas` | Sin sesión, o `api:local` no está arriba. |
+| Páginas en blanco o 401 en `/api/tarifas` | Sin sesión, o `api:local:base` no está arriba. |
 | `ECONNREFUSED 15432` / timeout | El túnel no está abierto, o Aurora está apagado (fuera de L–V 04:45–17:00 CR). |
 | `Failed to execute 'fetch' … Illegal invocation` | Corregido (2026-10-05): el driver HTTP llamaba a `fetch` con otro `this`. |
 | 405 al guardar | Se intentó escribir una entidad externa (catálogo). Se edita en Catálogos. |

@@ -163,6 +163,16 @@ describe.skipIf(!enabled)('Liquidador contra Aurora (transacción revertida)', {
     expect(log.length).toBeGreaterThanOrEqual(3); // emitir, re-liquidar, cambiar estado
   });
 
+  it('recorre el flujo hasta Pagado y rechaza volver atrás (checklist §3.2)', async () => {
+    const [vigente] = (await listTripSettlements(trip.id)).filter((s) => s.status !== 'Anulado');
+    for (const status of ['Aprobado', 'Pagado'] as const) {
+      expect((await updateSettlementStatus(vigente.id, status)).error, status).toBeNull();
+    }
+    const back = await updateSettlementStatus(vigente.id, 'Borrador');
+    expect(back.error).toMatch(/No se puede pasar de "Pagado" a "Borrador"/);
+    expect((await listSettlements({ countryId })).find((s) => s.id === vigente.id)?.status).toBe('Pagado');
+  });
+
   it('flota propia: el total es la acumulación de gastos y la mercancía sale de los pedidos de las guías', async () => {
     const structure = await activeStructure(null, countryId);
     const own = (await listLiquidableTrips({ countryId })).find((t) => t.isOwnFleet === true);

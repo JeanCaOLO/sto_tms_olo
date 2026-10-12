@@ -69,11 +69,8 @@ export function useTarifariosActions({ state, setState, selected, loadTables, lo
   };
 
   const deleteTable = async (table: RateTable) => {
-    if (!(await confirmAction({
-      title: 'Eliminar tarifario',
-      message: `¿Eliminar "${table.code}" y todas sus filas? Las reglas que lo nombren van a usar su importe de respaldo.`,
-      confirmLabel: 'Eliminar',
-    }))) return;
+    const message = `¿Eliminar "${table.code}" y todas sus filas? Las reglas que lo nombren van a usar su importe de respaldo.`;
+    if (!(await confirmAction({ title: 'Eliminar tarifario', message, confirmLabel: 'Eliminar' }))) return;
     try {
       const { error } = await removeRateTable(table.id, table.code);
       if (error) {

@@ -1,6 +1,6 @@
 // Consultas de viajes.
 
-import { db, type Condition, type Row } from '../data';
+import { db, findMany, type Condition, type FindRequest, type Row } from '../data';
 import { isLiquidable, toTripRecord } from '../tripContext';
 import type { TripRecord } from '../types';
 
@@ -26,21 +26,29 @@ export function whereOf(filter: TripFilter): Condition[] {
 
 interface SettlementFlags { vigente: Map<string, string>; conAnulada: Set<string> }
 
-/** Una sola consulta con las liquidaciones de esos viajes (vigentes y anuladas). */
-async function settlementFlags(tripIds: string[]): Promise<SettlementFlags> {
+/** La consulta de las liquidaciones de esos viajes (vigentes y anuladas), solo con los campos que hacen falta. */
+function flagsRequest(tripIds: string[]): FindRequest {
+  return {
+    entity: 'settlement',
+    // Solo se necesitan estos campos: sin esto traía cada liquidación entera con sus JSONB.
+    options: { where: [{ column: 'trip_id', op: 'in', value: tripIds }], columns: ['id', 'trip_id', 'status'] },
+  };
+}
+
+function toFlags(rows: Row[]): SettlementFlags {
   const vigente = new Map<string, string>();
   const conAnulada = new Set<string>();
-  if (tripIds.length === 0) return { vigente, conAnulada };
-  const delViaje = await db().find('settlement', {
-    where: [{ column: 'trip_id', op: 'in', value: tripIds }],
-    // Solo se necesitan estos campos: sin esto traía cada liquidación entera con sus JSONB.
-    columns: ['id', 'trip_id', 'status'],
-  });
-  for (const s of delViaje) {
+  for (const s of rows) {
     if (s.status === 'Anulado') conAnulada.add(String(s.trip_id));
     else vigente.set(String(s.trip_id), String(s.id));
   }
   return { vigente, conAnulada };
+}
+
+/** Una sola consulta con las liquidaciones de esos viajes (vigentes y anuladas). */
+async function settlementFlags(tripIds: string[]): Promise<SettlementFlags> {
+  if (tripIds.length === 0) return toFlags([]);
+  return toFlags(await db().find('settlement', flagsRequest(tripIds).options));
 }
 
 /** La vigente da `settlementId` y, si hubo alguna anulada, se marca para que la bandeja lo diga. */
@@ -107,10 +115,13 @@ export async function listLiquidableTrips(
 }
 
 export async function getTrip(id: string): Promise<TripRecord | null> {
-  // El viaje y sus liquidaciones son consultas independientes: van a la vez (una espera de red, no dos).
-  const [row, flags] = await Promise.all([db().findOne('trip', id), settlementFlags([id])]);
-  if (!row) return null;
-  return applyFlags([toTripRecord(row)], flags)[0];
+  // El viaje y sus liquidaciones son consultas independientes: viajan JUNTAS en una sola llamada (/batch).
+  const [rows, settlements] = await findMany(db(), [
+    { entity: 'trip', options: { where: [{ column: 'id', op: 'eq', value: id }], limit: 1 } },
+    flagsRequest([id]),
+  ]);
+  if (!rows[0]) return null;
+  return applyFlags([toTripRecord(rows[0])], toFlags(settlements))[0];
 }
 
 /** Paradas del viaje (guías), en orden de visita. Solo para mostrar el detalle. */

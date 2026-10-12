@@ -45,6 +45,7 @@ export interface WriteOp {
 }
 
 const MAX_BATCH = 25;
+const MAX_INSERT_ROWS = 5000;
 
 export function createFakeBackend(options: FakeBackendOptions = {}): typeof fetch {
   const { reader, writer } = permissionsFor(options.role ?? (() => 'admin'));
@@ -87,23 +88,32 @@ export function createFakeBackend(options: FakeBackendOptions = {}): typeof fetc
     const ops = (body as { ops?: unknown })?.ops;
     if (!Array.isArray(ops) || ops.length === 0) throw new HttpFail(400, '"ops" debe ser una lista no vacía');
     // Todo se valida antes de abrir la transacción (`app._planned`).
-    const planned = ops.map((raw) => {
-      const op = raw as { op?: string; table?: string; id?: string; values?: unknown };
-      if (!op || !['insert', 'update', 'delete'].includes(String(op.op))) {
-        throw new HttpFail(400, 'Cada operación debe ser { op: "insert" | "update" | "delete", table, id?, values? }');
+    type Step =
+      | { kind: 'insert'; t: Table; row: Row }
+      | { kind: 'update'; t: Table; id: string; values: Row }
+      | { kind: 'delete'; t: Table; id: string };
+    const planned = ops.flatMap((raw): Step[] => {
+      const op = raw as { op?: string; table?: string; id?: string; values?: unknown; rows?: unknown };
+      if (!op || !['insert', 'insert_many', 'update', 'delete'].includes(String(op.op))) {
+        throw new HttpFail(400, 'Cada operación debe ser { op: "insert" | "insert_many" | "update" | "delete", table, id?, values?, rows? }');
       }
-      const kind = op.op as 'insert' | 'update' | 'delete';
+      const kind = op.op as 'insert' | 'insert_many' | 'update' | 'delete';
       const t = table(String(op.table));
-      writer(t, kind);
-      if (kind === 'insert') return { kind, t, row: checkValues(t, op.values, true) };
+      writer(t, kind === 'insert_many' ? 'insert' : kind);
+      if (kind === 'insert_many') {
+        if (!Array.isArray(op.rows) || op.rows.length === 0) throw new HttpFail(400, '"rows" debe ser una lista no vacía de filas');
+        if (op.rows.length > MAX_INSERT_ROWS) throw new HttpFail(400, `"insert_many" admite hasta ${MAX_INSERT_ROWS} filas por operación`);
+        return op.rows.map((row): Step => ({ kind: 'insert', t, row: checkValues(t, row, true) }));
+      }
+      if (kind === 'insert') return [{ kind, t, row: checkValues(t, op.values, true) }];
       if (!op.id) throw new HttpFail(400, `La operación "${kind}" requiere "id"`);
       if (kind === 'update') {
         const values = checkValues(t, op.values, false);
         delete values[t.primaryKey];
         if (Object.keys(values).length === 0) throw new HttpFail(400, 'update requiere al menos un campo además del id');
-        return { kind, t, id: op.id, values };
+        return [{ kind, t, id: op.id, values }];
       }
-      return { kind, t, id: op.id };
+      return [{ kind, t, id: op.id }];
     });
 
     try {
@@ -186,7 +196,14 @@ export function createFakeBackend(options: FakeBackendOptions = {}): typeof fetc
     try {
       const body = bodyText ? JSON.parse(bodyText) : undefined;
       if (method === 'POST' && parts[0] === 'tx') {
-        for (const op of (body?.ops ?? []) as WriteOp[]) options.onWrite(op);
+        for (const op of (body?.ops ?? []) as Array<WriteOp | { op: 'insert_many'; table: string; rows?: unknown[] }>) {
+          // `insert_many` se reporta como las inserciones sueltas que equivale: lo que espera `replay_payloads.py`.
+          if (op.op === 'insert_many') {
+            for (const values of op.rows ?? []) options.onWrite({ op: 'insert', table: op.table, values });
+          } else {
+            options.onWrite(op);
+          }
+        }
       } else if (method === 'POST' && parts.length === 1 && parts[0] !== 'batch') {
         options.onWrite({ op: 'insert', table: parts[0], values: body });
       } else if (method === 'PATCH' && parts.length === 2) {

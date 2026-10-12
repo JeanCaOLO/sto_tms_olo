@@ -46,7 +46,7 @@ La regla de prueba quedó eliminada: no queda basura en la base.
 
 | ID | Hallazgo | Veredicto | Estado |
 |---|---|---|---|
-| A3 | `DELETE /api/tarifas/tarifas_pricing_rules/<id>` devolvió 503 y aun así la fila se borró y se registró la bitácora. Se sospecha que el error llegó después del commit (por ejemplo, la API local por el túnel) o que el cliente reintentó. No se reprodujo ni se midió todavía. | A investigar | Abierto: repetir con otra fila de prueba y mirar la salida de `api:local:base`. |
+| A3 | `DELETE` de regla aparecía con 503 en el registro de red y aun así la fila se borraba. | Falso positivo de la herramienta | Cerrado. Se repitió 3 veces desde la página: todas `OK` en ~1 s, y con un `fetch` instrumentado el estado real es `204`. La herramienta de red del navegador muestra 503 para las respuestas 204 sin cuerpo. |
 
 ### §2 Estructura de costos: primer componente (H9)
 
@@ -122,13 +122,50 @@ Con los datos actuales no hay casos que probar. SQL: 0 viajes completados sin `r
 - Orden alfabético: la lista de compañías externas sale ordenada con tildes correctas. No se comparó contra la colación de la base con casos límite.
 - Lista recortada (`TRIPS_LIMIT` de 2.000) y arranque en frío de la Lambda: no se pueden provocar aquí. Hay 28 viajes y la API corre en local. Quedan para el sandbox desplegado.
 
+### §7 Carga de 350 filas (hallazgo A8)
+
+Se creó un tarifario de prueba y se llamó a `bulkUpsertRows` (la misma función que usa «Importar planilla») con 350 filas desde la página, sin pasar por el selector de archivos.
+
+| ID | Hallazgo | Veredicto | Estado |
+|---|---|---|---|
+| A8 | La importación de 350 filas daba «La API no respondió en 20 s» aunque el servidor la terminaba. `bulkUpsertRows` mandaba una operación por fila dentro de un `POST /tx`. | Riesgo de rendimiento / mensaje engañoso | Arreglado con las dos propuestas: (1) el cliente tiene un tiempo máximo propio para `/tx` (45 s, `txTimeoutMs`); (2) nueva operación `insert_many` en `backend/tarifas` (un `INSERT` con varias filas por tanda, con tope de 5.000 filas y 30.000 parámetros) y el cliente agrupa solas las inserciones seguidas de una misma tabla (`coalesceInserts`). Si el backend no la conoce, el cliente reenvía como operaciones sueltas. Medido con la API local y el túnel: 350 filas en 2,7 s (antes 21,9 s y error), 350 filas con `row_order` de 1 a 350 consecutivo, y el tarifario de prueba eliminado. Pruebas: 9 de backend (`test_tarifas.py`), 6 de cliente (`http-insert-many.test.ts`); backend 233 en verde (sin `test_realtime`, que necesita `botocore`). Ya no hace falta pedir despliegue de otra cosa: es parte del mismo cambio del módulo. |
+
+Propuestas para A8: (1) subir el tiempo máximo del cliente solo para `/tx` de importación masiva; (2) una operación de inserción múltiple en el `/tx` del backend de tarifas (un solo `INSERT` con todas las filas); (3) cortar la importación en bloques de 100, a costa de perder la atomicidad.
+
+El tarifario de prueba se eliminó (SQL: vuelven a ser 9 tarifarios y 0 filas huérfanas).
+
+### Otros arreglos hechos tras la revisión de lo pendiente
+
+- **T3** (compañía «Configurada» sin tarifarios si falla el guardado del tarifario): `useRateTableSave` deshace el perfil recién creado (`discardNewParty`) cuando el tarifario no se guarda. Prueba nueva en `partiesDataSource.test.ts`.
+- **§3.2** (`Pagado → Borrador` rechazado): se agregó a `aurora.e2e.test.ts`, dentro de la transacción con rollback; ya no hace falta dejar una liquidación en `Pagado`. `aurora.e2e`: 8 de 8.
+- **Lint**: los cambios nuevos cumplen los límites de tamaño del proyecto (`max-lines`); lo único que queda en rojo son 14 errores `process` de dos pruebas ajenas al tarifador (`src/__tests__/db-connectivity.test.ts` y `multi-tenant-isolation.test.ts`).
+- **Mock**: `createFakeBackend` entiende `insert_many`, así que el modo mock sigue funcionando con las importaciones.
+
+### Cuál API local es cuál
+
+`npm run api:local:base` ejecuta `backend/local/serve.py`: las Lambdas de `backend/` tal cual, incluida `tarifas`, que es el código que se despliega (`scripts/sandbox/deploy_backend.py` empaqueta esa misma carpeta). `npm run api:local` ejecuta `backend-planif/serve.py`, una copia del backend hexagonal de Planificación que no contiene `tarifas`. El `README` de `backend/` todavía llama `api:local` al primero; está desactualizado.
+
+### Latencia de emitir una liquidación (optimizada)
+
+Se perfiló una emisión desde la página con un `fetch` instrumentado (API local por el túnel, ~1 s por petición): eran **8 peticiones y 5,8 s**. El viaje se leía dos veces (`emitSettlement` y `validateAndReload`, que no aportaba nada), cada lectura del viaje eran 2 peticiones (el viaje y sus liquidaciones), y el siguiente número pedía el país aparte.
+
+Cambios (todos en `src/lib/tarifas`): `getTrip` pide el viaje y sus liquidaciones en una sola llamada `/batch`; `nextNumber` pide el número y el país en otra; se quitó `validateAndReload`; y re-liquidar reutiliza el viaje que ya leyó al validar. Resultado medido: **4 peticiones y 4,0 s** por emisión (`POST batch`, `POST batch`, `POST` de la liquidación y `POST` de la bitácora). Lo que queda es casi todo la conexión por petición del túnel local. No se juntó la liquidación con su bitácora en un solo `/tx` a propósito: si la bitácora fallara (rol sin permiso) la liquidación ya emitida se revertiría, y P16b pide lo contrario.
+
+Las pruebas de esa medición dejaron `LIQ-CR-015` y `LIQ-CR-016` emitidas y anuladas sobre RT-DEMO-4.
+
+### Lo que no se puede probar con la API local
+
+- **§9 concurrencia real:** `backend/local/serve.py` atiende una petición a la vez (`HANDLER_LOCK`), igual que una Lambda por contenedor, así que dos pestañas no compiten de verdad. El índice único de «una liquidación vigente por viaje» sí se verificó (`aurora.e2e`, «rechaza una segunda liquidación vigente»). La carrera entre dos usuarios exige el sandbox desplegado.
+- **§9b paso 2 (fallo parcial de un lote):** lo cubre `LiquidarLoteModal.fallo.test.tsx` (los demás se emiten y el fallido queda abierto con su motivo). Con Aurora no se provocó.
+
 ## Resumen final
 
-- Arreglos hechos en código (todos con `type-check` y `vitest` en verde, 1157 pruebas más las nuevas): A1 (tests Aurora), A2 (e2e), A4 (confirmaciones con modal propio), A5 (modal de regla), A7 (bitácora de tarifarios).
+- Arreglos hechos en código (todos con `type-check` y `vitest` en verde, 1166 pruebas): A1 (tests Aurora), A2 (e2e), A4 (confirmaciones con modal propio), A5 (modal de regla), A7 (bitácora de tarifarios), A8 (importaciones grandes) y T3.
 - Cerrados sin cambio de código: A6 (por diseño, decisión del usuario).
-- Abiertos: A3 (`DELETE` con 503 aunque se aplicó; falta reproducir y mirar la salida de `api:local:base`).
-- No probado en esta sesión: §3 `Pagado → Borrador`, §6.1 y §6.4 con usuario real, §6.3, filas e importación de tarifarios, §8 en el sandbox, §9 concurrencia, §9b paso 2 (fallo parcial de un lote), §10 C1 (decisión de negocio).
+- Cerrado sin cambio de código: A3 (falso positivo de la herramienta de red: el `DELETE` devuelve 204).
+- Arreglados tras la revisión: A8 (insert_many y tiempo máximo de `/tx`), T3, §3.2.
+- No probado en esta sesión: §6.1 y §6.4 con usuario real, §6.3, parseo real de CSV y XLSX en «Importar planilla» (sí se probó la carga de 350 filas), §8 en el sandbox, §9 concurrencia, §9b paso 2 (fallo parcial de un lote), §10 C1 (decisión de negocio).
 
 ## Pendiente
 
-§3 (Pagado), §6.1 y §6.4 con usuario real, §6.3, §7 (filas e importación), §8 en el sandbox, §9 (concurrencia), §9b paso 2, §10 (C1), §4b y §9b. El §6 (roles) necesita además un usuario solo-liquidar o «Ver como» Liquidador.
+§3 (Pagado), §6.1 y §6.4 con usuario real, §6.3, §7 (filas e importación), §8 en el sandbox, §9 (concurrencia real, en el sandbox), §10 (C1), §4b y §9b. El §6 (roles) necesita además un usuario solo-liquidar o «Ver como» Liquidador.

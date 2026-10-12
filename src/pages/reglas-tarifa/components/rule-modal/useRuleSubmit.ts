@@ -1,17 +1,16 @@
 // Envío del modal de reglas: valida en orden, resuelve el perfil de la compañía, guarda y audita.
 
 import { useState, type FormEvent } from 'react';
-import { listRules, saveRule } from '../../../../lib/tarifas/localRulesDataSource';
+import { saveRule } from '../../../../lib/tarifas/localRulesDataSource';
 import { RuleSchema } from '../../../../lib/tarifas/schemas';
 import { getActorRole } from '../../../../lib/tarifas/actor';
 import type { Expr, Pred } from '../../../../lib/tarifas/types';
 import { registrarEventoSeguro } from '../../../../lib/liquidador/auditLog';
 import { buildRuleCandidate, saveErrorMessage, toRulePayload, type RuleCandidate } from './ruleSubmit';
-import { findOverlappingRule } from './ruleOverlap';
+import { confirmDuplicate } from './confirmDuplicate';
 import {
   parseConditions, parseExpression, preconditionError, resolvePartyId, type Parsed, type SubmitContext,
 } from './ruleSubmitSteps';
-import { confirmAction } from '../../../../lib/confirm';
 
 /** Guarda y audita. false = el usuario prefirió no guardar una regla repetida. */
 async function persist(c: SubmitContext, candidate: RuleCandidate): Promise<boolean> {
@@ -31,20 +30,6 @@ async function persist(c: SubmitContext, candidate: RuleCandidate): Promise<bool
     motivo: candidate.reason ?? undefined,
   });
   return true;
-}
-
-/** Avisa (sin bloquear) si ya hay otra regla activa igual y vigente a la vez. true = seguir guardando. */
-async function confirmDuplicate(c: SubmitContext, candidate: RuleCandidate): Promise<boolean> {
-  const payload = toRulePayload(candidate, c.form.formData.country_id, !!c.rule);
-  const clash = findOverlappingRule(payload, await listRules(c.organizationId), c.rule?.id as string | undefined);
-  if (!clash) return true;
-  return confirmAction({
-    title: 'Regla repetida',
-    message: `Ya hay una regla activa con el código ${payload.code} y el mismo alcance cuya vigencia coincide `
-      + `("${String(clash.name)}"). Con las dos activas, las dos se evalúan. ¿Guardar de todos modos?`,
-    confirmLabel: 'Guardar',
-    variant: 'primary',
-  });
 }
 
 function validateCandidate(c: SubmitContext, conditions: Pred, expression: Expr, partyId: string | null): Parsed<RuleCandidate> {

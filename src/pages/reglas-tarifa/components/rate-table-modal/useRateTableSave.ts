@@ -1,5 +1,5 @@
 import { saveRateTableWithAudit } from '../../api/tarifariosApi';
-import { ensurePartyProfile } from '../../../../lib/tarifas/partiesDataSource';
+import { discardNewParty, ensurePartyProfile } from '../../../../lib/tarifas/partiesDataSource';
 import type { RateTable } from '../../../../lib/tarifas/types';
 import type { RateTableFormState, SetRateTableFormState } from './rateTableFormState';
 
@@ -14,6 +14,7 @@ export function useRateTableSave(
     setState((s) => ({ ...s, generalError: '', saving: true }));
     try {
       let partyId = state.form.partyId;
+      let createdPartyId: string | null = null;
       if (selectedCarrierId && !partyId) {
         const ensured = await ensurePartyProfile(selectedCarrierId);
         if (ensured.status === 'failed') {
@@ -21,9 +22,11 @@ export function useRateTableSave(
           return false;
         }
         partyId = ensured.partyId;
+        if (ensured.created) createdPartyId = ensured.partyId;
       }
       const finalPartyId = selectedCarrierId ? partyId : state.form.partyId;
       const result = await saveRateTableWithAudit({ ...state.form, partyId: finalPartyId }, table?.id, table);
+      if (result.status !== 'saved' && createdPartyId) await discardNewParty(createdPartyId);
       if (result.status === 'invalid') {
         setState((s) => ({ ...s, errors: result.errors }));
         return false;

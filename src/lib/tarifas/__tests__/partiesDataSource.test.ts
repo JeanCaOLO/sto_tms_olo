@@ -5,7 +5,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  deactivateParty, ensurePartyProfile, getProfileForCarrier,
+  deactivateParty, discardNewParty, ensurePartyProfile, getProfileForCarrier,
   listCarrierProfiles, reactivateParty,
 } from '../partiesDataSource';
 import { db, ReadOnlyEntityError } from '../data';
@@ -82,5 +82,25 @@ describe('baja lógica y catálogo de solo lectura', () => {
 
   it('el transportista del catálogo no se edita desde el liquidador', async () => {
     await expect(db().update('carrier', 'CARRIER_VE_1', { name: 'Otro nombre' })).rejects.toThrow(ReadOnlyEntityError);
+  });
+});
+
+describe('discardNewParty (T3)', () => {
+  it('deshace un perfil recién creado y no toca uno que ya tiene configuración', async () => {
+    const [perfil] = await db().find('settlementParty', { where: [{ column: 'carrier_id', op: 'eq', value: 'CARRIER_CR_2' }] });
+    for (const t of ['partyVariable', 'pricingRule', 'rateTable', 'costStructure'] as const) {
+      for (const row of await db().find(t, { where: [{ column: 'party_id', op: 'eq', value: perfil.id }] })) {
+        await db().delete(t, row.id);
+      }
+    }
+    await db().delete('settlementParty', perfil.id);
+
+    const created = await ensurePartyProfile('CARRIER_CR_2');
+    expect(created.status === 'saved' && created.created).toBe(true);
+    if (created.status !== 'saved') return;
+    await discardNewParty(created.partyId);
+    expect(await getProfileForCarrier('CARRIER_CR_2')).toBeNull();
+
+    await discardNewParty('no-existe'); // nunca lanza
   });
 });
