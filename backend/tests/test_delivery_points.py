@@ -116,6 +116,32 @@ def test_update_rejects_zone_sources_the_user_cannot_set(setup, source):
     assert response["statusCode"] == 400 and not _sql(db, "UPDATE delivery_points")
 
 
+def test_update_saves_contact_phone(setup):
+    app, db = setup()
+    response = app.handler(http_event("PATCH /api/v1/delivery-points/{id}", path={"id": "dp-1"},
+                                      body={"contact_phone": "+506 8888-0000"}, user=USER), None)
+    assert response["statusCode"] == 200
+    assert _sql(db, "UPDATE delivery_points SET contact_phone")[0] == ["+506 8888-0000", "dp-1"]
+
+
+def test_saving_the_same_zone_keeps_its_origin(setup, monkeypatch):
+    # El formulario manda la zona en cada guardado: un punto del WMS que solo cambia de nombre
+    # no debe pasar a 'manual'.
+    monkeypatch.setitem(POINT, "zone_id", "z-1")
+    app, db = setup()
+    body = {"name": "Renombrada", "zone_id": "z-1", "zone_source": "manual"}
+    app.handler(http_event("PATCH /api/v1/delivery-points/{id}", path={"id": "dp-1"}, body=body, user=USER), None)
+    assert _sql(db, "UPDATE delivery_points SET name = %s, updated_at")[0] == ["Renombrada", "dp-1"]
+
+
+def test_choosing_another_zone_is_manual(setup, monkeypatch):
+    monkeypatch.setitem(POINT, "zone_id", "z-1")
+    app, db = setup()
+    body = {"zone_id": "z-2", "zone_source": "manual"}
+    app.handler(http_event("PATCH /api/v1/delivery-points/{id}", path={"id": "dp-1"}, body=body, user=USER), None)
+    assert _sql(db, "UPDATE delivery_points SET zone_id")[0] == ["z-2", "manual", "dp-1"]
+
+
 def test_delete_removes_point_and_its_address(setup):
     app, db = setup()
     response = app.handler(http_event("DELETE /api/v1/delivery-points/{id}", path={"id": "dp-1"}, user=USER), None)

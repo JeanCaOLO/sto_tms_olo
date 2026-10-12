@@ -13,6 +13,10 @@ export interface DeliveryPointForm {
   external_code: string;
   name: string;
   delivery_instructions: string;
+  contact_phone: string;
+  // 'auto' = la zona la calcula el mapa (zone_source='map'); 'manual' = la fija
+  // el usuario con zone_id (la BD la marca zone_source='manual').
+  zone_mode: 'auto' | 'manual';
   zone_id: string;
   route_code: string;
   active: boolean;
@@ -33,8 +37,8 @@ interface DeliveryPointModalProps {
 }
 
 const emptyForm: DeliveryPointForm = {
-  customer_id: '', external_code: '', name: '', delivery_instructions: '',
-  zone_id: '', route_code: '', active: true,
+  customer_id: '', external_code: '', name: '', delivery_instructions: '', contact_phone: '',
+  zone_mode: 'auto', zone_id: '', route_code: '', active: true,
   line1: '', line2: '', city: '', state: '', latitude: '', longitude: '',
 };
 
@@ -56,6 +60,9 @@ export default function DeliveryPointModal({ isOpen, onClose, onSave, point, err
         external_code: point.external_code || '',
         name: point.name || '',
         delivery_instructions: point.delivery_instructions || '',
+        contact_phone: point.contact_phone || '',
+        // 'manual'/'wms' llegan con zona fija; 'map' (o sin dato) = automática.
+        zone_mode: point.zone_source === 'manual' || point.zone_source === 'wms' ? 'manual' : 'auto',
         zone_id: point.zone?.id || '',
         route_code: point.route_code || '',
         active: point.active ?? true,
@@ -184,13 +191,22 @@ export default function DeliveryPointModal({ isOpen, onClose, onSave, point, err
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Zona</label>
                 <Select
-                  value={formData.zone_id}
-                  onChange={(e) => set('zone_id', e.target.value)}
+                  value={formData.zone_mode === 'auto' ? '' : formData.zone_id}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === '') { set('zone_mode', 'auto'); set('zone_id', ''); }
+                    else { set('zone_mode', 'manual'); set('zone_id', v); }
+                  }}
                   options={[
-                    { value: '', label: 'Sin zona' },
-                    ...zones.map(z => ({ value: z.id, label: `${z.name} (${z.code})` })),
+                    { value: '', label: 'Automática (según el mapa)' },
+                    ...zones.map(z => ({ value: z.id, label: `${z.name}${z.code ? ` (${z.code})` : ''}` })),
                   ]}
                 />
+                <p className="text-xs text-slate-400 mt-1">
+                  {formData.zone_mode === 'auto'
+                    ? 'La zona se asigna sola según la geocerca que contenga el punto.'
+                    : 'Zona fijada manualmente; el mapa no la cambiará.'}
+                </p>
               </div>
 
               <div>
@@ -201,6 +217,17 @@ export default function DeliveryPointModal({ isOpen, onClose, onSave, point, err
                   onChange={(e) => set('route_code', e.target.value)}
                   placeholder="Ej: R-01"
                 />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Teléfono de contacto</label>
+                <Input
+                  type="tel"
+                  value={formData.contact_phone}
+                  onChange={(e) => set('contact_phone', e.target.value)}
+                  placeholder="Ej: +58 412 1234567"
+                />
+                <p className="text-xs text-slate-400 mt-1">Número al que el chofer puede llamar al llegar al punto.</p>
               </div>
             </div>
 

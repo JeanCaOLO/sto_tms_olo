@@ -19,6 +19,8 @@ interface DeliveryPoint {
   active: boolean;
   is_default: boolean;
   delivery_instructions: string | null;
+  contact_phone: string | null;
+  zone_source: string | null;
   final_customer: {
     external_code: string;
     name: string;
@@ -42,8 +44,15 @@ const GEO_CONFIG: Record<string, { key: string; variant: 'success' | 'warning' |
   FAILED: { key: 'deliveryPoints.geoFailed', variant: 'danger' },
 };
 
+// Origen de la zona del punto (delivery_points.zone_source, sql/34).
+const ZONE_SOURCE_CONFIG: Record<string, { key: string; variant: 'default' | 'info' | 'warning' }> = {
+  map: { key: 'deliveryPoints.zoneAuto', variant: 'info' },
+  manual: { key: 'deliveryPoints.zoneManual', variant: 'warning' },
+  wms: { key: 'deliveryPoints.zoneWms', variant: 'default' },
+};
+
 const LIST_SELECT =
-  'id,external_code,name,route_code,wms_zone_code,active,is_default,delivery_instructions,' +
+  'id,external_code,name,route_code,wms_zone_code,active,is_default,delivery_instructions,contact_phone,zone_source,' +
   'final_customer:final_customers(external_code,name,customer:customers(id,code,name)),' +
   'address:addresses(line1,line2,city,state,latitude,longitude,geocoding_status),' +
   'zone:zones(id,code,name)';
@@ -63,9 +72,18 @@ export default function TiendasPage() {
   const [saveError, setSaveError] = useState<string>('');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [zoneFilter, setZoneFilter] = useState('');
+  const [zones, setZones] = useState<{ id: string; code: string | null; name: string }[]>([]);
   const { canCreate, canEdit, canDelete } = useModulePermissions('puntos_entrega');
   const { selectedCountryId, selectedWarehouseId, selectedCustomerId } = useOperationalContext();
   const { t } = useTranslation();
+
+  // Zonas para el filtro (se recargan al cambiar de país del contexto).
+  useEffect(() => {
+    let q = supabase.from('zones').select('id,code,name').eq('status', 'active').order('name');
+    if (selectedCountryId) q = q.eq('country_id', selectedCountryId);
+    q.then(({ data }) => setZones(data || []));
+  }, [selectedCountryId]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -79,7 +97,7 @@ export default function TiendasPage() {
   // Cualquier cambio de filtro/contexto/búsqueda vuelve a la página 1.
   useEffect(() => {
     setPage(1);
-  }, [selectedCountryId, selectedWarehouseId, selectedCustomerId, debouncedSearch, pageSize]);
+  }, [selectedCountryId, selectedWarehouseId, selectedCustomerId, zoneFilter, debouncedSearch, pageSize]);
 
   // Paginación + filtros SERVIDOR: trae solo la página pedida (offset+limit) ya
   // filtrada por país → almacén → cliente (contexto global) y búsqueda. Antes
@@ -87,7 +105,7 @@ export default function TiendasPage() {
   // `count: 'exact'` da el total (ya filtrado) sin paginar para pintar "X de N".
   useEffect(() => { fetchPoints(); },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [page, pageSize, selectedCountryId, selectedWarehouseId, selectedCustomerId, debouncedSearch]);
+    [page, pageSize, selectedCountryId, selectedWarehouseId, selectedCustomerId, zoneFilter, debouncedSearch]);
 
   // Cada pedido lleva un número: si llega una respuesta vieja (p. ej. la de la página anterior
   // al cambiar un filtro), se descarta para no pisar la más reciente.
@@ -106,6 +124,7 @@ export default function TiendasPage() {
     if (selectedCountryId) q = q.eq('final_customers.customers.country_id', selectedCountryId);
     if (selectedWarehouseId) q = q.eq('final_customers.customers.warehouse_id', selectedWarehouseId);
     if (selectedCustomerId) q = q.eq('final_customers.customer_id', selectedCustomerId);
+    if (zoneFilter) q = q.eq('zone_id', zoneFilter);
     if (debouncedSearch) q = q.ilike('name|external_code', `%${debouncedSearch}%`);
     const { data, error, count } = await q.range(from, from + pageSize - 1);
     if (request !== lastRequest.current) return;
@@ -204,12 +223,19 @@ export default function TiendasPage() {
       header: t('deliveryPoints.colZone'),
       accessor: (p) => p.zone?.name ?? '',
       sortable: true,
-      render: (p) => (
-        <>
-          <div className="text-sm text-slate-700">{p.zone?.name ?? <span className="text-slate-300">—</span>}</div>
-          {p.route_code && <div className="text-xs text-slate-400">{p.route_code}</div>}
-        </>
-      ),
+      render: (p) => {
+        const src = p.zone_source;
+        const srcConf = src && ZONE_SOURCE_CONFIG[src];
+        return (
+          <>
+            <div className="text-sm text-slate-700">{p.zone?.name ?? <span className="text-slate-300">—</span>}</div>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              {srcConf && <Badge variant={srcConf.variant} size="sm">{t(srcConf.key)}</Badge>}
+              {p.route_code && <span className="text-xs text-slate-400">{p.route_code}</span>}
+            </div>
+          </>
+        );
+      },
     },
     {
       key: 'address',
@@ -272,6 +298,17 @@ export default function TiendasPage() {
           <p className="text-sm text-slate-500 mt-0.5">{t('deliveryPoints.subtitle')}</p>
         </div>
         <div className="flex items-center gap-3">
+          <select
+            value={zoneFilter}
+            onChange={(e) => setZoneFilter(e.target.value)}
+            className="py-2 px-3 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
+            aria-label={t('deliveryPoints.filterZone')}
+          >
+            <option value="">{t('deliveryPoints.allZones')}</option>
+            {zones.map((z) => (
+              <option key={z.id} value={z.id}>{z.name}{z.code ? ` (${z.code})` : ''}</option>
+            ))}
+          </select>
           <div className="relative min-w-[240px]">
             <div className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center text-slate-400">
               <i className="ri-search-line text-sm"></i>

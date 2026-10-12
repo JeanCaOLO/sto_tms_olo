@@ -3,6 +3,8 @@ import { supabase } from '../../../lib/supabase';
 import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
+import { BASE_METHODS, BASE_METHOD_ORDER } from '../../../lib/tarifas/baseMethods';
+import type { BaseMethodId } from '../../../lib/tarifas/types';
 
 interface Carrier {
   id?: string;
@@ -17,6 +19,10 @@ interface Carrier {
   status: string;
   payment_account: string;
   softland_code: string;
+  contract_expiry?: string;
+  // Cómo se le paga/liquida a este transportista (tipo de tarifa del contrato).
+  // El cálculo de liquidación lo hereda de aquí; ya no se elige en Liquidaciones.
+  rate_type?: BaseMethodId | '';
 }
 
 interface Country {
@@ -44,7 +50,9 @@ export default function CarrierModal({ isOpen, onClose, carrier, onSave }: Carri
     country_id: '',
     status: 'active',
     payment_account: '',
-    softland_code: ''
+    softland_code: '',
+    contract_expiry: '',
+    rate_type: ''
   });
   const [countries, setCountries] = useState<Country[]>([]);
   const [loading, setLoading] = useState(false);
@@ -54,7 +62,7 @@ export default function CarrierModal({ isOpen, onClose, carrier, onSave }: Carri
     if (isOpen) {
       loadCountries();
       if (carrier) {
-        setFormData(carrier);
+        setFormData({ ...carrier, contract_expiry: carrier.contract_expiry ?? '', rate_type: carrier.rate_type ?? '' });
       } else {
         generateCode();
       }
@@ -97,6 +105,8 @@ export default function CarrierModal({ isOpen, onClose, carrier, onSave }: Carri
 
       const carrierData = {
         ...formData,
+        contract_expiry: formData.contract_expiry || null,
+        rate_type: formData.rate_type || null,
         organization_id: userData?.organization_id,
         updated_at: new Date().toISOString()
       };
@@ -236,6 +246,23 @@ export default function CarrierModal({ isOpen, onClose, carrier, onSave }: Carri
               onChange={(e) => setFormData({ ...formData, softland_code: e.target.value })}
               placeholder="Código del transportista en Softland"
             />
+
+            <Input
+              label="Vencimiento del contrato"
+              type="date"
+              value={formData.contract_expiry ?? ''}
+              onChange={(e) => setFormData({ ...formData, contract_expiry: e.target.value })}
+            />
+
+            <Select
+              label="Forma de pago / liquidación"
+              value={formData.rate_type ?? ''}
+              onChange={(e) => setFormData({ ...formData, rate_type: e.target.value as BaseMethodId | '' })}
+              options={[
+                { value: '', label: 'Seleccionar forma de pago' },
+                ...BASE_METHOD_ORDER.map((id) => ({ value: id, label: BASE_METHODS[id].label })),
+              ]}
+            />
           </div>
 
           <div>
@@ -250,6 +277,15 @@ export default function CarrierModal({ isOpen, onClose, carrier, onSave }: Carri
               placeholder="Dirección completa del transportista..."
               required
             />
+          </div>
+
+          <div className="flex items-start gap-2 bg-slate-50 border border-slate-200 text-slate-500 text-xs rounded-lg px-4 py-2.5">
+            <i className="ri-information-line text-slate-400 mt-0.5"></i>
+            <span>
+              La <strong>forma de pago</strong> define cómo se liquida a este transportista: la liquidación la toma de aquí
+              (ya no se elige por viaje). La carga del PDF del contrato estará disponible en breve; por ahora registrá la
+              fecha de vencimiento para activar las alertas de renovación.
+            </span>
           </div>
 
           <div className="flex gap-3 pt-4 border-t">

@@ -9,6 +9,9 @@ import DataTable, { type DataTableColumn } from '../../components/base/DataTable
 import CarrierModal from './components/CarrierModal';
 import CsvImportModal from '../../components/feature/CsvImportModal';
 import { useModulePermissions } from '../../hooks/use-module-permissions';
+import { expiryStatus } from '../../lib/expiry';
+import { BASE_METHODS } from '../../lib/tarifas/baseMethods';
+import type { BaseMethodId } from '../../lib/tarifas/types';
 
 interface Carrier {
   id: string;
@@ -23,6 +26,8 @@ interface Carrier {
   status: string;
   payment_account: string;
   softland_code: string;
+  contract_expiry?: string | null;
+  rate_type?: BaseMethodId | null;
   countries?: {
     name: string;
     code: string;
@@ -168,6 +173,29 @@ export default function TransportistasPage() {
           {c.vehicle_count || 0}
         </span>
       ),
+    },
+    {
+      key: 'rate_type',
+      header: t('carriers.colRateType'),
+      accessor: (c) => (c.rate_type ? BASE_METHODS[c.rate_type]?.label ?? c.rate_type : ''),
+      filterable: true,
+      render: (c) => c.rate_type
+        ? <span className="text-sm text-slate-700">{BASE_METHODS[c.rate_type]?.label ?? c.rate_type}</span>
+        : <span className="text-slate-300 text-sm">—</span>,
+    },
+    {
+      key: 'contract_expiry',
+      header: t('carriers.colContract'),
+      accessor: (c) => c.contract_expiry ?? '',
+      sortable: true,
+      render: (c) => {
+        if (!c.contract_expiry) return <span className="text-slate-300 text-sm">—</span>;
+        const status = expiryStatus(c.contract_expiry);
+        const date = new Date(c.contract_expiry + 'T00:00:00').toLocaleDateString('es-CR');
+        if (status === 'expired') return <Badge variant="danger">{t('carriers.contractExpired')} · {date}</Badge>;
+        if (status === 'due_soon') return <Badge variant="warning">{t('carriers.contractDueSoon')} · {date}</Badge>;
+        return <span className="text-sm text-slate-600">{date}</span>;
+      },
     },
     {
       key: 'status',

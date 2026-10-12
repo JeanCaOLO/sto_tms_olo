@@ -2,7 +2,7 @@
 
 POINT_SQL = """
 SELECT dp.id, dp.external_code, dp.name, dp.route_code, dp.wms_zone_code, dp.zone_id, dp.zone_source,
-       dp.is_default, dp.active,
+       dp.contact_phone, dp.is_default, dp.active,
        dp.delivery_instructions, fc.id AS final_customer_id, fc.customer_id,
        a.id AS address_id, a.country_id, a.line1, a.line2, a.city, a.state, a.latitude, a.longitude, a.geocoding_status
 FROM delivery_points dp
@@ -26,8 +26,8 @@ RETURNING id
 """
 INSERT_POINT_SQL = """
 INSERT INTO delivery_points (final_customer_id, address_id, external_code, name, delivery_instructions,
-                             zone_id, route_code, is_default, active)
-SELECT %s, %s, %s, %s, %s, %s, %s,
+                             contact_phone, zone_id, route_code, is_default, active)
+SELECT %s, %s, %s, %s, %s, %s, %s, %s,
        NOT EXISTS (SELECT 1 FROM delivery_points WHERE final_customer_id = %s AND is_default), true
 RETURNING id
 """
