@@ -1,4 +1,4 @@
-# 2026-10-12 — Forma de pago ligada al transportista (paso 1 de 2)
+# 2026-10-12 — Forma de pago ligada al transportista (pasos 1 y 2)
 
 ## What changed (frontend — paso 1)
 
@@ -39,10 +39,33 @@ exige tests de regresión antes de tocarlo):
 
 - type-check (`tsc --noEmit`): **0 errores**.
 
+## Paso 2 — HECHO (2026-10-12, misma fecha)
+
+Con `carriers.rate_type` ya en Aurora (sql/35 de Claude) + decisión: vive en
+`carriers` (fuente de verdad del catálogo, no en `settlement_party`).
+
+- **Herencia en el cálculo:** `src/lib/tarifas/partiesDataSource.ts` →
+  `rateTypeToOverride()` (puro) + `rateTypeOverrideForCarrier()` (lee la columna
+  con caché corta). `src/lib/tarifas/tripSettlement.ts` → `calculateTrip` deriva
+  `baseOverride = options.baseOverride ?? rateTypeOverrideForCarrier(carrierId)`.
+  TENDERING / vacío / desconocido → null (base por defecto; no fuerza base sin
+  fórmula). `carrier.rate_type` agregado a `schema.ts` + manifiesto del backend
+  regenerado (`npm run tarifas:manifest`).
+- **Selector quitado:** borrados `BaseMethodPanel.tsx` y `CrearReglaBase.tsx`
+  (huérfanos); `CalculationContent` muestra un bloque informativo de solo
+  lectura. Props `baseMethod`/`onBaseChange`/etc. limpiadas de la cadena.
+- **Tests:** borrado `LiquidarViajeModal.base.test.tsx` (probaba el selector
+  eliminado por diseño); snapshot de `LiquidarViajeModal.snap.test.tsx`
+  actualizado; regresión nueva en `partiesDataSource.test.ts` (clasificación de
+  `rate_type` → override). Verificación: type-check 0, **vitest 775/775**
+  (tarifas + liquidaciones + transportistas).
+- Re-liquidación: respeta la base emitida previa (flujo `settlement.baseChange`
+  intacto). Deuda menor: `useLiquidarViajeController` aún expone
+  `baseMethod`/`changeBase` sin consumidor de UI (los usa el re-check).
+
 ## Follow-ups
 
-- [ ] Claude: crear `carriers.rate_type` (text, nullable; valores del enum) y
-      whitelistearla. Responder la pregunta de diseño: ¿vive en `carriers` o en
-      el perfil `settlement_party` (1:1 con el carrier)?
-- [ ] Paso 2 (Kiro, cuando exista la columna): heredar `rate_type` en
-      `calculateTrip`, quitar el selector de Liquidaciones, tests de regresión.
+- [ ] Claude: confirmar/desplegar el manifiesto del backend regenerado
+      (`backend/tarifas/src/schema_manifest.json`) junto con el resto.
+- [ ] Opcional (Kiro): limpiar `baseMethod`/`changeBase` del controller si se
+      decide no soportar override en re-liquidación.

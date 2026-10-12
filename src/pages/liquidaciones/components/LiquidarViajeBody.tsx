@@ -48,10 +48,6 @@ export function LiquidarViajeBody({ ctrl, simple, blocking, currency }: Props) {
             setExcludedSeqs(new Set());
             return ctrl.runCalc(ctrl.lastEdits.current);
           }}
-          baseMethod={ctrl.baseMethod}
-          onBaseChange={(m) => ctrl.changeBase(m)}
-          onBaseRuleCreated={() => ctrl.changeBase(ctrl.baseMethod, { fresh: true })}
-          baseBusy={ctrl.pending || ctrl.saving}
           showOrdersReason={SHOW_ORDERS_REASON}
         />
       </div>

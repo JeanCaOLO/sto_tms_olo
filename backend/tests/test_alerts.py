@@ -136,3 +136,11 @@ def test_mailer_fails_loudly_if_the_digest_fails(mailer):
     with pytest.raises(RuntimeError, match="vencimientos falló"):
         module.handler({}, None)
     assert not sent
+
+
+def test_mailer_test_mode_sends_only_to_the_given_address_with_sample_data(mailer):
+    module, sent, _ = mailer
+    result = module.handler({"test_to": "jalvarez@ologistics.com"}, None)
+    assert result["sent"] is True and result["alerts"] == 2
+    assert sent[0]["Destination"] == {"ToAddresses": ["jalvarez@ologistics.com"], "CcAddresses": []}
+    assert sent[0]["Content"]["Simple"]["Subject"]["Data"].startswith("[PRUEBA] ")

@@ -96,6 +96,10 @@
         "status": {
           "type": "text",
           "nullable": true
+        },
+        "rate_type": {
+          "type": "text",
+          "nullable": true
         }
       }
     },

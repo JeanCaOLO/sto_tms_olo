@@ -189,6 +189,9 @@ export const ENTITIES = {
       tax_id: { type: 'text', nullable: true },
       is_flota_propia: { type: 'boolean' },
       status: { type: 'text', nullable: true },
+      // Forma de pago/liquidación del transportista (sql/35). La liquidación la
+      // hereda de aquí; ya no se elige por viaje. Valores = BaseMethodId.
+      rate_type: { type: 'text', nullable: true },
     },
   },
 
