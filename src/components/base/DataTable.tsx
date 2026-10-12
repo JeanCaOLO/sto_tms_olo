@@ -50,6 +50,10 @@ interface DataTableProps<T> {
   // Opcional: se llama tras exportar (para auditar el evento export). Recibe el
   // número de filas exportadas.
   onExport?: (rows: number) => void;
+  // Opcional: reemplaza la descarga por defecto (una hoja plana con las columnas). Recibe las filas ya
+  // filtradas y ordenadas y las columnas que se ven (en su orden, sin las ocultas); quien lo pasa arma y
+  // baja el archivo y avisa sus propios errores. La auditoría del export se mantiene.
+  exportHandler?: (rows: T[], columns: DataTableColumn<T>[]) => void | Promise<void>;
   // Opcional: activa "Columnas" (ocultar y reordenar) y recuerda la elección en este navegador bajo
   // esta clave. Sin ella la tabla se comporta como siempre.
   columnsKey?: string;
@@ -219,6 +223,7 @@ export default function DataTable<T>({
   pageSizeOptions = [10, 25, 50, 100],
   selectedRowId = null,
   onExport,
+  exportHandler,
   columnsKey,
   defaultHidden,
   searchHidden = false,
@@ -390,7 +395,30 @@ export default function DataTable<T>({
     });
   };
 
-  const handleExport = () => {
+  const [exporting, setExporting] = useState(false);
+
+  const auditExport = (rowCount: number) => {
+    // Auditoría del export: automática por ruta. Si la pantalla pasa onExport,
+    // ese override manda (y se hace cargo de auditar por su cuenta).
+    if (onExport) {
+      onExport(rowCount);
+    } else {
+      const permKey = permKeyForPath(location.pathname);
+      if (permKey) postAuditEvent('export', permKey, { rows: rowCount, format: 'xlsx' });
+    }
+  };
+
+  const handleExport = async () => {
+    if (exportHandler) {
+      setExporting(true);
+      try {
+        await exportHandler(sorted, columns);
+        auditExport(sorted.length);
+      } finally {
+        setExporting(false);
+      }
+      return;
+    }
     const rows = sorted.map((row) => {
       const record: Record<string, string | number> = {};
       columns.forEach((col) => {
@@ -404,14 +432,7 @@ export default function DataTable<T>({
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Datos');
     const stamp = new Date().toISOString().slice(0, 10);
     XLSX.writeFile(workbook, `${exportFileName}-${stamp}.xlsx`);
-    // Auditoría del export: automática por ruta. Si la pantalla pasa onExport,
-    // ese override manda (y se hace cargo de auditar por su cuenta).
-    if (onExport) {
-      onExport(rows.length);
-    } else {
-      const permKey = permKeyForPath(location.pathname);
-      if (permKey) postAuditEvent('export', permKey, { rows: rows.length, format: 'xlsx' });
-    }
+    auditExport(rows.length);
   };
 
   // Solo cuentan las marcadas que se ven (con los filtros y la búsqueda de ahora): una fila oculta no se
@@ -534,11 +555,11 @@ export default function DataTable<T>({
             </div>
           )}
           <button
-            onClick={handleExport}
-            disabled={sorted.length === 0}
+            onClick={() => void handleExport().catch(() => undefined)}
+            disabled={sorted.length === 0 || exporting}
             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
           >
-            <i className="ri-file-excel-2-line"></i>
+            <i className={exporting ? 'ri-loader-4-line animate-spin' : 'ri-file-excel-2-line'}></i>
             {t('table.export')}
           </button>
         </div>

@@ -2,12 +2,26 @@
 
 import { useState } from 'react';
 import Button from '../../../components/base/Button';
-import DataTable from '../../../components/base/DataTable';
+import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
 import { notLiquidableReason } from '../../../lib/tarifas/tripContext';
+import { notify } from '../../../lib/notify';
 import { tripProgress } from '../../../lib/tarifas/tripOrders';
+import { listOrdersForTrips } from '../../../lib/tarifas/tripsDataSource';
+import { downloadTripsWorkbook } from '../exportTripsWithOrders';
 import TripOrdersPanel from '../components/TripOrdersPanel';
 import { tripColumns } from './tripColumns';
 import type { TripRecord } from '../../../lib/tarifas/types';
+
+/** Excel con cada viaje (filtrado y ordenado como se ve) y sus pedidos, leídos de una vez. */
+async function exportTripsWithOrders(trips: TripRecord[], columns: DataTableColumn<TripRecord>[]): Promise<void> {
+  try {
+    const ordersByTrip = await listOrdersForTrips(trips.map((t) => t.id));
+    await downloadTripsWorkbook(trips, ordersByTrip, columns, 'viajes_por_liquidar');
+  } catch (e) {
+    notify(e instanceof Error ? e.message : 'No se pudo exportar los viajes con sus pedidos.', 'error');
+    throw e;
+  }
+}
 
 /** Tope del lote: cada viaje calcula por su cuenta contra el backend, y diez ya son mucho para revisar. */
 export const MAX_LOTE = 10;
@@ -56,6 +70,7 @@ export function TripsTable({
       searchHidden
       searchPlaceholder="Buscar por viaje, transportista, conductor o placa"
       exportFileName="viajes_por_liquidar"
+      exportHandler={exportTripsWithOrders}
       emptyMessage="No hay viajes completados pendientes de liquidar"
       pageSize={25}
       selection={canCreate ? {

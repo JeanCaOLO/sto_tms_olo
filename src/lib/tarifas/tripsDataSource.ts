@@ -19,6 +19,7 @@ export {
 
 export {
   listTripOrders,
+  listOrdersForTrips,
 } from './trips/orderHandling';
 
 export {

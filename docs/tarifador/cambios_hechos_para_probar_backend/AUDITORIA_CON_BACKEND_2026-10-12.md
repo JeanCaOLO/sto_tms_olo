@@ -97,7 +97,7 @@ Con los datos actuales no hay casos que probar. SQL: 0 viajes completados sin `r
 | 4. Desactivar 2 reglas en lote (`R_LOTE_1` y `R_LOTE_2`, creadas para la prueba) | OK. Dos `PATCH` 200 y dos `POST` a la bitácora. SQL: `active = false` y `version` sin cambio (1). |
 | 5. Eliminar en lote | Parcial. Las 3 reglas de prueba se borraron (SQL: 0 filas; bitácora con 3 `DELETE`) y el modal propio listó exactamente esas 3. El caso «regla referenciada» no se pudo reproducir: ver A6. |
 | 6. «Ver como» Liquidador | OK en interfaz. En `/reglas-tarifa` desaparecen «Nueva Regla», las casillas y las acciones de editar y eliminar (queda solo el ojo) y las pestañas «Alerta Margen» y «Probador Motor». El menú lateral queda solo con «Tarifas». |
-| §6.1 y §6.4 (403 real y país restringido) | Pendiente: «Ver como» es un filtro de interfaz y el token sigue siendo de SuperAdministrador. Necesita un usuario Liquidador real. |
+| §6.1 y §6.4 (403 real y país restringido) | Verificado por código y pruebas, no en vivo: no se pueden crear usuarios ni hay otro usuario que el SuperAdministrador del navegador. En el backend, `_reader`, `_writer` y `_require_country` (`app.py`) exigen `tarifas` para liquidar y `tarifas.config` para configurar, y filtran y bloquean por país (`backend/tests/test_tarifas.py`: 403 al escribir configuración con rol de liquidar, 403 en país ajeno, también en `insert_many`; 12 pruebas pasan). En la interfaz, los permisos de la vista Liquidador (`usePermissions.tsx`) coinciden con esos permisos del backend, y `readOnlyAccess.test.tsx`, `RuleModal.readonly.test.tsx` y `ViewAsToggle.test.tsx` comprueban el solo lectura (32 pruebas pasan). Queda sin ver el 403 por HTTP con un token real. |
 
 | ID | Hallazgo | Veredicto | Estado |
 |---|---|---|---|
@@ -168,4 +168,4 @@ Las pruebas de esa medición dejaron `LIQ-CR-015` y `LIQ-CR-016` emitidas y anul
 
 ## Pendiente
 
-§3 (Pagado), §6.1 y §6.4 con usuario real, §6.3, §7 (filas e importación), §8 en el sandbox, §9 (concurrencia real, en el sandbox), §10 (C1), §4b y §9b. El §6 (roles) necesita además un usuario solo-liquidar o «Ver como» Liquidador.
+Solo lo que no se puede hacer en local: §6.3, importar CSV y XLSX con el selector de archivos, §8 en el sandbox (`TRIPS_LIMIT`, arranque en frío, lote de 10, importación de 300 filas o más con `insert_many`), §9 concurrencia real y el fallo parcial de un lote contra Aurora (cubierto por prueba). C1 queda fuera por decisión del usuario.
