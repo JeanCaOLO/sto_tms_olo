@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { listCarrierProfiles, deactivateParty, reactivateParty } from '../../../lib/tarifas/partiesDataSource';
 import type { CarrierProfile, PartyClassification } from '../../../lib/tarifas/parties';
 import type { registrarEventoSeguro as registrarEventoFn } from '../../../lib/liquidador/auditLog';
+import { confirmAction } from '../../../lib/confirm';
 
 export function useCompaniasList(classification: PartyClassification, countryId: string | undefined, loadingCountries: boolean) {
   const [profiles, setProfiles] = useState<CarrierProfile[]>([]);
@@ -32,11 +33,13 @@ export function useCompaniasList(classification: PartyClassification, countryId:
 
     try {
       if (!reactivating) {
-        const ok = window.confirm(
-          `¿Desactivar el cálculo de "${profile.name}"?\n\nNo se borra: sale de los selectores pero las ` +
-          `liquidaciones ya emitidas la conservan intacta, porque el histórico es inmutable. ` +
-          `El transportista sigue en el catálogo.`,
-        );
+        const ok = await confirmAction({
+          title: 'Desactivar cálculo',
+          message: `¿Desactivar el cálculo de "${profile.name}"?\n\nNo se borra: sale de los selectores pero las ` +
+            `liquidaciones ya emitidas la conservan intacta, porque el histórico es inmutable. ` +
+            `El transportista sigue en el catálogo.`,
+          confirmLabel: 'Desactivar',
+        });
         if (!ok) return { error: null };
       }
 

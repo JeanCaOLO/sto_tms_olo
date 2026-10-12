@@ -11,6 +11,7 @@ import { findOverlappingRule } from './ruleOverlap';
 import {
   parseConditions, parseExpression, preconditionError, resolvePartyId, type Parsed, type SubmitContext,
 } from './ruleSubmitSteps';
+import { confirmAction } from '../../../../lib/confirm';
 
 /** Guarda y audita. false = el usuario prefirió no guardar una regla repetida. */
 async function persist(c: SubmitContext, candidate: RuleCandidate): Promise<boolean> {
@@ -37,10 +38,13 @@ async function confirmDuplicate(c: SubmitContext, candidate: RuleCandidate): Pro
   const payload = toRulePayload(candidate, c.form.formData.country_id, !!c.rule);
   const clash = findOverlappingRule(payload, await listRules(c.organizationId), c.rule?.id as string | undefined);
   if (!clash) return true;
-  return window.confirm(
-    `Ya hay una regla activa con el código ${payload.code} y el mismo alcance cuya vigencia coincide `
-    + `("${String(clash.name)}"). Con las dos activas, las dos se evalúan. ¿Guardar de todos modos?`,
-  );
+  return confirmAction({
+    title: 'Regla repetida',
+    message: `Ya hay una regla activa con el código ${payload.code} y el mismo alcance cuya vigencia coincide `
+      + `("${String(clash.name)}"). Con las dos activas, las dos se evalúan. ¿Guardar de todos modos?`,
+    confirmLabel: 'Guardar',
+    variant: 'primary',
+  });
 }
 
 function validateCandidate(c: SubmitContext, conditions: Pred, expression: Expr, partyId: string | null): Parsed<RuleCandidate> {

@@ -193,3 +193,26 @@ describe('RuleModal (caracterización)', () => {
     fireEvent.click(document.querySelectorAll('.ri-delete-bin-line')[0]!.closest('button')!);
     expect(screen.getAllByPlaceholderText('20').length).toBe(antes - 1);
   });});
+
+describe('RuleModal reapertura', () => {
+  it('«Nueva regla» reabre con el formulario limpio, no con lo escrito antes', async () => {
+    const element = (isOpen: boolean) => (
+      <MemoryRouter>
+        <RuleModal
+          isOpen={isOpen} onClose={onClose} onSuccess={onSuccess}
+          organizationId="ORG" country={COUNTRY} usuarioActivo="Auditor"
+        />
+      </MemoryRouter>
+    );
+    const { rerender } = render(element(true));
+    await screen.findByText('Nueva regla');
+    type('Código *', 'R_PRUEBA');
+    expect((screen.getByLabelText('Código *') as HTMLInputElement).value).toBe('R_PRUEBA');
+
+    rerender(element(false));
+    expect(screen.queryByText('Nueva regla')).toBeNull();
+    rerender(element(true));
+    await screen.findByText('Nueva regla');
+    expect((screen.getByLabelText('Código *') as HTMLInputElement).value).toBe('');
+  });
+});

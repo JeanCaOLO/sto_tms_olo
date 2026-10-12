@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { bulkSummary, runBulkRules, type BulkAction } from '../api/bulkRules';
 import { notify } from '../../../lib/notify';
 import type { RuleRow } from '../types';
+import { confirmAction } from '../../../lib/confirm';
 
 interface Props {
   organizationId: string;
@@ -46,7 +47,7 @@ export function useRuleBulk({ organizationId, userName, canEdit, canDelete, relo
     const efecto = action === 'activate'
       ? 'Empiezan a aplicarse en las liquidaciones nuevas.'
       : 'Dejan de aplicarse en las liquidaciones nuevas.';
-    if (!window.confirm(`¿${verbo} ${rules.length} regla${rules.length === 1 ? '' : 's'}? ${efecto}`)) return;
+    if (!(await confirmAction({ title: `${verbo} reglas`, message: `¿${verbo} ${rules.length} regla${rules.length === 1 ? '' : 's'}? ${efecto}`, confirmLabel: verbo, variant: action === 'activate' ? 'primary' : 'danger' }))) return;
     const outcome = await execute(action, rules);
     if (outcome.failed.length === 0) onDone();
   };

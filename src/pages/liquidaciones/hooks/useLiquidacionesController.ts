@@ -10,6 +10,7 @@ import { useSettlementsLoader } from './useSettlementsLoader';
 import { useTripRowActions } from './useTripRowActions';
 import { useTripsLoader } from './useTripsLoader';
 import type { SettlementRecord, SettlementStatus } from '../../../lib/tarifas/types';
+import { confirmAction } from '../../../lib/confirm';
 
 export function useLiquidacionesController(countryId: string | null) {
   const [tab, setTab] = useState<'trips' | 'history'>('trips');
@@ -58,8 +59,7 @@ export function useLiquidacionesController(countryId: string | null) {
   };
 
   const changeStatus = async (s: SettlementRecord, status: SettlementStatus) => {
-    const shouldCancel = status === 'Anulado' && !window.confirm(`¿Anular ${s.number}? Esta acción no se puede deshacer.`);
-    if (shouldCancel) return;
+    if (status === 'Anulado' && !(await confirmAction({ title: 'Anular liquidación', message: `¿Anular ${s.number}? Esta acción no se puede deshacer.`, confirmLabel: 'Anular' }))) return;
     setError('');
     try {
       const { error: err } = await updateStatus(s.id, status);

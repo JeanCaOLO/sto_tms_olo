@@ -5,6 +5,7 @@ import {
   toggleRateTable, removeRateTable, removeRateRow, createOrUpdateRateRow, type RateRowFormInput,
 } from '../../api/tarifariosApi';
 import type { SetTarifariosState, TarifariosState } from './tarifariosState';
+import { confirmAction } from '../../../../lib/confirm';
 
 interface Params {
   state: TarifariosState;
@@ -40,7 +41,7 @@ export function useTarifariosActions({ state, setState, selected, loadTables, lo
 
   const deleteRow = async (rowId: string) => {
     try {
-      const { error } = await removeRateRow(rowId);
+      const { error } = await removeRateRow(rowId, selected?.id);
       if (error) {
         setState((s) => ({ ...s, generalError: `No se pudo eliminar la fila: ${error}` }));
         return;
@@ -55,7 +56,7 @@ export function useTarifariosActions({ state, setState, selected, loadTables, lo
 
   const toggleTable = async (table: RateTable) => {
     try {
-      const { error } = await toggleRateTable(table.id, table.active);
+      const { error } = await toggleRateTable(table.id, table.active, table.code);
       if (error) {
         setState((s) => ({ ...s, loadError: `No se pudo cambiar el estado: ${error}` }));
         return;
@@ -68,11 +69,13 @@ export function useTarifariosActions({ state, setState, selected, loadTables, lo
   };
 
   const deleteTable = async (table: RateTable) => {
-    if (!window.confirm(
-      `¿Eliminar "${table.code}" y todas sus filas? Las reglas que lo nombren van a usar su importe de respaldo.`,
-    )) return;
+    if (!(await confirmAction({
+      title: 'Eliminar tarifario',
+      message: `¿Eliminar "${table.code}" y todas sus filas? Las reglas que lo nombren van a usar su importe de respaldo.`,
+      confirmLabel: 'Eliminar',
+    }))) return;
     try {
-      const { error } = await removeRateTable(table.id);
+      const { error } = await removeRateTable(table.id, table.code);
       if (error) {
         setState((s) => ({ ...s, loadError: `No se pudo eliminar: ${error}` }));
         return;
