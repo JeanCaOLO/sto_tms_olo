@@ -9,7 +9,7 @@ from relations import find_foreign_key
 from schema import assert_column, quote, table_columns
 from select_parser import STAR, SelectNode, parse_select
 
-FILTER_OPS = {"eq": "=", "neq": "<>", "gt": ">", "gte": ">=", "lt": "<", "lte": "<="}
+FILTER_OPS = {"eq": "=", "neq": "<>", "gt": ">", "gte": ">=", "lt": "<", "lte": "<=", "ilike": "ILIKE"}
 ROOT_ALIAS = "t"
 
 
@@ -55,8 +55,30 @@ def _filter_clause(prefix: str, column: str, op: str, value: Any, params: list) 
     raise HttpError(400, f'operador no soportado: "{op}"')
 
 
+def _any_column_clause(table: str, prefix: str, columns: str, op: str, value: Any, params: list) -> str:
+    """"name|external_code": la condición vale si se cumple en cualquiera de las columnas (búsqueda)."""
+    parts = []
+    for column in columns.split("|"):
+        assert_column(table, column)
+        parts.append(_filter_clause(prefix, column, op, value, params))
+    return f"({' OR '.join(parts)})"
+
+
+def _parent_clause(table: str, prefix: str, column: str, op: str, value: Any, params: list) -> str:
+    """"final_customers.customer_id": filtra por una columna de la tabla padre (vía la FK de `table`)."""
+    parent, parent_column = column.split(".", 1)
+    fk_column = find_foreign_key(table, parent)
+    assert_column(parent, parent_column)
+    inner = _filter_clause("p.", parent_column, op, value, params)
+    return f"{prefix}{quote(fk_column)} IN (SELECT p.{quote('id')} FROM {quote(parent)} p WHERE {inner})"
+
+
 def build_where(table: str, alias: str | None, filters: list | None) -> tuple[str, list]:
-    """filters: lista de [columna, operador, valor]."""
+    """filters: lista de [columna, operador, valor].
+
+    columna puede ser "a|b" (cualquiera de las columnas) o "tabla_padre.columna"
+    (filtra por la tabla a la que apunta una FK de `table`).
+    """
     prefix = f"{alias}." if alias else ""
     params: list = []
     clauses = []
@@ -64,15 +86,22 @@ def build_where(table: str, alias: str | None, filters: list | None) -> tuple[st
         if not isinstance(item, list) or len(item) != 3:
             raise HttpError(400, "Cada filtro debe ser [columna, operador, valor]")
         column, op, value = item
-        assert_column(table, column)
-        clauses.append(_filter_clause(prefix, column, op, value, params))
+        if not isinstance(column, str):
+            raise HttpError(400, "columna de filtro inválida")
+        if "." in column:
+            clauses.append(_parent_clause(table, prefix, column, op, value, params))
+        elif "|" in column:
+            clauses.append(_any_column_clause(table, prefix, column, op, value, params))
+        else:
+            assert_column(table, column)
+            clauses.append(_filter_clause(prefix, column, op, value, params))
     return " AND ".join(clauses), params
 
 
-def _limit_value(limit: Any) -> int:
+def _limit_value(limit: Any, name: str = "limit") -> int:
     text = str(limit)
     if not text.isdigit():
-        raise HttpError(400, "limit inválido")
+        raise HttpError(400, f"{name} inválido")
     return int(text)
 
 
@@ -102,7 +131,7 @@ def _scoped_where(table: str, filters: list | None, country_ids: tuple[str, ...]
 
 def build_list_query(table: str, select: str | None, filters: list | None,
                      order: dict | None = None, limit: Any = None,
-                     country_ids: tuple[str, ...] | None = None) -> tuple[str, list]:
+                     country_ids: tuple[str, ...] | None = None, offset: Any = None) -> tuple[str, list]:
     fields = build_field_list(table, parse_select(select), ROOT_ALIAS, count())
     clause, params = _scoped_where(table, filters, country_ids)
     sql = f"SELECT {', '.join(fields)} FROM {quote(table)} {ROOT_ALIAS}"
@@ -114,6 +143,8 @@ def build_list_query(table: str, select: str | None, filters: list | None,
         sql += f" ORDER BY {ROOT_ALIAS}.{quote(order['column'])} {direction}"
     if limit is not None:
         sql += f" LIMIT {_limit_value(limit)}"
+    if offset is not None:
+        sql += f" OFFSET {_limit_value(offset, 'offset')}"
     return sql, params
 
 

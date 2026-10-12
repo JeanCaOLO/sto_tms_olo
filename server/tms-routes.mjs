@@ -53,7 +53,8 @@ tmsRouter.get(
     const select = req.query.select ? String(req.query.select) : "*";
     const order = parseJsonParam(req.query.order, "order");
     const limit = req.query.limit != null ? Number(req.query.limit) : null;
-    const { sql, params } = buildListQuery({ table, select, filters, order, limit });
+    const offset = req.query.offset != null ? Number(req.query.offset) : null;
+    const { sql, params } = buildListQuery({ table, select, filters, order, limit, offset });
     const result = await tmsQuery(sql, params);
     let data = result.rows;
 
@@ -68,7 +69,16 @@ tmsRouter.get(
       data = data[0] ?? null;
     }
 
-    res.json({ data, error: null, count: req.query.count === "exact" ? result.rowCount : undefined });
+    // Con página (limit/offset) el count es el total SIN paginar (igual que la Lambda de datos).
+    let count;
+    if (req.query.count === "exact") {
+      if (limit == null && offset == null) count = result.rowCount;
+      else {
+        const total = buildCountQuery({ table, filters });
+        count = (await tmsQuery(total.sql, total.params)).rows[0].count;
+      }
+    }
+    res.json({ data, error: null, count });
   })
 );
 

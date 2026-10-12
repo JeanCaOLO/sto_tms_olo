@@ -47,8 +47,13 @@ const LIST_SELECT =
   'address:addresses(line1,line2,city,state,latitude,longitude,geocoding_status),' +
   'zone:zones(id,code,name)';
 
+const PAGE_SIZE_OPTIONS = [25, 50, 100];
+
 export default function TiendasPage() {
   const [points, setPoints] = useState<DeliveryPoint[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1); // 1-based
+  const [pageSize, setPageSize] = useState(50);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -58,17 +63,33 @@ export default function TiendasPage() {
   const { canCreate, canEdit, canDelete } = useModulePermissions('puntos_entrega');
   const { t } = useTranslation();
 
-  useEffect(() => { fetchPoints(); }, []);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  // Paginación SERVIDOR: solo trae la página pedida con offset+limit (antes
+  // traía los ~10k puntos de una vez y el DataTable paginaba en memoria).
+  // `count: 'exact'` da el total sin paginar para pintar "X de N".
+  useEffect(() => { fetchPoints(); }, [page, pageSize]);
 
   const fetchPoints = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const from = (page - 1) * pageSize;
+    const { data, error, count } = await supabase
       .from('delivery_points')
-      .select(LIST_SELECT)
-      .order('name', { ascending: true });
-    if (!error) setPoints((data as DeliveryPoint[]) || []);
+      .select(LIST_SELECT, { count: 'exact' })
+      .order('name', { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (!error) {
+      setPoints((data as DeliveryPoint[]) || []);
+      if (typeof count === 'number') setTotal(count);
+    }
     setLoading(false);
   };
+
+  const goToPage = (p: number) => {
+    if (Number.isNaN(p)) return;
+    setPage(Math.min(Math.max(1, Math.trunc(p)), totalPages));
+  };
+  const changePageSize = (n: number) => { setPageSize(n); setPage(1); };
 
   const handleSavePoint = async (form: DeliveryPointForm) => {
     setSaveError('');
@@ -99,6 +120,10 @@ export default function TiendasPage() {
   const openEdit = (p: DeliveryPoint) => { setSelectedPoint(p); setSaveError(''); setIsModalOpen(true); };
   const openDelete = (p: DeliveryPoint) => { setPointToDelete(p); setIsDeleteModalOpen(true); };
 
+  // Con paginación servidor, `points` es solo la página actual. El total real
+  // viene de `count`; los demás conteos se muestran "en esta página" para no
+  // mentir (un total server-side de activos/geocodificados exige endpoints de
+  // conteo que hoy no existen — ver canal 2026-10-12).
   const customerNames = new Set(points.map(p => p.final_customer?.customer?.name).filter(Boolean));
   const activeCount = points.filter(p => p.active).length;
   const geocodedCount = points.filter(p => p.address?.geocoding_status === 'OK').length;
@@ -198,7 +223,9 @@ export default function TiendasPage() {
     },
   ];
 
-  if (loading) {
+  // Spinner de pantalla completa solo en la primera carga; al cambiar de página
+  // el DataTable muestra su propio loading sin hacer parpadear KPIs y controles.
+  if (loading && points.length === 0 && total === 0) {
     return (
       <div className="flex items-center justify-center h-full min-h-[400px]">
         <div className="text-center">
@@ -233,10 +260,10 @@ export default function TiendasPage() {
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: t('deliveryPoints.kpiTotal'), value: points.length, icon: 'ri-map-pin-2-line', color: 'bg-teal-50 text-teal-600', border: 'border-teal-100' },
-          { label: t('deliveryPoints.kpiActive'), value: activeCount, icon: 'ri-checkbox-circle-line', color: 'bg-emerald-50 text-emerald-600', border: 'border-emerald-100' },
-          { label: t('deliveryPoints.kpiCustomers'), value: customerNames.size, icon: 'ri-building-line', color: 'bg-violet-50 text-violet-600', border: 'border-violet-100' },
-          { label: t('deliveryPoints.kpiGeocoded'), value: geocodedCount, icon: 'ri-map-pin-user-line', color: 'bg-amber-50 text-amber-600', border: 'border-amber-100' },
+          { label: t('deliveryPoints.kpiTotal'), value: total, icon: 'ri-map-pin-2-line', color: 'bg-teal-50 text-teal-600', border: 'border-teal-100' },
+          { label: `${t('deliveryPoints.kpiActive')} (${t('deliveryPoints.inThisPage')})`, value: activeCount, icon: 'ri-checkbox-circle-line', color: 'bg-emerald-50 text-emerald-600', border: 'border-emerald-100' },
+          { label: `${t('deliveryPoints.kpiCustomers')} (${t('deliveryPoints.inThisPage')})`, value: customerNames.size, icon: 'ri-building-line', color: 'bg-violet-50 text-violet-600', border: 'border-violet-100' },
+          { label: `${t('deliveryPoints.kpiGeocoded')} (${t('deliveryPoints.inThisPage')})`, value: geocodedCount, icon: 'ri-map-pin-user-line', color: 'bg-amber-50 text-amber-600', border: 'border-amber-100' },
         ].map((kpi) => (
           <div key={kpi.label} className={`bg-white rounded-xl border ${kpi.border} p-4 flex items-center gap-4`}>
             <div className={`w-11 h-11 flex items-center justify-center rounded-lg ${kpi.color}`}>
@@ -257,7 +284,7 @@ export default function TiendasPage() {
         searchPlaceholder={t('deliveryPoints.search')}
         exportFileName="puntos_de_entrega"
         emptyMessage={t('deliveryPoints.empty')}
-        pageSize={25}
+        loading={loading}
         actions={(canEdit || canDelete) ? (p) => (
           <>
             {canEdit && (
@@ -281,6 +308,59 @@ export default function TiendasPage() {
           </>
         ) : undefined}
       />
+
+      {/* Paginación servidor: navega por páginas pidiendo cada una al backend. */}
+      {total > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-4 px-1 text-sm text-slate-600">
+          <div className="flex items-center gap-2">
+            <span>{t('table.rowsPerPage')}</span>
+            <select
+              value={pageSize}
+              onChange={(e) => changePageSize(Number(e.target.value))}
+              className="px-2 py-1 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
+              aria-label={t('table.rowsPerPage')}
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <span className="text-slate-400">· {t('table.records', { count: total })}</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="hidden sm:inline">
+              {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} {t('table.of')} {total}
+            </span>
+            <button
+              onClick={() => goToPage(page - 1)}
+              disabled={page <= 1 || loading}
+              className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              aria-label={t('table.page') + ' anterior'}
+            >
+              <i className="ri-arrow-left-s-line"></i>
+            </button>
+            <div className="flex items-center gap-1.5">
+              <span>{t('table.page')}</span>
+              <input
+                type="number"
+                min={1}
+                max={totalPages}
+                value={page}
+                onChange={(e) => goToPage(Number(e.target.value))}
+                className="w-14 px-2 py-1 text-sm text-center border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                aria-label={t('table.page')}
+              />
+              <span>{t('table.of')} {totalPages}</span>
+            </div>
+            <button
+              onClick={() => goToPage(page + 1)}
+              disabled={page >= totalPages || loading}
+              className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              aria-label={t('table.page') + ' siguiente'}
+            >
+              <i className="ri-arrow-right-s-line"></i>
+            </button>
+          </div>
+        </div>
+      )}
 
       <DeliveryPointModal
         isOpen={isModalOpen}
