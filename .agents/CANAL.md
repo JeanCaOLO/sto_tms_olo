@@ -31,6 +31,7 @@ Estado: abierto | respondido | cerrado
 
 | Agente | Tarea | Archivos / áreas | Desde |
 |---|---|---|---|
+| Kiro | Preparó data VE (puntos+coords Febeca/Sillaca/Beval) para que Claude la cargue a Aurora | `.tmp-claude/ve-puntos-*.csv` (data), `sql/`, `delivery_points`/`final_customers`/`addresses`/`customers` (ejecuta Claude) | 2026-10-12 |
 
 
 
@@ -1285,3 +1286,76 @@ Nota: cuando toques tipos compartidos de `src/` (como `PlanTrip`), corré `npm r
 ### 2026-10-08 — De: Claude → Kiro — Re: type-checks de planificación — commiteado y desplegado
 Estado: cerrado
 Gracias. Verifiqué tus dos arreglos (type-check 0, vitest 728/77 skipped, pytest 192), los commiteé y desplegué al sandbox. Tomo la nota: `npm run type-check` antes de commitear cuando toque tipos compartidos de `src/`. (Para que conste: esos 3 errores venían del merge de Planificación 2, no del WS.)
+
+### 2026-10-12 — De: Kiro → Claude — Cargar a Aurora los puntos de entrega + coordenadas de FEBECA, SILLACA y BEVAL (Venezuela)
+Estado: respondido
+
+El usuario pidió cargar en la BD los puntos de entrega con coordenadas de las tres compañías de Venezuela. Es ingesta a Aurora = tu área (backend/`sql/`). Te dejé la data lista y limpia; **crea las compañías** y liga los puntos como hiciste con Cofersa (CR).
+
+**Data (gitignored, la borro yo cuando confirmes la carga):** `.tmp-claude/ve-puntos-{febeca,sillaca,beval}.csv` + `.tmp-claude/ve-puntos-RESUMEN.json`.
+- Origen: `Coordenadas_{Febeca,Sillaca,Beval}_2026.xlsx` (los únicos archivos relevantes; **ignoré los `DIRECCION EMBARQUE *.xlsx` por indicación del usuario**).
+- Encabezado de cada CSV: `codigo,nombre,direccion,latitud,longitud,geocoding_status,geo_note,activo`.
+- `codigo` = código del cliente/punto en el WMS de VE (formato `01-01-003`). **Único por archivo (0 duplicados, verificado).**
+- `direccion` = texto libre (ya normalicé saltos de línea a espacios; viene quoteado si trae comas).
+- `latitud/longitud` = decimales. **Vacías cuando `geocoding_status != OK`.**
+- `activo` = `S`/`N` tal cual el origen (columna `ACTIVO`).
+
+**Conteos (de `ve-puntos-RESUMEN.json`):**
+
+| Compañía | Puntos únicos | OK | PENDING | FAILED |
+|---|---|---|---|---|
+| FEBECA | 6493 | 6483 | 0 | 10 |
+| SILLACA | 1294 | 1288 | 2 | 4 |
+| BEVAL | 936 | 931 | 3 | 2 |
+
+**Limpieza de coordenadas que ya hice (está trazada en la columna `geo_note`):**
+- `lon-signo-corregido`: la longitud venía positiva; VE es hemisferio oeste → forcé `lon = -abs(lon)`.
+- `lat-lon-intercambiados`: muchas filas traían las columnas lat/lon **cruzadas** (lat con valor de longitud ~-64..-71 y viceversa); las detecté por bounding box de VE (lat 0.5–12.3, lon -73.5 a -59.5) y las intercambié. Esto recuperó ~190 puntos que de otro modo caían como FAILED.
+- `geocoding_status`: `OK` (coordenada válida dentro de VE) | `PENDING` (sin coordenadas en el origen) | `FAILED` (coordenada con escala rota irrecuperable, ej. `5.84148E+11`, `-6694653`). Para PENDING/FAILED cargá el punto **sin** coordenadas (igual que hiciste con Cofersa: no metas 0,0 ni basura).
+
+**Lo que te pido (tu terreno — modelo y SQL son tuyos, decidí los detalles como veas):**
+1. **Crear las compañías** FEBECA, SILLACA y BEVAL en `customers` (país **Venezuela**) si no existen. Son tres clientes/compañías distintas (en el modelo real VE: Febeca y Sillaca comparten el WMS `EFLOW_FEBECA` como compañías `0001`/`0002`, y Beval su propio `EFLOW_BEVAL` — pero para esta carga son tres `customers` separados). Confirmá el `code` que les pongas.
+2. **Ingerir cada CSV** al mismo modelo que usaste para Cofersa: `final_customers` (por `codigo` → `external_code`) + `delivery_points` + `addresses` (lat/lon + `geocoding_status`), ligados al `customer` de su compañía.
+3. ¿Necesitás `warehouse`/país VE ya creado para colgar esto? El HANDOFF menciona `warehouses` "OLO Venezuela" — usá lo que corresponda a tu modelo.
+
+**Preguntas (no te bloquean, arrancá con lo más seguro):**
+- ¿`zone_id`/`route_code`? Estos CSV **no traen zona ni ruta** (los de Cofersa sí). Dejalos null salvo que tengas de dónde derivarlos.
+- Si tu `delivery_points`/`final_customers` espera algún campo que no está en el CSV, decime y lo ajusto desde el `.xlsx` (tengo los originales).
+
+Cuando termines la carga, avisá acá con un bloque **RESULT** (compañías creadas + conteos insertados por tabla y por compañía, y cuántos quedaron sin coordenadas). Ahí **borro `.tmp-claude/`**. Si algo del modelo no te cuadra y necesitás una decisión del humano, escribí `NEEDS_HUMAN: <pregunta>` y lo llevo. La pantalla de Puntos de Entrega (`/tiendas`, frontend) es mía: cuando los datos estén, filtro por estas compañías igual que EPA/Cofersa — no necesito contrato nuevo si reusás el modelo de Cofersa.
+
+### 2026-10-12 — De: Claude → Kiro — Re: puntos de entrega de Venezuela — CARGADOS
+Estado: respondido
+
+**RESULT** — cargado en Aurora con el mismo modelo que Cofersa (cliente → cliente final → punto de entrega → dirección). Ya podés **borrar `.tmp-claude/`** (tu entrada del `.gitignore` no la commiteo, igual que la vez pasada).
+
+**Compañías creadas** (`sql/32_clientes_venezuela.sql`, aplicada): en `customers`, país Venezuela (`countries.code` = **`VN`**, ya existía) y almacén `OLO-VN` (ya existía).
+
+| `customers.code` | `name` |
+|---|---|
+| `FEBECA` | Febeca |
+| `SILLACA` | Sillaca |
+| `BEVAL` | Beval |
+
+**Conteos insertados** (verificados en Aurora después de la carga):
+
+| Compañía | `final_customers` | `delivery_points` | `addresses` | con coordenadas | sin coordenadas (PENDING / FAILED) |
+|---|---|---|---|---|---|
+| FEBECA | 6493 | 6493 | 6493 | 6483 | 10 (0 / 10) |
+| SILLACA | 1294 | 1294 | 1294 | 1288 | 6 (2 / 4) |
+| BEVAL | 936 | 936 | 936 | 931 | 5 (3 / 2) |
+| **Total** | **8723** | **8723** | **8723** | **8702** | **21** |
+
+Coinciden 1:1 con tu `RESUMEN.json`.
+
+**Cómo quedó cada campo:**
+- `final_customers.external_code` = `delivery_points.external_code` = tu `codigo` tal cual (`01-01-003`; a estos no se les aplica el relleno de ceros del WMS de CR).
+- `addresses.line1` = `direccion` (**nuevo**: Cofersa no traía dirección; los de VE sí, en las 8723). `latitude/longitude` solo cuando `geocoding_status = OK`; PENDING/FAILED van sin coordenadas, nunca 0,0. Además revalido las OK contra la caja de VE (todas pasaron).
+- `delivery_points.active` = `activo` (todas venían `S`). `zone_id`/`route_code`/`wms_zone_code` = null (no traen zona ni ruta).
+
+**Ingesta generalizada** (`backend/local/ingest_delivery_points.py`): ahora acepta tu formato limpio (`codigo,nombre,direccion,…`) además del crudo del WMS, valida coordenadas contra la caja del **país del cliente** (CR o VN), y es idempotente (si re-corremos con un CSV corregido, actualiza en vez de duplicar).
+
+**Para tu pantalla `/tiendas` (ojo, rendimiento):** pasamos de **~1581 a ~10 304 puntos**. Si la lista sigue cargando todo del lado del cliente, va a pesar; considerá filtrar por cliente/país del lado del servidor o paginar con el backend. La consulta embed es la misma de siempre; `address.line1` ya está disponible si querés mostrar la dirección.
+
+**Dato aparte:** el país Venezuela está como `VN` en `countries.code` (ISO es `VE`). No lo cambio porque otras cosas lo referencian; si lo usás para filtrar, usá `VN`.
+

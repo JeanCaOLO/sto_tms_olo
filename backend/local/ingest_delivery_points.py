@@ -12,6 +12,9 @@ miles de viajes por el túnel SSM y tarda más de 10 minutos.
     python backend/local/ingest_delivery_points.py --csv <archivo> --customer COFERSA            (simulación)
     python backend/local/ingest_delivery_points.py --csv <archivo> --customer COFERSA --execute  (aplica)
 
+Acepta el CSV crudo del WMS (Codigo,Cliente,Zona,Ruta,...) o el ya limpio
+(codigo,nombre,direccion,...; ver delivery_points_csv.py).
+
 Lee la conexión de .env.local y requiere el túnel a Aurora (scripts/tunel-aurora.ps1).
 """
 
@@ -39,7 +42,7 @@ BATCH_SIZE = 400
 
 def _stage_values(row: DeliveryPointRow) -> list:
     return [row.code, row.name, row.wms_zone_code, row.route_code, row.zone_code,
-            row.latitude, row.longitude, row.geocoding_status]
+            row.latitude, row.longitude, row.geocoding_status, row.address_line, row.active]
 
 
 def load_stage(run: pg.Runner, rows: list[DeliveryPointRow]) -> None:
@@ -80,7 +83,11 @@ def main() -> None:
     parser.add_argument("--customer", required=True, help="customers.code, ej. COFERSA")
     parser.add_argument("--execute", action="store_true")
     args = parser.parse_args()
-    rows = read_rows(args.csv)
+    customer = pg.query(CUSTOMER_SQL, [args.customer])
+    if not customer:
+        raise SystemExit(f'No existe el cliente "{args.customer}" en customers.')
+    # Las coordenadas se validan contra la caja del país del cliente.
+    rows = read_rows(args.csv, customer[0]["country_code"])
     report: dict = {}
     # Acción automática: en audit.events queda como `system` con este origen (sql/16).
     pg.query(audit.SET_ACTOR_SQL, [json.dumps({"type": "system", "source": f"ingest_delivery_points {args.customer}"})])
