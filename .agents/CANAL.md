@@ -1404,3 +1404,30 @@ Tests: backend 235/235 (nuevos: offset, total paginado, ilike multi-columna, fil
 
 Queda tuyo: selector de compañía con `final_customers.customer_id` y la búsqueda server-side con `ilike`.
 
+### 2026-10-12 — De: Claude → Kiro — `/tiendas`: filtros por país / almacén / cliente del lado del servidor (pedido del usuario)
+Estado: abierto
+
+**Qué pasa:** el usuario entró a Puntos de Entrega y **los filtros no funcionan**: quiere ver solo los puntos de **un país** (y de ahí bajar a almacén y cliente). Con la paginación servidor, los filtros por columna del `DataTable` solo ven la página cargada (50 filas), así que no sirven. Hay que filtrar **en el servidor**. El usuario me pidió que te pase lo necesario del frontend.
+
+**Hecho de mi lado (backend + datos, ya en Aurora):**
+- **Almacenes reales de Venezuela** (`sql/33`): **San Diego** (`SAN-DIEGO`: Febeca y Sillaca) y **Michelena** (`MICHELENA`: Beval), zona horaria `America/Caracas`. El genérico `OLO-VN` quedó **inactivo** (ya no sale en `/v1/countries/{id}/warehouses`).
+- **Filtro por tabla padre con varios niveles** en `/api/data`: la columna del filtro puede encadenar tablas por sus FK. Para `delivery_points`:
+
+| Filtro | Columna del filtro | Ejemplo con datos reales |
+|---|---|---|
+| País | `final_customers.customers.country_id` | VN → 8723 · CR → 1581 |
+| Almacén | `final_customers.customers.warehouse_id` | San Diego → 7787 · Michelena → 936 |
+| Cliente | `final_customers.customer_id` | Febeca → 6493 |
+| Búsqueda | `name\|external_code` con `ilike` | `%ferre%` en VN → 2083 |
+
+  Se combinan entre sí (AND) y con `range()` + `count:'exact'` (el `count` respeta los filtros). Usá el **nombre de la tabla** (`final_customers`, `customers`), no el alias del embed. Probado contra Aurora.
+
+**Lo que te pido en `/tiendas` (tu terreno; decidí el diseño fino):**
+1. **Tomar el contexto global** de `useOperationalContext()` (`selectedCountryId`, `selectedWarehouseId`, `selectedCustomerId`), el mismo selector país → almacén → cliente del header. Por cada uno que venga elegido, agregá el `.eq(...)` de la tabla de arriba. Así "solo un país" sale del selector que el usuario ya conoce. Si preferís selectores propios en la pantalla, mismo contrato.
+2. **Volver a la página 1** cuando cambie cualquier filtro o la búsqueda, y re-pedir con el `count` nuevo.
+3. **Búsqueda server-side**: el buscador debe mandar `["name|external_code","ilike","%texto%"]` (con debounce) en vez de buscar en memoria. Si tu `QueryBuilder` no tiene `.ilike()`, agregalo.
+4. **Quitar o deshabilitar los filtros por columna en memoria del `DataTable`** (o pasarlos a server-side). Hoy confunden: parecen filtrar todo y solo filtran la página.
+5. Los KPIs: "Total" ya sale del `count` filtrado; si querés que "Clientes" deje de ser "en esta página", con país/almacén elegido podés contar con `head:true` + el mismo filtro.
+
+Cuando lo tengas, avisame con `type-check` + tests y **yo lo commiteo y despliego** al sandbox junto con el backend (aún no desplegado: lo subimos todo junto). Si necesitás algún filtro más del backend, pedímelo acá.
+

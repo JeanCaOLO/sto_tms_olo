@@ -85,9 +85,17 @@ def test_ilike_search_across_several_columns(sq):
 def test_filter_by_parent_table_column_through_foreign_key(sq):
     sql, params = sq.build_count_query("drivers", [["carriers.country_id", "eq", "c1"]])
     assert sql == ('SELECT count(*)::int AS count FROM "drivers" t WHERE t."carrier_id" IN '
-                   '(SELECT p."id" FROM "carriers" p WHERE p."country_id" = %s)')
+                   '(SELECT p0."id" FROM "carriers" p0 WHERE p0."country_id" = %s)')
     assert params == ["c1"]
     with pytest.raises(HttpError, match="Columna desconocida"):
         sq.build_count_query("drivers", [["carriers.password", "eq", "x"]])
     with pytest.raises(HttpError, match="No hay foreign key"):
         sq.build_count_query("drivers", [["roles.name", "eq", "x"]])
+
+
+def test_filter_by_grandparent_table_column(sq):
+    sql, params = sq.build_count_query("drivers", [["carriers.countries.name", "eq", "Venezuela"]])
+    assert sql == ('SELECT count(*)::int AS count FROM "drivers" t WHERE t."carrier_id" IN '
+                   '(SELECT p0."id" FROM "carriers" p0 WHERE p0."country_id" IN '
+                   '(SELECT p1."id" FROM "countries" p1 WHERE p1."name" = %s))')
+    assert params == ["Venezuela"]

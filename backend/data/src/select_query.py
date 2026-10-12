@@ -64,13 +64,21 @@ def _any_column_clause(table: str, prefix: str, columns: str, op: str, value: An
     return f"({' OR '.join(parts)})"
 
 
-def _parent_clause(table: str, prefix: str, column: str, op: str, value: Any, params: list) -> str:
-    """"final_customers.customer_id": filtra por una columna de la tabla padre (vía la FK de `table`)."""
-    parent, parent_column = column.split(".", 1)
+def _parent_clause(table: str, prefix: str, column: str, op: str, value: Any, params: list, depth: int = 0) -> str:
+    """"final_customers.customer_id": filtra por una columna de la tabla padre (vía la FK de `table`).
+
+    Encadena niveles: "final_customers.customers.warehouse_id" sube de
+    delivery_points a final_customers y de ahí a customers.
+    """
+    parent, rest = column.split(".", 1)
     fk_column = find_foreign_key(table, parent)
-    assert_column(parent, parent_column)
-    inner = _filter_clause("p.", parent_column, op, value, params)
-    return f"{prefix}{quote(fk_column)} IN (SELECT p.{quote('id')} FROM {quote(parent)} p WHERE {inner})"
+    alias = f"p{depth}"
+    if "." in rest:
+        inner = _parent_clause(parent, f"{alias}.", rest, op, value, params, depth + 1)
+    else:
+        assert_column(parent, rest)
+        inner = _filter_clause(f"{alias}.", rest, op, value, params)
+    return f"{prefix}{quote(fk_column)} IN (SELECT {alias}.{quote('id')} FROM {quote(parent)} {alias} WHERE {inner})"
 
 
 def build_where(table: str, alias: str | None, filters: list | None) -> tuple[str, list]:
