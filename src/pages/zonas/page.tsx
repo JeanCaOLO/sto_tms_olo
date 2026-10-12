@@ -38,6 +38,9 @@ export default function ZonasPage() {
   const [toDelete, setToDelete] = useState<Zona | null>(null);
   const [deleteError, setDeleteError] = useState('');
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [mapOpen, setMapOpen] = useState(true);
+  // Las zonas dadas de baja (p. ej. GAM/RURAL, sql/36) no se borran por el histórico: se ocultan por defecto.
+  const [showInactive, setShowInactive] = useState(false);
   const { canCreate, canEdit, canDelete } = useModulePermissions('zonas');
   const { t } = useTranslation();
 
@@ -106,8 +109,9 @@ export default function ZonasPage() {
   const countryName = countries.find((c) => c.id === effectiveCountry)?.name ?? null;
 
   const visibleZonas = useMemo(
-    () => (effectiveCountry ? zonas.filter((z) => z.country_id === effectiveCountry) : zonas),
-    [zonas, effectiveCountry],
+    () => zonas.filter((z) => (!effectiveCountry || z.country_id === effectiveCountry)
+      && (showInactive || z.status === 'active')),
+    [zonas, effectiveCountry, showInactive],
   );
 
   const mapShapes: ZoneShape[] = useMemo(
@@ -206,25 +210,42 @@ export default function ZonasPage() {
         ))}
       </div>
 
-      {/* Mapa panorámico de las zonas del país seleccionado */}
+      {/* Mapa panorámico de las zonas del país seleccionado (colapsable) */}
       <div className="bg-white rounded-xl border border-slate-100 p-4 space-y-3">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-slate-700">{t('zones.mapCaption')}</h2>
-          <div className="w-48">
-            <Select
-              label=""
-              value={effectiveCountry}
-              onChange={(e) => setCountryFilter(e.target.value)}
-              options={countries.map((c) => ({ value: c.id, label: c.name }))}
-            />
-          </div>
+          <button
+            type="button"
+            onClick={() => setMapOpen((v) => !v)}
+            aria-expanded={mapOpen}
+            className="flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-teal-700 cursor-pointer"
+          >
+            <i className={`${mapOpen ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} text-base`}></i>
+            {t('zones.mapCaption')}
+          </button>
+          {mapOpen && (
+            <div className="w-48">
+              <Select
+                label=""
+                value={effectiveCountry}
+                onChange={(e) => setCountryFilter(e.target.value)}
+                options={countries.map((c) => ({ value: c.id, label: c.name }))}
+              />
+            </div>
+          )}
         </div>
-        {effectiveCountry ? (
-          <ZoneMap shapes={mapShapes} countryName={countryName} highlightId={highlightId} className="h-[420px] w-full rounded-lg border border-slate-200" />
-        ) : (
-          <div className="h-[420px] flex items-center justify-center text-slate-400 text-sm">{t('zones.empty')}</div>
+        {mapOpen && (
+          effectiveCountry ? (
+            <ZoneMap shapes={mapShapes} countryName={countryName} highlightId={highlightId} className="h-[420px] w-full rounded-lg border border-slate-200" />
+          ) : (
+            <div className="h-[420px] flex items-center justify-center text-slate-400 text-sm">{t('zones.empty')}</div>
+          )
         )}
       </div>
+
+      <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer w-fit">
+        <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
+        {t('zones.showInactive')}
+      </label>
 
       <DataTable
         data={visibleZonas}

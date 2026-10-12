@@ -32,4 +32,6 @@ export default {
   'zones.errInUse': 'This zone cannot be deleted because it has associated records (orders or trips). Reassign them first.',
   'zones.mapCaption': 'Zones of the selected country',
   'zones.filterCountry': 'Country',
+  'zones.overlapWarn': 'The geofence overlaps with: {{zonas}}. Zones should not overlap. Save anyway?',
+  'zones.showInactive': 'Show inactive zones',
 };

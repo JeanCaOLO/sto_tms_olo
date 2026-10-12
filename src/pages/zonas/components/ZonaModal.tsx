@@ -6,6 +6,7 @@ import Select from '../../../components/base/Select';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
 import ZoneMap, { type GeoJSONGeometry, type ZoneShape } from './ZoneMap';
+import { overlappingZoneNames } from './geofence-overlap';
 
 interface Pais {
   id: string;
@@ -72,6 +73,16 @@ export default function ZonaModal({ isOpen, onClose, onSuccess, zona, siblings =
     e.preventDefault();
     if (!appUser?.organization_id) return;
     if (!form.country_id) { setError(t('zones.errCountry')); return; }
+
+    // Aviso de solapamiento: la geocerca no debería pisar otra zona del país.
+    // No es bloqueo duro (geometrías a mano) — se confirma.
+    if (geofence) {
+      const solapa = overlappingZoneNames(geofence, backdrop);
+      if (solapa.length > 0 && !window.confirm(t('zones.overlapWarn', { zonas: solapa.join(', ') }))) {
+        return;
+      }
+    }
+
     setLoading(true);
     setError('');
     try {
@@ -108,15 +119,16 @@ export default function ZonaModal({ isOpen, onClose, onSuccess, zona, siblings =
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg w-full max-w-5xl max-h-[92vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between z-10">
+      <div className="bg-white rounded-lg w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
+        <div className="shrink-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-slate-900">{isEdit ? t('zones.editTitle') : t('zones.new')}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600" aria-label={t('common.cancel')}>
             <i className="ri-close-line text-2xl"></i>
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
+          <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-5 gap-6">
           {/* Datos */}
           <div className="lg:col-span-2 space-y-4">
             <Select
@@ -206,7 +218,9 @@ export default function ZonaModal({ isOpen, onClose, onSuccess, zona, siblings =
             )}
           </div>
 
-          <div className="lg:col-span-5 flex gap-3 pt-2 border-t border-slate-100">
+          </div>
+
+          <div className="shrink-0 flex gap-3 px-6 py-4 border-t border-slate-100 bg-white">
             <Button type="button" variant="secondary" onClick={onClose} disabled={loading} className="flex-1">
               {t('common.cancel')}
             </Button>

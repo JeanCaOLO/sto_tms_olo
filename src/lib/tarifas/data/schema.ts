@@ -192,6 +192,8 @@ export const ENTITIES = {
       // Forma de pago/liquidación del transportista (sql/35). La liquidación la
       // hereda de aquí; ya no se elige por viaje. Valores = BaseMethodId.
       rate_type: { type: 'text', nullable: true },
+      // Monto pactado de la tarifa fija (sql/36): con rate_type='FIXED' es la base del viaje.
+      flat_rate_amount: { type: 'numeric', nullable: true },
     },
   },
 

@@ -32,4 +32,6 @@ export default {
   'zones.errInUse': 'No se puede eliminar esta zona porque tiene registros asociados (pedidos o viajes). Reasigná esos registros primero.',
   'zones.mapCaption': 'Zonas del país seleccionado',
   'zones.filterCountry': 'País',
+  'zones.overlapWarn': 'La geocerca se superpone con: {{zonas}}. Las zonas no deberían solaparse. ¿Guardar de todos modos?',
+  'zones.showInactive': 'Mostrar zonas inactivas',
 };

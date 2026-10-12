@@ -97,9 +97,15 @@ def download_contract(event: dict) -> dict:
     carrier = _carrier(event, "view")
     if not carrier.get("contract_file_key"):
         raise HttpError(404, "El transportista no tiene contrato cargado")
+    # La columna también se puede escribir por la API genérica de datos: solo se firma una llave con
+    # la forma que genera este backend para ESTE transportista, nunca otro objeto del bucket.
+    try:
+        key = require_contract_key(carrier["id"], carrier["contract_file_key"])
+    except HttpError:
+        raise HttpError(404, "El transportista no tiene un contrato válido cargado") from None
     url = s3().generate_presigned_url(
         "get_object",
-        Params={"Bucket": bucket(), "Key": carrier["contract_file_key"],
+        Params={"Bucket": bucket(), "Key": key,
                 "ResponseContentType": PDF_CONTENT_TYPE,
                 "ResponseContentDisposition": f'inline; filename="{download_name(carrier)}"'},
         ExpiresIn=URL_TTL_SECONDS,

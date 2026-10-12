@@ -101,10 +101,13 @@ const CALCULABLE_RATE_TYPES = new Set<BaseMethodId>(['PER_KM', 'PER_UNIT', 'FIXE
  * Convierte el `carriers.rate_type` crudo en el `BaseOverride` a aplicar, o null si no hay forma de
  * pago calculable (vacío, TENDERING o un valor desconocido). Puro y testeable sin tocar la BD.
  */
-export function rateTypeToOverride(rateType: unknown): BaseOverride | null {
-  return typeof rateType === 'string' && CALCULABLE_RATE_TYPES.has(rateType as BaseMethodId)
-    ? { method: rateType as BaseMethodId }
-    : null;
+export function rateTypeToOverride(rateType: unknown, flatRateAmount?: unknown): BaseOverride | null {
+  if (typeof rateType !== 'string' || !CALCULABLE_RATE_TYPES.has(rateType as BaseMethodId)) return null;
+  const method = rateType as BaseMethodId;
+  // Tarifa fija con monto pactado (carriers.flat_rate_amount, sql/36): ese monto ES la base. Sin
+  // monto, FIXED sigue saliendo de las reglas FIXED del catálogo, como antes.
+  const amount = flatRateAmount === null || flatRateAmount === undefined ? '' : String(flatRateAmount).trim();
+  return method === 'FIXED' && amount !== '' ? { method, amount } : { method };
 }
 
 /**
@@ -118,7 +121,7 @@ export async function rateTypeOverrideForCarrier(
   options: { fresh?: boolean } = {},
 ): Promise<BaseOverride | null> {
   const carrier = await getCarrierCached(carrierId, options);
-  return rateTypeToOverride(carrier?.rate_type);
+  return rateTypeToOverride(carrier?.rate_type, carrier?.flat_rate_amount);
 }
 
 // Caché corta del transportista (igual criterio que el perfil): su rate_type casi no cambia y cada

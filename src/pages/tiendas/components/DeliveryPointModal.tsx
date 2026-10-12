@@ -81,7 +81,7 @@ export default function DeliveryPointModal({ isOpen, onClose, onSave, point, err
   const fetchCatalogs = async () => {
     const [{ data: cust }, { data: zn }] = await Promise.all([
       supabase.from('customers').select('id,code,name').order('name'),
-      supabase.from('zones').select('id,code,name').order('name'),
+      supabase.from('zones').select('id,code,name').eq('status', 'active').order('name'),
     ]);
     setCustomers((cust as Customer[]) || []);
     setZones((zn as Zone[]) || []);

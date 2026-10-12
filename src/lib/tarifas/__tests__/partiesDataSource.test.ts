@@ -111,4 +111,12 @@ describe('rateTypeOverrideForCarrier (forma de pago heredada del transportista)'
     expect(rateTypeToOverride(null)).toBeNull();
     expect(rateTypeToOverride('BASURA')).toBeNull();
   });
+
+  it('tarifa fija con monto del transportista lleva el monto; sin monto o en otro tipo, no', () => {
+    expect(rateTypeToOverride('FIXED', '150000')).toEqual({ method: 'FIXED', amount: '150000' });
+    expect(rateTypeToOverride('FIXED', 0)).toEqual({ method: 'FIXED', amount: '0' });
+    expect(rateTypeToOverride('FIXED', null)).toEqual({ method: 'FIXED' });
+    expect(rateTypeToOverride('FIXED', '')).toEqual({ method: 'FIXED' });
+    expect(rateTypeToOverride('PER_KM', '150000')).toEqual({ method: 'PER_KM' });
+  });
 });

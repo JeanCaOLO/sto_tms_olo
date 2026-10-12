@@ -88,8 +88,9 @@ export default function ZoneMap({
 
   // Monta el mapa una sola vez.
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
-    const map = L.map(containerRef.current, { center: DEFAULT_VIEW.center, zoom: DEFAULT_VIEW.zoom });
+    const el = containerRef.current;
+    if (!el || mapRef.current) return;
+    const map = L.map(el, { center: DEFAULT_VIEW.center, zoom: DEFAULT_VIEW.zoom });
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap',
       maxZoom: 19,
@@ -98,7 +99,18 @@ export default function ZoneMap({
     editLayerRef.current = L.featureGroup().addTo(map);
     mapRef.current = map;
 
+    // Dentro de un modal/contenedor con scroll, el contenedor aún no tiene su
+    // tamaño final al montar: Leaflet calcula mal y los tiles se dibujan fuera
+    // de lugar (franja azul). invalidateSize al estabilizar + ResizeObserver lo
+    // corrige. ponytail: el rAF cubre el primer layout; el observer, los cambios.
+    const fix = () => map.invalidateSize();
+    const raf = requestAnimationFrame(fix);
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(fix) : null;
+    ro?.observe(el);
+
     return () => {
+      cancelAnimationFrame(raf);
+      ro?.disconnect();
       map.remove();
       mapRef.current = null;
     };

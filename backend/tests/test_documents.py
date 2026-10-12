@@ -122,6 +122,14 @@ def test_download_without_contract_is_404_and_with_contract_signs_a_link(documen
     assert ttl == 300
 
 
+def test_download_never_signs_a_key_of_another_carrier_or_object(documents):
+    app, s3, _, carrier = documents
+    for key in ["carriers/otro/contract/x.pdf", "otra-carpeta/secreto.pdf", KEY.replace(".pdf", ".exe")]:
+        carrier["contract_file_key"] = key
+        assert app.handler(_event("GET /api/v1/carriers/{id}/contract"), None)["statusCode"] == 404
+    assert not [c for c in s3.calls if c[0] == "get"]
+
+
 def test_editing_requires_the_carriers_edit_permission(documents, caller_permissions):
     from conftest import make_permissions
     app, _, calls, _ = documents

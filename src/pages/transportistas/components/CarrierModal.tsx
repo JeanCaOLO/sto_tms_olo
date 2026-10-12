@@ -5,6 +5,9 @@ import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
 import { BASE_METHODS, BASE_METHOD_ORDER } from '../../../lib/tarifas/baseMethods';
 import type { BaseMethodId } from '../../../lib/tarifas/types';
+import {
+  uploadCarrierContract, openCarrierContract, removeCarrierContract, validateContractFile,
+} from '../carrier-contract';
 
 interface Carrier {
   id?: string;
@@ -23,6 +26,11 @@ interface Carrier {
   // Cómo se le paga/liquida a este transportista (tipo de tarifa del contrato).
   // El cálculo de liquidación lo hereda de aquí; ya no se elige en Liquidaciones.
   rate_type?: BaseMethodId | '';
+  // Monto de la tarifa FIJA de este transportista (solo aplica si rate_type='FIXED').
+  // Cambia por transportista; lo usa el cálculo como base cuando es tarifa fija.
+  flat_rate_amount?: number | string | null;
+  // Llave del PDF del contrato en S3 (sql/35). No nulo = tiene contrato cargado.
+  contract_file_key?: string | null;
 }
 
 interface Country {
@@ -52,18 +60,26 @@ export default function CarrierModal({ isOpen, onClose, carrier, onSave }: Carri
     payment_account: '',
     softland_code: '',
     contract_expiry: '',
-    rate_type: ''
+    rate_type: '',
+    flat_rate_amount: ''
   });
   const [countries, setCountries] = useState<Country[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // PDF del contrato: el archivo recién elegido (se sube al guardar) y si el
+  // carrier ya tiene uno cargado (contract_file_key).
+  const [contractFile, setContractFile] = useState<File | null>(null);
+  const [hasContract, setHasContract] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       loadCountries();
+      setContractFile(null);
       if (carrier) {
-        setFormData({ ...carrier, contract_expiry: carrier.contract_expiry ?? '', rate_type: carrier.rate_type ?? '' });
+        setFormData({ ...carrier, contract_expiry: carrier.contract_expiry ?? '', rate_type: carrier.rate_type ?? '', flat_rate_amount: carrier.flat_rate_amount ?? '' });
+        setHasContract(!!carrier.contract_file_key);
       } else {
+        setHasContract(false);
         generateCode();
       }
     }
@@ -103,14 +119,22 @@ export default function CarrierModal({ isOpen, onClose, carrier, onSave }: Carri
         .eq('id', user.id)
         .single();
 
+      // contract_file_key NO viaja aquí: solo lo escribe el endpoint del contrato. Si viajara, al
+      // "Quitar" el PDF y luego guardar, se volvería a escribir la llave vieja.
+      const { contract_file_key: _contractKey, ...editable } = formData;
       const carrierData = {
-        ...formData,
+        ...editable,
         contract_expiry: formData.contract_expiry || null,
         rate_type: formData.rate_type || null,
+        // Solo tiene sentido el monto cuando la forma de pago es tarifa fija.
+        flat_rate_amount: formData.rate_type === 'FIXED' && formData.flat_rate_amount !== ''
+          ? Number(formData.flat_rate_amount)
+          : null,
         organization_id: userData?.organization_id,
         updated_at: new Date().toISOString()
       };
 
+      let carrierId = carrier?.id ?? null;
       if (carrier?.id) {
         const { error: updateError } = await supabase
           .from('carriers')
@@ -119,11 +143,27 @@ export default function CarrierModal({ isOpen, onClose, carrier, onSave }: Carri
 
         if (updateError) throw updateError;
       } else {
-        const { error: insertError } = await supabase
+        const { data: inserted, error: insertError } = await supabase
           .from('carriers')
-          .insert([{ ...carrierData, created_at: new Date().toISOString() }]);
+          .insert([{ ...carrierData, created_at: new Date().toISOString() }])
+          .select('id')
+          .single();
 
         if (insertError) throw insertError;
+        carrierId = (inserted as { id?: string })?.id ?? null;
+      }
+
+      // Subida del PDF del contrato (va DESPUÉS de guardar: necesita el id del
+      // carrier). Si falla, el transportista ya quedó guardado: se avisa pero no
+      // se revierte (reintentable editando).
+      if (contractFile && carrierId) {
+        const up = await uploadCarrierContract(carrierId, contractFile);
+        if (!up.ok) {
+          setError(`El transportista se guardó, pero el contrato no se pudo subir: ${up.error}`);
+          setLoading(false);
+          onSave();
+          return;
+        }
       }
 
       onSave();
@@ -139,8 +179,8 @@ export default function CarrierModal({ isOpen, onClose, carrier, onSave }: Carri
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+      <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="shrink-0 bg-white border-b px-6 py-4 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-gray-900">
             {carrier ? 'Editar Transportista' : 'Nuevo Transportista'}
           </h2>
@@ -152,7 +192,8 @@ export default function CarrierModal({ isOpen, onClose, carrier, onSave }: Carri
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
               {error}
@@ -263,6 +304,18 @@ export default function CarrierModal({ isOpen, onClose, carrier, onSave }: Carri
                 ...BASE_METHOD_ORDER.map((id) => ({ value: id, label: BASE_METHODS[id].label })),
               ]}
             />
+
+            {formData.rate_type === 'FIXED' && (
+              <Input
+                label="Monto de la tarifa fija"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.flat_rate_amount ?? ''}
+                onChange={(e) => setFormData({ ...formData, flat_rate_amount: e.target.value })}
+                placeholder="Monto por viaje para este transportista"
+              />
+            )}
           </div>
 
           <div>
@@ -283,12 +336,68 @@ export default function CarrierModal({ isOpen, onClose, carrier, onSave }: Carri
             <i className="ri-information-line text-slate-400 mt-0.5"></i>
             <span>
               La <strong>forma de pago</strong> define cómo se liquida a este transportista: la liquidación la toma de aquí
-              (ya no se elige por viaje). La carga del PDF del contrato estará disponible en breve; por ahora registrá la
-              fecha de vencimiento para activar las alertas de renovación.
+              (ya no se elige por viaje). La <strong>fecha de vencimiento</strong> del contrato activa las alertas de renovación.
             </span>
           </div>
 
-          <div className="flex gap-3 pt-4 border-t">
+          {/* PDF del contrato */}
+          <div className="border border-slate-200 rounded-lg px-4 py-3 space-y-2">
+            <label className="block text-sm font-medium text-gray-700">Contrato (PDF)</label>
+            {hasContract && !contractFile && (
+              <div className="flex items-center gap-3 text-sm">
+                <span className="inline-flex items-center gap-1.5 text-emerald-700">
+                  <i className="ri-file-text-line"></i> Contrato cargado
+                </span>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!carrier?.id) return;
+                    const err = await openCarrierContract(carrier.id);
+                    if (err) setError(err);
+                  }}
+                  className="text-teal-700 hover:underline cursor-pointer"
+                >
+                  Ver
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!carrier?.id) return;
+                    const res = await removeCarrierContract(carrier.id);
+                    if (res.ok) setHasContract(false); else setError(res.error ?? 'No se pudo quitar el contrato.');
+                  }}
+                  className="text-red-600 hover:underline cursor-pointer"
+                >
+                  Quitar
+                </button>
+              </div>
+            )}
+            <input
+              type="file"
+              accept="application/pdf"
+              onChange={(e) => {
+                const f = e.target.files?.[0] ?? null;
+                if (f) {
+                  const invalid = validateContractFile(f);
+                  if (invalid) { setError(invalid); e.target.value = ''; return; }
+                  setError('');
+                }
+                setContractFile(f);
+              }}
+              className="block w-full text-sm text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-teal-50 file:text-teal-700 file:text-sm file:cursor-pointer hover:file:bg-teal-100"
+            />
+            <p className="text-xs text-slate-400">
+              {contractFile
+                ? `Se subirá "${contractFile.name}" al guardar.`
+                : hasContract
+                  ? 'Elegí un PDF para reemplazar el contrato actual. Máx. 10 MB.'
+                  : 'PDF, máx. 10 MB. Se sube al guardar el transportista.'}
+            </p>
+          </div>
+
+          </div>
+
+          <div className="shrink-0 flex gap-3 px-6 py-4 border-t bg-white">
             <Button
               type="button"
               variant="secondary"

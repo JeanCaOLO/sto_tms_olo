@@ -85,7 +85,8 @@ export interface CalcIssue {
 export type BaseMethodId = 'PER_KM' | 'PER_UNIT' | 'FIXED' | 'VOLUME' | 'TENDERING';
 
 /** De dónde sale la base elegida. */
-export type BaseSourceKind = 'RULE' | 'RATE_TABLE' | 'COST_STRUCTURE';
+/** CARRIER = monto fijo pactado con el transportista (carriers.flat_rate_amount). */
+export type BaseSourceKind = 'RULE' | 'RATE_TABLE' | 'COST_STRUCTURE' | 'CARRIER';
 
 export interface BaseSource {
   kind: BaseSourceKind;
@@ -98,6 +99,11 @@ export interface BaseSource {
 /** Lo que pide el liquidador: qué tipo de cobro usar como base. */
 export interface BaseOverride {
   method: BaseMethodId;
+  /**
+   * Solo FIXED: monto pactado con el transportista (carriers.flat_rate_amount). Si viene, la base es
+   * este monto y no hace falta una regla FIXED en el catálogo.
+   */
+  amount?: string;
 }
 
 /** Cómo se resolvió la base elegida: es lo que se muestra y lo que se guarda al emitir. */

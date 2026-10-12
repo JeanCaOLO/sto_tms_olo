@@ -6,7 +6,7 @@ import { evaluatePred, RuleShapeError } from './evaluator';
 import { roundToMoney, toDecimal } from './money';
 import {
   BASE_METHODS, NO_DATA, baseRulesOf, classifyExpr, describeBaseMethods, sourceOfRule, structureCostPerKm,
-  type ExprKind,
+  type BaseMethodOption, type ExprKind,
 } from './baseMethods';
 import type {
   BaseInfo, BaseMethodId, BaseOverride, BaseSource, CalcIssue, CalculateInput, DiscardedRule, Rule, TraceLine, VarBag,
@@ -33,6 +33,19 @@ function pickBaseRules(candidates: Rule[], method: BaseMethodId): { rule: Rule; 
   const exclusive = all.filter((c) => c.rule.stacking === 'EXCLUSIVE')
     .sort((a, b) => compareRulesForBase(a.rule, b.rule));
   return [...all.filter((c) => c.rule.stacking !== 'EXCLUSIVE'), ...exclusive.slice(0, 1)];
+}
+
+const CARRIER_SOURCE: BaseSource = { kind: 'CARRIER', ref: 'carriers.flat_rate_amount', label: 'Tarifa fija del transportista' };
+
+/** Monto fijo del transportista válido (número ≥ 0), o null si no viene o no se puede leer. */
+function parseCarrierAmount(raw: string | undefined): Decimal | null {
+  if (raw === undefined || raw === null || String(raw).trim() === '') return null;
+  try {
+    const value = new Decimal(String(raw).trim());
+    return value.isFinite() && !value.isNegative() ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 export interface AppliedBase {
@@ -70,7 +83,10 @@ export function applyBaseOverride(
   currentSeed: TraceLine[],
   vars?: VarBag,
 ): AppliedBase {
-  const option = describeBaseMethods(input, candidates, vars).find((o) => o.id === override.method);
+  const carrierAmount = override.method === 'FIXED' ? parseCarrierAmount(override.amount) : null;
+  const option: BaseMethodOption | undefined = carrierAmount
+    ? { id: 'FIXED', ...BASE_METHODS.FIXED, available: true, source: CARRIER_SOURCE }
+    : describeBaseMethods(input, candidates, vars).find((o) => o.id === override.method);
   if (!option?.available || !option.source) {
     const label = BASE_METHODS[override.method]?.label ?? override.method;
     return {
@@ -87,7 +103,9 @@ export function applyBaseOverride(
   }
 
   const source = option.source;
-  const chosen = source.kind === 'COST_STRUCTURE' ? [] : pickBaseRules(candidates, override.method);
+  const chosen = source.kind === 'COST_STRUCTURE' || source.kind === 'CARRIER'
+    ? []
+    : pickBaseRules(candidates, override.method);
   const chosenIds = new Set(chosen.map((c) => c.rule.id));
   const concept = chosen[0]?.kind.concept ?? 'km';
 
@@ -145,6 +163,22 @@ export function applyBaseOverride(
         runningSubtotal: amount,
       }];
     }
+  }
+
+  if (carrierAmount) {
+    const amount = roundToMoney(carrierAmount, input.country);
+    seed = [{
+      seq: 1,
+      stage: 'BASE',
+      ruleId: null,
+      ruleCode: 'BASE_FIJA_TRANSPORTISTA',
+      label: 'Tarifa fija del transportista',
+      inputs: { 'monto pactado': carrierAmount.toFixed() },
+      source: 'COST_ROW',
+      computed: amount,
+      final: amount,
+      runningSubtotal: amount,
+    }];
   }
 
   if (duplicates.length > 0) {

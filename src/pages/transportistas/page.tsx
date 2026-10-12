@@ -27,6 +27,7 @@ interface Carrier {
   payment_account: string;
   softland_code: string;
   contract_expiry?: string | null;
+  contract_file_key?: string | null;
   rate_type?: BaseMethodId | null;
   countries?: {
     name: string;
