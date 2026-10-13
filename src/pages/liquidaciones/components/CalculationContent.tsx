@@ -3,14 +3,14 @@
 import CalcBreakdownPanel, { AllocationBlock } from '../../../components/tarifas/CalcBreakdownPanel';
 import { formatMoney } from '../../../lib/tarifas/format';
 import TripOrdersPanel from './TripOrdersPanel';
-import BaseMethodPanel from './BaseMethodPanel';
+import { describeCurrentBase } from '../../../lib/tarifas/baseMethods';
 import { TripInfoSection } from '../parts/TripInfoSection';
 import { VariablesSection } from '../parts/VariablesSection';
 import { VerMasSection } from '../parts/VerMasSection';
 import { ReturnsSection } from '../parts/ReturnsSection';
 import { buildEmissionInput, ESTADOS, ruleHref } from '../parts/emission';
 import type { TripCalculation } from '../../../lib/tarifas/tripSettlement';
-import type { BaseMethodId, CalcResult, SettlementReturn, SettlementStatus } from '../../../lib/tarifas/types';
+import type { CalcResult, SettlementReturn, SettlementStatus } from '../../../lib/tarifas/types';
 import type { SettlementTotals } from '../../../lib/tarifas/settlementTotals';
 
 interface Props {
@@ -31,12 +31,6 @@ interface Props {
   /** Recalcula tras cambiar una marca y devuelve una promesa: el panel espera los pedidos nuevos. */
   onOrdersChanged: () => void | Promise<unknown>;
   showOrdersReason: string;
-  /** Tipo de cobro elegido para la base. Null = la base por defecto. */
-  baseMethod: BaseMethodId | null;
-  onBaseChange: (method: BaseMethodId | null) => void;
-  /** Se creó una regla: hay que recalcular leyendo el catálogo de nuevo. */
-  onBaseRuleCreated: () => void;
-  baseBusy: boolean;
 }
 
 export function CalculationContent({
@@ -56,10 +50,6 @@ export function CalculationContent({
   effectiveResult,
   onOrdersChanged,
   showOrdersReason,
-  baseMethod,
-  onBaseChange,
-  onBaseRuleCreated,
-  baseBusy,
 }: Props) {
   const currency = calculation.result.currency ?? '';
 
@@ -70,14 +60,15 @@ export function CalculationContent({
   return (
     <div className="space-y-5">
       <TripInfoSection calculation={calculation} simple={simple} />
-      <BaseMethodPanel
-        calculation={calculation}
-        value={baseMethod}
-        onChange={onBaseChange}
-        busy={baseBusy}
-        extendida={!simple}
-        onRuleCreated={onBaseRuleCreated}
-      />
+      {/* La forma de pago ya NO se elige acá: se hereda del transportista
+          (carriers.rate_type). Este bloque solo informa con qué base se calculó. */}
+      <section className="border-t border-slate-200 pt-4">
+        <h3 className="text-sm font-semibold text-slate-700 mb-2">Base del cálculo</h3>
+        <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-xs text-slate-600">
+          Se calcula con: <strong className="text-slate-800">{describeCurrentBase(calculation.result).label}</strong>.
+          <span className="ml-1 text-slate-400">La forma de pago se define en el catálogo de Transportistas.</span>
+        </div>
+      </section>
       <VariablesSection
         calculation={calculation}
         customRaw={customRaw}

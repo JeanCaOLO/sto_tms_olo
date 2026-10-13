@@ -4,7 +4,7 @@ import type { DeliveryPointForm } from './components/DeliveryPointModal';
 
 const base: DeliveryPointForm = {
   customer_id: 'cust-1', external_code: 'COF-001', name: 'Sucursal Centro',
-  delivery_instructions: '', zone_id: '', route_code: '', active: true,
+  delivery_instructions: '', contact_phone: '', zone_mode: 'auto', zone_id: '', route_code: '', active: true,
   line1: 'Av. Central 100', line2: '', city: 'San José', state: '',
   latitude: '', longitude: '',
 };
@@ -39,5 +39,24 @@ describe('buildDeliveryPointRequest', () => {
     const address = req.body.address as Record<string, unknown>;
     expect(address.latitude).toBeUndefined();
     expect(address.longitude).toBeUndefined();
+  });
+
+  it('zona automática manda zone_source=map y NO zone_id', () => {
+    const req = buildDeliveryPointRequest({ ...base, zone_mode: 'auto', zone_id: 'zone-7' });
+    expect(req.body.zone_source).toBe('map');
+    expect(req.body).not.toHaveProperty('zone_id');
+  });
+
+  it('zona manual manda zone_id y zone_source=manual', () => {
+    const req = buildDeliveryPointRequest({ ...base, zone_mode: 'manual', zone_id: 'zone-7' });
+    expect(req.body.zone_source).toBe('manual');
+    expect(req.body.zone_id).toBe('zone-7');
+  });
+
+  it('al editar en automática manda zone_source=map (vuelve a recalcular por el mapa)', () => {
+    const req = buildDeliveryPointRequest({ ...base, id: 'dp-9', zone_mode: 'auto' });
+    expect(req.method).toBe('PATCH');
+    expect(req.body.zone_source).toBe('map');
+    expect(req.body).not.toHaveProperty('zone_id');
   });
 });

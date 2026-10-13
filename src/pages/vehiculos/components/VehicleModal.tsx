@@ -25,6 +25,10 @@ const VehicleModal = ({ isOpen, onClose, onSuccess, vehicle, organizationId, veh
     capacity_weight: '',
     capacity_volume: '',
     pallets: '',
+    container_width: '',
+    container_height: '',
+    container_length: '',
+    container_unit: 'cm',
     fuel_type: 'diesel',
     status: 'activo',
     carrier_id: '',
@@ -45,6 +49,10 @@ const VehicleModal = ({ isOpen, onClose, onSuccess, vehicle, organizationId, veh
           capacity_weight: vehicle.capacity_weight || '',
           capacity_volume: vehicle.capacity_volume || '',
           pallets: vehicle.pallets || '',
+          container_width: vehicle.container_width ?? '',
+          container_height: vehicle.container_height ?? '',
+          container_length: vehicle.container_length ?? '',
+          container_unit: vehicle.container_unit || 'cm',
           fuel_type: vehicle.fuel_type || 'diesel',
           status: vehicle.status || 'activo',
           carrier_id: vehicle.carrier_id || '',
@@ -61,6 +69,10 @@ const VehicleModal = ({ isOpen, onClose, onSuccess, vehicle, organizationId, veh
           capacity_weight: '',
           capacity_volume: '',
           pallets: '',
+          container_width: '',
+          container_height: '',
+          container_length: '',
+          container_unit: 'cm',
           fuel_type: 'diesel',
           status: 'activo',
           carrier_id: '',
@@ -94,6 +106,10 @@ const VehicleModal = ({ isOpen, onClose, onSuccess, vehicle, organizationId, veh
         capacity_weight: parseFloat(formData.capacity_weight.toString()),
         capacity_volume: parseFloat(formData.capacity_volume.toString()),
         pallets: formData.pallets ? parseInt(formData.pallets.toString()) : null,
+        container_width: formData.container_width !== '' ? parseFloat(formData.container_width.toString()) : null,
+        container_height: formData.container_height !== '' ? parseFloat(formData.container_height.toString()) : null,
+        container_length: formData.container_length !== '' ? parseFloat(formData.container_length.toString()) : null,
+        container_unit: formData.container_unit,
         fuel_type: formData.fuel_type,
         status: formData.status,
         carrier_id: formData.carrier_id,
@@ -250,6 +266,46 @@ const VehicleModal = ({ isOpen, onClose, onSuccess, vehicle, organizationId, veh
                 onChange={(e) => setFormData({ ...formData, pallets: e.target.value })}
                 placeholder="20"
               />
+            </div>
+
+            {/* Dimensiones del contenedor: ancho/alto/largo + unidad (cm/pulgadas/pies) */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Dimensiones del contenedor</label>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Input
+                  type="number"
+                  value={formData.container_width}
+                  onChange={(e) => setFormData({ ...formData, container_width: e.target.value })}
+                  placeholder="Ancho"
+                  step="0.01"
+                  min="0"
+                />
+                <Input
+                  type="number"
+                  value={formData.container_height}
+                  onChange={(e) => setFormData({ ...formData, container_height: e.target.value })}
+                  placeholder="Alto"
+                  step="0.01"
+                  min="0"
+                />
+                <Input
+                  type="number"
+                  value={formData.container_length}
+                  onChange={(e) => setFormData({ ...formData, container_length: e.target.value })}
+                  placeholder="Largo"
+                  step="0.01"
+                  min="0"
+                />
+                <Select
+                  value={formData.container_unit}
+                  onChange={(e) => setFormData({ ...formData, container_unit: e.target.value })}
+                  options={[
+                    { value: 'cm', label: 'Centímetros' },
+                    { value: 'in', label: 'Pulgadas' },
+                    { value: 'ft', label: 'Pies' },
+                  ]}
+                />
+              </div>
             </div>
 
             <div>

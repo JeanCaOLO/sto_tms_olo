@@ -67,3 +67,35 @@ def test_unknown_operator_and_bad_limit(sq):
 def test_embed_without_foreign_key_is_rejected(sq):
     with pytest.raises(HttpError, match="No hay foreign key"):
         sq.build_list_query("drivers", "roles(id)", [])
+
+
+def test_offset_pages_after_limit(sq):
+    sql, _ = sq.build_list_query("drivers", "id", [], {"column": "name"}, "25", None, "50")
+    assert sql.endswith('ORDER BY t."name" ASC LIMIT 25 OFFSET 50')
+    with pytest.raises(HttpError, match="offset inválido"):
+        sq.build_list_query("drivers", "*", [], None, "25", None, "-1")
+
+
+def test_ilike_search_across_several_columns(sq):
+    sql, params = sq.build_list_query("drivers", "id", [["name|status", "ilike", "%ana%"]])
+    assert 'WHERE (t."name" ILIKE %s OR t."status" ILIKE %s)' in sql
+    assert params == ["%ana%", "%ana%"]
+
+
+def test_filter_by_parent_table_column_through_foreign_key(sq):
+    sql, params = sq.build_count_query("drivers", [["carriers.country_id", "eq", "c1"]])
+    assert sql == ('SELECT count(*)::int AS count FROM "drivers" t WHERE t."carrier_id" IN '
+                   '(SELECT p0."id" FROM "carriers" p0 WHERE p0."country_id" = %s)')
+    assert params == ["c1"]
+    with pytest.raises(HttpError, match="Columna desconocida"):
+        sq.build_count_query("drivers", [["carriers.password", "eq", "x"]])
+    with pytest.raises(HttpError, match="No hay foreign key"):
+        sq.build_count_query("drivers", [["roles.name", "eq", "x"]])
+
+
+def test_filter_by_grandparent_table_column(sq):
+    sql, params = sq.build_count_query("drivers", [["carriers.countries.name", "eq", "Venezuela"]])
+    assert sql == ('SELECT count(*)::int AS count FROM "drivers" t WHERE t."carrier_id" IN '
+                   '(SELECT p0."id" FROM "carriers" p0 WHERE p0."country_id" IN '
+                   '(SELECT p1."id" FROM "countries" p1 WHERE p1."name" = %s))')
+    assert params == ["Venezuela"]
