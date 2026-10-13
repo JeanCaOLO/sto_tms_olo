@@ -3,13 +3,14 @@
 // Misma forma de retorno que el resto del módulo para que las pantallas manejen los fallos igual.
 // Todo por la capa de datos (`./data`): los transportistas se leen como entidad externa.
 
-import { db, ForeignKeyError, NotFoundError, UniqueViolationError, type Condition } from './data';
+import { db, ForeignKeyError, NotFoundError, onDataWrite, UniqueViolationError, type Condition } from './data';
 import {
   mergeCarriersWithProfiles,
   type CarrierProfile,
   type PartyClassification,
   type SettlementPartyRow,
 } from './parties';
+import type { BaseMethodId, BaseOverride } from './types';
 
 export type EnsureProfileResult =
   | { status: 'saved'; partyId: string; created: boolean }
@@ -64,6 +65,83 @@ export async function getProfileForCarrier(carrierId: string): Promise<Settlemen
     limit: 1,
   });
   return (row as SettlementPartyRow | undefined) ?? null;
+}
+
+// El perfil de un transportista casi no cambia y cada recálculo de una liquidación lo pedía de nuevo
+// (una ida y vuelta de más). Mismo criterio que el catálogo: unos segundos de caché, descartada al
+// instante cuando esta sesión escribe un perfil y por tiempo para lo que cambie otra persona.
+const PROFILE_TTL_MS = 5 * 60_000;
+const profileCache = new Map<string, { at: number; promise: Promise<SettlementPartyRow | null> }>();
+
+onDataWrite((touched) => {
+  if (touched.has('settlementParty') || touched.has('carrier')) profileCache.clear();
+});
+
+/** Como `getProfileForCarrier`, pero con la caché de arriba. Solo contra la API (con el driver JSON leer es gratis). */
+export async function getProfileForCarrierCached(
+  carrierId: string,
+  options: { fresh?: boolean } = {},
+): Promise<SettlementPartyRow | null> {
+  if (db().kind !== 'http') return getProfileForCarrier(carrierId);
+  const hit = profileCache.get(carrierId);
+  if (!options.fresh && hit && Date.now() - hit.at < PROFILE_TTL_MS) return hit.promise;
+  const entry = { at: Date.now(), promise: getProfileForCarrier(carrierId) };
+  profileCache.set(carrierId, entry);
+  entry.promise.catch(() => { if (profileCache.get(carrierId) === entry) profileCache.delete(carrierId); });
+  return entry.promise;
+}
+
+// Formas de pago que el motor sabe calcular como base. TENDERING existe como
+// tipo de contrato pero todavía no tiene cálculo (baseMethods.ts lo marca
+// no disponible): un carrier con TENDERING cae a la base por defecto, no se
+// fuerza como override (forzarlo daría una base sin fórmula).
+const CALCULABLE_RATE_TYPES = new Set<BaseMethodId>(['PER_KM', 'PER_UNIT', 'FIXED', 'VOLUME']);
+
+/**
+ * Convierte el `carriers.rate_type` crudo en el `BaseOverride` a aplicar, o null si no hay forma de
+ * pago calculable (vacío, TENDERING o un valor desconocido). Puro y testeable sin tocar la BD.
+ */
+export function rateTypeToOverride(rateType: unknown, flatRateAmount?: unknown): BaseOverride | null {
+  if (typeof rateType !== 'string' || !CALCULABLE_RATE_TYPES.has(rateType as BaseMethodId)) return null;
+  const method = rateType as BaseMethodId;
+  // Tarifa fija con monto pactado (carriers.flat_rate_amount, sql/36): ese monto ES la base. Sin
+  // monto, FIXED sigue saliendo de las reglas FIXED del catálogo, como antes.
+  const amount = flatRateAmount === null || flatRateAmount === undefined ? '' : String(flatRateAmount).trim();
+  return method === 'FIXED' && amount !== '' ? { method, amount } : { method };
+}
+
+/**
+ * Base de cálculo heredada del transportista (`carriers.rate_type`, sql/35), o null si el
+ * transportista no tiene forma de pago asignada (o es TENDERING, sin cálculo todavía). Es lo que
+ * reemplaza al selector manual de "forma de pago" que vivía en Liquidaciones: la base la define el
+ * catálogo de Transportistas.
+ */
+export async function rateTypeOverrideForCarrier(
+  carrierId: string,
+  options: { fresh?: boolean } = {},
+): Promise<BaseOverride | null> {
+  const carrier = await getCarrierCached(carrierId, options);
+  return rateTypeToOverride(carrier?.rate_type, carrier?.flat_rate_amount);
+}
+
+// Caché corta del transportista (igual criterio que el perfil): su rate_type casi no cambia y cada
+// recálculo de la liquidación lo pediría de nuevo. Se descarta cuando esta sesión escribe un carrier.
+const CARRIER_TTL_MS = 5 * 60_000;
+const carrierCache = new Map<string, { at: number; promise: Promise<Record<string, unknown> | null> }>();
+onDataWrite((touched) => { if (touched.has('carrier')) carrierCache.clear(); });
+
+async function getCarrierCached(
+  carrierId: string,
+  options: { fresh?: boolean } = {},
+): Promise<Record<string, unknown> | null> {
+  const read = () => db().findOne('carrier', carrierId) as Promise<Record<string, unknown> | null>;
+  if (db().kind !== 'http') return read();
+  const hit = carrierCache.get(carrierId);
+  if (!options.fresh && hit && Date.now() - hit.at < CARRIER_TTL_MS) return hit.promise;
+  const entry = { at: Date.now(), promise: read() };
+  carrierCache.set(carrierId, entry);
+  entry.promise.catch(() => { if (carrierCache.get(carrierId) === entry) carrierCache.delete(carrierId); });
+  return entry.promise;
 }
 
 /**

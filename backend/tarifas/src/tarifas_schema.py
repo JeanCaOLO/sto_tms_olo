@@ -26,6 +26,7 @@ SQL_CASTS = {
     "boolean": "boolean",
     "jsonb": "jsonb",
     "timestamptz": "timestamptz",
+    "date": "date",
     "uuid": "uuid",
 }
 

@@ -1,0 +1,9 @@
+{
+  "enabledMcpjsonServers": [
+    "context7",
+    "aws-mcp",
+    "aws-pricing",
+    "aws-iac",
+    "aws-serverless"
+  ]
+}

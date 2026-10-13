@@ -194,3 +194,32 @@ describe('DataTable filas extensibles (renderExpanded)', () => {
     expect(screen.getAllByLabelText('Extender')).toHaveLength(2);
   });
 });
+
+describe('DataTable maxVisibleRows (scroll interno)', () => {
+  const many = Array.from({ length: 12 }, (_, i) => ({ id: String(i), customer: `Cliente ${i}` }));
+
+  it('con la prop, el contenedor limita su alto, se desplaza y el encabezado queda fijo', () => {
+    renderWithRouter(<DataTable data={many} columns={columns} getRowId={(r) => r.id} maxVisibleRows={5} />);
+    const scroller = document.querySelector('table')!.parentElement as HTMLElement;
+    expect(scroller.className).toContain('overflow-auto');
+    expect(scroller.style.maxHeight).toBe('19rem'); // 2.75 + 5 × 3.25
+    expect(document.querySelector('thead th')!.className).toContain('sticky');
+    expect(document.querySelectorAll('tbody tr')).toHaveLength(12); // todas las filas, con scroll
+  });
+
+  it('sin la prop la tabla no cambia: sin alto máximo ni encabezado fijo', () => {
+    renderWithRouter(<DataTable data={many} columns={columns} getRowId={(r) => r.id} />);
+    const scroller = document.querySelector('table')!.parentElement as HTMLElement;
+    expect(scroller.className).toBe('overflow-x-auto');
+    expect(scroller.style.maxHeight).toBe('');
+    expect(document.querySelector('thead th')!.className).not.toContain('sticky');
+  });
+
+  it('el filtro de columna flota fuera del contenedor con scroll para que no se recorte', () => {
+    renderWithRouter(<DataTable data={points} columns={pointCols} getRowId={(p) => p.id} maxVisibleRows={5} />);
+    fireEvent.click(document.querySelector('.ri-filter-3-fill')!.closest('button') as HTMLElement);
+    const menu = document.querySelector('.fixed.z-50') as HTMLElement;
+    expect(menu).not.toBeNull();
+    expect(document.querySelector('table')!.contains(menu)).toBe(false);
+  });
+});

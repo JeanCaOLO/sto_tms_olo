@@ -11,7 +11,7 @@
 
 import type { TarifasCatalog } from './catalogLoader';
 import type {
-  AllocationCriterion, CalcIssue, CalculateInput, CargoSummary, Location, Override, Rule, TripContext,
+  AllocationCriterion, BaseOverride, CalcIssue, CalculateInput, CargoSummary, Location, Override, Rule, TripContext,
 } from './types';
 
 export interface BuildInputOptions {
@@ -19,6 +19,8 @@ export interface BuildInputOptions {
   overrides?: Record<string, Override>;
   /** Reglas puntuales de esta liquidación, que no viven en el catálogo. */
   adhocRules?: Rule[];
+  /** Tipo de cobro que reemplaza a la base por defecto. */
+  baseOverride?: BaseOverride;
   /** Mercancía del viaje (pedidos de sus guías): alimenta la auditoría y el reparto por casa comercial. */
   cargo?: CargoSummary | null;
   allocationCriterion?: AllocationCriterion;
@@ -111,6 +113,7 @@ export function buildCalculateInput(
     rateTableRows: catalog.rateTableRows,
     ...(options.overrides ? { overrides: options.overrides } : {}),
     ...(options.adhocRules ? { adhocRules: options.adhocRules } : {}),
+    ...(options.baseOverride ? { baseOverride: options.baseOverride } : {}),
     ...(options.cargo ? { cargo: options.cargo } : {}),
     ...(options.allocationCriterion ? { allocationCriterion: options.allocationCriterion } : {}),
   };

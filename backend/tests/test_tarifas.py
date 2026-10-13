@@ -119,6 +119,22 @@ def test_el_limite_tiene_tope(api):
     assert "LIMIT 5000" in db.calls[-1][0]
 
 
+def test_columnas_proyecta_solo_las_pedidas_y_las_valida(api):
+    app, db = api
+    q = {"where": [{"column": "country_id", "op": "eq", "value": "CR"}], "columns": ["number", "number", "id"]}
+    call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_settlements"}, query={"q": json.dumps(q)})
+    assert db.calls[-1][0].startswith('SELECT "number", "id" FROM "tarifas_settlements"')
+
+
+@pytest.mark.parametrize("columns", [[], "number", [1], ["no_existe"], ["id; drop table x"]])
+def test_columnas_invalidas_son_400(api, columns):
+    app, db = api
+    q = {"columns": columns}
+    response = call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_settlements"}, query={"q": json.dumps(q)})
+    assert response["statusCode"] == 400
+    assert db.calls == []
+
+
 def test_un_rol_acotado_solo_ve_sus_paises(api, caller_permissions):
     app, db = api
     caller_permissions.set(make_permissions({"tarifas": ["view"]}, countries=(CR,)))

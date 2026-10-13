@@ -1,13 +1,13 @@
 // Guardas del registro de esquema. Su valor: si alguien agrega una entidad y se olvida de la
-// colección en el JSON, declara una FK a una entidad que no existe, o toca el esquema sin regenerar
+// colección en la semilla, declara una FK a una entidad que no existe, o toca el esquema sin regenerar
 // el DDL o el manifiesto del backend, falla acá y no en producción.
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import seed from '../../localData/seed.json';
-import { COLLECTIONS } from '../../localData/store';
+import seed from '../../__tests__/fixtures/seed.json';
+import { COLLECTIONS } from '../../__tests__/helpers/memory/store';
 import {
   ENTITIES,
   ENTITY_NAMES,
@@ -23,7 +23,7 @@ import { generateManifest } from '../manifest';
 const ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..', '..', '..');
 
 describe('registro de esquema', () => {
-  it('cada entidad tiene su colección en la semilla del almacén JSON', () => {
+  it('cada entidad tiene su colección en la semilla de pruebas', () => {
     const collections = Object.keys(seed);
     const faltantes = ENTITY_NAMES.filter((name) => !collections.includes(entityDef(name).collection));
     expect(faltantes).toEqual([]);

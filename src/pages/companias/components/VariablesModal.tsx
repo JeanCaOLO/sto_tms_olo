@@ -1,185 +1,49 @@
-// Variables personalizadas de una compañía: los campos propios que usa para liquidar cuando el
-// vocabulario que trae el sistema no le alcanza.
-//
-// Se administran desde la ficha de la compañía, no desde el editor de reglas, porque son un dato de
-// la compañía: las reglas las CONSUMEN, no las definen.
-
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Button from '../../../components/base/Button';
-import Input from '../../../components/base/Input';
-import Select from '../../../components/base/Select';
-import Badge from '../../../components/base/Badge';
-import {
-  deactivatePartyVariable, listPartyVariables, reactivatePartyVariable, savePartyVariable,
-  type PartyVariableInput, type VariableErrors,
-} from '../../../lib/tarifas/partyVariablesDataSource';
-import type { CustomVarOrigin, PartyVariable } from '../../../lib/tarifas/types';
-import { ensurePartyProfile } from '../../../lib/tarifas/partiesDataSource';
 import type { CarrierProfile } from '../../../lib/tarifas/parties';
 import { useModulePermissions } from '../../../hooks/use-module-permissions';
+import { emptyVariableForm, useVariablesForm } from '../hooks/useVariablesForm';
+import { useVariablesList } from '../hooks/useVariablesList';
+import { useVariableActions } from '../hooks/useVariableActions';
+import { VariablesModalHeader } from './variables/VariablesModalHeader';
+import { VariableForm } from './variables/VariableForm';
+import { VariablesTable } from './variables/VariablesTable';
 
 interface Props {
   isOpen: boolean;
   party: CarrierProfile | null;
   onClose: () => void;
-  /** Se llama cuando se creó el perfil de cálculo del transportista, para refrescar la lista. */
   onProfileCreated?: () => void;
-}
-
-const ORIGIN_OPTIONS: { value: CustomVarOrigin; label: string }[] = [
-  { value: 'CONSTANT', label: 'Constante de la compañía (mismo valor en todos los viajes)' },
-  { value: 'PER_TRIP', label: 'Se carga en cada liquidación' },
-];
-
-const KIND_OPTIONS = [
-  { value: 'NUMBER', label: 'Número (sirve para multiplicar o contar)' },
-  { value: 'TEXT', label: 'Texto (solo sirve para condicionar)' },
-];
-
-function emptyForm(partyId: string): PartyVariableInput {
-  return {
-    partyId,
-    key: '',
-    label: '',
-    kind: 'NUMBER',
-    origin: 'CONSTANT',
-    defaultValue: '',
-    unit: '',
-    active: true,
-  };
 }
 
 export default function VariablesModal({ isOpen, party, onClose, onProfileCreated }: Props) {
   const { canCreate, canEdit } = useModulePermissions('tarifas.config');
-  const [variables, setVariables] = useState<PartyVariable[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState<PartyVariableInput>(emptyForm(''));
-  const [editingId, setEditingId] = useState<string | undefined>(undefined);
-  const [errors, setErrors] = useState<VariableErrors>({});
   const [generalError, setGeneralError] = useState('');
   const [partyId, setPartyId] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!party) return;
-    if (!partyId) { setVariables([]); return; }
-    setLoading(true);
-    try {
-      setVariables(await listPartyVariables(partyId, { includeInactive: true }));
-    } catch (e) {
-      setGeneralError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [party, partyId]);
+  const { form, setForm, set, editingId, setEditingId, errors, setErrors, startEdit, cancelEdit } = useVariablesForm(party?.partyId ?? '');
 
+  // Al abrir (o cambiar de compañía) se reinicia el formulario; debe declararse ANTES de la carga de la lista.
   useEffect(() => {
     if (!isOpen || !party) return;
-    setForm(emptyForm(party.partyId ?? ''));
+    setForm(emptyVariableForm(party.partyId ?? ''));
     setPartyId(party.partyId);
     setEditingId(undefined);
     setErrors({});
     setGeneralError('');
-  }, [isOpen, party]);
+  }, [isOpen, party, setForm, setEditingId, setErrors]);
 
-  useEffect(() => {
-    if (isOpen && party) void load();
-  }, [isOpen, party, load]);
+  const { variables, loading, load } = useVariablesList(isOpen, party, partyId, setGeneralError);
+  const { saving, handleSave, toggleActive } = useVariableActions({
+    party, partyId, setPartyId, form, editingId, setEditingId, setErrors, cancelEdit, load, setGeneralError, onProfileCreated,
+  });
 
   if (!isOpen || !party) return null;
-
-  const set = <K extends keyof PartyVariableInput>(key: K, value: PartyVariableInput[K]) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-    setErrors((prev) => ({ ...prev, [key]: undefined }));
-  };
-
-  const startEdit = (variable: PartyVariable) => {
-    setEditingId(variable.id);
-    setErrors({});
-    setGeneralError('');
-    setForm({
-      partyId: variable.partyId,
-      key: variable.key.replace(/^custom:/, ''),
-      label: variable.label,
-      kind: variable.kind,
-      origin: variable.origin,
-      defaultValue: variable.defaultValue ?? '',
-      unit: variable.unit ?? '',
-      active: variable.active,
-    });
-  };
-
-  const cancelEdit = () => {
-    setEditingId(undefined);
-    setForm(emptyForm(partyId ?? ''));
-    setErrors({});
-  };
-
-  const handleSave = async () => {
-    setGeneralError('');
-    setSaving(true);
-    try {
-      let targetId = partyId;
-      if (!targetId) {
-        const profile = await ensurePartyProfile(party.carrierId);
-        if (profile.status === 'failed') {
-          setGeneralError(profile.error.message);
-          return;
-        }
-        targetId = profile.partyId;
-        setPartyId(targetId);
-        if (profile.created) onProfileCreated?.();
-      }
-
-      const result = await savePartyVariable({ ...form, partyId: targetId }, editingId);
-      if (result.status === 'invalid') {
-        setErrors(result.errors);
-        return;
-      }
-      if (result.status === 'failed') {
-        setGeneralError(result.error.message);
-        return;
-      }
-      setEditingId(undefined);
-      setForm(emptyForm(targetId));
-      setErrors({});
-      await load();
-    } catch (e) {
-      setGeneralError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const toggleActive = async (variable: PartyVariable) => {
-    try {
-      const result = variable.active
-        ? await deactivatePartyVariable(variable.id)
-        : await reactivatePartyVariable(variable.id);
-      if (result.error) {
-        setGeneralError(result.error);
-        return;
-      }
-      await load();
-    } catch (e) {
-      setGeneralError(e instanceof Error ? e.message : String(e));
-    }
-  };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white flex items-center justify-between px-6 py-4 border-b border-slate-200 z-10">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-800">Variables de {party.name}</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Campos propios de esta compañía, disponibles en sus reglas de liquidación.
-            </p>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 cursor-pointer" aria-label="Cerrar">
-            <i className="ri-close-line text-xl"></i>
-          </button>
-        </div>
+        <VariablesModalHeader partyName={party.name} onClose={onClose} />
 
         <div className="px-6 py-5 space-y-5">
           {generalError && (
@@ -198,133 +62,15 @@ export default function VariablesModal({ isOpen, party, onClose, onProfileCreate
             </span>
           </div>
 
-          {/* ── Alta / edición ────────────────────────────────────────────────────────────── */}
-          <div className="border border-slate-200 rounded-lg p-4 space-y-3">
-            <h3 className="text-sm font-semibold text-slate-700">
-              {editingId ? 'Editar variable' : 'Nueva variable'}
-            </h3>
+          <VariableForm
+            form={form} set={set} errors={errors} editingId={editingId} saving={saving}
+            canCreate={canCreate} canEdit={canEdit} onSave={() => void handleSave()} onCancel={cancelEdit}
+          />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <Input
-                label="Clave *"
-                value={form.key}
-                onChange={(e) => set('key', e.target.value)}
-                placeholder="horas_espera"
-                error={errors.key}
-                disabled={!!editingId}
-              />
-              <Input
-                label="Nombre visible *"
-                value={form.label}
-                onChange={(e) => set('label', e.target.value)}
-                placeholder="Horas de espera"
-                error={errors.label}
-              />
-              <Select
-                label="Tipo *"
-                value={form.kind}
-                onChange={(e) => set('kind', e.target.value as 'NUMBER' | 'TEXT')}
-                options={KIND_OPTIONS}
-              />
-              <Select
-                label="¿De dónde sale el valor? *"
-                value={form.origin}
-                onChange={(e) => set('origin', e.target.value as CustomVarOrigin)}
-                options={ORIGIN_OPTIONS}
-              />
-              <Input
-                label={form.origin === 'CONSTANT' ? 'Valor *' : 'Valor por defecto'}
-                value={form.defaultValue ?? ''}
-                onChange={(e) => set('defaultValue', e.target.value)}
-                placeholder={form.kind === 'NUMBER' ? '15' : 'texto'}
-                error={errors.defaultValue}
-              />
-              <Input
-                label="Unidad"
-                value={form.unit ?? ''}
-                onChange={(e) => set('unit', e.target.value)}
-                placeholder="horas"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2">
-              {editingId && (
-                <Button type="button" variant="secondary" onClick={cancelEdit}>Cancelar</Button>
-              )}
-              <Button type="button" onClick={handleSave} disabled={saving || !(editingId ? canEdit : canCreate)} title={!(editingId ? canEdit : canCreate) ? 'Tu rol no puede modificar variables' : undefined}>
-                <i className="ri-save-line mr-1"></i>
-                {editingId ? 'Guardar cambios' : 'Agregar variable'}
-              </Button>
-            </div>
-          </div>
-
-          {/* ── Listado ───────────────────────────────────────────────────────────────────── */}
-          {loading ? (
-            <p className="text-sm text-slate-500 py-6 text-center">Cargando…</p>
-          ) : variables.length === 0 ? (
-            <div className="text-center py-8">
-              <i className="ri-code-box-line text-3xl text-slate-300"></i>
-              <p className="mt-2 text-sm text-slate-600 font-medium">Esta compañía no tiene variables propias</p>
-              <p className="text-xs text-slate-500">
-                Agregá una solo si esta compañía calcula con algo que el sistema no trae de fábrica.
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 text-left text-xs font-medium text-slate-500 uppercase">
-                    <th className="px-3 py-2">Clave</th>
-                    <th className="px-3 py-2">Nombre</th>
-                    <th className="px-3 py-2">Tipo</th>
-                    <th className="px-3 py-2">Origen</th>
-                    <th className="px-3 py-2">Valor</th>
-                    <th className="px-3 py-2">Estado</th>
-                    <th className="px-3 py-2 text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {variables.map((variable) => (
-                    <tr key={variable.id} className={variable.active ? '' : 'bg-slate-50/60'}>
-                      <td className="px-3 py-2 font-mono text-xs text-slate-600">{variable.key}</td>
-                      <td className="px-3 py-2 text-slate-800">{variable.label}</td>
-                      <td className="px-3 py-2 text-slate-600">
-                        {variable.kind === 'NUMBER' ? 'Número' : 'Texto'}
-                      </td>
-                      <td className="px-3 py-2 text-slate-600">
-                        {variable.origin === 'CONSTANT' ? 'Constante' : 'Por viaje'}
-                      </td>
-                      <td className="px-3 py-2 text-slate-600">
-                        {variable.defaultValue ?? '—'}
-                        {variable.unit ? <span className="text-xs text-slate-400"> {variable.unit}</span> : null}
-                      </td>
-                      <td className="px-3 py-2">
-                        <Badge variant={variable.active ? 'success' : 'default'} size="sm">
-                          {variable.active ? 'Activa' : 'De baja'}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => startEdit(variable)} disabled={!canEdit} title={canEdit ? 'Editar' : 'Tu rol no puede editar variables'}>
-                            <i className="ri-edit-line"></i>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => void toggleActive(variable)}
-                            disabled={!canEdit}
-                            title={!canEdit ? 'Tu rol no puede editar variables' : variable.active ? 'Dar de baja' : 'Reactivar'}
-                          >
-                            <i className={variable.active ? 'ri-forbid-line' : 'ri-refresh-line'}></i>
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <VariablesTable
+            variables={variables} loading={loading} canEdit={canEdit}
+            onEdit={startEdit} onToggle={(v) => void toggleActive(v)}
+          />
         </div>
 
         <div className="sticky bottom-0 bg-white flex justify-end px-6 py-4 border-t border-slate-200">

@@ -1,4 +1,4 @@
-// Piezas de presentación compartidas de la estructura de costos: la tabla de filas y el resumen por
+﻿// Piezas de presentación compartidas de la estructura de costos: la tabla de filas y el resumen por
 // tipo de camión. Las usan Reglas de Tarifa (flota propia del país) y la ficha de la compañía.
 
 import type { ReactNode } from 'react';
@@ -88,6 +88,7 @@ export function CostRowsTable({
 
   return (
     <DataTable
+      maxVisibleRows={5}
       data={rows}
       columns={columns}
       getRowId={(r) => r.id}
@@ -119,6 +120,7 @@ const summaryColumns: DataTableColumn<TruckSummary>[] = [
 export function TruckSummaryTable({ summary, exportFileName }: { summary: TruckSummary[]; exportFileName: string }) {
   return (
     <DataTable
+      maxVisibleRows={5}
       data={summary}
       columns={summaryColumns}
       getRowId={(r) => r.truckType ?? '__todos__'}

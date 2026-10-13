@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { listCountries } from '../lib/tarifas/localRulesDataSource';
+import { setDisplayCurrencyOverride } from '../lib/tarifas/format';
 import { useOperationalContext } from './useOperationalContext';
 import { usePermissions } from './usePermissions';
 
@@ -46,14 +47,20 @@ export interface ActiveCountryState {
 
 export function useActiveCountry(): ActiveCountryState {
   const ctx = useOperationalContext();
-  const { countries: permitted } = usePermissions();
+  const { countries: permitted, loading: loadingPermissions } = usePermissions();
   const [countries, setCountries] = useState<TarifasCountry[]>([]);
   const [loadingList, setLoadingList] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     setLoadingList(true);
+    setLoadError(null);
     try {
       setCountries((await listCountries('')) as TarifasCountry[]);
+    } catch (e) {
+      console.error('Error cargando países del tarifador:', e);
+      setCountries([]);
+      setLoadError(e instanceof Error ? e.message : 'Error al cargar países');
     } finally {
       setLoadingList(false);
     }
@@ -69,7 +76,9 @@ export function useActiveCountry(): ActiveCountryState {
       ? visible.find((c) => c.id === selected.id || c.iso2 === selected.code) ?? null
       : null;
 
-    const loading = loadingList || ctx.loading;
+    // Mientras los permisos cargan, `permitted` viene vacío y ningún país parece "visible": sin esperar
+    // acá se mostraba un falso "no está disponible en el tarifador" durante varios segundos.
+    const loading = loadingList || ctx.loading || loadingPermissions;
     let problem: CountryProblem = null;
     if (!loading) {
       if (!ctx.selectedCountryId) problem = 'none-selected';
@@ -77,14 +86,18 @@ export function useActiveCountry(): ActiveCountryState {
       else if (match.settings_id === null) problem = 'not-configured';
     }
 
+    // Costa Rica se muestra en colones aunque la BD diga USD (solo presentación, ver format.ts).
+    const shown = match && match.iso2 === 'CR' ? { ...match, local_currency: 'CRC' } : match;
+    setDisplayCurrencyOverride(shown?.iso2 === 'CR' ? 'CRC' : null);
+
     return {
       countries: visible,
-      country: problem === 'none-selected' || problem === 'not-available' ? null : match,
+      country: problem === 'none-selected' || problem === 'not-available' ? null : shown,
       countryId: problem === 'none-selected' || problem === 'not-available' ? '' : match?.id ?? '',
       selectedName: selected?.name ?? null,
       problem,
       loading,
       reload,
     };
-  }, [countries, ctx.countries, ctx.selectedCountryId, ctx.loading, loadingList, permitted, reload]);
+  }, [countries, ctx.countries, ctx.selectedCountryId, ctx.loading, loadingList, loadingPermissions, permitted, reload]);
 }

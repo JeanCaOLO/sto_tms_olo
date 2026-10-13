@@ -5,6 +5,7 @@
 
 import { db, type Row } from './data';
 import { customVarKey } from './rule-builder';
+import { parseMoneyInput } from './money';
 import type { CustomVarOrigin, PartyVariable } from './types';
 
 export interface PartyVariableInput {
@@ -90,8 +91,17 @@ export function validateVariable(
   }
 
   if (input.kind === 'NUMBER' && String(input.defaultValue ?? '').trim()) {
-    if (Number.isNaN(Number(input.defaultValue))) {
-      errors.defaultValue = 'La variable es numérica: el valor debe ser un número.';
+    const rawValue = String(input.defaultValue).trim().toLowerCase();
+    // Rechazar Infinity, -Infinity, NaN y notaciones científicas extremas
+    if (rawValue === 'infinity' || rawValue === '-infinity' || rawValue === 'nan') {
+      errors.defaultValue = 'El valor numérico no puede ser Infinito.';
+    } else {
+      const parsed = parseMoneyInput(String(input.defaultValue));
+      if (!parsed) {
+        errors.defaultValue = 'La variable es numérica: el valor debe ser un número.';
+      } else if (!parsed.isFinite()) {
+        errors.defaultValue = 'El valor numérico no puede ser Infinito.';
+      }
     }
   }
 

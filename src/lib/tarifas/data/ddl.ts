@@ -30,6 +30,7 @@ const SQL_TYPES: Record<ColumnType, string> = {
   boolean: 'boolean',
   jsonb: 'jsonb',
   timestamptz: 'timestamptz',
+  date: 'date',
   uuid: 'uuid',
 };
 

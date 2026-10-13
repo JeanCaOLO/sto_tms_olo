@@ -1,0 +1,37 @@
+// Descripciones del tarifador: secciones.
+
+import type { HintMap } from '../../../components/base/hintKey';
+
+export const SECCIONES: HintMap = {
+  'El viaje': 'Datos del viaje tal como vienen de guía de despacho. No se editan aquí.',
+  'Base del cálculo': 'En qué se basa el total del viaje. Se puede cambiar por otro tipo de cobro.',
+  'Variables de este viaje': 'Datos que se cargan a mano en cada viaje (peajes, recolectas…).',
+  'Pedidos del viaje': 'Pedidos que viajaron. Anular uno lo saca del reparto.',
+  'Devoluciones': 'Devoluciones informadas del viaje. No cambian lo que se paga.',
+  'Notas y estado': 'Observaciones y estado de la liquidación.',
+  'Por qué este total': 'Cómo se llegó al total, etapa por etapa.',
+  'Reparto por casa comercial': 'Cómo se divide el total entre las casas comerciales del viaje.',
+  'Desglose del cálculo': 'Cada línea que sumó o restó al total.',
+  'Reglas que no aplicaron': 'Reglas descartadas y el motivo.',
+  'Datos del viaje que entraron en el cálculo': 'Valores que el motor leyó. Lo que no está aquí no influyó.',
+  'Auditoría mercancía transportada vs gastos operativos': 'Compara el valor de la carga con lo pagado. Es solo informativo.',
+  'Estructura del país': 'Costos de la flota propia por defecto: base de lo que se liquida si la compañía no tiene los suyos.',
+  'Cálculo del país': 'Decimales, redondeo y pernocta con que liquida este país.',
+  'Bitácora de auditoría': 'Cambios hechos en el tarifador: quién, qué y cuándo.',
+  'Identificación': 'Código, nombre y alcance de la regla.',
+  'Cuándo aplica': 'Condiciones que debe cumplir el viaje.',
+  'Cuánto suma o resta': 'Cómo se calcula el importe de la regla.',
+  'Desde y hasta cuándo rige': 'Fechas en que la regla está vigente.',
+  'Cómo convive con las demás reglas': 'Si suma con las otras o compite con ellas.',
+  'Resumen por tipo de camión': 'Costo por kilómetro y por día de cada clase de camión.',
+  'Vista previa': 'Lo que se va a guardar. Revísalo antes de confirmar.',
+  'Qué columna es cada cosa': 'Indica qué significa cada columna de la hoja.',
+  'Devoluciones informadas': 'Devoluciones del viaje. No cambian lo que se paga.',
+  'Notas': 'Observaciones de la liquidación.',
+  'Estructura de costos de la flota propia': 'Conceptos de costo de la flota propia, cargados con la plantilla de Excel.',
+  'Expresión': 'La fórmula tal como la ejecuta el motor. Solo para usuarios avanzados.',
+  'Importación terminada': 'Resultado de la importación.',
+  'Importar planilla de costos': 'Carga costos desde una hoja de Excel.',
+  'Subir plantilla de estructura de costos': 'Carga la plantilla de Excel con toda la estructura de costos.',
+  'No se importan': 'Filas que se omiten y por qué.',
+};

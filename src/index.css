@@ -29,3 +29,24 @@
     background-color: rgb(100 116 139); /* slate-500 */
   }
 }
+
+/* Proforma de liquidación: en pantalla no existe; al imprimir es lo único que se ve. */
+#proforma-print-root {
+  display: none;
+}
+
+@media print {
+  body > *:not(#proforma-print-root) {
+    display: none !important;
+  }
+  #proforma-print-root {
+    display: block !important;
+  }
+  #proforma-print-root table,
+  #proforma-print-root tr {
+    break-inside: avoid;
+  }
+  @page {
+    margin: 12mm;
+  }
+}

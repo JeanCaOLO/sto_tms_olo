@@ -8,6 +8,7 @@
 // Módulo PURO: recibe las variables declaradas, no las consulta.
 
 import type { CustomVarKey, PartyVariable, VarValue } from './types';
+import { exactNumber } from './money';
 
 export interface CustomVarField {
   key: CustomVarKey;
@@ -85,13 +86,12 @@ export function parseCustomVarValues(
 
     if (texto === '') {
       // Vacío en un número no es cero: es "no lo cargué". Se toma el valor por defecto declarado.
-      const porDefecto = Number(field.defaultValue);
-      values[field.key] = Number.isFinite(porDefecto) ? porDefecto : 0;
+      values[field.key] = exactNumber(field.defaultValue) ?? 0;
       continue;
     }
 
-    const numero = Number(texto);
-    if (!Number.isFinite(numero)) {
+    const numero = exactNumber(texto);
+    if (numero === null) {
       errors[field.key] = `"${field.label}" tiene que ser un número.`;
       continue;
     }

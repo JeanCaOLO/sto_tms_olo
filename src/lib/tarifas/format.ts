@@ -4,6 +4,7 @@
 
 import type { BaseRef, BuiltinVarKey, DiscardReason, Stage, VarKey } from './types';
 import type { Pred } from './types';
+import { pctToDisplay, toDecimal } from './money';
 
 /**
  * Símbolo de cada moneda que el módulo maneja hoy. Antes esto era un `if (currency === 'USD')` y
@@ -14,15 +15,46 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
   USD: '$',
   COP: '$',
   CRC: '₡',
+  VES: 'Bs.',
+  VEF: 'Bs.',
 };
 
-export function formatMoney(amount: string, currency: string): string {
+/** Monedas cuyo país escribe los importes con punto para miles y coma para decimales (es-VE). */
+const COMMA_DECIMAL_CURRENCIES = new Set(['VES', 'VEF']);
+
+/**
+ * Agrupa los miles de un decimal exacto en texto ("28224.50" -> "28,224.50") sin pasar por `Number`,
+ * para no perder precisión en importes grandes. Si no es un decimal reconocible, lo devuelve igual.
+ */
+export function groupThousands(amount: string): string {
+  const match = /^(-?)(\d+)(\.\d+)?$/.exec(amount.trim());
+  if (!match) return amount;
+  const [, sign, integer, fraction = ''] = match;
+  return `${sign}${integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${fraction}`;
+}
+
+/**
+ * Moneda que se MUESTRA en pantalla en vez de la que trae el dato (solo presentación). Hoy Costa Rica
+ * se ve en colones aunque `countries.currency` y las liquidaciones ya emitidas digan USD. Lo fija
+ * `useActiveCountry` según el país activo; null = se muestra la moneda del dato.
+ */
+let displayCurrencyOverride: string | null = null;
+export function setDisplayCurrencyOverride(currency: string | null): void {
+  displayCurrencyOverride = currency;
+}
+
+export function formatMoney(amount: string, dataCurrency: string): string {
+  const currency = displayCurrencyOverride ?? dataCurrency;
   const symbol = CURRENCY_SYMBOLS[currency];
-  return symbol ? `${symbol}${amount}` : `${amount} ${currency}`;
+  const grouped = groupThousands(amount);
+  const value = COMMA_DECIMAL_CURRENCIES.has(currency)
+    ? grouped.replace(/[.,]/g, (c) => (c === ',' ? '.' : ','))
+    : grouped;
+  return symbol ? `${symbol}${value}` : `${value} ${currency}`;
 }
 
 export function formatPct(fraction: string): string {
-  return `${(Number(fraction) * 100).toFixed(2)}%`;
+  return `${pctToDisplay(fraction)}%`;
 }
 
 export const STAGE_LABELS: Record<Stage, string> = {
@@ -80,6 +112,8 @@ export const DISCARD_REASON_LABELS: Record<DiscardReason, string> = {
   OVERRIDDEN_BY_PARTY: 'Sobrescrita por la compañía',
   OUT_OF_PERIOD: 'Fuera de vigencia',
   RULE_BROKEN: 'Regla ilegible',
+  BASE_REEMPLAZADA: 'Reemplazada por la base elegida',
+  DUPLICA_BASE: 'Ya cobrado en la base',
 };
 
 /**
@@ -140,7 +174,7 @@ export function formatInputs(inputs: Record<string, string | number>): string {
   }
   if (keys.includes('pct') && keys.includes('base')) {
     const baseOf = String(inputs.base) as BaseRef['of'];
-    return `${(Number(inputs.pct) * 100).toFixed(2)}% de ${BASE_REF_LABELS[baseOf] ?? inputs.base}`;
+    return `${pctToDisplay(String(inputs.pct))}% de ${BASE_REF_LABELS[baseOf] ?? inputs.base}`;
   }
   if (keys.includes('cada') && keys.includes('amount')) {
     const unitKey = keys.find((k) => k !== 'cada' && k !== 'amount')!;
@@ -148,7 +182,7 @@ export function formatInputs(inputs: Record<string, string | number>): string {
   }
   // Fila de una estructura de costos: unidades del viaje × importe de la fila.
   if (keys.includes('unidades') && keys.includes('importe')) {
-    return `${Number(inputs.unidades)} × ${inputs.importe}`;
+    return `${toDecimal(String(inputs.unidades)).toDecimalPlaces(0).toString()} × ${inputs.importe}`;
   }
   // Componente que se repite: km del viaje × costo por km.
   if (keys.includes('costo por km') && keys.includes('km')) {

@@ -96,6 +96,14 @@
         "status": {
           "type": "text",
           "nullable": true
+        },
+        "rate_type": {
+          "type": "text",
+          "nullable": true
+        },
+        "flat_rate_amount": {
+          "type": "numeric",
+          "nullable": true
         }
       }
     },
@@ -908,6 +916,10 @@
         "excluded_seqs": {
           "type": "jsonb",
           "nullable": false
+        },
+        "base_change": {
+          "type": "jsonb",
+          "nullable": true
         },
         "returns": {
           "type": "jsonb",

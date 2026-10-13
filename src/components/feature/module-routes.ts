@@ -15,5 +15,8 @@ for (const item of navItems) {
 }
 
 export function permKeyForPath(pathname: string): string | undefined {
-  return permByPath.get(pathname);
+  // react-router acepta '/liquidaciones/' y mayúsculas: sin normalizar, esas variantes no tendrían
+  // permKey y se saltarían la guarda.
+  const normalized = pathname.toLowerCase().replace(/\/+$/, '') || '/';
+  return permByPath.get(pathname) ?? permByPath.get(normalized);
 }

@@ -1,10 +1,10 @@
 # Diccionario de datos — `tms_olo` (Aurora PostgreSQL)
 
-> **Generado el 2026-09-30** desde la base real con [`scripts/diccionario-datos.py`](../../scripts/diccionario-datos.py). No editar a mano: las estructuras (columnas, tipos, llaves, índices, triggers) salen del catálogo de PostgreSQL; las descripciones de tabla viven en el script. Para regenerar: abrir el túnel (`scripts/tunel-aurora.ps1`) y correr `python scripts/diccionario-datos.py`.
+> **Generado el 2026-10-12** desde la base real con [`scripts/diccionario-datos.py`](../../scripts/diccionario-datos.py). No editar a mano: las estructuras (columnas, tipos, llaves, índices, triggers) salen del catálogo de PostgreSQL; las descripciones de tabla viven en el script. Para regenerar: abrir el túnel (`scripts/tunel-aurora.ps1`) y correr `python scripts/diccionario-datos.py`.
 
 - **Servidor:** PostgreSQL 17.7 on x86_64-pc-linux-gnu — cluster `db-tms-olo` (us-east-2), base `tms_olo`. Conexión y túnel: [`aws-inventario-tms.md`](aws-inventario-tms.md), [`../guides/tunel-ssm-a-rds.md`](../guides/tunel-ssm-a-rds.md).
-- **Contenido:** 48 tablas y 2 vistas en los esquemas `public` (negocio) y `audit` (bitácora).
-- **Filas:** conteo exacto (`count(*)`) al 2026-09-30. "—" = el rol de la app (`tms_app`) no tiene permiso de lectura.
+- **Contenido:** 63 tablas y 8 vistas en los esquemas `public` (negocio) y `audit` (bitácora).
+- **Filas:** conteo exacto (`count(*)`) al 2026-10-12. "—" = el rol de la app (`tms_app`) no tiene permiso de lectura.
 - Casi todas las tablas llevan `organization_id → organizations`; esa relación se omite en los diagramas para que se lean.
 
 ## Índice
@@ -26,6 +26,8 @@
 **Seguridad y acceso:** [`app_users`](#publicapp_users), [`auth_credentials`](#publicauth_credentials), [`roles`](#publicroles), [`role_permissions`](#publicrole_permissions), [`role_countries`](#publicrole_countries), [`app_modules`](#publicapp_modules), [`user_scopes`](#publicuser_scopes)
 
 **Sistema y auditoría:** [`schema_migrations`](#publicschema_migrations), [`audit.events`](#auditevents), [`audit.tracked_tables`](#audittracked_tables)
+
+**Sin clasificar (nuevas desde la última revisión):** [`geography_columns`](#publicgeography_columns), [`geometry_columns`](#publicgeometry_columns), [`spatial_ref_sys`](#publicspatial_ref_sys), [`tarifas_audit_log`](#publictarifas_audit_log), [`tarifas_cost_structure_rows`](#publictarifas_cost_structure_rows), [`tarifas_cost_structures`](#publictarifas_cost_structures), [`tarifas_country_settings`](#publictarifas_country_settings), [`tarifas_margin_policies`](#publictarifas_margin_policies), [`tarifas_party_variables`](#publictarifas_party_variables), [`tarifas_pricing_rules`](#publictarifas_pricing_rules), [`tarifas_pricing_templates`](#publictarifas_pricing_templates), [`tarifas_rate_table_rows`](#publictarifas_rate_table_rows), [`tarifas_rate_tables`](#publictarifas_rate_tables), [`tarifas_settlement_parties`](#publictarifas_settlement_parties), [`tarifas_settlements`](#publictarifas_settlements), [`tarifas_trip_order_marks`](#publictarifas_trip_order_marks), [`tarifas_v_devoluciones`](#publictarifas_v_devoluciones), [`tarifas_v_viaje_cargas`](#publictarifas_v_viaje_cargas), [`tarifas_v_viaje_pedidos`](#publictarifas_v_viaje_pedidos), [`tarifas_v_viajes`](#publictarifas_v_viajes), [`tarifas_zone_groups`](#publictarifas_zone_groups)
 
 ## Observaciones (revisión 2026-09-30)
 
@@ -113,7 +115,7 @@ erDiagram
 
 ### `public.warehouses`
 
-*tabla · 2 filas* — Almacenes/CEDIS por país. Nivel de la jerarquía entre país y cliente.
+*tabla · 4 filas* — Almacenes/CEDIS por país. Nivel de la jerarquía entre país y cliente.
 
 | Columna | Tipo | Nulo | Default | Notas |
 |---|---|---|---|---|
@@ -193,13 +195,17 @@ erDiagram
 | `updated_at` | `timestamp with time zone` | sí | `now()` |  |
 | `country_id` | `uuid` | no |  | FK → [`countries`](#publiccountries) |
 | `code` | `text` | sí |  |  |
+| `geofence` | `jsonb` | sí |  |  |
+| `color` | `text` | sí |  |  |
 
+- Check `zones_geofence_geojson_check`: `CHECK (((geofence IS NULL) OR ((geofence ->> 'type'::text) = ANY (ARRAY['Polygon'::text, 'MultiPolygon'::text]))))`
 - Check `zones_status_check`: `CHECK ((status = ANY (ARRAY['active'::text, 'inactive'::text])))`
 - Índice: `btree (organization_id)` — `idx_route_types_organization`
 - Índice: `btree (status)` — `idx_route_types_status`
 - Índice: `btree (country_id, code) WHERE (code IS NOT NULL)` (único) — `zones_country_code_key`
 - Índice: `btree (country_id)` — `zones_country_id_idx`
 - Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
+- Trigger `zones_reassign_points_trg`: `CREATE TRIGGER zones_reassign_points_trg AFTER INSERT OR DELETE OR UPDATE OF geofence, status, country_id ON public.zones FOR EACH ROW EXECUTE FUNCTION zones_reassign_points()`
 
 ---
 
@@ -222,7 +228,7 @@ erDiagram
 
 ### `public.customers`
 
-*tabla · 2 filas* — Clientes de OLO (Cofersa, EPA…), por país y almacén.
+*tabla · 5 filas* — Clientes de OLO (Cofersa, EPA…), por país y almacén.
 
 > Comentario en la base: Incluye Cofersa/EPA como clientes reales desde 2026-09-16 (antes solo existían como fuentes de datos/reglas del OMS, no como filas de este catálogo).
 
@@ -259,7 +265,7 @@ erDiagram
 
 ### `public.final_customers`
 
-*tabla · 1.583 filas* — Clientes finales de cada cliente (a quién se le entrega).
+*tabla · 10.306 filas* — Clientes finales de cada cliente (a quién se le entrega).
 
 | Columna | Tipo | Nulo | Default | Notas |
 |---|---|---|---|---|
@@ -279,7 +285,7 @@ erDiagram
 
 ### `public.delivery_points`
 
-*tabla · 1.581 filas* — Puntos de entrega de un cliente final, con dirección, ventana horaria, zona y códigos de ruta/zona WMS.
+*tabla · 10.304 filas* — Puntos de entrega de un cliente final, con dirección, ventana horaria, zona y códigos de ruta/zona WMS.
 
 | Columna | Tipo | Nulo | Default | Notas |
 |---|---|---|---|---|
@@ -298,18 +304,21 @@ erDiagram
 | `zone_id` | `uuid` | sí |  | FK → [`zones`](#publiczones) |
 | `route_code` | `text` | sí |  |  |
 | `wms_zone_code` | `text` | sí |  |  |
+| `zone_source` | `text` | no | `'map'::text` |  |
 
+- Check `delivery_points_zone_source_check`: `CHECK ((zone_source = ANY (ARRAY['map'::text, 'manual'::text, 'wms'::text])))`
 - Índice: `btree (final_customer_id, external_code) WHERE (external_code IS NOT NULL)` (único) — `delivery_points_final_customer_external_code_key`
 - Índice: `btree (final_customer_id)` — `delivery_points_final_customer_id_idx`
 - Índice: `btree (final_customer_id) WHERE is_default` (único) — `delivery_points_one_default_per_final_customer`
 - Índice: `btree (zone_id)` — `delivery_points_zone_id_idx`
 - Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
+- Trigger `delivery_points_zone_source_trg`: `CREATE TRIGGER delivery_points_zone_source_trg BEFORE INSERT OR UPDATE OF zone_id, zone_source, address_id ON public.delivery_points FOR EACH ROW EXECUTE FUNCTION delivery_points_zone_source()`
 
 <a id="publicaddresses"></a>
 
 ### `public.addresses`
 
-*tabla · 1.581 filas* — Direcciones geocodificables, referenciadas por los puntos de entrega.
+*tabla · 10.304 filas* — Direcciones geocodificables, referenciadas por los puntos de entrega.
 
 | Columna | Tipo | Nulo | Default | Notas |
 |---|---|---|---|---|
@@ -329,6 +338,7 @@ erDiagram
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |
 
 - Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
+- Trigger `addresses_reassign_point_trg`: `CREATE TRIGGER addresses_reassign_point_trg AFTER UPDATE OF latitude, longitude, country_id ON public.addresses FOR EACH ROW WHEN (((old.latitude IS DISTINCT FROM new.latitude) OR (old.longitude IS DISTINCT FROM new.longitude) OR (old.country_id IS DISTINCT FROM new.country_id))) EXECUTE FUNCTION addresses_reassign_point()`
 
 <a id="publiccontacts"></a>
 
@@ -541,7 +551,7 @@ erDiagram
 
 ### `public.orders`
 
-*tabla · 108 filas* — Pedidos a entregar (encabezado): cliente, punto de entrega, fechas, totales, prioridad y estado.
+*tabla · 1.234 filas* — Pedidos a entregar (encabezado): cliente, punto de entrega, fechas, totales, prioridad y estado.
 
 | Columna | Tipo | Nulo | Default | Notas |
 |---|---|---|---|---|
@@ -582,7 +592,7 @@ erDiagram
 
 ### `public.order_items`
 
-*tabla · 216 filas* — Líneas (productos) de cada pedido.
+*tabla · 2.526 filas* — Líneas (productos) de cada pedido.
 
 | Columna | Tipo | Nulo | Default | Notas |
 |---|---|---|---|---|
@@ -596,6 +606,7 @@ erDiagram
 | `unit_price` | `numeric(12,2)` | sí |  |  |
 | `total_price` | `numeric(12,2)` | sí |  |  |
 | `created_at` | `timestamp with time zone` | sí | `now()` |  |
+| `guia_fiscal` | `character varying` | sí |  | Guía fiscal por línea (WMS EFLOW: EXPEDICIONESDETALLE.GUIAFISCAL). Puede ser NULL. |
 
 - Índice: `btree (order_id)` — `idx_order_items_order`
 - Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
@@ -647,6 +658,7 @@ erDiagram
     app_users ||--o{ route_plans : "created_by"
     carriers ||--o{ routes : "carrier_id"
     countries ||--o{ route_plans : "country_id"
+    customers ||--o{ route_plans : "customer_id"
     dispatch_guides ||--o{ returns : "dispatch_guide_id"
     dispatch_guides ||--o{ tracking_events : "dispatch_guide_id"
     drivers ||--o{ plan_trips : "driver_id"
@@ -669,7 +681,7 @@ erDiagram
 
 ### `public.route_plans`
 
-*tabla · 4 filas* — Plan de rutas de un día para un país/almacén.
+*tabla · 18 filas* — Plan de rutas de un día para un país/almacén.
 
 | Columna | Tipo | Nulo | Default | Notas |
 |---|---|---|---|---|
@@ -683,15 +695,17 @@ erDiagram
 | `notes` | `text` | sí |  |  |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |
+| `customer_id` | `uuid` | sí |  | FK → [`customers`](#publiccustomers) |
 
 - Check `route_plans_status_check`: `CHECK ((status = ANY (ARRAY['draft'::text, 'confirmed'::text, 'completed'::text, 'cancelled'::text])))`
+- Índice: `btree (customer_id)` — `ix_route_plans_customer`
 - Índice: `btree (warehouse_id, plan_date, status)` — `ix_route_plans_wh_date_status`
 
 <a id="publicplan_trips"></a>
 
 ### `public.plan_trips`
 
-*tabla · 15 filas* — Viajes de un plan: vehículo, conductor, zona y carga total.
+*tabla · 96 filas* — Viajes de un plan: vehículo, conductor, zona y carga total.
 
 | Columna | Tipo | Nulo | Default | Notas |
 |---|---|---|---|---|
@@ -705,14 +719,20 @@ erDiagram
 | `total_volume` | `numeric` | sí |  |  |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |
+| `vehicle_plate` | `text` | sí |  |  |
+| `vehicle_capacity_weight` | `numeric` | sí |  |  |
+| `vehicle_capacity_volume` | `numeric` | sí |  |  |
+| `is_owned` | `boolean` | sí |  |  |
+| `status` | `text` | no | `'pending'::text` |  |
 
+- Check `plan_trips_status_check`: `CHECK ((status = ANY (ARRAY['pending'::text, 'completed'::text, 'cancelled'::text])))`
 - Índice: `btree (plan_id)` — `ix_plan_trips_plan`
 
 <a id="publicplan_stops"></a>
 
 ### `public.plan_stops`
 
-*tabla · 37 filas* — Paradas de un viaje planificado (pedido y orden de visita).
+*tabla · 466 filas* — Paradas de un viaje planificado (pedido y orden de visita).
 
 | Columna | Tipo | Nulo | Default | Notas |
 |---|---|---|---|---|
@@ -721,6 +741,14 @@ erDiagram
 | `order_id` | `uuid` | no |  | FK → [`orders`](#publicorders) |
 | `stop_order` | `integer` | no | `0` |  |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |
+| `order_number` | `text` | sí |  |  |
+| `customer_name` | `text` | sí |  |  |
+| `delivery_city` | `text` | sí |  |  |
+| `delivery_zone` | `text` | sí |  |  |
+| `latitude` | `numeric` | sí |  |  |
+| `longitude` | `numeric` | sí |  |  |
+| `weight` | `numeric` | sí |  |  |
+| `volume` | `numeric` | sí |  |  |
 
 - Índice: `btree (trip_id)` — `ix_plan_stops_trip`
 
@@ -803,7 +831,7 @@ erDiagram
 
 ### `public.tracking_events`
 
-*tabla · 0 filas* — Eventos de seguimiento de una ruta o guía (con ubicación).
+*tabla · 3 filas* — Eventos de seguimiento de una ruta o guía (con ubicación).
 
 | Columna | Tipo | Nulo | Default | Notas |
 |---|---|---|---|---|
@@ -1365,7 +1393,7 @@ erDiagram
 
 ### `public.roles`
 
-*tabla · 6 filas* — Roles de la aplicación. `all_countries` da acceso a todos los países.
+*tabla · 7 filas* — Roles de la aplicación. `all_countries` da acceso a todos los países.
 
 | Columna | Tipo | Nulo | Default | Notas |
 |---|---|---|---|---|
@@ -1409,7 +1437,7 @@ erDiagram
 
 ### `public.app_modules`
 
-*tabla · 25 filas* — Catálogo de módulos/pantallas de la aplicación (llave de los permisos).
+*tabla · 26 filas* — Catálogo de módulos/pantallas de la aplicación (llave de los permisos).
 
 | Columna | Tipo | Nulo | Default | Notas |
 |---|---|---|---|---|
@@ -1462,7 +1490,7 @@ erDiagram
 
 ### `audit.events`
 
-*tabla particionada · 785 filas* — Bitácora de auditoría (`sql/16`–`17`, ADR 0003): quién cambió qué, con antes/después. Particionada por mes e inmutable.
+*tabla particionada · 45.184 filas* — Bitácora de auditoría (`sql/16`–`17`, ADR 0003): quién cambió qué, con antes/después. Particionada por mes e inmutable.
 
 Particionada por `RANGE (occurred_at)`. Particiones: `events_2026_09`, `events_2026_10`, `events_2026_11`, `events_2026_12`, `events_2027_01`, `events_2027_02`, `events_2027_03`, `events_2027_04`, `events_2027_05`, `events_2027_06`, `events_2027_07`, `events_2027_08`, `events_2027_09`, `events_2027_10`, `events_2027_11`, `events_2027_12`, `events_default`.
 
@@ -1511,6 +1539,739 @@ Particionada por `RANGE (occurred_at)`. Particiones: `events_2026_09`, `events_2
 
 ---
 
+## Sin clasificar (nuevas desde la última revisión)
+
+```mermaid
+erDiagram
+    carriers ||--o{ tarifas_settlement_parties : "carrier_id"
+    countries ||--o{ tarifas_cost_structures : "country_id"
+    countries ||--o{ tarifas_country_settings : "country_id"
+    countries ||--o{ tarifas_margin_policies : "country_id"
+    countries ||--o{ tarifas_pricing_rules : "country_id"
+    countries ||--o{ tarifas_pricing_templates : "country_id"
+    countries ||--o{ tarifas_rate_tables : "country_id"
+    countries ||--o{ tarifas_settlements : "country_id"
+    countries ||--o{ tarifas_trip_order_marks : "country_id"
+    countries ||--o{ tarifas_zone_groups : "country_id"
+    routes ||--o{ tarifas_settlements : "trip_id"
+    routes ||--o{ tarifas_trip_order_marks : "trip_id"
+    tarifas_cost_structures ||--o{ tarifas_cost_structure_rows : "structure_id"
+    tarifas_rate_tables ||--o{ tarifas_rate_table_rows : "table_id"
+    tarifas_settlement_parties ||--o{ tarifas_cost_structures : "party_id"
+    tarifas_settlement_parties ||--o{ tarifas_party_variables : "party_id"
+    tarifas_settlement_parties ||--o{ tarifas_pricing_rules : "party_id"
+    tarifas_settlement_parties ||--o{ tarifas_rate_tables : "party_id"
+    tarifas_settlement_parties ||--o{ tarifas_settlements : "party_id"
+```
+
+<a id="publicgeography_columns"></a>
+
+### `public.geography_columns`
+
+*vista*
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `f_table_catalog` | `name` | sí |  |  |
+| `f_table_schema` | `name` | sí |  |  |
+| `f_table_name` | `name` | sí |  |  |
+| `f_geography_column` | `name` | sí |  |  |
+| `coord_dimension` | `integer` | sí |  |  |
+| `srid` | `integer` | sí |  |  |
+| `type` | `text` | sí |  |  |
+
+<details><summary>Definición de la vista</summary>
+
+```sql
+SELECT current_database() AS f_table_catalog,
+    n.nspname AS f_table_schema,
+    c.relname AS f_table_name,
+    a.attname AS f_geography_column,
+    postgis_typmod_dims(a.atttypmod) AS coord_dimension,
+    postgis_typmod_srid(a.atttypmod) AS srid,
+    postgis_typmod_type(a.atttypmod) AS type
+   FROM pg_class c,
+    pg_attribute a,
+    pg_type t,
+    pg_namespace n
+  WHERE t.typname = 'geography'::name AND a.attisdropped = false AND a.atttypid = t.oid AND a.attrelid = c.oid AND c.relnamespace = n.oid AND (c.relkind = ANY (ARRAY['r'::"char", 'v'::"char", 'm'::"char", 'f'::"char", 'p'::"char"])) AND NOT pg_is_other_temp_schema(c.relnamespace) AND has_table_privilege(c.oid, 'SELECT'::text);
+```
+
+</details>
+
+<a id="publicgeometry_columns"></a>
+
+### `public.geometry_columns`
+
+*vista*
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `f_table_catalog` | `character varying(256)` | sí |  |  |
+| `f_table_schema` | `name` | sí |  |  |
+| `f_table_name` | `name` | sí |  |  |
+| `f_geometry_column` | `name` | sí |  |  |
+| `coord_dimension` | `integer` | sí |  |  |
+| `srid` | `integer` | sí |  |  |
+| `type` | `character varying(30)` | sí |  |  |
+
+<details><summary>Definición de la vista</summary>
+
+```sql
+SELECT current_database()::character varying(256) AS f_table_catalog,
+    n.nspname AS f_table_schema,
+    c.relname AS f_table_name,
+    a.attname AS f_geometry_column,
+    COALESCE(postgis_typmod_dims(a.atttypmod), sn.ndims, 2) AS coord_dimension,
+    COALESCE(NULLIF(postgis_typmod_srid(a.atttypmod), 0), sr.srid, 0) AS srid,
+    replace(replace(COALESCE(NULLIF(upper(postgis_typmod_type(a.atttypmod)), 'GEOMETRY'::text), st.type, 'GEOMETRY'::text), 'ZM'::text, ''::text), 'Z'::text, ''::text)::character varying(30) AS type
+   FROM pg_class c
+     JOIN pg_attribute a ON a.attrelid = c.oid AND NOT a.attisdropped
+     JOIN pg_namespace n ON c.relnamespace = n.oid
+     JOIN pg_type t ON a.atttypid = t.oid
+     LEFT JOIN ( SELECT s.connamespace,
+            s.conrelid,
+            s.conkey,
+            (regexp_match(s.consrc, 'geometrytype\(\w+\)\s*=\s*''(\w+)'''::text, 'i'::text))[1] AS type
+           FROM ( SELECT pg_constraint.connamespace,
+                    pg_constraint.conrelid,
+                    pg_constraint.conkey,
+                    pg_get_constraintdef(pg_constraint.oid) AS consrc
+                   FROM pg_constraint) s
+          WHERE s.consrc ~* 'geometrytype\(\w+\)\s*=\s*''\w+'''::text) st ON st.connamespace = n.oid AND st.conrelid = c.oid AND (a.attnum = ANY (st.conkey))
+     LEFT JOIN ( SELECT s.connamespace,
+            s.conrelid,
+            s.conkey,
+            (regexp_match(s.consrc, 'ndims\(\w+\)\s*=\s*(\d+)'::text, 'i'::text))[1]::integer AS ndims
+           FROM ( SELECT pg_constraint.connamespace,
+                    pg_constraint.conrelid,
+                    pg_constraint.conkey,
+                    pg_get_constraintdef(pg_constraint.oid) AS consrc
+                   FROM pg_constraint) s
+          WHERE s.consrc ~* 'ndims\(\w+\)\s*=\s*\d+'::text) sn ON sn.connamespace = n.oid AND sn.conrelid = c.oid AND (a.attnum = ANY (sn.conkey))
+     LEFT JOIN ( SELECT s.connamespace,
+            s.conrelid,
+            s.conkey,
+            (regexp_match(s.consrc, 'srid\(\w+\)\s*=\s*(\d+)'::text, 'i'::text))[1]::integer AS srid
+           FROM ( SELECT pg_constraint.connamespace,
+                    pg_constraint.conrelid,
+                    pg_constraint.conkey,
+                    pg_get_constraintdef(pg_constraint.oid) AS consrc
+                   FROM pg_constraint) s
+          WHERE s.consrc ~* 'srid\(\w+\)\s*=\s*\d+'::text) sr ON sr.connamespace = n.oid AND sr.conrelid = c.oid AND (a.attnum = ANY (sr.conkey))
+  WHERE (c.relkind = ANY (ARRAY['r'::"char", 'v'::"char", 'm'::"char", 'f'::"char", 'p'::"char"])) AND NOT c.relname = 'raster_columns'::name AND t.typname = 'geometry'::name AND NOT pg_is_other_temp_schema(c.relnamespace) AND has_table_privilege(c.oid, 'SELECT'::text);
+```
+
+</details>
+
+<a id="publicspatial_ref_sys"></a>
+
+### `public.spatial_ref_sys`
+
+*tabla · 8.500 filas*
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `srid` | `integer` | no |  | **PK** |
+| `auth_name` | `character varying(256)` | sí |  |  |
+| `auth_srid` | `integer` | sí |  |  |
+| `srtext` | `character varying(2048)` | sí |  |  |
+| `proj4text` | `character varying(2048)` | sí |  |  |
+
+- Check `spatial_ref_sys_srid_check`: `CHECK (((srid > 0) AND (srid <= 998999)))`
+
+<a id="publictarifas_audit_log"></a>
+
+### `public.tarifas_audit_log`
+
+*tabla · 58 filas*
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `id` | `text` | no |  | **PK** |
+| `entity` | `text` | no |  |  |
+| `entity_id` | `text` | no |  |  |
+| `action` | `text` | no |  |  |
+| `user_name` | `text` | no |  |  |
+| `role` | `text` | no |  |  |
+| `before` | `jsonb` | sí |  |  |
+| `after` | `jsonb` | sí |  |  |
+| `reason` | `text` | sí |  |  |
+| `created_at` | `timestamp with time zone` | no |  |  |
+
+- Índice: `btree (created_at)` — `tarifas_audit_log_created_at_idx`
+- Índice: `btree (entity_id)` — `tarifas_audit_log_entity_id_idx`
+- Índice: `btree (entity)` — `tarifas_audit_log_entity_idx`
+- Trigger: inmutable — UPDATE y DELETE están prohibidos (`audit.forbid_change()`).
+
+<a id="publictarifas_cost_structure_rows"></a>
+
+### `public.tarifas_cost_structure_rows`
+
+*tabla · 142 filas*
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `id` | `text` | no |  | **PK** |
+| `structure_id` | `text` | no |  | FK → [`tarifas_cost_structures`](#publictarifas_cost_structures) |
+| `code` | `text` | no |  |  |
+| `label` | `text` | no |  |  |
+| `driver` | `text` | no |  |  |
+| `amount` | `numeric` | no |  |  |
+| `sign` | `text` | no |  |  |
+| `applies_when` | `jsonb` | sí |  |  |
+| `unit` | `text` | sí |  |  |
+| `row_order` | `integer` | no |  |  |
+| `active` | `boolean` | no |  |  |
+| `cost_group` | `text` | sí |  |  |
+| `frequency` | `text` | sí |  |  |
+| `frequency_qty` | `numeric` | sí |  |  |
+| `unit_qty` | `numeric` | sí |  |  |
+| `cost_per_km` | `numeric` | sí |  |  |
+| `truck_type` | `text` | sí |  |  |
+
+- Índice: `btree (structure_id)` — `tarifas_cost_structure_rows_structure_id_idx`
+- Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
+
+<a id="publictarifas_cost_structures"></a>
+
+### `public.tarifas_cost_structures`
+
+*tabla · 3 filas*
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `id` | `text` | no |  | **PK** |
+| `party_id` | `text` | sí |  | FK → [`tarifas_settlement_parties`](#publictarifas_settlement_parties) |
+| `country_id` | `uuid` | no |  | FK → [`countries`](#publiccountries) |
+| `name` | `text` | no |  |  |
+| `operating_days_per_month` | `integer` | no |  |  |
+| `effective_from` | `timestamp with time zone` | sí |  |  |
+| `active` | `boolean` | no |  |  |
+| `notes` | `text` | sí |  |  |
+| `params` | `jsonb` | no | `'{"fuelPrice": null, "kmPerYear": null, "fuelEfficiency": {}}'::jsonb` |  |
+
+- Índice: `btree (country_id)` — `tarifas_cost_structures_country_id_idx`
+- Índice: `btree (party_id)` — `tarifas_cost_structures_party_id_idx`
+- Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
+
+<a id="publictarifas_country_settings"></a>
+
+### `public.tarifas_country_settings`
+
+*tabla · 2 filas*
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `id` | `text` | no |  | **PK** |
+| `country_id` | `uuid` | no |  | FK → [`countries`](#publiccountries) · único |
+| `rounding_decimals` | `integer` | no |  |  |
+| `rounding_mode` | `text` | no |  |  |
+| `overnight_threshold_hours` | `integer` | no |  |  |
+
+- Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
+
+<a id="publictarifas_margin_policies"></a>
+
+### `public.tarifas_margin_policies`
+
+*tabla · 2 filas*
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `id` | `text` | no |  | **PK** |
+| `country_id` | `uuid` | no |  | FK → [`countries`](#publiccountries) |
+| `warn_below` | `numeric` | no |  |  |
+| `critical_below` | `numeric` | no |  |  |
+| `require_reason_below` | `numeric` | no |  |  |
+| `block_on_loss` | `boolean` | no |  |  |
+
+- Índice: `btree (country_id)` — `tarifas_margin_policies_country_id_idx`
+- Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
+
+<a id="publictarifas_party_variables"></a>
+
+### `public.tarifas_party_variables`
+
+*tabla · 20 filas*
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `id` | `text` | no |  | **PK** |
+| `party_id` | `text` | no |  | FK → [`tarifas_settlement_parties`](#publictarifas_settlement_parties) |
+| `key` | `text` | no |  |  |
+| `label` | `text` | no |  |  |
+| `kind` | `text` | no |  |  |
+| `origin` | `text` | no |  |  |
+| `default_value` | `text` | sí |  |  |
+| `unit` | `text` | sí |  |  |
+| `active` | `boolean` | no |  |  |
+
+- Índice: `btree (key)` — `tarifas_party_variables_key_idx`
+- Índice: `btree (party_id)` — `tarifas_party_variables_party_id_idx`
+- Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
+
+<a id="publictarifas_pricing_rules"></a>
+
+### `public.tarifas_pricing_rules`
+
+*tabla · 73 filas*
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `id` | `text` | no |  | **PK** |
+| `country_id` | `uuid` | sí |  | FK → [`countries`](#publiccountries) |
+| `scope` | `text` | sí |  |  |
+| `party_id` | `text` | sí |  | FK → [`tarifas_settlement_parties`](#publictarifas_settlement_parties) |
+| `code` | `text` | no |  |  |
+| `name` | `text` | no |  |  |
+| `stage` | `text` | no |  |  |
+| `priority` | `integer` | no |  |  |
+| `stacking` | `text` | no |  |  |
+| `exclusion_group` | `text` | sí |  |  |
+| `conditions` | `jsonb` | no |  |  |
+| `expression` | `jsonb` | no |  |  |
+| `description` | `text` | sí |  |  |
+| `reason` | `text` | sí |  |  |
+| `effect` | `text` | sí |  |  |
+| `builder` | `jsonb` | sí |  |  |
+| `condition_builder` | `jsonb` | sí |  |  |
+| `is_adhoc` | `boolean` | no |  |  |
+| `active` | `boolean` | no |  |  |
+| `effective_from` | `text` | sí |  |  |
+| `effective_to` | `text` | sí |  |  |
+| `version` | `integer` | no |  |  |
+
+- Índice: `btree (country_id)` — `tarifas_pricing_rules_country_id_idx`
+- Índice: `btree (party_id)` — `tarifas_pricing_rules_party_id_idx`
+- Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
+
+<a id="publictarifas_pricing_templates"></a>
+
+### `public.tarifas_pricing_templates`
+
+*tabla · 0 filas*
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `id` | `text` | no |  | **PK** |
+| `country_id` | `uuid` | no |  | FK → [`countries`](#publiccountries) |
+| `name` | `text` | no |  |  |
+| `trip` | `jsonb` | no |  |  |
+
+- Índice: `btree (country_id)` — `tarifas_pricing_templates_country_id_idx`
+- Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
+
+<a id="publictarifas_rate_table_rows"></a>
+
+### `public.tarifas_rate_table_rows`
+
+*tabla · 200 filas*
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `id` | `text` | no |  | **PK** |
+| `table_id` | `text` | no |  | FK → [`tarifas_rate_tables`](#publictarifas_rate_tables) |
+| `key` | `jsonb` | no |  |  |
+| `amount` | `numeric` | no |  |  |
+| `row_order` | `integer` | no |  |  |
+| `active` | `boolean` | no |  |  |
+| `extra_values` | `jsonb` | sí |  |  |
+
+- Índice: `btree (table_id)` — `tarifas_rate_table_rows_table_id_idx`
+- Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
+
+<a id="publictarifas_rate_tables"></a>
+
+### `public.tarifas_rate_tables`
+
+*tabla · 9 filas*
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `id` | `text` | no |  | **PK** |
+| `country_id` | `uuid` | no |  | FK → [`countries`](#publiccountries) |
+| `party_id` | `text` | sí |  | FK → [`tarifas_settlement_parties`](#publictarifas_settlement_parties) |
+| `code` | `text` | no |  |  |
+| `name` | `text` | no |  |  |
+| `key_columns` | `jsonb` | no |  |  |
+| `active` | `boolean` | no |  |  |
+| `value_columns` | `jsonb` | sí |  |  |
+
+- Índice: `btree (code)` — `tarifas_rate_tables_code_idx`
+- Índice: `btree (country_id)` — `tarifas_rate_tables_country_id_idx`
+- Índice: `btree (party_id)` — `tarifas_rate_tables_party_id_idx`
+- Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
+
+<a id="publictarifas_settlement_parties"></a>
+
+### `public.tarifas_settlement_parties`
+
+*tabla · 9 filas*
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `id` | `text` | no |  | **PK** |
+| `carrier_id` | `uuid` | no |  | FK → [`carriers`](#publiccarriers) · único |
+| `status` | `text` | no |  |  |
+| `notes` | `text` | sí |  |  |
+
+- Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
+
+<a id="publictarifas_settlements"></a>
+
+### `public.tarifas_settlements`
+
+*tabla · 16 filas*
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `id` | `text` | no |  | **PK** |
+| `country_id` | `uuid` | no |  | FK → [`countries`](#publiccountries) |
+| `trip_id` | `uuid` | no |  | FK → [`routes`](#publicroutes) |
+| `party_id` | `text` | sí |  | FK → [`tarifas_settlement_parties`](#publictarifas_settlement_parties) |
+| `number` | `text` | no |  |  |
+| `trip_number` | `text` | no |  |  |
+| `settlement_date` | `text` | no |  |  |
+| `status` | `text` | no |  |  |
+| `currency` | `text` | no |  |  |
+| `total_amount` | `numeric` | no |  |  |
+| `notes` | `text` | sí |  |  |
+| `margin_reason` | `text` | sí |  |  |
+| `margin_status` | `text` | sí |  |  |
+| `margin_amount` | `numeric` | sí |  |  |
+| `margin_pct` | `numeric` | sí |  |  |
+| `cost_total` | `numeric` | sí |  |  |
+| `cost_model_id` | `text` | sí |  |  |
+| `trip_info` | `jsonb` | no |  |  |
+| `trip_edits` | `jsonb` | no |  |  |
+| `trip` | `jsonb` | no |  |  |
+| `trace` | `jsonb` | no |  |  |
+| `discarded` | `jsonb` | no |  |  |
+| `stage_subtotals` | `jsonb` | no |  |  |
+| `warnings` | `jsonb` | no |  |  |
+| `overrides` | `jsonb` | no |  |  |
+| `adhoc_rules` | `jsonb` | no |  |  |
+| `excluded_seqs` | `jsonb` | no |  |  |
+| `returns` | `jsonb` | no |  |  |
+| `superseded_by` | `text` | sí |  |  |
+| `created_at` | `timestamp with time zone` | no |  |  |
+| `updated_at` | `timestamp with time zone` | no |  |  |
+| `rules_used` | `jsonb` | no | `'[]'::jsonb` |  |
+| `cargo_value` | `numeric` | sí |  |  |
+| `allocation` | `jsonb` | sí |  |  |
+| `orders` | `jsonb` | sí |  |  |
+| `base_change` | `jsonb` | sí |  |  |
+
+- Índice: `btree (country_id, settlement_date DESC, number DESC)` — `tarifas_settlements_country_date_idx`
+- Índice: `btree (country_id, number)` (único) — `tarifas_settlements_country_number_uq`
+- Índice: `btree (party_id)` — `tarifas_settlements_party_id_idx`
+- Índice: `btree (superseded_by)` — `tarifas_settlements_superseded_by_idx`
+- Índice: `btree (trip_id)` — `tarifas_settlements_trip_id_idx`
+- Índice: `btree (trip_number)` — `tarifas_settlements_trip_number_idx`
+- Índice: `btree (trip_id) WHERE (status <> 'Anulado'::text)` (único) — `tarifas_settlements_trip_vigente_uq`
+- Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
+
+<a id="publictarifas_trip_order_marks"></a>
+
+### `public.tarifas_trip_order_marks`
+
+*tabla · 0 filas*
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `id` | `text` | no |  | **PK** |
+| `country_id` | `uuid` | no |  | FK → [`countries`](#publiccountries) |
+| `trip_id` | `uuid` | no |  | FK → [`routes`](#publicroutes) |
+| `order_id` | `uuid` | no |  |  |
+| `mark` | `text` | no |  |  |
+| `reason` | `text` | sí |  |  |
+| `actor` | `text` | sí |  |  |
+
+- Índice: `btree (country_id)` — `tarifas_trip_order_marks_country_id_idx`
+- Índice: `btree (trip_id)` — `tarifas_trip_order_marks_trip_id_idx`
+- Índice: `btree (trip_id, order_id)` (único) — `tarifas_trip_order_marks_uq`
+- Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
+
+<a id="publictarifas_v_devoluciones"></a>
+
+### `public.tarifas_v_devoluciones`
+
+*vista*
+
+> Comentario en la base: Devoluciones por viaje para precargar la liquidación (ORM: entidad tripReturn). Solo lectura.
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `id` | `uuid` | sí |  |  |
+| `route_id` | `uuid` | sí |  |  |
+| `dispatch_guide_id` | `uuid` | sí |  |  |
+| `return_number` | `character varying(100)` | sí |  |  |
+| `return_type` | `character varying(50)` | sí |  |  |
+| `reason` | `character varying(255)` | sí |  |  |
+| `product_code` | `character varying(100)` | sí |  |  |
+| `product_name` | `character varying(255)` | sí |  |  |
+| `quantity` | `integer` | sí |  |  |
+| `status` | `character varying(50)` | sí |  |  |
+
+<details><summary>Definición de la vista</summary>
+
+```sql
+SELECT rt.id,
+    g.route_id,
+    rt.dispatch_guide_id,
+    rt.return_number,
+    rt.return_type,
+    rt.reason,
+    rt.product_code,
+    rt.product_name,
+    rt.quantity,
+    rt.status
+   FROM returns rt
+     JOIN dispatch_guides g ON g.id = rt.dispatch_guide_id;
+```
+
+</details>
+
+<a id="publictarifas_v_viaje_cargas"></a>
+
+### `public.tarifas_v_viaje_cargas`
+
+*vista*
+
+> Comentario en la base: Mercancía de cada viaje por casa comercial (pedidos de sus guías de despacho). Solo lectura.
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `id` | `text` | sí |  |  |
+| `route_id` | `uuid` | sí |  |  |
+| `customer_id` | `uuid` | sí |  |  |
+| `customer_code` | `character varying(50)` | sí |  |  |
+| `customer_name` | `character varying(255)` | sí |  |  |
+| `value` | `numeric` | sí |  |  |
+| `weight_kg` | `numeric` | sí |  |  |
+| `volume_m3` | `numeric` | sí |  |  |
+| `items` | `integer` | sí |  |  |
+| `orders` | `integer` | sí |  |  |
+
+<details><summary>Definición de la vista</summary>
+
+```sql
+WITH pedidos AS (
+         SELECT DISTINCT g.route_id,
+            g.order_id
+           FROM dispatch_guides g
+          WHERE g.order_id IS NOT NULL AND g.route_id IS NOT NULL
+        )
+ SELECT (p.route_id::text || ':'::text) || COALESCE(o.customer_id::text, 'sin-casa'::text) AS id,
+    p.route_id,
+    o.customer_id,
+    c.code AS customer_code,
+    c.name AS customer_name,
+    COALESCE(sum(o.total_amount), 0::numeric) AS value,
+    COALESCE(sum(o.total_weight), 0::numeric) AS weight_kg,
+    COALESCE(sum(o.total_volume), 0::numeric) AS volume_m3,
+    COALESCE(sum(o.total_items), 0::bigint)::integer AS items,
+    count(DISTINCT o.id)::integer AS orders
+   FROM pedidos p
+     JOIN orders o ON o.id = p.order_id
+     LEFT JOIN customers c ON c.id = o.customer_id
+  GROUP BY p.route_id, o.customer_id, c.code, c.name;
+```
+
+</details>
+
+<a id="publictarifas_v_viaje_pedidos"></a>
+
+### `public.tarifas_v_viaje_pedidos`
+
+*vista*
+
+> Comentario en la base: Pedidos de cada viaje (uno por guía de despacho) con su marca de liquidación. Solo lectura.
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `id` | `uuid` | sí |  |  |
+| `route_id` | `uuid` | sí |  |  |
+| `guide_number` | `character varying(100)` | sí |  |  |
+| `sequence_number` | `integer` | sí |  |  |
+| `delivery_status` | `character varying(50)` | sí |  |  |
+| `order_id` | `uuid` | sí |  |  |
+| `order_number` | `character varying(100)` | sí |  |  |
+| `customer_id` | `uuid` | sí |  |  |
+| `customer_code` | `character varying(50)` | sí |  |  |
+| `customer_name` | `character varying(255)` | sí |  |  |
+| `value` | `numeric` | sí |  |  |
+| `weight_kg` | `numeric` | sí |  |  |
+| `volume_m3` | `numeric` | sí |  |  |
+| `items` | `integer` | sí |  |  |
+| `mark` | `text` | sí |  |  |
+| `mark_reason` | `text` | sí |  |  |
+
+<details><summary>Definición de la vista</summary>
+
+```sql
+SELECT g.id,
+    g.route_id,
+    g.guide_number,
+    g.sequence_number,
+    g.delivery_status,
+    g.order_id,
+    o.order_number,
+    o.customer_id,
+    c.code AS customer_code,
+    c.name AS customer_name,
+    COALESCE(o.total_amount, 0::numeric) AS value,
+    COALESCE(o.total_weight, 0::numeric) AS weight_kg,
+    COALESCE(o.total_volume, 0::numeric) AS volume_m3,
+    COALESCE(o.total_items, 0) AS items,
+    m.mark,
+    m.reason AS mark_reason
+   FROM dispatch_guides g
+     LEFT JOIN orders o ON o.id = g.order_id
+     LEFT JOIN customers c ON c.id = o.customer_id
+     LEFT JOIN tarifas_trip_order_marks m ON m.trip_id = g.route_id AND m.order_id = g.order_id
+  WHERE g.route_id IS NOT NULL;
+```
+
+</details>
+
+<a id="publictarifas_v_viajes"></a>
+
+### `public.tarifas_v_viajes`
+
+*vista*
+
+> Comentario en la base: Viajes de guía de despacho tal como los lee el liquidador (ORM: entidad trip). Solo lectura.
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `id` | `uuid` | sí |  |  |
+| `country_id` | `uuid` | sí |  |  |
+| `route_number` | `character varying(100)` | sí |  |  |
+| `route_date` | `text` | sí |  |  |
+| `status` | `text` | sí |  |  |
+| `carrier_id` | `uuid` | sí |  |  |
+| `carrier_name` | `character varying(255)` | sí |  |  |
+| `is_flota_propia` | `boolean` | sí |  |  |
+| `driver_id` | `uuid` | sí |  |  |
+| `driver_name` | `character varying(255)` | sí |  |  |
+| `driver_document` | `character varying(50)` | sí |  |  |
+| `vehicle_id` | `uuid` | sí |  |  |
+| `vehicle_plate` | `character varying(50)` | sí |  |  |
+| `vehicle_type` | `character varying(50)` | sí |  |  |
+| `capacity_weight` | `numeric(10,2)` | sí |  |  |
+| `capacity_volume` | `numeric(10,2)` | sí |  |  |
+| `dest_zone_id` | `uuid` | sí |  |  |
+| `dest_zone_code` | `text` | sí |  |  |
+| `dest_zone_name` | `text` | sí |  |  |
+| `total_distance` | `numeric(10,2)` | sí |  |  |
+| `total_stops` | `integer` | sí |  |  |
+| `completed_stops` | `integer` | sí |  |  |
+| `total_weight` | `numeric(10,2)` | sí |  |  |
+| `total_volume` | `numeric(10,2)` | sí |  |  |
+| `actual_start_time` | `timestamp with time zone` | sí |  |  |
+| `actual_end_time` | `timestamp with time zone` | sí |  |  |
+| `duration_hours` | `numeric` | sí |  |  |
+| `guide_count` | `integer` | sí |  |  |
+| `return_count` | `integer` | sí |  |  |
+| `settlement_id` | `text` | sí |  |  |
+| `delivered_guides` | `integer` | sí |  |  |
+
+<details><summary>Definición de la vista</summary>
+
+```sql
+SELECT r.id,
+    s.country_id,
+    r.route_number,
+    to_char(r.route_date::timestamp with time zone, 'YYYY-MM-DD'::text) AS route_date,
+        CASE lower(btrim(COALESCE(r.status, ''::character varying)::text))
+            WHEN 'completada'::text THEN 'completed'::text
+            WHEN 'completado'::text THEN 'completed'::text
+            WHEN 'completed'::text THEN 'completed'::text
+            WHEN 'planificada'::text THEN 'planned'::text
+            WHEN 'planificado'::text THEN 'planned'::text
+            WHEN 'planned'::text THEN 'planned'::text
+            WHEN 'en_ruta'::text THEN 'in_progress'::text
+            WHEN 'en ruta'::text THEN 'in_progress'::text
+            WHEN 'en tránsito'::text THEN 'in_progress'::text
+            WHEN 'in_progress'::text THEN 'in_progress'::text
+            WHEN 'active'::text THEN 'in_progress'::text
+            WHEN 'despachado'::text THEN 'in_progress'::text
+            WHEN 'anulado'::text THEN 'cancelled'::text
+            WHEN 'anulada'::text THEN 'cancelled'::text
+            WHEN 'cancelled'::text THEN 'cancelled'::text
+            ELSE lower(btrim(COALESCE(r.status, ''::character varying)::text))
+        END AS status,
+    r.carrier_id,
+    c.name AS carrier_name,
+    c.is_flota_propia,
+    r.driver_id,
+    d.full_name AS driver_name,
+    d.document AS driver_document,
+    r.vehicle_id,
+    v.plate AS vehicle_plate,
+    v.vehicle_type,
+    v.capacity_weight,
+    v.capacity_volume,
+    r.route_type_id AS dest_zone_id,
+    z.code AS dest_zone_code,
+    z.name AS dest_zone_name,
+    r.total_distance,
+    r.total_stops,
+    r.completed_stops,
+    r.total_weight,
+    r.total_volume,
+    r.actual_start_time,
+    r.actual_end_time,
+        CASE
+            WHEN r.actual_start_time IS NOT NULL AND r.actual_end_time > r.actual_start_time THEN round(EXTRACT(epoch FROM r.actual_end_time - r.actual_start_time) / 3600::numeric, 2)
+            ELSE NULL::numeric
+        END AS duration_hours,
+    gc.guide_count,
+    ( SELECT count(*)::integer AS count
+           FROM returns rt
+             JOIN dispatch_guides g ON g.id = rt.dispatch_guide_id
+          WHERE g.route_id = r.id) AS return_count,
+    ( SELECT st.id
+           FROM tarifas_settlements st
+          WHERE st.trip_id = r.id AND st.status <> 'Anulado'::text
+         LIMIT 1) AS settlement_id,
+    gc.delivered_guides
+   FROM routes r
+     JOIN stores s ON s.id = r.store_id
+     LEFT JOIN carriers c ON c.id = r.carrier_id
+     LEFT JOIN drivers d ON d.id = r.driver_id
+     LEFT JOIN vehicles v ON v.id = r.vehicle_id
+     LEFT JOIN zones z ON z.id = r.route_type_id
+     CROSS JOIN LATERAL ( SELECT count(*)::integer AS guide_count,
+            count(*) FILTER (WHERE lower(COALESCE(g.delivery_status, ''::character varying)::text) = 'delivered'::text)::integer AS delivered_guides
+           FROM dispatch_guides g
+          WHERE g.route_id = r.id) gc;
+```
+
+</details>
+
+<a id="publictarifas_zone_groups"></a>
+
+### `public.tarifas_zone_groups`
+
+*tabla · 0 filas*
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `id` | `text` | no |  | **PK** |
+| `country_id` | `uuid` | no |  | FK → [`countries`](#publiccountries) |
+| `code` | `text` | no |  |  |
+| `name` | `text` | no |  |  |
+| `zone_codes` | `jsonb` | no |  |  |
+| `status` | `text` | no |  |  |
+
+- Índice: `btree (country_id)` — `tarifas_zone_groups_country_id_idx`
+- Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
+
+---
+
 ## Tipos y funciones
 
 **Enums:**
@@ -1523,4 +2284,10 @@ Particionada por `RANGE (occurred_at)`. Particiones: `events_2026_09`, `events_2
 - `audit.capture_row_change()` → `trigger`
 - `audit.ensure_partitions(months_ahead integer, from_month date)` → `integer`
 - `audit.forbid_change()` → `trigger`
+- `public.addresses_reassign_point()` → `trigger`
+- `public.assign_zones_by_map(p_country_id uuid, p_address_id uuid)` → `integer`
+- `public.delivery_points_zone_source()` → `trigger`
 - `public.set_updated_at()` → `trigger`
+- `public.tarifas_forbid_change()` → `trigger`
+- `public.zone_for_point(p_country_id uuid, p_latitude numeric, p_longitude numeric)` → `uuid`
+- `public.zones_reassign_points()` → `trigger`

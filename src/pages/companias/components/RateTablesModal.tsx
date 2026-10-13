@@ -1,4 +1,4 @@
-// Tarifarios de una compañía, abiertos desde su ficha.
+﻿// Tarifarios de una compañía, abiertos desde su ficha.
 //
 // Por qué acá y no sólo en una pantalla global: **cada transportista cubre sus rutas a sus propios
 // precios**. Carabobo → Caracas Norte puede costar distinto según quién la haga, así que el precio

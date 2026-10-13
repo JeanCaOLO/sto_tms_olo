@@ -6,7 +6,7 @@ export default {
   'orders.empty': 'No orders',
   'orders.colOrder': 'Order',
   'orders.colCustomer': 'Customer',
-  'orders.colStore': 'Store',
+  'orders.colStore': 'Warehouses',
   'orders.colDeliveryDate': 'Delivery Date',
   'orders.colWeightVolume': 'Weight/Volume',
   'orders.colAmount': 'Amount',

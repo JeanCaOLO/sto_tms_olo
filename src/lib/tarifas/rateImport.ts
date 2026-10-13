@@ -10,6 +10,7 @@
 // Módulo PURO: recibe una matriz de celdas, no un archivo.
 
 import { detectHeaderRow, parseAmount, type NumberFormat, type SheetMatrix } from './costSheetParser';
+import { toDecimal } from './money';
 
 export interface RateColumnMapping {
   truckType: number | null;
@@ -139,7 +140,7 @@ export function parseRateRows(
       });
       continue;
     }
-    if (Number(price) < 0) {
+    if (toDecimal(price).isNegative()) {
       skipped.push({ sourceRow, truckType, reason: 'El precio es negativo.' });
       continue;
     }

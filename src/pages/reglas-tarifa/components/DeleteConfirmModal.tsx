@@ -3,13 +3,14 @@ import Button from '../../../components/base/Button';
 interface DeleteConfirmModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   title: string;
   description: string;
   errorMessage?: string;
+  busy?: boolean;
 }
 
-export default function DeleteConfirmModal({ isOpen, onClose, onConfirm, title, description, errorMessage }: DeleteConfirmModalProps) {
+export default function DeleteConfirmModal({ isOpen, onClose, onConfirm, title, description, errorMessage, busy = false }: DeleteConfirmModalProps) {
   if (!isOpen) return null;
 
   return (
@@ -32,13 +33,13 @@ export default function DeleteConfirmModal({ isOpen, onClose, onConfirm, title, 
             </div>
           )}
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-            <Button type="button" variant="secondary" onClick={onClose}>
+            <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
               Cancelar
             </Button>
             {!errorMessage && (
-              <Button type="button" variant="danger" onClick={onConfirm}>
+              <Button type="button" variant="danger" onClick={onConfirm} disabled={busy}>
                 <i className="ri-delete-bin-line"></i>
-                Eliminar
+                {busy ? 'Eliminando…' : 'Eliminar'}
               </Button>
             )}
           </div>

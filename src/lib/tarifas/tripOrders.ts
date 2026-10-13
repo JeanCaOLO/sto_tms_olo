@@ -73,6 +73,19 @@ export function tripProgress(trip: Pick<TripRecord, 'status' | 'guideCount' | 'd
   return { delivered, total, complete, label };
 }
 
+const MIN_VALUE_DECIMALS = 2;
+
+/** Suma montos sin redondear (el redondeo del país se aplica al liquidar); mínimo 2 decimales de formato. */
+function exactSum(a: string, b: string): string {
+  const total = new Decimal(a).plus(b);
+  return total.toFixed(Math.max(MIN_VALUE_DECIMALS, total.decimalPlaces()));
+}
+
+/** Suma cantidades (kg, m³) en Decimal para que 0.1 + 0.2 sea 0.3 y no mueva el prorrateo. */
+function sumQuantity(a: number, b: number): number {
+  return new Decimal(a).plus(b).toNumber();
+}
+
 /**
  * La mercancía de un viaje por casa comercial, a partir de sus pedidos. Los anulados no cuentan;
  * los diferidos sí (siguen repartiéndose) y se anotan para saber que su proforma está pendiente.
@@ -95,9 +108,9 @@ export function cargoFromOrders(orders: TripOrder[]): CargoSummary | null {
       name: order.customerName ?? 'Sin casa comercial',
       value: '0', weightKg: 0, volumeM3: 0, items: 0, orders: 0, deferredOrders: 0,
     };
-    part.value = new Decimal(part.value).plus(order.value).toFixed(2);
-    part.weightKg += order.weightKg;
-    part.volumeM3 += order.volumeM3;
+    part.value = exactSum(part.value, order.value);
+    part.weightKg = sumQuantity(part.weightKg, order.weightKg);
+    part.volumeM3 = sumQuantity(part.volumeM3, order.volumeM3);
     part.items += order.items;
     part.orders += 1;
     if (order.mark === 'DIFERIDO') part.deferredOrders = (part.deferredOrders ?? 0) + 1;
@@ -107,9 +120,9 @@ export function cargoFromOrders(orders: TripOrder[]): CargoSummary | null {
   const parts = [...byCustomer.values()].sort((a, b) => a.name.localeCompare(b.name, 'es'));
   if (parts.length === 0) return null;
   return {
-    value: parts.reduce((sum, p) => sum.plus(p.value), new Decimal(0)).toFixed(2),
-    weightKg: parts.reduce((sum, p) => sum + p.weightKg, 0),
-    volumeM3: parts.reduce((sum, p) => sum + p.volumeM3, 0),
+    value: parts.reduce((sum, p) => exactSum(sum, p.value), '0'),
+    weightKg: parts.reduce((sum, p) => sumQuantity(sum, p.weightKg), 0),
+    volumeM3: parts.reduce((sum, p) => sumQuantity(sum, p.volumeM3), 0),
     orders: parts.reduce((sum, p) => sum + p.orders, 0),
     parts,
   };
