@@ -53,3 +53,30 @@ def test_read_rows_skips_points_without_name(tmp_path):
     csv_file.write_text('Codigo,Cliente,Zona,Ruta,Latitud,Longitud\nCO0190," ",Z190,21,0,0\nCO0191,FERRETERIA,Z1,1,0,0\n',
                         encoding="utf-8")
     assert [row.code for row in read_rows(csv_file)] == ["CO0191"]
+
+
+def test_coordinates_use_the_customer_country_box():
+    assert classify_coordinates("10.48", "-66.90", "VN") == (10.48, -66.90, GEO_OK)      # Caracas
+    assert classify_coordinates("10.48", "-66.90") == (None, None, GEO_FAILED)           # fuera de CR
+    assert classify_coordinates("9.66", "-84.02", "VN") == (None, None, GEO_FAILED)      # CR, fuera de VE
+
+
+def test_read_rows_clean_format_keeps_address_status_and_active(tmp_path):
+    csv_file = tmp_path / "ve.csv"
+    csv_file.write_text(
+        "codigo,nombre,direccion,latitud,longitud,geocoding_status,geo_note,activo\n"
+        '01-01-003,"FERRETERIA CASA BLANCA 80, C.A.","CARACAS, CALLE DEMOCRACIA",10.48,-66.90,OK,,S\n'
+        "01-01-004,SIN COORDS,,,,PENDING,sin-coords,S\n"
+        "01-01-005,ROTA,X,10.5,-6694653,FAILED,fuera-de-VE,N\n"
+        "01-01-006,FUERA,X,9.66,-84.02,OK,,S\n",
+        encoding="utf-8")
+    rows = {row.code: row for row in read_rows(csv_file, "VN")}
+    ok = rows["01-01-003"]
+    assert (ok.name, ok.address_line, ok.latitude, ok.longitude, ok.geocoding_status, ok.active) == (
+        "FERRETERIA CASA BLANCA 80, C.A.", "CARACAS, CALLE DEMOCRACIA", 10.48, -66.90, GEO_OK, True)
+    assert (ok.route_code, ok.zone_code, ok.wms_zone_code) == (None, None, None)
+    assert (rows["01-01-004"].geocoding_status, rows["01-01-004"].latitude, rows["01-01-004"].address_line) == (
+        GEO_PENDING, None, None)
+    assert (rows["01-01-005"].geocoding_status, rows["01-01-005"].latitude, rows["01-01-005"].active) == (
+        GEO_FAILED, None, False)
+    assert (rows["01-01-006"].geocoding_status, rows["01-01-006"].latitude) == (GEO_FAILED, None)

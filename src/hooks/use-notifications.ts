@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { apiFetch } from '../lib/supabase';
 
 export interface AppNotification {
   id: string;
@@ -10,17 +11,20 @@ export interface AppNotification {
   read: boolean;
 }
 
-// ponytail: notificaciones de ejemplo (aún no hay endpoint real). El "leído" se
-// persiste en localStorage por id, no en memoria, para que sobreviva a recargas
-// (antes el estado vivía solo en useState y toda notificación volvía como no
-// leída al refrescar). Upgrade path: reemplazar el SEED por un fetch a
-// /api/notifications y el set local por un PATCH de "marcar leída" — la firma
-// del hook (items, unreadCount, markAllRead, markRead) no cambia.
-const SEED: Omit<AppNotification, 'read'>[] = [
-  { id: 'n1', icon: 'ri-route-line', iconColor: 'teal', title: 'Nueva ruta asignada', detail: 'RUT-2024-003 asignada a Carlos Rodríguez', time: 'Hace 5 minutos' },
-  { id: 'n2', icon: 'ri-checkbox-circle-line', iconColor: 'green', title: 'Entrega completada', detail: 'GDE-2024-005 entregado exitosamente', time: 'Hace 15 minutos' },
-  { id: 'n3', icon: 'ri-alert-line', iconColor: 'amber', title: 'Alerta de capacidad', detail: 'Vehículo PPU-1234 al 95% de capacidad', time: 'Hace 32 minutos' },
-];
+// Alerta de vencimiento del backend (GET /api/v1/alerts/expirations). Ya viene
+// filtrada por lo que el usuario puede ver (su país y sus módulos).
+interface ExpirationAlert {
+  type: 'carrier_contract' | 'driver_license';
+  entity_id: string;
+  name: string;
+  code?: string | null;
+  carrier_name?: string | null;
+  license_number?: string | null;
+  country_id?: string | null;
+  expiry_date: string; // YYYY-MM-DD
+  days_left: number; // < 0 = vencido hace N días; 0 = vence hoy
+  status: 'expired' | 'due_soon';
+}
 
 const READ_KEY = 'sto_notif_read';
 
@@ -41,27 +45,71 @@ function saveReadIds(ids: Set<string>): void {
   }
 }
 
-function withRead(readIds: Set<string>): AppNotification[] {
-  return SEED.map((n) => ({ ...n, read: readIds.has(n.id) }));
+/** Texto de "cuánto falta/hace" a partir de days_left. */
+function whenText(daysLeft: number): string {
+  if (daysLeft < 0) return `Venció hace ${Math.abs(daysLeft)} día${Math.abs(daysLeft) === 1 ? '' : 's'}`;
+  if (daysLeft === 0) return 'Vence hoy';
+  return `Vence en ${daysLeft} día${daysLeft === 1 ? '' : 's'}`;
+}
+
+/** Mapea una alerta de vencimiento a la notificación de la campana. */
+function toNotification(a: ExpirationAlert, read: boolean): AppNotification {
+  const expired = a.status === 'expired';
+  const esContrato = a.type === 'carrier_contract';
+  const title = esContrato
+    ? (expired ? 'Contrato vencido' : 'Contrato por vencer')
+    : (expired ? 'Licencia vencida' : 'Licencia por vencer');
+  const quien = esContrato
+    ? a.name
+    : `${a.name}${a.carrier_name ? ` (${a.carrier_name})` : ''}`;
+  return {
+    // id estable por entidad+fecha: el "leído" sobrevive mientras siga vigente;
+    // si la fecha cambia (se renovó), es una alerta nueva y vuelve a avisar.
+    id: `exp:${a.type}:${a.entity_id}:${a.expiry_date}`,
+    icon: esContrato ? 'ri-file-text-line' : 'ri-bank-card-line',
+    iconColor: expired ? 'red' : 'amber',
+    title,
+    detail: `${quien} · ${whenText(a.days_left)}`,
+    time: a.expiry_date,
+    read,
+  };
 }
 
 export function useNotifications() {
-  const [items, setItems] = useState<AppNotification[]>(() => withRead(loadReadIds()));
+  const [alerts, setAlerts] = useState<ExpirationAlert[]>([]);
+  const [readIds, setReadIds] = useState<Set<string>>(() => loadReadIds());
+
+  useEffect(() => {
+    let alive = true;
+    apiFetch('/v1/alerts/expirations')
+      .then(({ ok, body }) => {
+        if (alive && ok && Array.isArray(body?.data)) setAlerts(body.data as ExpirationAlert[]);
+      })
+      .catch(() => { /* la campana no debe romper el header si el endpoint falla */ });
+    return () => { alive = false; };
+  }, []);
+
+  const items = useMemo(
+    () => alerts.map((a) => toNotification(a, readIds.has(`exp:${a.type}:${a.entity_id}:${a.expiry_date}`))),
+    [alerts, readIds],
+  );
 
   const unreadCount = useMemo(() => items.filter((n) => !n.read).length, [items]);
 
-  const persist = (readIds: Set<string>) => {
-    saveReadIds(readIds);
-    setItems(withRead(readIds));
-  };
+  const persist = useCallback((next: Set<string>) => {
+    saveReadIds(next);
+    setReadIds(new Set(next));
+  }, []);
 
-  const markAllRead = () => persist(new Set(SEED.map((n) => n.id)));
+  const markAllRead = useCallback(() => {
+    persist(new Set(items.map((n) => n.id)));
+  }, [items, persist]);
 
-  const markRead = (id: string) => {
+  const markRead = useCallback((id: string) => {
     const next = loadReadIds();
     next.add(id);
     persist(next);
-  };
+  }, [persist]);
 
   return { items, unreadCount, markAllRead, markRead };
 }

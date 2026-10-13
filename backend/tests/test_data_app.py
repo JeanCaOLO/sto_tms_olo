@@ -33,6 +33,19 @@ def test_list_returns_rows_in_supabase_shape(data_app):
     assert calls[0][1] == ["1"]
 
 
+def test_paged_list_counts_the_total_without_paging(data_app):
+    app, fake_query, calls = data_app
+    responses = iter([[{"id": "1", "name": "A"}], [{"count": 42}]])
+    monkey_rows = lambda sql, params=(): (calls.append((sql, list(params))), next(responses))[1]  # noqa: E731
+    app.pg.query = monkey_rows
+    event = http_event("GET /api/data/{table}", path={"table": "drivers"},
+                       query={"select": "id,name", "limit": "25", "offset": "50", "count": "exact"}, user=USER)
+    body = body_of(app.handler(event, None))
+    assert body == {"data": [{"id": "1", "name": "A"}], "error": None, "count": 42}
+    assert calls[0][0].endswith("LIMIT 25 OFFSET 50")
+    assert calls[1][0].startswith("SELECT count(*)")
+
+
 def test_single_requires_exactly_one_row(data_app):
     app, fake_query, _ = data_app
     fake_query.rows = []

@@ -74,7 +74,7 @@ export interface QueueOrder {
   volume: number;          // Volumen (m³)
   itemCount: number;       // número de artículos del pedido
   observations: string;    // Observaciones (texto libre del vendedor)
-  dispatchDate: string;    // Fecha de Despacho (ISO date)
+  dispatchDate: string;    // Fecha de Entrega (ISO date)
   createdDate: string;     // Fecha de creación (ISO date)
   readyToPrepDate: string; // fecha de alisto calculada (ISO date)
   status: string;          // estado del pedido

@@ -6,7 +6,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   deactivateParty, discardNewParty, ensurePartyProfile, getProfileForCarrier,
-  listCarrierProfiles, reactivateParty,
+  listCarrierProfiles, rateTypeOverrideForCarrier, rateTypeToOverride, reactivateParty,
 } from '../partiesDataSource';
 import { db, ReadOnlyEntityError } from '../data';
 
@@ -102,5 +102,41 @@ describe('discardNewParty (T3)', () => {
     expect(await getProfileForCarrier('CARRIER_CR_2')).toBeNull();
 
     await discardNewParty('no-existe'); // nunca lanza
+  });
+});
+
+// Regresión del paso 2 de "forma de pago": la base del cálculo se hereda de
+// carriers.rate_type (sql/35) en vez del selector manual de Liquidaciones.
+describe('rateTypeOverrideForCarrier (forma de pago heredada del transportista)', () => {
+  it('sin rate_type en el carrier → null (base por defecto, como antes del cambio)', async () => {
+    // Las semillas no tienen rate_type: el override es null, así que el total
+    // no cambia respecto del comportamiento previo (lo prueban las 700+ del motor).
+    expect(await rateTypeOverrideForCarrier('CARRIER_VE_1')).toBeNull();
+  });
+
+  it('un carrier inexistente → null (no rompe el cálculo)', async () => {
+    expect(await rateTypeOverrideForCarrier('NO_EXISTE')).toBeNull();
+  });
+
+  it('mapea cada tipo calculable a su BaseOverride y descarta TENDERING / vacío', () => {
+    // La parte no trivial del cambio: qué rate_type produce override (pura).
+    expect(rateTypeToOverride('PER_KM')).toEqual({ method: 'PER_KM' });
+    expect(rateTypeToOverride('PER_UNIT')).toEqual({ method: 'PER_UNIT' });
+    expect(rateTypeToOverride('FIXED')).toEqual({ method: 'FIXED' });
+    expect(rateTypeToOverride('VOLUME')).toEqual({ method: 'VOLUME' });
+    // TENDERING existe como contrato pero no tiene cálculo → base por defecto.
+    expect(rateTypeToOverride('TENDERING')).toBeNull();
+    // Vacío, null o valor desconocido → base por defecto (no rompe el cálculo).
+    expect(rateTypeToOverride('')).toBeNull();
+    expect(rateTypeToOverride(null)).toBeNull();
+    expect(rateTypeToOverride('BASURA')).toBeNull();
+  });
+
+  it('tarifa fija con monto del transportista lleva el monto; sin monto o en otro tipo, no', () => {
+    expect(rateTypeToOverride('FIXED', '150000')).toEqual({ method: 'FIXED', amount: '150000' });
+    expect(rateTypeToOverride('FIXED', 0)).toEqual({ method: 'FIXED', amount: '0' });
+    expect(rateTypeToOverride('FIXED', null)).toEqual({ method: 'FIXED' });
+    expect(rateTypeToOverride('FIXED', '')).toEqual({ method: 'FIXED' });
+    expect(rateTypeToOverride('PER_KM', '150000')).toEqual({ method: 'PER_KM' });
   });
 });

@@ -8,6 +8,11 @@ Formato: Codigo,Cliente,Zona,Ruta,Latitud,Longitud. Reglas de limpieza
 - Coordenadas fuera de Costa Rica = basura del geocodificador -> sin
   coordenadas, estado FAILED. Nunca se guardan coordenadas inválidas.
 - Ruta -> código de zona con 2 dígitos ("6" -> "06"); la Zona WMS va tal cual.
+
+Formato ya limpio (ingesta de Venezuela, 2026-10-12): codigo,nombre,direccion,
+latitud,longitud,geocoding_status,geo_note,activo. Trae su propio estado de
+geocodificación: si no es OK se carga sin coordenadas; si es OK igual se valida
+contra la caja del país del cliente. No trae zona ni ruta.
 """
 
 import csv
@@ -16,9 +21,11 @@ from pathlib import Path
 
 WMS_NUMERIC_CODE_LENGTH = 9
 ZONE_CODE_LENGTH = 2
-# Caja aproximada de Costa Rica (lat, lon).
-CR_LAT = (8.0, 11.3)
-CR_LON = (-86.0, -82.5)
+# Caja aproximada de cada país (lat, lon), por countries.code.
+COUNTRY_BOXES = {
+    "CR": ((8.0, 11.3), (-86.0, -82.5)),
+    "VN": ((0.5, 12.3), (-73.5, -59.5)),  # Venezuela (countries.code = VN)
+}
 
 GEO_OK = "OK"
 GEO_PENDING = "PENDING"
@@ -35,6 +42,8 @@ class DeliveryPointRow:
     latitude: float | None
     longitude: float | None
     geocoding_status: str
+    address_line: str | None = None
+    active: bool = True
 
 
 def normalize_code(raw: str) -> str:
@@ -49,11 +58,12 @@ def _number(raw: str) -> float | None:
         return None
 
 
-def classify_coordinates(raw_lat: str, raw_lon: str) -> tuple[float | None, float | None, str]:
+def classify_coordinates(raw_lat: str, raw_lon: str, country: str = "CR") -> tuple[float | None, float | None, str]:
     lat, lon = _number(raw_lat), _number(raw_lon)
     if lat is None or lon is None or (lat == 0 and lon == 0):
         return None, None, GEO_PENDING
-    inside = CR_LAT[0] <= lat <= CR_LAT[1] and CR_LON[0] <= lon <= CR_LON[1]
+    (lat_min, lat_max), (lon_min, lon_max) = COUNTRY_BOXES[country]
+    inside = lat_min <= lat <= lat_max and lon_min <= lon <= lon_max
     return (lat, lon, GEO_OK) if inside else (None, None, GEO_FAILED)
 
 
@@ -67,8 +77,30 @@ def _text_or_none(raw: str | None) -> str | None:
     return value or None
 
 
-def parse_row(record: dict) -> DeliveryPointRow:
-    lat, lon, status = classify_coordinates(record.get("Latitud", ""), record.get("Longitud", ""))
+def parse_clean_row(record: dict, country: str) -> DeliveryPointRow:
+    status = (record.get("geocoding_status") or "").strip() or GEO_PENDING
+    if status == GEO_OK:
+        lat, lon, status = classify_coordinates(record.get("latitud", ""), record.get("longitud", ""), country)
+    else:
+        lat = lon = None
+    return DeliveryPointRow(
+        code=record["codigo"].strip(),
+        name=record["nombre"].strip(),
+        wms_zone_code=None,
+        route_code=None,
+        zone_code=None,
+        latitude=lat,
+        longitude=lon,
+        geocoding_status=status,
+        address_line=_text_or_none(record.get("direccion")),
+        active=(record.get("activo") or "S").strip().upper() != "N",
+    )
+
+
+def parse_row(record: dict, country: str = "CR") -> DeliveryPointRow:
+    if "codigo" in record:
+        return parse_clean_row(record, country)
+    lat, lon, status = classify_coordinates(record.get("Latitud", ""), record.get("Longitud", ""), country)
     return DeliveryPointRow(
         code=normalize_code(record["Codigo"]),
         name=record["Cliente"].strip().strip('"').strip(),
@@ -81,9 +113,10 @@ def parse_row(record: dict) -> DeliveryPointRow:
     )
 
 
-def read_rows(path: Path) -> list[DeliveryPointRow]:
+def read_rows(path: Path, country: str = "CR") -> list[DeliveryPointRow]:
     with path.open(encoding="utf-8-sig", newline="") as handle:
-        parsed = [parse_row(record) for record in csv.DictReader(handle) if (record.get("Codigo") or "").strip()]
+        parsed = [parse_row(record, country) for record in csv.DictReader(handle)
+                  if (record.get("Codigo") or record.get("codigo") or "").strip()]
     rows = [row for row in parsed if row.name]  # un punto sin nombre no se carga (decisión 2026-09-24)
     codes = [row.code for row in rows]
     duplicated = {code for code in codes if codes.count(code) > 1}

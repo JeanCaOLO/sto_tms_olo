@@ -13,7 +13,7 @@
 import { calculate, listBaseMethods, type BaseMethodOption } from './index';
 import { CatalogError, loadTarifasCatalog, type TarifasCatalog } from './catalogLoader';
 import { buildCustomVarFields, missingDeclaredVars, type CustomVarField } from './customVarFields';
-import { getProfileForCarrierCached } from './partiesDataSource';
+import { getProfileForCarrierCached, rateTypeOverrideForCarrier } from './partiesDataSource';
 import { detectMissingLogic, noLogicMessage, noRuleApplied, type NoLogicInfo } from './missingLogic';
 import { buildCalculateInput } from './settlementInput';
 import { emptyTripEdits, notLiquidableReason, toTripContext } from './tripContext';
@@ -116,6 +116,14 @@ export async function calculateTrip(
   const profile = trip.carrierId ? await getProfileForCarrierCached(trip.carrierId, { fresh: options.fresh }) : null;
   const partyId = profile && profile.status !== 'inactive' ? profile.id : null;
 
+  // Forma de pago heredada del transportista (carriers.rate_type, sql/35): si la
+  // UI no fuerza una base, la base del cálculo es la que define el catálogo de
+  // Transportistas. Reemplaza al selector manual que vivía en Liquidaciones.
+  const carrierBase = trip.carrierId
+    ? await rateTypeOverrideForCarrier(trip.carrierId, { fresh: options.fresh })
+    : null;
+  const baseOverride = options.baseOverride ?? carrierBase;
+
   let catalog: TarifasCatalog;
   try {
     catalog = await loadTarifasCatalog(trip.countryId, partyId, { fresh: options.fresh });
@@ -141,7 +149,7 @@ export async function calculateTrip(
     ...(cargo ? { cargo } : {}),
     ...(options.overrides ? { overrides: options.overrides } : {}),
     ...(options.adhocRules ? { adhocRules: options.adhocRules } : {}),
-    ...(options.baseOverride ? { baseOverride: options.baseOverride } : {}),
+    ...(baseOverride ? { baseOverride } : {}),
   });
 
   // Con un problema de armado (p.ej. zona inexistente) el motor no puede correr: se devuelve un

@@ -117,7 +117,7 @@ export function buildWhereClause(table, alias, filters, startParamIndex = 1) {
   return { clause: clauses.join(" AND "), params };
 }
 
-export function buildListQuery({ table, select, filters, order, limit }) {
+export function buildListQuery({ table, select, filters, order, limit, offset }) {
   embedCounter = 0;
   const alias = "t";
   const nodes = parseSelect(select);
@@ -134,6 +134,11 @@ export function buildListQuery({ table, select, filters, order, limit }) {
     const n = Number(limit);
     if (!Number.isInteger(n) || n < 0) throw new HttpError(400, "limit inválido");
     sql += ` LIMIT ${n}`;
+  }
+  if (offset != null) {
+    const n = Number(offset);
+    if (!Number.isInteger(n) || n < 0) throw new HttpError(400, "offset inválido");
+    sql += ` OFFSET ${n}`;
   }
   return { sql, params };
 }

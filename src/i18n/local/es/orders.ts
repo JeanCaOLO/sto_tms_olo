@@ -6,7 +6,7 @@ export default {
   'orders.empty': 'No hay pedidos',
   'orders.colOrder': 'Pedido',
   'orders.colCustomer': 'Cliente',
-  'orders.colStore': 'Tienda',
+  'orders.colStore': 'Almacenes',
   'orders.colDeliveryDate': 'Fecha Entrega',
   'orders.colWeightVolume': 'Peso/Volumen',
   'orders.colAmount': 'Monto',

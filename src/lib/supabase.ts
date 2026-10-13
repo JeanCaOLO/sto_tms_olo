@@ -96,6 +96,7 @@ class QueryBuilder implements PromiseLike<PgResult> {
   private filters: Filter[] = [];
   private orderSpec: { column: string; ascending: boolean } | null = null;
   private limitVal: number | null = null;
+  private offsetVal: number | null = null;
   private singleMode: "single" | "maybeSingle" | null = null;
   private wantCount: string | null = null;
   private headOnly = false;
@@ -151,6 +152,11 @@ class QueryBuilder implements PromiseLike<PgResult> {
     this.filters.push([column, "in", values]);
     return this;
   }
+  /** Búsqueda case-insensitive. `column` admite "a|b" para OR entre columnas. El `%` lo pone el llamador. */
+  ilike(column: string, pattern: string) {
+    this.filters.push([column, "ilike", pattern]);
+    return this;
+  }
 
   order(column: string, opts?: { ascending?: boolean }) {
     this.orderSpec = { column, ascending: opts?.ascending !== false };
@@ -159,6 +165,20 @@ class QueryBuilder implements PromiseLike<PgResult> {
 
   limit(n: number) {
     this.limitVal = n;
+    return this;
+  }
+
+  /**
+   * Paginación servidor estilo supabase-js: filas en el rango inclusivo
+   * [from, to]. Manda offset=from y limit=to-from+1 a /api/data. Combinar con
+   * .select(cols, { count: 'exact' }) para recibir el total sin paginar en
+   * `count`. El backend genérico `/api/data` respeta `offset` desde 2026-10-12.
+   */
+  range(from: number, to: number) {
+    const start = Math.max(0, Math.trunc(from));
+    const end = Math.max(start, Math.trunc(to));
+    this.offsetVal = start;
+    this.limitVal = end - start + 1;
     return this;
   }
 
@@ -232,6 +252,7 @@ class QueryBuilder implements PromiseLike<PgResult> {
       if (this.filters.length) params.set("filters", JSON.stringify(this.filters));
       if (this.orderSpec) params.set("order", JSON.stringify(this.orderSpec));
       if (this.limitVal != null) params.set("limit", String(this.limitVal));
+      if (this.offsetVal != null) params.set("offset", String(this.offsetVal));
       if (this.headOnly) params.set("head", "true");
       if (this.wantCount) params.set("count", this.wantCount);
       if (this.singleMode === "single") params.set("single", "true");
