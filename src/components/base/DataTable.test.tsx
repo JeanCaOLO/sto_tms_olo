@@ -285,7 +285,7 @@ describe('DataTable selección de filas', () => {
     fireEvent.click(screen.getByLabelText('Marcar fila 3')); // EPA
     expect(screen.getByText('Acción sobre 1,3')).toBeTruthy();
     fireEvent.click(document.querySelector('.ri-filter-3-fill')!.closest('button')!);
-    fireEvent.click(within(document.querySelector('.absolute.z-20') as HTMLElement).getByLabelText('EPA')); // solo EPA
+    fireEvent.click(within(document.querySelector('.fixed.z-50') as HTMLElement).getByLabelText('EPA')); // solo EPA
     expect(screen.getByText('1 seleccionado')).toBeTruthy();
     expect(screen.getByText('Acción sobre 3')).toBeTruthy();
   });
