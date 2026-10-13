@@ -49,7 +49,11 @@ export function buildRuleCandidate(input: CandidateInput) {
 
 export type RuleCandidate = ReturnType<typeof buildRuleCandidate>;
 
-/** La fila que va a la base (snake_case); una edición sube la versión. */
+/**
+ * La fila que va a la base (snake_case); una edición sube la versión. Solo lleva columnas de
+ * `tarifas_pricing_rules`: el backend rechaza con 400 cualquier campo que la tabla no tenga (por eso no
+ * hay `updated_at`; la fecha del cambio queda en la bitácora).
+ */
 export function toRulePayload(candidate: RuleCandidate, countryId: string, isEdit: boolean) {
   return {
     country_id: countryId || null,
@@ -73,7 +77,6 @@ export function toRulePayload(candidate: RuleCandidate, countryId: string, isEdi
     effective_from: candidate.effectiveFrom,
     effective_to: candidate.effectiveTo,
     version: isEdit ? candidate.version + 1 : 1,
-    updated_at: new Date().toISOString(),
   };
 }
 

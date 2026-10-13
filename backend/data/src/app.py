@@ -66,7 +66,7 @@ def _body(event: dict) -> dict:
     return body if isinstance(body, dict) else {}
 
 
-def _shape(rows: list[dict], params: dict) -> dict:
+def _shape(rows: list[dict], params: dict, total: int | None = None) -> dict:
     data: object = rows
     if params.get("single") == "true":
         if len(rows) != 1:
@@ -76,7 +76,7 @@ def _shape(rows: list[dict], params: dict) -> dict:
         data = rows[0] if rows else None
     result = {"data": data, "error": None}
     if params.get("count") == "exact":
-        result["count"] = len(rows)
+        result["count"] = len(rows) if total is None else total
     return result
 
 
@@ -87,12 +87,20 @@ def list_rows(event: dict) -> dict:
     filters = _readable(event, table, caller, parse_json_param(params.get("filters"), "filters") or [])
     countries = caller.country_filter
     if params.get("head") == "true":
-        sql, args = build_count_query(table, filters, countries)
-        total = pg.query(sql, args)[0]["count"]
-        return json_response(200, {"data": None, "count": total, "error": None})
+        return json_response(200, {"data": None, "count": _total(table, filters, countries), "error": None})
     order = parse_json_param(params.get("order"), "order")
-    sql, args = build_list_query(table, params.get("select") or "*", filters, order, params.get("limit"), countries)
-    return json_response(200, _shape(pg.query(sql, args), params))
+    sql, args = build_list_query(table, params.get("select") or "*", filters, order, params.get("limit"), countries,
+                                 params.get("offset"))
+    rows = pg.query(sql, args)
+    # Con página (limit/offset) el count es el total SIN paginar, para "página X de N".
+    paged = params.get("limit") is not None or params.get("offset") is not None
+    total = _total(table, filters, countries) if params.get("count") == "exact" and paged else None
+    return json_response(200, _shape(rows, params, total))
+
+
+def _total(table: str, filters: list, countries: tuple[str, ...] | None) -> int:
+    sql, args = build_count_query(table, filters, countries)
+    return pg.query(sql, args)[0]["count"]
 
 
 def _mutation_response(rows: list[dict], body: dict) -> dict:

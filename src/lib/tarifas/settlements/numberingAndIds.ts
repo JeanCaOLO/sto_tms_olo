@@ -1,6 +1,6 @@
 // Generación de IDs y números de liquidación.
 
-import { db } from '../data';
+import { db, findMany } from '../data';
 
 /**
  * Siguiente número de liquidación del país: `LIQ-VE-001`, `LIQ-CR-001`… (código del país en el medio,
@@ -29,10 +29,12 @@ export function newSettlementId(): string {
 }
 
 export async function nextNumber(countryId: string): Promise<string> {
-  // Solo la columna del número: antes traía cada liquidación entera, con sus JSONB, para sacar un máximo.
-  const [rows, country] = await Promise.all([
-    db().find('settlement', { where: [{ column: 'country_id', op: 'eq', value: countryId }], columns: ['number'] }),
-    db().findOne('country', countryId),
+  // Solo la columna del número (antes traía cada liquidación entera, con sus JSONB, para sacar un máximo),
+  // y el país junto con ella en una sola llamada (/batch).
+  const [rows, countries] = await findMany(db(), [
+    { entity: 'settlement', options: { where: [{ column: 'country_id', op: 'eq', value: countryId }], columns: ['number'] } },
+    { entity: 'country', options: { where: [{ column: 'id', op: 'eq', value: countryId }], limit: 1 } },
   ]);
+  const country = countries[0];
   return nextSettlementNumber(rows.map((r) => String(r.number)), country ? String(country.code ?? '') : null);
 }

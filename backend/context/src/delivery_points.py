@@ -16,7 +16,10 @@ import delivery_points_sql as sql
 from scopes import authorize
 
 ADDRESS_FIELDS = ("line1", "line2", "city", "state")
-POINT_FIELDS = ("name", "delivery_instructions", "zone_id", "route_code", "active")
+POINT_FIELDS = ("name", "delivery_instructions", "contact_phone", "zone_id", "zone_source", "route_code", "active")
+# Zona del punto (sql/34): elegir una zona la deja 'manual'; mandar zone_source='map'
+# la devuelve a automática (la calcula la cerca del mapa). 'wms' solo la pone la ingesta.
+EDITABLE_ZONE_SOURCES = ("map", "manual")
 GEO_OK, GEO_PENDING = "OK", "PENDING"
 LAT_RANGE, LON_RANGE = (-90.0, 90.0), (-180.0, 180.0)
 MODULE = "puntos_entrega"
@@ -96,7 +99,8 @@ def create_point(event: dict) -> dict:
             raise HttpError(409, f'El cliente ya tiene un punto de entrega con código "{code}".')
         address_id = run(sql.INSERT_ADDRESS_SQL, [country, *address])[0]["id"]
         point_id = run(sql.INSERT_POINT_SQL, [fc_id, address_id, code, name, body.get("delivery_instructions"),
-                                             body.get("zone_id") or None, body.get("route_code") or None, fc_id])[0]["id"]
+                                             body.get("contact_phone") or None, body.get("zone_id") or None,
+                                             body.get("route_code") or None, fc_id])[0]["id"]
     return _ok(_point(str(point_id)))
 
 
@@ -112,6 +116,9 @@ def update_point(event: dict) -> dict:
     fields = {key: (body[key] or None) if key != "active" else bool(body[key]) for key in POINT_FIELDS if key in body}
     if "name" in fields and not fields["name"]:
         raise HttpError(400, "El nombre es obligatorio")
+    if "zone_source" in fields and fields["zone_source"] not in EDITABLE_ZONE_SOURCES:
+        raise HttpError(400, "zone_source debe ser 'map' (automática) o 'manual'")
+    _drop_unchanged_zone(fields, point)
     with pg.transaction() as run:
         if fields:
             assignments = ", ".join(f"{column} = %s" for column in fields)
@@ -120,6 +127,16 @@ def update_point(event: dict) -> dict:
         if isinstance(body.get("address"), dict) and point["address_id"]:
             run(sql.UPDATE_ADDRESS_SQL, [*_address_values(body["address"]), point["address_id"]])
     return _ok(_point(str(point["id"])))
+
+
+def _drop_unchanged_zone(fields: dict, point: dict) -> None:
+    """El formulario manda la zona en cada guardado. Si llega 'manual' con la MISMA zona que
+    ya tiene el punto, no es una elección nueva: se quita para no convertir un punto 'wms'
+    en 'manual' (perdería el origen y la ingesta del WMS dejaría de actualizarlo)."""
+    same_zone = str(fields.get("zone_id") or "") == str(point.get("zone_id") or "")
+    if fields.get("zone_source") == "manual" and same_zone:
+        fields.pop("zone_source")
+        fields.pop("zone_id", None)
 
 
 def delete_point(event: dict) -> dict:

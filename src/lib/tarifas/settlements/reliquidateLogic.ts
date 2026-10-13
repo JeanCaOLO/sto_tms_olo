@@ -8,12 +8,14 @@ import { buildRowValues } from './buildRowValues';
 import { mapToDomain } from './mapToDomain';
 import { nextNumber, newSettlementId } from './numberingAndIds';
 import { resumen } from './summary';
-import type { EmitSettlementResult, SettlementInput } from '../types';
+import type { EmitSettlementResult, SettlementInput, TripRecord } from '../types';
 
 interface ValidationResult {
   error: string | null;
   errorType: 'invalid' | 'blocked' | 'failed' | null;
   actual: Row | null;
+  /** El viaje ya leído al validar: no se vuelve a pedir. */
+  trip?: TripRecord;
 }
 
 async function validateBeforeReliquiudate(currentId: string, input: SettlementInput, reason: string): Promise<ValidationResult> {
@@ -38,7 +40,7 @@ async function validateBeforeReliquiudate(currentId: string, input: SettlementIn
     return { error: notLiquidableReason(trip) ?? 'El viaje no está completado.', errorType: 'blocked', actual: null };
   }
 
-  return { error: null, errorType: null, actual };
+  return { error: null, errorType: null, actual, trip };
 }
 
 export async function attemptReliquidate(
@@ -58,7 +60,7 @@ export async function attemptReliquidate(
   }
   const actual = validation.actual!;
 
-  const trip = (await getTrip(input.trip.id))!;
+  const trip = validation.trip!;
   const ahora = new Date().toISOString();
 
   let saved;

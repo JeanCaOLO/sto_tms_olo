@@ -74,7 +74,7 @@ describe('calcularPrioridad', () => {
       HOY,
     );
     expect(r.prioridad).toBe(3);
-    expect(r.appliedRules).toEqual([{ name: 'Regla T-1 (fecha de despacho)', weight: 1 }]);
+    expect(r.appliedRules).toEqual([{ name: 'Regla T-1 (fecha de entrega)', weight: 1 }]);
   });
 
   it('ignora una fecha_planificada con formato inválido y usa el fallback', () => {

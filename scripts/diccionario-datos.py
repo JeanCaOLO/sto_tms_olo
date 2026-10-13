@@ -1,6 +1,6 @@
 """Genera docs/reference/diccionario-datos-tms-olo.md leyendo la estructura REAL de Aurora (tms_olo).
 
-Solo lectura: abre una sesión read-only con el rol de la app (TMS_DB_USER / TMS_DB_PASSWORD del .env)
+Solo lectura: abre una sesión read-only con el rol de la app (TMS_DB_USER / TMS_DB_PASSWORD de .env o .env.local)
 a través del túnel SSM (scripts/tunel-aurora.ps1, 127.0.0.1:15432). No lee ni escribe datos de negocio:
 solo el catálogo de PostgreSQL y un count(*) por tabla.
 
@@ -118,7 +118,9 @@ SCHEMAS = ("n.nspname not in ('pg_catalog','information_schema','pg_toast') "
 
 def leer_env():
     env = {}
-    for line in (ROOT / ".env").read_text(encoding="utf-8").splitlines():
+    # La conexión vive en .env.local (convención actual); .env queda por compatibilidad.
+    path = next((ROOT / name for name in (".env", ".env.local") if (ROOT / name).exists()), ROOT / ".env")
+    for line in path.read_text(encoding="utf-8").splitlines():
         m = re.match(r"\s*(TMS_DB_\w+)\s*=\s*(.*)", line)
         if m:
             env[m.group(1)] = m.group(2).strip().strip('"').strip("'")

@@ -10,6 +10,7 @@ import {
   type PartyClassification,
   type SettlementPartyRow,
 } from './parties';
+import type { BaseMethodId, BaseOverride } from './types';
 
 export type EnsureProfileResult =
   | { status: 'saved'; partyId: string; created: boolean }
@@ -90,6 +91,59 @@ export async function getProfileForCarrierCached(
   return entry.promise;
 }
 
+// Formas de pago que el motor sabe calcular como base. TENDERING existe como
+// tipo de contrato pero todavía no tiene cálculo (baseMethods.ts lo marca
+// no disponible): un carrier con TENDERING cae a la base por defecto, no se
+// fuerza como override (forzarlo daría una base sin fórmula).
+const CALCULABLE_RATE_TYPES = new Set<BaseMethodId>(['PER_KM', 'PER_UNIT', 'FIXED', 'VOLUME']);
+
+/**
+ * Convierte el `carriers.rate_type` crudo en el `BaseOverride` a aplicar, o null si no hay forma de
+ * pago calculable (vacío, TENDERING o un valor desconocido). Puro y testeable sin tocar la BD.
+ */
+export function rateTypeToOverride(rateType: unknown, flatRateAmount?: unknown): BaseOverride | null {
+  if (typeof rateType !== 'string' || !CALCULABLE_RATE_TYPES.has(rateType as BaseMethodId)) return null;
+  const method = rateType as BaseMethodId;
+  // Tarifa fija con monto pactado (carriers.flat_rate_amount, sql/36): ese monto ES la base. Sin
+  // monto, FIXED sigue saliendo de las reglas FIXED del catálogo, como antes.
+  const amount = flatRateAmount === null || flatRateAmount === undefined ? '' : String(flatRateAmount).trim();
+  return method === 'FIXED' && amount !== '' ? { method, amount } : { method };
+}
+
+/**
+ * Base de cálculo heredada del transportista (`carriers.rate_type`, sql/35), o null si el
+ * transportista no tiene forma de pago asignada (o es TENDERING, sin cálculo todavía). Es lo que
+ * reemplaza al selector manual de "forma de pago" que vivía en Liquidaciones: la base la define el
+ * catálogo de Transportistas.
+ */
+export async function rateTypeOverrideForCarrier(
+  carrierId: string,
+  options: { fresh?: boolean } = {},
+): Promise<BaseOverride | null> {
+  const carrier = await getCarrierCached(carrierId, options);
+  return rateTypeToOverride(carrier?.rate_type, carrier?.flat_rate_amount);
+}
+
+// Caché corta del transportista (igual criterio que el perfil): su rate_type casi no cambia y cada
+// recálculo de la liquidación lo pediría de nuevo. Se descarta cuando esta sesión escribe un carrier.
+const CARRIER_TTL_MS = 5 * 60_000;
+const carrierCache = new Map<string, { at: number; promise: Promise<Record<string, unknown> | null> }>();
+onDataWrite((touched) => { if (touched.has('carrier')) carrierCache.clear(); });
+
+async function getCarrierCached(
+  carrierId: string,
+  options: { fresh?: boolean } = {},
+): Promise<Record<string, unknown> | null> {
+  const read = () => db().findOne('carrier', carrierId) as Promise<Record<string, unknown> | null>;
+  if (db().kind !== 'http') return read();
+  const hit = carrierCache.get(carrierId);
+  if (!options.fresh && hit && Date.now() - hit.at < CARRIER_TTL_MS) return hit.promise;
+  const entry = { at: Date.now(), promise: read() };
+  carrierCache.set(carrierId, entry);
+  entry.promise.catch(() => { if (carrierCache.get(carrierId) === entry) carrierCache.delete(carrierId); });
+  return entry.promise;
+}
+
 /**
  * Devuelve el perfil del transportista, creándolo si todavía no existe. Es lo que llama una
  * pantalla antes de guardar la primera variable, estructura de costos o tarifario del transportista.
@@ -120,6 +174,19 @@ export async function ensurePartyProfile(carrierId: string): Promise<EnsureProfi
       if (again) return { status: 'saved', partyId: again.id, created: false };
     }
     return { status: 'failed', error: { message: message(error) } };
+  }
+}
+
+/**
+ * Deshace un perfil recién creado por `ensurePartyProfile` cuando lo que lo motivó no se pudo guardar
+ * (T3): sin esto la compañía quedaba «Configurada» sin nada configurado. Solo borra el perfil si está vacío:
+ * una clave foránea que lo use hace fallar el borrado y el perfil se conserva. Nunca lanza.
+ */
+export async function discardNewParty(partyId: string): Promise<void> {
+  try {
+    await db().delete('settlementParty', partyId);
+  } catch (error) {
+    console.error('No se pudo deshacer el perfil recién creado:', error);
   }
 }
 

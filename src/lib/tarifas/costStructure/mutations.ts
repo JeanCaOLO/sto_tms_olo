@@ -3,6 +3,7 @@
 import { db, type Row } from '../data';
 import type { CostStructure } from '../types';
 import { toCostStructure, toCostStructureRow } from './schema';
+import { newId } from './ids';
 import { validateStructure } from './validation';
 import type {
   CostRowInput, CostStructureInput, SaveStructureResult, ApplyTemplateInput, ApplyTemplateResult,
@@ -45,9 +46,11 @@ export async function saveStructure(
         }
       }
 
+      // El id se genera acá: con el driver HTTP, `tx.insert` devuelve lo enviado y sin id el
+      // llamador (`ensureStructure`) seguiría con `structure.id === undefined`.
       const saved = id
         ? await tx.update('costStructure', id, values)
-        : await tx.insert('costStructure', values);
+        : await tx.insert('costStructure', { id: newId('cstr'), ...values });
       return { status: 'saved' as const, structure: toCostStructure(saved) };
     });
   } catch (error) {

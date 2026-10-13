@@ -12,8 +12,9 @@ import {
 } from '../datasource';
 import { entityDef, type EntityName } from '../schema';
 import { notifyWrite } from '../writeEvents';
-import { ApiError, isUnsupported, markUnsupported, readError, throwTransactionError } from './errors';
+import { ApiError, isUnsupported, markUnsupported, readError } from './errors';
 import { postBatches } from './batch';
+import { sendTransaction } from './transaction';
 import {
   DEFAULT_RETRIES, DEFAULT_RETRY_DELAY_MS, DEFAULT_TIMEOUT_MS, MAX_QUERY_URL_CHARS, fetchWithRetry,
   type HttpDataSourceOptions, type RequestInit, type TransportConfig, type TxOperation,
@@ -222,18 +223,7 @@ export class HttpDataSource implements DataSource {
     const result = await fn(new HttpDataSource(this.options, operations, touched));
 
     if (operations.length > 0) {
-      // Sin reintentos: una transacción repetida a ciegas podría aplicarse dos veces.
-      const response = await fetchWithRetry(
-        this.transport,
-        `${this.baseUrl}/tarifas/tx`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...this.headers() },
-          body: JSON.stringify({ ops: operations }),
-        },
-        false,
-      );
-      if (!response.ok) await throwTransactionError(response);
+      await sendTransaction(this.transport, this.options, `${this.baseUrl}/tarifas/tx`, this.headers(), operations, this.flag('insert_many'));
       notifyWrite(touched);
     }
     return result;

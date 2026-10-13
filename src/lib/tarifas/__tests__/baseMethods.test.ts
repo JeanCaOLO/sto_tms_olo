@@ -101,6 +101,32 @@ describe('cambiar la base reemplaza solo la base', () => {
     expect(r.totalLiquidado).toBe('110.00');
   });
 
+  it('tarifa fija con monto del transportista: ese monto es la base y reemplaza las reglas BASE', () => {
+    const recargo = makeRule({ code: 'RECARGO', stage: 'SURCHARGE', expression: { op: 'FIXED', amount: '10' } });
+    const r = calculate(input({ rules: [porKm(), fija(), recargo], baseOverride: { method: 'FIXED', amount: '250' } }));
+    expect(r.blockingIssues).toEqual([]);
+    expect(r.base?.source.kind).toBe('CARRIER');
+    expect(r.base?.replaced).toEqual(expect.arrayContaining(['BASE_KM']));
+    expect(r.trace.filter((l) => l.stage === 'BASE').map((l) => [l.ruleCode, l.final]))
+      .toEqual([['BASE_FIJA_TRANSPORTISTA', '250.00']]);
+    expect(r.totalLiquidado).toBe('260.00');
+    expect(sourceSentence(r.base!.source)).toBe('Este cálculo está basado en la tarifa fija del transportista.');
+  });
+
+  it('tarifa fija con monto del transportista no necesita una regla FIXED en el catálogo', () => {
+    const r = calculate(input({ rules: [porKm()], baseOverride: { method: 'FIXED', amount: '80' } }));
+    expect(r.blockingIssues).toEqual([]);
+    expect(r.totalLiquidado).toBe('80.00');
+  });
+
+  it('un monto ilegible o negativo cae a la regla FIXED del catálogo', () => {
+    for (const amount of ['-5', 'abc']) {
+      const r = calculate(input({ rules: [fija()], baseOverride: { method: 'FIXED', amount } }));
+      expect(r.base?.source.kind).toBe('RULE');
+      expect(r.totalLiquidado).toBe('100.00');
+    }
+  });
+
   it('por unidad no choca con una regla por km de otra fase', () => {
     const porParada = makeRule({
       code: 'BASE_PARADA', stage: 'BASE', expression: { op: 'PER_UNIT', unit: 'clientCount', rate: '3' },

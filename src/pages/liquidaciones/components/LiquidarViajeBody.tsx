@@ -6,7 +6,8 @@ import { CalculationContent } from './CalculationContent';
 import { CalculationSidebar } from './CalculationSidebar';
 
 const SHOW_ORDERS_REASON = 'Cada guía lleva un pedido. Anular saca el pedido del reparto; '
-  + '"Liquidar después" lo deja con su proforma pendiente. Ninguna de las dos cambia lo que se le paga al transportista.';
+  + '"Liquidar después" lo deja con su proforma pendiente. Ninguna de las dos cambia lo que se le paga al transportista. '
+  + 'Las marcas se guardan al momento: siguen ahí aunque cierres sin emitir.';
 
 interface Props {
   ctrl: LiquidarViajeController;
@@ -48,10 +49,6 @@ export function LiquidarViajeBody({ ctrl, simple, blocking, currency }: Props) {
             setExcludedSeqs(new Set());
             return ctrl.runCalc(ctrl.lastEdits.current);
           }}
-          baseMethod={ctrl.baseMethod}
-          onBaseChange={(m) => ctrl.changeBase(m)}
-          onBaseRuleCreated={() => ctrl.changeBase(ctrl.baseMethod, { fresh: true })}
-          baseBusy={ctrl.pending || ctrl.saving}
           showOrdersReason={SHOW_ORDERS_REASON}
         />
       </div>

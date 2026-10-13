@@ -37,7 +37,7 @@ describe('solo lectura de la configuración', () => {
   it('la lista de reglas ofrece «Ver» y no «Editar» ni «Eliminar»', () => {
     const rules = [{ id: 'R1', code: 'R1', name: 'Regla 1', scope: 'COUNTRY', stacking: 'SUM', active: true }];
     render(<MemoryRouter><RulesSection rules={rules} parties={[]} loading={false} canCreate={false} canEdit={false} canDelete={false}
-      onNew={() => {}} onEdit={() => {}} onDelete={() => {}} /></MemoryRouter>);
+      onNew={() => {}} onEdit={() => {}} onDelete={() => {}} onBulk={() => {}} /></MemoryRouter>);
     expect(screen.getByTitle('Ver')).toBeTruthy();
     expect(screen.queryByTitle('Editar')).toBeNull();
     expect(screen.queryByTitle('Eliminar')).toBeNull();
