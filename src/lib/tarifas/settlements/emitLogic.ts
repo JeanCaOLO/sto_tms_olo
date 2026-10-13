@@ -2,7 +2,6 @@
 
 import { db, UniqueViolationError } from '../data';
 import { notLiquidableReason } from '../tripContext';
-import { getTrip } from '../tripsDataSource';
 import { auditar } from './audit';
 import { buildRowValues } from './buildRowValues';
 import { mapToDomain } from './mapToDomain';
@@ -40,11 +39,4 @@ export async function attemptEmit(input: SettlementInput, trip: TripRecord): Pro
 
   await auditar('CREATE', String(saved.id), null, resumen(saved), undefined);
   return { status: 'saved', settlement: mapToDomain(saved) };
-}
-
-export async function validateAndReload(input: SettlementInput): Promise<EmitSettlementResult | null> {
-  // Se relee el viaje: entre que se abrió la pantalla y se emite, pudo cambiar o liquidarse.
-  const trip = await getTrip(input.trip.id);
-  if (!trip) return { status: 'blocked', issues: [{ code: 'BASE_NO_DISPONIBLE', message: 'El viaje ya no existe.' }] };
-  return null; // OK, viaje existe y puede recargarse
 }

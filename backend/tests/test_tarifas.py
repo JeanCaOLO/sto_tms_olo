@@ -427,3 +427,90 @@ def test_pg_conserva_el_sqlstate_de_integridad():
     assert (translated.status, translated.code) == (409, "23503")
     other = pg._database_error(pg8000.dbapi.DatabaseError({"C": "42P01", "M": "no existe"}))
     assert (other.status, other.code) == (500, None)
+
+
+# ── Transacción: insert_many ───────────────────────────────────────────────────────────────────
+
+def _fila(n, **extra):
+    return {"table_id": "t1", "key": [f"Z{n}"], "amount": f"{n}.00", "row_order": n, **extra}
+
+
+def test_insert_many_inserta_cientos_de_filas_en_una_sola_sentencia(api):
+    app, db = api
+    rows = [_fila(n) for n in range(1, 351)]
+    response = call(app, "POST /api/tarifas/tx", body={"ops": [{"op": "insert_many", "table": "tarifas_rate_table_rows", "rows": rows}]})
+    assert response["statusCode"] == 200
+    assert db.tx_state == "commit"
+    assert len(db.tx_calls) == 1
+    sql, params = db.tx_calls[0]
+    assert sql.startswith('INSERT INTO "tarifas_rate_table_rows"') and sql.endswith("RETURNING *")
+    assert sql.count("(%s::") >= 350  # una tupla de placeholders por fila
+    assert len(params) % 350 == 0 and len(params) // 350 == len(rows[0]) + 1  # + el id generado
+
+
+def test_insert_many_conserva_el_orden_y_genera_los_ids(api):
+    app, db = api
+    rows = [_fila(n) for n in (3, 1, 2)]
+    call(app, "POST /api/tarifas/tx", body={"ops": [{"op": "insert_many", "table": "tarifas_rate_table_rows", "rows": rows}]})
+    sql, params = db.tx_calls[0]
+    columns = [c.strip().strip('"') for c in sql.split("(", 1)[1].split(")", 1)[0].split(",")]
+    width = len(columns)
+    per_row = [params[i:i + width] for i in range(0, len(params), width)]
+    order_index = columns.index("row_order")
+    assert [row[order_index] for row in per_row] == [3, 1, 2]
+    id_index = columns.index("id")
+    ids = [row[id_index] for row in per_row]
+    assert all(i.startswith("trow_") or "_" in i for i in ids) and len(set(ids)) == 3
+
+
+def test_insert_many_parte_la_sentencia_si_cambian_las_columnas(api):
+    app, db = api
+    rows = [_fila(1), _fila(2), _fila(3, active=True), _fila(4, active=True), _fila(5)]
+    call(app, "POST /api/tarifas/tx", body={"ops": [{"op": "insert_many", "table": "tarifas_rate_table_rows", "rows": rows}]})
+    assert len(db.tx_calls) == 3
+    assert [sql.count("(%s::") > 0 for sql, _ in db.tx_calls] == [True, True, True]
+
+
+def test_insert_many_parte_por_tope_de_parametros(api, monkeypatch):
+    app, db = api
+    import tarifas_sql
+    monkeypatch.setattr(tarifas_sql, "MAX_PARAMS", 20)
+    rows = [_fila(n) for n in range(1, 11)]
+    call(app, "POST /api/tarifas/tx", body={"ops": [{"op": "insert_many", "table": "tarifas_rate_table_rows", "rows": rows}]})
+    assert len(db.tx_calls) > 1
+    assert all(len(params) <= 20 for _, params in db.tx_calls)
+    assert sum(len(params) for _, params in db.tx_calls) == sum(len(_fila(n)) + 1 for n in range(1, 11))
+
+
+@pytest.mark.parametrize("rows", [[], None, "x", [{}], ["no es objeto"]])
+def test_insert_many_rechaza_filas_invalidas(api, rows):
+    app, db = api
+    response = call(app, "POST /api/tarifas/tx", body={"ops": [{"op": "insert_many", "table": "tarifas_rate_table_rows", "rows": rows}]})
+    assert response["statusCode"] == 400 and db.tx_calls == []
+
+
+def test_insert_many_tiene_tope_de_filas(api):
+    app, db = api
+    rows = [_fila(n) for n in range(1, 5002)]
+    response = call(app, "POST /api/tarifas/tx", body={"ops": [{"op": "insert_many", "table": "tarifas_rate_table_rows", "rows": rows}]})
+    assert response["statusCode"] == 400 and db.tx_calls == []
+
+
+def test_insert_many_valida_columnas_modulo_y_tablas_externas(api, caller_permissions):
+    app, db = api
+    ok_op = {"op": "insert_many", "table": "tarifas_rate_table_rows", "rows": [_fila(1, no_existe=1)]}
+    assert call(app, "POST /api/tarifas/tx", body={"ops": [ok_op]})["statusCode"] == 400
+    externa = {"op": "insert_many", "table": "tarifas_v_viajes", "rows": [{"status": "x"}]}
+    assert call(app, "POST /api/tarifas/tx", body={"ops": [externa]})["statusCode"] == 405
+    caller_permissions.set(make_permissions({"tarifas": ["view", "create"]}))
+    sin_modulo = {"op": "insert_many", "table": "tarifas_rate_table_rows", "rows": [_fila(1)]}
+    assert call(app, "POST /api/tarifas/tx", body={"ops": [sin_modulo]})["statusCode"] == 403
+    assert db.tx_calls == []
+
+
+def test_insert_many_no_escribe_en_un_pais_ajeno(api, caller_permissions):
+    app, db = api
+    caller_permissions.set(make_permissions({"tarifas.config": "*"}, countries=(CR,)))
+    op = {"op": "insert_many", "table": "tarifas_pricing_rules", "rows": [{"code": "A", "country_id": CR}, {"code": "B", "country_id": "otro"}]}
+    response = call(app, "POST /api/tarifas/tx", body={"ops": [op]})
+    assert response["statusCode"] == 403 and db.tx_calls == []

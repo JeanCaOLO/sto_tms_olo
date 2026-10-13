@@ -1,6 +1,6 @@
 // Filtrado y orden para MemoryDataSource.
 
-import type { Condition, FindOptions, OrderBy, Row } from '../../../data/datasource';
+import type { Condition, FindOptions, OrderBy, Row } from '../datasource';
 
 function matches(row: Row, condition: Condition): boolean {
   const actual = row[condition.column];

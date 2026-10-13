@@ -3,7 +3,7 @@
 import Modal from '../../../components/base/Modal';
 import { useLiquidadorVista } from '../hooks/useLiquidadorVista';
 import { useLiquidarViajeController } from '../hooks/useLiquidarViajeController';
-import { buildEmissionInput } from '../parts/emission';
+import { useEmitTrip } from '../hooks/useEmitTrip';
 import { ModalHeader } from './ModalHeader';
 import { ModalFooter } from './ModalFooter';
 import { LiquidarViajeNotices } from './LiquidarViajeNotices';
@@ -23,25 +23,12 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
   const { puedeConfigurar, extendida, setExtendida } = useLiquidadorVista();
   const simple = !extendida;
   const ctrl = useLiquidarViajeController({ trip, settlement, isOpen });
-  const { calculation, totals, effectiveResult, loading, pending, saving } = ctrl;
+  const { calculation, totals, loading, saving } = ctrl;
+
+  const { emitir, puedeEmitir, blocking } = useEmitTrip(ctrl, simple);
 
   const handleEmitir = async () => {
-    if (!calculation || !totals || !effectiveResult) return;
-    if (!ctrl.validateForm(ctrl.returns)) return;
-    if (!(await ctrl.recheck())) return;
-
-    const input = buildEmissionInput(
-      calculation,
-      ctrl.editsUsed,
-      simple ? 'Borrador' : ctrl.status,
-      ctrl.notes,
-      ctrl.excludedSeqs,
-      ctrl.returns,
-      effectiveResult,
-      totals,
-    );
-
-    const saved = await ctrl.emit(input);
+    const saved = await emitir();
     if (saved) {
       onSaved(saved);
       onClose();
@@ -49,9 +36,6 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
   };
 
   const currency = calculation?.result.currency ?? '';
-  const blocking = calculation?.blockingIssues ?? [];
-  const puedeEmitir = !!calculation && !!totals && !calculation.notLiquidableReason
-    && blocking.length === 0 && !loading && !pending && !saving;
 
   return (
     <Modal

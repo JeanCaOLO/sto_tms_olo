@@ -2,9 +2,9 @@
 
 import {
   ForeignKeyError, UniqueViolationError, type Condition,
-} from '../../../data/datasource';
-import { ENTITY_NAMES, entityDef, primaryKeyOf, type EntityName } from '../../../data/schema';
-import type { Row } from '../../../data/datasource';
+} from '../datasource';
+import { ENTITY_NAMES, entityDef, primaryKeyOf, type EntityName } from '../schema';
+import type { Row } from '../datasource';
 import type { TarifasDatabase } from './store';
 import { matches } from './filtering';
 

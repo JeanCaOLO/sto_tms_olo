@@ -1,6 +1,6 @@
-// Almacén en memoria SOLO PARA PRUEBAS: implementa `DataSource` sobre la semilla (`__tests__/fixtures/seed.json`).
-// Replica la semántica del backend (FK, unicidad, append-only, transacciones). La app no lo importa:
-// en ejecución el módulo habla siempre con `HttpDataSource`.
+// Almacén en memoria: implementa `DataSource` sobre una semilla. Replica la semántica del backend (FK,
+// unicidad, append-only, transacciones). Solo lo usan las pruebas y el modo mock de desarrollo
+// (`installMock.ts`, gated a DEV): en un build desplegado el módulo habla siempre con `HttpDataSource`.
 
 import { genId, loadDatabase, persist, type TarifasDatabase } from './store';
 import {
@@ -12,9 +12,9 @@ import {
   type DataSource,
   type FindOptions,
   type Row,
-} from '../../../data/datasource';
-import { ENTITY_NAMES, entityDef, primaryKeyOf, type EntityName } from '../../../data/schema';
-import { notifyWrite } from '../../../data/writeEvents';
+} from '../datasource';
+import { ENTITY_NAMES, entityDef, primaryKeyOf, type EntityName } from '../schema';
+import { notifyWrite } from '../writeEvents';
 import { applyOptions } from './filtering';
 import { assertParentsExist, assertUnique, assertNoChildren, applyOnDelete } from './integrity';
 
@@ -49,7 +49,7 @@ export class MemoryDataSource implements DataSource {
     if (!Array.isArray(rows)) {
       throw new Error(
         `La colección "${String(key)}" no existe en el almacén en memoria. ` +
-          'Revisá la semilla de pruebas (`__tests__/fixtures/seed.json`).',
+          'Revisá la semilla del almacén.',
       );
     }
     return rows as Row[];

@@ -13,7 +13,7 @@
 
 /* global process */
 import pg from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db, setDataSource } from '../data';
 import { PgDataSource } from './helpers/pgDataSource';
 import { calculateTrip } from '../tripSettlement';
@@ -89,6 +89,12 @@ describe.skipIf(!enabled)('Liquidador contra Aurora (transacción revertida)', {
     });
   });
 
+  // El setup global (`src/test/setupTarifas.ts`) vuelve al almacén en memoria antes de cada prueba:
+  // aquí se vuelve a fijar la conexión real.
+  beforeEach(() => {
+    setDataSource(new PgDataSource(client));
+  });
+
   afterAll(async () => {
     setDataSource(null);
     if (client) {
@@ -105,7 +111,14 @@ describe.skipIf(!enabled)('Liquidador contra Aurora (transacción revertida)', {
     if (result.status !== 'ok') return;
     expect(result.calculation.notLiquidableReason).toBeNull();
     expect(result.calculation.blockingIssues).toEqual([]);
-    expect(Number(result.calculation.result.totalLiquidado)).toBe(250);
+    // Aurora trae reglas reales del país (p. ej. la base por kilómetro de CR): el total ya no es solo la
+    // regla de prueba. Se comprueba que la regla de prueba aporte lo suyo y que el total cuadre con la traza.
+    const { trace, totalLiquidado } = result.calculation.result;
+    const own = trace.find((line) => line.ruleCode === 'E2E_BASE');
+    expect(own, 'la regla de prueba debe aparecer en la traza').toBeDefined();
+    expect(Number(own?.final)).toBe(250);
+    expect(Number(totalLiquidado)).toBeGreaterThanOrEqual(250);
+    expect(Number(totalLiquidado)).toBe(Number(trace[trace.length - 1].runningSubtotal));
   });
 
   it('emite, y el viaje deja de estar por liquidar', async () => {
@@ -125,13 +138,15 @@ describe.skipIf(!enabled)('Liquidador contra Aurora (transacción revertida)', {
   });
 
   it('re-liquida: anula la vigente, emite otra y deja historial', async () => {
-    const [current] = (await listTripSettlements(trip.id)).filter((s) => s.status !== 'Anulado');
+    // El viaje puede traer liquidaciones previas de la base real: se cuenta relativo al punto de partida.
+    const before = await listTripSettlements(trip.id);
+    const [current] = before.filter((s) => s.status !== 'Anulado');
     const calculation = await calcOk(true);
     const result = await reliquidateSettlement(current.id, inputFrom(calculation), 'Corrección de prueba E2E');
     expect(result.status).toBe('saved');
 
     const all = await listTripSettlements(trip.id);
-    expect(all).toHaveLength(2);
+    expect(all).toHaveLength(before.length + 1);
     const voided = all.find((s) => s.id === current.id);
     expect(voided?.status).toBe('Anulado');
     expect(voided?.supersededBy).toBe(result.status === 'saved' ? result.settlement.id : null);
@@ -146,6 +161,16 @@ describe.skipIf(!enabled)('Liquidador contra Aurora (transacción revertida)', {
 
     const log = await db().find('auditLog', {});
     expect(log.length).toBeGreaterThanOrEqual(3); // emitir, re-liquidar, cambiar estado
+  });
+
+  it('recorre el flujo hasta Pagado y rechaza volver atrás (checklist §3.2)', async () => {
+    const [vigente] = (await listTripSettlements(trip.id)).filter((s) => s.status !== 'Anulado');
+    for (const status of ['Aprobado', 'Pagado'] as const) {
+      expect((await updateSettlementStatus(vigente.id, status)).error, status).toBeNull();
+    }
+    const back = await updateSettlementStatus(vigente.id, 'Borrador');
+    expect(back.error).toMatch(/No se puede pasar de "Pagado" a "Borrador"/);
+    expect((await listSettlements({ countryId })).find((s) => s.id === vigente.id)?.status).toBe('Pagado');
   });
 
   it('flota propia: el total es la acumulación de gastos y la mercancía sale de los pedidos de las guías', async () => {

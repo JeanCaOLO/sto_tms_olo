@@ -13,6 +13,8 @@ export interface HttpDataSourceOptions {
   fetchImpl?: typeof fetch;
   /** Tiempo máximo de una llamada, en ms. Por defecto 20 s (el Lambda corta a los 15 s). */
   timeoutMs?: number;
+  /** Tiempo máximo de una transacción (`/tx`), en ms. Por defecto 45 s: una importación grande por un túnel lento no debe dar un falso error cuando el servidor sí la guarda. */
+  txTimeoutMs?: number;
   /** Reintentos de una LECTURA que falló por red, timeout o 502/503/504. Por defecto 2. */
   retries?: number;
   /** Espera base entre reintentos, en ms (se multiplica por el número de reintento). Por defecto 300. */
@@ -21,10 +23,12 @@ export interface HttpDataSourceOptions {
 
 /** Una escritura acumulada dentro de una transacción. */
 export interface TxOperation {
-  op: 'insert' | 'update' | 'delete';
+  op: 'insert' | 'insert_many' | 'update' | 'delete';
   table: string;
   id?: string;
   values?: Row;
+  /** Solo `insert_many`: las filas de una misma tabla en una sola operación. */
+  rows?: Row[];
 }
 
 export interface TransportConfig {
@@ -35,6 +39,7 @@ export interface TransportConfig {
 }
 
 export const DEFAULT_TIMEOUT_MS = 20_000;
+export const DEFAULT_TX_TIMEOUT_MS = 45_000;
 export const DEFAULT_RETRIES = 2;
 export const DEFAULT_RETRY_DELAY_MS = 300;
 /** Una consulta cuya URL supera esto viaja por POST (los gateways cortan alrededor de 8 KB). */

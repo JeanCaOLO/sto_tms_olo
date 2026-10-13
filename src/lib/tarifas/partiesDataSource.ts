@@ -178,6 +178,19 @@ export async function ensurePartyProfile(carrierId: string): Promise<EnsureProfi
 }
 
 /**
+ * Deshace un perfil recién creado por `ensurePartyProfile` cuando lo que lo motivó no se pudo guardar
+ * (T3): sin esto la compañía quedaba «Configurada» sin nada configurado. Solo borra el perfil si está vacío:
+ * una clave foránea que lo use hace fallar el borrado y el perfil se conserva. Nunca lanza.
+ */
+export async function discardNewParty(partyId: string): Promise<void> {
+  try {
+    await db().delete('settlementParty', partyId);
+  } catch (error) {
+    console.error('No se pudo deshacer el perfil recién creado:', error);
+  }
+}
+
+/**
  * Baja LÓGICA del perfil. Puede estar referenciado por tarifas de outsourcing, reglas y
  * liquidaciones ya emitidas: borrarlo rompería el histórico, que es inmutable por definición.
  */

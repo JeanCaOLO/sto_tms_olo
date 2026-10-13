@@ -7,7 +7,7 @@ import {
   NotFoundError,
   ReadOnlyEntityError,
   UniqueViolationError,
-} from '../../../data/datasource';
+} from '../datasource';
 
 const db = new MemoryDataSource();
 

@@ -26,6 +26,8 @@ from tms_common.errors import HttpError
 from tarifas_schema import Table, quote
 
 MAX_ROWS = 5000  # tope por consulta: protege a la Lambda de un find() sin límite
+MAX_INSERT_ROWS = 5000  # filas de una operación `insert_many`
+MAX_PARAMS = 30000  # parámetros por sentencia (el protocolo de Postgres admite 65535)
 OPERATORS = {"eq", "neq", "in", "gt", "gte", "lt", "lte", "isNull", "notNull"}
 COMPARISONS = {"gt": ">", "gte": ">=", "lt": "<", "lte": "<="}
 
@@ -213,6 +215,46 @@ def build_insert(table: Table, values) -> tuple[str, list]:
     placeholders = ", ".join(placeholder(table, c) for c in columns)
     params = [param(table, c, row[c]) for c in columns]
     return f"INSERT INTO {quote(table.name)} ({column_list}) VALUES ({placeholders}) RETURNING *", params
+
+
+def build_insert_many(table: Table, rows) -> list[tuple[str, list]]:
+    """Inserta muchas filas con pocas sentencias: un `INSERT ... VALUES (...), (...)` por tanda.
+
+    Cada fila pasa por las mismas validaciones y el mismo id que `build_insert`. Las filas con las mismas
+    columnas, seguidas, comparten sentencia (el importador de tarifarios manda cientos iguales); se
+    corta además para no pasar de `MAX_PARAMS` parámetros. El orden de las filas se conserva."""
+    if not isinstance(rows, list) or not rows:
+        raise HttpError(400, '"rows" debe ser una lista no vacía de filas')
+    if len(rows) > MAX_INSERT_ROWS:
+        raise HttpError(400, f'"insert_many" admite hasta {MAX_INSERT_ROWS} filas por operación')
+    pk = table.primary_key
+    prepared = []
+    for values in rows:
+        row = dict(_values(table, values))
+        if row.get(pk) in (None, ""):
+            if table.column_type(pk) != "text":
+                raise HttpError(400, f'"{table.name}" requiere el id')
+            row[pk] = new_id(table.id_prefix)
+        prepared.append(row)
+
+    statements: list[tuple[str, list]] = []
+    start = 0
+    while start < len(prepared):
+        columns = list(prepared[start])
+        per_chunk = max(1, MAX_PARAMS // len(columns))
+        end = start
+        while end < len(prepared) and end - start < per_chunk and list(prepared[end]) == columns:
+            end += 1
+        chunk = prepared[start:end]
+        column_list = ", ".join(quote(c) for c in columns)
+        one = "(" + ", ".join(placeholder(table, c) for c in columns) + ")"
+        params = [param(table, c, row[c]) for row in chunk for c in columns]
+        statements.append((
+            f"INSERT INTO {quote(table.name)} ({column_list}) VALUES {', '.join([one] * len(chunk))} RETURNING *",
+            params,
+        ))
+        start = end
+    return statements
 
 
 def build_update(table: Table, row_id: str, values, countries: tuple[str, ...] | None) -> tuple[str, list]:

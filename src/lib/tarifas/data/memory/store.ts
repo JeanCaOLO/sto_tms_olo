@@ -1,10 +1,14 @@
-// Estado en memoria de las pruebas del tarifador: la semilla (`__tests__/fixtures/seed.json`) clonada,
-// sin localStorage. Incluye fixtures de las entidades EXTERNAS (viajes, transportistas, conductores,
-// vehículos, zonas, países) con la forma que devuelve el backend; son de solo lectura.
+// Estado en memoria del almacén del tarifador: una semilla clonada. Lo usan dos consumidores:
+//   - las pruebas, con la semilla de `__tests__/fixtures/seed.json` (`src/test/setupTarifas.ts`);
+//   - el modo mock de desarrollo, con `seed.demo.json` (`installMock.ts`), que además persiste en
+//     `localStorage` para que el CRUD sobreviva a una recarga.
+// Incluye las entidades EXTERNAS (viajes, transportistas, conductores, vehículos, zonas, países) con
+// la forma que devuelve el backend; son de solo lectura.
+//
+// El store NO importa ninguna semilla: así la de pruebas no entra al bundle de la app.
 
-import seedJson from '../../fixtures/seed.json';
-import { ENTITY_NAMES } from '../../../data/schema';
-import { notifyWrite } from '../../../data/writeEvents';
+import { ENTITY_NAMES } from '../schema';
+import { notifyWrite } from '../writeEvents';
 
 type Rows = Record<string, any>[];
 
@@ -49,13 +53,34 @@ export const COLLECTIONS: (keyof TarifasDatabase)[] = [
   'rateTableRows', 'marginPolicies', 'auditLog',
 ];
 
+let seed: TarifasDatabase | null = null;
+let storageKey: string | null = null;
+
+/** Fija la semilla de la que parte el almacén (y a la que vuelve `resetToSeed`). */
+export function setSeed(next: unknown): void {
+  seed = next as TarifasDatabase;
+  current = cloneSeed();
+}
+
+/** Activa la persistencia en `localStorage` bajo esa clave y recupera lo guardado, si hay. */
+export function enablePersistence(key: string): void {
+  storageKey = key;
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) current = JSON.parse(raw) as TarifasDatabase;
+  } catch {
+    // Sin localStorage o con datos ilegibles: se arranca desde la semilla.
+  }
+}
+
 function cloneSeed(): TarifasDatabase {
+  if (!seed) throw new Error('El almacén en memoria no tiene semilla: llamá a setSeed() primero.');
   // structuredClone evita que dos lecturas compartan referencias y que una mute la semilla original.
-  return structuredClone(seedJson) as unknown as TarifasDatabase;
+  return structuredClone(seed);
 }
 
 // El estado vive aquí; `MemoryDataSource` lo lee y lo muta. Un `beforeEach` global lo reinicia.
-let current: TarifasDatabase = cloneSeed();
+let current: TarifasDatabase = {} as TarifasDatabase;
 
 export function loadDatabase(): TarifasDatabase {
   return current;
@@ -63,10 +88,23 @@ export function loadDatabase(): TarifasDatabase {
 
 export function persist(db: TarifasDatabase): void {
   current = db;
+  if (!storageKey) return;
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(db));
+  } catch {
+    // Cuota llena o localStorage bloqueado: el almacén sigue funcionando en memoria.
+  }
 }
 
 export function resetToSeed(): TarifasDatabase {
   current = cloneSeed();
+  if (storageKey) {
+    try {
+      localStorage.removeItem(storageKey);
+    } catch {
+      // Ver `persist`.
+    }
+  }
   // Todo lo que alguien guardó en caché (catálogo, perfiles) quedó viejo.
   notifyWrite(ENTITY_NAMES);
   return current;
