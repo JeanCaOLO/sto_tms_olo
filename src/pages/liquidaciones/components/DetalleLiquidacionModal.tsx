@@ -74,9 +74,8 @@ export default function DetalleLiquidacionModal({ settlement, onClose }: Props) 
           {settlement.baseChange && (
             <div className="text-xs bg-teal-50 border border-teal-200 text-teal-800 rounded-lg px-3 py-2">
               <i className="ri-exchange-line mr-1"></i>
-              Base cambiada a <strong>{BASE_METHODS[settlement.baseChange.method]?.label ?? settlement.baseChange.method}</strong>
+              Base de cobro: <strong>{BASE_METHODS[settlement.baseChange.method]?.label ?? settlement.baseChange.method}</strong>
               {' · '}{settlement.baseChange.source.label}
-              {settlement.baseChange.changedBy ? ` · por ${settlement.baseChange.changedBy}` : ''}
             </div>
           )}
 

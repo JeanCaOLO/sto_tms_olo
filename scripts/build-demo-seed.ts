@@ -170,7 +170,7 @@ const driverIdOf = (key: string, doc: string) => `DRV_CR_${key}_${doc}`;
 for (const c of CARRIERS) {
   const status = c.status ?? 'active';
   work.carriers.push({
-    id: carrierId(c.key), country_id: CR, code: c.key, name: c.name, tax_id: c.taxId, is_flota_propia: !!c.own, status,
+    id: carrierId(c.key), country_id: CR, code: c.key, name: c.name, tax_id: c.taxId, is_flota_propia: !!c.own, rate_type: c.own ? null : 'FIXED', flat_rate_amount: null, status,
   });
   if (c.profile !== false) {
     work.settlementParties.push({ id: `PARTY_CR_${c.key}`, carrier_id: carrierId(c.key), status: 'active', notes: null });
@@ -762,7 +762,7 @@ for (const cc of VE_CO) {
   // Transportistas, vehículos, conductores y perfiles
   for (const c of cc.carriers) {
     const status = c.status ?? 'active';
-    work.carriers.push({ id: carId(c.key), country_id: C, code: `${c.key}-${C}`, name: c.name, tax_id: c.taxId, is_flota_propia: !!c.own, status });
+    work.carriers.push({ id: carId(c.key), country_id: C, code: `${c.key}-${C}`, name: c.name, tax_id: c.taxId, is_flota_propia: !!c.own, rate_type: c.own ? null : 'FIXED', flat_rate_amount: null, status });
     if (c.profile !== false) work.settlementParties.push({ id: partyId(c.key), carrier_id: carId(c.key), status: 'active', notes: c.own ? 'Flota propia: se liquida con su estructura de costos.' : null });
     for (const [plate, type, kg, m3] of c.vehicles) {
       work.vehicles.push({ id: `VEH_${C}_${c.key}_${plate}`, carrier_id: carId(c.key), plate, vehicle_type: type, capacity_weight: String(kg), capacity_volume: String(m3), status });

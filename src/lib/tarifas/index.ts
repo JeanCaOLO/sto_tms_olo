@@ -29,9 +29,10 @@ export function calculate(input: CalculateInput): CalcResult {
   const costWarnings: string[] = [];
   const cost = computeCost(input, derived.overnightNights, derived.vars, (m) => costWarnings.push(m));
 
-  // Base elegida por el liquidador: reemplaza los gastos sembrados y las reglas BASE, y omite lo que
-  // cobraría lo mismo en otra fase. Sin ella, nada de esto cambia.
-  const chosen = input.baseOverride
+  // Base del tercero según el catálogo (carriers.rate_type): reemplaza los gastos sembrados y las
+  // reglas BASE, y omite lo que cobraría lo mismo en otra fase. La flota propia nunca la usa: su base
+  // es siempre la estructura de costos.
+  const chosen = input.baseOverride && input.trip.fleetType !== 'OWN'
     ? applyBaseOverride(input, input.baseOverride, applied, candidates, cost.breakdown, derived.vars)
     : null;
 
@@ -67,10 +68,7 @@ export function calculate(input: CalculateInput): CalcResult {
   };
 }
 
-/**
- * Los tipos de cobro que puede tomar la base de este viaje, con su fuente o el motivo por el que
- * están bloqueados. Es lo que alimenta el selector "Cambiar base de cálculo".
- */
+/** Formas de cobro que el catálogo de reglas puede resolver para este viaje, con su fuente o el motivo del bloqueo. */
 export function listBaseMethods(input: CalculateInput): BaseMethodOption[] {
   const derived = deriveContext(input);
   const { candidates } = resolveRules(input, derived);

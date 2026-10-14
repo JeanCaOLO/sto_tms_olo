@@ -12,11 +12,9 @@ interface Props {
   isOpen: boolean;
   settlement: SettlementRecord | null;
   calc: CalcState;
-  /** Se llama al abrir, antes de calcular (p. ej. para fijar la base con la que se emitió la anterior). */
-  onOpen: () => void;
 }
 
-export function useCalculationLifecycle({ tripId, isOpen, settlement, calc, onOpen }: Props) {
+export function useCalculationLifecycle({ tripId, isOpen, settlement, calc }: Props) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -27,7 +25,6 @@ export function useCalculationLifecycle({ tripId, isOpen, settlement, calc, onOp
     calc.setLoadError('');
     calc.setPending(false);
     setLoading(true);
-    onOpen();
 
     void (async () => {
       await calc.runCalc(settlement?.tripEdits ?? emptyTripEdits());
