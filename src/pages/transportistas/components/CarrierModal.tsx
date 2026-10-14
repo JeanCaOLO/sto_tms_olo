@@ -296,7 +296,7 @@ export default function CarrierModal({ isOpen, onClose, carrier, onSave }: Carri
             />
 
             <Select
-              label="Forma de pago / liquidación (terceros; la flota propia usa su estructura de costos)"
+              label="Forma de pago / liquidación"
               value={formData.rate_type ?? ''}
               onChange={(e) => setFormData({ ...formData, rate_type: e.target.value as BaseMethodId | '' })}
               options={[
