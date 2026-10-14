@@ -1,0 +1,109 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: TMS - EFLOW-SIM | API simulada de eFlow (EXPEDICIONESCABECERA/DETALLE) mientras ePrac entrega el real (spec ET-MS-OC26007). Datos de un seed en memoria; sin red a EFLOW ni a Aurora.
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [dev, qa, prod]
+  CommonStackName:
+    Type: String
+    Description: Stack de common-services del mismo ambiente (ej. dev-tms-common-services)
+  CommonLayerArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: Parametro SSM con el ARN de la version vigente de la Layer tms_common
+
+Conditions:
+  IsProduction: !Equals [!Ref Environment, prod]
+
+Resources:
+  EflowSimApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-eflow-sim-api
+      RetentionInDays: !If [IsProduction, 30, 7]
+
+  EflowSimApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-eflow-sim-api
+      Description: TMS - EFLOW-SIM | GET/POST EXPEDICIONESCABECERA/DETALLE sobre seed en memoria
+      CodeUri: src/
+      Handler: app.handler
+      Runtime: python3.13
+      Architectures: [x86_64]
+      Timeout: 29
+      MemorySize: 256
+      Role:
+        Fn::ImportValue: !Sub ${CommonStackName}-LambdaRoleArn
+      Layers:
+        - !Ref CommonLayerArn
+      # Sin VpcConfig: no toca EFLOW ni Aurora, solo el seed empaquetado.
+      LoggingConfig:
+        LogFormat: JSON
+        LogGroup: !Ref EflowSimApiLogGroup
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+
+  EflowSimApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt EflowSimApiFunction.Arn
+      PayloadFormatVersion: "2.0"
+
+  EflowSimApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref EflowSimApiFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub
+        - arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/*/*
+        - ApiId:
+            Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+
+  # Rutas publicas (AuthorizationType NONE), igual que el modulo eflow: el
+  # cliente del frontend las consume sin token.
+  GetCabeceraRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/eflow-sim/expediciones-cabecera
+      AuthorizationType: NONE
+      Target: !Sub integrations/${EflowSimApiIntegration}
+
+  GetDetalleRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/eflow-sim/expediciones-detalle
+      AuthorizationType: NONE
+      Target: !Sub integrations/${EflowSimApiIntegration}
+
+  PostCabeceraRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/eflow-sim/expediciones-cabecera
+      AuthorizationType: NONE
+      Target: !Sub integrations/${EflowSimApiIntegration}
+
+  PostDetalleRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/eflow-sim/expediciones-detalle
+      AuthorizationType: NONE
+      Target: !Sub integrations/${EflowSimApiIntegration}
+
+Outputs:
+  EflowSimApiFunctionArn:
+    Value: !GetAtt EflowSimApiFunction.Arn

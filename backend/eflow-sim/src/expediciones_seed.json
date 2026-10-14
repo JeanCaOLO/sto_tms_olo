@@ -1,0 +1,40 @@
+{
+  "_nota": "Seed SIMULADO de EXPEDICIONESCABECERA/DETALLE (stand-in del API de ePrac, spec ET-MS-OC26007). NO es extraccion real: datos representativos tipo COFERSA CR. Se reemplaza cuando ePrac entregue el API real o cuando se defina la carga tras la reunion con Jean. Columnas segun la investigacion EFLOW (Notion 2026-10-08).",
+  "cabecera": [
+    {
+      "IDEXPEDICION": "EXP-000123", "IDCOMPANIA": "0109", "IDALMACEN": "0001", "IDSUCURSAL": "0001",
+      "TPEXES": "DISP", "TPEXSI": "DISP", "PRIORIDAD": null, "BAJADA": null,
+      "IDCLIENTE": "C-00045", "NOMBRECLIENTE": "Ferreteria Patito San Carlos", "RUTA": "03",
+      "FECHAENTREGA": "2026-10-15", "FECHACIERRE": null, "NUMEROVIAJEWMH": null,
+      "DIRECCIONENTREGA": "San Carlos, Alajuela", "LATITUD": "10.3296", "LONGITUD": "-84.4292"
+    },
+    {
+      "IDEXPEDICION": "EXP-000124", "IDCOMPANIA": "0109", "IDALMACEN": "0001", "IDSUCURSAL": "0001",
+      "TPEXES": "DISP", "TPEXSI": "DISP", "PRIORIDAD": null, "BAJADA": null,
+      "IDCLIENTE": "C-00071", "NOMBRECLIENTE": "Deposito Santa Barbara", "RUTA": "05",
+      "FECHAENTREGA": "2026-10-15", "FECHACIERRE": null, "NUMEROVIAJEWMH": null,
+      "DIRECCIONENTREGA": "Santa Barbara, Heredia", "LATITUD": "10.0281", "LONGITUD": "-84.1575"
+    },
+    {
+      "IDEXPEDICION": "EXP-000125", "IDCOMPANIA": "0109", "IDALMACEN": "0001", "IDSUCURSAL": "0001",
+      "TPEXES": "DISP", "TPEXSI": "YEN", "PRIORIDAD": 2, "BAJADA": "A1",
+      "IDCLIENTE": "C-00088", "NOMBRECLIENTE": "Automercado Tres Rios", "RUTA": "07",
+      "FECHAENTREGA": "2026-10-16", "FECHACIERRE": null, "NUMEROVIAJEWMH": null,
+      "DIRECCIONENTREGA": "Tres Rios, Cartago", "LATITUD": "9.9061", "LONGITUD": "-83.9872"
+    },
+    {
+      "IDEXPEDICION": "EXP-000126", "IDCOMPANIA": "0109", "IDALMACEN": "0001", "IDSUCURSAL": "0002",
+      "TPEXES": "GENE", "TPEXSI": "GENE", "PRIORIDAD": 1, "BAJADA": "B2",
+      "IDCLIENTE": "C-00102", "NOMBRECLIENTE": "EPA Curridabat", "RUTA": "07",
+      "FECHAENTREGA": "2026-10-14", "FECHACIERRE": null, "NUMEROVIAJEWMH": "V-9001",
+      "DIRECCIONENTREGA": "Curridabat, San Jose", "LATITUD": "9.9178", "LONGITUD": "-84.0333"
+    }
+  ],
+  "detalle": [
+    { "IDEXPEDICION": "EXP-000123", "IDCOMPANIA": "0109", "IDALMACEN": "0001", "IDSUCURSAL": "0001", "IDLINEA": 1, "IDARTICULO": "0140848", "DESCRIPCION": "Cinta metrica 8mts x 25mm MKA8025D/P Exacto", "CANTIDAD": 24, "PESO": 12.0, "VOLUMEN": 0.08, "GUIAFISCAL": "GF-55011", "TPEXES": "DISP", "TPEXSI": "DISP", "PRIORIDAD": null },
+    { "IDEXPEDICION": "EXP-000123", "IDCOMPANIA": "0109", "IDALMACEN": "0001", "IDSUCURSAL": "0001", "IDLINEA": 2, "IDARTICULO": "0205512", "DESCRIPCION": "Taladro percutor 1/2 650W", "CANTIDAD": 6, "PESO": 18.0, "VOLUMEN": 0.12, "GUIAFISCAL": "GF-55011", "TPEXES": "DISP", "TPEXSI": "DISP", "PRIORIDAD": null },
+    { "IDEXPEDICION": "EXP-000124", "IDCOMPANIA": "0109", "IDALMACEN": "0001", "IDSUCURSAL": "0001", "IDLINEA": 1, "IDARTICULO": "0330190", "DESCRIPCION": "Saco de cemento gris 50kg", "CANTIDAD": 40, "PESO": 2000.0, "VOLUMEN": 1.6, "GUIAFISCAL": "GF-55012", "TPEXES": "DISP", "TPEXSI": "DISP", "PRIORIDAD": null },
+    { "IDEXPEDICION": "EXP-000125", "IDCOMPANIA": "0109", "IDALMACEN": "0001", "IDSUCURSAL": "0001", "IDLINEA": 1, "IDARTICULO": "0410077", "DESCRIPCION": "Pintura latex blanco 1 galon", "CANTIDAD": 30, "PESO": 150.0, "VOLUMEN": 0.9, "GUIAFISCAL": "GF-55013", "TPEXES": "DISP", "TPEXSI": "YEN", "PRIORIDAD": 2 },
+    { "IDEXPEDICION": "EXP-000126", "IDCOMPANIA": "0109", "IDALMACEN": "0001", "IDSUCURSAL": "0002", "IDLINEA": 1, "IDARTICULO": "0501234", "DESCRIPCION": "Tornillo autorroscante 8x1 (caja 500)", "CANTIDAD": 12, "PESO": 60.0, "VOLUMEN": 0.2, "GUIAFISCAL": "GF-55014", "TPEXES": "GENE", "TPEXSI": "GENE", "PRIORIDAD": 1 }
+  ]
+}
