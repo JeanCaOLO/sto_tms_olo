@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
 import { useOperationalContext } from '../../hooks/useOperationalContext';
+import CalendarioPlanificacion from './components/CalendarioPlanificacion';
 import DaySelector from './components/DaySelector';
 import PlanEditor from './components/PlanEditor';
 import PlanesTab from './components/PlanesTab';
@@ -9,7 +10,7 @@ import { useCatalogos } from './use-catalogos';
 import { usePedidosDia } from './use-pedidos-dia';
 import { fechaEntregaObjetivo } from './plan-pedidos-api';
 
-type Tab = 'generar' | 'planes';
+type Tab = 'calendario' | 'generar' | 'planes';
 
 // Planificación 2: el planificador elige el día, genera un plan persistido
 // (draft) con viajes+paradas, lo edita moviendo pedidos entre viajes y lo
@@ -20,7 +21,7 @@ export default function PlanificacionPage() {
   const { t } = useTranslation();
   const { appUser } = useAuth();
   const { selectedCountryId, selectedWarehouseId } = useOperationalContext();
-  const [tab, setTab] = useState<Tab>('generar');
+  const [tab, setTab] = useState<Tab>('calendario');
   const [fecha, setFecha] = useState<string>(fechaEntregaObjetivo());
 
   const { vehiculos, conductores, loading: cargandoCatalogos } = useCatalogos(appUser);
@@ -40,15 +41,18 @@ export default function PlanificacionPage() {
           <h1 className="text-xl lg:text-2xl font-bold text-slate-800">{t('planning.title')}</h1>
           <p className="text-sm text-slate-500 mt-1">{t('planning.subtitle')}</p>
         </div>
-        <DaySelector value={fecha} onChange={setFecha} label={t('planning.day')} />
+        {tab === 'generar' && <DaySelector value={fecha} onChange={setFecha} label={t('planning.day')} />}
       </div>
 
       <div className="flex gap-1 border-b border-slate-200">
+        <TabButton active={tab === 'calendario'} onClick={() => setTab('calendario')} label={t('planning.tabCalendar')} testId="tab-calendario" />
         <TabButton active={tab === 'generar'} onClick={() => setTab('generar')} label={t('planning.tabGenerate')} testId="tab-generar" />
         <TabButton active={tab === 'planes'} onClick={() => setTab('planes')} label={t('planning.tabPlans')} testId="tab-planes" />
       </div>
 
-      {tab === 'generar' ? (
+      {tab === 'calendario' ? (
+        <CalendarioPlanificacion />
+      ) : tab === 'generar' ? (
         cargando ? (
           <div className="flex items-center justify-center h-48 text-slate-500">
             <i className="ri-loader-4-line animate-spin text-2xl"></i>
