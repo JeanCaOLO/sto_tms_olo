@@ -10,10 +10,10 @@
 //
 // Todo lo que se lee pasa por la capa de datos; lo que se calcula no lee nada.
 
-import { calculate, listBaseMethods, type BaseMethodOption } from './index';
+import { calculate } from './index';
 import { CatalogError, loadTarifasCatalog, type TarifasCatalog } from './catalogLoader';
 import { buildCustomVarFields, missingDeclaredVars, type CustomVarField } from './customVarFields';
-import { getProfileForCarrierCached, rateTypeOverrideForCarrier } from './partiesDataSource';
+import { carrierBaseForCarrier, getProfileForCarrierCached } from './partiesDataSource';
 import { detectMissingLogic, noLogicMessage, noRuleApplied, type NoLogicInfo } from './missingLogic';
 import { buildCalculateInput } from './settlementInput';
 import { emptyTripEdits, notLiquidableReason, toTripContext } from './tripContext';
@@ -37,8 +37,6 @@ export interface TripCalculation {
   context: TripContext;
   input: CalculateInput;
   result: CalcResult;
-  /** Tipos de cobro que puede tomar la base de este viaje, con su fuente o el motivo del bloqueo. */
-  baseMethods: BaseMethodOption[];
   /** Problemas del armado + del motor que impiden emitir. */
   blockingIssues: CalcIssue[];
   /** Avisos del armado + del motor. */
@@ -60,8 +58,6 @@ export type TripCalculationResult =
 export interface CalculateTripOptions {
   overrides?: Record<string, Override>;
   adhocRules?: Rule[];
-  /** Tipo de cobro que reemplaza a la base por defecto. Sin él se calcula como siempre. */
-  baseOverride?: BaseOverride | null;
   /** Para re-liquidar: se ignora que el viaje ya tenga una liquidación vigente. */
   allowSettled?: boolean;
   /**
@@ -116,13 +112,18 @@ export async function calculateTrip(
   const profile = trip.carrierId ? await getProfileForCarrierCached(trip.carrierId, { fresh: options.fresh }) : null;
   const partyId = profile && profile.status !== 'inactive' ? profile.id : null;
 
-  // Forma de pago heredada del transportista (carriers.rate_type, sql/35): si la
-  // UI no fuerza una base, la base del cálculo es la que define el catálogo de
-  // Transportistas. Reemplaza al selector manual que vivía en Liquidaciones.
-  const carrierBase = trip.carrierId
-    ? await rateTypeOverrideForCarrier(trip.carrierId, { fresh: options.fresh })
-    : null;
-  const baseOverride = options.baseOverride ?? carrierBase;
+  // La base nunca se elige al liquidar. Flota propia: siempre su estructura de costos. Tercero: la
+  // forma de cobro del catálogo de Transportistas (carriers.rate_type, sql/35), sin default; si falta
+  // o no se puede calcular, el cálculo se bloquea con el motivo.
+  let baseOverride: BaseOverride | null = null;
+  const baseIssues: CalcIssue[] = [];
+  if (!trip.isOwnFleet) {
+    const base = trip.carrierId
+      ? await carrierBaseForCarrier(trip.carrierId, { fresh: options.fresh })
+      : { issue: 'El viaje no tiene transportista: no hay forma de cobro con que calcularlo.' };
+    if ('override' in base) baseOverride = base.override;
+    else baseIssues.push({ code: 'BASE_NO_DEFINIDA', message: base.issue });
+  }
 
   let catalog: TarifasCatalog;
   try {
@@ -145,12 +146,14 @@ export async function calculateTrip(
     ? 'No se pudo leer la mercancía del viaje (pedidos de sus guías): no habrá ganancia/pérdida de '
       + `auditoría ni reparto por casa comercial. ${failure instanceof Error ? failure.message : ''}`.trim()
     : null;
-  const { input, issues, warnings } = buildCalculateInput(catalog, context, {
+  const built = buildCalculateInput(catalog, context, {
     ...(cargo ? { cargo } : {}),
     ...(options.overrides ? { overrides: options.overrides } : {}),
     ...(options.adhocRules ? { adhocRules: options.adhocRules } : {}),
     ...(baseOverride ? { baseOverride } : {}),
   });
+  const { input, warnings } = built;
+  const issues = [...built.issues, ...baseIssues];
 
   // Con un problema de armado (p.ej. zona inexistente) el motor no puede correr: se devuelve un
   // resultado vacío con el problema a la vista, en vez de una excepción.
@@ -183,7 +186,6 @@ export async function calculateTrip(
       context,
       input,
       result,
-      baseMethods: issues.length > 0 ? [] : listBaseMethods(input),
       blockingIssues: [...issues, ...(issues.length > 0 ? [] : result.blockingIssues)],
       warnings: [...warnings, ...(cargoWarning ? [cargoWarning] : []), ...result.warnings],
       notLiquidableReason: ignorable ? null : reason,

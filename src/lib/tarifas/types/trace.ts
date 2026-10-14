@@ -65,6 +65,7 @@ export interface DiscardedRule {
 export interface CalcIssue {
   code:
     | 'BASE_NO_DISPONIBLE'
+    | 'BASE_NO_DEFINIDA'
     | 'REFERENCIA_CIRCULAR'
     | 'TOTAL_NEGATIVO'
     | 'VARIABLE_INEXISTENTE'

@@ -177,22 +177,13 @@ describe('flota propia: la base sale de la estructura de costos', () => {
     expect(calculate(propia()).totalLiquidado).toBe('935.00'); // 180 × 5 + 1 día × 35
   });
 
-  it('por km: {km} × {costo} = resultado, y se dice que sale de la estructura', () => {
-    const r = calculate(propia({ baseOverride: { method: 'PER_KM' } }));
-    expect(r.totalLiquidado).toBe('900.00');
-    const linea = r.trace.find((l) => l.stage === 'BASE')!;
-    expect(linea.inputs).toMatchObject({ km: 180, 'costo por km': '5.0000' });
-    expect(r.base?.source.kind).toBe('COST_STRUCTURE');
-    expect(r.base?.replaced).toContain('ESTRUCTURA_COSTOS');
-    // El costo real del viaje (para el margen de auditoría) no se toca.
-    expect(r.cost.total).toBe(calculate(propia()).cost.total);
-  });
-
-  it('una regla por km en otra fase se omite: la estructura ya cobra por km', () => {
-    const variable = makeRule({ code: 'VAR_KM', stage: 'VARIABLE', expression: { op: 'PER_KM', rate: '0.50' } });
-    const r = calculate(propia({ rules: [variable], baseOverride: { method: 'PER_KM' } }));
-    expect(r.totalLiquidado).toBe('900.00');
-    expect(r.base?.duplicates.map((d) => d.ruleCode)).toEqual(['VAR_KM']);
+  it('ignora cualquier forma de cobro: siempre es estructura de costos', () => {
+    for (const method of ['PER_KM', 'PER_UNIT', 'FIXED', 'VOLUME'] as const) {
+      const r = calculate(propia({ baseOverride: { method, amount: '250' } }));
+      expect(r.totalLiquidado).toBe('935.00');
+      expect(r.base).toBeUndefined();
+      expect(r.blockingIssues).toEqual([]);
+    }
   });
 });
 

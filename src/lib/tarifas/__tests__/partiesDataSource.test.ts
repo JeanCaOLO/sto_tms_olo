@@ -5,8 +5,8 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  deactivateParty, discardNewParty, ensurePartyProfile, getProfileForCarrier,
-  listCarrierProfiles, rateTypeOverrideForCarrier, rateTypeToOverride, reactivateParty,
+  carrierBaseForCarrier, deactivateParty, discardNewParty, ensurePartyProfile, getProfileForCarrier,
+  listCarrierProfiles, reactivateParty, resolveCarrierBase,
 } from '../partiesDataSource';
 import { db, ReadOnlyEntityError } from '../data';
 
@@ -107,36 +107,32 @@ describe('discardNewParty (T3)', () => {
 
 // Regresión del paso 2 de "forma de pago": la base del cálculo se hereda de
 // carriers.rate_type (sql/35) en vez del selector manual de Liquidaciones.
-describe('rateTypeOverrideForCarrier (forma de pago heredada del transportista)', () => {
-  it('sin rate_type en el carrier → null (base por defecto, como antes del cambio)', async () => {
-    // Las semillas no tienen rate_type: el override es null, así que el total
-    // no cambia respecto del comportamiento previo (lo prueban las 700+ del motor).
-    expect(await rateTypeOverrideForCarrier('CARRIER_VE_1')).toBeNull();
+describe('carrierBaseForCarrier (base de un tercero según el catálogo)', () => {
+  it('lee la forma de cobro del carrier de la semilla', async () => {
+    expect(await carrierBaseForCarrier('CARRIER_VE_1')).toEqual({ override: { method: 'FIXED' } });
   });
 
-  it('un carrier inexistente → null (no rompe el cálculo)', async () => {
-    expect(await rateTypeOverrideForCarrier('NO_EXISTE')).toBeNull();
+  it('un carrier inexistente → motivo, no rompe el cálculo', async () => {
+    expect(await carrierBaseForCarrier('NO_EXISTE')).toEqual({ issue: expect.any(String) });
   });
 
-  it('mapea cada tipo calculable a su BaseOverride y descarta TENDERING / vacío', () => {
-    // La parte no trivial del cambio: qué rate_type produce override (pura).
-    expect(rateTypeToOverride('PER_KM')).toEqual({ method: 'PER_KM' });
-    expect(rateTypeToOverride('PER_UNIT')).toEqual({ method: 'PER_UNIT' });
-    expect(rateTypeToOverride('FIXED')).toEqual({ method: 'FIXED' });
-    expect(rateTypeToOverride('VOLUME')).toEqual({ method: 'VOLUME' });
-    // TENDERING existe como contrato pero no tiene cálculo → base por defecto.
-    expect(rateTypeToOverride('TENDERING')).toBeNull();
-    // Vacío, null o valor desconocido → base por defecto (no rompe el cálculo).
-    expect(rateTypeToOverride('')).toBeNull();
-    expect(rateTypeToOverride(null)).toBeNull();
-    expect(rateTypeToOverride('BASURA')).toBeNull();
+  it('mapea cada tipo calculable a su BaseOverride; TENDERING / vacío / desconocido bloquean', () => {
+    expect(resolveCarrierBase('PER_KM')).toEqual({ override: { method: 'PER_KM' } });
+    expect(resolveCarrierBase('PER_UNIT')).toEqual({ override: { method: 'PER_UNIT' } });
+    expect(resolveCarrierBase('FIXED')).toEqual({ override: { method: 'FIXED' } });
+    expect(resolveCarrierBase('VOLUME')).toEqual({ override: { method: 'VOLUME' } });
+    expect(resolveCarrierBase('TENDERING')).toEqual({ issue: expect.stringContaining('Tendering') });
+    expect(resolveCarrierBase('')).toEqual({ issue: expect.any(String) });
+    expect(resolveCarrierBase(null)).toEqual({ issue: expect.any(String) });
+    expect(resolveCarrierBase('BASURA')).toEqual({ issue: expect.stringContaining('BASURA') });
   });
 
-  it('tarifa fija con monto del transportista lleva el monto; sin monto o en otro tipo, no', () => {
-    expect(rateTypeToOverride('FIXED', '150000')).toEqual({ method: 'FIXED', amount: '150000' });
-    expect(rateTypeToOverride('FIXED', 0)).toEqual({ method: 'FIXED', amount: '0' });
-    expect(rateTypeToOverride('FIXED', null)).toEqual({ method: 'FIXED' });
-    expect(rateTypeToOverride('FIXED', '')).toEqual({ method: 'FIXED' });
-    expect(rateTypeToOverride('PER_KM', '150000')).toEqual({ method: 'PER_KM' });
+  it('tarifa fija con monto lleva el monto; sin monto usa la regla; monto inválido bloquea', () => {
+    expect(resolveCarrierBase('FIXED', '150000')).toEqual({ override: { method: 'FIXED', amount: '150000' } });
+    expect(resolveCarrierBase('FIXED', 0)).toEqual({ override: { method: 'FIXED', amount: '0' } });
+    expect(resolveCarrierBase('FIXED', null)).toEqual({ override: { method: 'FIXED' } });
+    expect(resolveCarrierBase('FIXED', '')).toEqual({ override: { method: 'FIXED' } });
+    expect(resolveCarrierBase('FIXED', '-5')).toEqual({ issue: expect.any(String) });
+    expect(resolveCarrierBase('PER_KM', '150000')).toEqual({ override: { method: 'PER_KM' } });
   });
 });

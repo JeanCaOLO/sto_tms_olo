@@ -91,41 +91,43 @@ export async function getProfileForCarrierCached(
   return entry.promise;
 }
 
-// Formas de pago que el motor sabe calcular como base. TENDERING existe como
-// tipo de contrato pero todavía no tiene cálculo (baseMethods.ts lo marca
-// no disponible): un carrier con TENDERING cae a la base por defecto, no se
-// fuerza como override (forzarlo daría una base sin fórmula).
+// Formas de pago calculables como base (TENDERING aún no tiene cálculo: bloquea con motivo).
 const CALCULABLE_RATE_TYPES = new Set<BaseMethodId>(['PER_KM', 'PER_UNIT', 'FIXED', 'VOLUME']);
 
-/**
- * Convierte el `carriers.rate_type` crudo en el `BaseOverride` a aplicar, o null si no hay forma de
- * pago calculable (vacío, TENDERING o un valor desconocido). Puro y testeable sin tocar la BD.
- */
-export function rateTypeToOverride(rateType: unknown, flatRateAmount?: unknown): BaseOverride | null {
-  if (typeof rateType !== 'string' || !CALCULABLE_RATE_TYPES.has(rateType as BaseMethodId)) return null;
-  const method = rateType as BaseMethodId;
-  // Tarifa fija con monto pactado (carriers.flat_rate_amount, sql/36): ese monto ES la base. Sin
-  // monto, FIXED sigue saliendo de las reglas FIXED del catálogo, como antes.
-  const amount = flatRateAmount === null || flatRateAmount === undefined ? '' : String(flatRateAmount).trim();
-  return method === 'FIXED' && amount !== '' ? { method, amount } : { method };
-}
+/** Base del catálogo para un tercero: la que se aplica o el motivo por el que no hay ninguna. */
+export type CarrierBase = { override: BaseOverride } | { issue: string };
 
 /**
- * Base de cálculo heredada del transportista (`carriers.rate_type`, sql/35), o null si el
- * transportista no tiene forma de pago asignada (o es TENDERING, sin cálculo todavía). Es lo que
- * reemplaza al selector manual de "forma de pago" que vivía en Liquidaciones: la base la define el
- * catálogo de Transportistas.
+ * Convierte el `carriers.rate_type` crudo en la base a aplicar a un TERCERO. No hay default: sin
+ * forma de cobro, con TENDERING o con tarifa fija sin monto válido devuelve el motivo (el cálculo
+ * se bloquea en vez de caer a km). Puro y testeable sin tocar la BD.
  */
-export async function rateTypeOverrideForCarrier(
+export function resolveCarrierBase(rateType: unknown, flatRateAmount?: unknown): CarrierBase {
+  const enCatalogo = ' en el catálogo de Transportistas.';
+  const type = typeof rateType === 'string' ? rateType.trim() : '';
+  if (type === '') return { issue: `El transportista no tiene forma de cobro. Definila${enCatalogo}` };
+  if (type === 'TENDERING') return { issue: `La forma de cobro "Tendering" todavía no tiene cálculo. Elegí otra${enCatalogo}` };
+  if (!CALCULABLE_RATE_TYPES.has(type as BaseMethodId)) return { issue: `La forma de cobro "${type}" no es válida. Corregila${enCatalogo}` };
+  const method = type as BaseMethodId;
+  // Tarifa fija: el monto pactado (carriers.flat_rate_amount, sql/36) ES la base. Sin monto, la base
+  // sale de la regla BASE fija del tercero (sql/37). Un monto ilegible o negativo es un error de carga.
+  const raw = method === 'FIXED' && flatRateAmount != null ? String(flatRateAmount).trim() : '';
+  if (raw === '') return { override: { method } };
+  if (!(Number(raw) >= 0)) return { issue: `El monto de tarifa fija no es válido. Corregilo${enCatalogo}` };
+  return { override: { method, amount: raw } };
+}
+
+/** Base de un tercero según el catálogo (`carriers.rate_type`, sql/35). */
+export async function carrierBaseForCarrier(
   carrierId: string,
   options: { fresh?: boolean } = {},
-): Promise<BaseOverride | null> {
+): Promise<CarrierBase> {
   const carrier = await getCarrierCached(carrierId, options);
-  return rateTypeToOverride(carrier?.rate_type, carrier?.flat_rate_amount);
+  if (!carrier) return { issue: 'No se encontró el transportista del viaje para leer su forma de cobro.' };
+  return resolveCarrierBase(carrier.rate_type, carrier.flat_rate_amount);
 }
 
-// Caché corta del transportista (igual criterio que el perfil): su rate_type casi no cambia y cada
-// recálculo de la liquidación lo pediría de nuevo. Se descarta cuando esta sesión escribe un carrier.
+// Caché corta del transportista (como el perfil); se descarta al escribir un carrier.
 const CARRIER_TTL_MS = 5 * 60_000;
 const carrierCache = new Map<string, { at: number; promise: Promise<Record<string, unknown> | null> }>();
 onDataWrite((touched) => { if (touched.has('carrier')) carrierCache.clear(); });
