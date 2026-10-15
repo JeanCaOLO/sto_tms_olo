@@ -18,6 +18,19 @@ describe('toRulePayload', () => {
     expect(extra).toEqual([]);
   });
 
+  it('sin forma de cobro ni ligado, el payload NO lleva las columnas de sql/38 (backend sin el manifest nuevo)', () => {
+    const payload = toRulePayload(candidate, 'country-id', false);
+    expect(payload).not.toHaveProperty('applies_to_base');
+    expect(payload).not.toHaveProperty('base_method');
+  });
+
+  it('con valor las envía; y al limpiar una regla que ya las tenía, envía null', () => {
+    const conValor = { ...candidate, baseMethod: 'FIXED', appliesToBase: ['PER_KM'] } as unknown as RuleCandidate;
+    expect(toRulePayload(conValor, 'c', false)).toMatchObject({ base_method: 'FIXED', applies_to_base: ['PER_KM'] });
+    expect(toRulePayload(candidate, 'c', true, { base_method: 'FIXED', applies_to_base: ['PER_KM'] }))
+      .toMatchObject({ base_method: null, applies_to_base: null });
+  });
+
   it('desactivar una regla envía active=false y sube la versión', () => {
     const payload = toRulePayload(candidate, 'country-id', true);
     expect(payload.active).toBe(false);

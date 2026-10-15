@@ -16,7 +16,7 @@ import {
 async function persist(c: SubmitContext, candidate: RuleCandidate): Promise<boolean> {
   const { rule } = c;
   if (!(await confirmDuplicate(c, candidate))) return false;
-  const payload = toRulePayload(candidate, c.form.formData.country_id, !!rule);
+  const payload = toRulePayload(candidate, c.form.formData.country_id, !!rule, rule);
   const { error } = await saveRule(c.organizationId, payload, rule?.id as string | undefined);
   if (error) throw error;
   await registrarEventoSeguro({

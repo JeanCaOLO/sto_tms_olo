@@ -59,7 +59,13 @@ export type RuleCandidate = ReturnType<typeof buildRuleCandidate>;
  * `tarifas_pricing_rules`: el backend rechaza con 400 cualquier campo que la tabla no tenga (por eso no
  * hay `updated_at`; la fecha del cambio queda en la bitácora).
  */
-export function toRulePayload(candidate: RuleCandidate, countryId: string, isEdit: boolean) {
+export function toRulePayload(
+  candidate: RuleCandidate, countryId: string, isEdit: boolean, previous?: Record<string, unknown>,
+) {
+  // Columnas de sql/38: solo viajan con valor (o si la regla ya las tenía y ahora se limpian). Así guardar
+  // una regla sigue funcionando contra un backend cuyo manifest todavía no las conoce.
+  const optional = (key: 'applies_to_base' | 'base_method', value: unknown) =>
+    value != null || previous?.[key] != null ? { [key]: value ?? null } : {};
   return {
     country_id: countryId || null,
     scope: candidate.scope,
@@ -70,8 +76,8 @@ export function toRulePayload(candidate: RuleCandidate, countryId: string, isEdi
     priority: candidate.priority,
     stacking: candidate.stacking,
     exclusion_group: candidate.exclusionGroup,
-    applies_to_base: candidate.appliesToBase,
-    base_method: candidate.baseMethod,
+    ...optional('applies_to_base', candidate.appliesToBase),
+    ...optional('base_method', candidate.baseMethod),
     conditions: candidate.conditions,
     expression: candidate.expression,
     description: candidate.description,
