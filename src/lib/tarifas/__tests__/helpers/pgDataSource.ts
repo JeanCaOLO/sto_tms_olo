@@ -59,6 +59,16 @@ export class PgDataSource implements DataSource {
   private where(entity: EntityName, conditions: FindOptions['where'] = []): { sql: string; params: unknown[] } {
     const params: unknown[] = [];
     const parts = conditions.map((c) => {
+      if (c.op === 'ilike') {
+        const escaped = String(c.value).trim().replace(/[\\%_]/g, '\\$&');
+        const names = c.column.split('|');
+        const clauses = names.map((name) => {
+          this.column(entity, name);
+          params.push(`%${escaped}%`);
+          return `${q(name)}::text ILIKE $${params.length}`;
+        });
+        return `(${clauses.join(' OR ')})`;
+      }
       const type = this.column(entity, c.column);
       const col = q(c.column);
       const ph = (value: unknown) => { params.push(this.param(entity, c.column, value)); return `$${params.length}::${CAST[type]}`; };

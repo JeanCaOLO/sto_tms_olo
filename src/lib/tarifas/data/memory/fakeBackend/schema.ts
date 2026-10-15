@@ -7,7 +7,7 @@ import { HttpFail, newId } from './errors';
 export type Table = ManifestTable & { name: string };
 
 const MAX_ROWS = 5000;
-const OPERATORS = new Set(['eq', 'neq', 'in', 'gt', 'gte', 'lt', 'lte', 'isNull', 'notNull']);
+const OPERATORS = new Set(['eq', 'neq', 'in', 'gt', 'gte', 'lt', 'lte', 'isNull', 'notNull', 'ilike']);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // Columnas NOT NULL que la base completa sola (DEFAULT de las migraciones sql/20 y sql/21).
 const DB_DEFAULTS: Record<string, Record<string, unknown>> = {
@@ -101,7 +101,12 @@ export const validateQuery = (t: Table, q: unknown): FindOptions => {
   for (const condition of query.where ?? []) {
     if (!condition || typeof condition !== 'object') throw new HttpFail(400, 'Cada condición debe ser un objeto { column, op, value }');
     if (!OPERATORS.has(condition.op)) throw new HttpFail(400, `Operador no soportado: "${condition.op}"`);
-    columnType(t, String(condition.column));
+    for (const name of condition.op === 'ilike' ? String(condition.column).split('|') : [String(condition.column)]) {
+      columnType(t, name);
+    }
+    if (condition.op === 'ilike' && (typeof condition.value !== 'string' || !condition.value.trim())) {
+      throw new HttpFail(400, `"ilike" sobre "${condition.column}" requiere un texto no vacío`);
+    }
     if (condition.op === 'in' && !Array.isArray(condition.value)) {
       throw new HttpFail(400, `"in" sobre "${condition.column}" requiere una lista`);
     }

@@ -28,8 +28,26 @@ from tarifas_schema import Table, quote
 MAX_ROWS = 5000  # tope por consulta: protege a la Lambda de un find() sin límite
 MAX_INSERT_ROWS = 5000  # filas de una operación `insert_many`
 MAX_PARAMS = 30000  # parámetros por sentencia (el protocolo de Postgres admite 65535)
-OPERATORS = {"eq", "neq", "in", "gt", "gte", "lt", "lte", "isNull", "notNull"}
+OPERATORS = {"eq", "neq", "in", "gt", "gte", "lt", "lte", "isNull", "notNull", "ilike"}
 COMPARISONS = {"gt": ">", "gte": ">=", "lt": "<", "lte": "<="}
+MAX_ILIKE_COLUMNS = 8  # columnas de una búsqueda `a|b|c`
+
+
+def _ilike(table: Table, column: str, value) -> tuple[str, list]:
+    """Contiene el texto (sin distinguir mayúsculas). `column` puede ser `a|b|c`: basta que una coincida.
+
+    Los comodines del cliente (`%`, `_`, `\\`) se escapan: se busca el texto tal cual.
+    """
+    if not isinstance(value, str) or not value.strip():
+        raise HttpError(400, f'"ilike" sobre "{column}" requiere un texto no vacío')
+    names = column.split("|")
+    if len(names) > MAX_ILIKE_COLUMNS:
+        raise HttpError(400, f'"ilike" admite hasta {MAX_ILIKE_COLUMNS} columnas')
+    for name in names:
+        table.cast(name)  # valida la columna
+    escaped = value.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    clauses = [f"{quote(name)}::text ILIKE %s" for name in names]
+    return "(" + " OR ".join(clauses) + ")", [f"%{escaped}%"] * len(names)
 
 
 def param(table: Table, column: str, value):
@@ -53,9 +71,11 @@ def _condition(table: Table, condition: dict) -> tuple[str, list]:
     column, op = condition.get("column"), condition.get("op")
     if op not in OPERATORS:
         raise HttpError(400, f'Operador no soportado: "{op}"')
+    value = condition.get("value")
+    if op == "ilike":
+        return _ilike(table, str(column), value)
     cast = table.cast(str(column))  # valida la columna
     col = quote(column)
-    value = condition.get("value")
 
     if op == "isNull":
         return f"{col} IS NULL", []

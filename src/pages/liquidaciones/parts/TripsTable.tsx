@@ -1,6 +1,6 @@
 // Tabla «Por liquidar»: un botón Liquidar por viaje y, marcando varios listos, «Liquidar N viajes» de una vez.
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import Button from '../../../components/base/Button';
 import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
 import { notLiquidableReason } from '../../../lib/tarifas/tripContext';
@@ -9,6 +9,7 @@ import { tripProgress } from '../../../lib/tarifas/tripOrders';
 import { listOrdersForTrips } from '../../../lib/tarifas/tripsDataSource';
 import { downloadTripsWorkbook } from '../exportTripsWithOrders';
 import TripOrdersPanel from '../components/TripOrdersPanel';
+import { useTripSearch } from '../hooks/useTripSearch';
 import { tripColumns } from './tripColumns';
 import type { TripRecord } from '../../../lib/tarifas/types';
 
@@ -41,6 +42,8 @@ export function TripsTable({
   trips, loading, extendida, canCreate, currency, prefetchProps, onLiquidar, onLiquidarLote,
 }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const { onSearchChange, hasMatchingOrder, searching } = useTripSearch();
+  const extraMatch = useCallback((t: TripRecord) => hasMatchingOrder(t.id), [hasMatchingOrder]);
 
   // Para el lote solo sirven los viajes listos: los que tienen pedidos por decidir se liquidan aparte.
   const motivoLote = (t: TripRecord): string | null => {
@@ -68,7 +71,11 @@ export function TripsTable({
         />
       )}
       searchHidden
-      searchPlaceholder="Buscar por viaje, transportista, conductor o placa"
+      onSearchChange={onSearchChange}
+      extraMatch={extraMatch}
+      searchPlaceholder={searching
+        ? 'Buscando pedidos…'
+        : 'Buscar viaje, transportista, conductor, placa, zona, guía, pedido o casa'}
       exportFileName="viajes_por_liquidar"
       exportHandler={exportTripsWithOrders}
       emptyMessage="No hay viajes completados pendientes de liquidar"

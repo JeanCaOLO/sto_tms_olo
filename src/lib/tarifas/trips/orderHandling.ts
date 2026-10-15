@@ -7,6 +7,28 @@ import type { TripOrder } from '../types';
 /** Ids por consulta: `in` con muchos valores desborda la URL/el payload del backend. */
 const IDS_PER_QUERY = 200;
 
+/** Tope de pedidos que trae la búsqueda: una pista demasiado genérica no debe traer toda la tabla. */
+const ORDER_SEARCH_LIMIT = 1000;
+
+/** Columnas de pedido que mira la búsqueda universal de viajes. */
+const ORDER_SEARCH_COLUMNS = 'guide_number|order_number|customer_name|customer_code';
+
+/**
+ * Ids de los viajes (`route_id`) con algún pedido cuya guía, código o casa comercial contiene `term`.
+ * Una sola consulta con `ilike`; solo trae `route_id`. Quien llama cruza el resultado con los viajes
+ * que ya tiene cargados.
+ */
+export async function searchTripIdsByOrder(term: string): Promise<Set<string>> {
+  const text = term.trim();
+  if (!text) return new Set();
+  const rows = await db().find('tripOrder', {
+    where: [{ column: ORDER_SEARCH_COLUMNS, op: 'ilike', value: text }],
+    columns: ['route_id'],
+    limit: ORDER_SEARCH_LIMIT,
+  });
+  return new Set(rows.map((r) => String(r.route_id)));
+}
+
 /**
  * Los pedidos de VARIOS viajes agrupados por viaje, en pocas consultas (`in`, por lotes) en vez de una por
  * viaje. Mismo orden y misma lectura de marcas que `listTripOrders`. Todo viaje pedido queda en el mapa.

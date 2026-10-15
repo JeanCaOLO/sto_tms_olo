@@ -1,8 +1,13 @@
 // Filtrado y orden para MemoryDataSource.
 
+import { matchesSearch } from '../../../text';
 import type { Condition, FindOptions, OrderBy, Row } from '../datasource';
 
 function matches(row: Row, condition: Condition): boolean {
+  if (condition.op === 'ilike') {
+    // `a|b|c`: basta que una columna contenga el texto.
+    return condition.column.split('|').some((name) => matchesSearch(row[name], String(condition.value ?? '')));
+  }
   const actual = row[condition.column];
   switch (condition.op) {
     case 'eq':

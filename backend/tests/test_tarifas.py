@@ -113,6 +113,28 @@ def test_in_vacio_no_trae_nada(api):
     assert "WHERE FALSE" in db.calls[-1][0]
 
 
+def test_ilike_busca_en_varias_columnas_y_escapa_comodines(api):
+    app, db = api
+    q = {"where": [{"column": "guide_number|order_number|customer_name", "op": "ilike", "value": " 50%_a "}],
+         "columns": ["route_id"]}
+    response = call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_v_viaje_pedidos"}, query={"q": json.dumps(q)})
+    assert response["statusCode"] == 200
+    sql, params = db.calls[-1]
+    assert '("guide_number"::text ILIKE %s OR "order_number"::text ILIKE %s OR "customer_name"::text ILIKE %s)' in sql
+    assert params == ["%50\\%\\_a%"] * 3
+
+
+@pytest.mark.parametrize("column,value", [
+    ("guide_number", ""), ("guide_number", "   "), ("guide_number", 5), ("no_existe", "x"),
+    ("guide_number|no_existe", "x"), ("a|b|c|d|e|f|g|h|i", "x"),
+])
+def test_ilike_invalido_es_400(api, column, value):
+    app, db = api
+    q = {"where": [{"column": column, "op": "ilike", "value": value}]}
+    response = call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_v_viaje_pedidos"}, query={"q": json.dumps(q)})
+    assert response["statusCode"] == 400
+
+
 def test_el_limite_tiene_tope(api):
     app, db = api
     call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_settlements"}, query={"q": json.dumps({"limit": 999999})})
