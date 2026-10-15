@@ -2,75 +2,76 @@ import { useMemo, useState } from 'react';
 import { addDays, addMonths, format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useTranslation } from 'react-i18next';
-import Modal from '../../../components/base/Modal';
 import { usePlanesList } from '../use-planes-list';
-import { useZonasNombre } from '../use-zonas-nombre';
-import { planesDemo } from '../calendario-demo';
-import { diasMes, diasSemana, isoDe, numeroDeViaje, viajesDeCelda, viajesDeFecha, type VistaCalendario } from '../calendario';
+import { useEflowSimPlanes } from '../use-eflow-sim-planes';
+import {
+  diasMes, diasSemana, filtrarPorZonas, isoDe, numeroDeViaje, zonasPresentes,
+  type VistaCalendario,
+} from '../calendario';
+import ControlesVista, { type Modo } from './ControlesVista';
 import DetalleDia from './DetalleDia';
+import DetalleModal from './DetalleModal';
+import FiltroZonas from './FiltroZonas';
 import VistaMes from './VistaMes';
 import VistaSemanaMatriz from './VistaSemanaMatriz';
+import VistaTabla from './VistaTabla';
 
-const VISTAS: { id: VistaCalendario; key: string }[] = [
-  { id: 'dia', key: 'planning.viewDay' },
-  { id: 'semana', key: 'planning.viewWeek' },
-  { id: 'mes', key: 'planning.viewMonth' },
-];
-
-function fmtFecha(iso: string): string {
+function fmtDia(iso: string): string {
   return format(new Date(`${iso}T00:00:00`), "EEEE d 'de' MMMM, yyyy", { locale: es });
 }
 
-// Calendario de planificación: matriz zonas×días (semana), rejilla de mes y
-// lista de día. Lee los planes del contexto operativo (usePlanesList); si no hay
-// backend/planes, cae a datos demo para ver la UI. Abrir una celda/día reusa
-// PlanTripCard (mapa + paradas + pedidos + artículos) dentro de un modal.
+// Calendario de planificación: rango día/semana/mes × modo cuadrícula/tabla, con
+// filtro por zona. Toma los planes de Aurora (usePlanesList) y, si no hay, del
+// API simulado de eFlow cacheado en localStorage (useEflowSimPlanes). Abrir una
+// celda/día reusa PlanTripCard (mapa + paradas + pedidos + artículos) en un modal.
 export default function CalendarioPlanificacion() {
   const { t } = useTranslation();
-  const { planes: reales, cargando, recargar } = usePlanesList();
-  const { nombreDe } = useZonasNombre();
+  const { planes: reales, cargando: cargandoReales, recargar } = usePlanesList();
+  const { planes: eflow, cargando: cargandoEflow, regenerar } = useEflowSimPlanes();
   const [vista, setVista] = useState<VistaCalendario>('semana');
+  const [modo, setModo] = useState<Modo>('cuadricula');
   const [ancla, setAncla] = useState<Date>(() => new Date());
+  const [zonasSel, setZonasSel] = useState<Set<string>>(new Set());
   const [detalle, setDetalle] = useState<{ fechaISO: string; zonaCodigo: string | null } | null>(null);
 
-  const demo = useMemo(() => planesDemo(), []);
-  const usandoDemo = !cargando && reales.length === 0;
-  const planes = reales.length > 0 ? reales : demo;
+  const usandoSim = reales.length === 0;
+  const base = usandoSim ? eflow : reales;
+  const cargando = cargandoReales || (usandoSim && cargandoEflow);
 
-  const dias = useMemo(() => (vista === 'mes' ? diasMes(ancla) : diasSemana(ancla)), [vista, ancla]);
+  const dias = useMemo(
+    () => (vista === 'mes' ? diasMes(ancla) : vista === 'dia' ? [ancla] : diasSemana(ancla)),
+    [vista, ancla],
+  );
   const fechasISO = useMemo(() => dias.map(isoDe), [dias]);
+  const zonasRango = useMemo(() => zonasPresentes(base, fechasISO), [base, fechasISO]);
+  const planes = useMemo(() => filtrarPorZonas(base, zonasSel), [base, zonasSel]);
   const numeros = useMemo(() => numeroDeViaje(planes, fechasISO), [planes, fechasISO]);
 
   function navegar(dir: -1 | 1) {
     setAncla((a) => (vista === 'mes' ? addMonths(a, dir) : addDays(a, vista === 'dia' ? dir : dir * 7)));
   }
+  function toggleZona(z: string) {
+    setZonasSel((s) => {
+      const n = new Set(s);
+      if (n.has(z)) n.delete(z);
+      else n.add(z);
+      return n;
+    });
+  }
+  const abrir = (fechaISO: string, zonaCodigo: string | null) => setDetalle({ fechaISO, zonaCodigo });
 
-  const etiquetaPeriodo =
+  const etiqueta =
     vista === 'mes'
       ? format(ancla, 'MMMM yyyy', { locale: es })
       : vista === 'dia'
-        ? fmtFecha(isoDe(ancla))
+        ? fmtDia(isoDe(ancla))
         : `${format(dias[0], 'd MMM', { locale: es })} – ${format(dias[dias.length - 1], 'd MMM yyyy', { locale: es })}`;
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        {/* Switcher de vista */}
-        <div className="inline-flex rounded-lg border border-slate-200 overflow-hidden self-start">
-          {VISTAS.map((v) => (
-            <button
-              key={v.id}
-              onClick={() => setVista(v.id)}
-              className={`px-3 py-1.5 text-sm font-medium cursor-pointer ${
-                vista === v.id ? 'bg-teal-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              {t(v.key)}
-            </button>
-          ))}
-        </div>
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <ControlesVista vista={vista} modo={modo} onVista={setVista} onModo={setModo} />
 
-        {/* Navegación de período */}
         <div className="flex items-center gap-2">
           <button onClick={() => navegar(-1)} className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 cursor-pointer" aria-label="Anterior">
             <i className="ri-arrow-left-s-line text-lg"></i>
@@ -81,14 +82,24 @@ export default function CalendarioPlanificacion() {
           <button onClick={() => navegar(1)} className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 cursor-pointer" aria-label="Siguiente">
             <i className="ri-arrow-right-s-line text-lg"></i>
           </button>
-          <span className="text-sm font-semibold text-slate-700 capitalize ml-1 min-w-[9rem]">{etiquetaPeriodo}</span>
+          <span className="text-sm font-semibold text-slate-700 capitalize ml-1 min-w-[9rem]">{etiqueta}</span>
         </div>
       </div>
 
-      {usandoDemo && (
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <FiltroZonas zonas={zonasRango} seleccionadas={zonasSel} onToggle={toggleZona} onTodas={() => setZonasSel(new Set())} />
+        {usandoSim && (
+          <button onClick={regenerar} className="inline-flex items-center gap-1.5 self-start px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 cursor-pointer">
+            <i className="ri-refresh-line"></i>
+            {t('planning.refreshEflow')}
+          </button>
+        )}
+      </div>
+
+      {usandoSim && (
         <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
           <i className="ri-information-line"></i>
-          {t('planning.demoBanner')}
+          {t('planning.simBanner')}
         </div>
       )}
 
@@ -96,41 +107,25 @@ export default function CalendarioPlanificacion() {
         <div className="flex items-center justify-center h-48 text-slate-500">
           <i className="ri-loader-4-line animate-spin text-2xl"></i>
         </div>
+      ) : modo === 'tabla' ? (
+        <VistaTabla planes={planes} dias={dias} onAbrirCelda={(f, z) => abrir(f, z)} />
       ) : vista === 'semana' ? (
-        <VistaSemanaMatriz planes={planes} dias={dias} numeros={numeros} onAbrirCelda={(fechaISO, zonaCodigo) => setDetalle({ fechaISO, zonaCodigo })} />
+        <VistaSemanaMatriz planes={planes} dias={dias} numeros={numeros} onAbrirCelda={(f, z) => abrir(f, z)} />
       ) : vista === 'mes' ? (
-        <VistaMes planes={planes} ancla={ancla} dias={dias} onAbrirDia={(fechaISO) => setDetalle({ fechaISO, zonaCodigo: null })} />
+        <VistaMes planes={planes} ancla={ancla} dias={dias} onAbrirDia={(f) => abrir(f, null)} />
       ) : (
         <DetalleDia planes={planes} fechaISO={isoDe(ancla)} onRecargar={recargar} />
       )}
 
-      {detalle && (() => {
-        const viajes = detalle.zonaCodigo
-          ? viajesDeCelda(planes, detalle.fechaISO, detalle.zonaCodigo)
-          : viajesDeFecha(planes, detalle.fechaISO);
-        // El ancho del modal se ajusta a cuántos viajes hay: uno queda centrado y
-        // cómodo; varios tienen aire para ponerse lado a lado sin adelgazarse.
-        const ancho = viajes.length <= 1 ? 'max-w-xl' : viajes.length === 2 ? 'max-w-3xl' : 'max-w-5xl';
-        const titulo = `${fmtFecha(detalle.fechaISO)}${detalle.zonaCodigo ? ` · ${nombreDe(detalle.zonaCodigo)}` : ''}`;
-        return (
-          <Modal isOpen onClose={() => setDetalle(null)} title={titulo} widthClass={ancho} zClass="z-[1000]">
-            <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-800 capitalize">{titulo}</h2>
-              <button
-                type="button"
-                onClick={() => setDetalle(null)}
-                className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
-                aria-label={t('planning.close')}
-              >
-                <i className="ri-close-line text-xl"></i>
-              </button>
-            </div>
-            <div className="p-5">
-              <DetalleDia planes={planes} fechaISO={detalle.fechaISO} zonaCodigo={detalle.zonaCodigo} onRecargar={recargar} />
-            </div>
-          </Modal>
-        );
-      })()}
+      {detalle && (
+        <DetalleModal
+          planes={planes}
+          fechaISO={detalle.fechaISO}
+          zonaCodigo={detalle.zonaCodigo}
+          onClose={() => setDetalle(null)}
+          onRecargar={recargar}
+        />
+      )}
     </div>
   );
 }

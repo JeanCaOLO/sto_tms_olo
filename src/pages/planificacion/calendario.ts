@@ -48,6 +48,15 @@ export function viajesDeCelda(planes: RoutePlan[], fechaISO: string, zonaCodigo:
   return viajesDeFecha(planes, fechaISO).filter((t) => t.delivery_zone === zonaCodigo);
 }
 
+// Filtra los planes a un subconjunto de zonas: deja fuera los viajes de otras
+// zonas y los planes que quedan sin viajes. Set vacío = sin filtro (todo).
+export function filtrarPorZonas(planes: RoutePlan[], zonas: Set<string>): RoutePlan[] {
+  if (zonas.size === 0) return planes;
+  return planes
+    .map((p) => ({ ...p, trips: p.trips.filter((t) => zonas.has(t.delivery_zone)) }))
+    .filter((p) => p.trips.length > 0);
+}
+
 // Zonas (códigos) presentes en el rango visible, ordenadas. Son las filas.
 export function zonasPresentes(planes: RoutePlan[], fechasISO: string[]): string[] {
   const visibles = new Set(fechasISO);
