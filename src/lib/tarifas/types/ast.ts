@@ -1,6 +1,7 @@
 // AST del lenguaje de reglas: predicados, expresiones, condiciones, estadios.
 
 import type { Money } from './variables';
+import type { BaseMethodId } from './trace';
 import type { NumericVarKey, VarKey } from './trip';
 
 export type ComparisonOp = 'EQ' | 'NEQ' | 'GT' | 'GTE' | 'LT' | 'LTE';
@@ -185,6 +186,17 @@ export interface Rule {
   priority: number; // menor = se evalúa antes; dentro de EXCLUSIVE, gana la de menor priority
   stacking: Stacking;
   exclusionGroup: string | null; // reglas MAX mutuamente excluyentes comparten este grupo
+  /**
+   * Formas de cobro de la base a las que está ligado este ajuste (solo etapas que no son BASE).
+   * Null o vacío = transversal: aplica con cualquier base, que es como se comportaban todas las reglas
+   * antes de este campo.
+   */
+  appliesToBase?: BaseMethodId[] | null;
+  /**
+   * Forma de cobro que declara una regla BASE (solo etapa BASE; nulo en las demás). Ausente en filas
+   * anteriores: ahí se deduce de la expresión (`classifyExpr`).
+   */
+  baseMethod?: BaseMethodId | null;
   conditions: Pred;
   expression: Expr;
   /** Explicación en castellano. Autogenerada desde `builder`, editable a mano. */

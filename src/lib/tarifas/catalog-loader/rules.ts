@@ -28,6 +28,8 @@ export function buildRules(ofCountry: Row[], global: Row[], countryId: string): 
       scope: (row.scope ?? 'COUNTRY'),
       partyId: row.party_id ?? null,
       exclusionGroup: row.exclusion_group ?? null,
+      appliesToBase: row.applies_to_base ?? null,
+      baseMethod: row.base_method ?? null,
       conditions: row.conditions,
       expression: row.expression,
       description: row.description ?? null,

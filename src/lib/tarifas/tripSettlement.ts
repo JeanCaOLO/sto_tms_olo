@@ -13,6 +13,7 @@
 import { calculate } from './index';
 import { CatalogError, loadTarifasCatalog, type TarifasCatalog } from './catalogLoader';
 import { buildCustomVarFields, missingDeclaredVars, type CustomVarField } from './customVarFields';
+import { isContractExpired, type CarrierContract } from './carrierContract';
 import { carrierBaseForCarrier, getProfileForCarrierCached } from './partiesDataSource';
 import { detectMissingLogic, noLogicMessage, noRuleApplied, type NoLogicInfo } from './missingLogic';
 import { buildCalculateInput } from './settlementInput';
@@ -43,6 +44,8 @@ export interface TripCalculation {
   warnings: string[];
   /** Si el viaje no se puede liquidar (no completado, ya liquidado…), por qué. Null = se puede. */
   notLiquidableReason: string | null;
+  /** Contrato del transportista (solo terceros con forma de cobro válida). */
+  contract: (CarrierContract & { expired: boolean }) | null;
 }
 
 export type TripCalculationResult =
@@ -116,13 +119,16 @@ export async function calculateTrip(
   // forma de cobro del catálogo de Transportistas (carriers.rate_type, sql/35), sin default; si falta
   // o no se puede calcular, el cálculo se bloquea con el motivo.
   let baseOverride: BaseOverride | null = null;
+  let carrierContract: CarrierContract | null = null;
   const baseIssues: CalcIssue[] = [];
   if (!trip.isOwnFleet) {
     const base = trip.carrierId
       ? await carrierBaseForCarrier(trip.carrierId, { fresh: options.fresh })
       : { issue: 'El viaje no tiene transportista: no hay forma de cobro con que calcularlo.' };
-    if ('override' in base) baseOverride = base.override;
-    else baseIssues.push({ code: 'BASE_NO_DEFINIDA', message: base.issue });
+    if ('override' in base) {
+      baseOverride = base.override;
+      carrierContract = base.contract ?? null;
+    } else baseIssues.push({ code: 'BASE_NO_DEFINIDA', message: base.issue });
   }
 
   let catalog: TarifasCatalog;
@@ -175,6 +181,15 @@ export async function calculateTrip(
   const reason = notLiquidableReason(trip);
   const ignorable = options.allowSettled && trip.settlementId && trip.status === 'completed';
 
+  // Contrato vencido a la fecha del viaje: avisa pero deja liquidar (no es un problema bloqueante).
+  const contract = carrierContract
+    ? { ...carrierContract, expired: isContractExpired(carrierContract.contractExpiry, context.quotedAt) }
+    : null;
+  const contractWarning = contract?.expired
+    ? `Contrato vencido el ${contract.contractExpiry}${contract.carrierName ? ` (${contract.carrierName})` : ''}: `
+      + 'se liquida igual con la forma de cobro del catálogo; conviene renovarlo.'
+    : null;
+
   return {
     status: 'ok',
     calculation: {
@@ -187,8 +202,12 @@ export async function calculateTrip(
       input,
       result,
       blockingIssues: [...issues, ...(issues.length > 0 ? [] : result.blockingIssues)],
-      warnings: [...warnings, ...(cargoWarning ? [cargoWarning] : []), ...result.warnings],
+      warnings: [
+        ...warnings, ...(contractWarning ? [contractWarning] : []), ...(cargoWarning ? [cargoWarning] : []),
+        ...result.warnings,
+      ],
       notLiquidableReason: ignorable ? null : reason,
+      contract,
     },
   };
 }

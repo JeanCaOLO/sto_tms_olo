@@ -2,19 +2,15 @@
 // evita que otra fase cobre lo mismo dos veces. Lógica pura, como el resto del kernel.
 
 import Decimal from 'decimal.js';
-import { evaluatePred, RuleShapeError } from './evaluator';
 import { roundToMoney, toDecimal } from './money';
 import { compareRules } from './resolver/evaluation';
 import {
-  BASE_METHODS, NO_DATA, baseRulesOf, classifyExpr, describeBaseMethods, sourceOfRule, structureCostPerKm,
+  BASE_METHODS, NO_DATA, baseRulesOf, classifyExpr, describeBaseMethods, structureCostPerKm,
   type BaseMethodOption, type ExprKind,
 } from './baseMethods';
 import type {
   BaseInfo, BaseMethodId, BaseOverride, BaseSource, CalcIssue, CalculateInput, DiscardedRule, Rule, TraceLine, VarBag,
 } from './types';
-
-// El orden es el del resolver (etapa, prioridad, alcance, código): una sola definición.
-const compareRulesForBase = compareRules;
 
 /**
  * Reglas BASE que quedan al elegir un tipo de cobro: todas las que se suman o compiten por MAX y,
@@ -23,7 +19,7 @@ const compareRulesForBase = compareRules;
 function pickBaseRules(candidates: Rule[], method: BaseMethodId): { rule: Rule; kind: ExprKind }[] {
   const all = baseRulesOf(candidates, method);
   const exclusive = all.filter((c) => c.rule.stacking === 'EXCLUSIVE')
-    .sort((a, b) => compareRulesForBase(a.rule, b.rule));
+    .sort((a, b) => compareRules(a.rule, b.rule));
   return [...all.filter((c) => c.rule.stacking !== 'EXCLUSIVE'), ...exclusive.slice(0, 1)];
 }
 
@@ -99,7 +95,9 @@ export function applyBaseOverride(
     ? []
     : pickBaseRules(candidates, override.method);
   const chosenIds = new Set(chosen.map((c) => c.rule.id));
-  const concept = chosen[0]?.kind.concept ?? 'km';
+  // Concepto que la base ya cobra: el de su regla; con monto del transportista es 'fixed' (no hay nada
+  // "por km" cobrado, así un recargo por km transversal sigue aplicando) y con la estructura es 'km'.
+  const concept = source.kind === 'CARRIER' ? 'fixed' : (chosen[0]?.kind.concept ?? 'km');
 
   const discarded: DiscardedRule[] = [];
   const replaced: string[] = [];
@@ -181,7 +179,7 @@ export function applyBaseOverride(
   }
 
   return {
-    rules: kept.sort(compareRulesForBase),
+    rules: kept.sort(compareRules),
     seed,
     discarded,
     warnings,

@@ -1,5 +1,6 @@
 // Armado puro de lo que se guarda al enviar el modal de reglas: la candidata a validar y el payload.
 
+import { classifyExpr } from '../../../../lib/tarifas/baseMethods';
 import type {
   ConditionBuilderForm, Expr, Pred, RuleBuilderForm,
 } from '../../../../lib/tarifas/types';
@@ -32,6 +33,10 @@ export function buildRuleCandidate(input: CandidateInput) {
     priority: Number(formData.priority),
     stacking: formData.stacking,
     exclusionGroup: formData.stacking === 'MAX' && exclusionGroup ? exclusionGroup : null,
+    // Solo los ajustes se ligan a una forma de cobro: la BASE es la que la define.
+    // La forma de cobro de una BASE se deduce de su fórmula: así declarada y fórmula nunca se contradicen.
+    baseMethod: formData.stage === 'BASE' ? classifyExpr(input.expression)?.method ?? null : null,
+    appliesToBase: formData.stage !== 'BASE' && formData.applies_to_base.length > 0 ? formData.applies_to_base : null,
     conditions: input.conditions,
     expression: input.expression,
     description: input.description || null,
@@ -65,6 +70,8 @@ export function toRulePayload(candidate: RuleCandidate, countryId: string, isEdi
     priority: candidate.priority,
     stacking: candidate.stacking,
     exclusion_group: candidate.exclusionGroup,
+    applies_to_base: candidate.appliesToBase,
+    base_method: candidate.baseMethod,
     conditions: candidate.conditions,
     expression: candidate.expression,
     description: candidate.description,

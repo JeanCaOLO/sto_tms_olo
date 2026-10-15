@@ -125,6 +125,8 @@ export const ExprSchema: z.ZodType<unknown> = z.lazy(() =>
 
 // ── Regla completa ────────────────────────────────────────────────────────────────────────────
 
+const BaseMethodSchema = z.enum(['PER_KM', 'PER_UNIT', 'FIXED', 'VOLUME', 'TENDERING']);
+
 export const RuleSchema = z.object({
   id: z.string().min(1),
   countryId: z.string().min(1),
@@ -137,6 +139,8 @@ export const RuleSchema = z.object({
   priority: z.number().int(),
   stacking: z.enum(['SUM', 'MAX', 'EXCLUSIVE']),
   exclusionGroup: z.string().nullable(),
+  appliesToBase: z.array(BaseMethodSchema).nullable().optional(),
+  baseMethod: BaseMethodSchema.nullable().optional(),
   conditions: PredSchema,
   expression: ExprSchema,
   description: z.string().nullable().optional(),
@@ -153,6 +157,13 @@ export const RuleSchema = z.object({
 }).refine(
   (rule) => !rule.effectiveFrom || !rule.effectiveTo || rule.effectiveFrom <= rule.effectiveTo,
   { message: 'La fecha de fin no puede ser anterior a la de inicio.', path: ['effectiveTo'] },
+).refine(
+  // La forma de cobro la define la BASE; un ajuste solo se liga a una (`appliesToBase`).
+  (rule) => rule.stage === 'BASE' ? !(rule.appliesToBase?.length) : !rule.baseMethod,
+  { message: 'La forma de cobro solo se declara en la etapa BASE y el ligado a una base, en los ajustes.', path: ['baseMethod'] },
+).refine(
+  (rule) => rule.baseMethod !== 'TENDERING',
+  { message: 'Tendering todavía no tiene un cálculo definido.', path: ['baseMethod'] },
 );
 
 export const RuleWithScopeSchema = RuleSchema.refine(

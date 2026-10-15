@@ -109,7 +109,7 @@ describe('discardNewParty (T3)', () => {
 // carriers.rate_type (sql/35) en vez del selector manual de Liquidaciones.
 describe('carrierBaseForCarrier (base de un tercero según el catálogo)', () => {
   it('lee la forma de cobro del carrier de la semilla', async () => {
-    expect(await carrierBaseForCarrier('CARRIER_VE_1')).toEqual({ override: { method: 'FIXED' } });
+    expect(await carrierBaseForCarrier('CARRIER_VE_1')).toMatchObject({ override: { method: 'FIXED' } });
   });
 
   it('un carrier inexistente → motivo, no rompe el cálculo', async () => {

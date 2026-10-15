@@ -104,6 +104,10 @@
         "flat_rate_amount": {
           "type": "numeric",
           "nullable": true
+        },
+        "contract_expiry": {
+          "type": "date",
+          "nullable": true
         }
       }
     },
@@ -634,6 +638,14 @@
           "nullable": false
         },
         "exclusion_group": {
+          "type": "text",
+          "nullable": true
+        },
+        "applies_to_base": {
+          "type": "jsonb",
+          "nullable": true
+        },
+        "base_method": {
           "type": "text",
           "nullable": true
         },

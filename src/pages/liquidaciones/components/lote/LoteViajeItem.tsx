@@ -1,6 +1,7 @@
 // Un viaje dentro del lote: una fila con el resumen y, al desplegarla, el mismo cuerpo del modal de un viaje.
 
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
+import { BASE_METHODS } from '../../../../lib/tarifas/baseMethods';
 import { formatMoney } from '../../../../lib/tarifas/format';
 import { useEmitTrip } from '../../hooks/useEmitTrip';
 import { useLiquidarViajeController } from '../../hooks/useLiquidarViajeController';
@@ -68,6 +69,8 @@ export const LoteViajeItem = forwardRef<LoteItemHandle, Props>(function LoteViaj
 
   const blocked = calculation?.notLiquidableReason ?? blocking[0]?.message ?? null;
   const estado = estadoDe({ saved, error, loading: loading || pending, blocked, saving });
+  const baseMethod = calculation?.result.base?.method;
+  const modalidad = calculation?.trip.isOwnFleet ? 'Flota propia' : baseMethod ? BASE_METHODS[baseMethod].label : null;
 
   return (
     <li className="border border-slate-200 rounded-lg bg-white">
@@ -80,6 +83,16 @@ export const LoteViajeItem = forwardRef<LoteItemHandle, Props>(function LoteViaj
         <i className={`${expanded ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} text-slate-400`} />
         <span className="font-mono text-xs text-teal-700">{trip.routeNumber}</span>
         <span className="text-sm text-slate-700 truncate max-w-[220px]">{trip.carrierName ?? '—'}</span>
+        {modalidad && (
+          <span className="text-xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full" title="Forma de cobro del viaje">
+            {modalidad}
+          </span>
+        )}
+        {calculation?.contract?.expired && (
+          <span className="text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full" title="El contrato del transportista venció">
+            Contrato vencido
+          </span>
+        )}
         <span className="ml-auto flex items-center gap-3">
           {total !== null && (
             <span className="text-sm font-medium text-slate-800">{formatMoney(total, currency)}</span>

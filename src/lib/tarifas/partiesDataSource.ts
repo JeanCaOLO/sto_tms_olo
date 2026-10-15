@@ -3,6 +3,7 @@
 // Misma forma de retorno que el resto del módulo para que las pantallas manejen los fallos igual.
 // Todo por la capa de datos (`./data`): los transportistas se leen como entidad externa.
 
+import { contractOfCarrier, type CarrierContract } from './carrierContract';
 import { db, ForeignKeyError, NotFoundError, onDataWrite, UniqueViolationError, type Condition } from './data';
 import {
   mergeCarriersWithProfiles,
@@ -95,7 +96,7 @@ export async function getProfileForCarrierCached(
 const CALCULABLE_RATE_TYPES = new Set<BaseMethodId>(['PER_KM', 'PER_UNIT', 'FIXED', 'VOLUME']);
 
 /** Base del catálogo para un tercero: la que se aplica o el motivo por el que no hay ninguna. */
-export type CarrierBase = { override: BaseOverride } | { issue: string };
+export type CarrierBase = { override: BaseOverride; contract?: CarrierContract } | { issue: string };
 
 /**
  * Convierte el `carriers.rate_type` crudo en la base a aplicar a un TERCERO. No hay default: sin
@@ -124,7 +125,8 @@ export async function carrierBaseForCarrier(
 ): Promise<CarrierBase> {
   const carrier = await getCarrierCached(carrierId, options);
   if (!carrier) return { issue: 'No se encontró el transportista del viaje para leer su forma de cobro.' };
-  return resolveCarrierBase(carrier.rate_type, carrier.flat_rate_amount);
+  const base = resolveCarrierBase(carrier.rate_type, carrier.flat_rate_amount);
+  return 'override' in base ? { ...base, contract: contractOfCarrier(carrier) } : base;
 }
 
 // Caché corta del transportista (como el perfil); se descarta al escribir un carrier.
