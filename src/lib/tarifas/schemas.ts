@@ -107,7 +107,20 @@ export const ExprSchema: z.ZodType<unknown> = z.lazy(() =>
     z.object({ op: z.literal('MAX'), args: z.array(ExprSchema).min(1) }),
     z.object({ op: z.literal('CLAMP'), value: ExprSchema, min: MoneySchema.optional(), max: MoneySchema.optional() }),
     z.object({ op: z.literal('IF'), cond: PredSchema, then: ExprSchema, else: ExprSchema }),
-  ]),
+  ]).superRefine((expr, ctx) => {
+    const e = expr as { op: string; tiers?: { upTo: number | null }[]; min?: string; max?: string };
+    if (e.op === 'TIERED' && e.tiers) {
+      const abiertos = e.tiers.filter((t) => t.upTo === null).length;
+      if (abiertos > 1) ctx.addIssue({ code: 'custom', message: 'Solo un escalón puede quedar sin límite superior', path: ['tiers'] });
+      const limites = e.tiers.filter((t) => t.upTo !== null).map((t) => t.upTo);
+      if (new Set(limites).size !== limites.length) {
+        ctx.addIssue({ code: 'custom', message: 'Hay escalones con el mismo límite superior', path: ['tiers'] });
+      }
+    }
+    if (e.op === 'CLAMP' && e.min !== undefined && e.max !== undefined && Number(e.min) > Number(e.max)) {
+      ctx.addIssue({ code: 'custom', message: 'El mínimo no puede ser mayor que el máximo', path: ['min'] });
+    }
+  }),
 );
 
 // ── Regla completa ────────────────────────────────────────────────────────────────────────────

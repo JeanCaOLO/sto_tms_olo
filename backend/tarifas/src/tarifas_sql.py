@@ -257,6 +257,42 @@ def build_insert_many(table: Table, rows) -> list[tuple[str, list]]:
     return statements
 
 
+# ── Liquidaciones emitidas: inmutables salvo su ciclo de vida ──────────────────────────────────
+# El total, el desglose, el número y el viaje de una liquidación no se editan nunca: lo único que
+# cambia después de emitirla es su estado (y el motivo de margen / la marca de reemplazo que lo
+# acompañan). Antes el servidor aceptaba cualquier columna de cualquier PATCH y confiaba en que el
+# cliente respetara `statusTransitions.ts`; ahora lo hace cumplir, y la transición se valida en el
+# propio UPDATE (WHERE status = ANY(origenes)), de modo que dos usuarios a la vez no pisan la regla.
+SETTLEMENTS_TABLE = "tarifas_settlements"
+SETTLEMENT_MUTABLE_COLUMNS = frozenset({"status", "margin_reason", "superseded_by", "updated_at"})
+# Espejo de ALLOWED_TRANSITIONS en src/lib/tarifas/settlements/statusTransitions.ts.
+SETTLEMENT_TRANSITIONS = {
+    "Borrador": ("En Revisión", "Aprobado", "Pagado", "Anulado"),
+    "En Revisión": ("Borrador", "Aprobado", "Pagado", "Anulado"),
+    "Aprobado": ("Pagado", "Anulado", "En Revisión"),
+    "Pagado": ("Anulado",),
+    "Anulado": (),
+}
+
+
+def _settlement_guard(fields: dict) -> tuple[str, list] | None:
+    """Cláusula extra del UPDATE de una liquidación (o None si el cambio no toca el estado)."""
+    frozen = sorted(set(fields) - SETTLEMENT_MUTABLE_COLUMNS)
+    if frozen:
+        raise HttpError(403, f"Una liquidación emitida es inmutable: no se puede modificar {', '.join(frozen)}.")
+    if "status" not in fields:
+        return None
+    target = fields["status"]
+    if target not in SETTLEMENT_TRANSITIONS:
+        raise HttpError(400, f'Estado de liquidación desconocido: "{target}".')
+    origins = [origin for origin, allowed in SETTLEMENT_TRANSITIONS.items() if target in allowed]
+    clause = f"{quote('status')} = ANY(%s::text[])"
+    if target != "Anulado":
+        # Una liquidación reemplazada al re-liquidar solo puede quedar anulada, nunca reactivarse.
+        clause += f" AND {quote('superseded_by')} IS NULL"
+    return clause, [origins]
+
+
 def build_update(table: Table, row_id: str, values, countries: tuple[str, ...] | None) -> tuple[str, list]:
     pk = table.primary_key
     # El id nunca se reemplaza desde el payload (mismo criterio que el driver JSON).
@@ -265,6 +301,10 @@ def build_update(table: Table, row_id: str, values, countries: tuple[str, ...] |
         raise HttpError(400, "update requiere al menos un campo además del id")
     set_clause = ", ".join(f"{quote(c)} = {placeholder(table, c)}" for c in fields)
     where, where_params = build_where(table, [{"column": pk, "op": "eq", "value": row_id}], countries)
+    extra = _settlement_guard(fields) if table.name == SETTLEMENTS_TABLE else None
+    if extra:
+        where = f"{where} AND {extra[0]}"
+        where_params = where_params + extra[1]
     params = [param(table, c, v) for c, v in fields.items()] + where_params
     return f"UPDATE {quote(table.name)} SET {set_clause} WHERE {where} RETURNING *", params
 

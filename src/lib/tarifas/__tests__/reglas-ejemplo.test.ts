@@ -163,11 +163,14 @@ describe('PER_BLOCK — bordes', () => {
     expect(total([regla], recolectas(8))).toBe('10.00'); // 2 bloques de 3
   });
 
-  it('falla fuerte si el tamaño de bloque es cero', () => {
+  it('frena la emisión (no revienta) si el tamaño de bloque es cero', () => {
+    // Antes lanzaba un Error genérico que abortaba toda la liquidación; ahora la regla se marca
+    // ilegible y el cálculo sigue, pero bloqueado hasta que alguien la corrija.
     const regla = makeRule({
       code: 'B', stage: 'SURCHARGE',
       expression: { op: 'PER_BLOCK', unit: 'custom:peajes', blockSize: 0, amount: '5.00' },
     });
-    expect(() => total([regla], peajes(10))).toThrow('blockSize');
+    const result = run([regla], peajes(10));
+    expect(result.blockingIssues.map((i) => i.code)).toContain('REGLA_ILEGIBLE');
   });
 });

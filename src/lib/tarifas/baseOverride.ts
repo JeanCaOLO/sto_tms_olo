@@ -4,6 +4,7 @@
 import Decimal from 'decimal.js';
 import { evaluatePred, RuleShapeError } from './evaluator';
 import { roundToMoney, toDecimal } from './money';
+import { compareRules } from './resolver/evaluation';
 import {
   BASE_METHODS, NO_DATA, baseRulesOf, classifyExpr, describeBaseMethods, sourceOfRule, structureCostPerKm,
   type BaseMethodOption, type ExprKind,
@@ -12,17 +13,8 @@ import type {
   BaseInfo, BaseMethodId, BaseOverride, BaseSource, CalcIssue, CalculateInput, DiscardedRule, Rule, TraceLine, VarBag,
 } from './types';
 
-const STAGES: readonly string[] = ['BASE', 'VARIABLE', 'MODIFIER', 'SURCHARGE', 'ADJUSTMENT', 'TAX'];
-
-/** Mismo orden que el resolver: etapa, prioridad, alcance (la de compañía primero) y código. */
-function compareRulesForBase(a: Rule, b: Rule): number {
-  const byStage = STAGES.indexOf(a.stage) - STAGES.indexOf(b.stage);
-  if (byStage !== 0) return byStage;
-  if (a.priority !== b.priority) return a.priority - b.priority;
-  const rank = (r: Rule) => ((r.scope ?? 'COUNTRY') === 'PARTY' ? 0 : 1);
-  if (rank(a) !== rank(b)) return rank(a) - rank(b);
-  return a.code.localeCompare(b.code);
-}
+// El orden es el del resolver (etapa, prioridad, alcance, código): una sola definición.
+const compareRulesForBase = compareRules;
 
 /**
  * Reglas BASE que quedan al elegir un tipo de cobro: todas las que se suman o compiten por MAX y,

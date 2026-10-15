@@ -10,7 +10,7 @@ export function useCalculationTotals(
 ) {
   const totals = useMemo(
     () => (calculation
-      ? computeSettlementTotals(calculation.result.trace, excludedSeqs, calculation.input.country)
+      ? computeSettlementTotals(calculation.result.trace, excludedSeqs, calculation.input.country, calculation.result)
       : null),
     [calculation, excludedSeqs],
   );

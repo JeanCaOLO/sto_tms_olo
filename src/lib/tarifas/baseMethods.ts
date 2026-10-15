@@ -10,6 +10,7 @@
 
 import Decimal from 'decimal.js';
 import { componentCostPerKm } from './cost';
+import { fuelEfficiencyFor, pickStructure, rowAppliesToTruck } from './cost/shared';
 import { evaluatePred, RuleShapeError } from './evaluator';
 import { roundToMoney, toDecimal } from './money';
 import type {
@@ -92,9 +93,6 @@ export interface StructureKmCost {
   perKm: Decimal;
 }
 
-const hasRows = (s: CostStructure | null | undefined, rows: CostStructureRow[] | undefined) =>
-  !!s?.active && !!rows?.length;
-
 /**
  * Costo por km de la estructura de costos (la de la compañía; si no tiene, la del país).
  *
@@ -110,20 +108,16 @@ export function structureCostPerKm(
   vars?: VarBag,
 ): StructureKmCost | null {
   if (input.trip.fleetType !== 'OWN') return null;
-  const structure = hasRows(input.costStructure, input.costStructureRows)
-    ? input.costStructure!
-    : hasRows(input.defaultCostStructure, input.defaultCostStructureRows)
-      ? input.defaultCostStructure!
-      : null;
-  if (!structure) return null;
-  const rows = (structure === input.costStructure ? input.costStructureRows : input.defaultCostStructureRows) ?? [];
+  const picked = pickStructure(input);
+  if (!picked) return null;
+  const { structure, rows } = picked;
 
   const { kmPerYear, fuelPrice, fuelEfficiency } = structure.params;
   let perKm = new Decimal(0);
 
   for (const row of rows) {
     if (!row.active) continue;
-    if (row.truckType && row.truckType !== input.trip.truckTypeId) continue;
+    if (!rowAppliesToTruck(row, input.trip.truckTypeId)) continue;
     if (row.appliesWhen && vars) {
       try {
         if (!evaluatePred(row.appliesWhen, vars)) continue;
@@ -144,7 +138,7 @@ export function structureCostPerKm(
     perKm = row.sign === 'SUBTRACT' ? perKm.minus(rate) : perKm.plus(rate);
   }
 
-  const efficiency = input.trip.truckTypeId ? fuelEfficiency[input.trip.truckTypeId] : undefined;
+  const efficiency = fuelEfficiencyFor(fuelEfficiency, input.trip.truckTypeId);
   if (fuelPrice && efficiency && toDecimal(efficiency).greaterThan(0)) {
     perKm = perKm.plus(toDecimal(fuelPrice).dividedBy(toDecimal(efficiency)));
   }

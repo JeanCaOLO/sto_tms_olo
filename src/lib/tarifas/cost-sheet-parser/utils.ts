@@ -67,6 +67,11 @@ export function parseAmount(
     // Solo coma: decimal si deja 1-2 dígitos a la derecha.
     const decimals = raw.length - lastComma - 1;
     raw = decimals > 0 && decimals <= 2 ? raw.replace(',', '.') : raw.replace(/,/g, '');
+  } else if ((raw.match(/\./g) ?? []).length > 1) {
+    // Varios puntos y ninguna coma ("1.234.567"): no puede ser decimal, son separadores de miles.
+    // Un único punto ("1.234") sigue siendo ambiguo: se lee como decimal; para forzar miles hay que
+    // pasar el formato 'es'.
+    raw = raw.replace(/\./g, '');
   }
 
   return decimalToMoney(raw, negativeByParens);

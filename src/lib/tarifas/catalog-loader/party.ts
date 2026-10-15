@@ -1,16 +1,10 @@
 // Carga de datos específicos de la compañía: variables, estructura de costos, tarifarios.
 
-import { db, type Row } from '../data';
+import type { Row } from '../data';
 import { toCostStructure, toCostStructureRow } from '../costStructureDataSource';
 import type { CostStructure, CostStructureRow, PartyVariable, RateTable, RateTableRow } from '../types';
 
 const eq = (column: string, value: unknown) => ({ column, op: 'eq' as const, value });
-
-async function loadPartyVariables(partyId: string | null): Promise<PartyVariable[]> {
-  if (!partyId) return [];
-  const rows = await db().find('partyVariable', { where: [eq('party_id', partyId)] });
-  return buildPartyVariables(rows);
-}
 
 export function buildPartyVariables(rows: Row[]): PartyVariable[] {
   return rows.map((row) => ({
@@ -49,35 +43,8 @@ export function buildCostStructure(
   return { structure: toCostStructure(row), rows: rows.map(toCostStructureRow) };
 }
 
-async function loadCostStructure(scope: { partyId?: string | null; countryId?: string }): Promise<{
-  structure: CostStructure | null;
-  rows: CostStructureRow[];
-}> {
-  const query = costStructureQuery(scope);
-  if (!query) return { structure: null, rows: [] };
-
-  const [row] = await db().find('costStructure', query);
-  if (!row) return { structure: null, rows: [] };
-
-  return buildCostStructure(row, await db().find('costStructureRow', costRowsQuery(row.id)));
-}
-
-/**
- * Tarifarios del país MÁS los de la compañía. Los de otra compañía no se cargan: una regla no
- * debería poder mirar el tarifario de un tercero.
- */
-async function loadRateTables(
-  countryId: string,
-  partyId: string | null,
-): Promise<{ tables: RateTable[]; rows: RateTableRow[] }> {
-  const all = await db().find('rateTable', rateTablesQuery(countryId));
-  const tables = pickRateTables(all, partyId);
-  const rows = tables.length
-    ? await db().find('rateTableRow', rateTableRowsQuery(tables.map((t) => t.id)))
-    : [];
-  return { tables, rows: buildRateTableRows(rows) };
-}
-
+// Tarifarios del país MÁS los de la compañía (`pickRateTables`). Los de otra compañía no se cargan:
+// una regla no debería poder mirar el tarifario de un tercero.
 export const rateTablesQuery = (countryId: string) => ({ where: [eq('country_id', countryId), eq('active', true)] });
 export const rateTableRowsQuery = (ids: string[]) => ({ where: [{ column: 'table_id', op: 'in' as const, value: ids }] });
 
@@ -114,39 +81,4 @@ export function buildRateTableRows(rows: Row[]): RateTableRow[] {
     order: Number(r.row_order ?? 0),
     active: !!r.active,
   }));
-}
-
-export async function loadPartyData(
-  countryId: string,
-  partyId: string | null,
-): Promise<{
-  partyVariables: PartyVariable[];
-  costStructure: CostStructure | null;
-  costStructureRows: CostStructureRow[];
-  defaultCostStructure: CostStructure | null;
-  defaultCostStructureRows: CostStructureRow[];
-  rateTables: RateTable[];
-  rateTableRows: RateTableRow[];
-}> {
-  const [
-    partyVariables,
-    cost,
-    defaultCost,
-    rateTables,
-  ] = await Promise.all([
-    loadPartyVariables(partyId),
-    loadCostStructure({ partyId }),
-    loadCostStructure({ countryId }),
-    loadRateTables(countryId, partyId),
-  ]);
-
-  return {
-    partyVariables,
-    costStructure: cost.structure,
-    costStructureRows: cost.rows,
-    defaultCostStructure: defaultCost.structure,
-    defaultCostStructureRows: defaultCost.rows,
-    rateTables: rateTables.tables,
-    rateTableRows: rateTables.rows,
-  };
 }
