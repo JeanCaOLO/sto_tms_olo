@@ -37,7 +37,7 @@ function scopeRank(rule: Rule): number {
  * Orden TOTAL: etapa → prioridad → alcance → código.
  * Garantiza determinismo sin depender del orden de la base de datos.
  */
-function compareRules(a: Rule, b: Rule): number {
+export function compareRules(a: Rule, b: Rule): number {
   const byStage = stageIndex(a.stage) - stageIndex(b.stage);
   if (byStage !== 0) return byStage;
   const byPriority = a.priority - b.priority;

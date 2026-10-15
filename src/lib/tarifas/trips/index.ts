@@ -15,6 +15,7 @@ export {
 export {
   listTripOrders,
   listOrdersForTrips,
+  searchTripIdsByOrder,
 } from './orderHandling';
 
 export {

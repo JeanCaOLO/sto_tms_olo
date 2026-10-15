@@ -107,10 +107,25 @@ export const ExprSchema: z.ZodType<unknown> = z.lazy(() =>
     z.object({ op: z.literal('MAX'), args: z.array(ExprSchema).min(1) }),
     z.object({ op: z.literal('CLAMP'), value: ExprSchema, min: MoneySchema.optional(), max: MoneySchema.optional() }),
     z.object({ op: z.literal('IF'), cond: PredSchema, then: ExprSchema, else: ExprSchema }),
-  ]),
+  ]).superRefine((expr, ctx) => {
+    const e = expr as { op: string; tiers?: { upTo: number | null }[]; min?: string; max?: string };
+    if (e.op === 'TIERED' && e.tiers) {
+      const abiertos = e.tiers.filter((t) => t.upTo === null).length;
+      if (abiertos > 1) ctx.addIssue({ code: 'custom', message: 'Solo un escalón puede quedar sin límite superior', path: ['tiers'] });
+      const limites = e.tiers.filter((t) => t.upTo !== null).map((t) => t.upTo);
+      if (new Set(limites).size !== limites.length) {
+        ctx.addIssue({ code: 'custom', message: 'Hay escalones con el mismo límite superior', path: ['tiers'] });
+      }
+    }
+    if (e.op === 'CLAMP' && e.min !== undefined && e.max !== undefined && Number(e.min) > Number(e.max)) {
+      ctx.addIssue({ code: 'custom', message: 'El mínimo no puede ser mayor que el máximo', path: ['min'] });
+    }
+  }),
 );
 
 // ── Regla completa ────────────────────────────────────────────────────────────────────────────
+
+const BaseMethodSchema = z.enum(['PER_KM', 'PER_UNIT', 'FIXED', 'VOLUME', 'TENDERING']);
 
 export const RuleSchema = z.object({
   id: z.string().min(1),
@@ -124,6 +139,8 @@ export const RuleSchema = z.object({
   priority: z.number().int(),
   stacking: z.enum(['SUM', 'MAX', 'EXCLUSIVE']),
   exclusionGroup: z.string().nullable(),
+  appliesToBase: z.array(BaseMethodSchema).nullable().optional(),
+  baseMethod: BaseMethodSchema.nullable().optional(),
   conditions: PredSchema,
   expression: ExprSchema,
   description: z.string().nullable().optional(),
@@ -140,6 +157,13 @@ export const RuleSchema = z.object({
 }).refine(
   (rule) => !rule.effectiveFrom || !rule.effectiveTo || rule.effectiveFrom <= rule.effectiveTo,
   { message: 'La fecha de fin no puede ser anterior a la de inicio.', path: ['effectiveTo'] },
+).refine(
+  // La forma de cobro la define la BASE; un ajuste solo se liga a una (`appliesToBase`).
+  (rule) => rule.stage === 'BASE' ? !(rule.appliesToBase?.length) : !rule.baseMethod,
+  { message: 'La forma de cobro solo se declara en la etapa BASE y el ligado a una base, en los ajustes.', path: ['baseMethod'] },
+).refine(
+  (rule) => rule.baseMethod !== 'TENDERING',
+  { message: 'Tendering todavía no tiene un cálculo definido.', path: ['baseMethod'] },
 );
 
 export const RuleWithScopeSchema = RuleSchema.refine(

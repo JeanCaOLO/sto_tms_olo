@@ -65,6 +65,11 @@ interface DataTableProps<T> {
   // Opcional: oculta el buscador interno (búsqueda en memoria). Úsalo cuando la pantalla hace la
   // búsqueda del lado del servidor y el buscador interno (que solo ve las filas cargadas) confundiría.
   hideSearch?: boolean;
+  // Opcional: avisa el texto buscado (sin demorar el filtro local) para que la pantalla lo amplíe con
+  // datos que la fila no trae, como la búsqueda por pedido o guía en el servidor.
+  onSearchChange?: (term: string) => void;
+  // Opcional: filas que también cuentan como coincidencia (se SUMAN al filtro local por columnas).
+  extraMatch?: (row: T) => boolean;
   // Opcional: filas que se pueden extender. Si devuelve contenido, la fila lleva un botón para
   // desplegarlo debajo (por ejemplo, el detalle de un viaje).
   renderExpanded?: (row: T) => ReactNode;
@@ -249,6 +254,8 @@ export default function DataTable<T>({
   defaultHidden,
   searchHidden = false,
   hideSearch = false,
+  onSearchChange,
+  extraMatch,
   renderExpanded,
   canExpand,
   maxVisibleRows,
@@ -386,9 +393,11 @@ export default function DataTable<T>({
     if (!search.trim()) return filteredByColumns;
     const searchable = searchHidden ? orderedAll : columns;
     return filteredByColumns.filter((row) =>
-      searchable.some((col) => matchesSearch(col.accessor(row), search))
+      searchable.some((col) => matchesSearch(col.accessor(row), search)) || (extraMatch?.(row) ?? false)
     );
-  }, [filteredByColumns, search, columns, orderedAll, searchHidden]);
+  }, [filteredByColumns, search, columns, orderedAll, searchHidden, extraMatch]);
+
+  useEffect(() => { onSearchChange?.(search); }, [search, onSearchChange]);
 
   const sorted = useMemo(() => {
     if (!sort) return searched;

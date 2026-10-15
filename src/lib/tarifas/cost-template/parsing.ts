@@ -24,16 +24,5 @@ export interface ParseState {
   params: CostStructureParams;
 }
 
-/**
- * Parsea una plantilla de costos extrayendo parámetros, variables y fijos.
- * Devuelve estado con errores, warnings, filas parseadas y parámetros.
- */
-export function parseTemplate(sheets: Record<string, import('./sheets').SheetMatrix>): ParseState {
-  const state = parseParams(sheets);
-  parseVariables(state, sheets);
-  parseFixed(state, sheets);
-  return state;
-}
-
-// Re-exporta funciones especializadas para uso individual si se necesita.
+// El orquestador vive en `costTemplate.ts` (`parseCostTemplate`); acá solo los pasos individuales.
 export { parseFixed, parseParams, parseVariables };

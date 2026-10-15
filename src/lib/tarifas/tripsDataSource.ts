@@ -20,6 +20,7 @@ export {
 export {
   listTripOrders,
   listOrdersForTrips,
+  searchTripIdsByOrder,
 } from './trips/orderHandling';
 
 export {

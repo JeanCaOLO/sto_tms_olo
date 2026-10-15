@@ -113,6 +113,28 @@ def test_in_vacio_no_trae_nada(api):
     assert "WHERE FALSE" in db.calls[-1][0]
 
 
+def test_ilike_busca_en_varias_columnas_y_escapa_comodines(api):
+    app, db = api
+    q = {"where": [{"column": "guide_number|order_number|customer_name", "op": "ilike", "value": " 50%_a "}],
+         "columns": ["route_id"]}
+    response = call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_v_viaje_pedidos"}, query={"q": json.dumps(q)})
+    assert response["statusCode"] == 200
+    sql, params = db.calls[-1]
+    assert '("guide_number"::text ILIKE %s OR "order_number"::text ILIKE %s OR "customer_name"::text ILIKE %s)' in sql
+    assert params == ["%50\\%\\_a%"] * 3
+
+
+@pytest.mark.parametrize("column,value", [
+    ("guide_number", ""), ("guide_number", "   "), ("guide_number", 5), ("no_existe", "x"),
+    ("guide_number|no_existe", "x"), ("a|b|c|d|e|f|g|h|i", "x"),
+])
+def test_ilike_invalido_es_400(api, column, value):
+    app, db = api
+    q = {"where": [{"column": column, "op": "ilike", "value": value}]}
+    response = call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_v_viaje_pedidos"}, query={"q": json.dumps(q)})
+    assert response["statusCode"] == 400
+
+
 def test_el_limite_tiene_tope(api):
     app, db = api
     call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_settlements"}, query={"q": json.dumps({"limit": 999999})})
@@ -279,11 +301,99 @@ def test_update_no_cambia_el_id_y_404_si_no_existe(api):
          body={"id": "otro", "status": "Anulado"})
     sql, params = db.calls[-1]
     assert sql.startswith('UPDATE "tarifas_settlements" SET "status" = %s::text WHERE "id" = %s::text')
-    assert params == ["Anulado", "s1"]
+    # La transición se valida en el propio UPDATE: último parámetro = estados de origen permitidos.
+    assert params[:2] == ["Anulado", "s1"]
+    assert params[2] == ["Borrador", "En Revisión", "Aprobado", "Pagado"]
 
     db.rows = []
+    # Sin fila afectada: no existe o el estado actual no permite el cambio -> 409 (no 404 a secas).
     assert call(app, "PATCH /api/tarifas/{table}/{id}", path={"table": "tarifas_settlements", "id": "s1"},
-                body={"status": "Anulado"})["statusCode"] == 404
+                body={"status": "Anulado"})["statusCode"] == 409
+    # Una fila de otra tabla sigue dando 404.
+    assert call(app, "PATCH /api/tarifas/{table}/{id}", path={"table": "tarifas_pricing_rules", "id": "r1"},
+                body={"name": "x"})["statusCode"] == 404
+
+
+def test_la_bitacora_toma_el_actor_del_token_no_del_cliente(api):
+    app, db = api
+    falso = {"entity": "settlement", "entity_id": "s1", "action": "CREATE",
+             "user_name": "otro@falso.com", "role": "Administrador", "created_at": "2026-10-15T00:00:00Z"}
+    call(app, "POST /api/tarifas/{table}", path={"table": "tarifas_audit_log"}, body=falso)
+    sql, params = db.calls[-1]
+    cols = [c.strip().strip('"') for c in sql.split("(", 1)[1].split(")", 1)[0].split(",")]
+    sent = dict(zip(cols, params))
+    assert sent["user_name"] == "liquidador@ologistics.com"
+    assert sent["role"] == "Admin"  # el rol del fixture por defecto, no el "Administrador" que mandó el cliente
+
+    # También dentro de una transacción (insert e insert_many).
+    ops = [{"op": "insert", "table": "tarifas_audit_log", "values": falso},
+           {"op": "insert_many", "table": "tarifas_audit_log", "rows": [falso, falso]}]
+    assert call(app, "POST /api/tarifas/tx", body={"ops": ops})["statusCode"] == 200
+    for _, tx_params in db.tx_calls:
+        assert "otro@falso.com" not in tx_params and "Administrador" not in tx_params
+        assert "Admin" in tx_params
+        assert "liquidador@ologistics.com" in tx_params
+
+
+def test_una_lectura_recortada_por_el_tope_lo_avisa(api):
+    app, db = api
+    db.rows = [{"id": str(i)} for i in range(5000)]
+    r = call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_settlements"})
+    assert r["statusCode"] == 200
+    assert r["headers"]["X-Tarifas-Truncated"] == "tarifas_settlements"
+    # Con un limit explícito por debajo del tope no es truncado, aunque devuelva muchas filas.
+    r = call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_settlements"}, query={"q": json.dumps({"limit": 10})})
+    assert "X-Tarifas-Truncated" not in r["headers"]
+    # /batch conserva la forma de lista de resultados.
+    r = call(app, "POST /api/tarifas/batch", body={"queries": [{"table": "tarifas_settlements"}]})
+    assert len(json.loads(r["body"])) == 1 and r["headers"]["X-Tarifas-Truncated"] == "tarifas_settlements"
+
+
+def test_un_rol_acotado_no_crea_ni_vuelve_global_una_fila(api, caller_permissions):
+    app, db = api
+    caller_permissions.set(make_permissions({"tarifas.config": ["view", "create", "edit"]}, countries=(CR,)))
+    table = {"table": "tarifas_pricing_rules"}
+    # Sin país (= regla global) o con country_id null explícito: 403.
+    assert call(app, "POST /api/tarifas/{table}", path=table, body={"name": "x"})["statusCode"] == 403
+    assert call(app, "PATCH /api/tarifas/{table}/{id}", path={**table, "id": "r1"},
+                body={"country_id": None})["statusCode"] == 403
+    # Con su país, bien; y editar otros campos sin tocar country_id también.
+    assert call(app, "POST /api/tarifas/{table}", path=table,
+                body={"name": "x", "country_id": CR})["statusCode"] == 200
+    assert call(app, "PATCH /api/tarifas/{table}/{id}", path={**table, "id": "r1"},
+                body={"name": "y"})["statusCode"] == 200
+
+
+def test_una_liquidacion_emitida_es_inmutable_salvo_su_estado(api):
+    app, db = api
+    before = len(db.calls)
+    for body in ({"total_amount": "1.00"}, {"trace": []}, {"status": "Anulado", "number": "LIQ-X-1"}):
+        r = call(app, "PATCH /api/tarifas/{table}/{id}", path={"table": "tarifas_settlements", "id": "s1"}, body=body)
+        assert r["statusCode"] == 403
+    assert len(db.calls) == before  # ni siquiera llegó a la base
+
+
+def test_la_transicion_se_valida_en_el_update(api):
+    app, db = api
+    call(app, "PATCH /api/tarifas/{table}/{id}", path={"table": "tarifas_settlements", "id": "s1"},
+         body={"status": "Aprobado"})
+    sql, params = db.calls[-1]
+    assert 'AND "status" = ANY(%s::text[]) AND "superseded_by" IS NULL' in sql
+    assert params[2] == ["Borrador", "En Revisión"]
+    # Anular no exige que no haya sido reemplazada.
+    call(app, "PATCH /api/tarifas/{table}/{id}", path={"table": "tarifas_settlements", "id": "s1"},
+         body={"status": "Anulado"})
+    assert '"superseded_by" IS NULL' not in db.calls[-1][0]
+    r = call(app, "PATCH /api/tarifas/{table}/{id}", path={"table": "tarifas_settlements", "id": "s1"},
+             body={"status": "Inventado"})
+    assert r["statusCode"] == 400
+
+
+def test_la_transaccion_tambien_protege_la_liquidacion(api):
+    app, db = api
+    ops = [{"op": "update", "table": "tarifas_settlements", "id": "s1", "values": {"total_amount": "9"}}]
+    assert call(app, "POST /api/tarifas/tx", body={"ops": ops})["statusCode"] == 403
+    assert db.tx_state is None
 
 
 def test_delete_es_204(api):

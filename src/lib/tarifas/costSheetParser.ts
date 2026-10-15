@@ -12,7 +12,6 @@ export {
   detectHeaderRow,
   isBlank,
   looksLikeNumber,
-  looksNumeric,
   parseAmount,
   parseCostRows,
   text,

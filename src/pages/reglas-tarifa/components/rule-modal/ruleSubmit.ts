@@ -1,5 +1,6 @@
 // Armado puro de lo que se guarda al enviar el modal de reglas: la candidata a validar y el payload.
 
+import { classifyExpr } from '../../../../lib/tarifas/baseMethods';
 import type {
   ConditionBuilderForm, Expr, Pred, RuleBuilderForm,
 } from '../../../../lib/tarifas/types';
@@ -32,6 +33,10 @@ export function buildRuleCandidate(input: CandidateInput) {
     priority: Number(formData.priority),
     stacking: formData.stacking,
     exclusionGroup: formData.stacking === 'MAX' && exclusionGroup ? exclusionGroup : null,
+    // Solo los ajustes se ligan a una forma de cobro: la BASE es la que la define.
+    // La forma de cobro de una BASE se deduce de su fórmula: así declarada y fórmula nunca se contradicen.
+    baseMethod: formData.stage === 'BASE' ? classifyExpr(input.expression)?.method ?? null : null,
+    appliesToBase: formData.stage !== 'BASE' && formData.applies_to_base.length > 0 ? formData.applies_to_base : null,
     conditions: input.conditions,
     expression: input.expression,
     description: input.description || null,
@@ -54,7 +59,13 @@ export type RuleCandidate = ReturnType<typeof buildRuleCandidate>;
  * `tarifas_pricing_rules`: el backend rechaza con 400 cualquier campo que la tabla no tenga (por eso no
  * hay `updated_at`; la fecha del cambio queda en la bitácora).
  */
-export function toRulePayload(candidate: RuleCandidate, countryId: string, isEdit: boolean) {
+export function toRulePayload(
+  candidate: RuleCandidate, countryId: string, isEdit: boolean, previous?: Record<string, unknown>,
+) {
+  // Columnas de sql/38: solo viajan con valor (o si la regla ya las tenía y ahora se limpian). Así guardar
+  // una regla sigue funcionando contra un backend cuyo manifest todavía no las conoce.
+  const optional = (key: 'applies_to_base' | 'base_method', value: unknown) =>
+    value != null || previous?.[key] != null ? { [key]: value ?? null } : {};
   return {
     country_id: countryId || null,
     scope: candidate.scope,
@@ -65,6 +76,8 @@ export function toRulePayload(candidate: RuleCandidate, countryId: string, isEdi
     priority: candidate.priority,
     stacking: candidate.stacking,
     exclusion_group: candidate.exclusionGroup,
+    ...optional('applies_to_base', candidate.appliesToBase),
+    ...optional('base_method', candidate.baseMethod),
     conditions: candidate.conditions,
     expression: candidate.expression,
     description: candidate.description,

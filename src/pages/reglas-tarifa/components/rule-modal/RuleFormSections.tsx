@@ -101,6 +101,8 @@ export function RuleFormSections({ m }: { m: RuleModalModel }) {
         stage={formData.stage}
         stacking={formData.stacking}
         exclusionGroup={formData.exclusion_group}
+        appliesToBase={formData.applies_to_base}
+        onAppliesToBaseChange={(methods) => updateFormField('applies_to_base', methods)}
         priority={formData.priority}
         active={formData.active}
         onStageChange={(stage) => updateFormField('stage', stage)}

@@ -1,7 +1,7 @@
 // Datos de identificación, vigencia y apilado de la regla (lo que no es condición ni cálculo).
 
 import { useEffect, useState } from 'react';
-import type { BuilderOperator, NumericVarKey, Stage } from '../../../../lib/tarifas/types';
+import type { BaseMethodId, BuilderOperator, NumericVarKey, Stage } from '../../../../lib/tarifas/types';
 
 export interface RuleFormData {
   code: string;
@@ -11,6 +11,8 @@ export interface RuleFormData {
   priority: number;
   stacking: 'SUM' | 'MAX' | 'EXCLUSIVE';
   exclusion_group: string;
+  /** Formas de cobro de la base a las que se liga el ajuste. Vacío = transversal. */
+  applies_to_base: BaseMethodId[];
   scope: 'COUNTRY' | 'PARTY';
   party_id: string;
   reason: string;
@@ -36,6 +38,7 @@ const emptyFormData = (): RuleFormData => ({
   priority: 10,
   stacking: 'SUM',
   exclusion_group: '',
+  applies_to_base: [],
   scope: 'COUNTRY',
   party_id: '',
   reason: '',
@@ -52,6 +55,7 @@ const formFromRule = (rule: Record<string, unknown>): RuleFormData => ({
   priority: (rule.priority as number | undefined) ?? 10,
   stacking: (rule.stacking as RuleFormData['stacking'] | undefined) || 'SUM',
   exclusion_group: (rule.exclusion_group as string | undefined) || '',
+  applies_to_base: Array.isArray(rule.applies_to_base) ? (rule.applies_to_base as BaseMethodId[]) : [],
   scope: (rule.scope as RuleFormData['scope'] | undefined) || 'COUNTRY',
   party_id: (rule.party_id as string | undefined) || '',
   reason: (rule.reason as string | undefined) || '',

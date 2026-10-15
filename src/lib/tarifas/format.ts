@@ -114,6 +114,7 @@ export const DISCARD_REASON_LABELS: Record<DiscardReason, string> = {
   RULE_BROKEN: 'Regla ilegible',
   BASE_REEMPLAZADA: 'Reemplazada por la base elegida',
   DUPLICA_BASE: 'Ya cobrado en la base',
+  MODALIDAD_DISTINTA: 'Ligada a otra forma de cobro',
 };
 
 /**

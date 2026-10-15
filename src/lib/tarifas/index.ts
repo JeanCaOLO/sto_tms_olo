@@ -13,6 +13,7 @@
 
 import { allocateTotal } from './allocation';
 import { describeBaseMethods, type BaseMethodOption } from './baseMethods';
+import { activeBaseMethod, filterByBaseMethod } from './baseInheritance';
 import { applyBaseOverride } from './baseOverride';
 import { computeCost } from './cost';
 import { runChargePipeline } from './evaluator';
@@ -36,8 +37,14 @@ export function calculate(input: CalculateInput): CalcResult {
     ? applyBaseOverride(input, input.baseOverride, applied, candidates, cost.breakdown, derived.vars)
     : null;
 
+  // Los ajustes ligados a otra forma de cobro no aplican a este viaje.
+  const inherited = filterByBaseMethod(
+    chosen?.rules ?? applied,
+    activeBaseMethod(input.trip.fleetType, chosen?.base?.method),
+  );
+
   const charge = runChargePipeline(
-    chosen?.rules ?? applied, derived.vars, derived.originZoneId, derived.destZoneId, input,
+    inherited.rules, derived.vars, derived.originZoneId, derived.destZoneId, input,
     { lines: chosen ? chosen.seed : cost.breakdown },
   );
 
@@ -55,7 +62,7 @@ export function calculate(input: CalculateInput): CalcResult {
     trace: charge.trace,
     // Los descartes salen de dos momentos: el resolver (condición, alcance, exclusividad) y el
     // pipeline (perdedores de un grupo MAX, que solo se conocen con los montos reales).
-    discarded: [...discarded, ...(chosen?.discarded ?? []), ...charge.discarded],
+    discarded: [...discarded, ...(chosen?.discarded ?? []), ...inherited.discarded, ...charge.discarded],
     stageSubtotals: charge.stageSubtotals,
     totalLiquidado: charge.totalLiquidado,
     currency: input.country.localCurrency,

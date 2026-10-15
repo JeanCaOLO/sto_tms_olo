@@ -3,7 +3,7 @@
 import CalcBreakdownPanel, { AllocationBlock } from '../../../components/tarifas/CalcBreakdownPanel';
 import { formatMoney } from '../../../lib/tarifas/format';
 import TripOrdersPanel from './TripOrdersPanel';
-import { describeCurrentBase } from '../../../lib/tarifas/baseMethods';
+import { ContractBaseBanner } from '../parts/ContractBaseBanner';
 import { TripInfoSection } from '../parts/TripInfoSection';
 import { VariablesSection } from '../parts/VariablesSection';
 import { VerMasSection } from '../parts/VerMasSection';
@@ -64,10 +64,7 @@ export function CalculationContent({
           (carriers.rate_type). Este bloque solo informa con qué base se calculó. */}
       <section className="border-t border-slate-200 pt-4">
         <h3 className="text-sm font-semibold text-slate-700 mb-2">Base del cálculo</h3>
-        <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-xs text-slate-600">
-          Se calcula con: <strong className="text-slate-800">{describeCurrentBase(calculation.result).label}</strong>.
-          <span className="ml-1 text-slate-400">La forma de pago se define en el catálogo de Transportistas.</span>
-        </div>
+        <ContractBaseBanner calculation={calculation} />
       </section>
       <VariablesSection
         calculation={calculation}

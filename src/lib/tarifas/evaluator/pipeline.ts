@@ -95,13 +95,13 @@ export function runChargePipeline(
       getRuleAmount: (ruleCode) => {
         const amount = ruleAmounts.get(ruleCode);
         if (amount === undefined) {
-          blockingIssues.push({
-            code: 'BASE_NO_DISPONIBLE',
-            message:
-              `La regla "${rule.code}" calcula un porcentaje sobre "${ruleCode}", que todavía no se ` +
-              'evaluó (o no aplica en este viaje). Movela a una etapa posterior o subile la prioridad.',
-            ruleCode: rule.code,
-          });
+          const message =
+            `La regla "${rule.code}" calcula un porcentaje sobre "${ruleCode}", que todavía no se ` +
+            'evaluó (o no aplica en este viaje). Movela a una etapa posterior o subile la prioridad.';
+          // Un candidato de grupo MAX se evalúa más de una vez: el mismo bloqueo no se repite.
+          if (!blockingIssues.some((i) => i.code === 'BASE_NO_DISPONIBLE' && i.message === message)) {
+            blockingIssues.push({ code: 'BASE_NO_DISPONIBLE', message, ruleCode: rule.code });
+          }
           return null;
         }
         return amount;

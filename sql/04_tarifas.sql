@@ -69,6 +69,8 @@ CREATE TABLE IF NOT EXISTS tarifas_pricing_rules (
   priority integer NOT NULL,
   stacking text NOT NULL,
   exclusion_group text,
+  applies_to_base jsonb,
+  base_method text,
   conditions jsonb NOT NULL,
   expression jsonb NOT NULL,
   description text,

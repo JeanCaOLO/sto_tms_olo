@@ -37,11 +37,27 @@ export function computeSettlementTotals(
   trace: TraceLine[],
   excludedSeqs: Iterable<number>,
   country: Country,
+  /**
+   * Resultado del motor. El motor suma exacto y redondea UNA vez; las líneas del trace ya vienen
+   * redondeadas, así que sumarlas puede diferir por centavos. Sin exclusiones se devuelve lo que
+   * dictó el motor, para que el total mostrado y el emitido sean el mismo.
+   */
+  engine?: Pick<CalcResult, 'totalLiquidado' | 'stageSubtotals'>,
 ): SettlementTotals {
   const excluidas = new Set(excludedSeqs);
 
   const incluidas = trace.filter((l) => !excluidas.has(l.seq));
   const fuera = trace.filter((l) => excluidas.has(l.seq));
+
+  if (engine && fuera.length === 0) {
+    return {
+      total: engine.totalLiquidado,
+      stageSubtotals: engine.stageSubtotals,
+      excludedAmount: roundToMoney(addAll([]), country),
+      includedCount: incluidas.length,
+      excludedCount: 0,
+    };
+  }
 
   const stageSubtotals = Object.fromEntries(
     STAGE_ORDER.map((stage) => [
@@ -70,6 +86,10 @@ export function computeSettlementTotals(
  * cálculo.
  */
 export function differsFromEngine(totals: SettlementTotals, result: CalcResult): boolean {
+  if (totals.excludedCount === 0) return false;
+  // Una línea de importe cero destildada no cambia lo que se paga, aunque el redondeo por línea
+  // haga que la suma de las líneas difiera del total del motor por un centavo.
+  if (toDecimal(totals.excludedAmount).isZero()) return false;
   return totals.total !== result.totalLiquidado;
 }
 

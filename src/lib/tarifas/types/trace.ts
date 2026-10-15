@@ -49,7 +49,9 @@ export type DiscardReason =
   /** El liquidador cambió la base de cálculo: esta regla BASE (o la estructura de costos) ya no aplica. */
   | 'BASE_REEMPLAZADA'
   /** Cobra el mismo concepto que la base elegida (p. ej. otra regla por km): se omite para no cobrar doble. */
-  | 'DUPLICA_BASE';
+  | 'DUPLICA_BASE'
+  /** Ajuste ligado a otra modalidad de cobro (`appliesToBase`): este viaje no se cobra por ella. */
+  | 'MODALIDAD_DISTINTA';
 
 export interface DiscardedRule {
   ruleCode: string;
@@ -121,6 +123,8 @@ export interface BaseInfo {
 export interface SettlementBaseChange extends BaseInfo {
   changedBy: string | null;
   changedAt: string;
+  /** Vencimiento del contrato del transportista al liquidar (YYYY-MM-DD), para releer la liquidación fiel. */
+  contractExpiry?: string | null;
 }
 
 // El motor calcula cuánto se le debe LIQUIDAR (pagar) al transportista por el viaje — nunca un

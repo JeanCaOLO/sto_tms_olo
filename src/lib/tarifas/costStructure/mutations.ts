@@ -1,6 +1,7 @@
 // Mutaciones (insert, update, delete) para estructuras y filas de costos.
 
 import { db, type Row } from '../data';
+import { rowValues, rowPatch } from './rowMapper';
 import type { CostStructure } from '../types';
 import { toCostStructure, toCostStructureRow } from './schema';
 import { newId } from './ids';
@@ -61,27 +62,6 @@ export async function saveStructure(
   }
 }
 
-function rowValues(structureId: string, input: CostRowInput, order: number): Row {
-  return {
-    structure_id: structureId,
-    code: input.code,
-    label: input.label,
-    driver: input.driver,
-    amount: input.amount,
-    sign: input.sign,
-    applies_when: input.appliesWhen,
-    unit: input.unit,
-    row_order: order,
-    active: input.active,
-    cost_group: input.group ?? null,
-    frequency: input.frequency ?? null,
-    frequency_qty: input.frequencyQty ?? null,
-    unit_qty: input.unitQty ?? null,
-    cost_per_km: input.costPerKm ?? null,
-    truck_type: input.truckType ?? null,
-  };
-}
-
 export async function addRow(structureId: string, input: CostRowInput): Promise<{ error: string | null }> {
   try {
     const existing = await listRows(structureId);
@@ -97,17 +77,7 @@ export async function updateRow(
   rowId: string,
   input: Partial<CostRowInput>,
 ): Promise<{ error: string | null }> {
-  const values: Row = {};
-  if (input.code !== undefined) values.code = input.code;
-  if (input.label !== undefined) values.label = input.label;
-  if (input.driver !== undefined) values.driver = input.driver;
-  if (input.amount !== undefined) values.amount = input.amount;
-  if (input.sign !== undefined) values.sign = input.sign;
-  if (input.appliesWhen !== undefined) values.applies_when = input.appliesWhen;
-  if (input.unit !== undefined) values.unit = input.unit;
-  if (input.active !== undefined) values.active = input.active;
-  if (input.truckType !== undefined) values.truck_type = input.truckType;
-  if (input.group !== undefined) values.cost_group = input.group;
+  const values = rowPatch(input);
 
   try {
     await db().update('costStructureRow', rowId, values);
