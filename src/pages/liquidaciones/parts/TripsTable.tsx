@@ -73,12 +73,10 @@ export function TripsTable({
       searchHidden
       onSearchChange={onSearchChange}
       extraMatch={extraMatch}
-      searchPlaceholder={searching
-        ? 'Buscando pedidos…'
-        : 'Buscar viaje, transportista, conductor, placa, zona, guía, pedido o casa'}
+      searchPlaceholder="Buscar viaje, transportista, conductor, placa, zona, guía, pedido o casa"
       exportFileName="viajes_por_liquidar"
       exportHandler={exportTripsWithOrders}
-      emptyMessage="No hay viajes completados pendientes de liquidar"
+      emptyMessage={searching ? 'Buscando pedidos…' : 'No hay viajes completados pendientes de liquidar'}
       pageSize={25}
       selection={canCreate ? {
         selected,
