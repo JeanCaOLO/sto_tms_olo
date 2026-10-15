@@ -4,6 +4,10 @@
 
 import { describe, expect, it } from 'vitest';
 import { calculate } from '../index';
+import { structureCostPerKm } from '../baseMethods';
+import { parseParams } from '../cost-template/param-parsing';
+import { computeCost } from '../cost';
+import { deriveContext } from '../resolver';
 import { evaluateExpr } from '../evaluator';
 import { unitsForDriver } from '../cost/driver';
 import { computeSettlementTotals, differsFromEngine } from '../settlementTotals';
@@ -57,6 +61,57 @@ describe('A1 — costo de flota propia', () => {
     const result = calculate(input([]));
     const suma = result.cost.breakdown.reduce((s, l) => s.plus(l.final), new Decimal(0));
     expect(result.cost.total).toBe(suma.toFixed(PAIS.roundingDecimals));
+  });
+});
+
+describe('A8 — fijo mensual: una sola definición (prorrateo por día)', () => {
+  it('costo/km de la estructura × km del viaje == costo del viaje (fijo mensual + por km)', () => {
+    const estructura = {
+      id: 'S', partyId: 'P1', countryId: 'VE', name: 'S', operatingDaysPerMonth: 30,
+      params: { kmPerYear: 36000, fuelPrice: null, fuelEfficiency: {} },
+      effectiveFrom: null, active: true, notes: null,
+    };
+    const fila = (code: string, driver: 'PER_KM' | 'PER_MONTH_PRORATED', amount: string, order: number) => ({
+      id: code, structureId: 'S', code, label: code, driver, amount, sign: 'ADD' as const, appliesWhen: null,
+      unit: null, order, active: true, group: null, frequency: null, frequencyQty: null,
+      unitQty: null, costPerKm: null, truckType: null,
+    });
+    const rows = [fila('SALARIO', 'PER_MONTH_PRORATED', '900000', 1), fila('LLANTAS', 'PER_KM', '12.5', 2)];
+    const country = makeCountryVE();
+    const { zoneGroups, zones, locations } = makeGeoVE();
+    const trip = makeTrip({ fleetType: 'OWN', km: 180 });
+    const { vars, overnightNights } = deriveContext({ trip, country, zones, zoneGroups, locations });
+    const input = { country, trip, ...makeOwnCostStructure(), costStructure: estructura, costStructureRows: rows };
+
+    const cost = computeCost(input, overnightNights, vars);
+    const perKm = structureCostPerKm(input, vars)!.perKm;
+    const porKm = perKm.times(180);
+    // La base por km reproduce el costo del viaje (a la tolerancia del redondeo de líneas).
+    expect(Math.abs(Number(cost.total) - porKm.toNumber())).toBeLessThan(0.05);
+  });
+});
+
+describe('plantilla de costos — alias de claves de parámetros', () => {
+  const params = (...claves: string[]) =>
+    parseParams({
+      Parámetros: [['clave', 'valor'], ...claves.map((c, i) => [c, String(30 + i)])],
+    });
+
+  it.each([
+    ['km_anual'], ['km anual'], ['KM_POR_ANIO'], ['Km por año'], ['km-anual'],
+  ])('"%s" es el km anual', (clave) => {
+    const r = params('dias_operativos', clave);
+    expect(r.warnings.filter((w) => w.message.includes('desconocido'))).toEqual([]);
+    expect(r.params.kmPerYear).toBe(31);
+  });
+
+  it('precio del combustible con sinónimos', () => {
+    expect(params('dias_operativos', 'Precio del combustible').params.fuelPrice).toBe('31');
+  });
+
+  it('una clave desconocida sigue avisando', () => {
+    const r = params('dias_operativos', 'otra_cosa');
+    expect(r.warnings.some((w) => w.message.includes('desconocido'))).toBe(true);
   });
 });
 

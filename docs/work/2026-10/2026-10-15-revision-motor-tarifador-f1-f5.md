@@ -35,10 +35,15 @@ Fecha: 2026-10-15. Alcance: `src/lib/tarifas/` y `backend/tarifas/`. Sin desplie
 - `country_number_uq` sí existe en `sql/04` y `sql/26`; solo falta en `sql/19` (DDL generado, snapshot).
 - `tms_handler` ya deja auditoría de actor por request en el servidor.
 
-## Pendiente (requiere decisión)
-- A8/A9: fijo mensual (prorrateo por día vs amortización por km) y modelo de 3 valores (operativo / facturable / venta = facturable ÷ (1 − margen)); depende del "ABIERTO" de `project.md` con Jean Carlo/Dylan.
-- A6: bitácora atómica con la liquidación y actor tomado del JWT (toca `src/lib/liquidador/auditLog`, compartido).
-- `costPerKm` persistido redundante; alias de claves de plantilla; `looksNumeric`; rangos "1,000..2,000" y "-5".
+## Segunda tanda (decisiones confirmadas por cuestionario, 2026-10-15)
+- **Fijo mensual = prorrateo por día** en ambos lados: `structureCostPerKm` ahora expresa el mensual como `monto × días_viaje ÷ días_operativos ÷ km` (antes `monto×12÷kmAnual`). Test: costo/km × km == costo del viaje (`f1Dinero.test.ts`). Efecto: la base por km de un tercero con estructura propia cambia de monto cuando hay fijos mensuales; ya no depende de `km_anual` para los fijos.
+- **Modelo de 3 valores** como módulo puro `cost/perKm.ts` (`computePerKm`: operativo, facturable = operativo ÷ proporción de km con carga, venta = facturable ÷ (1 − margen); valida 0 ≤ margen < 1). NO conectado a liquidar: falta que negocio defina qué entra en "facturable" y el origen del margen.
+- **Bitácora atómica**: emitir, re-liquidar y cambiar de estado escriben la fila de `auditLog` en la MISMA transacción (`audit.ts: auditRow`, `liquidador/auditLog.ts: eventoToRow`). Si falla la bitácora se revierte el cambio (antes se tragaba el error). El backend (`app.py: _stamp_actor`) sobrescribe `user_name`/`role` de `tarifas_audit_log` con el correo del token y el rol del que llama (insert, tx insert e insert_many).
+- **Plantilla de costos**: alias de claves de parámetros (`km_anual` / `km anual` / `km por año` / `precio del combustible`…); el resumen de la plantilla deriva el costo/km de componentes con `componentCostPerKm` en vez de leer el `costPerKm` persistido (la columna se conserva solo para mostrar).
+
+## Pendiente
+- Conectar `computePerKm` a la base de cobro (decisión de negocio abierta).
+- `looksNumeric` (alias), rangos "1,000..2,000" y "-5", ambigüedad de "1.234" con un solo punto.
 - F6 (simplificación de etapas): solo planteamiento en `.test/cambios_motor/simplificacion-etapas.md`.
 
 ## Verificación

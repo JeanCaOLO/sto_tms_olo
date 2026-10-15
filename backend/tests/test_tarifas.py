@@ -292,6 +292,27 @@ def test_update_no_cambia_el_id_y_404_si_no_existe(api):
                 body={"name": "x"})["statusCode"] == 404
 
 
+def test_la_bitacora_toma_el_actor_del_token_no_del_cliente(api):
+    app, db = api
+    falso = {"entity": "settlement", "entity_id": "s1", "action": "CREATE",
+             "user_name": "otro@falso.com", "role": "Administrador", "created_at": "2026-10-15T00:00:00Z"}
+    call(app, "POST /api/tarifas/{table}", path={"table": "tarifas_audit_log"}, body=falso)
+    sql, params = db.calls[-1]
+    cols = [c.strip().strip('"') for c in sql.split("(", 1)[1].split(")", 1)[0].split(",")]
+    sent = dict(zip(cols, params))
+    assert sent["user_name"] == "liquidador@ologistics.com"
+    assert sent["role"] == "Admin"  # el rol del fixture por defecto, no el "Administrador" que mandó el cliente
+
+    # También dentro de una transacción (insert e insert_many).
+    ops = [{"op": "insert", "table": "tarifas_audit_log", "values": falso},
+           {"op": "insert_many", "table": "tarifas_audit_log", "rows": [falso, falso]}]
+    assert call(app, "POST /api/tarifas/tx", body={"ops": ops})["statusCode"] == 200
+    for _, tx_params in db.tx_calls:
+        assert "otro@falso.com" not in tx_params and "Administrador" not in tx_params
+        assert "Admin" in tx_params
+        assert "liquidador@ologistics.com" in tx_params
+
+
 def test_una_lectura_recortada_por_el_tope_lo_avisa(api):
     app, db = api
     db.rows = [{"id": str(i)} for i in range(5000)]

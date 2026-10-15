@@ -114,6 +114,9 @@ export function structureCostPerKm(
 
   const { kmPerYear, fuelPrice, fuelEfficiency } = structure.params;
   let perKm = new Decimal(0);
+  const tripKm = toDecimal(input.trip.km ?? 0);
+  const nights = Number(vars?.overnightNights ?? 0);
+  const tripDays = (Number.isFinite(nights) && nights > 0 ? nights : 0) + 1;
 
   for (const row of rows) {
     if (!row.active) continue;
@@ -131,8 +134,11 @@ export function structureCostPerKm(
       rate = componentCostPerKm(row, kmPerYear);
     } else if (row.driver === 'PER_KM') {
       rate = toDecimal(row.amount);
-    } else if (row.driver === 'PER_MONTH_PRORATED' && kmPerYear && kmPerYear > 0) {
-      rate = toDecimal(row.amount).times(12).dividedBy(kmPerYear);
+    } else if (row.driver === 'PER_MONTH_PRORATED' && tripKm.greaterThan(0) && structure.operatingDaysPerMonth > 0) {
+      // Misma definición que el costo del viaje (`unitsForDriver`): el mensual se prorratea por día
+      // operativo y por la duración del viaje; acá se expresa por km del MISMO viaje, así la base por
+      // km y el costo de la estructura coinciden.
+      rate = toDecimal(row.amount).times(tripDays).dividedBy(structure.operatingDaysPerMonth).dividedBy(tripKm);
     }
     if (!rate) continue;
     perKm = row.sign === 'SUBTRACT' ? perKm.minus(rate) : perKm.plus(rate);

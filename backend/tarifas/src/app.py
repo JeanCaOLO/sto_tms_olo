@@ -34,7 +34,7 @@ import json
 
 from tms_common import permissions
 from tms_common.errors import HttpError
-from tms_common.event import json_body, parse_json_param, path_param, query_params, route_key
+from tms_common.event import auth_user, json_body, parse_json_param, path_param, query_params, route_key
 from tms_common.handler import tms_handler
 from tms_common.responses import empty_response, json_response
 
@@ -98,6 +98,25 @@ def _require_country(caller: permissions.Permissions, table: Table, values: obje
         raise HttpError(403, "Tu rol no tiene acceso a ese país.")
     if table.country_nullable and (country is None and ("country_id" in values or creating)):
         raise HttpError(403, "Tu rol solo puede escribir filas de sus países, no globales.")
+
+
+AUDIT_TABLE = "tarifas_audit_log"
+
+
+def _stamp_actor(caller: permissions.Permissions, event: dict, table: Table, values: object) -> object:
+    """En la bitácora el QUIÉN lo pone el servidor (token), nunca el cliente.
+
+    El cliente manda `user_name` y `role` como respaldo; acá se sobrescriben con el correo del token y el
+    rol del que llama, así una entrada de bitácora no se puede escribir a nombre de otra persona."""
+    if table.name != AUDIT_TABLE or not isinstance(values, dict):
+        return values
+    stamped = dict(values)
+    email = auth_user(event).get("email")
+    if email:
+        stamped["user_name"] = email
+    if caller.role_name:
+        stamped["role"] = caller.role_name
+    return stamped
 
 
 def _body(event: dict) -> dict:
@@ -185,7 +204,7 @@ def get_row(event: dict) -> dict:
 
 def insert_row(event: dict) -> dict:
     caller, table = _writer(event, path_param(event, "table"), "create", "insert")
-    values = _body(event)
+    values = _stamp_actor(caller, event, table, _body(event))
     _require_country(caller, table, values, creating=True)
     return json_response(200, tarifas_db.query(*build_insert(table, values))[0])
 
@@ -213,7 +232,7 @@ def delete_row(event: dict) -> dict:
 
 # ── Transacción ────────────────────────────────────────────────────────────────────────────────
 
-def _planned(caller: permissions.Permissions, op: object) -> list[tuple[str, tuple[str, list]]]:
+def _planned(caller: permissions.Permissions, op: object, event: dict) -> list[tuple[str, tuple[str, list]]]:
     """Valida UNA operación y devuelve su SQL (una o varias sentencias). Todo se valida antes de abrir la transacción."""
     if not isinstance(op, dict) or op.get("op") not in TX_OPERATIONS:
         raise HttpError(400, 'Cada operación debe ser { op: "insert" | "insert_many" | "update" | "delete", table, id?, values?, rows? }')
@@ -222,10 +241,12 @@ def _planned(caller: permissions.Permissions, op: object) -> list[tuple[str, tup
     caller.require(_write_module(table), TX_OPERATIONS[kind])
     if kind == "insert_many":
         rows = op.get("rows")
+        if isinstance(rows, list):
+            rows = [_stamp_actor(caller, event, table, row) for row in rows]
         for row in rows if isinstance(rows, list) else []:
             _require_country(caller, table, row, creating=True)
         return [(kind, statement) for statement in build_insert_many(table, rows)]
-    values = op.get("values")
+    values = _stamp_actor(caller, event, table, op.get("values"))
     _require_country(caller, table, values, creating=(kind == "insert"))
     if kind == "insert":
         return [(kind, build_insert(table, values))]
@@ -242,7 +263,7 @@ def run_transaction(event: dict) -> dict:
     ops = _body(event).get("ops")
     if not isinstance(ops, list) or not ops:
         raise HttpError(400, '"ops" debe ser una lista no vacía')
-    planned = [statement for op in ops for statement in _planned(caller, op)]
+    planned = [statement for op in ops for statement in _planned(caller, op, event)]
 
     def apply(run) -> list:
         results: list = []

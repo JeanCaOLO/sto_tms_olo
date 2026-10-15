@@ -18,8 +18,14 @@ export interface EventoAuditoria {
   motivo?: string;
 }
 
-export async function registrarEvento(evento: EventoAuditoria): Promise<void> {
-  await db().insert('auditLog', {
+/**
+ * La fila de bitácora de un evento. Se separa de `registrarEvento` para poder insertarla DENTRO de la
+ * misma transacción que el cambio que registra (si falla uno, no queda el otro).
+ *
+ * `usuario` y `rol` son lo que dice el cliente; el servidor los sobrescribe con los del token.
+ */
+export function eventoToRow(evento: EventoAuditoria): Record<string, unknown> {
+  return {
     entity: evento.entidad,
     entity_id: evento.entidadId,
     action: evento.accion,
@@ -29,7 +35,11 @@ export async function registrarEvento(evento: EventoAuditoria): Promise<void> {
     after: evento.despues ?? null,
     reason: evento.motivo ?? null,
     created_at: new Date().toISOString(),
-  });
+  };
+}
+
+export async function registrarEvento(evento: EventoAuditoria): Promise<void> {
+  await db().insert('auditLog', eventoToRow(evento));
 }
 
 type AuditFailureListener = (error: unknown) => void;
