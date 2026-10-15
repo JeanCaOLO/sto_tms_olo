@@ -77,15 +77,24 @@ export function parseAmount(
   return decimalToMoney(raw, negativeByParens);
 }
 
+/**
+ * ¿Es un importe ambiguo de miles? Un único punto seguido de EXACTAMENTE tres dígitos ("1.234"): con
+ * formato 'auto' se lee como decimal (1.234), pero en es-CR / es-CO suele ser mil doscientos treinta
+ * y cuatro. No se cambia el número —un precio de 0.755 es legítimo—; solo se avisa para que quien
+ * importa elija el formato es o en si era de miles.
+ */
+export function isAmbiguousThousands(
+  cell: string | number | null | undefined,
+  format: NumberFormat = 'auto',
+): boolean {
+  if (format !== 'auto' || typeof cell !== 'string') return false;
+  return /^\s*[-(]?\d{1,3}\.\d{3}\)?\s*$/.test(cell);
+}
+
 /** Verificación ESTRICTA: una celda con letras no es número, aunque tenga dígitos. */
 export function looksLikeNumber(cell: string | number | null): boolean {
   if (typeof cell === 'number') return Number.isFinite(cell);
   if (isBlank(cell)) return false;
   if (/\p{L}/u.test(String(cell))) return false;
   return parseAmount(cell) !== null;
-}
-
-/** Alias para compatibilidad. */
-export function looksNumeric(cell: string | number | null): boolean {
-  return looksLikeNumber(cell);
 }

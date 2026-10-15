@@ -41,9 +41,13 @@ Fecha: 2026-10-15. Alcance: `src/lib/tarifas/` y `backend/tarifas/`. Sin desplie
 - **Bitácora atómica**: emitir, re-liquidar y cambiar de estado escriben la fila de `auditLog` en la MISMA transacción (`audit.ts: auditRow`, `liquidador/auditLog.ts: eventoToRow`). Si falla la bitácora se revierte el cambio (antes se tragaba el error). El backend (`app.py: _stamp_actor`) sobrescribe `user_name`/`role` de `tarifas_audit_log` con el correo del token y el rol del que llama (insert, tx insert e insert_many).
 - **Plantilla de costos**: alias de claves de parámetros (`km_anual` / `km anual` / `km por año` / `precio del combustible`…); el resumen de la plantilla deriva el costo/km de componentes con `componentCostPerKm` en vez de leer el `costPerKm` persistido (la columna se conserva solo para mostrar).
 
+## Tercera tanda — menores (decisiones por cuestionario)
+- `looksNumeric` (alias) eliminado; se usa `looksLikeNumber`.
+- Rangos de tarifario (`rateRange.ts`): solo `..` abre un extremo; el guion (`-`, `–`, `—`) exige dos números, así `-5` es el valor negativo exacto y no "hasta 5". Coma con exactamente 3 dígitos = miles (`1,000..2,000` = 1000..2000); con 1-2 dígitos, decimal (`1,5..2,5`).
+- `isAmbiguousThousands` (`cost-sheet-parser/utils.ts`): un punto + 3 dígitos con formato `auto` ("1.234") se sigue leyendo como decimal (un precio de 0.755 es válido) pero `parseRateTableSheet` devuelve `warnings` y el modal de importación de tarifarios los muestra para elegir formato es/en. `parseRateRows` (sin UI) no lo usa.
+
 ## Pendiente
 - Conectar `computePerKm` a la base de cobro (decisión de negocio abierta).
-- `looksNumeric` (alias), rangos "1,000..2,000" y "-5", ambigüedad de "1.234" con un solo punto.
 - F6 (simplificación de etapas): solo planteamiento en `.test/cambios_motor/simplificacion-etapas.md`.
 
 ## Verificación

@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { ExprSchema } from '../schemas';
 import { lookupRateTable } from '../evaluator/lookup';
+import { parseRange } from '../rateRange';
 import { compareRules } from '../resolver/evaluation';
 import { calculate } from '../index';
 import { makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostStructure, makeRule, makeTrip } from './fixtures';
@@ -23,6 +24,31 @@ describe('M1 — rango de tarifario con valor vacío', () => {
     expect(lookupRateTable(tabla, [fila('0..100')], { km: 'abc' } as unknown as VarBag)).toBeNull();
     expect(lookupRateTable(tabla, [fila('0..100')], {} as unknown as VarBag)).toBeNull();
     expect(lookupRateTable(tabla, [fila('0..100')], { km: 50 } as unknown as VarBag)).not.toBeNull();
+  });
+});
+
+describe('M1 — rangos: guion, coma y bordes abiertos', () => {
+  it('"-5" ya no es "hasta 5": es el número negativo', () => {
+    expect(parseRange('-5')).toBeNull();
+    expect(parseRange('5-')).toBeNull();
+    expect(parseRange('–5')).toBeNull();
+  });
+  it('".." abre un extremo; el guion entre dos números sigue siendo rango', () => {
+    expect(parseRange('..100')).toEqual({ from: null, to: 100 });
+    expect(parseRange('301..')).toEqual({ from: 301, to: null });
+    expect(parseRange('101-300')).toEqual({ from: 101, to: 300 });
+    expect(parseRange('101–300')).toEqual({ from: 101, to: 300 });
+  });
+  it('coma con exactamente tres dígitos = miles; con 1-2 dígitos = decimal', () => {
+    expect(parseRange('1,000..2,000')).toEqual({ from: 1000, to: 2000 });
+    expect(parseRange('1,500..')).toEqual({ from: 1500, to: null });
+    expect(parseRange('1,5..2,5')).toEqual({ from: 1.5, to: 2.5 });
+    expect(parseRange('1.5..2.5')).toEqual({ from: 1.5, to: 2.5 });
+  });
+  it('un valor negativo exacto en la clave se compara tal cual', () => {
+    const t = { ...tabla, keyColumns: ['km'] } as unknown as RateTable;
+    expect(lookupRateTable(t, [fila('-5')], { km: -5 } as unknown as VarBag)).not.toBeNull();
+    expect(lookupRateTable(t, [fila('-5')], { km: 3 } as unknown as VarBag)).toBeNull();
   });
 });
 

@@ -14,7 +14,8 @@ import { computeSettlementTotals, differsFromEngine } from '../settlementTotals'
 import { makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostStructure, makeRule, makeTrip } from './fixtures';
 import type { CalculateInput, VarBag } from '../types';
 import type { EvalContext } from '../evaluator/expressions';
-import { parseAmount } from '../cost-sheet-parser/utils';
+import { isAmbiguousThousands, parseAmount } from '../cost-sheet-parser/utils';
+import { parseRateTableSheet } from '../rate-table-import/parsing';
 import { fuelEfficiencyFor, sameTruckType } from '../cost/shared';
 import Decimal from 'decimal.js';
 
@@ -112,6 +113,29 @@ describe('plantilla de costos — alias de claves de parámetros', () => {
   it('una clave desconocida sigue avisando', () => {
     const r = params('dias_operativos', 'otra_cosa');
     expect(r.warnings.some((w) => w.message.includes('desconocido'))).toBe(true);
+  });
+});
+
+describe('A7 — importe ambiguo de miles ("1.234") solo avisa', () => {
+  it('isAmbiguousThousands: un punto + 3 dígitos, solo con formato auto', () => {
+    expect(isAmbiguousThousands('1.234')).toBe(true);
+    expect(isAmbiguousThousands('12.345')).toBe(true);
+    expect(isAmbiguousThousands('0.755')).toBe(true); // legítimo como decimal: por eso solo se avisa
+    expect(isAmbiguousThousands('1.234', 'es')).toBe(false);
+    expect(isAmbiguousThousands('1.234', 'en')).toBe(false);
+    expect(isAmbiguousThousands('1.23')).toBe(false);
+    expect(isAmbiguousThousands('1.234.567')).toBe(false);
+    expect(isAmbiguousThousands('1,234')).toBe(false);
+    expect(isAmbiguousThousands(1.234)).toBe(false);
+  });
+
+  it('el tarifario importa el valor igual (decimal) y agrega el aviso por fila', () => {
+    const matrix = [['clave', 'importe'], ['LIM', '1.234'], ['SJO', '50.25']];
+    const r = parseRateTableSheet(matrix, ['zona'], { firstDataRow: 1, mapping: { key: [0], amount: 1, values: {} } } as never);
+    expect(r.rows.map((x) => x.amount)).toEqual(['1.234', '50.25']);
+    expect(r.warnings).toHaveLength(1);
+    expect(r.warnings![0]!.reason).toContain('1.234');
+    expect(parseRateTableSheet(matrix, ['zona'], { firstDataRow: 1, mapping: { key: [0], amount: 1, values: {} } } as never, 'es').warnings).toBeUndefined();
   });
 });
 
