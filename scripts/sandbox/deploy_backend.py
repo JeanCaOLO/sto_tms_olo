@@ -38,7 +38,7 @@ ACCOUNT = "758837481569"
 ENV = "dev"
 ARTIFACTS_BUCKET = f"tms-sandbox-artifacts-{ACCOUNT}"
 STACKS = ["common-services", "auth", "data", "context", "eflow", "admin", "planning", "oms", "tarifas", "realtime",
-          "documents", "alerts", "horarios"]
+          "documents", "tracking", "alerts", "horarios"]
 # Stacks de infraestructura sin código (template en infra/<nombre>/, sin samconfig).
 INFRA_STACKS = {"horarios": ROOT / "infra" / "horarios"}
 # El secreto de BD del sandbox es el del rol de la app (sql/18), no el del dueño.
