@@ -267,8 +267,14 @@ cliente retira), sin tocar su lógica.
 
 ## E6 — Simulador (configurador de simulaciones)
 
+> **Restricción de acceso (2026-10-01)**: la vista **Simulador** es visible y
+> accesible **solo para el rol `Developer`** (FR9.0, FR14.4). Para cualquier otro
+> rol la vista no aparece en la navegación y su ruta se deniega fail-closed. Antes
+> la operaba el Responsable del OMS; ahora queda como herramienta restringida a
+> `Developer`. Las historias US19–US23 se re-asignan a `Developer`.
+
 ### US19 — Configurar una corrida en el modal previo `[siguiente]` (FR9.1, FR9.2)
-Como **Responsable del OMS**, quiero elegir qué reglas activas y qué pedidos
+Como **Developer**, quiero elegir qué reglas activas y qué pedidos
 entran a una simulación, para acotarla.
 - Given el modal previo, When lo abro, Then vienen por defecto todas las reglas
   activas y puedo desmarcar/elegir un subconjunto.
@@ -277,26 +283,26 @@ entran a una simulación, para acotarla.
   asignadas**.
 
 ### US20 — Ver el resultado como tabla-Cola `[siguiente]` (FR9.3)
-Como **Responsable del OMS**, quiero ver el resultado de la simulación como una
+Como **Developer**, quiero ver el resultado de la simulación como una
 tabla igual que la Cola, para evaluarlo con todas las columnas.
 - Given una simulación ejecutada, When se muestra, Then aparece como tabla con
   todas las columnas (o selección), no como un recuadro de "estado actual".
 
 ### US21 — Persistir la simulación (bitácora) `[siguiente]` (FR9.4)
-Como **Responsable del OMS**, quiero que cada simulación quede registrada, para
+Como **Developer**, quiero que cada simulación quede registrada, para
 tener trazabilidad.
 - Given una simulación, When se ejecuta, Then se persiste con fecha, autor
   (usuario/automático), reglas usadas, filtro, estado (`simulada`/`aplicada`) y
   compañía.
 
 ### US22 — Restringir a una simulación aplicada por compañía `[siguiente]` (FR9.4)
-Como **Responsable del OMS**, quiero que solo haya una simulación aplicada por
+Como **Developer**, quiero que solo haya una simulación aplicada por
 compañía, para evitar priorizaciones en conflicto.
 - Given varias simulaciones `simuladas` de una compañía, When aplico una, Then
   queda como la **única `aplicada` de esa compañía** (la anterior deja de estarlo).
 
 ### US23 — Aplicar manual / automática / mixta `[siguiente]` (FR9.5)
-Como **Responsable del OMS**, quiero elegir el modo de aplicación, para validar
+Como **Developer**, quiero elegir el modo de aplicación, para validar
 manualmente al inicio y automatizar cuando confíe.
 - Given modo manual, When reviso y pulso "Aplicar", Then la simulación se aplica.
 - Given modo automático, When se genera, Then se aplica sola.
@@ -309,12 +315,27 @@ manualmente al inicio y automatizar cuando confíe.
   confirmación explícita ("esto sustituye la priorización vigente de {compañía}").
 
 ### US24 — Configurar simulaciones por compañía `[siguiente]` (FR9.6)
-Como **Administrador de Módulo**, quiero configurar el número de simulaciones al
+Como **Developer**, quiero configurar el número de simulaciones al
 día, su frecuencia/horarios, el filtro de situación y el modo por simulación,
 para adaptarlo a cada compañía.
 - Given la configuración de una compañía, When defino varias simulaciones (p. ej.
   una para `DISP` y otra para `DISP`/`GENERADA`) con sus horarios y modo, Then el
   sistema las programa por compañía.
+- Nota: esta configuración vive **dentro de la vista Simulador**, por lo que solo
+  es alcanzable por `Developer` (US24b). Antes se preveía para el Administrador de
+  Módulo; con la restricción del 2026-10-01 queda bajo `Developer`.
+
+### US24b — Restringir la vista Simulador al rol Developer `[siguiente]` (FR9.0, FR14.4)
+Como **sistema/seguridad**, quiero que la vista Simulador solo sea visible y
+accesible para el rol `Developer`, para que sea una herramienta de
+diagnóstico/pruebas y no una pantalla operativa de usuarios normales.
+- Given un usuario con rol `Developer`, When entra al OMS, Then ve la entrada
+  "Simulador" en la navegación y puede abrir su ruta.
+- Given un usuario con cualquier otro rol (normal, Administrador de Módulo, Jefe
+  de Almacén, Responsable del OMS), When entra al OMS, Then **no** ve la entrada
+  "Simulador" y, si navega directo a su ruta, el acceso se **deniega
+  fail-closed** (no solo oculto en UI; también denegado en el backend/matriz de
+  permisos).
 
 ---
 

@@ -311,9 +311,15 @@ Como sistema, el OMS deja el pedido "alistado" con **dos escrituras** (D6).
 
 ### FR9 — Simulador (configurador de simulaciones)
 
-Como **Responsable del OMS**, quiero configurar, previsualizar y aplicar
-simulaciones de priorización, manual o automáticamente.
+Como **Developer**, quiero configurar, previsualizar y aplicar simulaciones de
+priorización, manual o automáticamente.
 
+- **FR9.0** La vista Simulador es **visible y accesible SOLO para el rol
+  `Developer`**. Para cualquier otro rol (usuarios normales, Administrador de
+  Módulo, Jefe de Almacén, Responsable del OMS) la vista **no es visible**: no
+  aparece en la navegación y su ruta queda denegada por la matriz de permisos
+  (FR14). Cambio del 2026-10-01: antes era operada por el Responsable del OMS;
+  ahora queda restringida a `Developer` (herramienta de diagnóstico/pruebas).
 - **FR9.1** Al simular se aplican **solo las reglas ACTIVAS**. Un **modal previo**
   trae por defecto todas las activas y permite elegir un subconjunto para esa
   corrida.
@@ -400,6 +406,10 @@ simulaciones de priorización, manual o automáticamente.
   token contra la acción y el scope.
 - **FR14.3** Toda acción de escritura registra el identificador del usuario en la
   Auditoría (bitácora por trigger de BD; sin usuario = `system`).
+- **FR14.4** La vista **Simulador** (FR9) está restringida al rol **`Developer`**:
+  solo ese rol la ve en la navegación y puede acceder a su ruta; para cualquier
+  otro rol la vista no es visible y su acceso se deniega fail-closed por la matriz
+  de permisos. (Cambio del 2026-10-01.)
 
 ## Requerimientos no funcionales
 
