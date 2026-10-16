@@ -12,10 +12,6 @@ transicionar paradas, novedades y evidencias) + país de la tienda de origen de 
 import os
 from datetime import datetime, timezone
 
-import boto3
-from botocore.config import Config
-from botocore.exceptions import ClientError
-
 from tms_common import permissions, pg
 from tms_common.errors import HttpError
 from tms_common.event import json_body, path_param, query_params
@@ -34,6 +30,8 @@ _s3 = None
 def s3():
     global _s3
     if _s3 is None:
+        import boto3  # perezoso: las rutas sin S3 (y el servidor local) no lo necesitan
+        from botocore.config import Config
         region = os.environ.get("AWS_REGION", "us-east-2")
         _s3 = boto3.client("s3", region_name=region, endpoint_url=f"https://s3.{region}.amazonaws.com",
                            config=Config(signature_version="s3v4", s3={"addressing_style": "virtual"}))
@@ -438,8 +436,9 @@ def evidence_upload_url(event: dict) -> dict:
 def _head(key: str) -> dict | None:
     try:
         return s3().head_object(Bucket=bucket(), Key=key)
-    except ClientError as err:
-        if err.response.get("Error", {}).get("Code") in ("404", "NoSuchKey", "NotFound"):
+    except Exception as err:  # botocore ClientError (sin importar botocore aquí)
+        code = getattr(err, "response", {}).get("Error", {}).get("Code")
+        if code in ("404", "NoSuchKey", "NotFound"):
             return None
         raise
 

@@ -42,6 +42,9 @@ def test_signal_thresholds(logic):
     assert logic.signal(None, NOW) == "none"
     assert logic.signal(NOW - timedelta(seconds=60), NOW) == "online"
     assert logic.signal(NOW - timedelta(minutes=10), NOW) == "stale"
+    assert logic.signal(NOW - timedelta(minutes=4), NOW) == "online"      # cobertura irregular: hasta 5 min
+    assert logic.signal(NOW - timedelta(minutes=25), NOW) == "stale"
+    assert logic.signal(NOW - timedelta(minutes=45), NOW) == "offline"
     assert logic.signal(NOW - timedelta(hours=2), NOW) == "offline"
     naive = (NOW - timedelta(seconds=30)).replace(tzinfo=None)
     assert logic.signal(naive, NOW) == "online"
@@ -116,9 +119,10 @@ class Db:
         self.answers[fragment] = rows
 
     def run(self, sql, params=()):
-        self.calls.append((" ".join(sql.split()), list(params)))
+        flat = " ".join(sql.split())
+        self.calls.append((flat, list(params)))
         for fragment, rows in self.answers.items():
-            if fragment in sql:
+            if fragment in flat:
                 return rows(list(params)) if callable(rows) else rows
         return []
 

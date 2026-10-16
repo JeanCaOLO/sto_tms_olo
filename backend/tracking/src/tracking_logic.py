@@ -22,9 +22,9 @@ ACTIVE_STATUS_SQL_VALUES = sorted(_ACTIVE)
 GUIDE_PENDING, GUIDE_DELIVERED, GUIDE_FAILED = "pending", "delivered", "failed"
 GUIDE_STATUS_TEXT = {GUIDE_PENDING: "Pendiente", GUIDE_DELIVERED: "Entregado", GUIDE_FAILED: "Fallido"}
 
-# Umbrales de señal (blueprint tenant_settings: presence_online_s / presence_stale_s).
-ONLINE_SECONDS = 120
-STALE_SECONDS = 900
+# Umbrales de señal (blueprint tenant_settings: presence_online_s / presence_stale_s), ampliados por cobertura móvil irregular.
+ONLINE_SECONDS = 300   # zonas con poca cobertura: la app envía lotes cada 30-60 s y puede quedar sin señal minutos
+STALE_SECONDS = 1800
 
 MAX_BATCH = 200
 MAX_FUTURE_SKEW = timedelta(minutes=5)

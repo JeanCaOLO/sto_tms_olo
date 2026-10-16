@@ -18,7 +18,7 @@ export type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'info'
 
 export function stateVariant(state: RouteState, signal: Signal): BadgeVariant {
   if (state === 'completed') return 'info';
-  if (state === 'active') return signal === 'online' ? 'success' : signal === 'stale' ? 'warning' : 'danger';
+  if (state === 'active') return signal === 'online' ? 'success' : signal === 'stale' ? 'warning' : signal === 'offline' ? 'danger' : 'default';
   if (state === 'cancelled') return 'danger';
   return 'default';
 }

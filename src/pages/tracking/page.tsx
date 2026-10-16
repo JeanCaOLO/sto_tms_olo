@@ -14,6 +14,10 @@ import { formatAge } from './tracking-logic';
 // Leaflet pesa: el mapa se descarga solo al abrir Tracking.
 const FlotaMapa = lazy(() => import('./components/FlotaMapa'));
 
+// El inicio real del viaje será al reportar la salida (app o TMS, aún sin definir). Mientras tanto el botón
+// manual sirve para pruebas: visible en desarrollo o con VITE_TRACKING_MANUAL_START=true.
+const MANUAL_START = import.meta.env.DEV || import.meta.env.VITE_TRACKING_MANUAL_START === 'true';
+
 const PAGE_SIZE = 30;
 const MAX_LIMIT = 100;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -86,7 +90,7 @@ export default function TrackingPage() {
           <Button variant="secondary" size="sm" onClick={refresh} icon={<i className="ri-refresh-line" />}>
             {t('tracking.refresh')}
           </Button>
-          {canCreate && (
+          {canCreate && MANUAL_START && (
             <Button size="sm" onClick={() => setStarting(true)} icon={<i className="ri-play-circle-line" />}>
               {t('tracking.startTrip')}
             </Button>
@@ -128,7 +132,7 @@ export default function TrackingPage() {
         )}
       </div>
 
-      {canCreate && (
+      {canCreate && MANUAL_START && (
         <IniciarViajeModal
           isOpen={starting}
           onClose={() => setStarting(false)}

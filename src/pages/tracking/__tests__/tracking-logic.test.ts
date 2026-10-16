@@ -27,6 +27,7 @@ describe('tracking-logic', () => {
     expect(stateVariant('active', 'online')).toBe('success');
     expect(stateVariant('active', 'stale')).toBe('warning');
     expect(stateVariant('active', 'offline')).toBe('danger');
+    expect(stateVariant('active', 'none')).toBe('default');
     expect(stateVariant('completed', 'none')).toBe('info');
     expect(stateVariant('planned', 'none')).toBe('default');
     expect(stopVariant('delivered')).toBe('success');

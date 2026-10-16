@@ -59,14 +59,14 @@ function Vista({ viajes, selectedId, detail }: Pick<Props, 'viajes' | 'selectedI
     if (!selectedId) { focusedFor.current = null; return; }
     const shown = detail && detail.id === selectedId ? detail : null;
     const selected = viajes.find((v) => v.id === selectedId);
-    // Se enfoca una vez por selección, cuando ya hay algo que mostrar (posición o paradas).
-    if (focusedFor.current === selectedId) return;
+    // Se enfoca una vez por selección y solo cuando ya llegó el detalle (paradas), para encuadrar todo el viaje.
+    if (focusedFor.current === selectedId || !shown) return;
     const points: [number, number][] = [];
     if (selected?.position) points.push([selected.position.lat, selected.position.lng]);
     shown?.stops.forEach((s) => { if (s.lat != null && s.lng != null) points.push([s.lat, s.lng]); });
     if (!points.length) return;
     focusedFor.current = selectedId;
-    map.fitBounds(L.latLngBounds(points), { padding: [60, 60], maxZoom: 15 });
+    map.fitBounds(L.latLngBounds(points), { padding: [60, 60], maxZoom: 14 });
   }, [map, selectedId, viajes, detail]);
 
   return null;
@@ -79,7 +79,7 @@ export default function FlotaMapa({ viajes, selectedId, detail, onSelect }: Prop
   const shown = detail && detail.id === selectedId ? detail : null;
 
   return (
-    <div className="relative h-full min-h-[320px] rounded-lg overflow-hidden border border-slate-200">
+    <div className="relative isolate h-full min-h-[320px] rounded-lg overflow-hidden border border-slate-200">
       <MapContainer center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} className="w-full h-full" scrollWheelZoom>
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap" />
         {shown && shown.trail.length > 1 && (
