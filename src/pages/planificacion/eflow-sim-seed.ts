@@ -74,18 +74,37 @@ function cab(id: string, fecha: string, zona: string, p: Punto): ExpedicionCabec
   };
 }
 
-function lineas(id: string, sal: number): ExpedicionDetalle[] {
+function lineas(id: string, sal: number, compania = '0109'): ExpedicionDetalle[] {
   const cuantas = 1 + (sal % 3); // 1..3 líneas por pedido
   return Array.from({ length: cuantas }, (_, k) => {
     const a = ARTICULOS[(sal + k) % ARTICULOS.length];
     const cant = 2 + ((sal + k) % 6) * 3;
     return {
-      IDEXPEDICION: id, IDCOMPANIA: '0109', IDALMACEN: '0001', IDSUCURSAL: '0001',
+      IDEXPEDICION: id, IDCOMPANIA: compania, IDALMACEN: '0001', IDSUCURSAL: '0001',
       IDLINEA: k + 1, IDARTICULO: a[0], DESCRIPCION: a[1], CANTIDAD: cant,
       PESO: +(a[2] * cant).toFixed(2), VOLUMEN: +(a[3] * cant).toFixed(3),
       GUIAFISCAL: null, TPEXES: 'DISP', TPEXSI: 'DISP', PRIORIDAD: null,
     };
   });
+}
+
+// EPA (IDCOMPANIA 0029): IPRAC parte el pedido de cada tienda en DOS expediciones
+// con sufijo guion — -0 FALLA (prioridad 1, urgente) y -1 REGULAR (prioridad 2).
+// Prioridad UNIFORME por expedición; camión exclusivo → cluster propio "EPA".
+const EPA_TIENDAS: Punto[] = [
+  ['EPA Tienda Zapote', 'Zapote', 9.9126, -84.0589],
+  ['EPA Tienda Alajuela', 'Alajuela', 10.0162, -84.2116],
+  ['EPA Tienda Cartago', 'Cartago', 9.8644, -83.9194],
+];
+
+function epaCab(base: string, suf: 0 | 1, fecha: string, p: Punto): ExpedicionCabecera {
+  return {
+    IDEXPEDICION: `${base}-${suf}`, IDCOMPANIA: '0029', IDALMACEN: '0001', IDSUCURSAL: '0001',
+    TPEXES: 'DISP', TPEXSI: 'DISP', PRIORIDAD: suf === 0 ? 1 : 2, BAJADA: null,
+    IDCLIENTE: null, NOMBRECLIENTE: p[0], RUTA: 'EPA', FECHAENTREGA: fecha,
+    FECHACIERRE: null, NUMEROVIAJEWMH: null, DIRECCIONENTREGA: `${p[1]}, Costa Rica`,
+    LATITUD: String(p[2]), LONGITUD: String(p[3]),
+  };
 }
 
 export function seedEflowSim(): { cabecera: ExpedicionCabecera[]; detalle: ExpedicionDetalle[] } {
@@ -103,6 +122,14 @@ export function seedEflowSim(): { cabecera: ExpedicionCabecera[]; detalle: Exped
         detalle.push(...lineas(id, seq));
       }
     });
+  });
+  EPA_TIENDAS.forEach((p, i) => {
+    const fecha = format(addDays(lunes, i % 5), 'yyyy-MM-dd');
+    const base = `EXP-EPA-${String(500 + i).padStart(3, '0')}`;
+    for (const suf of [0, 1] as const) {
+      cabecera.push(epaCab(base, suf, fecha, p));
+      detalle.push(...lineas(`${base}-${suf}`, suf + i + 1, '0029'));
+    }
   });
   return { cabecera, detalle };
 }

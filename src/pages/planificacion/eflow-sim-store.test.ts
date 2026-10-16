@@ -60,4 +60,31 @@ describe('mapExpediciones', () => {
       expect(t.stops[0].delivery_latitude).not.toBeNull();
     }
   });
+
+  it('genera nº de viaje secuencial (desde 1001, únicos) y marca CARCA por pedido', () => {
+    const { cabecera, detalle } = seedEflowSim();
+    const planes = mapExpediciones(cabecera, detalle);
+    const trips = planes.flatMap((p) => p.trips);
+    const nums = trips.map((t) => t.numero_viaje);
+    expect(nums[0]).toBe('1001');
+    expect(new Set(nums).size).toBe(trips.length); // nº de viaje únicos
+    const stops = trips.flatMap((t) => t.stops);
+    expect(stops.every((s) => typeof s.en_carca === 'boolean')).toBe(true);
+    expect(stops.some((s) => s.en_carca === false)).toBe(true); // hay sin despachar
+  });
+
+  it('EPA (0029): lee las expediciones -0/-1 con su prioridad uniforme', () => {
+    const { cabecera, detalle } = seedEflowSim();
+    const epaStops = mapExpediciones(cabecera, detalle)
+      .flatMap((p) => p.trips)
+      .flatMap((t) => t.stops)
+      .filter((s) => s.compania === '0029');
+    expect(epaStops.length).toBeGreaterThan(0);
+    const falla = epaStops.filter((s) => s.order_number.endsWith('-0'));
+    const regular = epaStops.filter((s) => s.order_number.endsWith('-1'));
+    expect(falla.length).toBeGreaterThan(0);
+    expect(regular.length).toBeGreaterThan(0);
+    expect(falla.every((s) => s.prioridad === 1)).toBe(true); // -0 falla = prioridad 1
+    expect(regular.every((s) => s.prioridad === 2)).toBe(true); // -1 regular = prioridad 2
+  });
 });

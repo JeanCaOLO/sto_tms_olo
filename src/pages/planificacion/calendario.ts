@@ -68,6 +68,12 @@ export function zonasPresentes(planes: RoutePlan[], fechasISO: string[]): string
   return [...zonas].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
 }
 
+// ¿Alguno de estos viajes lleva pedidos aún NO despachados (fuera de CARCA)?
+// La vista lo usa para marcar una advertencia (reunión Antonio 2026-10-15).
+export function hayPendientesCarca(trips: PlanTrip[]): boolean {
+  return trips.some((t) => t.stops.some((s) => s.en_carca === false));
+}
+
 // Numeración global de viajes (V1, V2…) en el rango visible, en orden
 // (fecha asc, zona asc, sequence_order asc) — tal como el pizarrón del cliente.
 export function numeroDeViaje(planes: RoutePlan[], fechasISO: string[]): Map<string, number> {

@@ -73,4 +73,12 @@ export default {
   'planning.status.confirmed': 'Confirmado',
   'planning.status.completed': 'Completado',
   'planning.status.cancelled': 'Cancelado',
+  'planning.tripNumber': 'Viaje',
+  'planning.readyBy': 'Alistar',
+  'planning.leadTime': 'T-{{days}}',
+  'planning.carcaWarning': 'Hay pedidos sin despachar (fuera de CARCA)',
+  'planning.carcaShort': 'Sin CARCA',
+  'planning.priority': 'Prioridad',
+  'planning.priorityFalla': 'Falla (urgente)',
+  'planning.priorityRegular': 'Regular',
 };

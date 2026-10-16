@@ -53,6 +53,10 @@ export default function ParadaModal({ parada, onClose }: Props) {
     [t('planning.weight'), peso],
     [t('planning.volume'), volumen],
   ];
+  if (parada.prioridad != null) {
+    const etiqueta = parada.prioridad === 1 ? t('planning.priorityFalla') : t('planning.priorityRegular');
+    filas.push([t('planning.priority'), `${parada.prioridad} · ${etiqueta}`]);
+  }
 
   return (
     <AdminModal title={t('planning.stopDetail')} onClose={onClose}>

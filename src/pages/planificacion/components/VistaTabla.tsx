@@ -2,7 +2,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useTranslation } from 'react-i18next';
 import { useZonasNombre } from '../use-zonas-nombre';
-import { isoDe, viajesDeCelda, zonasPresentes } from '../calendario';
+import { hayPendientesCarca, isoDe, viajesDeCelda, zonasPresentes } from '../calendario';
 import type { RoutePlan } from '../planes-types';
 
 interface Props {
@@ -41,7 +41,9 @@ export default function VistaTabla({ planes, dias, onAbrirCelda }: Props) {
             </div>
             <ul className="divide-y divide-slate-100">
               {zonas.map((zona) => {
-                const n = viajesDeCelda(planes, fechaISO, zona).length;
+                const viajes = viajesDeCelda(planes, fechaISO, zona);
+                const n = viajes.length;
+                const sinCarca = hayPendientesCarca(viajes);
                 return (
                   <li key={zona}>
                     <button
@@ -52,6 +54,12 @@ export default function VistaTabla({ planes, dias, onAbrirCelda }: Props) {
                       <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
                         <i className="ri-map-pin-line text-teal-600"></i>
                         {nombreDe(zona)}
+                        {sinCarca && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-semibold" title={t('planning.carcaWarning')}>
+                            <i className="ri-error-warning-line"></i>
+                            {t('planning.carcaShort')}
+                          </span>
+                        )}
                       </span>
                       <span className="flex items-center gap-2">
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-teal-600 text-white text-xs font-semibold">
