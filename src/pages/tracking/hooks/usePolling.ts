@@ -18,7 +18,7 @@ export interface PollingState<T> {
 export function usePolling<T>(
   fetcher: () => Promise<T>,
   deps: readonly unknown[],
-  { enabled = true, intervalMs = POLL_INTERVAL_MS }: { enabled?: boolean; intervalMs?: number } = {},
+  { enabled = true, intervalMs = POLL_INTERVAL_MS, clock = Date.now }: { enabled?: boolean; intervalMs?: number; clock?: () => number } = {},
 ): PollingState<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<Error | null>(null);
@@ -27,6 +27,8 @@ export function usePolling<T>(
   const ticket = useRef(0);
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
+  const clockRef = useRef(clock);
+  clockRef.current = clock;
 
   const invalidate = useCallback(() => { ticket.current += 1; }, []);
   const run = useCallback(async () => {
@@ -36,7 +38,7 @@ export function usePolling<T>(
       if (mine !== ticket.current) return;
       setData(result);
       setError(null);
-      setUpdatedAt(Date.now());
+      setUpdatedAt(clockRef.current());
     } catch (err) {
       if (mine !== ticket.current) return;
       setError(err instanceof Error ? err : new Error(String(err)));

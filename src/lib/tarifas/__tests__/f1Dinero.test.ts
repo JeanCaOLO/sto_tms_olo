@@ -39,7 +39,7 @@ function ctx(vars: Record<string, unknown>, warnings: string[] = []): EvalContex
 
 describe('A1 — total recalculado vs total del motor', () => {
   // Tres reglas de 0.004: el motor suma exacto (0.012 → 0.01); cada línea sola redondea a 0.00.
-  const r = (code: string) => makeRule({ code, stage: 'SURCHARGE', expression: { op: 'FIXED', amount: '0.004' } });
+  const r = (code: string) => makeRule({ code, stage: 'VARIABLE', expression: { op: 'FIXED', amount: '0.004' } });
 
   it('sin destildar, el total mostrado es EXACTAMENTE el del motor', () => {
     const result = calculate(input([r('A'), r('B'), r('C')]));
@@ -50,7 +50,7 @@ describe('A1 — total recalculado vs total del motor', () => {
   });
 
   it('differsFromEngine no da falso positivo al destildar una línea de importe cero', () => {
-    const result = calculate(input([r('A'), r('B'), r('C'), makeRule({ code: 'Z', stage: 'SURCHARGE', expression: { op: 'FIXED', amount: '0' } })]));
+    const result = calculate(input([r('A'), r('B'), r('C'), makeRule({ code: 'Z', stage: 'VARIABLE', expression: { op: 'FIXED', amount: '0' } })]));
     const z = result.trace.find((l) => l.ruleCode === 'Z');
     const totals = computeSettlementTotals(result.trace, z ? [z.seq] : [], PAIS, result);
     expect(differsFromEngine(totals, result)).toBe(false);
@@ -168,7 +168,7 @@ describe('A2 — datos no numéricos no abortan el cálculo', () => {
 
   it('PER_BLOCK con blockSize 0 es una regla ilegible (no un throw genérico)', () => {
     const result = calculate(input([
-      makeRule({ code: 'PB', stage: 'SURCHARGE', expression: { op: 'PER_BLOCK', unit: 'km', blockSize: 0, amount: '5' } }),
+      makeRule({ code: 'PB', stage: 'VARIABLE', expression: { op: 'PER_BLOCK', unit: 'km', blockSize: 0, amount: '5' } }),
     ]));
     expect(result.blockingIssues.some((i) => i.code === 'REGLA_ILEGIBLE')).toBe(true);
   });

@@ -2,7 +2,7 @@
 // cómo se ven en pantalla — eso es trabajo de la UI, no del motor de cálculo.
 // Puerto casi literal de prototipoTarifador/src/ui/format.ts (mismo vocabulario Pred/VarKey).
 
-import type { BaseRef, BuiltinVarKey, DiscardReason, Stage, VarKey } from './types';
+import type { BaseRef, BuiltinVarKey, DiscardReason, RuleCategory, Stage, VarKey } from './types';
 import type { Pred } from './types';
 import { pctToDisplay, toDecimal } from './money';
 
@@ -59,6 +59,13 @@ export function formatPct(fraction: string): string {
 
 export const STAGE_LABELS: Record<Stage, string> = {
   BASE: 'Base',
+  VARIABLE: 'Variable',
+  ADJUSTMENT: 'Ajuste',
+  TAX: 'Impuesto',
+};
+
+/** Etiqueta de la categoría (solo reporte). Incluye las ex-etapas MODIFIER/SURCHARGE. */
+export const CATEGORY_LABELS: Record<RuleCategory, string> = {
   VARIABLE: 'Variable',
   MODIFIER: 'Modificador',
   SURCHARGE: 'Recargo',

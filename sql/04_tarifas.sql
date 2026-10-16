@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS tarifas_pricing_rules (
   code text NOT NULL,
   name text NOT NULL,
   stage text NOT NULL,
+  category text,
   priority integer NOT NULL,
   stacking text NOT NULL,
   exclusion_group text,

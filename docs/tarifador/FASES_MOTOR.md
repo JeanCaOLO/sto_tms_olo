@@ -31,7 +31,7 @@ El tarifador tiene dos motores encadenados, ambos puros (no leen nada del entorn
 8. **Margen** (`margin.ts`, solo auditoría) y **reparto** entre casas (`allocation.ts`).
 9. **Totales con líneas destildadas** (`settlementTotals.ts`) y explicación (`explain/`).
 
-Etapas: BASE → VARIABLE → MODIFIER → SURCHARGE → ADJUSTMENT → TAX. Apilado: SUM | MAX | EXCLUSIVE. (La simplificación de etapas sigue solo como planteamiento: `.test/cambios_motor/simplificacion-etapas.md`.)
+Fases: BASE → VARIABLE → AJUSTE (ADJUSTMENT) → TAX. MODIFIER y SURCHARGE ya no son fases: son la `category` de una regla VARIABLE (solo reporte; el orden lo da la prioridad). Apilado: SUM | MAX | EXCLUSIVE (EXCLUSIVE solo en BASE). Detalle: `.test/cambios_motor/REFACTOR_FASES_2026-10-16.md`; migración: `sql/39`.
 
 ## Datos nuevos (sql/38)
 - `tarifas_pricing_rules.base_method`: forma de cobro que declara una regla BASE. La UI la deduce de la fórmula al guardar; el backfill la deduce igual. Hoy **solo avisa** si no coincide con la fórmula (`baseMethodMismatch`); no rechaza.

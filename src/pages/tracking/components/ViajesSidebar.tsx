@@ -11,13 +11,10 @@ interface Props {
   reviewCount: number | null;
   search: string;
   selectedId: string | null;
-  expanded: boolean;
-  now: number;
   canLoadMore: boolean;
   onMode: (value: ListMode) => void;
   onSearch: (value: string) => void;
   onSelect: (id: string) => void;
-  onToggleMore: () => void;
   onLoadMore: () => void;
   onRetry: () => void;
 }
@@ -73,11 +70,8 @@ export default function ViajesSidebar(props: Props) {
           <ViajeCard
             key={viaje.id}
             viaje={viaje}
-            now={props.now}
             selected={props.selectedId === viaje.id}
-            expanded={props.expanded}
             onSelect={() => props.onSelect(viaje.id)}
-            onToggleMore={props.onToggleMore}
           />
         ))}
         {props.canLoadMore && (

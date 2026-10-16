@@ -44,7 +44,7 @@ export function runChargePipeline(
   const rateTableRows = input.rateTableRows ?? [];
 
   const stageAccum: Record<Stage, Decimal> = {
-    BASE: ZERO, VARIABLE: ZERO, MODIFIER: ZERO, SURCHARGE: ZERO, ADJUSTMENT: ZERO, TAX: ZERO,
+    BASE: ZERO, VARIABLE: ZERO, ADJUSTMENT: ZERO, TAX: ZERO,
   };
   const ruleAmounts = new Map<string, Decimal>();
   let running = ZERO;
@@ -165,6 +165,7 @@ export function runChargePipeline(
     const line: TraceLine = {
       seq,
       stage: rule.stage,
+      ...(rule.category ? { category: rule.category } : {}),
       ruleId: rule.isAdhoc ? null : rule.id,
       ruleCode: rule.code,
       label: rule.name,

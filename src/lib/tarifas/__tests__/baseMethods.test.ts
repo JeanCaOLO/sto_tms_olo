@@ -84,9 +84,9 @@ describe('cambiar la base reemplaza solo la base', () => {
   });
 
   it('las demás fases siguen igual', () => {
-    const recargo = makeRule({ code: 'RECARGO', stage: 'SURCHARGE', expression: { op: 'FIXED', amount: '10' } });
+    const recargo = makeRule({ code: 'RECARGO', stage: 'VARIABLE', expression: { op: 'FIXED', amount: '10' } });
     const r = calculate(input({ rules: [porKm(), fija(), recargo], baseOverride: { method: 'PER_KM' } }));
-    expect(r.stageSubtotals.SURCHARGE).toBe('10.00');
+    expect(r.stageSubtotals.VARIABLE).toBe('10.00');
     expect(r.totalLiquidado).toBe('460.00');
   });
 
@@ -100,14 +100,14 @@ describe('cambiar la base reemplaza solo la base', () => {
   });
 
   it('un recargo fijo no es duplicado de una base fija', () => {
-    const recargo = makeRule({ code: 'RECARGO', stage: 'SURCHARGE', expression: { op: 'FIXED', amount: '10' } });
+    const recargo = makeRule({ code: 'RECARGO', stage: 'VARIABLE', expression: { op: 'FIXED', amount: '10' } });
     const r = calculate(input({ rules: [fija(), recargo], baseOverride: { method: 'FIXED' } }));
     expect(r.base?.duplicates).toEqual([]);
     expect(r.totalLiquidado).toBe('110.00');
   });
 
   it('tarifa fija con monto del transportista: ese monto es la base y reemplaza las reglas BASE', () => {
-    const recargo = makeRule({ code: 'RECARGO', stage: 'SURCHARGE', expression: { op: 'FIXED', amount: '10' } });
+    const recargo = makeRule({ code: 'RECARGO', stage: 'VARIABLE', expression: { op: 'FIXED', amount: '10' } });
     const r = calculate(input({ rules: [porKm(), fija(), recargo], baseOverride: { method: 'FIXED', amount: '250' } }));
     expect(r.blockingIssues).toEqual([]);
     expect(r.base?.source.kind).toBe('CARRIER');
@@ -133,7 +133,7 @@ describe('cambiar la base reemplaza solo la base', () => {
   });
 
   it('con tarifa fija del transportista, un recargo por km de otra fase SÍ aplica (no es la misma cosa)', () => {
-    const sobreKm = makeRule({ code: 'SOBRE_KM', stage: 'SURCHARGE', expression: { op: 'PER_KM', rate: '0.50' } });
+    const sobreKm = makeRule({ code: 'SOBRE_KM', stage: 'VARIABLE', expression: { op: 'PER_KM', rate: '0.50' } });
     const r = calculate(input({ rules: [sobreKm], baseOverride: { method: 'FIXED', amount: '1000' } }));
     expect(r.base?.duplicates).toEqual([]);
     expect(r.discarded.map((d) => d.ruleCode)).not.toContain('SOBRE_KM');
@@ -268,9 +268,9 @@ describe('RuleSchema: forma de cobro y ligado', () => {
   const base = { ...porKm(), id: 'r1', countryId: 'VE' };
   it('baseMethod solo en BASE; appliesToBase solo en ajustes; Tendering no se declara', () => {
     expect(RuleSchema.safeParse({ ...base, baseMethod: 'PER_KM' }).success).toBe(true);
-    expect(RuleSchema.safeParse({ ...base, stage: 'SURCHARGE', baseMethod: 'PER_KM' }).success).toBe(false);
+    expect(RuleSchema.safeParse({ ...base, stage: 'VARIABLE', baseMethod: 'PER_KM' }).success).toBe(false);
     expect(RuleSchema.safeParse({ ...base, appliesToBase: ['PER_KM'] }).success).toBe(false);
-    expect(RuleSchema.safeParse({ ...base, stage: 'SURCHARGE', appliesToBase: ['PER_KM'] }).success).toBe(true);
+    expect(RuleSchema.safeParse({ ...base, stage: 'VARIABLE', appliesToBase: ['PER_KM'] }).success).toBe(true);
     expect(RuleSchema.safeParse({ ...base, baseMethod: 'TENDERING' }).success).toBe(false);
   });
 });

@@ -2,6 +2,7 @@
 
 import type { Row } from '../data';
 import { toDecimal } from '../money';
+import { legacyCategory, normalizeStage } from '../types';
 import type { MarginPolicy, Rule } from '../types';
 
 const eq = (column: string, value: unknown) => ({ column, op: 'eq' as const, value });
@@ -22,7 +23,10 @@ export function buildRules(ofCountry: Row[], global: Row[], countryId: string): 
       countryId: (row.country_id as string | null) ?? countryId,
       code: row.code,
       name: row.name,
-      stage: row.stage,
+      // Filas guardadas antes de las 4 fases traen MODIFIER/SURCHARGE: se pliegan a VARIABLE y la
+      // etapa vieja pasa a ser la categoría (solo reporte) si la fila no trae una propia.
+      stage: normalizeStage(row.stage),
+      category: row.category ?? legacyCategory(row.stage),
       priority: Number(row.priority),
       stacking: row.stacking,
       scope: (row.scope ?? 'COUNTRY'),

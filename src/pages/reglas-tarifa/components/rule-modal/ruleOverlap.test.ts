@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findOverlappingRule, vigenciasSePisan } from './ruleOverlap';
+import { findOverlappingRule, findSimilarRule, vigenciasSePisan } from './ruleOverlap';
 
 const base = { id: 'r1', code: 'R_DIESEL', country_id: 'c1', party_id: null, active: true, effective_from: null, effective_to: null };
 
@@ -30,5 +30,27 @@ describe('findOverlappingRule', () => {
   it('no avisa con la versión siguiente de una regla (vigencias que no se pisan)', () => {
     const v1 = { ...base, effective_to: '2026-09-30' };
     expect(findOverlappingRule({ ...base, effective_from: '2026-10-01' }, [v1])).toBeNull();
+  });
+});
+
+describe('findSimilarRule', () => {
+  const full = {
+    ...base, name: 'Recargo domingo', stage: 'VARIABLE', stacking: 'SUM', scope: 'COUNTRY',
+    conditions: { p: 'EQ', left: 'weekday', right: 0 }, expression: { op: 'FIXED', amount: '5' },
+  };
+  it('avisa de otra regla con otro código pero la misma lógica', () => {
+    expect(findSimilarRule({ ...full, id: 'n', code: 'R_DOMINGO_2', name: 'Otro' }, [full])).toMatchObject({ kind: 'MISMA_LOGICA' });
+  });
+  it('avisa del mismo nombre con otro código y otra fórmula', () => {
+    const nueva = { ...full, id: 'n', code: 'OTRA', expression: { op: 'FIXED', amount: '9' } };
+    expect(findSimilarRule(nueva, [full])).toMatchObject({ kind: 'MISMO_NOMBRE' });
+  });
+  it('lee una fila vieja (MODIFIER) como VARIABLE al compararla', () => {
+    const vieja = { ...full, stage: 'MODIFIER' };
+    expect(findSimilarRule({ ...full, id: 'n', code: 'COPIA', name: 'Copia' }, [vieja])).toMatchObject({ kind: 'MISMA_LOGICA' });
+  });
+  it('no avisa al editar la misma regla ni con otra fórmula y otro nombre', () => {
+    expect(findSimilarRule(full, [full], 'r1')).toBeNull();
+    expect(findSimilarRule({ ...full, id: 'n', code: 'X', name: 'Distinta', expression: { op: 'FIXED', amount: '1' } }, [full])).toBeNull();
   });
 });

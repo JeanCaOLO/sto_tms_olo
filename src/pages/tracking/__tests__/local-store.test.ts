@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TrackingApiError } from '../api-remote';
 import {
-  driveMinutes, haversineM, localComplete, localDetail, localList, localPlanned, localReview, localStart, localSummary, resetLocalData,
+  driveMinutes, getSimulation, haversineM, localComplete, localDetail, localList, localPlanned, localReview, localStart, localSummary, resetLocalData, setSimulation, simNow,
 } from '../local-store';
 
 beforeEach(() => {
@@ -44,6 +44,19 @@ describe('datos locales del tracking', () => {
     expect(review.map((v) => v.route_number).sort()).toEqual(['VJ-DEMO-CR-C1', 'VJ-DEMO-CR-C3', 'VJ-DEMO-VN-C2']);
     expect(localList('all', 'mora', 50).items.every((v) => v.driver_name === 'Luis Mora Castillo')).toBe(true);
     expect(localList('all', '', 3).items).toHaveLength(3);
+  });
+
+  it('filtra viajes, KPIs y planificados por el país del selector global', () => {
+    const cr = localList('all', '', 50, 'CR').items;
+    const ve = localList('all', '', 50, 'VE').items;
+    expect(cr.length + ve.length).toBe(localList('all', '', 50).items.length);
+    expect(cr.every((v) => v.route_number.includes('-CR-'))).toBe(true);
+    expect(ve.every((v) => v.route_number.includes('-VN-'))).toBe(true);
+    expect(localList('all', '', 50, 'CO').items).toHaveLength(0);
+    expect(localSummary('CR').active + localSummary('VE').active).toBe(localSummary().active);
+    expect(localSummary('VE').to_review).toBe(1);
+    expect(localPlanned('VE').map((p) => p.plan_trip_id)).toEqual(['plan-vn-01']);
+    expect(localPlanned('CR')).toHaveLength(2);
   });
 
   it('devuelve detalle con paradas, ETA y evidencias', () => {
@@ -96,5 +109,42 @@ describe('datos locales del tracking', () => {
     localReview('demo-cr-c1', 'ok');
     expect(localDetail('demo-cr-c1').review).toMatchObject({ reviewed_by: 'Administrador OLO', note: 'ok' });
     expect(localSummary().to_review).toBe(3); // C3 y C2 + el CR-02 recién completado
+  });
+
+  it('la pausa congela el reloj y los camiones; la velocidad lo acelera', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date());
+    resetLocalData();
+    const t0 = simNow();
+    vi.advanceTimersByTime(10_000);
+    expect(simNow() - t0).toBe(50_000); // 5x por defecto
+
+    setSimulation({ paused: true });
+    const before = localDetail('demo-cr-01');
+    vi.advanceTimersByTime(60_000);
+    const after = localDetail('demo-cr-01');
+    expect(after.position).toEqual(before.position);
+    expect(after.progress).toEqual(before.progress);
+
+    setSimulation({ paused: false, speed: 60 });
+    const t1 = simNow();
+    vi.advanceTimersByTime(1000);
+    expect(simNow() - t1).toBe(60_000);
+    expect(setSimulation({ speed: 7 }).speed).toBe(60); // velocidad no permitida: se ignora
+    expect(getSimulation()).toEqual({ speed: 60, paused: false });
+  });
+
+  it('el estado del viaje cambia mientras avanza (entregas y evidencias)', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date());
+    resetLocalData();
+    setSimulation({ speed: 60 });
+    const start = localDetail('demo-cr-01');
+    for (let i = 0; i < 10; i++) { vi.advanceTimersByTime(2000); localList('active', '', 50); }
+    const later = localDetail('demo-cr-01');
+    expect(later.progress.done).toBeGreaterThan(start.progress.done);
+    expect(start.stops[1].state).toBe('pending');
+    expect(later.stops[1].state).toBe('delivered');
+    expect(later.stops[1].evidences.length).toBeGreaterThan(0);
   });
 });

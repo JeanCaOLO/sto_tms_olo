@@ -4,14 +4,15 @@ import Button from '../../components/base/Button';
 import { useModulePermissions } from '../../hooks/use-module-permissions';
 import { confirmAction } from '../../lib/confirm';
 import { notify } from '../../lib/notify';
-import { completarViaje, revisarViaje, TrackingApiError } from './api';
+import { completarViaje, IS_LOCAL, revisarViaje, TrackingApiError } from './api';
 import IniciarViajeModal from './components/IniciarViajeModal';
+import SimulacionControles from './components/SimulacionControles';
 import ResumenBar from './components/ResumenBar';
 import ViajeDetallePanel from './components/ViajeDetallePanel';
 import ViajesSidebar from './components/ViajesSidebar';
+import { useTrackingCountry } from './hooks/useTrackingCountry';
 import { useResumen, useViajeDetalle, useViajesEnVivo } from './hooks/useViajesEnVivo';
 import type { ListMode } from './types';
-import { formatAge } from './tracking-logic';
 
 // Leaflet pesa: el mapa se descarga solo al abrir Tracking.
 const FlotaMapa = lazy(() => import('./components/FlotaMapa'));
@@ -28,22 +29,25 @@ export default function TrackingPage() {
   const { t } = useTranslation();
   const { canCreate, canEdit } = useModulePermissions('tracking');
 
+  const country = useTrackingCountry();
   const [mode, setMode] = useState<ListMode>('active');
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(false);
   const [starting, setStarting] = useState(false);
+
+  // Al cambiar de país se cierra el viaje abierto: puede ser de otro país.
+  useEffect(() => { setSelectedId(null); }, [country]);
 
   useEffect(() => {
     const timer = setTimeout(() => setQuery(search), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [search]);
 
-  const params = useMemo(() => ({ mode, q: query, limit }), [mode, query, limit]);
+  const params = useMemo(() => ({ mode, q: query, limit, country }), [mode, query, limit, country]);
   const list = useViajesEnVivo(params);
-  const resumen = useResumen();
+  const resumen = useResumen(country);
   const detail = useViajeDetalle(selectedId);
 
   const viajes = list.data?.items ?? [];
@@ -52,8 +56,7 @@ export default function TrackingPage() {
   const now = list.updatedAt ?? 0;
 
   const select = (id: string) => {
-    if (id === selectedId) { setSelectedId(null); setExpanded(false); return; }
-    setSelectedId(id);
+    setSelectedId(id === selectedId ? null : id);
   };
 
   const refresh = () => { void list.refresh(); void detail.refresh(); void resumen.refresh(); };
@@ -89,7 +92,7 @@ export default function TrackingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, t]);
 
-  const showPanel = expanded && selected !== null;
+  const showPanel = selected !== null;
   const layout = showPanel ? 'lg:grid-cols-[320px_minmax(0,1fr)_380px]' : 'lg:grid-cols-[320px_minmax(0,1fr)]';
 
   return (
@@ -97,15 +100,10 @@ export default function TrackingPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{t('tracking.title')}</h1>
-          <p className="text-sm text-slate-600">{t('tracking.subtitle')}</p>
         </div>
-        <div className="flex items-center gap-3">
-          {list.updatedAt && (
-            <span className="text-xs text-slate-500">{t('tracking.updatedAgo', { age: formatAge(new Date(list.updatedAt).toISOString(), Date.now()) })}</span>
-          )}
-          <Button variant="secondary" size="sm" onClick={refresh} icon={<i className="ri-refresh-line" />}>
-            {t('tracking.refresh')}
-          </Button>
+        <div className="flex items-center gap-2">
+          {MANUAL_START && IS_LOCAL && <SimulacionControles onChange={refresh} />}
+          <Button variant="secondary" size="sm" onClick={refresh} aria-label={t('tracking.refresh')} title={t('tracking.refresh')}><i className="ri-refresh-line" /></Button>
           {canCreate && MANUAL_START && (
             <Button size="sm" onClick={() => setStarting(true)} icon={<i className="ri-play-circle-line" />}>
               {t('tracking.startTrip')}
@@ -125,18 +123,15 @@ export default function TrackingPage() {
           reviewCount={resumen.data?.to_review ?? null}
           search={search}
           selectedId={selectedId}
-          expanded={expanded}
-          now={now}
           canLoadMore={canLoadMore}
           onMode={(value) => { setMode(value); setLimit(PAGE_SIZE); }}
           onSearch={(value) => { setSearch(value); setLimit(PAGE_SIZE); }}
           onSelect={select}
-          onToggleMore={() => setExpanded((v) => !v)}
           onLoadMore={() => setLimit((v) => Math.min(v + PAGE_SIZE, MAX_LIMIT))}
           onRetry={refresh}
         />
         <Suspense fallback={<div className="rounded-lg border border-slate-200 bg-slate-50" />}>
-          <FlotaMapa viajes={viajes} selectedId={selectedId} detail={detail.data} onSelect={select} />
+          <FlotaMapa fitKey={country} viajes={viajes} selectedId={selectedId} detail={detail.data} onSelect={select} />
         </Suspense>
         {showPanel && selected && (
           <ViajeDetallePanel
@@ -147,7 +142,7 @@ export default function TrackingPage() {
             now={now}
             onComplete={() => void complete()}
             onReview={() => void review()}
-            onClose={() => setExpanded(false)}
+            onClose={() => setSelectedId(null)}
           />
         )}
       </div>

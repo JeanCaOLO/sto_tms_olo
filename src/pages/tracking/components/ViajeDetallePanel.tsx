@@ -77,11 +77,11 @@ function StopEvidence({ stop }: { stop: Stop }) {
   );
 }
 
-function StopItem({ stop }: { stop: Stop }) {
+function StopItem({ stop, isNext }: { stop: Stop; isNext: boolean }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   return (
-    <li className="rounded-lg border border-slate-200 bg-white p-3">
+    <li className={`rounded-lg border bg-white p-3 ${isNext ? 'border-teal-400' : 'border-slate-200'}`}>
       <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="w-full flex items-start gap-3 text-left cursor-pointer">
         <span className="w-6 h-6 shrink-0 rounded-full bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center">{stop.sequence}</span>
         <span className="min-w-0 flex-1">
@@ -91,7 +91,7 @@ function StopItem({ stop }: { stop: Stop }) {
             {stop.invoice_number ? ` · ${t('tracking.invoice', { number: stop.invoice_number })}` : ''}
           </span>
         </span>
-        <Badge size="sm" variant={stopVariant(stop.state)}>{t(STOP_KEY[stop.state])}</Badge>
+        <Badge size="sm" variant={isNext ? 'info' : stopVariant(stop.state)}>{isNext ? t('tracking.nextBadge') : t(STOP_KEY[stop.state])}</Badge>
       </button>
       {stop.state === 'pending' && (stop.distance_m != null || stop.eta_at) && (
         <p className="mt-1 ml-9 flex flex-wrap items-center gap-x-2 text-xs text-slate-500">
@@ -125,7 +125,7 @@ export default function ViajeDetallePanel({ viaje, detail, loading, canEdit, now
   const view = detail ?? viaje;
   const age = formatAge(viaje.position?.recorded_at, now);
   const kmh = speedKmh(viaje.position?.speed_mps);
-  const nextStops = detail ? nearestPending(detail.stops).slice(0, 3) : [];
+  const nextStop = detail ? nearestPending(detail.stops)[0] : undefined;
   const departed = formatClock(detail?.departed_at);
 
   return (
@@ -154,11 +154,18 @@ export default function ViajeDetallePanel({ viaje, detail, loading, canEdit, now
         </div>
         {viaje.alerts.length > 0 && <div className="mt-2"><AlertDots alerts={viaje.alerts} showText /></div>}
         {viaje.state === 'active' && (
-          <p className="mt-2 text-xs text-slate-500 flex flex-wrap gap-x-3">
-            {viaje.phase === 'por_salir' ? <span>{t('tracking.phaseDeparting')}</span> : departed && <span>{t('tracking.departedAt', { time: departed })}</span>}
-            {age && <span>{t('tracking.lastSeen', { age })}</span>}
-            {kmh !== null && <span>{t('tracking.speed', { kmh })}</span>}
-            {viaje.position?.battery_pct != null && <span>{t('tracking.battery', { pct: viaje.position.battery_pct })}</span>}
+          <p className="mt-2 text-sm text-slate-700" aria-live="polite">
+            {viaje.phase === 'por_salir'
+              ? t('tracking.phaseDeparting')
+              : nextStop
+                ? t('tracking.nowHeading', { stop: `${nextStop.sequence}. ${nextStop.customer_name ?? nextStop.order_number}` })
+                : t('tracking.nowDone')}
+            {nextStop && nextStop.distance_m != null && viaje.phase !== 'por_salir' && (
+              <span className="text-slate-500">
+                {` · ${formatDistance(nextStop.distance_m)}`}{nextStop.eta_at ? ` · ${t('tracking.eta', { time: formatClock(nextStop.eta_at) })}` : ''}
+              </span>
+            )}
+            {viaje.delay_min != null && viaje.delay_min > 15 && <span className="ml-2"><Badge size="sm" variant={delayVariant(viaje.delay_min)}>{t('tracking.delayLate', { min: viaje.delay_min })}</Badge></span>}
           </p>
         )}
         {canEdit && viaje.state === 'active' && (
@@ -192,33 +199,10 @@ export default function ViajeDetallePanel({ viaje, detail, loading, canEdit, now
           </section>
         )}
 
-        {nextStops.length > 0 && (
-          <section aria-label={t('tracking.nextStops')}>
-            <h3 className="text-sm font-semibold text-slate-800 mb-2">{t('tracking.nextStops')}</h3>
-            <ul className="space-y-1.5">
-              {nextStops.map((stop) => (
-                <li key={stop.id} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs">
-                  <span className="min-w-0">
-                    <span className="block font-medium text-slate-800 truncate">{stop.sequence}. {stop.customer_name ?? stop.order_number}</span>
-                    <span className="text-slate-500">
-                      {formatDistance(stop.distance_m) ?? '-'}{stop.eta_at ? ` · ${t('tracking.eta', { time: formatClock(stop.eta_at) })}` : ''}
-                    </span>
-                  </span>
-                  {stop.delay_min != null && (
-                    <Badge size="sm" variant={delayVariant(stop.delay_min)}>
-                      {stop.delay_min > 15 ? t('tracking.delayLate', { min: stop.delay_min }) : t('tracking.delayOk')}
-                    </Badge>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
         <section>
           <h3 className="text-sm font-semibold text-slate-800 mb-2">{t('tracking.orders')}</h3>
           {loading && !detail && <p className="text-sm text-slate-500">{t('tracking.loading')}</p>}
-          <ul className="space-y-2">{detail?.stops.map((stop) => <StopItem key={stop.id} stop={stop} />)}</ul>
+          <ul className="space-y-2">{detail?.stops.map((stop) => <StopItem key={stop.id} stop={stop} isNext={stop.id === nextStop?.id} />)}</ul>
         </section>
 
         <section>
@@ -228,6 +212,12 @@ export default function ViajeDetallePanel({ viaje, detail, loading, canEdit, now
           </button>
           {advanced && (
             <div className="mt-2">
+              <p className="mb-2 text-xs text-slate-500 flex flex-wrap gap-x-3">
+                {departed && <span>{t('tracking.departedAt', { time: departed })}</span>}
+                {age && <span>{t('tracking.lastSeen', { age })}</span>}
+                {kmh !== null && <span>{t('tracking.speed', { kmh })}</span>}
+                {viaje.position?.battery_pct != null && <span>{t('tracking.battery', { pct: viaje.position.battery_pct })}</span>}
+              </p>
               <h4 className="text-xs font-semibold text-slate-600 mb-1">{t('tracking.events')}</h4>
               {detail?.events.length ? (
                 <ul className="space-y-1">{detail.events.map((event) => <EventLine key={event.id} event={event} />)}</ul>

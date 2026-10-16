@@ -7,6 +7,8 @@ import type { Viaje, ViajeDetalle } from '../types';
 import { COLOR_HEX, STOP_COLOR_HEX, positioned } from '../tracking-logic';
 
 interface Props {
+  /** Cambia al elegir otro país: el mapa vuelve a encuadrar la flota visible. */
+  fitKey?: string | null;
   viajes: Viaje[];
   selectedId: string | null;
   detail: ViajeDetalle | null;
@@ -41,13 +43,17 @@ const stopIcon = (n: number, color: string) =>
   });
 
 /** Encuadra todos los camiones una sola vez y, al elegir un viaje, lo enfoca con sus paradas. */
-function Vista({ viajes, selectedId, detail }: Pick<Props, 'viajes' | 'selectedId' | 'detail'>) {
+function Vista({ viajes, selectedId, detail, fitKey }: Pick<Props, 'viajes' | 'selectedId' | 'detail' | 'fitKey'>) {
   const map = useMap();
   const fittedAll = useRef(false);
+  const lastKey = useRef(fitKey);
+  const staleViajes = useRef<Viaje[] | null>(null);
+  // Al cambiar de país se espera la lista nueva (otro arreglo) antes de reencuadrar, para no ajustar a la anterior.
+  if (lastKey.current !== fitKey) { lastKey.current = fitKey; fittedAll.current = false; staleViajes.current = viajes; }
   const focusedFor = useRef<string | null>(null);
 
   useEffect(() => {
-    if (selectedId || fittedAll.current) return;
+    if (selectedId || fittedAll.current || staleViajes.current === viajes) return;
     const points = positioned(viajes).map((v) => [v.position!.lat, v.position!.lng] as [number, number]);
     if (points.length) {
       map.fitBounds(L.latLngBounds(points), { padding: [40, 40], maxZoom: 13 });
@@ -73,7 +79,7 @@ function Vista({ viajes, selectedId, detail }: Pick<Props, 'viajes' | 'selectedI
 }
 
 /** Mapa de la flota: un camión por viaje con posición (color = estado/señal) y, del viaje elegido, rastro y paradas. */
-export default function FlotaMapa({ viajes, selectedId, detail, onSelect }: Props) {
+export default function FlotaMapa({ fitKey, viajes, selectedId, detail, onSelect }: Props) {
   const { t } = useTranslation();
   const trucks = useMemo(() => positioned(viajes), [viajes]);
   const shown = detail && detail.id === selectedId ? detail : null;
@@ -104,7 +110,7 @@ export default function FlotaMapa({ viajes, selectedId, detail, onSelect }: Prop
             <Tooltip direction="top">{`${v.route_number} · ${v.driver_name ?? v.plate ?? ''}`}</Tooltip>
           </Marker>
         ))}
-        <Vista viajes={viajes} selectedId={selectedId} detail={detail} />
+        <Vista viajes={viajes} selectedId={selectedId} detail={detail} fitKey={fitKey} />
       </MapContainer>
 
       <ul className="absolute bottom-3 left-3 z-[500] bg-white/95 rounded-lg shadow px-3 py-2 text-xs text-slate-700 space-y-1">

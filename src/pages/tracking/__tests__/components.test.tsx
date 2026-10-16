@@ -1,8 +1,12 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { getSimulation } from '../api';
+import ResumenBar from '../components/ResumenBar';
+import SimulacionControles from '../components/SimulacionControles';
 import ViajeDetallePanel from '../components/ViajeDetallePanel';
 import ViajesSidebar from '../components/ViajesSidebar';
+import { resetLocalData } from '../local-store';
 import type { Stop, Viaje, ViajeDetalle } from '../types';
 
 afterEach(cleanup);
@@ -29,7 +33,7 @@ const detail = (stops: Stop[]): ViajeDetalle => ({ ...viaje(), next_stop_id: nul
 
 const sidebarProps = (over = {}) => ({
   viajes: [viaje()], loading: false, error: null, mode: 'active' as const, reviewCount: null, search: '', selectedId: null,
-  expanded: false, now: NOW, canLoadMore: false, onMode: vi.fn(), onSearch: vi.fn(), onSelect: vi.fn(), onToggleMore: vi.fn(),
+  canLoadMore: false, onMode: vi.fn(), onSearch: vi.fn(), onSelect: vi.fn(),
   onLoadMore: vi.fn(), onRetry: vi.fn(), ...over,
 });
 
@@ -53,13 +57,10 @@ describe('ViajesSidebar', () => {
     expect(props.onSelect).toHaveBeenCalledWith('v1');
   });
 
-  it('"Ver más" solo aparece en el viaje seleccionado', () => {
-    const { rerender } = render(<ViajesSidebar {...sidebarProps()} />);
+  it('la tarjeta es simple: sin "Ver más" ni hora de señal', () => {
+    render(<ViajesSidebar {...sidebarProps({ selectedId: 'v1' })} />);
     expect(screen.queryByText('Ver más')).toBeNull();
-    const props = sidebarProps({ selectedId: 'v1' });
-    rerender(<ViajesSidebar {...props} />);
-    fireEvent.click(screen.getByText('Ver más'));
-    expect(props.onToggleMore).toHaveBeenCalled();
+    expect(screen.queryByText(/Última señal/)).toBeNull();
   });
 
   it('muestra vacío y error con reintento', () => {
@@ -155,15 +156,12 @@ describe('monitor: alertas, semáforo y paradas cercanas', () => {
     expect(screen.getByRole('button', { name: 'Por revisar (3)' })).toBeTruthy();
   });
 
-  it('lista las paradas más cercanas primero con distancia y retraso', () => {
+  it('dice a qué parada va el camión ahora (la más cercana) y la marca como siguiente', () => {
     const near = stop({ id: 'a', sequence: 2, state: 'pending', customer_name: 'Cerca', distance_m: 800, delay_min: 4 });
     const far = stop({ id: 'b', sequence: 1, state: 'pending', customer_name: 'Lejos', distance_m: 12400, delay_min: 30 });
-    render(<ViajeDetallePanel {...base} detail={detail([far, near])} />);
-    const items = screen.getAllByRole('listitem').map((li) => li.textContent ?? '');
-    const iNear = items.findIndex((text) => text.includes('Cerca') && text.includes('800 m'));
-    const iFar = items.findIndex((text) => text.includes('Lejos') && text.includes('12.4 km'));
-    expect(iNear).toBeGreaterThanOrEqual(0);
-    expect(iNear).toBeLessThan(iFar);
+    render(<ViajeDetallePanel {...base} viaje={viaje({ delay_min: 30 })} detail={detail([far, near])} />);
+    expect(screen.getByText(/Rumbo a 2\. Cerca/).textContent).toContain('800 m');
+    expect(screen.getAllByText('Siguiente')).toHaveLength(1);
     expect(screen.getAllByText('+30 min').length).toBeGreaterThan(0);
   });
 
@@ -187,5 +185,34 @@ describe('monitor: alertas, semáforo y paradas cercanas', () => {
     fireEvent.click(screen.getByText('Tienda Uno'));
     expect(screen.getByText('Abrir en Google Maps').getAttribute('href')).toContain('destination=9.93,-84.08');
     expect(screen.getByText('Abrir en Waze').getAttribute('href')).toContain('ll=9.93,-84.08');
+  });
+});
+
+describe('indicadores y simulación', () => {
+  const resumen = { active: 5, departing: 2, late: 1, on_time: 4, no_signal: 3, stops_done: 4, stops_total: 10, incidents: 2, to_review: 6 };
+
+  it('muestra 4 indicadores y el resto solo bajo demanda', () => {
+    render(<ResumenBar resumen={resumen} />);
+    expect(screen.getByText('Entregas')).toBeTruthy();
+    expect(screen.queryByText('Sin señal')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Más indicadores' }));
+    expect(screen.getByText('Sin señal')).toBeTruthy();
+    expect(screen.getByText('Novedades')).toBeTruthy();
+  });
+
+  it('los controles pausan y cambian la velocidad', () => {
+    resetLocalData();
+    const onChange = vi.fn();
+    render(<SimulacionControles onChange={onChange} />);
+    expect(screen.getByText('5×')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Más rápido' }));
+    expect(screen.getByText('10×')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Más lento' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Más lento' }));
+    expect(screen.getByText('2×')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Pausar simulación' }));
+    expect(getSimulation().paused).toBe(true);
+    expect(screen.getByRole('button', { name: 'Reanudar simulación' })).toBeTruthy();
+    expect(onChange).toHaveBeenCalledTimes(4);
   });
 });

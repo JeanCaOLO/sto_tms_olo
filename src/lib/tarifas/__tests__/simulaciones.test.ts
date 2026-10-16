@@ -60,7 +60,7 @@ describe('S2 · porcentaje sobre una regla posterior', () => {
       expression: { op: 'PERCENT', pct: '0.16', base: { of: 'RULE', ruleCode: 'TARIFA' } },
     }),
     makeRule({
-      code: 'TARIFA', stage: 'SURCHARGE', priority: 10, stacking: 'SUM',
+      code: 'TARIFA', stage: 'VARIABLE', priority: 10, stacking: 'SUM',
       expression: { op: 'FIXED', amount: '1000.00' },
     }),
   ];
@@ -113,13 +113,13 @@ describe('S4 · MAX con una regla basada en porcentaje', () => {
       expression: { op: 'FIXED', amount: '1000.00' },
     }),
     makeRule({
-      code: 'INC_FIJO', stage: 'SURCHARGE', priority: 10, stacking: 'MAX',
+      code: 'INC_FIJO', stage: 'VARIABLE', priority: 10, stacking: 'MAX',
       exclusionGroup: 'incidentes',
       conditions: { p: 'GT', left: 'weightKg', right: 0 },
       expression: { op: 'FIXED', amount: '15.00' },
     }),
     makeRule({
-      code: 'INC_PCT', stage: 'SURCHARGE', priority: 20, stacking: 'MAX',
+      code: 'INC_PCT', stage: 'VARIABLE', priority: 20, stacking: 'MAX',
       exclusionGroup: 'incidentes',
       conditions: { p: 'GT', left: 'weightKg', right: 0 },
       expression: { op: 'PERCENT', pct: '0.10', base: { of: 'STAGE_SUBTOTAL', stage: 'BASE' } },
@@ -178,7 +178,7 @@ describe('S5 · total negativo', () => {
 describe('S9 · efecto declarado que contradice al importe', () => {
   it('debería detectarse la contradicción', () => {
     const rule = makeRule({
-      code: 'CONTRADICTORIA', stage: 'SURCHARGE',
+      code: 'CONTRADICTORIA', stage: 'VARIABLE',
       effect: 'INCREASE',
       expression: { op: 'FIXED', amount: '-50.00' },
     });

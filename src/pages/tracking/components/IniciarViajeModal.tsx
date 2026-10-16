@@ -4,6 +4,7 @@ import Button from '../../../components/base/Button';
 import Modal from '../../../components/base/Modal';
 import { notify } from '../../../lib/notify';
 import { iniciarViaje, listPlanificados } from '../api';
+import { useTrackingCountry } from '../hooks/useTrackingCountry';
 import type { ViajePlanificado } from '../types';
 
 interface Props {
@@ -18,16 +19,17 @@ export default function IniciarViajeModal({ isOpen, onClose, onStarted }: Props)
   const [items, setItems] = useState<ViajePlanificado[] | null>(null);
   const [error, setError] = useState(false);
   const [starting, setStarting] = useState<string | null>(null);
+  const country = useTrackingCountry();
 
   const load = useCallback(async () => {
     setError(false);
     try {
-      setItems(await listPlanificados());
+      setItems(await listPlanificados(country));
     } catch {
       setError(true);
       setItems([]);
     }
-  }, []);
+  }, [country]);
 
   useEffect(() => {
     if (isOpen) { setItems(null); void load(); }

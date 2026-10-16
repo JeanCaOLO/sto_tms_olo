@@ -440,7 +440,11 @@ export const ENTITIES = {
       party_id: { type: 'text', nullable: true, references: 'settlementParty', onDelete: 'cascade', indexed: true },
       code: { type: 'text' },
       name: { type: 'text' },
+      // Fase del cálculo: 'BASE' | 'VARIABLE' | 'ADJUSTMENT' | 'TAX' (sql/39; antes también MODIFIER y SURCHARGE).
       stage: { type: 'text' },
+      // Etiqueta de reporte (sql/39): 'VARIABLE' | 'MODIFIER' | 'SURCHARGE' | 'ADJUSTMENT' | 'TAX'. No afecta el
+      // cálculo. Nulo en filas anteriores y en las BASE.
+      category: { type: 'text', nullable: true },
       priority: { type: 'int' },
       stacking: { type: 'text' },
       exclusion_group: { type: 'text', nullable: true },

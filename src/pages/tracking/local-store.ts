@@ -19,8 +19,7 @@ const ONLINE_MIN = 5;
 const STALE_MIN = 30;
 const DEPARTURE_M = 300;
 const ARRIVE_M = 150;
-const TIMELAPSE = 5; // el camión simulado avanza 5x más rápido que la velocidad real
-const TICK_MS = 3000;
+const TICK_MS = 3000; // ms de tiempo simulado entre pasos del camión
 const REVIEWER = 'Administrador OLO';
 
 interface NoteDef { kind: 'incident' | 'pickup'; text: string; minAgo: number }
@@ -81,6 +80,38 @@ function schedule(origin: [number, number], stops: SStop[], from: number): { pla
     return arrive;
   });
   return { planned, end: t, km: Math.round(((meters * DETOUR) / 1000) * 10) / 10 };
+}
+
+// --- reloj simulado: velocidad y pausa (modo de pruebas) ---------------------------------------------
+
+export const SPEEDS = [0.5, 1, 2, 5, 10, 30, 60];
+const DEFAULT_SPEED = 5;
+let speed = DEFAULT_SPEED;
+let paused = false;
+let virtualNow = 0;
+let lastReal = 0;
+
+/** "Ahora" simulado: avanza `speed` veces más rápido que el reloj real y se congela en pausa. */
+function clock(): number {
+  const real = Date.now();
+  if (!virtualNow) virtualNow = real;
+  else if (!paused) virtualNow += (real - lastReal) * speed;
+  lastReal = real;
+  return virtualNow;
+}
+
+export const simNow = () => clock();
+
+export function getSimulation() {
+  clock();
+  return { speed, paused };
+}
+
+export function setSimulation(patch: { speed?: number; paused?: boolean }) {
+  clock(); // asienta el tiempo transcurrido con la velocidad anterior
+  if (patch.speed != null && SPEEDS.includes(patch.speed)) speed = patch.speed;
+  if (patch.paused != null) paused = patch.paused;
+  return { speed, paused };
 }
 
 // --- estado en memoria -------------------------------------------------------------------------------
@@ -147,6 +178,10 @@ function ensure(now: number) {
 
 /** Reinicia los datos de prueba (útil en pruebas). */
 export function resetLocalData(now = Date.now()) {
+  speed = DEFAULT_SPEED;
+  paused = false;
+  virtualNow = now;
+  lastReal = Date.now();
   seeded = false;
   seed(now);
 }
@@ -166,26 +201,30 @@ function finish(trip: STrip, now: number) {
 
 function advance(now: number) {
   if (now - lastTick < TICK_MS) return;
-  const elapsed = Math.min(now - lastTick, 30_000) / 1000;
+  const elapsed = (now - lastTick) / 1000; // segundos simulados
   lastTick = now;
   for (const trip of trips) {
     if (trip.endedAt != null || !trip.moving) continue;
     trip.lastSignalAt = now;
-    const target = nextPending(trip);
-    if (!target) { finish(trip, now); continue; }
-    const to = coords(target);
-    const dist = haversineM(trip.pos, to);
-    const step = elapsed * (SPEED_KMH / 3.6) * TIMELAPSE;
-    if (dist - step <= ARRIVE_M) {
-      trip.pos = to;
-      target.state = 'delivered';
-      target.arrivedAt = now;
-      target.evidence = 'full';
-      target.recipient = 'Recibe encargado';
-      if (!nextPending(trip)) finish(trip, now);
-    } else {
-      const f = step / dist;
-      trip.pos = [trip.pos[0] + (to[0] - trip.pos[0]) * f, trip.pos[1] + (to[1] - trip.pos[1]) * f];
+    let meters = elapsed * (SPEED_KMH / 3.6);
+    while (meters > 0) {
+      const target = nextPending(trip);
+      if (!target) { finish(trip, now); break; }
+      const to = coords(target);
+      const dist = haversineM(trip.pos, to);
+      if (dist <= meters + ARRIVE_M) {
+        trip.pos = to;
+        target.state = 'delivered';
+        target.arrivedAt = now;
+        target.evidence = 'full';
+        target.recipient = 'Recibe encargado';
+        meters -= dist;
+        if (!nextPending(trip)) { finish(trip, now); break; }
+      } else {
+        const f = meters / dist;
+        trip.pos = [trip.pos[0] + (to[0] - trip.pos[0]) * f, trip.pos[1] + (to[1] - trip.pos[1]) * f];
+        meters = 0;
+      }
     }
     trip.trail.push(point(trip.pos, now, true));
     if (trip.trail.length > 100) trip.trail.shift();
@@ -248,15 +287,15 @@ function toViaje(trip: STrip, now: number): Viaje {
   if (incidents > 0) alerts.push({ code: 'incident', count: incidents });
   if (failed > 0) alerts.push({ code: 'failed', count: failed });
   if (active && signal === 'offline') alerts.push({ code: 'no_signal' });
-  if (active && delay != null && delay > LATE_MIN) alerts.push({ code: 'late' });
-  if (active && trip.stoppedMin >= STOPPED_MIN) alerts.push({ code: 'stopped' });
+  if (active && delay != null && delay > LATE_MIN) alerts.push({ code: 'late', count: delay });
+  if (active && trip.stoppedMin >= STOPPED_MIN) alerts.push({ code: 'stopped', count: trip.stoppedMin });
   const def = trip.def;
   return {
     id: trip.id, route_number: trip.routeNumber, state, status_raw: active ? 'En tránsito' : 'Completada', phase, signal, color,
     driver_name: def.driver, plate: def.plate, carrier_name: def.carrier, zone_name: def.zone, started_at: iso(trip.startedAt),
     ended_at: iso(trip.endedAt), planned_end_at: iso(trip.plannedEnd), total_distance_km: schedule(trip.origin, trip.stops, 0).km,
     capacity_percentage: trip.capacity, route_date: iso(trip.startedAt)!.slice(0, 10),
-    position: point(trip.pos, trip.lastSignalAt, trip.moving && active), progress: {
+    position: point(trip.pos, trip.lastSignalAt, trip.moving && active && !paused), progress: {
       total, done: delivered + failed, delivered, failed, percent: total ? Math.round(((delivered + failed) / total) * 100) : 0,
     },
     delay_min: delay, incidents, alerts, review: active ? null : reviewOf(trip),
@@ -313,11 +352,15 @@ const byId = (id: string): STrip => {
   return trip;
 };
 
-export function localList(mode: ListMode, q: string, limit: number) {
-  const now = Date.now();
+/** Viajes del país elegido en el selector global (null = todos). */
+const inCountry = (country: string | null) => (t: STrip) => !country || t.def.country === country;
+
+export function localList(mode: ListMode, q: string, limit: number, country: string | null = null) {
+  const now = clock();
   ensure(now);
   const text = q.trim().toLowerCase();
   const items = trips
+    .filter(inCountry(country))
     .filter((t) => (mode === 'active' ? t.endedAt == null : mode === 'review' ? t.endedAt != null && t.reviewedAt == null : true))
     .filter((t) => !text || [t.routeNumber, t.def.driver, t.def.plate].some((v) => v.toLowerCase().includes(text)))
     .sort((a, b) => b.startedAt - a.startedAt)
@@ -327,7 +370,7 @@ export function localList(mode: ListMode, q: string, limit: number) {
 }
 
 export function localDetail(id: string): ViajeDetalle {
-  const now = Date.now();
+  const now = clock();
   ensure(now);
   const trip = byId(id);
   const next = etas(trip, now);
@@ -340,10 +383,10 @@ export function localDetail(id: string): ViajeDetalle {
   };
 }
 
-export function localSummary(): Resumen {
-  const now = Date.now();
+export function localSummary(country: string | null = null): Resumen {
+  const now = clock();
   ensure(now);
-  const viajes = trips.map((t) => toViaje(t, now));
+  const viajes = trips.filter(inCountry(country)).map((t) => toViaje(t, now));
   const active = viajes.filter((v) => v.state === 'active');
   const late = active.filter((v) => v.alerts.some((a) => a.code === 'late')).length;
   return {
@@ -355,15 +398,16 @@ export function localSummary(): Resumen {
   };
 }
 
-export function localPlanned(): ViajePlanificado[] {
-  ensure(Date.now());
-  const today = new Date().toISOString().slice(0, 10);
-  return planned.filter((p) => !trips.some((t) => t.id === `trip-${p.id}`))
+export function localPlanned(country: string | null = null): ViajePlanificado[] {
+  const now = clock();
+  ensure(now);
+  const today = new Date(now).toISOString().slice(0, 10);
+  return planned.filter((p) => !country || p.country === country).filter((p) => !trips.some((t) => t.id === `trip-${p.id}`))
     .map((p) => ({ plan_trip_id: p.id, plan_date: today, zone: p.zone, plate: p.plate, driver_name: p.driver, stops: p.stops.length }));
 }
 
 export function localStart(planTripId: string) {
-  const now = Date.now();
+  const now = clock();
   ensure(now);
   const def = planned.find((p) => p.id === planTripId);
   if (!def) throw new TrackingApiError('Viaje planificado no encontrado', 404);
@@ -380,7 +424,7 @@ export function localStart(planTripId: string) {
 }
 
 export function localComplete(id: string, force: boolean) {
-  const now = Date.now();
+  const now = clock();
   ensure(now);
   const trip = byId(id);
   const pending = trip.stops.filter((s) => s.state === 'pending').length;
@@ -390,7 +434,7 @@ export function localComplete(id: string, force: boolean) {
 }
 
 export function localReview(id: string, note?: string) {
-  const now = Date.now();
+  const now = clock();
   ensure(now);
   const trip = byId(id);
   if (trip.endedAt == null) throw new TrackingApiError('Solo se revisan viajes completados', 409);

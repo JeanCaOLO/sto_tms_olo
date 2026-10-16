@@ -17,7 +17,7 @@ const input = (over: Partial<CalculateInput> = {}): CalculateInput => ({
 });
 
 const sobreKm = (over: Partial<Rule> = {}) =>
-  makeRule({ code: 'SOBRE_KM', stage: 'SURCHARGE', expression: { op: 'PER_KM', rate: '0.50' }, ...over });
+  makeRule({ code: 'SOBRE_KM', stage: 'VARIABLE', expression: { op: 'PER_KM', rate: '0.50' }, ...over });
 
 describe('activeBaseMethod', () => {
   it('flota propia = por km; tercero = la del catálogo; sin catálogo = ninguna', () => {
@@ -60,7 +60,7 @@ describe('filterByBaseMethod', () => {
 describe('en el cálculo', () => {
   it('tercero con tarifa fija: el recargo ligado a km se descarta; el transversal aplica', () => {
     const ligada = sobreKm({ appliesToBase: ['PER_KM'] });
-    const libre = makeRule({ code: 'LIBRE', stage: 'SURCHARGE', expression: { op: 'FIXED', amount: '10' } });
+    const libre = makeRule({ code: 'LIBRE', stage: 'VARIABLE', expression: { op: 'FIXED', amount: '10' } });
     const r = calculate(input({ rules: [ligada, libre], baseOverride: { method: 'FIXED', amount: '1000' } }));
     expect(r.discarded).toContainEqual(expect.objectContaining({ ruleCode: 'SOBRE_KM', reason: 'MODALIDAD_DISTINTA' }));
     expect(r.totalLiquidado).toBe('1010.00');
@@ -69,7 +69,7 @@ describe('en el cálculo', () => {
   it('tercero con base por km: el recargo ligado a km aplica', () => {
     const base = makeRule({ code: 'BASE_KM', stage: 'BASE', expression: { op: 'PER_KM', rate: '2' } });
     const r = calculate(input({
-      rules: [base, makeRule({ code: 'AJUSTE', stage: 'SURCHARGE', appliesToBase: ['PER_KM'], expression: { op: 'FIXED', amount: '5' } })],
+      rules: [base, makeRule({ code: 'AJUSTE', stage: 'VARIABLE', appliesToBase: ['PER_KM'], expression: { op: 'FIXED', amount: '5' } })],
       baseOverride: { method: 'PER_KM' },
     }));
     expect(r.discarded.map((d) => d.reason)).not.toContain('MODALIDAD_DISTINTA');
@@ -81,15 +81,15 @@ describe('en el cálculo', () => {
       trip: makeTrip({ fleetType: 'OWN', km: 180 }),
       ...makeOwnCostStructure({ costPerKm: '5', depreciationPerKm: '0', driverDaily: '35' }),
     });
-    const ligadaFija = makeRule({ code: 'SOLO_FIJA', stage: 'SURCHARGE', appliesToBase: ['FIXED'], expression: { op: 'FIXED', amount: '99' } });
-    const ligadaKm = makeRule({ code: 'SOLO_KM', stage: 'SURCHARGE', appliesToBase: ['PER_KM'], expression: { op: 'FIXED', amount: '1' } });
+    const ligadaFija = makeRule({ code: 'SOLO_FIJA', stage: 'VARIABLE', appliesToBase: ['FIXED'], expression: { op: 'FIXED', amount: '99' } });
+    const ligadaKm = makeRule({ code: 'SOLO_KM', stage: 'VARIABLE', appliesToBase: ['PER_KM'], expression: { op: 'FIXED', amount: '1' } });
     const r = calculate({ ...own, rules: [ligadaFija, ligadaKm] });
     expect(r.discarded.map((d) => [d.ruleCode, d.reason])).toContainEqual(['SOLO_FIJA', 'MODALIDAD_DISTINTA']);
     expect(r.totalLiquidado).toBe('936.00'); // 935 de la estructura + 1
   });
 
   it('sin ligar nada el resultado es el de siempre', () => {
-    const regla = makeRule({ code: 'X', stage: 'SURCHARGE', expression: { op: 'FIXED', amount: '10' } });
+    const regla = makeRule({ code: 'X', stage: 'VARIABLE', expression: { op: 'FIXED', amount: '10' } });
     const a = calculate(input({ rules: [regla], baseOverride: { method: 'FIXED', amount: '100' } }));
     expect(a.totalLiquidado).toBe('110.00');
     expect(a.discarded).toEqual([]);
