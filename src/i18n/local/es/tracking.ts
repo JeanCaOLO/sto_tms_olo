@@ -4,6 +4,7 @@ export default {
   'tracking.simTitle': 'Simulación de pruebas',
   'tracking.simPause': 'Pausar simulación',
   'tracking.simPlay': 'Reanudar simulación',
+  'tracking.simReset': 'Reiniciar simulación',
   'tracking.simSlower': 'Más lento',
   'tracking.simFaster': 'Más rápido',
   'tracking.kpiMore': 'Más indicadores',

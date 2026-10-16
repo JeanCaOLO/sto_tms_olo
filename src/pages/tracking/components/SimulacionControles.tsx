@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getSimulation, setSimulation, SPEEDS } from '../api';
+import { getSimulation, resetSimulation, setSimulation, SPEEDS } from '../api';
 
 const btn = 'w-8 h-8 flex items-center justify-center rounded-md text-slate-700 hover:bg-slate-200 disabled:opacity-40 cursor-pointer';
 
@@ -25,6 +25,9 @@ export default function SimulacionControles({ onChange }: { onChange: () => void
       </button>
       <button type="button" className={btn} onClick={() => apply({ speed: SPEEDS[index + 1] })} disabled={index >= SPEEDS.length - 1} aria-label={t('tracking.simFaster')} title={t('tracking.simFaster')}>
         <i className="ri-speed-fill" />
+      </button>
+      <button type="button" className={btn} onClick={() => { setSim(resetSimulation()); onChange(); }} aria-label={t('tracking.simReset')} title={t('tracking.simReset')}>
+        <i className="ri-restart-line" />
       </button>
       <span className="w-10 text-center text-xs font-semibold text-slate-700 tabular-nums">{sim.paused ? '0×' : `${sim.speed}×`}</span>
     </div>

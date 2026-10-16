@@ -9,7 +9,7 @@ interface Item {
   tone: string;
 }
 
-/** Franja de KPIs: 4 indicadores esenciales; el resto solo si se pide (menos es más). */
+/** Franja de KPIs por VIAJE (4 esenciales); lo medido por pedido (entregas, novedades) solo si se pide (menos es más). */
 export default function ResumenBar({ resumen }: { resumen: Resumen | null }) {
   const { t } = useTranslation();
   const [more, setMore] = useState(false);
@@ -18,12 +18,12 @@ export default function ResumenBar({ resumen }: { resumen: Resumen | null }) {
   const main: Item[] = [
     { key: 'active', label: t('tracking.kpiActive'), value: String(resumen.active), tone: 'text-slate-900' },
     { key: 'late', label: t('tracking.kpiLate'), value: String(resumen.late), tone: warn(resumen.late, 'text-red-600') },
-    { key: 'stops', label: t('tracking.kpiStops'), value: `${resumen.stops_done}/${resumen.stops_total}`, tone: 'text-slate-900' },
+    { key: 'noSignal', label: t('tracking.kpiNoSignal'), value: String(resumen.no_signal), tone: warn(resumen.no_signal, 'text-amber-600') },
     { key: 'review', label: t('tracking.kpiReview'), value: String(resumen.to_review), tone: warn(resumen.to_review, 'text-teal-700') },
   ];
   const extra: Item[] = [
     { key: 'departing', label: t('tracking.kpiDeparting'), value: String(resumen.departing), tone: 'text-slate-900' },
-    { key: 'noSignal', label: t('tracking.kpiNoSignal'), value: String(resumen.no_signal), tone: warn(resumen.no_signal, 'text-amber-600') },
+    { key: 'stops', label: t('tracking.kpiStops'), value: `${resumen.stops_done}/${resumen.stops_total}`, tone: 'text-slate-900' },
     { key: 'incidents', label: t('tracking.kpiIncidents'), value: String(resumen.incidents), tone: warn(resumen.incidents, 'text-amber-600') },
   ];
   const items = more ? [...main, ...extra] : main;

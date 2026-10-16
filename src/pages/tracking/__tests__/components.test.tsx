@@ -193,10 +193,10 @@ describe('indicadores y simulación', () => {
 
   it('muestra 4 indicadores y el resto solo bajo demanda', () => {
     render(<ResumenBar resumen={resumen} />);
-    expect(screen.getByText('Entregas')).toBeTruthy();
-    expect(screen.queryByText('Sin señal')).toBeNull();
+    expect(screen.getByText('Sin señal')).toBeTruthy(); // por viaje
+    expect(screen.queryByText('Entregas')).toBeNull(); // por pedido: solo bajo demanda
     fireEvent.click(screen.getByRole('button', { name: 'Más indicadores' }));
-    expect(screen.getByText('Sin señal')).toBeTruthy();
+    expect(screen.getByText('Entregas')).toBeTruthy();
     expect(screen.getByText('Novedades')).toBeTruthy();
   });
 
@@ -214,5 +214,9 @@ describe('indicadores y simulación', () => {
     expect(getSimulation().paused).toBe(true);
     expect(screen.getByRole('button', { name: 'Reanudar simulación' })).toBeTruthy();
     expect(onChange).toHaveBeenCalledTimes(4);
+    fireEvent.click(screen.getByRole('button', { name: 'Reiniciar simulación' }));
+    expect(getSimulation()).toEqual({ speed: 5, paused: false });
+    expect(screen.getByText('5×')).toBeTruthy();
+    expect(onChange).toHaveBeenCalledTimes(5);
   });
 });

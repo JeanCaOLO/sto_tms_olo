@@ -48,14 +48,14 @@ describe('datos locales del tracking', () => {
 
   it('filtra viajes, KPIs y planificados por el país del selector global', () => {
     const cr = localList('all', '', 50, 'CR').items;
-    const ve = localList('all', '', 50, 'VE').items;
+    const ve = localList('all', '', 50, 'VN').items;
     expect(cr.length + ve.length).toBe(localList('all', '', 50).items.length);
     expect(cr.every((v) => v.route_number.includes('-CR-'))).toBe(true);
     expect(ve.every((v) => v.route_number.includes('-VN-'))).toBe(true);
     expect(localList('all', '', 50, 'CO').items).toHaveLength(0);
-    expect(localSummary('CR').active + localSummary('VE').active).toBe(localSummary().active);
-    expect(localSummary('VE').to_review).toBe(1);
-    expect(localPlanned('VE').map((p) => p.plan_trip_id)).toEqual(['plan-vn-01']);
+    expect(localSummary('CR').active + localSummary('VN').active).toBe(localSummary().active);
+    expect(localSummary('VN').to_review).toBe(1);
+    expect(localPlanned('VN').map((p) => p.plan_trip_id)).toEqual(['plan-vn-01']);
     expect(localPlanned('CR')).toHaveLength(2);
   });
 

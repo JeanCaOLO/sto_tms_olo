@@ -15,6 +15,8 @@ export const IS_LOCAL = local;
 /** Hora de la simulación (en datos locales avanza con la velocidad elegida; en API es la real). */
 export const clockNow = (): number => (local ? store.simNow() : Date.now());
 export const getSimulation = () => store.getSimulation();
+/** Reinicia los datos de prueba (viajes, posiciones, velocidad y pausa). */
+export const resetSimulation = () => { store.resetLocalData(); return store.getSimulation(); };
 export const setSimulation = (patch: { speed?: number; paused?: boolean }) => store.setSimulation(patch);
 export interface ListParams {
   mode: ListMode;
