@@ -10,6 +10,8 @@ ORG = "00000000-0000-4000-8000-0000000000aa"
 ROUTE = "11111111-1111-4111-8111-111111111111"
 GUIDE = "22222222-2222-4222-8222-222222222222"
 TRIP = "33333333-3333-4333-8333-333333333333"
+ORDER = "55555555-5555-4555-8555-555555555555"
+DRIVER = "88888888-8888-4888-8888-888888888888"
 NOW = datetime(2026, 10, 16, 15, 0, tzinfo=timezone.utc)
 
 
@@ -277,8 +279,9 @@ def test_ingest_limits(tracking):
 
 
 def _guide_row(**over):
-    base = {"id": GUIDE, "route_id": ROUTE, "organization_id": ORG, "delivery_status": "pending", "notes": None,
-            "route_status": "En tránsito", "country_id": "cr"}
+    base = {"id": GUIDE, "route_id": ROUTE, "organization_id": ORG, "order_id": ORDER, "delivery_status": "pending",
+            "notes": None, "route_status": "En tránsito", "country_id": "cr", "driver_id": None,
+            "stop_lat": None, "stop_lng": None}
     base.update(over)
     return base
 
@@ -298,7 +301,7 @@ def test_transition_updates_guide_counter_and_event_atomically(tracking):
     body = {"to": "delivered", "receiver_name": "Luis"}
     result = body_of(app.handler(_event("POST /api/v1/tracking/paradas/{id}/transicion", path={"id": GUIDE},
                                         body=body), None))["data"]
-    assert result == {"stop_id": GUIDE, "state": "delivered", "done": 3, "pending": 1}
+    assert result == {"stop_id": GUIDE, "state": "delivered", "done": 3, "pending": 1, "distance_m": None}
     assert db.wrote("UPDATE dispatch_guides")[0][1][:2] == ["delivered", "Entregado"]
     assert db.wrote("UPDATE routes SET completed_stops")[0][1] == [3, ROUTE]
     assert db.wrote("INSERT INTO tracking_events")[0][1][3] == "delivery_completed"
@@ -544,3 +547,208 @@ def test_list_phase_is_por_salir_until_the_truck_leaves_the_origin(tracking):
     db.answer("FROM routes r", [_row(origin_lat=9.5, origin_lng=-84.1)])  # camión a ~45 km de la sede
     item = body_of(app.handler(_event("GET /api/v1/tracking/viajes"), None))["data"]["items"][0]
     assert item["phase"] == "en_ruta"
+
+
+# --- app del chofer: aislamiento, mi-viaje, geocerca y devoluciones ------------------------------------
+
+STOP_LAT, STOP_LNG = 9.9300, -84.0800
+OTHER_DRIVER = "99999999-9999-4999-8999-999999999999"
+
+
+def _driver_permissions():
+    from tms_common.permissions import Permissions
+    return Permissions("app-user", "role-driver", "Chofer", False,
+                       {"tracking": frozenset({"view", "create", "edit"})}, True, ())
+
+
+@pytest.fixture
+def driver(tracking, caller_permissions):
+    """Quien llama es un Chofer enlazado al conductor DRIVER."""
+    app, db = tracking
+    caller_permissions.set(_driver_permissions())
+    db.answer("FROM drivers WHERE app_user_id", [{"id": DRIVER}])
+    return app, db
+
+
+def test_driver_cannot_use_admin_endpoints(driver):
+    app, _ = driver
+    for route, path in [("GET /api/v1/tracking/viajes", None), ("GET /api/v1/tracking/resumen", None),
+                        ("GET /api/v1/tracking/planificados", None),
+                        ("POST /api/v1/tracking/viajes/{id}/iniciar", {"id": TRIP}),
+                        ("POST /api/v1/tracking/viajes/{id}/completar", {"id": ROUTE}),
+                        ("POST /api/v1/tracking/viajes/{id}/revisar", {"id": ROUTE})]:
+        assert app.handler(_event(route, path=path), None)["statusCode"] == 403, route
+
+
+def test_driver_cannot_read_a_trip_of_another_driver(driver):
+    app, db = driver
+    db.answer("FROM routes r JOIN stores", [{"id": ROUTE, "organization_id": ORG, "status": "En tránsito",
+                                              "driver_id": OTHER_DRIVER, "country_id": "cr"}])
+    response = app.handler(_event("GET /api/v1/tracking/viajes/{id}", path={"id": ROUTE}), None)
+    assert response["statusCode"] == 404
+    assert not db.wrote("SELECT r.id, r.route_number")  # ni siquiera se cargó el detalle
+
+
+def test_driver_cannot_close_a_stop_of_another_driver(driver):
+    app, db = driver
+    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row(driver_id=OTHER_DRIVER)])
+    for route, body in [("POST /api/v1/tracking/paradas/{id}/transicion", {"to": "delivered"}),
+                        ("POST /api/v1/tracking/paradas/{id}/novedades", {"description": "x"}),
+                        ("POST /api/v1/tracking/paradas/{id}/devoluciones",
+                         {"product_name": "a", "reason": "b", "quantity": 1})]:
+        assert app.handler(_event(route, path={"id": GUIDE}, body=body), None)["statusCode"] == 404, route
+    assert not db.wrote("UPDATE dispatch_guides") and not db.wrote("INSERT INTO tracking_events")
+
+
+def test_driver_positions_of_another_trip_are_rejected_and_not_written(driver):
+    app, db = driver
+    db.answer("FROM routes WHERE organization_id", [{"id": ROUTE, "status": "En tránsito", "vehicle_id": "v",
+                                                     "driver_id": OTHER_DRIVER}])
+    result = body_of(app.handler(_event("POST /api/v1/tracking/posiciones", body={"positions": [_pos()]}), None))["data"]
+    assert result["accepted"] == 0 and result["rejected"][0]["reason"] == "viaje no encontrado"
+    assert not db.wrote("INSERT INTO tracking_positions") and not db.wrote("INSERT INTO tracking_last_positions")
+
+
+def test_driver_can_write_positions_of_own_trip(driver):
+    app, db = driver
+    good = _pos()
+    db.answer("FROM routes WHERE organization_id", [{"id": ROUTE, "status": "En tránsito", "vehicle_id": "v",
+                                                     "driver_id": DRIVER}])
+    db.answer("INSERT INTO tracking_positions", [{"client_id": good["client_id"]}])
+    result = body_of(app.handler(_event("POST /api/v1/tracking/posiciones", body={"positions": [good]}), None))["data"]
+    assert result["accepted"] == 1 and result["rejected"] == []
+
+
+def test_driver_without_linked_driver_gets_403(tracking, caller_permissions):
+    app, db = tracking
+    caller_permissions.set(_driver_permissions())      # sin fila en drivers.app_user_id
+    assert app.handler(_event("GET /api/v1/tracking/mi-viaje"), None)["statusCode"] == 403
+    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row()])
+    assert app.handler(_event("POST /api/v1/tracking/paradas/{id}/transicion", path={"id": GUIDE},
+                              body={"to": "delivered"}), None)["statusCode"] == 403
+
+
+def test_admin_is_not_restricted_by_driver_link(tracking):
+    app, db = tracking
+    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row(driver_id=OTHER_DRIVER)])
+    db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 0}])
+    response = app.handler(_event("POST /api/v1/tracking/paradas/{id}/transicion", path={"id": GUIDE},
+                                  body={"to": "delivered"}), None)
+    assert response["statusCode"] == 200 and not db.wrote("SELECT id FROM drivers")
+
+
+def test_mi_viaje_lists_active_trips_and_planned_ones(driver):
+    app, db = driver
+    db.answer("WHERE r.organization_id = %s AND r.driver_id", [_row(driver_name="Ana")])
+    db.answer("FROM routes r JOIN stores s", [_row(driver_name="Ana")])                # detalle (ROUTE_ONE_SQL)
+    db.answer("FROM plan_trips pt", [{"plan_trip_id": TRIP, "plan_date": date(2026, 10, 16), "delivery_zone": "GAM",
+                                      "plate": "XYZ789", "driver_name": "Ana", "total_weight": 10,
+                                      "sequence_order": 1}])
+    db.answer("FROM plan_stops ps JOIN orders o", [{
+        "trip_id": TRIP, "stop_order": 1, "order_id": ORDER, "order_number": "P-1", "invoice_number": "F-1",
+        "total_items": 3, "total_weight": 5, "delivery_address": "Calle 1", "delivery_city": "San José",
+        "latitude": STOP_LAT, "longitude": STOP_LNG, "customer_name": "Cliente", "customer_phone": "2222-0000"}])
+    result = body_of(app.handler(_event("GET /api/v1/tracking/mi-viaje"), None))["data"]
+    assert [item["kind"] for item in result["items"]] == ["route", "planned"]
+    route, planned = result["items"]
+    assert route["route_id"] == ROUTE and route["state"] == "active"
+    assert planned["route_id"] is None and planned["stops"][0]["customer_phone"] == "2222-0000"
+    assert planned["progress"]["total"] == 1 and planned["state"] == "planned"
+    # la agenda se filtra por el conductor del token y la organización, nunca por parámetros del cliente
+    mine = [c for c in db.calls if "r.driver_id = %s" in c[0]]
+    assert mine and mine[0][1][:2] == [ORG, DRIVER]
+    planned_query = [c for c in db.calls if "pt.driver_id = %s" in c[0]]
+    assert planned_query and planned_query[0][1][:2] == [ORG, DRIVER]
+
+
+def _delivered(app, **body):
+    payload = {"to": "delivered", "receiver_name": "Luis", **body}
+    return app.handler(_event("POST /api/v1/tracking/paradas/{id}/transicion", path={"id": GUIDE}, body=payload), None)
+
+
+def _stop_with_coords(db):
+    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row(stop_lat=STOP_LAT, stop_lng=STOP_LNG)])
+    db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 2}])
+
+
+def test_delivery_within_geofence_stores_distance(tracking):
+    app, db = tracking
+    _stop_with_coords(db)
+    result = body_of(_delivered(app, lat=STOP_LAT + 0.0005, lng=STOP_LNG))["data"]   # ~55 m
+    assert 40 <= result["distance_m"] <= 70
+    event_row = db.wrote("INSERT INTO tracking_events")
+    assert len(event_row) == 1 and event_row[0][1][10] == result["distance_m"]
+
+
+def test_delivery_far_from_stop_requires_reason(tracking):
+    app, db = tracking
+    _stop_with_coords(db)
+    response = _delivered(app, lat=STOP_LAT + 0.01, lng=STOP_LNG)                      # ~1.1 km
+    assert response["statusCode"] == 400 and "motivo" in body_of(response)["error"]["message"]
+    assert not db.wrote("UPDATE dispatch_guides")
+
+
+def test_delivery_far_with_reason_is_saved_with_an_incident(tracking):
+    app, db = tracking
+    _stop_with_coords(db)
+    response = _delivered(app, lat=STOP_LAT + 0.01, lng=STOP_LNG, reason="No se podía estacionar")
+    data = body_of(response)["data"]
+    assert response["statusCode"] == 200 and data["distance_m"] > 150
+    events = db.wrote("INSERT INTO tracking_events")
+    assert [e[1][3] for e in events] == ["delivery_completed", "incident"]
+    assert "No se podía estacionar" in events[1][1][8] and events[0][1][10] == data["distance_m"]
+    assert "Fallo" not in (db.wrote("UPDATE dispatch_guides")[0][1][4] or "")        # no es una entrega fallida
+
+
+def test_delivery_without_gps_or_stop_coordinates_is_still_accepted(tracking):
+    app, db = tracking
+    _stop_with_coords(db)
+    assert body_of(_delivered(app))["data"]["distance_m"] is None                       # sin lat/lng del dispositivo
+    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row()])                   # parada sin coordenadas
+    assert _delivered(app, lat=9.0, lng=-84.0)["statusCode"] == 200
+
+
+def test_return_requires_fields_and_active_trip(tracking):
+    app, db = tracking
+    route = "POST /api/v1/tracking/paradas/{id}/devoluciones"
+    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row()])
+    for body in [{"reason": "x", "quantity": 1}, {"product_name": "a", "quantity": 1},
+                 {"product_name": "a", "reason": "x", "quantity": 0}, {"product_name": "a", "reason": "x", "quantity": "2"},
+                 {"product_name": "a", "reason": "x", "quantity": 1, "photo_key": "tracking/otra/llave.jpg"}]:
+        assert app.handler(_event(route, path={"id": GUIDE}, body=body), None)["statusCode"] == 400, body
+    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row(route_status="Completada")])
+    assert app.handler(_event(route, path={"id": GUIDE}, body={"product_name": "a", "reason": "x", "quantity": 1}),
+                       None)["statusCode"] == 409
+    assert not db.wrote("INSERT INTO returns")
+
+
+def test_return_is_inserted_with_the_guide_and_order_and_is_idempotent(tracking):
+    app, db = tracking
+    route = "POST /api/v1/tracking/paradas/{id}/devoluciones"
+    client_id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    body = {"product_name": "Pintura 4L", "quantity": 2, "reason": "Empaque dañado", "client_id": client_id}
+    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row()])
+    db.answer("INSERT INTO returns", [{"id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"}])
+    first = app.handler(_event(route, path={"id": GUIDE}, body=body), None)
+    assert first["statusCode"] == 201 and body_of(first)["data"]["duplicate"] is False
+    params = db.wrote("INSERT INTO returns")[0][1]
+    assert params[:4] == [ORG, GUIDE, ORDER, f"DV-{client_id}"] and params[6] == "Pintura 4L" and params[7] == 2
+    assert db.wrote("INSERT INTO tracking_events")[0][1][3] == "return"
+    db.answer("INSERT INTO returns", [])                                                # mismo client_id otra vez
+    again = app.handler(_event(route, path={"id": GUIDE}, body=body), None)
+    assert again["statusCode"] == 200 and body_of(again)["data"]["duplicate"] is True
+    assert len(db.wrote("INSERT INTO tracking_events")) == 1
+
+
+def test_record_consent_is_idempotent_per_version(driver):
+    app, db = driver
+    route = "POST /api/v1/tracking/consentimiento-gps"
+    assert app.handler(_event(route, body={}), None)["statusCode"] == 400
+    db.answer("INSERT INTO tracking_consents", [{"consented_at": NOW}])
+    first = app.handler(_event(route, body={"version": "2026-10", "device_id": "dev-1"}), None)
+    assert first["statusCode"] == 201 and body_of(first)["data"]["duplicate"] is False
+    assert db.wrote("INSERT INTO tracking_consents")[0][1] == [ORG, "app-user", "2026-10", "dev-1"]
+    db.answer("INSERT INTO tracking_consents", [])
+    db.answer("FROM tracking_consents WHERE", [{"consented_at": NOW}])
+    again = app.handler(_event(route, body={"version": "2026-10"}), None)
+    assert again["statusCode"] == 200 and body_of(again)["data"]["duplicate"] is True

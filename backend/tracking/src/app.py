@@ -7,10 +7,16 @@ por lotes, transición de parada, novedades y evidencias de entrega (subida dire
 
 Permisos: módulo `tracking` (view para leer; create para iniciar e ingestar; edit para completar,
 transicionar paradas, novedades y evidencias) + país de la tienda de origen de la ruta.
+
+App del chofer (rol `Chofer`): solo opera los viajes donde `routes.driver_id` es el conductor enlazado a su
+usuario (`drivers.app_user_id`). Ve `mi-viaje`, el detalle de SUS viajes y escribe posiciones, paradas,
+novedades, devoluciones y evidencias; lo demás (lista general, KPIs, iniciar, completar, revisar) es del
+administrador y le responde 403. Un viaje ajeno responde 404 (no revela que existe).
 """
 
 import os
-from datetime import datetime, timezone
+import uuid
+from datetime import datetime, timedelta, timezone
 
 from tms_common import permissions, pg
 from tms_common.errors import HttpError
@@ -50,13 +56,32 @@ def _ok(data: object, status: int = 200) -> dict:
     return json_response(status, {"data": data, "error": None})
 
 
-def _caller(event: dict, action: str):
+def _caller(event: dict, action: str, *, driver_ok: bool = False):
     caller = permissions.for_event(event)
     caller.require(MODULE, action)
+    if caller.role_name == logic.DRIVER_ROLE and not driver_ok:
+        raise HttpError(403, "Esta acción es del administrador.")
     rows = pg.query(sql.ORG_SQL, [caller.app_user_id])
     if not rows or rows[0]["organization_id"] is None:
         raise HttpError(403, "Tu usuario no pertenece a una organización.")
     return caller, str(rows[0]["organization_id"])
+
+
+def _my_driver(caller) -> str | None:
+    """Conductor enlazado al usuario (drivers.app_user_id); None si no hay."""
+    rows = pg.query(sql.DRIVER_BY_USER_SQL, [caller.app_user_id])
+    return str(rows[0]["id"]) if rows else None
+
+
+def _own_or_404(caller, driver_id, what: str) -> None:
+    """El rol Chofer solo accede a lo que es de su conductor; el resto (administrador) no se restringe."""
+    if caller.role_name != logic.DRIVER_ROLE:
+        return
+    mine = _my_driver(caller)
+    if mine is None:
+        raise HttpError(403, "Tu usuario no está enlazado a un conductor.")
+    if driver_id is None or str(driver_id) != mine:
+        raise HttpError(404, f"{what} no encontrado")
 
 
 def _check_country(caller, country_id) -> None:
@@ -176,12 +201,14 @@ def _route_access(caller, org_id: str, route_id: str) -> dict:
     if not rows or str(rows[0]["organization_id"]) != org_id:
         raise HttpError(404, "Viaje no encontrado")
     _check_country(caller, rows[0]["country_id"])
+    _own_or_404(caller, rows[0]["driver_id"], "Viaje")
     return rows[0]
 
 
-def _event(run, org_id, route_id, guide_id, event_type, event_status, notes, user_id, lat=None, lng=None, when=None):
+def _event(run, org_id, route_id, guide_id, event_type, event_status, notes, user_id, lat=None, lng=None, when=None,
+           distance_m=None):
     run(sql.INSERT_EVENT_SQL, [org_id, route_id, guide_id, event_type, event_status, when or _now(),
-                               lat, lng, notes, user_id])
+                               lat, lng, notes, user_id, distance_m])
 
 
 # --- lectura -------------------------------------------------------------------------------------
@@ -230,11 +257,17 @@ def list_viajes(event: dict) -> dict:
 
 
 def get_viaje(event: dict) -> dict:
-    caller, org_id = _caller(event, "view")
+    caller, org_id = _caller(event, "view", driver_ok=True)
     route_id = path_param(event, "id")
     if not logic.is_uuid(route_id):
         raise HttpError(404, "Viaje no encontrado")
     _route_access(caller, org_id, route_id)
+    return _ok(_detail(route_id))
+
+
+def _detail(route_id: str, sign_urls: bool = True) -> dict:
+    """Detalle de un viaje (paradas, eventos, rastro). `sign_urls=False`: la app del chofer no necesita las
+    miniaturas de evidencias (y así no firma URLs de S3 que no usa)."""
     row = pg.query(sql.ROUTE_ONE_SQL, [route_id])[0]
     guides = pg.query(sql.GUIDES_SQL, [route_id])
     guide_ids = [str(g["id"]) for g in guides]
@@ -248,7 +281,7 @@ def get_viaje(event: dict) -> dict:
 
     def sign(ev: dict) -> dict:
         url = s3().generate_presigned_url("get_object", Params={"Bucket": bucket(), "Key": ev["storage_key"]},
-                                          ExpiresIn=logic.URL_TTL_SECONDS)
+                                          ExpiresIn=logic.URL_TTL_SECONDS) if sign_urls else None
         return {"id": str(ev["id"]), "kind": ev["kind"], "mime_type": ev["mime_type"],
                 "captured_at": _iso(ev["captured_at"]), "url": url}
 
@@ -294,7 +327,8 @@ def get_viaje(event: dict) -> dict:
         "id": str(g["id"]), "guide_number": g["guide_number"], "sequence": g["sequence_number"],
         "state": logic.guide_state(g["delivery_status"], g["status"]),
         "order_number": g["order_number"], "invoice_number": g["invoice_number"],
-        "customer_name": g["customer_name"], "address": g["delivery_address"], "city": g["delivery_city"],
+        "customer_name": g["customer_name"], "customer_phone": g["customer_phone"],
+        "address": g["delivery_address"], "city": g["delivery_city"],
         "items": g["total_items"], "weight": _float(g["total_weight"]),
         "lat": _float(g["latitude"]), "lng": _float(g["longitude"]),
         "arrived_at": _iso(g["actual_arrival_time"]), "recipient_name": g["recipient_name"],
@@ -328,7 +362,7 @@ def get_viaje(event: dict) -> dict:
         "trail": [{"lat": _float(p["latitude"]), "lng": _float(p["longitude"]), "at": _iso(p["recorded_at"])}
                   for p in chronological],
     })
-    return _ok(data)
+    return data
 
 
 def summary(event: dict) -> dict:
@@ -482,7 +516,7 @@ def review_viaje(event: dict) -> dict:
 
 
 def ingest_positions(event: dict) -> dict:
-    caller, org_id = _caller(event, "create")
+    caller, org_id = _caller(event, "create", driver_ok=True)
     body = json_body(event)
     positions = body.get("positions") if isinstance(body, dict) else None
     if not isinstance(positions, list) or not positions:
@@ -498,6 +532,12 @@ def ingest_positions(event: dict) -> dict:
     if valid:
         routes = {str(r["id"]): r for r in pg.query(
             sql.ROUTES_FOR_POSITIONS_SQL, [org_id, sorted({p["route_id"] for p in valid})])}
+        if caller.role_name == logic.DRIVER_ROLE:
+            mine = _my_driver(caller)
+            if mine is None:
+                raise HttpError(403, "Tu usuario no está enlazado a un conductor.")
+            # Un viaje ajeno se trata como inexistente: se rechaza el punto y no se escribe nada.
+            routes = {rid: r for rid, r in routes.items() if str(r["driver_id"] or "") == mine}
         accepted_rows = []
         for pos in valid:
             route = routes.get(pos["route_id"])
@@ -538,11 +578,12 @@ def _guide_access(caller, org_id: str, guide_id: str) -> dict:
     if not rows or str(rows[0]["organization_id"]) != org_id:
         raise HttpError(404, "Parada no encontrada")
     _check_country(caller, rows[0]["country_id"])
+    _own_or_404(caller, rows[0]["driver_id"], "Parada")
     return rows[0]
 
 
 def transition_stop(event: dict) -> dict:
-    caller, org_id = _caller(event, "edit")
+    caller, org_id = _caller(event, "edit", driver_ok=True)
     guide_id = path_param(event, "id")
     body = json_body(event)
     body = body if isinstance(body, dict) else {}
@@ -562,7 +603,15 @@ def transition_stop(event: dict) -> dict:
         raise HttpError(409, "El viaje no está en tránsito.")
     route_id = str(guide["route_id"])
     receiver = (body.get("receiver_name") or "").strip() or None
-    note = f"{guide['notes'] or ''}\nFallo: {reason}".strip() if reason else None
+    note = f"{guide['notes'] or ''}\nFallo: {reason}".strip() if reason and target == logic.GUIDE_FAILED else None
+    # Geocerca (auditoría): distancia del dispositivo al punto. Fuera de 150 m, "Entregado" exige motivo.
+    # Sin lat/lng (o sin coordenadas de la parada) no se puede medir: se acepta, como la web del administrador.
+    distance_m = None if target == logic.GUIDE_PENDING else logic.distance_to_stop_m(
+        lat, lng, guide["stop_lat"], guide["stop_lng"])
+    outside = target == logic.GUIDE_DELIVERED and distance_m is not None and distance_m > logic.GEOFENCE_M
+    if outside and not reason:
+        raise HttpError(400, f"Estás a {distance_m} m del punto de entrega (máximo {logic.GEOFENCE_M} m): "
+                             "indica el motivo.")
     event_type = {"delivered": "delivery_completed", "failed": "delivery_failed", "pending": "stop_reverted"}[target]
     event_status = {"delivered": "success", "failed": "error", "pending": "info"}[target]
 
@@ -572,14 +621,18 @@ def transition_stop(event: dict) -> dict:
         counts = run(sql.COUNT_DONE_SQL, [route_id])[0]
         run(sql.SET_COMPLETED_STOPS_SQL, [int(counts["done"]), route_id])
         _event(run, org_id, route_id, guide_id, event_type, event_status, reason, caller.app_user_id,
-               lat, lng, when)
-        return {"stop_id": guide_id, "state": target, "done": int(counts["done"]), "pending": int(counts["pending"])}
+               lat, lng, when, distance_m)
+        if outside:
+            _event(run, org_id, route_id, guide_id, "incident", "warning",
+                   f"Entrega fuera de la geocerca ({distance_m} m): {reason}", caller.app_user_id, lat, lng, when)
+        return {"stop_id": guide_id, "state": target, "done": int(counts["done"]), "pending": int(counts["pending"]),
+                "distance_m": distance_m}
 
     return _ok(pg.run_in_transaction(work))
 
 
 def add_incident(event: dict) -> dict:
-    caller, org_id = _caller(event, "edit")
+    caller, org_id = _caller(event, "edit", driver_ok=True)
     guide_id = path_param(event, "id")
     body = json_body(event)
     description = ((body.get("description") if isinstance(body, dict) else None) or "").strip()
@@ -600,7 +653,7 @@ def add_incident(event: dict) -> dict:
 
 
 def evidence_upload_url(event: dict) -> dict:
-    caller, org_id = _caller(event, "edit")
+    caller, org_id = _caller(event, "edit", driver_ok=True)
     guide_id = path_param(event, "id")
     kind, mime = logic.require_evidence_request(json_body(event))
     guide = _guide_access(caller, org_id, guide_id)
@@ -624,7 +677,7 @@ def _head(key: str) -> dict | None:
 
 
 def evidence_confirm(event: dict) -> dict:
-    caller, org_id = _caller(event, "edit")
+    caller, org_id = _caller(event, "edit", driver_ok=True)
     guide_id = path_param(event, "id")
     body = json_body(event)
     body = body if isinstance(body, dict) else {}
@@ -653,7 +706,101 @@ def evidence_confirm(event: dict) -> dict:
     return _ok(pg.run_in_transaction(work), 201)
 
 
+def add_return(event: dict) -> dict:
+    """Devolución registrada por el chofer en la parada (alimenta `returns`, que la web ya lee)."""
+    caller, org_id = _caller(event, "edit", driver_ok=True)
+    guide_id = path_param(event, "id")
+    body = json_body(event)
+    body = body if isinstance(body, dict) else {}
+    product = (body.get("product_name") or "").strip()
+    reason = (body.get("reason") or "").strip()
+    if not product:
+        raise HttpError(400, "La devolución requiere el producto")
+    if not reason:
+        raise HttpError(400, "La devolución requiere un motivo")
+    quantity = body.get("quantity")
+    if isinstance(quantity, bool) or not isinstance(quantity, int) or not 0 < quantity <= 100000:
+        raise HttpError(400, "quantity debe ser un entero mayor que 0")
+    client_id = body.get("client_id")
+    if client_id is not None and not logic.is_uuid(client_id):
+        raise HttpError(400, "client_id inválido")
+    guide = _guide_access(caller, org_id, guide_id)
+    if logic.route_state(guide["route_status"]) != "active":
+        raise HttpError(409, "El viaje no está en tránsito.")
+    photo = body.get("photo_key")
+    if photo is not None:
+        photo = logic.require_evidence_key(str(guide["route_id"]), guide_id, photo)
+    code = (body.get("product_code") or "").strip() or None
+    notes = (body.get("notes") or "").strip() or None
+    # El número de devolución sale del client_id: reenviar la misma devolución no la duplica.
+    number = f"DV-{client_id or uuid.uuid4()}"
+
+    def work(run):
+        created = run(sql.INSERT_RETURN_SQL, [org_id, guide_id, guide["order_id"], number, reason, code, product,
+                                              quantity, photo, notes])
+        if created:
+            _event(run, org_id, guide["route_id"], guide_id, "return", "warning",
+                   f"Devolución: {quantity} x {product} ({reason})", caller.app_user_id)
+        return {"return_id": str(created[0]["id"]) if created else None, "duplicate": not created}
+
+    result = pg.run_in_transaction(work)
+    return _ok(result, 200 if result["duplicate"] else 201)
+
+
+def record_consent(event: dict) -> dict:
+    """Consentimiento GPS del chofer (B6): una fila por usuario y versión del aviso; repetirlo no duplica."""
+    caller, org_id = _caller(event, "view", driver_ok=True)
+    body = json_body(event)
+    body = body if isinstance(body, dict) else {}
+    version = (body.get("version") or "").strip() if isinstance(body.get("version"), str) else ""
+    if not version or len(version) > 40:
+        raise HttpError(400, "version es obligatoria (máx. 40 caracteres)")
+    device_id = body.get("device_id") if isinstance(body.get("device_id"), str) else None
+    created = pg.query(sql.INSERT_CONSENT_SQL, [org_id, caller.app_user_id, version, device_id])
+    row = created or pg.query(sql.CONSENT_SQL, [caller.app_user_id, version])
+    return _ok({"version": version, "consented_at": _iso(row[0]["consented_at"]) if row else None,
+                "duplicate": not created}, 201 if created else 200)
+
+
+def my_trips(event: dict) -> dict:
+    """Agenda del chofer: sus viajes en tránsito (con paradas y horas) y los planificados por iniciar."""
+    caller, org_id = _caller(event, "view", driver_ok=True)
+    driver_id = _my_driver(caller)
+    if driver_id is None:
+        raise HttpError(403, "Tu usuario no está enlazado a un conductor.")
+    now = _now()
+    routes = pg.query(sql.MY_ROUTES_SQL, [org_id, driver_id, logic.ACTIVE_STATUS_SQL_VALUES])
+    items = []
+    for row in routes:
+        data = _detail(str(row["id"]), sign_urls=False)
+        data.update({"kind": "route", "route_id": data["id"]})
+        items.append(data)
+    planned = pg.query(sql.MY_PLANNED_SQL, [org_id, driver_id, now.date() - timedelta(days=1)])
+    stops_by_trip: dict[str, list] = {}
+    if planned:
+        for st in pg.query(sql.MY_PLANNED_STOPS_SQL, [[str(p["plan_trip_id"]) for p in planned]]):
+            stops_by_trip.setdefault(str(st["trip_id"]), []).append({
+                "id": str(st["order_id"]), "sequence": st["stop_order"], "state": logic.GUIDE_PENDING,
+                "order_number": st["order_number"], "invoice_number": st["invoice_number"],
+                "customer_name": st["customer_name"], "customer_phone": st["customer_phone"],
+                "address": st["delivery_address"], "city": st["delivery_city"],
+                "items": st["total_items"], "weight": _float(st["total_weight"]),
+                "lat": _float(st["latitude"]), "lng": _float(st["longitude"])})
+    for trip in planned:
+        stops = stops_by_trip.get(str(trip["plan_trip_id"]), [])
+        items.append({
+            "kind": "planned", "id": str(trip["plan_trip_id"]), "route_id": None, "route_number": None,
+            "state": "planned", "phase": "por_salir", "plan_date": trip["plan_date"].isoformat(),
+            "zone_name": trip["delivery_zone"], "plate": trip["plate"], "driver_name": trip["driver_name"],
+            "progress": {"total": len(stops), "done": 0, "delivered": 0, "failed": 0, "percent": 0},
+            "stops": stops})
+    return _ok({"items": items})
+
+
 ROUTES = {
+    "GET /api/v1/tracking/mi-viaje": my_trips,
+    "POST /api/v1/tracking/consentimiento-gps": record_consent,
+    "POST /api/v1/tracking/paradas/{id}/devoluciones": add_return,
     "GET /api/v1/tracking/viajes": list_viajes,
     "GET /api/v1/tracking/viajes/{id}": get_viaje,
     "GET /api/v1/tracking/planificados": list_planificados,

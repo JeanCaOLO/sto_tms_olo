@@ -18,6 +18,9 @@ _ACTIVE = {"en tránsito", "en transito", "active", "in_progress", "en_ruta", "e
 _COMPLETED = {"completada", "completed"}
 _CANCELLED = {"anulado", "anulada", "cancelled", "cancelada"}
 
+DRIVER_ROLE = "Chofer"   # rol de la app móvil: solo opera SUS viajes (drivers.app_user_id)
+GEOFENCE_M = 150         # "Entregado" sin motivo solo a ≤ 150 m del punto de entrega
+
 ACTIVE_STATUS_SQL_VALUES = sorted(_ACTIVE)
 COMPLETED_STATUS_SQL_VALUES = sorted(_COMPLETED)
 
@@ -126,6 +129,13 @@ def haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     d_lat, d_lng = rad(lat2 - lat1), rad(lng2 - lng1)
     h = math.sin(d_lat / 2) ** 2 + math.cos(rad(lat1)) * math.cos(rad(lat2)) * math.sin(d_lng / 2) ** 2
     return 2 * 6371 * math.asin(math.sqrt(h))
+
+
+def distance_to_stop_m(lat, lng, stop_lat, stop_lng) -> int | None:
+    """Metros en línea recta del dispositivo al punto de entrega; None si falta alguna coordenada."""
+    if None in (lat, lng, stop_lat, stop_lng):
+        return None
+    return round(haversine_km(float(lat), float(lng), float(stop_lat), float(stop_lng)) * 1000)
 
 
 def drive_minutes(straight_km: float) -> float:

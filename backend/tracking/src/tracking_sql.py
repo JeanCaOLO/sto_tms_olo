@@ -98,7 +98,7 @@ SELECT g.id, g.guide_number, g.sequence_number, g.status, g.delivery_status,
        o.delivery_address, o.delivery_city,
        COALESCE(o.delivery_latitude, ps.latitude) AS latitude,
        COALESCE(o.delivery_longitude, ps.longitude) AS longitude,
-       cu.name AS customer_name
+       cu.name AS customer_name, cu.phone AS customer_phone
 FROM dispatch_guides g
 JOIN routes r ON r.id = g.route_id
 JOIN orders o ON o.id = g.order_id
@@ -183,8 +183,8 @@ VALUES (%s, %s, %s, %s, %s, 'Pendiente', 'pending', %s, %s)
 
 INSERT_EVENT_SQL = """
 INSERT INTO tracking_events (organization_id, route_id, dispatch_guide_id, event_type, event_status,
-                             event_time, latitude, longitude, notes, created_by)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                             event_time, latitude, longitude, notes, created_by, distance_m)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
 ROUTE_ROW_SQL = """
@@ -198,11 +198,66 @@ WHERE organization_id = %s AND id = ANY(%s::uuid[])
 """
 
 GUIDE_ROW_SQL = """
-SELECT g.id, g.route_id, g.organization_id, g.delivery_status, g.notes, r.status AS route_status, s.country_id
+SELECT g.id, g.route_id, g.organization_id, g.order_id, g.delivery_status, g.notes, r.status AS route_status,
+       r.driver_id, s.country_id,
+       COALESCE(o.delivery_latitude, ps.latitude) AS stop_lat, COALESCE(o.delivery_longitude, ps.longitude) AS stop_lng
 FROM dispatch_guides g
 JOIN routes r ON r.id = g.route_id
 JOIN stores s ON s.id = r.store_id
+LEFT JOIN orders o ON o.id = g.order_id
+LEFT JOIN plan_stops ps ON ps.trip_id = r.plan_trip_id AND ps.order_id = g.order_id
 WHERE g.id = %s
+"""
+
+# App del chofer: el conductor enlazado al usuario, sus viajes en tránsito y sus viajes por iniciar.
+DRIVER_BY_USER_SQL = "SELECT id FROM drivers WHERE app_user_id = %s"
+
+MY_ROUTES_SQL = f"""
+SELECT {VIAJE_COLUMNS} {VIAJE_JOINS}
+WHERE r.organization_id = %s AND r.driver_id = %s AND lower(r.status) = ANY(%s)
+ORDER BY sort_at DESC LIMIT 10
+"""
+
+MY_PLANNED_SQL = """
+SELECT pt.id AS plan_trip_id, rp.plan_date, pt.delivery_zone, v.plate, d.full_name AS driver_name,
+       pt.total_weight, pt.sequence_order
+FROM plan_trips pt
+JOIN route_plans rp ON rp.id = pt.plan_id
+LEFT JOIN vehicles v ON v.id = pt.vehicle_id
+LEFT JOIN drivers d ON d.id = pt.driver_id
+WHERE rp.organization_id = %s AND pt.driver_id = %s AND rp.status = 'confirmed' AND pt.status = 'pending'
+  AND rp.plan_date >= %s
+  AND NOT EXISTS (SELECT 1 FROM routes r WHERE r.plan_trip_id = pt.id)
+ORDER BY rp.plan_date, pt.sequence_order
+LIMIT 10
+"""
+
+MY_PLANNED_STOPS_SQL = """
+SELECT ps.trip_id, ps.stop_order, o.id AS order_id, o.order_number, o.invoice_number, o.total_items, o.total_weight,
+       o.delivery_address, o.delivery_city,
+       COALESCE(o.delivery_latitude, ps.latitude) AS latitude, COALESCE(o.delivery_longitude, ps.longitude) AS longitude,
+       cu.name AS customer_name, cu.phone AS customer_phone
+FROM plan_stops ps
+JOIN orders o ON o.id = ps.order_id
+LEFT JOIN customers cu ON cu.id = o.customer_id
+WHERE ps.trip_id = ANY(%s::uuid[])
+ORDER BY ps.trip_id, ps.stop_order
+"""
+
+INSERT_CONSENT_SQL = """
+INSERT INTO tracking_consents (organization_id, app_user_id, version, device_id)
+VALUES (%s, %s, %s, %s)
+ON CONFLICT (app_user_id, version) DO NOTHING
+RETURNING consented_at
+"""
+CONSENT_SQL = "SELECT consented_at FROM tracking_consents WHERE app_user_id = %s AND version = %s"
+
+INSERT_RETURN_SQL = """
+INSERT INTO returns (organization_id, dispatch_guide_id, order_id, return_number, return_type, reason,
+                     product_code, product_name, quantity, photo_url, notes)
+VALUES (%s, %s, %s, %s, 'devolucion', %s, %s, %s, %s, %s, %s)
+ON CONFLICT (organization_id, return_number) DO NOTHING
+RETURNING id
 """
 
 UPDATE_GUIDE_SQL = """
