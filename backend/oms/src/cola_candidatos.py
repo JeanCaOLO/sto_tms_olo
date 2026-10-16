@@ -66,25 +66,25 @@ def _mock_candidatos() -> list[PedidoCandidato]:
     base = datetime(2026, 10, 1, 12, 0, tzinfo=timezone.utc)
     return [
         PedidoCandidato(
-            id_almacen=1, id_compania=10, id_sucursal=1, id_expedicion=1001,
+            id_almacen="0001", id_compania="0109", id_sucursal="0001", id_expedicion="1001",
             fecha_expedicion_planificada=datetime(2026, 10, 2, 0, 0, tzinfo=timezone.utc),
             observaciones="Entregar en recepción", peso_total=120.5, cubicaje_total=1.2,
             country_id="cr", warehouse_id="w1", customer_id="cofersa",
         ),
         PedidoCandidato(
-            id_almacen=1, id_compania=10, id_sucursal=1, id_expedicion=1002,
+            id_almacen="0001", id_compania="0109", id_sucursal="0001", id_expedicion="1002",
             fecha_expedicion_planificada=datetime(2026, 10, 10, 0, 0, tzinfo=timezone.utc),
             observaciones=None, peso_total=None, cubicaje_total=None,
             country_id="cr", warehouse_id="w1", customer_id="epa",
         ),
         PedidoCandidato(
-            id_almacen=2, id_compania=10, id_sucursal=1, id_expedicion=1003,
+            id_almacen="0002", id_compania="0109", id_sucursal="0001", id_expedicion="1003",
             fecha_expedicion_planificada=datetime(1900, 1, 1, 0, 0, tzinfo=timezone.utc),
             observaciones="", peso_total=None, cubicaje_total=None,
             country_id="cr", warehouse_id="w2", customer_id="cofersa",
         ),
         PedidoCandidato(
-            id_almacen=1, id_compania=10, id_sucursal=1, id_expedicion=1004,
+            id_almacen="0001", id_compania="0109", id_sucursal="0001", id_expedicion="1004",
             fecha_expedicion_planificada=datetime(2026, 10, 8, 0, 0, tzinfo=timezone.utc),
             observaciones="El cliente retira en bodega el viernes", peso_total=50.0, cubicaje_total=0.4,
             country_id="cr", warehouse_id="w1", customer_id="epa",

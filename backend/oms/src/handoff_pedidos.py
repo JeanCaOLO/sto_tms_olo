@@ -1,15 +1,19 @@
 """HandoffPedidosOMS — adaptador de ESCRITURA del handoff (esqueleto).
 
 Contrato (US9, D6 — DOS ESCRITURAS, DOS PROPÓSITOS):
-  Escritura 1 (Aurora, tabla PROPIA del OMS `oms.pedidos`): persiste el pedido con
-    prioridad + status + situacion='generada'. Es la superficie de handoff que
-    LEE Planificación (no el WMS).
+  Escritura 1 (Aurora, `public.orders`): actualiza el pedido con prioridad, score,
+    wms_situation='GENE', estado del handoff y corrida. Es la superficie de handoff
+    que LEE Planificación (no el WMS). Desde 2026-10-16 no hay tabla propia del OMS
+    (`oms.pedidos` quedó descartada): el pedido ya está en orders (lo ingirió la
+    carga desde EFLOW y es lo que muestra la Cola) y se ubica por su llave EFLOW
+    (uq_order_eflow_key, sql/43). Si no está, es un error: no se priorizan pedidos
+    no ingeridos.
   Escritura 2 (WMS EXPEDICIONESCABECERA): TPEXSI='GENE' para que el WMS/EFLOW
     dispare el picking. TPEXES PERMANECE 'DISP'.
 
 Orden: escritura 1 ANTES de escritura 2. SIN 2PC (no hay transacción distribuida
 Aurora↔SQL Server). Consistencia por: orden fijo + idempotencia por PK + reintento
-+ un campo `estado_handoff='disparo_pendiente'` tras la escritura 1, que pasa a
++ `orders.handoff_status='disparo_pendiente'` tras la escritura 1, que pasa a
 'completado' tras confirmar la escritura 2. Un barrido posterior reconcilia los
 que quedaron en 'disparo_pendiente'.
   ponytail: sin 2PC + reintento idempotente es una simplificación deliberada con
@@ -18,7 +22,7 @@ que quedaron en 'disparo_pendiente'.
   path: patrón outbox/transactional cuando el volumen lo exija.
 
 Idempotencia: la PK compuesta (IDALMACEN, IDCOMPANIA, IDSUCURSAL, IDEXPEDICION) es
-la clave; la escritura 1 hace UPSERT por esa PK (re-correr no duplica).
+la clave; la escritura 1 es un UPDATE por esa llave (re-correr no duplica).
 
 FLAG parametrizable `escribir_prioridad_al_wms` (ConfiguracionReglas): si la
 PRIORIDAD se escribe también en el WMS (PRIORIDAD/NOMBREPRIORIDAD de
@@ -37,20 +41,15 @@ import os
 
 from models import ConfiguracionReglas, PedidoCandidato, PedidoPK, RegistroPrioridad
 
-# SQL de referencia (escritura 1, Aurora). UPSERT por PK → idempotente.
-UPSERT_PEDIDO_OMS_SQL = """
-INSERT INTO oms.pedidos
-    (id_almacen, id_compania, id_sucursal, id_expedicion,
-     prioridad, status, situacion, estado_handoff, corrida, peso_total, cubicaje_total)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-ON CONFLICT (id_almacen, id_compania, id_sucursal, id_expedicion)
-DO UPDATE SET prioridad = EXCLUDED.prioridad,
-              status = EXCLUDED.status,
-              situacion = EXCLUDED.situacion,
-              estado_handoff = EXCLUDED.estado_handoff,
-              corrida = EXCLUDED.corrida,
-              peso_total = EXCLUDED.peso_total,
-              cubicaje_total = EXCLUDED.cubicaje_total
+# Escritura 1 (Aurora, public.orders): UPDATE por la llave EFLOW -> idempotente.
+# status NO se toca: es el estado del TMS. RETURNING para detectar pedidos no ingeridos.
+ACTUALIZAR_PEDIDO_SQL = """
+UPDATE orders
+SET priority = %s, oms_score = %s, wms_situation = %s, handoff_status = %s,
+    prioritization_run_id = %s, updated_at = now()
+WHERE eflow_id_almacen = %s AND eflow_id_compania = %s
+  AND eflow_id_sucursal = %s AND eflow_id_expedicion = %s
+RETURNING id
 """
 
 # SQL de referencia (escritura 2, WMS SQL Server). TPEXSI='GENE'; TPEXES NO cambia.
@@ -68,8 +67,12 @@ WHERE IDALMACEN = %s AND IDCOMPANIA = %s AND IDSUCURSAL = %s AND IDEXPEDICION = 
 
 ESTADO_PENDIENTE = "disparo_pendiente"
 ESTADO_COMPLETADO = "completado"
-SITUACION_GENERADA = "generada"
-STATUS_PRIORIZADO = "priorizado"
+# Código de situación "generada" en el WMS (EFLOW TPEXSI); es lo que lee Planificación.
+SITUACION_GENERADA = "GENE"
+
+
+class PedidoNoIngerido(Exception):
+    """El pedido priorizado no existe en orders (no se cargó desde EFLOW)."""
 
 
 def _modo_live() -> bool:
@@ -93,10 +96,11 @@ def ejecutar(
       - 'completado' si ambas escrituras ok; 'disparo_pendiente' si la 1 ok pero la
         2 falló (reconciliable). La escritura 1 es idempotente por PK.
     Errores: la escritura 1 propaga HttpError (vía pg) si Aurora falla ANTES de
-      marcar; una vez persistida la fila como pendiente, un fallo en la escritura 2
-      NO lanza: deja 'disparo_pendiente' para reconciliar.
+      marcar, y PedidoNoIngerido si el pedido no está en orders; una vez persistido
+      como pendiente, un fallo en la escritura 2 NO lanza: deja 'disparo_pendiente'
+      para reconciliar.
     """
-    # --- Escritura 1: tabla propia del OMS (Aurora). Idempotente por PK. ---
+    # --- Escritura 1: public.orders (Aurora). Idempotente por la llave EFLOW. ---
     _escribir_pedido_oms(pedido, registro, corrida, estado=ESTADO_PENDIENTE)
 
     # --- Escritura 2: marcar el WMS (TPEXSI='GENE'). Sin 2PC. ---
@@ -105,20 +109,23 @@ def ejecutar(
     except Exception:  # noqa: BLE001 — no romper: queda pendiente para reconciliar
         return ESTADO_PENDIENTE
 
-    # Confirmar: la fila del OMS pasa a 'completado'.
+    # Confirmar: el pedido pasa a handoff_status='completado'.
     _escribir_pedido_oms(pedido, registro, corrida, estado=ESTADO_COMPLETADO)
     return ESTADO_COMPLETADO
 
 
 def _escribir_pedido_oms(pedido: PedidoCandidato, registro: RegistroPrioridad, corrida: str, *, estado: str) -> None:
     params = [
+        registro.prioridad, registro.score, SITUACION_GENERADA, estado, corrida,
         pedido.id_almacen, pedido.id_compania, pedido.id_sucursal, pedido.id_expedicion,
-        registro.prioridad, STATUS_PRIORIZADO, SITUACION_GENERADA, estado, corrida,
-        pedido.peso_total, pedido.cubicaje_total,
     ]
     if _modo_live():
         from tms_common import pg  # import local: el esqueleto corre sin el Layer en tests
-        pg.query(UPSERT_PEDIDO_OMS_SQL, params)
+        if not pg.query(ACTUALIZAR_PEDIDO_SQL, params):
+            raise PedidoNoIngerido(
+                f"Pedido {pedido.id_almacen}/{pedido.id_compania}/{pedido.id_sucursal}/{pedido.id_expedicion} "
+                "no está en orders: hay que cargarlo desde EFLOW antes de priorizarlo."
+            )
     # En mock no hay DB: la escritura es un no-op observable vía el estado devuelto.
 
 

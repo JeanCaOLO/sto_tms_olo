@@ -29,7 +29,6 @@ export default {
   'omsQueue.colObservations': 'Observaciones',
   'omsQueue.colDispatchDate': 'Fecha Despacho',
   'omsQueue.colCreatedDate': 'Fecha creación',
-  'omsQueue.colReadyDate': 'Fecha Alisto',
   'omsQueue.colScore': 'Score',
   'omsQueue.colStatus': 'Estado',
   'omsQueue.colSituation': 'Situación',

@@ -12,11 +12,12 @@ interface OrderDetail {
   total_volume: number | null;
   total_items: number | null;
   total_amount: number | null;
-  priority: string;
+  priority: number | null;
   status: string;
   notes: string | null;
   customer?: { name: string; code: string };
-  store?: { name: string; code: string };
+  final_customer?: { name: string; external_code: string; customer_type: string };
+  branch?: { name: string; external_code: string };
 }
 
 interface OrderDetailModalProps {
@@ -59,9 +60,10 @@ export default function OrderDetailModal({ order, onClose }: OrderDetailModalPro
 
         <div className="p-6 grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
           <div className="flex justify-between"><span className="text-slate-500">Cliente</span><span className="text-slate-900 font-medium">{order.customer?.name ?? '—'}</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">Tienda</span><span className="text-slate-900">{order.store?.name ?? '—'}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Cliente destino</span><span className="text-slate-900">{order.final_customer?.name ?? "—"}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Sucursal</span><span className="text-slate-900">{order.branch?.name ?? "—"}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Factura</span><span className="text-slate-900">{order.invoice_number ?? '—'}</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">Prioridad</span><span className="text-slate-900 capitalize">{order.priority}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Prioridad</span><span className="text-slate-900">{order.priority ?? "—"}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Fecha pedido</span><span className="text-slate-900">{fmtDate(order.order_date)}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Fecha entrega</span><span className="text-slate-900">{fmtDate(order.delivery_date)}</span></div>
           <div className="flex justify-between col-span-2"><span className="text-slate-500">Dirección</span><span className="text-slate-900 text-right">{order.delivery_address}{order.delivery_city ? `, ${order.delivery_city}` : ''}</span></div>

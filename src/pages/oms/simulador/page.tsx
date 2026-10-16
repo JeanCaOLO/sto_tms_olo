@@ -211,7 +211,6 @@ export default function OmsSimuladorPage() {
                       <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colObservations')}</th>
                       <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colDispatchDate')}</th>
                       <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colCreatedDate')}</th>
-                      <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colReadyDate')}</th>
                       <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colBaseScore')}</th>
                       <th className="text-right py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colSimScore')}</th>
                       <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">{t('omsSimulator.colStatus')}</th>
@@ -236,7 +235,6 @@ export default function OmsSimuladorPage() {
                         <td className="py-3 px-4 text-sm text-slate-600 max-w-[220px] truncate" title={o.observations}>{o.observations}</td>
                         <td className="py-3 px-4 text-sm text-slate-700">{o.dispatchDate}</td>
                         <td className="py-3 px-4 text-sm text-slate-700">{o.createdDate}</td>
-                        <td className="py-3 px-4 text-sm text-slate-700">{o.readyToPrepDate}</td>
                         <td className="py-3 px-4 text-sm text-slate-500 text-right">{o.baseScore}</td>
                         <td className="py-3 px-4 text-sm font-semibold text-slate-900 text-right">{o.simScore}</td>
                         <td className="py-3 px-4 text-sm text-slate-600">{o.status}</td>

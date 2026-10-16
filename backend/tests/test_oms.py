@@ -7,6 +7,8 @@ tocan DB ni red (OMS_SOURCE=mock por default). pytest, un archivo por módulo.
 
 from datetime import date, datetime, timezone
 
+import pytest
+
 from conftest import body_of, http_event, load_stack_module
 
 
@@ -63,9 +65,9 @@ def test_score_a_prioridad_cliente_retira_cortocircuita_a_maxima():
 
 # --- ReglaFecha (T-1, fallback por centinela) ---------------------------------
 
-def _pedido(models, *, fecha, obs=None, exp=1):
+def _pedido(models, *, fecha, obs=None, exp="1"):
     return models.PedidoCandidato(
-        id_almacen=1, id_compania=10, id_sucursal=1, id_expedicion=exp,
+        id_almacen="0001", id_compania="0109", id_sucursal="0001", id_expedicion=exp,
         fecha_expedicion_planificada=fecha, observaciones=obs,
     )
 
@@ -140,7 +142,7 @@ def test_observaciones_degrada_sin_bloquear_si_clasificador_falla():
 def test_handoff_flag_prioridad_al_wms_elige_sql_con_prioridad():
     handoff = load_stack_module("oms", "handoff_pedidos")
     models = load_stack_module("oms", "models")
-    pk = models.PedidoPK(1, 10, 1, 1001)
+    pk = models.PedidoPK("0001", "0109", "0001", "1001")
     # Flag ON -> SQL con PRIORIDAD; flag OFF -> SQL sin PRIORIDAD. En mock no toca DB,
     # así que validamos que la rama se ejecuta sin lanzar (no-op observable).
     on = models.ConfiguracionReglas(pesos={}, escribir_prioridad_al_wms=True)
@@ -152,11 +154,45 @@ def test_handoff_flag_prioridad_al_wms_elige_sql_con_prioridad():
 def test_handoff_ejecutar_completa_en_mock():
     handoff = load_stack_module("oms", "handoff_pedidos")
     models = load_stack_module("oms", "models")
-    pedido = _pedido(models, fecha=datetime(2026, 10, 2, tzinfo=timezone.utc), exp=1001)
+    pedido = _pedido(models, fecha=datetime(2026, 10, 2, tzinfo=timezone.utc), exp="1001")
     registro = models.RegistroPrioridad(pk=pedido.pk, prioridad=1, score=100.0, cliente_retira=False)
     config = models.ConfiguracionReglas(pesos={})
     estado = handoff.ejecutar(pedido, registro, config, "corrida-test")
     assert estado == handoff.ESTADO_COMPLETADO
+
+
+def test_handoff_live_actualiza_orders_por_llave_eflow(monkeypatch):
+    handoff = load_stack_module("oms", "handoff_pedidos")
+    models = load_stack_module("oms", "models")
+    from tms_common import pg
+
+    llamadas = []
+    monkeypatch.setenv("OMS_SOURCE", "live")
+    monkeypatch.setattr(pg, "query", lambda sql, params=(): llamadas.append((sql, list(params))) or [{"id": "o-1"}])
+    pedido = _pedido(models, fecha=datetime(2026, 10, 2, tzinfo=timezone.utc), exp="P0002002260922")
+    registro = models.RegistroPrioridad(pk=pedido.pk, prioridad=2, score=80.0, cliente_retira=False)
+
+    # La escritura 2 (WMS real) sigue stubbeada en live: queda pendiente de reconciliar.
+    estado = handoff.ejecutar(pedido, registro, models.ConfiguracionReglas(pesos={}), "corrida-1")
+
+    assert estado == handoff.ESTADO_PENDIENTE
+    sql, params = llamadas[0]
+    assert "UPDATE orders" in sql and "eflow_id_expedicion" in sql
+    assert params == [2, 80.0, "GENE", handoff.ESTADO_PENDIENTE, "corrida-1", "0001", "0109", "0001", "P0002002260922"]
+
+
+def test_handoff_live_falla_si_el_pedido_no_esta_en_orders(monkeypatch):
+    handoff = load_stack_module("oms", "handoff_pedidos")
+    models = load_stack_module("oms", "models")
+    from tms_common import pg
+
+    monkeypatch.setenv("OMS_SOURCE", "live")
+    monkeypatch.setattr(pg, "query", lambda sql, params=(): [])
+    pedido = _pedido(models, fecha=datetime(2026, 10, 2, tzinfo=timezone.utc), exp="NO-EXISTE")
+    registro = models.RegistroPrioridad(pk=pedido.pk, prioridad=1, score=100.0, cliente_retira=False)
+
+    with pytest.raises(handoff.PedidoNoIngerido):
+        handoff.ejecutar(pedido, registro, models.ConfiguracionReglas(pesos={}), "corrida-1")
 
 
 # --- MotorReglasOMS (orquestación) + corrida de punta a punta -----------------
@@ -168,8 +204,8 @@ def test_motor_prioriza_cliente_retira_por_encima():
     registros = motor.priorizar(pedidos, motor.config_por_defecto, hoy=date(2026, 10, 1))
     por_pk = {(r.pk.id_expedicion): r for r in registros}
     # El pedido 1004 trae "el cliente retira" => prioridad máxima (1).
-    assert por_pk[1004].cliente_retira is True
-    assert por_pk[1004].prioridad == 1
+    assert por_pk["1004"].cliente_retira is True
+    assert por_pk["1004"].prioridad == 1
 
 
 def test_corrida_end_to_end_en_mock():

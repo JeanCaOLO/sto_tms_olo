@@ -25,7 +25,8 @@ export default function Pedidos() {
         .select(`
           *,
           customer:customers(name, code),
-          store:stores(name, code)
+          final_customer:final_customers(name, external_code, customer_type),
+          branch:branches(name, external_code)
         `)
         .order('created_at', { ascending: false });
 
@@ -50,19 +51,16 @@ export default function Pedidos() {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
-  const getPriorityBadge = (priority: string) => {
-    const priorityMap: Record<string, { variant: any; label: string }> = {
-      high: { variant: 'danger', label: t('orders.priorityHigh') },
-      normal: { variant: 'default', label: t('orders.priorityNormal') },
-      low: { variant: 'info', label: t('orders.priorityLow') }
-    };
-    const config = priorityMap[priority] || priorityMap.normal;
-    return <Badge variant={config.variant} size="sm">{config.label}</Badge>;
+  // Prioridad numérica invertida (sql/43): 1 = más urgente.
+  const getPriorityBadge = (priority: number | null) => {
+    if (priority == null) return <span className="text-sm text-slate-400">—</span>;
+    const variant = priority === 1 ? 'danger' : priority === 2 ? 'warning' : priority === 3 ? 'info' : 'default';
+    return <Badge variant={variant} size="sm">{t('orders.priorityLevel', { level: priority })}</Badge>;
   };
 
   const statusLabel = (status: string) =>
     ({ pending: t('orders.statusPending'), assigned: t('orders.statusAssigned'), in_route: t('orders.statusInRoute'), delivered: t('orders.statusDelivered'), cancelled: t('orders.statusCancelled') }[status] ?? status);
-  const priorityLabel = (priority: string) => ({ high: t('orders.priorityHigh'), normal: t('orders.priorityNormal'), low: t('orders.priorityLow') }[priority] ?? priority);
+  const priorityLabel = (priority: number | null) => (priority == null ? '' : t('orders.priorityLevel', { level: priority }));
 
   const columns: DataTableColumn<any>[] = [
     {
@@ -90,7 +88,8 @@ export default function Pedidos() {
         </div>
       ),
     },
-    { key: 'store', header: t('orders.colStore'), accessor: (o) => o.store?.name ?? '', sortable: true, filterable: true },
+    { key: 'final_customer', header: t('orders.colFinalCustomer'), accessor: (o) => o.final_customer?.name ?? '', sortable: true, filterable: true },
+    { key: 'branch', header: t('orders.colBranch'), accessor: (o) => o.branch?.name ?? '', sortable: true, filterable: true },
     {
       key: 'delivery_date',
       header: t('orders.colDeliveryDate'),

@@ -25,7 +25,9 @@ class PedidoCandidato:
     es también la clave de idempotencia del handoff.
 
     Campos tomados del DDL real (docs/wms-eflow/EFLOW_OLO-ddl.sql):
-    - id_almacen/id_compania/id_sucursal/id_expedicion: PK compuesta.
+    - id_almacen/id_compania/id_sucursal/id_expedicion: PK compuesta. Son varchar en
+      EFLOW (ceros a la izquierda: '0029'; expediciones con letras: 'P0002002260922'),
+      por eso `str` y no `int`. En Aurora: orders.eflow_id_* (sql/43).
     - fecha_expedicion_planificada: datetime NOT NULL. Fecha de ENTREGA que manda
       el cliente. Insumo del T-1; el OMS NO la modifica.
     - observaciones: OBSERVACIONESEXPEDICION varchar(500), texto libre (nivel
@@ -37,10 +39,10 @@ class PedidoCandidato:
       compañía (TODO catálogos CLIENTES/ALMACENCOMPANIA).
     """
 
-    id_almacen: int
-    id_compania: int
-    id_sucursal: int
-    id_expedicion: int
+    id_almacen: str
+    id_compania: str
+    id_sucursal: str
+    id_expedicion: str
     fecha_expedicion_planificada: datetime
     observaciones: str | None = None
     peso_total: float | None = None
@@ -58,10 +60,10 @@ class PedidoCandidato:
 class PedidoPK:
     """PK compuesta de EXPEDICIONESCABECERA = clave de idempotencia del handoff."""
 
-    id_almacen: int
-    id_compania: int
-    id_sucursal: int
-    id_expedicion: int
+    id_almacen: str
+    id_compania: str
+    id_sucursal: str
+    id_expedicion: str
 
 
 @dataclass(frozen=True)
@@ -101,21 +103,22 @@ class RegistroPrioridad:
 
 @dataclass(frozen=True)
 class PedidoOMS:
-    """Fila de la tabla PROPIA del OMS (U2: esquema PedidosOMS, Aurora).
+    """Resultado del OMS para un pedido de public.orders (escritura 1 del handoff).
 
-    Superficie de handoff que lee Planificación (NO el WMS). Escritura 1 del
-    HandoffPedidosOMS. Ver sql/oms_pedidos.sql para el DDL.
+    Superficie de handoff que lee Planificación (NO el WMS). Ya no es una tabla
+    propia (`oms.pedidos` quedó descartada el 2026-10-16): son columnas de
+    orders, ubicada por la llave EFLOW (uq_order_eflow_key, sql/43).
 
     - estado_handoff: estado de las DOS escrituras (D6). 'disparo_pendiente'
       cuando la escritura 1 (esta tabla) ya ocurrió pero la escritura 2 (WMS
       TPEXSI='GENE') aún no se confirmó — permite reconciliar sin 2PC.
-    - situacion: 'generada' (lo que Planificación espera leer).
+    - situacion: 'GENE' (orders.wms_situation; lo que Planificación espera leer).
     """
 
-    id_almacen: int
-    id_compania: int
-    id_sucursal: int
-    id_expedicion: int
+    id_almacen: str
+    id_compania: str
+    id_sucursal: str
+    id_expedicion: str
     prioridad: int
     status: str
     situacion: str

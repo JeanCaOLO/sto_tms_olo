@@ -5,7 +5,7 @@ import Select from '../../../components/base/Select';
 import { supabase } from '../../../lib/supabase';
 
 interface OrderEditModalProps {
-  order: { id: string; order_number: string; status: string; priority: string; delivery_date: string | null; notes: string | null };
+  order: { id: string; order_number: string; status: string; priority: number | null; delivery_date: string | null; notes: string | null };
   onClose: () => void;
   onSaved: () => void;
 }
@@ -17,7 +17,7 @@ interface OrderEditModalProps {
 export default function OrderEditModal({ order, onClose, onSaved }: OrderEditModalProps) {
   const [formData, setFormData] = useState({
     status: order.status || 'pending',
-    priority: order.priority || 'normal',
+    priority: order.priority != null ? String(order.priority) : '',
     delivery_date: order.delivery_date ? order.delivery_date.slice(0, 10) : '',
     notes: order.notes || '',
   });
@@ -33,7 +33,8 @@ export default function OrderEditModal({ order, onClose, onSaved }: OrderEditMod
         .from('orders')
         .update({
           status: formData.status,
-          priority: formData.priority,
+          // Entero >= 1 (sql/43); vacío = sin prioridad.
+          priority: formData.priority ? Number(formData.priority) : null,
           delivery_date: formData.delivery_date || null,
           notes: formData.notes || null,
         })
@@ -76,12 +77,14 @@ export default function OrderEditModal({ order, onClose, onSaved }: OrderEditMod
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Prioridad</label>
-            <Select value={formData.priority} onChange={(e) => setFormData({ ...formData, priority: e.target.value })}>
-              <option value="high">Alta</option>
-              <option value="normal">Normal</option>
-              <option value="low">Baja</option>
-            </Select>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Prioridad (1 = más urgente)</label>
+            <Input
+              type="number"
+              min={1}
+              step={1}
+              value={formData.priority}
+              onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+            />
           </div>
 
           <div>

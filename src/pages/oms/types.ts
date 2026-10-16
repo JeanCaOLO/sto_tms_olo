@@ -76,7 +76,6 @@ export interface QueueOrder {
   observations: string;    // Observaciones (texto libre del vendedor)
   dispatchDate: string;    // Fecha de Despacho (ISO date)
   createdDate: string;     // Fecha de creación (ISO date)
-  readyToPrepDate: string; // fecha de alisto calculada (ISO date)
   status: string;          // estado del pedido
   situation: string;       // situación del pedido (p. ej. DISP = disponible)
   intakeTime: string;

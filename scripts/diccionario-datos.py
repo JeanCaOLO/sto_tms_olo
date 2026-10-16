@@ -29,8 +29,9 @@ DOMINIOS = [
         "public.zones": "Zonas / tipos de ruta por país. Antes se llamaba `route_types` (renombrada en `sql/09`).",
     }),
     ("Clientes y puntos de entrega", {
-        "public.customers": "Clientes de OLO (Cofersa, EPA…), por país y almacén.",
-        "public.final_customers": "Clientes finales de cada cliente (a quién se le entrega).",
+        "public.customers": "Compañías clientes de OLO (Cofersa, EPA…) = EFLOW COMPANIA; código EFLOW en `external_code` (`sql/40`).",
+        "public.branches": "Sucursales de cada compañía = EFLOW SUCURSAL (sobrante, garantías, crossdock…) (`sql/40`).",
+        "public.final_customers": "Clientes destino = EFLOW CLIENTES: tiendas EPA (`TIENDA`) y clientes de mayoreo (`MAYOREO`) (`sql/41`–`42`).",
         "public.delivery_points": "Puntos de entrega de un cliente final, con dirección, ventana horaria, zona y códigos de ruta/zona WMS.",
         "public.addresses": "Direcciones geocodificables, referenciadas por los puntos de entrega.",
         "public.contacts": "Contactos de un cliente final o de un punto de entrega.",
@@ -44,9 +45,9 @@ DOMINIOS = [
         "public.vehicle_types": "Catálogo de tipos de vehículo.",
     }),
     ("Pedidos y WMS", {
-        "public.orders": "Pedidos a entregar (encabezado): cliente, punto de entrega, fechas, totales, prioridad y estado.",
-        "public.order_items": "Líneas (productos) de cada pedido.",
-        "public.wms_expediciones": "Staging de expediciones traídas del WMS/EFLOW (`sql/07`): estado, situación, avance, prioridad y viaje WMH.",
+        "public.orders": "Pedidos = EFLOW EXPEDICIONESCABECERA (`sql/43`): almacén, sucursal, cliente destino, llave EFLOW, datos del WMS y resultado del OMS.",
+        "public.order_items": "Líneas del pedido = EFLOW EXPEDICIONESDETALLE (`sql/44`).",
+        "public.wms_expediciones": "Staging de expediciones del WMS/EFLOW (`sql/07`). EN RETIRO: la reemplaza `orders` (`sql/43`); falta migrar a Planificación.",
     }),
     ("Planificación y ejecución de rutas", {
         "public.route_plans": "Plan de rutas de un día para un país/almacén.",
@@ -103,8 +104,9 @@ OBSERVACIONES = """## Observaciones (revisión 2026-09-30)
   `driver_license_types` (renombrada en `sql/06`). La FK real apunta bien.
 - **Tablas vacías (0 filas):** `contacts`, `contracts`, `contract_documents`, `driver_licenses`, `rates`, `returns`,
   `role_countries`, `rutas_costeo`, `settlements`, `sku_cotizaciones`, `tracking_events`.
-- **Todavía no existe nada del OMS:** ni la base `logistica_olo` con esquemas `OMS`/`TMS` (decidido el 2026-09-15) ni
-  las tablas propias del OMS (`route_dispatch_schedule`, `order_priority_*`, simulaciones). Todo esto es `tms_olo`.
+- **El OMS no tiene esquema propio** (decidido el 2026-10-16; reemplaza los esquemas `OMS`/`TMS` del 2026-09-15):
+  todo vive en `public`. El OMS lee y escribe sus pedidos en `public.orders`; sus tablas propias (simulaciones,
+  etc.) todavía no existen y se crearán también en `public`.
 - **Casi sin `COMMENT ON`:** solo 3 tablas y 6 columnas tienen comentario en la base; las descripciones de este
   documento se escribieron a partir de los nombres, las columnas y los scripts `sql/`.
 - **Permisos de `tms_app`:** no puede leer `public.schema_migrations` ni `audit.tracked_tables`, por eso no se cuentan

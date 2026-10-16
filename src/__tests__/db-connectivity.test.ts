@@ -64,6 +64,7 @@ const BACKEND_WHITELIST = new Set([
   // Fase 1 — Multi-country Foundation (docs/arquitectura-tms-oms/05-roadmap.md).
   'warehouses', 'final_customers', 'delivery_points', 'addresses', 'contacts',
   'driver_license_types', 'driver_licenses', 'user_scopes',
+  'branches', // sucursales EFLOW (sql/40)
 ]);
 
 // Top-level await (soportado por vitest/ESM): la disponibilidad de Aurora se

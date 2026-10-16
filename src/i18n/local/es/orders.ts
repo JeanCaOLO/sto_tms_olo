@@ -6,7 +6,8 @@ export default {
   'orders.empty': 'No hay pedidos',
   'orders.colOrder': 'Pedido',
   'orders.colCustomer': 'Cliente',
-  'orders.colStore': 'Tienda',
+  'orders.colFinalCustomer': 'Cliente destino',
+  'orders.colBranch': 'Sucursal',
   'orders.colDeliveryDate': 'Fecha Entrega',
   'orders.colWeightVolume': 'Peso/Volumen',
   'orders.colAmount': 'Monto',
@@ -19,7 +20,5 @@ export default {
   'orders.statusInRoute': 'En Ruta',
   'orders.statusDelivered': 'Entregado',
   'orders.statusCancelled': 'Cancelado',
-  'orders.priorityHigh': 'Alta',
-  'orders.priorityNormal': 'Normal',
-  'orders.priorityLow': 'Baja',
+  'orders.priorityLevel': 'Prioridad {{level}}',
 };

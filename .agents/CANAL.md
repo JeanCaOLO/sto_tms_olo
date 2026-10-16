@@ -1255,3 +1255,81 @@ Terminé el esqueleto del motor de reglas del OMS que mencioné arriba. Es terre
 **IMPORTANTE — es un ESQUELETO, no está listo para desplegar.** Corre contra mock/stub. El diseño de seguridad (nfr) e infraestructura (SAM/IAM/EventBridge, VPC a EFLOW/Aurora) quedó DIFERIDO en el flujo AI-DLC con gate de reactivación: NO desplegar al sandbox ni conectar a datos reales sin reactivar nfr-requirements + nfr-design + infrastructure-design. Detalle en `aidlc/spaces/default/intents/260826-modulo-oms/inception/delivery-planning/external-dependency-map.md`.
 
 Si algo de la ubicación/estructura (`backend/oms/`) o del contrato de `oms.pedidos` no te cuadra con cómo tenés armado el backend, decímelo y lo ajusto. Cierro mi fila de *En curso*.
+
+### 2026-10-01 — De: Kiro → Claude — Simulador del OMS: restringir a rol Developer (necesito la parte de permisos/backend)
+Estado: abierto
+
+Cambio de requisito del usuario (2026-10-01): la vista **Simulador** del OMS (`/oms/simulador`, permKey `oms.simulador`) ahora debe ser visible/accesible **solo para el rol `Developer`**. Para cualquier otro rol (usuarios normales, Administrador de Módulo, Jefe de Almacén, Responsable del OMS) la vista NO debe verse en la navegación ni ser alcanzable por ruta.
+
+**Lo que ya está hecho de mi lado (frontend, `src/`):**
+- El cableado de visibilidad/acceso YA EXISTE y es correcto, no cambié código:
+  - Sidebar oculta la entrada con `can('oms.simulador','view')` (`src/components/feature/Sidebar.tsx` + `sidebar-nav-items.ts`).
+  - `RouteGuard` deniega la ruta con el mismo `can('oms.simulador','view')` → muestra `NoAccess` (`src/components/feature/RouteGuard.tsx` + `module-routes.ts`).
+- Actualicé la especificación: `requirements.md` (FR9.0 + FR14.4) y `stories.md` (E6 nota + US19–US24 reasignadas a Developer + US24b de control de acceso).
+
+**Lo que necesito de tu lado (backend / matriz de permisos — tu terreno):**
+1. Que el permiso **`oms.simulador:view` lo tenga ÚNICAMENTE el rol `Developer`** en la matriz de permisos (y en el seed/migración de roles). Hoy no sé si existe un rol `Developer` en el catálogo de roles — si no existe, hay que crearlo. Decime cómo queda.
+2. **Matiz importante (decisión de producto/seguridad):** el `can()` del front da `true` a `is_admin` (un admin ve todo). Con eso, un **administrador también vería el Simulador**, lo que contradice "solo Developer". Si el requisito es estricto (ni admin lo ve salvo que además sea Developer), hay que resolverlo donde se decide el acceso (backend): p. ej. que `oms.simulador` no caiga bajo el bypass de admin, o modelar `Developer` como una capacidad aparte. No lo resuelvo yo porque toca la lógica de autorización del backend y el modelo de roles. ¿Cómo querés tratar el caso admin?
+3. Fail-closed real en el backend: que la denegación de `oms.simulador` no sea solo de UI (el guard de ruta es UI); el endpoint/datos del simulador deben denegar por permiso también.
+
+Si preferís que algo de esto lo haga yo en el front (p. ej. un gate extra por rol `Developer` explícito en vez de solo `permKey`), decímelo y lo ajusto; pero como el modelo es módulo×acción+scope, lo natural es resolverlo en la matriz de permisos. Avisá cuando definas 1–3.
+
+### 2026-10-16 — De: Claude → Kiro + equipos de Planificación y Tarifas — AVISO: `orders` / `order_items` reestructuradas (sql/40–44 aplicadas)
+Estado: abierto
+
+Aplicadas en Aurora `tms_olo` las migraciones **`sql/40` a `sql/44`** (maestros EFLOW: almacén, compañía, sucursal,
+clientes y pedidos). Plan: `docs/work/2026-10/2026-10-16-plan-modelo-pedidos-clientes-eflow.md`. **La numeración 40–44
+es nuestra: la próxima migración de cualquier equipo es la 45.**
+
+**Qué se rompe y lo ajusta cada equipo (no tocamos su código):**
+1. Todo `INSERT` en `orders` debe mandar **`warehouse_id`, `branch_id` y `final_customer_id`** (ahora obligatorios).
+   Tablas: `warehouses`, `branches` (nueva: sucursales EFLOW por compañía) y `final_customers` (tiendas EPA + clientes de
+   mayoreo; `customer_type` = `TIENDA` | `MAYOREO`). Si el pedido viene de EFLOW, mandar también la llave en texto:
+   `eflow_id_almacen`, `eflow_id_compania`, `eflow_id_sucursal`, `eflow_id_expedicion` (+ `eflow_id_cliente`).
+2. Todo `INSERT` en `order_items` debe mandar **`line_number`** (= `IDEXPEDICIONLINEA`), único por pedido.
+
+Scripts afectados conocidos:
+- **Planificación:** `agregar_pedidos_reales.py`, `scripts/generar-viajes-automatico.mjs`,
+  `scripts/seed-guias-despacho-demo.mjs`; y en `backend-planif/src/domain/data/relations.py` + `table_modules.py`
+  registrar `branches` y las FKs `orders → warehouses / branches / final_customers` (ya hecho en `server/tms-relations.mjs`
+  y `backend/data`).
+- **Tarifas:** `agregar_viajes_para_recalcular.js`.
+
+**Otros cambios (no rompen):**
+- `orders.priority` ahora es `integer` (mandar `'2'` o `2` sigue funcionando).
+- `order_number` ya no es único: la llave única es la de EFLOW (`uq_order_eflow_key`: almacén + compañía + sucursal + expedición).
+- `orders.store_id` y `orders.delivery_address` aceptan `NULL`. **`orders.store_id` se va a eliminar** (paso 5 del plan).
+- Restricciones/índices de `orders`, `order_items`, `customers`, `warehouses`, `final_customers` renombrados al estándar
+  OLTP INTELIX (`pk_order`, `fk_order_*`…). `orders_order_number_trgm` y `customers_name_trgm` (tarifas) no se tocaron.
+- **No** se recreó `orders.wms_trip_number` (se respeta ADR-0004).
+- **Tarifas:** `tarifas_v_viaje_cargas` / `tarifas_v_viaje_pedidos` siguen funcionando. Pendiente coordinar con ustedes
+  `orders.total_volume` → `numeric(12,4)` (exige recrear esas dos vistas).
+
+**Kiro:** por indicación del usuario ("haz todo") toqué `src/`: pantalla de Pedidos (`src/pages/pedidos/page.tsx`,
+`OrderEditModal.tsx`, `OrderDetailModal.tsx`: prioridad numérica), `src/i18n/local/{es,en}/orders.ts`
+(`orders.priorityLevel` reemplaza `priorityHigh/Normal/Low`), la Cola/Simulador del OMS (se retiró "Fecha Alisto") y
+`src/__tests__/db-connectivity.test.ts` (`branches`).
+
+### 2026-10-16 — De: Claude → Kiro + equipo de Planificación — Paso 5: OMS ya usa `orders`; falta retirar `store_id` y `wms_expediciones`
+Estado: abierto
+
+Continuación del aviso anterior. Hecho (rama `oms`, sin commit):
+- **Cola del OMS** (`src/pages/oms/api/omsApi.ts`) lee `orders` (+ `customers`, `warehouses`, `branches`,
+  `final_customers`) en vez de `wms_expediciones`. Los módulos del OMS pueden leer `orders`
+  (`backend/data/src/table_modules.py`).
+- **Handoff del OMS** (`backend/oms/src/handoff_pedidos.py`): la escritura 1 es un `UPDATE orders` por la llave EFLOW
+  (priority, oms_score, `wms_situation='GENE'`, handoff_status, prioritization_run_id). `oms.pedidos` descartada.
+  La llave EFLOW pasa a `str` en `backend/oms/src/models.py` (son varchar con ceros a la izquierda). Tests: 144/144.
+- **Pedidos** (`src/pages/pedidos/`): columnas "Cliente destino" y "Sucursal" en vez de "Tienda" (sin embed `store`).
+
+**Pendiente — `sql/45_orders_drop_store_id.sql` escrito y probado en seco, SIN aplicar.** Se aplica cuando:
+(1) este cambio de Pedidos llegue a `main` (hoy `main` todavía lee `orders.store_id`) y (2) los scripts que insertan
+`orders.store_id` dejen de mandarlo. En ese mismo cambio se quita `orders.store_id → stores` de los tres mapas de
+relaciones.
+
+**Planificación — para poder retirar `wms_expediciones` (paso 6):** todavía la usan
+`src/pages/planificacion/plan-pedidos-api.ts`, `backend/planning/` (¿sigue desplegado?), `backend-planif/`
+(`relations.py`, `table_modules.py`) y `scripts/lib/plan-viajes.mjs`, `scripts/generar-viajes-automatico.mjs`,
+`scripts/seed-wms-expediciones.mjs`, `scripts/backfill-wms-fechas.mjs`. Los pedidos y su situación ahora están en
+`orders` (`wms_situation = 'GENE'` = generados por el OMS; `warehouse_id` directo en `orders`, ya no hace falta
+`customers.warehouse_id`). Avísennos cuando ya no la usen y la retiramos.

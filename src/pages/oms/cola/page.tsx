@@ -53,7 +53,6 @@ export default function OmsColaPage() {
     },
     { key: 'dispatchDate', header: t('omsQueue.colDispatchDate'), accessor: (o) => o.dispatchDate, sortable: true },
     { key: 'createdDate', header: t('omsQueue.colCreatedDate'), accessor: (o) => o.createdDate, sortable: true },
-    { key: 'readyToPrepDate', header: t('omsQueue.colReadyDate'), accessor: (o) => o.readyToPrepDate, sortable: true },
     { key: 'score', header: t('omsQueue.colScore'), accessor: (o) => o.score, sortable: true, align: 'right', render: (o) => <span className="font-semibold text-slate-900">{o.score}</span> },
     { key: 'status', header: t('omsQueue.colStatus'), accessor: (o) => o.status, filterable: true },
     { key: 'situation', header: t('omsQueue.colSituation'), accessor: (o) => o.situation, filterable: true },

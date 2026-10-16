@@ -1,5 +1,5 @@
 // Capa de API del OMS. La Cola de Priorización (getQueue) ya lee datos REALES
-// de wms_expediciones (Fase 5 — docs/arquitectura-tms-oms/05-roadmap.md) y ya
+// de orders (= EFLOW EXPEDICIONESCABECERA, sql/43; antes wms_expediciones) y ya
 // las prioriza con el Motor de Prioridad real (Fase 6, ../engine/priorityEngine.ts:
 // regla T-1 + cliente retira). El resto (rutas, alertas, catálogo de reglas,
 // auditoría) sigue en mock — todavía no tienen tabla real detrás.
@@ -112,39 +112,53 @@ function writeLS(key: string, value: unknown): void {
   }
 }
 
-// Mapea una fila cruda de wms_expediciones (espejo del WMS real) a QueueOrder,
-// aplicando el Motor de Prioridad real en vez de un placeholder.
-function mapExpedicionToQueueOrder(row: any, country: Country, hoyIso: string): QueueOrder {
+// Pedidos de la Cola: public.orders (= EFLOW EXPEDICIONESCABECERA, sql/43), con sus
+// maestros. Reemplaza a wms_expediciones (paso 5 del plan de pedidos EFLOW).
+const QUEUE_SELECT = `
+  *,
+  customer:customers(code, external_code),
+  warehouse:warehouses(code, external_code),
+  branch:branches(external_code, name),
+  final_customer:final_customers(external_code, name)
+`;
+
+const TIERS: readonly PriorityTier[] = [1, 2, 3, 4];
+
+// Mapea un pedido de orders a QueueOrder. La llave EFLOW manda cuando el pedido
+// vino de EFLOW; si no (pedidos de prueba), se usan los códigos de los maestros.
+// Si el OMS ya persistió prioridad/score (orders.priority / oms_score) se muestran
+// esos; si no, se calculan con el Motor de Prioridad del front.
+function mapOrderToQueueOrder(row: any, country: Country, hoyIso: string): QueueOrder {
   const prioridad = calcularPrioridad(
     {
-      fechaPlanificada: row.fecha_planificada ?? null,
-      fechaExpedicion: row.fecha_expedicion ?? null,
-      observaciones: row.observaciones ?? null,
+      fechaPlanificada: row.delivery_date ?? null,
+      fechaExpedicion: row.order_date ?? null,
+      observaciones: row.wms_notes ?? null,
     },
     hoyIso,
   );
+  const tierPersistido = TIERS.find((t) => t === row.priority);
   return {
     id: row.id,
-    ref: row.expedicion,
-    warehouseId: row.id_compania, // el WMS de esta captura no distingue almacén de compañía - ver nota en seed-wms-expediciones.mjs
-    companyId: row.id_compania,
-    branchId: row.id_sucursal,
-    orderType: row.tipo_expedicion,
-    customer: row.nombre_cliente,
-    route: row.ruta || '(sin ruta)',
+    ref: row.eflow_id_expedicion ?? row.order_number,
+    warehouseId: row.eflow_id_almacen ?? row.warehouse?.external_code ?? row.warehouse?.code ?? '',
+    companyId: row.eflow_id_compania ?? row.customer?.external_code ?? row.customer?.code ?? '',
+    branchId: row.eflow_id_sucursal ?? row.branch?.external_code ?? '',
+    orderType: row.order_type ?? '',
+    customer: row.final_customer?.name ?? '',
+    route: row.delivery_zone || '(sin ruta)',
     country,
-    tier: prioridad.tier,
-    score: prioridad.score,
-    totalAmount: 0, // no viene en la vista de Expediciones del WMS
-    weight: 0,
-    volume: 0,
-    itemCount: row.cant_lineas ?? 0,
-    observations: row.observaciones ?? '',
-    dispatchDate: row.fecha_planificada ?? row.fecha_expedicion ?? '',
-    createdDate: row.created_at ?? '',
-    readyToPrepDate: '',
-    status: row.estado,
-    situation: row.situacion,
+    tier: tierPersistido ?? prioridad.tier,
+    score: row.oms_score != null ? Number(row.oms_score) : prioridad.score,
+    totalAmount: Number(row.total_amount ?? 0),
+    weight: Number(row.total_weight ?? 0),
+    volume: Number(row.total_volume ?? 0),
+    itemCount: row.total_items ?? 0,
+    observations: row.wms_notes ?? '',
+    dispatchDate: row.delivery_date ?? '',
+    createdDate: row.wms_created_at ?? row.created_at ?? '',
+    status: row.wms_status ?? row.status ?? '',
+    situation: row.wms_situation ?? '',
     intakeTime: row.created_at ?? '',
     appliedRules: prioridad.appliedRules,
     history: [],
@@ -166,14 +180,15 @@ export const omsApi = {
       return delay(rows);
     }
     if (country === 'CR') {
-      const { data, error } = await supabase.from('wms_expediciones').select('*');
+      // Solo pedidos sin cierre en el WMS (EFLOW FECHACIERRE IS NULL).
+      const { data, error } = await supabase.from('orders').select(QUEUE_SELECT).is('closed_at', null);
       if (error) {
         // eslint-disable-next-line no-console
-        console.warn('[OMS] wms_expediciones no disponible, usando mock de respaldo:', error.message);
+        console.warn('[OMS] orders no disponible, usando mock de respaldo:', error.message);
       } else if (data && data.length > 0) {
         const hoyIso = new Date().toISOString().slice(0, 10);
         return data
-          .map((row: any) => mapExpedicionToQueueOrder(row, country, hoyIso))
+          .map((row: any) => mapOrderToQueueOrder(row, country, hoyIso))
           .sort((a, b) => b.score - a.score);
       }
       // Sin datos reales todavía (o error de red) - cae al mock en vez de

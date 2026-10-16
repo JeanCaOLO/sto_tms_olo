@@ -86,7 +86,6 @@ export function corridaDemoOrders(): QueueOrder[] {
     observations: w.OBSERVACIONESEXPEDICION ?? '',
     dispatchDate: fmtFechaHora(w.FECHAEXPEDICIONPLANIFICADA),
     createdDate: fmtFechaHora(w.FECHACREACION),
-    readyToPrepDate: '',
     status: w.TPEXES, // 'DISP' — el estado NO cambia
     situation: o.TPEXSI_resultante, // 'GENE' — situación generada por el OMS
     intakeTime: '',
