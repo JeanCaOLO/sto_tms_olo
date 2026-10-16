@@ -1,0 +1,982 @@
+{
+ "_nota": "Datos de prueba del tracking. Tiempos relativos a 'ahora' (minutos atrás). Ver local-store.ts.",
+ "trips": [
+  {
+   "id": "demo-cr-01",
+   "route_number": "VJ-DEMO-CR-01",
+   "country": "CR",
+   "zone": "Gran Área Metropolitana",
+   "driver": "Luis Mora Castillo",
+   "plate": "CL-190087",
+   "carrier": "Transportes Tica",
+   "origin": [
+    9.9281,
+    -84.0907
+   ],
+   "stops": [
+    {
+     "customer": "Abastos El Progreso",
+     "address": "Av. Principal #11, Escazú",
+     "city": "Escazú",
+     "lat": 9.9186,
+     "lng": -84.14,
+     "invoice": "FAC-1001",
+     "items": 4,
+     "weight": 37,
+     "state": "delivered",
+     "arrivedMinAgo": 12,
+     "evidence": "full",
+     "recipient": "Recibe encargado"
+    },
+    {
+     "customer": "Ferretería Central",
+     "address": "Av. Principal #12, Santa Ana",
+     "city": "Santa Ana",
+     "lat": 9.933,
+     "lng": -84.183,
+     "invoice": "FAC-1002",
+     "items": 5,
+     "weight": 54,
+     "state": "pending"
+    },
+    {
+     "customer": "Farmacia Santa Rita",
+     "address": "Av. Principal #13, Pavas",
+     "city": "Pavas",
+     "lat": 9.936,
+     "lng": -84.126,
+     "invoice": "FAC-1003",
+     "items": 6,
+     "weight": 71,
+     "state": "pending"
+    },
+    {
+     "customer": "Distribuidora Los Andes",
+     "address": "Av. Principal #14, Alajuela",
+     "city": "Alajuela",
+     "lat": 10.0162,
+     "lng": -84.214,
+     "invoice": "FAC-1004",
+     "items": 7,
+     "weight": 88,
+     "state": "pending"
+    }
+   ],
+   "delayMin": 4,
+   "startedMinAgo": 40,
+   "lastSignalMinAgo": 0,
+   "at": [
+    9.923,
+    -84.146
+   ],
+   "moving": true
+  },
+  {
+   "id": "demo-cr-02",
+   "route_number": "VJ-DEMO-CR-02",
+   "country": "CR",
+   "zone": "Heredia",
+   "driver": "David Vargas Borbón",
+   "plate": "CL-132239",
+   "carrier": "Transportes Tica",
+   "origin": [
+    9.9281,
+    -84.0907
+   ],
+   "stops": [
+    {
+     "customer": "Tienda La Unión",
+     "address": "Av. Principal #15, Tibás",
+     "city": "Tibás",
+     "lat": 9.956,
+     "lng": -84.084,
+     "invoice": "FAC-1005",
+     "items": 8,
+     "weight": 105,
+     "state": "delivered",
+     "arrivedMinAgo": 120,
+     "evidence": "full",
+     "recipient": "Recibe encargado"
+    },
+    {
+     "customer": "Comercial Bolívar",
+     "address": "Av. Principal #16, Heredia",
+     "city": "Heredia",
+     "lat": 9.9981,
+     "lng": -84.1198,
+     "invoice": "FAC-1006",
+     "items": 9,
+     "weight": 122,
+     "state": "pending"
+    },
+    {
+     "customer": "Mini Market Sol",
+     "address": "Av. Principal #17, Moravia",
+     "city": "Moravia",
+     "lat": 9.964,
+     "lng": -84.048,
+     "invoice": "FAC-1007",
+     "items": 10,
+     "weight": 139,
+     "state": "pending"
+    },
+    {
+     "customer": "Bodega Don Pepe",
+     "address": "Av. Principal #18, Goicoechea",
+     "city": "Goicoechea",
+     "lat": 9.957,
+     "lng": -84.062,
+     "invoice": "FAC-1008",
+     "items": 11,
+     "weight": 156,
+     "state": "pending"
+    }
+   ],
+   "delayMin": 40,
+   "startedMinAgo": 180,
+   "lastSignalMinAgo": 1,
+   "at": [
+    9.97,
+    -84.11
+   ]
+  },
+  {
+   "id": "demo-cr-03",
+   "route_number": "VJ-DEMO-CR-03",
+   "country": "CR",
+   "zone": "Cartago",
+   "driver": "Merwin Ortega Rangel",
+   "plate": "CL-162414",
+   "carrier": "Fletes del Sur",
+   "origin": [
+    9.9281,
+    -84.0907
+   ],
+   "stops": [
+    {
+     "customer": "Mayoreo El Faro",
+     "address": "Av. Principal #19, Curridabat",
+     "city": "Curridabat",
+     "lat": 9.9144,
+     "lng": -84.035,
+     "invoice": "FAC-1009",
+     "items": 3,
+     "weight": 173,
+     "state": "delivered",
+     "arrivedMinAgo": 50,
+     "evidence": "full",
+     "recipient": "Recibe encargado"
+    },
+    {
+     "customer": "Panadería La Colina",
+     "address": "Av. Principal #20, Cartago",
+     "city": "Cartago",
+     "lat": 9.8644,
+     "lng": -83.9194,
+     "invoice": "FAC-1010",
+     "items": 4,
+     "weight": 190,
+     "state": "pending"
+    },
+    {
+     "customer": "Licorería Norte",
+     "address": "Av. Principal #21, Desamparados",
+     "city": "Desamparados",
+     "lat": 9.897,
+     "lng": -84.069,
+     "invoice": "FAC-1011",
+     "items": 5,
+     "weight": 27,
+     "state": "pending"
+    }
+   ],
+   "delayMin": 8,
+   "startedMinAgo": 70,
+   "lastSignalMinAgo": 45,
+   "at": [
+    9.91,
+    -84.01
+   ]
+  },
+  {
+   "id": "demo-cr-04",
+   "route_number": "VJ-DEMO-CR-04",
+   "country": "CR",
+   "zone": "Alajuela",
+   "driver": "Carlos Quesada",
+   "plate": "CL-145100",
+   "carrier": "Fletes del Sur",
+   "origin": [
+    9.9281,
+    -84.0907
+   ],
+   "stops": [
+    {
+     "customer": "Supermercado La Esperanza",
+     "address": "Av. Principal #22, Pavas",
+     "city": "Pavas",
+     "lat": 9.936,
+     "lng": -84.126,
+     "invoice": "FAC-1012",
+     "items": 6,
+     "weight": 44,
+     "state": "pending"
+    },
+    {
+     "customer": "Abastos El Progreso",
+     "address": "Av. Principal #23, Santa Ana",
+     "city": "Santa Ana",
+     "lat": 9.933,
+     "lng": -84.183,
+     "invoice": "FAC-1013",
+     "items": 7,
+     "weight": 61,
+     "state": "pending"
+    },
+    {
+     "customer": "Ferretería Central",
+     "address": "Av. Principal #24, Alajuela",
+     "city": "Alajuela",
+     "lat": 10.0162,
+     "lng": -84.214,
+     "invoice": "FAC-1014",
+     "items": 8,
+     "weight": 78,
+     "state": "pending"
+    }
+   ],
+   "delayMin": 0,
+   "startedMinAgo": 4,
+   "lastSignalMinAgo": 1,
+   "at": "origin"
+  },
+  {
+   "id": "demo-cr-05",
+   "route_number": "VJ-DEMO-CR-05",
+   "country": "CR",
+   "zone": "Norte",
+   "driver": "Ana Jiménez",
+   "plate": "CL-171903",
+   "carrier": "Transportes Tica",
+   "origin": [
+    9.9281,
+    -84.0907
+   ],
+   "stops": [
+    {
+     "customer": "Farmacia Santa Rita",
+     "address": "Av. Principal #25, Goicoechea",
+     "city": "Goicoechea",
+     "lat": 9.957,
+     "lng": -84.062,
+     "invoice": "FAC-1015",
+     "items": 9,
+     "weight": 95,
+     "state": "delivered",
+     "arrivedMinAgo": 30,
+     "evidence": "full",
+     "recipient": "Recibe encargado"
+    },
+    {
+     "customer": "Distribuidora Los Andes",
+     "address": "Av. Principal #26, Tibás",
+     "city": "Tibás",
+     "lat": 9.956,
+     "lng": -84.084,
+     "invoice": "FAC-1016",
+     "items": 10,
+     "weight": 112,
+     "state": "pending"
+    },
+    {
+     "customer": "Tienda La Unión",
+     "address": "Av. Principal #27, Moravia",
+     "city": "Moravia",
+     "lat": 9.964,
+     "lng": -84.048,
+     "invoice": "FAC-1017",
+     "items": 11,
+     "weight": 129,
+     "state": "pending"
+    }
+   ],
+   "delayMin": 10,
+   "startedMinAgo": 55,
+   "lastSignalMinAgo": 0,
+   "at": [
+    9.956,
+    -84.07
+   ],
+   "stoppedMin": 28
+  },
+  {
+   "id": "demo-cr-06",
+   "route_number": "VJ-DEMO-CR-06",
+   "country": "CR",
+   "zone": "Este",
+   "driver": "Mario Solano",
+   "plate": "CL-120554",
+   "carrier": "Fletes del Sur",
+   "origin": [
+    9.9281,
+    -84.0907
+   ],
+   "stops": [
+    {
+     "customer": "Comercial Bolívar",
+     "address": "Av. Principal #28, Curridabat",
+     "city": "Curridabat",
+     "lat": 9.9144,
+     "lng": -84.035,
+     "invoice": "FAC-1018",
+     "items": 3,
+     "weight": 146,
+     "state": "delivered",
+     "arrivedMinAgo": 60,
+     "evidence": "full",
+     "recipient": "Recibe encargado",
+     "notes": [
+      {
+       "kind": "incident",
+       "text": "Cliente pidió cambiar el horario",
+       "minAgo": 58
+      }
+     ]
+    },
+    {
+     "customer": "Mini Market Sol",
+     "address": "Av. Principal #29, Moravia",
+     "city": "Moravia",
+     "lat": 9.964,
+     "lng": -84.048,
+     "invoice": "FAC-1019",
+     "items": 4,
+     "weight": 163,
+     "state": "failed",
+     "arrivedMinAgo": 35,
+     "notes": [
+      {
+       "kind": "incident",
+       "text": "Local cerrado",
+       "minAgo": 35
+      }
+     ]
+    },
+    {
+     "customer": "Bodega Don Pepe",
+     "address": "Av. Principal #30, Cartago",
+     "city": "Cartago",
+     "lat": 9.8644,
+     "lng": -83.9194,
+     "invoice": "FAC-1020",
+     "items": 5,
+     "weight": 180,
+     "state": "pending"
+    }
+   ],
+   "delayMin": 6,
+   "startedMinAgo": 90,
+   "lastSignalMinAgo": 2,
+   "at": [
+    9.9,
+    -84.0
+   ],
+   "moving": true
+  },
+  {
+   "id": "demo-vn-01",
+   "route_number": "VJ-DEMO-VN-01",
+   "country": "VN",
+   "zone": "Caracas",
+   "driver": "José Rodríguez",
+   "plate": "DEMO-VN-01",
+   "carrier": "Demo Transportes VN",
+   "origin": [
+    10.4806,
+    -66.9036
+   ],
+   "stops": [
+    {
+     "customer": "Mayoreo El Faro",
+     "address": "Av. Principal #31, Chacao",
+     "city": "Chacao",
+     "lat": 10.4969,
+     "lng": -66.854,
+     "invoice": "FAC-1021",
+     "items": 6,
+     "weight": 197,
+     "state": "delivered",
+     "arrivedMinAgo": 10,
+     "evidence": "full",
+     "recipient": "Recibe encargado"
+    },
+    {
+     "customer": "Panadería La Colina",
+     "address": "Av. Principal #32, Petare",
+     "city": "Petare",
+     "lat": 10.48,
+     "lng": -66.8,
+     "invoice": "FAC-1022",
+     "items": 7,
+     "weight": 34,
+     "state": "pending"
+    },
+    {
+     "customer": "Licorería Norte",
+     "address": "Av. Principal #33, El Hatillo",
+     "city": "El Hatillo",
+     "lat": 10.43,
+     "lng": -66.825,
+     "invoice": "FAC-1023",
+     "items": 8,
+     "weight": 51,
+     "state": "pending"
+    },
+    {
+     "customer": "Supermercado La Esperanza",
+     "address": "Av. Principal #34, La Guaira",
+     "city": "La Guaira",
+     "lat": 10.599,
+     "lng": -66.933,
+     "invoice": "FAC-1024",
+     "items": 9,
+     "weight": 68,
+     "state": "pending"
+    }
+   ],
+   "delayMin": 0,
+   "startedMinAgo": 35,
+   "lastSignalMinAgo": 0,
+   "at": [
+    10.495,
+    -66.87
+   ],
+   "moving": true
+  },
+  {
+   "id": "demo-vn-02",
+   "route_number": "VJ-DEMO-VN-02",
+   "country": "VN",
+   "zone": "Valencia",
+   "driver": "María González",
+   "plate": "DEMO-VN-02",
+   "carrier": "Demo Transportes VN",
+   "origin": [
+    10.162,
+    -68.0077
+   ],
+   "stops": [
+    {
+     "customer": "Abastos El Progreso",
+     "address": "Av. Principal #35, Naguanagua",
+     "city": "Naguanagua",
+     "lat": 10.233,
+     "lng": -68.012,
+     "invoice": "FAC-1025",
+     "items": 10,
+     "weight": 85,
+     "state": "delivered",
+     "arrivedMinAgo": 200,
+     "evidence": "full",
+     "recipient": "Recibe encargado"
+    },
+    {
+     "customer": "Ferretería Central",
+     "address": "Av. Principal #36, San Diego",
+     "city": "San Diego",
+     "lat": 10.253,
+     "lng": -67.95,
+     "invoice": "FAC-1026",
+     "items": 11,
+     "weight": 102,
+     "state": "pending"
+    },
+    {
+     "customer": "Farmacia Santa Rita",
+     "address": "Av. Principal #37, Los Guayos",
+     "city": "Los Guayos",
+     "lat": 10.185,
+     "lng": -67.94,
+     "invoice": "FAC-1027",
+     "items": 3,
+     "weight": 119,
+     "state": "pending"
+    },
+    {
+     "customer": "Distribuidora Los Andes",
+     "address": "Av. Principal #38, Tocuyito",
+     "city": "Tocuyito",
+     "lat": 10.102,
+     "lng": -68.058,
+     "invoice": "FAC-1028",
+     "items": 4,
+     "weight": 136,
+     "state": "pending"
+    }
+   ],
+   "delayMin": 95,
+   "startedMinAgo": 240,
+   "lastSignalMinAgo": 3,
+   "at": [
+    10.2,
+    -67.99
+   ]
+  },
+  {
+   "id": "demo-vn-03",
+   "route_number": "VJ-DEMO-VN-03",
+   "country": "VN",
+   "zone": "Caracas",
+   "driver": "Pedro Salas",
+   "plate": "DEMO-VN-03",
+   "carrier": "Demo Transportes VN",
+   "origin": [
+    10.4806,
+    -66.9036
+   ],
+   "stops": [
+    {
+     "customer": "Tienda La Unión",
+     "address": "Av. Principal #39, Los Teques",
+     "city": "Los Teques",
+     "lat": 10.344,
+     "lng": -67.043,
+     "invoice": "FAC-1029",
+     "items": 5,
+     "weight": 153,
+     "state": "pending"
+    },
+    {
+     "customer": "Comercial Bolívar",
+     "address": "Av. Principal #40, El Hatillo",
+     "city": "El Hatillo",
+     "lat": 10.43,
+     "lng": -66.825,
+     "invoice": "FAC-1030",
+     "items": 6,
+     "weight": 170,
+     "state": "pending"
+    },
+    {
+     "customer": "Mini Market Sol",
+     "address": "Av. Principal #41, Chacao",
+     "city": "Chacao",
+     "lat": 10.4969,
+     "lng": -66.854,
+     "invoice": "FAC-1031",
+     "items": 7,
+     "weight": 187,
+     "state": "pending"
+    }
+   ],
+   "delayMin": 0,
+   "startedMinAgo": 3,
+   "lastSignalMinAgo": 1,
+   "at": "origin"
+  },
+  {
+   "id": "demo-cr-c1",
+   "route_number": "VJ-DEMO-CR-C1",
+   "country": "CR",
+   "zone": "Heredia",
+   "driver": "Luis Mora Castillo",
+   "plate": "CL-190087",
+   "carrier": "Transportes Tica",
+   "origin": [
+    9.9281,
+    -84.0907
+   ],
+   "stops": [
+    {
+     "customer": "Bodega Don Pepe",
+     "address": "Av. Principal #42, Heredia",
+     "city": "Heredia",
+     "lat": 9.9981,
+     "lng": -84.1198,
+     "invoice": "FAC-1032",
+     "items": 8,
+     "weight": 24,
+     "state": "delivered",
+     "arrivedMinAgo": 250,
+     "evidence": "full",
+     "recipient": "Recibe encargado"
+    },
+    {
+     "customer": "Mayoreo El Faro",
+     "address": "Av. Principal #43, Tibás",
+     "city": "Tibás",
+     "lat": 9.956,
+     "lng": -84.084,
+     "invoice": "FAC-1033",
+     "items": 9,
+     "weight": 41,
+     "state": "delivered",
+     "arrivedMinAgo": 200,
+     "evidence": "full",
+     "recipient": "Recibe encargado"
+    },
+    {
+     "customer": "Panadería La Colina",
+     "address": "Av. Principal #44, Moravia",
+     "city": "Moravia",
+     "lat": 9.964,
+     "lng": -84.048,
+     "invoice": "FAC-1034",
+     "items": 10,
+     "weight": 58,
+     "state": "delivered",
+     "arrivedMinAgo": 160,
+     "evidence": "full",
+     "recipient": "Recibe encargado"
+    }
+   ],
+   "startedMinAgo": 330,
+   "endedMinAgo": 120,
+   "lastSignalMinAgo": 120,
+   "at": "stop:2",
+   "lateMinFinal": 5
+  },
+  {
+   "id": "demo-vn-c2",
+   "route_number": "VJ-DEMO-VN-C2",
+   "country": "VN",
+   "zone": "Valencia",
+   "driver": "María González",
+   "plate": "DEMO-VN-02",
+   "carrier": "Demo Transportes VN",
+   "origin": [
+    10.162,
+    -68.0077
+   ],
+   "stops": [
+    {
+     "customer": "Licorería Norte",
+     "address": "Av. Principal #45, Naguanagua",
+     "city": "Naguanagua",
+     "lat": 10.233,
+     "lng": -68.012,
+     "invoice": "FAC-1035",
+     "items": 11,
+     "weight": 75,
+     "state": "delivered",
+     "arrivedMinAgo": 300,
+     "evidence": "full",
+     "recipient": "Recibe encargado",
+     "returns": [
+      {
+       "type": "partial",
+       "reason": "Producto dañado",
+       "product": "Caja de aceite 12u",
+       "qty": 2
+      }
+     ]
+    },
+    {
+     "customer": "Supermercado La Esperanza",
+     "address": "Av. Principal #46, San Diego",
+     "city": "San Diego",
+     "lat": 10.253,
+     "lng": -67.95,
+     "invoice": "FAC-1036",
+     "items": 3,
+     "weight": 92,
+     "state": "delivered",
+     "arrivedMinAgo": 250,
+     "evidence": "full",
+     "recipient": "Recibe encargado",
+     "notes": [
+      {
+       "kind": "pickup",
+       "text": "Recolecta de envases vacíos",
+       "minAgo": 249
+      }
+     ]
+    },
+    {
+     "customer": "Abastos El Progreso",
+     "address": "Av. Principal #47, Los Guayos",
+     "city": "Los Guayos",
+     "lat": 10.185,
+     "lng": -67.94,
+     "invoice": "FAC-1037",
+     "items": 4,
+     "weight": 109,
+     "state": "delivered",
+     "arrivedMinAgo": 200,
+     "evidence": "full",
+     "recipient": "Recibe encargado",
+     "notes": [
+      {
+       "kind": "incident",
+       "text": "Espera de 40 min en el muelle",
+       "minAgo": 205
+      }
+     ]
+    }
+   ],
+   "startedMinAgo": 360,
+   "endedMinAgo": 150,
+   "lastSignalMinAgo": 150,
+   "at": "stop:2",
+   "lateMinFinal": 25
+  },
+  {
+   "id": "demo-cr-c3",
+   "route_number": "VJ-DEMO-CR-C3",
+   "country": "CR",
+   "zone": "Cartago",
+   "driver": "Mario Solano",
+   "plate": "CL-120554",
+   "carrier": "Fletes del Sur",
+   "origin": [
+    9.9281,
+    -84.0907
+   ],
+   "stops": [
+    {
+     "customer": "Ferretería Central",
+     "address": "Av. Principal #48, Cartago",
+     "city": "Cartago",
+     "lat": 9.8644,
+     "lng": -83.9194,
+     "invoice": "FAC-1038",
+     "items": 5,
+     "weight": 126,
+     "state": "delivered",
+     "arrivedMinAgo": 280,
+     "evidence": "invoice",
+     "recipient": "Recibe encargado"
+    },
+    {
+     "customer": "Farmacia Santa Rita",
+     "address": "Av. Principal #49, Desamparados",
+     "city": "Desamparados",
+     "lat": 9.897,
+     "lng": -84.069,
+     "invoice": "FAC-1039",
+     "items": 6,
+     "weight": 143,
+     "state": "failed",
+     "arrivedMinAgo": 240,
+     "notes": [
+      {
+       "kind": "incident",
+       "text": "Dirección no encontrada",
+       "minAgo": 240
+      }
+     ]
+    }
+   ],
+   "startedMinAgo": 340,
+   "endedMinAgo": 200,
+   "lastSignalMinAgo": 200,
+   "at": "stop:1",
+   "lateMinFinal": 10
+  },
+  {
+   "id": "demo-vn-c4",
+   "route_number": "VJ-DEMO-VN-C4",
+   "country": "VN",
+   "zone": "Caracas",
+   "driver": "José Rodríguez",
+   "plate": "DEMO-VN-03",
+   "carrier": "Demo Transportes VN",
+   "origin": [
+    10.4806,
+    -66.9036
+   ],
+   "stops": [
+    {
+     "customer": "Distribuidora Los Andes",
+     "address": "Av. Principal #50, Chacao",
+     "city": "Chacao",
+     "lat": 10.4969,
+     "lng": -66.854,
+     "invoice": "FAC-1040",
+     "items": 7,
+     "weight": 160,
+     "state": "delivered",
+     "arrivedMinAgo": 400,
+     "evidence": "full",
+     "recipient": "Recibe encargado"
+    },
+    {
+     "customer": "Tienda La Unión",
+     "address": "Av. Principal #51, Petare",
+     "city": "Petare",
+     "lat": 10.48,
+     "lng": -66.8,
+     "invoice": "FAC-1041",
+     "items": 8,
+     "weight": 177,
+     "state": "delivered",
+     "arrivedMinAgo": 370,
+     "evidence": "full",
+     "recipient": "Recibe encargado"
+    }
+   ],
+   "startedMinAgo": 450,
+   "endedMinAgo": 340,
+   "lastSignalMinAgo": 340,
+   "at": "stop:1",
+   "lateMinFinal": 0,
+   "reviewedMinAgo": 300,
+   "reviewedBy": "Administrador OLO",
+   "reviewNote": "Sin observaciones"
+  }
+ ],
+ "planned": [
+  {
+   "id": "plan-cr-01",
+   "zone": "Gran Área Metropolitana",
+   "plate": "CL-190087",
+   "driver": "Luis Mora Castillo",
+   "carrier": "Transportes Tica",
+   "country": "CR",
+   "origin": [
+    9.9281,
+    -84.0907
+   ],
+   "stops": [
+    {
+     "customer": "Comercial Bolívar",
+     "address": "Av. Principal #52, Escazú",
+     "city": "Escazú",
+     "lat": 9.9186,
+     "lng": -84.14,
+     "invoice": "FAC-1042",
+     "items": 9,
+     "weight": 194,
+     "state": "pending"
+    },
+    {
+     "customer": "Mini Market Sol",
+     "address": "Av. Principal #53, Santa Ana",
+     "city": "Santa Ana",
+     "lat": 9.933,
+     "lng": -84.183,
+     "invoice": "FAC-1043",
+     "items": 10,
+     "weight": 31,
+     "state": "pending"
+    },
+    {
+     "customer": "Bodega Don Pepe",
+     "address": "Av. Principal #54, Pavas",
+     "city": "Pavas",
+     "lat": 9.936,
+     "lng": -84.126,
+     "invoice": "FAC-1044",
+     "items": 11,
+     "weight": 48,
+     "state": "pending"
+    }
+   ]
+  },
+  {
+   "id": "plan-cr-02",
+   "zone": "Cartago",
+   "plate": "CL-162414",
+   "driver": "Merwin Ortega Rangel",
+   "carrier": "Fletes del Sur",
+   "country": "CR",
+   "origin": [
+    9.9281,
+    -84.0907
+   ],
+   "stops": [
+    {
+     "customer": "Mayoreo El Faro",
+     "address": "Av. Principal #55, Curridabat",
+     "city": "Curridabat",
+     "lat": 9.9144,
+     "lng": -84.035,
+     "invoice": "FAC-1045",
+     "items": 3,
+     "weight": 65,
+     "state": "pending"
+    },
+    {
+     "customer": "Panadería La Colina",
+     "address": "Av. Principal #56, Cartago",
+     "city": "Cartago",
+     "lat": 9.8644,
+     "lng": -83.9194,
+     "invoice": "FAC-1046",
+     "items": 4,
+     "weight": 82,
+     "state": "pending"
+    },
+    {
+     "customer": "Licorería Norte",
+     "address": "Av. Principal #57, Desamparados",
+     "city": "Desamparados",
+     "lat": 9.897,
+     "lng": -84.069,
+     "invoice": "FAC-1047",
+     "items": 5,
+     "weight": 99,
+     "state": "pending"
+    },
+    {
+     "customer": "Supermercado La Esperanza",
+     "address": "Av. Principal #58, Goicoechea",
+     "city": "Goicoechea",
+     "lat": 9.957,
+     "lng": -84.062,
+     "invoice": "FAC-1048",
+     "items": 6,
+     "weight": 116,
+     "state": "pending"
+    }
+   ]
+  },
+  {
+   "id": "plan-vn-01",
+   "zone": "Maracay",
+   "plate": "DEMO-VN-03",
+   "driver": "José Rodríguez",
+   "carrier": "Demo Transportes VN",
+   "country": "VN",
+   "origin": [
+    10.4806,
+    -66.9036
+   ],
+   "stops": [
+    {
+     "customer": "Abastos El Progreso",
+     "address": "Av. Principal #59, Los Teques",
+     "city": "Los Teques",
+     "lat": 10.344,
+     "lng": -67.043,
+     "invoice": "FAC-1049",
+     "items": 7,
+     "weight": 133,
+     "state": "pending"
+    },
+    {
+     "customer": "Ferretería Central",
+     "address": "Av. Principal #60, El Hatillo",
+     "city": "El Hatillo",
+     "lat": 10.43,
+     "lng": -66.825,
+     "invoice": "FAC-1050",
+     "items": 8,
+     "weight": 150,
+     "state": "pending"
+    },
+    {
+     "customer": "Farmacia Santa Rita",
+     "address": "Av. Principal #61, Maracay",
+     "city": "Maracay",
+     "lat": 10.2469,
+     "lng": -67.5958,
+     "invoice": "FAC-1051",
+     "items": 9,
+     "weight": 167,
+     "state": "pending"
+    }
+   ]
+  }
+ ]
+}

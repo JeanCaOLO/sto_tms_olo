@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const apiFetch = vi.fn();
 vi.mock('../../../lib/supabase', () => ({ apiFetch: (...args: unknown[]) => apiFetch(...args) }));
 
-import { completarViaje, getResumen, getViaje, iniciarViaje, listViajes, revisarViaje, TrackingApiError } from '../api';
+import { completarViaje, getResumen, getViaje, iniciarViaje, listViajes, revisarViaje, TrackingApiError } from '../api-remote';
 
 const ok = (data: unknown) => ({ ok: true, status: 200, body: { data, error: null } });
 
