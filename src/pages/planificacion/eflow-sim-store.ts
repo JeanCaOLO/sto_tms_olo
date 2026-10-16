@@ -1,7 +1,4 @@
-// Fuente del calendario desde el API SIMULADO de eFlow, cacheada en localStorage
-// (NO se escribe en Aurora). mapExpediciones agrupa cabecera+detalle por
-// FECHAENTREGA→plan y RUTA→zona, y parte cada zona en viajes de ~3 paradas.
-
+// Calendario desde el API SIMULADO de eFlow, cacheado en localStorage (NO Aurora).
 import { fetchExpedicionesCabecera, fetchExpedicionesDetalle } from './eflow-sim-api';
 import type { ExpedicionCabecera, ExpedicionDetalle } from './eflow-sim-api';
 import { seedEflowSim } from './eflow-sim-seed';
@@ -9,13 +6,8 @@ import type { PlanStop, PlanTrip, RoutePlan } from './planes-types';
 
 const LS_KEY = 'tms.eflowSim.planes.v1';
 const PARADAS_POR_VIAJE = 3;
-// Zona para expediciones SIN ruta asignada (EPA/0029 llega sin RUTA en eFlow).
-// Evita delivery_zone null, que rompía el orden de zonas del calendario.
-const SIN_RUTA = 'S/R';
-const FLOTA = [
-  ['CL-1234', 'Hino 300'], ['CL-5678', 'Isuzu NPR'],
-  ['CL-9012', 'Hino 500'], ['CL-3344', 'Mitsubishi Canter'],
-] as const;
+const SIN_RUTA = 'S/R'; // EPA/0029 llega sin RUTA; evita delivery_zone null (rompía el calendario)
+const FLOTA = [['CL-1234', 'Hino 300'], ['CL-5678', 'Isuzu NPR'], ['CL-9012', 'Hino 500'], ['CL-3344', 'Mitsubishi Canter']] as const;
 
 const num = (v: string | null): number | null => {
   if (v == null) return null;
@@ -23,8 +15,7 @@ const num = (v: string | null): number | null => {
   return Number.isFinite(n) && n !== 0 ? n : null;
 };
 
-// ¿El pedido está en CARCA (= despachado)? Determinístico por id: ~1 de cada 5
-// queda sin despachar (sin factura/pago). Real: anti-join con movimiento_carcam.
+// ¿En CARCA (= despachado)? Determinístico por id (~1 de 5 no). Real: carcam.
 function enCarca(id: string): boolean {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h + id.charCodeAt(i)) % 97;
@@ -92,8 +83,7 @@ function toPlan(fecha: string, filas: ExpedicionCabecera[], detPorExp: Map<strin
   };
 }
 
-// Nº de viaje que la planificación genera y "escribe" a eFlow (NUMEROVIAJEWMH):
-// secuencial desde 1001; cachearlo en localStorage ES la simulación del write-back.
+// Nº de viaje (NUMEROVIAJEWMH) desde 1001; cachearlo ES la simulación del write-back.
 function numerarViajes(planes: RoutePlan[]): void {
   let n = 1000;
   for (const p of planes) for (const t of p.trips) t.numero_viaje = String(++n);
@@ -120,30 +110,37 @@ function guardar(planes: RoutePlan[]): void {
   try {
     localStorage.setItem(LS_KEY, JSON.stringify(planes));
   } catch {
-    /* storage lleno o bloqueado (modo privado): se sigue sin cache */
+    /* storage lleno o bloqueado: se sigue sin cache */
   }
 }
 
 export function limpiarCacheEflowSim(): void {
   try {
     localStorage.removeItem(LS_KEY);
+  } catch { /* ignore */ }
+}
+
+// Cabecera con un reintento: bajo carga el server local serializa las requests y
+// el primer intento puede pasarse del timeout; el segundo casi siempre entra.
+async function cabeceraConReintento(): Promise<ExpedicionCabecera[]> {
+  try {
+    return await fetchExpedicionesCabecera();
   } catch {
-    /* ignore */
+    return fetchExpedicionesCabecera().catch(() => []);
   }
 }
 
+// Secuencial (no compite por el lock); detalle best-effort (si falla, plan sin peso).
 async function desdeApiOSeed(): Promise<RoutePlan[]> {
-  try {
-    const [cab, det] = await Promise.all([fetchExpedicionesCabecera(), fetchExpedicionesDetalle()]);
-    if (cab.length) return mapExpediciones(cab, det);
-  } catch {
-    /* backend del sim no disponible → datos generados */
+  const cab = await cabeceraConReintento();
+  if (cab.length) {
+    const det = await fetchExpedicionesDetalle().catch(() => []);
+    return mapExpediciones(cab, det);
   }
   const { cabecera, detalle } = seedEflowSim();
   return mapExpediciones(cabecera, detalle);
 }
 
-// Planes del calendario: cache de localStorage; si no, del API sim (o seed), y cachea.
 export async function cargarPlanesEflowSim(): Promise<RoutePlan[]> {
   const cache = leer();
   if (cache?.length) return cache;
