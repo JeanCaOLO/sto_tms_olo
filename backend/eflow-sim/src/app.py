@@ -13,13 +13,13 @@ real y los consumidores no cambian.
 
 import json
 import logging
+import os
 
+import sim_source
 from tms_common.errors import HttpError
 from tms_common.event import query_params, route_key
 from tms_common.handler import dispatch
 from tms_common.responses import json_response
-
-import sim_source
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -28,6 +28,15 @@ logger.setLevel(logging.INFO)
 # devuelve toda la tabla, como dice el PDF).
 FILTROS_CABECERA = ("IDEXPEDICION", "IDCOMPANIA", "IDALMACEN", "IDSUCURSAL", "TPEXES", "TPEXSI", "PRIORIDAD", "BAJADA")
 FILTROS_DETALLE = ("IDEXPEDICION", "IDCOMPANIA", "IDALMACEN", "IDSUCURSAL", "TPEXES", "TPEXSI", "PRIORIDAD")
+
+
+def _reader():
+    """GET sale de EFLOW real (read-only) con EFLOW_SIM_MODE=live; si no, del seed.
+    Importación perezosa: el seed no debe exigir el driver ni credenciales."""
+    if os.environ.get("EFLOW_SIM_MODE") == "live":
+        import eflow_live
+        return eflow_live
+    return sim_source
 
 
 def _ok(body: object) -> dict:
@@ -47,11 +56,11 @@ def _body(event: dict) -> dict:
 
 
 def get_cabecera(event: dict) -> dict:
-    return _ok(sim_source.cabecera(_filtros(event, FILTROS_CABECERA)))
+    return _ok(_reader().cabecera(_filtros(event, FILTROS_CABECERA)))
 
 
 def get_detalle(event: dict) -> dict:
-    return _ok(sim_source.detalle(_filtros(event, FILTROS_DETALLE)))
+    return _ok(_reader().detalle(_filtros(event, FILTROS_DETALLE)))
 
 
 def post_cabecera(event: dict) -> dict:
@@ -76,6 +85,6 @@ def handler(event: dict, _context: object) -> dict:
         return dispatch(ROUTES, event)
     except HttpError as err:
         return json_response(err.status, {"status": "error", "message": str(err)})
-    except Exception as err:  # noqa: BLE001 - frontera: nunca tumbar el proceso
+    except Exception as err:
         logger.exception("%s -> fallo eflow-sim", route_key(event))
         return json_response(500, {"status": "error", "message": str(err)})

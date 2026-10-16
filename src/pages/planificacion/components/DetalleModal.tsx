@@ -61,8 +61,8 @@ export default function DetalleModal({ planes, fechaISO, zonaCodigo, onClose, on
                 </span>
                 <span>
                   <i className="ri-calendar-check-line"></i> {t('planning.readyBy')}{' '}
-                  {fmtCorta(fechaAlistamiento(fechaISO, v.delivery_zone))}
-                  <span className="ml-1 text-slate-400">({t('planning.leadTime', { days: tiempoViajeDias(v.delivery_zone) })})</span>
+                  {fmtCorta(fechaAlistamiento(fechaISO, v))}
+                  <span className="ml-1 text-slate-400">({t('planning.leadTime', { days: tiempoViajeDias(v) })})</span>
                 </span>
               </p>
             ))}
