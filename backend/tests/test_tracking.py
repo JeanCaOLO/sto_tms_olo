@@ -172,7 +172,7 @@ def test_list_viajes_returns_state_color_progress_and_paginates(tracking):
     assert item["progress"] == {"total": 4, "done": 2, "delivered": 1, "failed": 1, "percent": 50}
     assert body["data"]["next_cursor"].endswith(f"|{ROUTE}")
     sql, params = db.wrote("SELECT r.id")[0]
-    assert "lower(r.status) = ANY" in sql and ORG in params
+    assert "lower(r.status) = ANY" in sql and ORG in sql  # valores seguros van inlinados (1 round-trip)
 
 
 def test_list_requires_view_permission(tracking, caller_permissions):
@@ -193,7 +193,7 @@ def test_country_filter_is_applied(tracking, caller_permissions):
     db.answer("FROM routes r", [])
     app.handler(_event("GET /api/v1/tracking/viajes"), None)
     sql, params = db.wrote("SELECT r.id")[0]
-    assert "s.country_id = ANY" in sql and ["cr-id"] in params
+    assert "s.country_id = ANY(ARRAY['cr-id']" in sql
 
 
 def _plan_trip(**over):

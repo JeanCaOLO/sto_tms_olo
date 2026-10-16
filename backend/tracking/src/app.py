@@ -10,6 +10,7 @@ transicionar paradas, novedades y evidencias) + país de la tienda de origen de 
 """
 
 import os
+import re
 from datetime import datetime, timezone
 
 from tms_common import permissions, pg
@@ -46,6 +47,37 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+_SAFE_TEXT = re.compile(r"^[\w .\-]+$")  # \w ya cubre letras acentuadas (unicode)
+
+
+def _literal(value) -> str | None:
+    """Literal SQL de un valor inofensivo (uuid, entero, palabra simple) o None si requiere parámetro."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, str) and (logic.is_uuid(value) or _SAFE_TEXT.match(value)):
+        return f"'{value}'"
+    return None
+
+
+def _rq(query: str, params=()) -> list[dict]:
+    """Lectura con un solo viaje de red: pg8000 usa 3 round-trips por consulta con parámetros y 1 sin
+    ellos. Solo se inlinan uuids, enteros y palabras simples (ya validados); lo demás va como parámetro."""
+    values = list(params)
+    literals = []
+    for value in values:
+        if isinstance(value, (list, tuple)):
+            items = [_literal(v) for v in value]
+            literals.append(f"ARRAY[{', '.join(items)}]" if items and None not in items else None)
+        else:
+            literals.append(_literal(value))
+    if None in literals or query.count("%s") != len(literals):
+        return pg.query(query, values)
+    parts = query.split("%s")
+    return pg.query("".join(a + b for a, b in zip(parts, literals + [""])), [])
+
+
 def _ok(data: object, status: int = 200) -> dict:
     return json_response(status, {"data": data, "error": None})
 
@@ -53,7 +85,7 @@ def _ok(data: object, status: int = 200) -> dict:
 def _caller(event: dict, action: str):
     caller = permissions.for_event(event)
     caller.require(MODULE, action)
-    rows = pg.query(sql.ORG_SQL, [caller.app_user_id])
+    rows = _rq(sql.ORG_SQL, [caller.app_user_id])
     if not rows or rows[0]["organization_id"] is None:
         raise HttpError(403, "Tu usuario no pertenece a una organización.")
     return caller, str(rows[0]["organization_id"])
@@ -150,13 +182,13 @@ def _extras(page: list[dict], counts: dict[str, dict], now: datetime) -> dict[st
     ids = [str(r["id"]) for r in page]
     if not ids:
         return {}
-    events = _by_route(pg.query(sql.EVENT_COUNTS_SQL, [ids]))
+    events = _by_route(_rq(sql.EVENT_COUNTS_SQL, [ids]))
     done_ids = [str(r["id"]) for r in page if logic.route_state(r["status"]) == "completed"]
     metrics = returns = reviews = {}
     if done_ids:
-        metrics = _by_route(pg.query(sql.REVIEW_METRICS_SQL, [done_ids]))
-        returns = _by_route(pg.query(sql.RETURN_COUNTS_SQL, [done_ids]))
-        reviews = _by_route(pg.query(sql.REVIEWS_SQL, [done_ids]))
+        metrics = _by_route(_rq(sql.REVIEW_METRICS_SQL, [done_ids]))
+        returns = _by_route(_rq(sql.RETURN_COUNTS_SQL, [done_ids]))
+        reviews = _by_route(_rq(sql.REVIEWS_SQL, [done_ids]))
     extras = {}
     for row in page:
         rid = str(row["id"])
@@ -172,7 +204,7 @@ def _extras(page: list[dict], counts: dict[str, dict], now: datetime) -> dict[st
 
 
 def _route_access(caller, org_id: str, route_id: str) -> dict:
-    rows = pg.query(sql.ROUTE_ROW_SQL, [route_id])
+    rows = _rq(sql.ROUTE_ROW_SQL, [route_id])
     if not rows or str(rows[0]["organization_id"]) != org_id:
         raise HttpError(404, "Viaje no encontrado")
     _check_country(caller, rows[0]["country_id"])
@@ -216,12 +248,12 @@ def list_viajes(event: dict) -> dict:
             raise HttpError(400, "cursor inválido")
         where.append("(COALESCE(r.actual_start_time, r.created_at), r.id) < (%s::timestamptz, %s::uuid)")
         params += [sort_at, last_id]
-    rows = pg.query(
+    rows = _rq(
         f"SELECT {sql.VIAJE_COLUMNS} {sql.VIAJE_JOINS} WHERE {' AND '.join(where)} "
         "ORDER BY sort_at DESC, r.id DESC LIMIT %s", params + [limit + 1])
     page, has_more = rows[:limit], len(rows) > limit
     ids = [str(row["id"]) for row in page]
-    counts = {str(c["route_id"]): c for c in pg.query(sql.PROGRESS_SQL, [ids])} if ids else {}
+    counts = {str(c["route_id"]): c for c in _rq(sql.PROGRESS_SQL, [ids])} if ids else {}
     now = _now()
     next_cursor = f"{_iso(page[-1]['sort_at'])}|{page[-1]['id']}" if has_more else None
     extras = _extras(page, counts, now)
@@ -235,16 +267,16 @@ def get_viaje(event: dict) -> dict:
     if not logic.is_uuid(route_id):
         raise HttpError(404, "Viaje no encontrado")
     _route_access(caller, org_id, route_id)
-    row = pg.query(sql.ROUTE_ONE_SQL, [route_id])[0]
-    guides = pg.query(sql.GUIDES_SQL, [route_id])
+    row = _rq(sql.ROUTE_ONE_SQL, [route_id])[0]
+    guides = _rq(sql.GUIDES_SQL, [route_id])
     guide_ids = [str(g["id"]) for g in guides]
     counts = {"total": len(guides),
               "delivered": sum(logic.guide_state(g["delivery_status"], g["status"]) == logic.GUIDE_DELIVERED for g in guides),
               "failed": sum(logic.guide_state(g["delivery_status"], g["status"]) == logic.GUIDE_FAILED for g in guides)}
-    evidences = pg.query(sql.EVIDENCES_SQL, [route_id])
-    returns = pg.query(sql.RETURNS_SQL, [guide_ids]) if guide_ids else []
-    events = pg.query(sql.EVENTS_SQL, [route_id])
-    trail = pg.query(sql.TRAIL_SQL, [route_id])
+    evidences = _rq(sql.EVIDENCES_SQL, [route_id])
+    returns = _rq(sql.RETURNS_SQL, [guide_ids]) if guide_ids else []
+    events = _rq(sql.EVENTS_SQL, [route_id])
+    trail = _rq(sql.TRAIL_SQL, [route_id])
 
     def sign(ev: dict) -> dict:
         url = s3().generate_presigned_url("get_object", Params={"Bucket": bucket(), "Key": ev["storage_key"]},
@@ -311,9 +343,9 @@ def get_viaje(event: dict) -> dict:
     extra = {"incidents": event_counts["incident"], "pickups": event_counts["pickup"], "returns": len(returns),
              "delay_min": live["delay_min"], "stopped_min": logic.stopped_minutes(chronological, now)}
     if state == "completed":
-        extra["metrics"] = (pg.query(sql.REVIEW_METRICS_SQL, [[route_id]]) or [None])[0]
-        extra["review_row"] = (pg.query(sql.REVIEWS_SQL, [[route_id]]) or [None])[0]
-    departed_at = (logic.first_departure(pg.query(sql.FIRST_POSITIONS_SQL, [route_id]), origin)
+        extra["metrics"] = (_rq(sql.REVIEW_METRICS_SQL, [[route_id]]) or [None])[0]
+        extra["review_row"] = (_rq(sql.REVIEWS_SQL, [[route_id]]) or [None])[0]
+    departed_at = (logic.first_departure(_rq(sql.FIRST_POSITIONS_SQL, [route_id]), origin)
                    if state in ("active", "completed") and position else None)
 
     data = _viaje(row, counts, now, extra)
@@ -341,15 +373,15 @@ def summary(event: dict) -> dict:
         where.append("s.country_id = ANY(%s::uuid[])")
         params.append(list(allowed))
         country = "AND s.country_id = ANY(%s::uuid[])"
-    rows = pg.query(f"SELECT {sql.VIAJE_COLUMNS} {sql.VIAJE_JOINS} WHERE {' AND '.join(where)} "
+    rows = _rq(f"SELECT {sql.VIAJE_COLUMNS} {sql.VIAJE_JOINS} WHERE {' AND '.join(where)} "
                     "ORDER BY sort_at DESC LIMIT 300", params)
     ids = [str(r["id"]) for r in rows]
-    counts = {str(c["route_id"]): c for c in pg.query(sql.PROGRESS_SQL, [ids])} if ids else {}
+    counts = {str(c["route_id"]): c for c in _rq(sql.PROGRESS_SQL, [ids])} if ids else {}
     now = _now()
     extras = _extras(rows, counts, now)
     viajes = [_viaje(r, counts.get(str(r["id"])), now, extras.get(str(r["id"]))) for r in rows]
     pending_params = [org_id, logic.COMPLETED_STATUS_SQL_VALUES] + ([list(allowed)] if allowed is not None else [])
-    pending = pg.query(sql.PENDING_REVIEW_COUNT_SQL.format(country=country), pending_params)
+    pending = _rq(sql.PENDING_REVIEW_COUNT_SQL.format(country=country), pending_params)
     late = [v for v in viajes if any(a["code"] == logic.ALERT_LATE for a in v["alerts"])]
     return _ok({
         "active": len(viajes),
@@ -534,7 +566,7 @@ def ingest_positions(event: dict) -> dict:
 def _guide_access(caller, org_id: str, guide_id: str) -> dict:
     if not logic.is_uuid(guide_id):
         raise HttpError(404, "Parada no encontrada")
-    rows = pg.query(sql.GUIDE_ROW_SQL, [guide_id])
+    rows = _rq(sql.GUIDE_ROW_SQL, [guide_id])
     if not rows or str(rows[0]["organization_id"]) != org_id:
         raise HttpError(404, "Parada no encontrada")
     _check_country(caller, rows[0]["country_id"])
