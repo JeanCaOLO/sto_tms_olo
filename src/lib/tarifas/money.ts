@@ -10,8 +10,50 @@ Decimal.set({ precision: 34 });
 
 export const ZERO: Decimal = new Decimal(0);
 
+const PERCENT_SCALE = 100;
+const DEFAULT_PERCENT_DECIMALS = 2;
+
 export function toDecimal(value: Money | number): Decimal {
-  return new Decimal(value);
+  const decimal = new Decimal(value);
+  if (!decimal.isFinite()) throw new Error(`Valor numérico inválido: ${String(value)}`);
+  return decimal;
+}
+
+/** Interpreta texto de un formulario ("1.234,50" no; "12,5" sí) como Decimal, o null si no es válido. */
+export function parseMoneyInput(text: string): Decimal | null {
+  const normalized = text.trim().replace(',', '.');
+  if (!/^-?\d+(\.\d+)?$/.test(normalized)) return null;
+  return new Decimal(normalized);
+}
+
+/**
+ * Valor numérico para el motor sin perder precisión: devuelve `number` cuando el texto cabe EXACTO
+ * en un float (el caso de siempre) y el string decimal cuando no (más de ~15 cifras). null si no es número.
+ */
+export function exactNumber(value: string | number | null | undefined): number | string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  // Estricto: sin coma. "1,234" es ambiguo (¿mil doscientos o uno coma dos?) y es mejor un error de campo.
+  const text = value.trim();
+  if (!/^-?\d+(\.\d+)?$/.test(text)) return null;
+  const parsed = new Decimal(text);
+  const asNumber = parsed.toNumber();
+  return Number.isFinite(asNumber) && new Decimal(asNumber).equals(parsed) ? asNumber : parsed.toFixed();
+}
+
+/** Suma montos (strings) sin pasar por `number`. */
+export function sumMoney(values: Money[]): Decimal {
+  return values.reduce((acc, v) => acc.plus(toDecimal(v)), ZERO);
+}
+
+/** Compara dos montos: -1, 0 o 1. */
+export function cmpMoney(a: Money, b: Money): number {
+  return toDecimal(a).comparedTo(toDecimal(b));
+}
+
+/** Fracción ("0.155") a porcentaje para mostrar ("15.50"). */
+export function pctToDisplay(fraction: Money, decimals = DEFAULT_PERCENT_DECIMALS): string {
+  return toDecimal(fraction).times(PERCENT_SCALE).toFixed(decimals);
 }
 
 export function toMoney(value: Decimal): Money {

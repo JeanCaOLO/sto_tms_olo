@@ -46,9 +46,12 @@ async function fase1SchemaExists(): Promise<boolean> {
   }
 }
 
-const schemaReady = await fase1SchemaExists();
+// Esta suite ESCRIBE (INSERT/DELETE) en la base real. Con el túnel SSM activo, un `vitest run`
+// cualquiera la ejecutaba sin que nadie lo pidiera: solo corre con TMS_ALLOW_DB_WRITE_TESTS=1.
+const writesAllowed = process.env.TMS_ALLOW_DB_WRITE_TESTS === '1';
+const schemaReady = writesAllowed && (await fase1SchemaExists());
 
-if (!schemaReady) {
+if (writesAllowed && !schemaReady) {
   console.warn(
     '[multi-tenant-isolation] El esquema de Fase 1 (warehouses/final_customers/...) todavía no existe en Aurora. ' +
     'Corré `node --env-file=.env.local scripts/run-migration.mjs sql/06_fase1_multicountry_foundation.sql --execute` ' +

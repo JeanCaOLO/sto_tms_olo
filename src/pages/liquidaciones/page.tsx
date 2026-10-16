@@ -1,399 +1,225 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../hooks/useAuth';
+// Liquidaciones de viajes (settlements).
+// El liquidador consume los viajes COMPLETADOS de guía de despacho.
+
+import { useMemo, useState } from 'react';
 import Card from '../../components/base/Card';
 import Button from '../../components/base/Button';
 import Input from '../../components/base/Input';
-import Select from '../../components/base/Select';
-import Badge from '../../components/base/Badge';
+import DataTable from '../../components/base/DataTable';
 import StatCard from '../../components/feature/StatCard';
-import DataTable, { type DataTableColumn } from '../../components/base/DataTable';
-import SettlementModal from './components/SettlementModal';
+import CountryScopeBar from '../../components/feature/CountryScopeBar';
+import ViewAsToggle from '../../components/feature/ViewAsToggle';
+import LiquidarViajeModal from './components/LiquidarViajeModal';
+import DetalleLiquidacionModal from './components/DetalleLiquidacionModal';
+import TripOrdersPanel from './components/TripOrdersPanel';
+import { InterruptorVista } from './components/InterruptorVista';
+import { useActiveCountry } from '../../hooks/useActiveCountry';
 import { useModulePermissions } from '../../hooks/use-module-permissions';
-import {
-  deleteSnapshot, listSnapshots, type SettlementSnapshot,
-} from '../../lib/tarifas/localData/settlementSnapshots';
-
-const MARGIN_BADGE_VARIANT: Record<string, 'success' | 'warning' | 'danger'> = {
-  OK: 'success', WARN: 'warning', CRITICAL: 'danger', LOSS: 'danger',
-};
-const MARGIN_STATUS_LABEL: Record<string, string> = {
-  OK: 'OK', WARN: 'Atención', CRITICAL: 'Crítico', LOSS: 'Pérdida',
-};
-
-const APPROVAL_STATUSES = ['Aprobado', 'Pagado'];
-
-// Mismo mapeo de color que usan los badges del resto de la app, pero como clases para un
-// `<select>` inline — permite cambiar el estado directo desde la fila (sin abrir "Editar"), igual
-// que la columna de estado de `ProformaTable.tsx` en prototipoTarifador.
-const STATUS_SELECT_CLASSES: Record<string, string> = {
-  'Borrador': 'bg-slate-100 text-slate-700',
-  'En Revisión': 'bg-amber-100 text-amber-700',
-  'Aprobado': 'bg-emerald-100 text-emerald-700',
-  'Pagado': 'bg-teal-100 text-teal-700',
-  'Rechazado': 'bg-red-100 text-red-700',
-};
+import { useTarifasActor } from '../../hooks/useTarifasActor';
+import { useLiquidacionesController } from './hooks/useLiquidacionesController';
+import { useLiquidadorVista } from './hooks/useLiquidadorVista';
+import { notLiquidableReason } from '../../lib/tarifas/tripContext';
+import { tripProgress } from '../../lib/tarifas/tripOrders';
+import { formatMoney } from '../../lib/tarifas/format';
+import { tripColumns } from './parts/tripColumns';
+import { getSettlementColumns, getSettlementColumnsExtended } from './parts/settlementColumns';
+import { PedidosEmitidos } from './parts/PedidosEmitidos';
+import { LoadMoreBar, TruncatedNotice } from './parts/ListNotices';
+import { ALCANCES, getTabClass } from './parts/pageHelpers';
+import type { SettlementRecord, TripRecord } from '../../lib/tarifas/types';
 
 export default function LiquidacionesPage() {
-  const { appUser } = useAuth();
-  const [settlements, setSettlements] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedSettlement, setSelectedSettlement] = useState<any>(null);
-  const { canCreate, canEdit, canDelete } = useModulePermissions('tarifas');
+  const { country: activeCountry, countryId, problem, selectedName, loading: loadingCountries } = useActiveCountry();
+  const { canCreate, canEdit } = useModulePermissions('tarifas');
+  useTarifasActor();
+  const { extendida, puedeConfigurar, setExtendida } = useLiquidadorVista();
 
-  // Filtros que no calzan bien en el filtro de columna estilo Excel (rangos / fuente externa)
-  const [marginFilter, setMarginFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const {
+    tab, setTab, from, setFrom, to, setTo, error, trips, loadingTrips, settlements,
+    loadingSettlements, reload, changeStatus, listos, incompletos, kpis,
+    tripsRecortados, siguiente, cargandoMas, loadMore, openFull, prefetchProps,
+  } = useLiquidacionesController(countryId);
 
-  // Snapshot de margen/costo por liquidación — ver src/lib/tarifas/localData/settlementSnapshots.ts
-  const [snapshotsBySettlementId, setSnapshotsBySettlementId] = useState<Record<string, SettlementSnapshot>>({});
+  const [alcance, setAlcance] = useState<'ready' | 'incomplete' | 'all'>('ready');
+  const [modal, setModal] = useState<{ trip: TripRecord | null; settlement: SettlementRecord | null } | null>(null);
+  const [detalle, setDetalle] = useState<SettlementRecord | null>(null);
 
-  // KPIs
-  const [kpis, setKpis] = useState({
-    totalLiquidado: 0,
-    pendiente: 0,
-    aprobado: 0,
-    enRevision: 0
-  });
-
-  useEffect(() => {
-    if (appUser?.organization_id) {
-      loadSettlements();
-    }
-  }, [appUser, dateFrom, dateTo]);
-
-  const loadSettlements = async () => {
-    try {
-      setLoading(true);
-      let query = supabase
-        .from('settlements')
-        .select(`
-          *,
-          routes(route_number, route_date, stores(name)),
-          carriers(name),
-          drivers(full_name, document)
-        `)
-        .eq('organization_id', appUser?.organization_id)
-        .order('created_at', { ascending: false });
-
-      if (dateFrom) {
-        query = query.gte('settlement_date', dateFrom);
-      }
-      if (dateTo) {
-        query = query.lte('settlement_date', dateTo);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-
-      setSettlements(data || []);
-      calculateKPIs(data || []);
-
-      const snapshots = listSnapshots();
-      setSnapshotsBySettlementId(
-        Object.fromEntries(snapshots.map((s) => [s.settlement_id, s])),
-      );
-    } catch (error) {
-      console.error('Error loading settlements:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const calculateKPIs = (data: any[]) => {
-    const totalLiquidado = data.reduce((sum, s) => sum + (parseFloat(s.total_amount) || 0), 0);
-    const pendiente = data
-      .filter(s => s.status === 'Borrador' || s.status === 'En Revisión')
-      .reduce((sum, s) => sum + (parseFloat(s.total_amount) || 0), 0);
-    const aprobado = data
-      .filter(s => s.status === 'Aprobado' || s.status === 'Pagado')
-      .reduce((sum, s) => sum + (parseFloat(s.total_amount) || 0), 0);
-    const enRevision = data
-      .filter(s => s.status === 'En Revisión')
-      .reduce((sum, s) => sum + (parseFloat(s.total_amount) || 0), 0);
-
-    setKpis({ totalLiquidado, pendiente, aprobado, enRevision });
-  };
-
-  const handleEdit = (settlement: any) => {
-    setSelectedSettlement(settlement);
-    setIsModalOpen(true);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('¿Está seguro de eliminar esta tarifa?')) return;
-
-    try {
-      const { error } = await supabase
-        .from('settlements')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
-      deleteSnapshot(id);
-      loadSettlements();
-    } catch (error) {
-      console.error('Error deleting settlement:', error);
-      alert('Error al eliminar la tarifa');
-    }
-  };
-
-  // Cambio de estado directo desde la fila, sin abrir el modal — replica la protección de margen
-  // que ya existe en SettlementModal: si el snapshot de esta liquidación quedó en pérdida, no se
-  // puede pasar a Aprobado/Pagado desde acá (hay que abrir "Editar", donde se pide el motivo o se
-  // bloquea según la política del país).
-  const handleStatusChange = async (settlement: any, newStatus: string) => {
-    if (APPROVAL_STATUSES.includes(newStatus) && snapshotsBySettlementId[settlement.id]?.margin_status === 'LOSS') {
-      alert(
-        'Esta liquidación está en pérdida — no se puede aprobar/pagar desde la lista. Abrí "Editar" ' +
-        'para revisar el margen y, si corresponde, completar el motivo.',
-      );
-      return;
-    }
-    try {
-      const { error } = await supabase
-        .from('settlements')
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
-        .eq('id', settlement.id);
-
-      if (error) throw error;
-      loadSettlements();
-    } catch (error) {
-      console.error('Error updating settlement status:', error);
-      alert('Error al actualizar el estado de la tarifa');
-    }
-  };
-
-  const handleModalClose = () => {
-    setIsModalOpen(false);
-    setSelectedSettlement(null);
-  };
-
-  const handleModalSuccess = () => {
-    loadSettlements();
-  };
-
-  const clearRangeFilters = () => {
-    setMarginFilter('');
-    setDateFrom('');
-    setDateTo('');
-  };
-
-  const getMarginBadge = (settlementId: string) => {
-    const snapshot = snapshotsBySettlementId[settlementId];
-    if (!snapshot) return <span className="text-slate-400 text-sm">—</span>;
-    return (
-      <Badge variant={MARGIN_BADGE_VARIANT[snapshot.margin_status] || 'default'}>
-        {MARGIN_STATUS_LABEL[snapshot.margin_status] || snapshot.margin_status}
-      </Badge>
-    );
-  };
-
-  const marginFilteredSettlements = settlements.filter((settlement) =>
-    !marginFilter || snapshotsBySettlementId[settlement.id]?.margin_status === marginFilter
+  const visibles = useMemo(
+    () => (alcance === 'ready' ? listos : alcance === 'incomplete' ? incompletos : trips),
+    [alcance, listos, incompletos, trips],
   );
 
-  const hasActiveRangeFilters = marginFilter || dateFrom || dateTo;
+  const numeroDe = useMemo(
+    () => new Map(settlements.map((s) => [s.id, s.number])),
+    [settlements],
+  );
 
-  const columns: DataTableColumn<any>[] = [
-    {
-      key: 'settlement_number',
-      header: 'Número',
-      accessor: (s) => s.settlement_number,
-      sortable: true,
-      render: (s) => (
-        <div className="flex items-center gap-2">
-          <i className="ri-file-text-line text-teal-600"></i>
-          <span className="text-sm font-medium text-slate-800">{s.settlement_number}</span>
-        </div>
-      ),
-    },
-    {
-      key: 'route',
-      header: 'Ruta',
-      accessor: (s) => s.routes?.route_number ?? '',
-      sortable: true,
-      render: (s) => (
-        <>
-          <div className="text-sm text-slate-800">{s.routes?.route_number}</div>
-          <div className="text-xs text-slate-500">{s.routes?.stores?.name}</div>
-        </>
-      ),
-    },
-    {
-      key: 'settlement_date',
-      header: 'Fecha',
-      accessor: (s) => s.settlement_date,
-      sortable: true,
-      render: (s) => new Date(s.settlement_date).toLocaleDateString('es-CL'),
-    },
-    { key: 'carrier', header: 'Transportista', accessor: (s) => s.carriers?.name ?? '', sortable: true, filterable: true },
-    {
-      key: 'driver',
-      header: 'Conductor',
-      accessor: (s) => s.drivers?.full_name ?? '',
-      sortable: true,
-      filterable: true,
-      render: (s) => (
-        <>
-          <div className="text-sm text-slate-800">{s.drivers?.full_name}</div>
-          <div className="text-xs text-slate-500">{s.drivers?.document}</div>
-        </>
-      ),
-    },
-    {
-      key: 'details',
-      header: 'Detalles',
-      accessor: (s) => s.total_distance ?? 0,
-      render: (s) => (
-        <div className="flex items-center gap-3 text-xs text-slate-600">
-          <div className="flex items-center gap-1"><i className="ri-map-pin-line"></i><span>{s.total_distance} km</span></div>
-          <div className="flex items-center gap-1"><i className="ri-checkbox-circle-line"></i><span>{s.total_deliveries}</span></div>
-          <div className="flex items-center gap-1"><i className="ri-arrow-go-back-line"></i><span>{s.total_returns}</span></div>
-        </div>
-      ),
-    },
-    {
-      key: 'total_amount',
-      header: 'Monto Total',
-      accessor: (s) => parseFloat(s.total_amount) || 0,
-      sortable: true,
-      render: (s) => (
-        <span className="text-sm font-semibold text-teal-600">
-          ${parseFloat(s.total_amount).toLocaleString('es-CL', { minimumFractionDigits: 2 })}
-        </span>
-      ),
-    },
-    {
-      key: 'margin',
-      header: 'Margen',
-      accessor: (s) => snapshotsBySettlementId[s.id]?.margin_status ?? '',
-      filterable: true,
-      render: (s) => getMarginBadge(s.id),
-    },
-    {
-      key: 'status',
-      header: 'Estado',
-      accessor: (s) => s.status,
-      filterable: true,
-      render: (s) => (
-        <select
-          value={s.status}
-          onChange={(e) => handleStatusChange(s, e.target.value)}
-          disabled={!canEdit}
-          className={`text-xs font-medium rounded-full px-2.5 py-1 border-0 cursor-pointer focus:ring-2 focus:ring-teal-500 disabled:opacity-60 disabled:cursor-not-allowed ${STATUS_SELECT_CLASSES[s.status] || 'bg-slate-100 text-slate-700'}`}
-        >
-          <option value="Borrador">Borrador</option>
-          <option value="En Revisión">En Revisión</option>
-          <option value="Aprobado">Aprobado</option>
-          <option value="Pagado">Pagado</option>
-          <option value="Rechazado">Rechazado</option>
-        </select>
-      ),
-    },
-  ];
+  const moneda = activeCountry?.local_currency ?? '';
+
+  if (loadingCountries) {
+    return <div className="p-6 text-center text-slate-500"><i className="ri-loader-4-line animate-spin text-2xl" /></div>;
+  }
+
+  const settlementCols = extendida
+    ? getSettlementColumnsExtended(numeroDe, canEdit, changeStatus)
+    : getSettlementColumns(numeroDe, canEdit, changeStatus);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-6 space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Tarifas</h1>
-          <p className="text-sm text-slate-500 mt-1">Gestión de tarifas de viajes</p>
+          <h1 className="text-2xl font-semibold text-slate-800">Liquidaciones</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Cuánto se le paga a cada transportista por cada viaje completado, y por qué.
+          </p>
         </div>
-        {canCreate && (
-          <Button onClick={() => setIsModalOpen(true)}>
-            <i className="ri-add-line mr-2"></i>
-            Nueva Tarifa
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-3">
+          <ViewAsToggle />
+          {puedeConfigurar && <InterruptorVista extendida={extendida} onChange={setExtendida} />}
+        </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <StatCard title="Total Liquidado" value={`$${kpis.totalLiquidado.toLocaleString('es-CL', { minimumFractionDigits: 2 })}`} icon="ri-money-dollar-circle-line" color="teal" />
-        <StatCard title="Pendiente" value={`$${kpis.pendiente.toLocaleString('es-CL', { minimumFractionDigits: 2 })}`} icon="ri-time-line" color="amber" />
-        <StatCard title="Aprobado" value={`$${kpis.aprobado.toLocaleString('es-CL', { minimumFractionDigits: 2 })}`} icon="ri-checkbox-circle-line" color="emerald" />
-        <StatCard title="En Revisión" value={`$${kpis.enRevision.toLocaleString('es-CL', { minimumFractionDigits: 2 })}`} icon="ri-file-list-3-line" color="blue" />
+      <CountryScopeBar country={activeCountry} problem={problem} selectedName={selectedName} loading={loadingCountries} />
+
+      {tripsRecortados && <TruncatedNotice />}
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+          {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <StatCard title="Listos" value={String(listos.length)} icon="ri-route-line" color="teal" />
+        <StatCard title="Incompletos" value={String(incompletos.length)} icon="ri-error-warning-line" color="amber" />
+        <StatCard title={siguiente ? 'Total liquidado (cargadas)' : 'Total liquidado'} value={formatMoney(kpis.total, moneda)} icon="ri-money-dollar-circle-line" color="emerald" />
+        <StatCard title={siguiente ? 'Sin aprobar (cargadas)' : 'Sin aprobar'} value={formatMoney(kpis.pendiente, moneda)} icon="ri-time-line" color="amber" />
       </div>
 
-      {/* Filtros de rango (no calzan en el filtro de columna estilo Excel) */}
       <Card>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-            <i className="ri-filter-3-line text-teal-600"></i>
-            Filtros de fecha y margen
-          </h2>
-          {hasActiveRangeFilters && (
-            <button
-              onClick={clearRangeFilters}
-              className="text-sm text-teal-600 hover:text-teal-700 font-medium flex items-center gap-1 whitespace-nowrap"
-            >
-              <i className="ri-close-circle-line"></i>
-              Limpiar
+        <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
+          <div className="flex border-b border-slate-200">
+            <button type="button" className={getTabClass(tab, 'trips')} onClick={() => setTab('trips')}>
+              Por Liquidar
             </button>
-          )}
+            <button type="button" className={getTabClass(tab, 'history')} onClick={() => setTab('history')}>
+              Historial
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Desde" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            <Input label="Hasta" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Select
-            label="Margen"
-            value={marginFilter}
-            onChange={(e) => setMarginFilter(e.target.value)}
-            options={[
-              { value: '', label: 'Todos' },
-              { value: 'OK', label: 'OK' },
-              { value: 'WARN', label: 'Atención' },
-              { value: 'CRITICAL', label: 'Crítico' },
-              { value: 'LOSS', label: 'Pérdida' },
-            ]}
+        {tab === 'trips' && (
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            {ALCANCES.map((a) => (
+              <button
+                key={a.value}
+                type="button"
+                title={a.hint}
+                onClick={() => setAlcance(a.value)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-full border cursor-pointer transition-colors ${
+                  alcance === a.value
+                    ? 'bg-teal-600 text-white border-teal-600'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-teal-300'}`}
+              >
+                {a.label}
+                <span className="ml-1.5 opacity-80">
+                  {a.value === 'ready' ? listos.length : a.value === 'incomplete' ? incompletos.length : trips.length}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {tab === 'trips' ? (
+          <DataTable
+            maxVisibleRows={5}
+            data={visibles}
+            columns={tripColumns}
+            getRowId={(t) => t.id}
+            loading={loadingTrips}
+            columnsKey={`liquidaciones.viajes.${extendida ? 'extendida' : 'simple'}`}
+            defaultHidden={extendida ? [] : ['fleet', 'driver', 'vehicle', 'weight', 'zone']}
+            renderExpanded={(t) => (
+              <TripOrdersPanel
+                trip={t}
+                currency={moneda}
+                intro="Pedidos que lleva el viaje, uno por guía de despacho. Se liquidan juntos; desde Liquidar se puede anular alguno o dejarlo para después."
+              />
+            )}
+            searchHidden
+            searchPlaceholder="Buscar por viaje, transportista, conductor o placa"
+            exportFileName="viajes_por_liquidar"
+            emptyMessage="No hay viajes completados pendientes de liquidar"
+            pageSize={25}
+            actions={(t) => {
+              if (!canCreate) return null;
+              const motivo = notLiquidableReason(t);
+              const parcial = !tripProgress(t).complete;
+              return (
+                <Button
+                  size="sm"
+                  variant={parcial ? 'secondary' : 'primary'}
+                  disabled={!!motivo}
+                  onClick={() => setModal({ trip: t, settlement: null })}
+                  {...prefetchProps(t, !!motivo)}
+                  title={motivo ?? (parcial ? 'Tiene pedidos sin entregar: podés anularlos o dejarlos para después' : 'Liquidar este viaje')}
+                >
+                  <i className="ri-calculator-line mr-1" />
+                  Liquidar
+                </Button>
+              );
+            }}
           />
-          <Input label="Desde" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-          <Input label="Hasta" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-        </div>
+        ) : (
+          <div className="space-y-3">
+          <DataTable
+            maxVisibleRows={5}
+            data={settlements}
+            columns={settlementCols}
+            getRowId={(s) => s.id}
+            loading={loadingSettlements}
+            columnsKey={`liquidaciones.historial.${extendida ? 'extendida' : 'simple'}`}
+            renderExpanded={(s) => <PedidosEmitidos orders={s.orders} currency={s.currency} />}
+            searchPlaceholder="Buscar por LIQ-, viaje o transportista"
+            exportFileName="liquidaciones_historial"
+            emptyMessage="No hay liquidaciones emitidas"
+            pageSize={25}
+            actions={(s) => (
+              <div className="flex items-center justify-end gap-1">
+                <Button variant="ghost" size="sm" onClick={() => void openFull(s, setDetalle)} title="Ver el desglose">
+                  <i className="ri-eye-line" />
+                </Button>
+                {canEdit && !s.supersededBy && s.status !== 'Anulado' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void openFull(s, (full) => setModal({ trip: null, settlement: full }))}
+                    title="Re-liquidar el viaje"
+                  >
+                    <i className="ri-refresh-line" />
+                  </Button>
+                )}
+              </div>
+            )}
+          />
+          {siguiente && <LoadMoreBar shown={settlements.length} loading={cargandoMas} onLoadMore={() => void loadMore()} />}
+          </div>
+        )}
       </Card>
 
-      <DataTable
-        data={marginFilteredSettlements}
-        columns={columns}
-        getRowId={(s) => s.id}
-        loading={loading}
-        searchPlaceholder="Buscar por número, ruta, conductor..."
-        exportFileName="liquidaciones"
-        emptyMessage="No hay tarifas"
-        actions={(canEdit || canDelete) ? (settlement) => (
-          <>
-            {canEdit && (
-              <button
-                onClick={() => handleEdit(settlement)}
-                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer"
-                title="Editar"
-              >
-                <i className="ri-edit-line text-base"></i>
-              </button>
-            )}
-            {canDelete && (
-              <button
-                onClick={() => handleDelete(settlement.id)}
-                className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
-                title="Eliminar"
-              >
-                <i className="ri-delete-bin-line text-base"></i>
-              </button>
-            )}
-          </>
-        ) : undefined}
+      <LiquidarViajeModal
+        isOpen={!!modal}
+        trip={modal?.trip ?? null}
+        settlement={modal?.settlement ?? null}
+        onClose={() => setModal(null)}
+        onSaved={(saved) => { reload(); setDetalle(saved); }}
       />
 
-      <SettlementModal
-        isOpen={isModalOpen}
-        onClose={handleModalClose}
-        onSuccess={handleModalSuccess}
-        settlement={selectedSettlement}
-      />
+      <DetalleLiquidacionModal settlement={detalle} onClose={() => setDetalle(null)} />
     </div>
   );
 }

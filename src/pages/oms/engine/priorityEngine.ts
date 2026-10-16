@@ -92,7 +92,7 @@ export function calcularPrioridad(
   }
 
   const diasParaEntrega = diasEntreFechas(hoyIso, fechaEntrega);
-  appliedRules.push({ name: 'Regla T-1 (fecha de despacho)', weight: 1 });
+  appliedRules.push({ name: 'Regla T-1 (fecha de entrega)', weight: 1 });
 
   // Regla T-1: "listo" = entrega - 1 día. diasParaEntrega<=1 significa que
   // hoy ya cae dentro (o después) de la ventana en que debería estar listo.

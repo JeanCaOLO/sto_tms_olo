@@ -59,7 +59,7 @@ export const queueOrders: QueueOrder[] = [
     customer: 'Ferretería Central', route: '34 Escazú', country: 'CR', tier: 1, score: 920,
     totalAmount: 1_240_500, weight: 320.5, volume: 2.4, itemCount: 24, observations: 'Entregar en oficina, urgente',
     dispatchDate: '2026-08-29', createdDate: '2026-08-27', status: 'DISP', situation: 'DISP', intakeTime: '08:41',
-    appliedRules: [{ name: 'Fecha de despacho vencida', weight: 600 }, { name: 'Cliente — quiebre de stock', weight: 320 }],
+    appliedRules: [{ name: 'Fecha de entrega vencida', weight: 600 }, { name: 'Cliente — quiebre de stock', weight: 320 }],
     history: [{ at: '2026-08-28 08:41', from: 'sin asignar', to: 1, type: 'automatico' }],
   },
   {
@@ -83,7 +83,7 @@ export const queueOrders: QueueOrder[] = [
     customer: 'Ferretería San Carlos', route: '08 San Carlos', country: 'CR', tier: 1, score: 950,
     totalAmount: 158_000, weight: 42.3, volume: 0.3, itemCount: 3, observations: 'Viaje extra pagado por el cliente',
     dispatchDate: '2026-08-28', createdDate: '2026-08-26', status: 'DISP', situation: 'DISP', intakeTime: '07:58',
-    appliedRules: [{ name: 'Fecha de despacho vencida', weight: 600 }, { name: 'Override manual', weight: 350 }],
+    appliedRules: [{ name: 'Fecha de entrega vencida', weight: 600 }, { name: 'Override manual', weight: 350 }],
     history: [
       { at: '2026-08-28 07:58', from: 'sin asignar', to: 2, type: 'automatico' },
       { at: '2026-08-28 10:12', from: 2, to: 1, type: 'manual', reason: 'Viaje extra pagado por el cliente' },
@@ -142,7 +142,7 @@ export const queueOrders: QueueOrder[] = [
     customer: 'Ferretería Talamanca', route: '29 Talamanca', country: 'CR', tier: 1, score: 930,
     totalAmount: 168_900, weight: 38.0, volume: 0.4, itemCount: 4, observations: 'Urgente — reposición',
     dispatchDate: '2026-08-29', createdDate: '2026-08-27', status: 'DISP', situation: 'DISP', intakeTime: '09:14',
-    appliedRules: [{ name: 'Fecha de despacho vencida', weight: 600 }, { name: 'Quiebre de stock', weight: 330 }],
+    appliedRules: [{ name: 'Fecha de entrega vencida', weight: 600 }, { name: 'Quiebre de stock', weight: 330 }],
     history: [{ at: '2026-08-28 09:14', from: 'sin asignar', to: 1, type: 'automatico' }],
   },
   {
@@ -247,7 +247,7 @@ export const companies: Company[] = [
 export const engineRules: EngineRule[] = [
   // --- Cofersa ---
   {
-    id: 'MR-CF-1', company: '0109', order: 1, name: 'Regla T-1 (fecha de despacho)', firstDelivery: true, active: true, weight: 600,
+    id: 'MR-CF-1', company: '0109', order: 1, name: 'Regla T-1 (fecha de entrega)', firstDelivery: true, active: true, weight: 600,
     description: 'Calcula la urgencia según los días que faltan para la fecha de entrega (fecha_planificada; si no hay, cae a fecha_expedicion). Vencida u hoy = más urgente; exactamente 1 día antes (ventana T-1, "listo hoy") = urgente; 2 días = media; 3+ días = decrece. Implementada en priorityEngine.ts::calcularPrioridad. Ajuste por horas de corte y duración de ruta: NO aplicado todavía (ver params).',
     params: [
       { key: 'prioridad_vencida_o_hoy', label: 'Prioridad si vencida u hoy', value: '2', kind: 'number' },
@@ -289,7 +289,7 @@ export const engineRules: EngineRule[] = [
   // distingue compañía) - el cross docking descrito en las reuniones de
   // negocio (prioridad fija, sin cálculo de fecha) sigue sin codificarse. ---
   {
-    id: 'MR-EPA-1', company: 'EPA', order: 1, name: 'Regla T-1 (fecha de despacho)', firstDelivery: true, active: true, weight: 600,
+    id: 'MR-EPA-1', company: 'EPA', order: 1, name: 'Regla T-1 (fecha de entrega)', firstDelivery: true, active: true, weight: 600,
     description: 'Misma lógica y mismos parámetros que en Cofersa (priorityEngine.ts no distingue compañía todavía) - ver MR-CF-1.',
     params: [
       { key: 'prioridad_vencida_o_hoy', label: 'Prioridad si vencida u hoy', value: '2', kind: 'number' },
@@ -324,7 +324,7 @@ export const engineRules: EngineRule[] = [
 
 // FR7 — auditoría (mock).
 export const auditEntries: AuditEntry[] = [
-  { id: 'A-1', timestamp: '2026-08-28 09:12', orderId: 'PED-10432', country: 'CR', changeType: 'automatico', tierFrom: 'sin asignar', tierTo: 1, scoreFrom: null, scoreTo: 920, actor: 'sistema', detail: 'Regla: Fecha de despacho vencida' },
+  { id: 'A-1', timestamp: '2026-08-28 09:12', orderId: 'PED-10432', country: 'CR', changeType: 'automatico', tierFrom: 'sin asignar', tierTo: 1, scoreFrom: null, scoreTo: 920, actor: 'sistema', detail: 'Regla: Fecha de entrega vencida' },
   { id: 'A-2', timestamp: '2026-08-28 10:12', orderId: 'PED-10461', country: 'CR', changeType: 'manual', tierFrom: 2, tierTo: 1, scoreFrom: 600, scoreTo: 950, actor: 'jperez', detail: 'Viaje extra pagado por el cliente' },
   { id: 'A-3', timestamp: '2026-08-28 09:05', orderId: 'PED-10440', country: 'CR', changeType: 'automatico', tierFrom: 'sin asignar', tierTo: 2, scoreFrom: null, scoreTo: 610, actor: 'sistema', detail: 'Regla: Día de ruta próximo' },
 ];

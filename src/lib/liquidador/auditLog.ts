@@ -1,26 +1,25 @@
-// Bitácora de auditoría append-only (RF-012 / RNF-023 / RNF-024) — persistida en
-// `localData/store.ts` (JSON + localStorage) mientras no hay acceso a una base de datos real para
-// el módulo de tarifas. Este módulo SOLO expone `registrarEvento` (append) y `listarEventos`
-// (lectura) — nunca update ni delete, ni acá ni en la UI que lo consume (BitacoraTab.tsx).
+// Bitácora de auditoría append-only (RF-012 / RNF-023 / RNF-024).
+//
+// Este módulo SOLO expone `registrarEvento` (append) y `listarEventos` (lectura) — nunca update ni
+// delete, ni acá ni en la UI que lo consume (BitacoraTab.tsx). La restricción además está declarada
+// en el registro de esquema (`appendOnly: true`), así que la capa de datos rechaza un update o un
+// delete sobre esta entidad aunque alguien lo intente desde otro lado.
 
-import { genId, loadDatabase, persist } from '../tarifas/localData/store';
-import type { LiquidadorRole } from './rbac';
+import { db } from '../tarifas/data';
 
 export interface EventoAuditoria {
   entidad: string;
   entidadId: string;
   accion: 'CREATE' | 'UPDATE' | 'DELETE' | 'AUTHORIZE';
   usuario: string;
-  rol: LiquidadorRole;
+  rol: string;
   antes?: unknown;
   despues?: unknown;
   motivo?: string;
 }
 
 export async function registrarEvento(evento: EventoAuditoria): Promise<void> {
-  const db = loadDatabase();
-  db.auditLog.push({
-    id: genId('audit'),
+  await db().insert('auditLog', {
     entity: evento.entidad,
     entity_id: evento.entidadId,
     action: evento.accion,
@@ -31,7 +30,6 @@ export async function registrarEvento(evento: EventoAuditoria): Promise<void> {
     reason: evento.motivo ?? null,
     created_at: new Date().toISOString(),
   });
-  persist(db);
 }
 
 export interface FilaAuditoria {
@@ -48,9 +46,8 @@ export interface FilaAuditoria {
 }
 
 export async function listarEventos(limite = 200): Promise<FilaAuditoria[]> {
-  return loadDatabase()
-    .auditLog
-    .slice()
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, limite) as FilaAuditoria[];
+  return (await db().find('auditLog', {
+    orderBy: [{ column: 'created_at', direction: 'desc' }],
+    limit: limite,
+  })) as FilaAuditoria[];
 }

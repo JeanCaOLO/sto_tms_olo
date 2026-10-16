@@ -67,6 +67,10 @@ class PlanificacionService:
             ctx.organization_id, ctx.warehouse_id, plan_date, ctx.customer_id
         )
 
+    # GET /pedidos/{id}/articulos  → líneas del pedido (order_items)
+    def articulos_de_pedido(self, order_id: str) -> list[dict]:
+        return self._pedidos.articulos_de(order_id)
+
     # Congela el dato de pedido/vehículo en cada parada/viaje al momento de
     # guardar, para que el plan sea un registro inmutable de lo despachado.
     def _congelar(self, plan: Plan, pedidos_por_id: dict, vehiculos_por_id: dict) -> Plan:

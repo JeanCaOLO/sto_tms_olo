@@ -1,4 +1,4 @@
-"""ReglaFecha — regla T-1 de urgencia por fecha de despacho (esqueleto).
+"""ReglaFecha — regla T-1 de urgencia por fecha de entrega (esqueleto).
 
 Contrato de la regla (US7/US8):
 - Entrada: un PedidoCandidato (con fecha_expedicion_planificada) + ConfiguracionReglas

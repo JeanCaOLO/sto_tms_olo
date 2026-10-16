@@ -120,3 +120,8 @@ build/
 # Exports de EFLOW con datos personales de clientes (contactos, teléfonos, emails): no versionar.
 /CLIENTES_*.csv
 /SUCURSAL_*.csv
+
+.test
+
+# Data temporal de paso Kiro -> Claude (ingesta a BD; se borra tras cargar)
+.tmp-claude/

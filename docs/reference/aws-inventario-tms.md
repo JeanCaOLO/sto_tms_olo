@@ -16,7 +16,7 @@ flowchart LR
   user["Usuario (navegador)"] --> amplify["Amplify Hosting<br/>dev-tms-frontend / sandbox<br/>SPA React"]
   user -->|"HTTPS + JWT"| apigw["API Gateway HTTP<br/>dev-tms-common-services-http-api<br/>stage dev"]
   apigw -->|"valida token"| authz["Lambda jwt-authorizer<br/>fuera de VPC"]
-  apigw --> lambdas["Lambdas por módulo<br/>auth, data, context, eflow,<br/>admin, planning"]
+  apigw --> lambdas["Lambdas por módulo<br/>auth, data, context, eflow,<br/>admin, planning, oms, tarifas"]
   sched["EventBridge Scheduler<br/>días hábiles 06:00 CR"] --> maint["Lambda audit-maintenance"]
   horarios["EventBridge Scheduler<br/>dev-tms-horarios<br/>L-V 04:45 enciende / 17:00 apaga"] -.->|"start/stop"| aurora
   horarios -.->|"start/stop"| bastion
@@ -41,7 +41,7 @@ flowchart LR
 1. El usuario abre el frontend (SPA React) servido por **Amplify**.
 2. El frontend llama al **API Gateway HTTP** con el JWT de sesión. El **authorizer** (Lambda fuera de VPC) valida el
    token leyendo `/dev/tms/jwt`.
-3. API Gateway enruta a la **Lambda del módulo** (`auth`, `data`, `context`, `eflow`, `admin`, `planning`). Estas
+3. API Gateway enruta a la **Lambda del módulo** (`auth`, `data`, `context`, `eflow`, `admin`, `planning`, `oms`, `tarifas`). Estas
    Lambdas están **dentro de la VPC** de Aurora, en subnets privadas y **sin NAT**: salen a AWS solo por endpoints VPC
    (Secrets Manager para sus credenciales, S3 gateway).
 4. Las Lambdas se conectan a **Aurora** (`db-tms-olo`, BD `tms_olo`) como el rol **`tms_app`**: lee y escribe datos,
@@ -103,7 +103,7 @@ Lo crea y actualiza `npm run deploy:sandbox` (idempotente; redesplegar sin cambi
 
 | Recurso | Identificador | Detalle |
 |---|---|---|
-| Stack | `dev-tms-common-services` | API Gateway HTTP `dev-tms-common-services-http-api` (`pmc95jqekl`, stage `dev`, CORS `*` con GET/POST/PUT/PATCH/DELETE), authorizer JWT, Layer, rol de las Lambdas. |
+| Stack | `dev-tms-common-services` | API Gateway HTTP `dev-tms-common-services-http-api` (`pmc95jqekl`, stage `dev`, CORS `*` con GET/POST/PUT/PATCH/DELETE y headers `Authorization`, `Content-Type`, `X-Warehouse-Id`, `X-Customer-Id`), authorizer JWT, Layer, rol de las Lambdas. |
 | Lambda | `dev-tms-common-services-jwt-authorizer` | 256 MB, 5 s, **fuera de VPC**. Valida el Bearer token con `/dev/tms/jwt`. |
 | Layer | `dev-tms-common-services-tms-common` | Versión vigente **5** (las anteriores se borraron). Su ARN se publica en el parámetro SSM `/dev/tms/common-layer-arn`, que leen los módulos. |
 | Stack + Lambda | `dev-tms-auth` / `dev-tms-auth-auth-api` | 512 MB, 15 s. Login, signup, sesión, logout. |
@@ -112,7 +112,12 @@ Lo crea y actualiza `npm run deploy:sandbox` (idempotente; redesplegar sin cambi
 | Stack + Lambda | `dev-tms-eflow` / `dev-tms-eflow-eflow-api` | 512 MB, 29 s. EFLOW en **mock**. |
 | Stack + Lambda | `dev-tms-admin` / `dev-tms-admin-admin-api` | 512 MB, 15 s. Usuarios, roles, permisos, auditoría. |
 | Lambda + schedule | `dev-tms-admin-audit-maintenance` | 256 MB, 30 s. Schedule `dev-tms-admin-audit-maintenance` (ENABLED): lunes a viernes 06:00 hora de Costa Rica (idempotente; no el día 1 porque puede caer en fin de semana con Aurora apagada). Probado a mano: OK. |
-| Stack + Lambda | `dev-tms-planning` / `dev-tms-planning-planning-api` | 512 MB, 15 s. Pedidos para Planificación. |
+| Stack + Lambda | `dev-tms-planning` / `dev-tms-planning-planning-api` | 512 MB, 30 s. Planificación 2 (código de `backend-planif/`): pedidos, planes (crear/editar/confirmar/completar/cancelar) y estado por viaje, artículos por pedido; 12 rutas `/api/v1/planificacion/*`. |
+| Stack + Lambda | `dev-tms-oms` / `dev-tms-oms-oms-api` | Motor de reglas del OMS (esqueleto) en **mock** (`OMS_SOURCE=mock`: no escribe en Aurora ni en el WMS). Rutas `GET /api/v1/oms/health`, `POST /api/v1/oms/corridas`. |
+| Stack + Lambda | `dev-tms-tarifas` / `dev-tms-tarifas-tarifas-api` | Tarifador / liquidador sobre Aurora (tablas `tarifas_*`, migraciones `sql/19`–`25`). Rutas `/api/tarifas/{table}` (GET/POST/PATCH/DELETE), `POST /api/tarifas/tx`, `POST /api/tarifas/batch` y `POST /api/tarifas/{table}/find`; caché de permisos 30 s y topes `statement_timeout` 10 s / `lock_timeout` 5 s por conexión; valida contra `src/schema_manifest.json`. |
+| Stack | `dev-tms-realtime` | Avisos en vivo. **API Gateway WebSocket** `dev-tms-realtime-ws` (`wss://8f3g64dx4a.execute-api.us-east-2.amazonaws.com/dev`), tabla DynamoDB `dev-tms-realtime-connections` (conexiones, TTL 2 h, on-demand), Lambda `dev-tms-realtime-realtime-api` (256 MB, 10 s, **fuera de VPC**, rol propio) y ruta `POST /api/v1/realtime/pedidos-nuevos` en el API HTTP (con el authorizer JWT). `$connect` exige el JWT de sesión en `?token=`. |
+| Stack | `dev-tms-documents` | Archivos de catálogos. **Bucket S3 `dev-tms-documents-758837481569`**: privado (bloqueo de acceso público, `BucketOwnerEnforced`), cifrado AES256, **versionado** (versiones viejas expiran a 365 días), solo HTTPS (política), CORS GET/POST solo desde el dominio de Amplify y `localhost:3000`. `DeletionPolicy: Retain` (borrar el stack NO borra el bucket). Lambda `dev-tms-documents-documents-api` (256 MB, 15 s, en VPC, **rol propio** `dev-tms-documents-DocumentsApiRole-*`: secreto de BD + leer/escribir solo en ese bucket). Rutas `POST /api/v1/carriers/{id}/contract/upload`, `PUT`/`GET`/`DELETE /api/v1/carriers/{id}/contract`: el navegador sube/baja el PDF directo a S3 con URL firmada de 5 min (solo PDF ≤ 10 MB). Llega a S3 por el endpoint gateway de S3 de la VPC (ya existía). |
+| Stack | `dev-tms-alerts` | Vencimientos de contratos y licencias. Lambdas `dev-tms-alerts-alerts-api` (ruta `GET /api/v1/alerts/expirations`, en VPC, rol compartido) y `dev-tms-alerts-alerts-digest` (en VPC, sin ruta: solo la invoca el mailer); `dev-tms-alerts-alerts-mailer` (128 MB, 60 s, **fuera de VPC**, rol propio: invocar el digest + `ses:SendEmail` solo desde el remitente configurado). Schedule **`dev-tms-alerts-correo-vencimientos`**: L-V 07:00 hora CR. Correo de `jalvarez@ologistics.com` a `jbonilla@ologistics.com` con copia a `rperez@ologistics.com`. **SES está en modo sandbox**: solo entrega a direcciones verificadas (hoy solo `jalvarez@`), ver bitácora 2026-10-12. Sin vencimientos no envía nada. |
 | Parámetro SSM | `/dev/tms/common-layer-arn` | ARN de la versión vigente de la Layer (lo mantiene el script). |
 | App Amplify | `dev-tms-frontend` (`d1q6tzcx0ew3rk`), rama `sandbox` | Deploy manual por zip, regla SPA (toda ruta → `index.html`). |
 
@@ -174,3 +179,13 @@ Stack `dev-tms-horarios` (`infra/horarios/template.yaml`, se despliega con `depl
 | 2026-09-24 | Política: `ApiGatewayHttp` pasa a `apigateway:*` (el stage exige `apigateway:TagResource`). | Usuario |
 | 2026-09-24 | **Backend y frontend desplegados en el sandbox** (§2). Cambios para lograrlo: schedule con nombre `dev-tms-*`; la Layer se publica por SSM (`/dev/tms/common-layer-arn`) en vez de export (un export en uso bloquea versiones nuevas); build determinista; CORS con `PUT`. | Claude |
 | 2026-09-24 | Borradas las versiones 1–4 de la Layer (queda la 5, en uso). Horario de servidores: stack `dev-tms-horarios` (Aurora y bastión L-V 04:45–17:00 CR). Mantenimiento de la bitácora pasa a días hábiles 06:00. | Claude |
+| 2026-10-05 | CORS del API: se permiten los headers `X-Warehouse-Id` y `X-Customer-Id` (el frontend los manda desde `aab65fa`; sin esto el preflight fallaba). `dev-tms-planning` pasa a correr el backend de Planificación 2 (`backend-planif/src`, 11 rutas, timeout 30 s). Nuevo stack `dev-tms-oms` (motor de reglas en mock). | Claude |
+| 2026-10-06 | Política IAM `iam-deploy-policy` (creada hoy por otro equipo) adjunta a `ext.claude` con un deny `SoloRegionesDelProyecto` que solo permitía `us-east-1` y bloqueaba el sandbox; se agregó `us-east-2` a esa lista. | Usuario |
+| 2026-10-06 | Nuevo stack `dev-tms-tarifas`. Redesplegados todos los módulos (cambió la Layer `tms_common`) y el frontend. | Claude |
+| 2026-10-08 | `dev-tms-planning`: ruta nueva `GET /api/v1/planificacion/pedidos/{id}/articulos`. Frontend redesplegado (guías desde el plan, pedidos nuevos por polling: el WebSocket aún no existe en AWS). | Claude |
+| 2026-10-08 | Nuevo stack `dev-tms-realtime` (WebSocket de pedidos nuevos para Planificación + DynamoDB de conexiones). El frontend se buildea con `VITE_WS_URL`. Probado: conexión sin token rechazada, aviso recibido por el cliente, trigger sin token = 401. | Claude |
+| 2026-10-09 | `dev-tms-tarifas`: rutas nuevas `POST /api/tarifas/batch` y `POST /api/tarifas/{table}/find`, variables `TMS_PERMS_TTL_SECONDS`/`TMS_STATEMENT_TIMEOUT_MS`/`TMS_LOCK_TIMEOUT_MS` (merge de `dylan-tarifas`). Frontend redesplegado. Verificado: las rutas nuevas responden 401 sin token. | Claude |
+| 2026-10-09 | Aurora `tms_olo`: aplicada `sql/30_tarifas_settlement_base_change.sql` (columna `tarifas_settlements.base_change`). La `31` (4 reglas base globales CR, resto desactivadas) ya la había aplicado Dylan; verificada. | Claude |
+| 2026-10-12 | Aurora `tms_olo`: `sql/32`–`35` (clientes y almacenes de Venezuela; **PostGIS** + geocerca de zonas y zona automática de los puntos; columnas de contrato, forma de pago, contenedor y teléfono). | Claude |
+| 2026-10-12 | Nuevo stack **`dev-tms-documents`** (bucket privado y versionado `dev-tms-documents-758837481569` + Lambda con rol propio) para el PDF del contrato del transportista. Probado punta a punta: formulario firmado → subida directa a S3 (204) → confirmar → descarga firmada (mismo PDF) → quitar; llave inventada = 400. El PDF de prueba se borró (bucket vacío). | Claude |
+| 2026-10-12 | Nuevo stack **`dev-tms-alerts`** (API de vencimientos, digest y correo diario L-V 07:00 CR por SES). Probado: API 200, digest y mailer OK (hoy sin vencimientos → no envía). **Pendiente:** SES en sandbox → hay que **verificar `jbonilla@ologistics.com` y `rperez@ologistics.com` en SES** (o pedir acceso de producción de SES); `ext.claude` no tiene `ses:CreateEmailIdentity`. | Claude |

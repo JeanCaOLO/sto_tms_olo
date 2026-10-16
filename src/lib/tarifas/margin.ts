@@ -1,26 +1,38 @@
-// Margen + semáforo. amount = liquidado - costo; pct = amount / liquidado. El status y la action
-// derivan de compararlos contra la MarginPolicy del país — así "cuándo alertar" es un dato
-// configurable, no una constante en el código.
+// Ganancia o pérdida del viaje, para AUDITORÍA: el valor de la mercancía que lleva (los pedidos de
+// sus guías de despacho) contra los gastos operativos (lo que se liquida).
 //
-// En este dominio no hay "cobrado a cliente": el primer parámetro es `totalLiquidado` (lo que se
-// le paga al transportista/conductor por el viaje, ya calculado por el motor de reglas) — el
-// margen resultante es "margen vs. costo operativo", no un margen de venta.
-// Puerto (con esa reinterpretación de dominio) de vista-tarifas-fase1/src/kernel/margin.ts.
+//   amount = valor de la mercancía − gastos      pct = amount ÷ valor de la mercancía
+//
+// NO es parte de la liquidación: no bloquea, no pide motivo y no cambia lo que se paga. El
+// liquidador responde "¿cuánto se le paga al transportista?"; esto responde "¿valió la pena el
+// viaje?". Los umbrales de la política solo deciden el color de la alerta.
+//
+// Sin valor de mercancía cargado (pedidos sin monto) NO se inventa un margen: `basis` es 'NONE'.
 
 import Decimal from 'decimal.js';
 import type { Country, MarginPolicy, MarginResult } from './types';
-import { isNegative, roundToMoney, ZERO } from './money';
+import { roundToMoney, ZERO } from './money';
 
 export function computeMargin(
-  totalLiquidado: Decimal,
-  costTotal: Decimal,
+  cargoValue: Decimal,
+  expense: Decimal,
   policy: MarginPolicy,
-  country: Pick<Country, 'roundingDecimals' | 'roundingMode'>,
+  country: Pick<Country, 'roundingDecimals' | 'roundingMode' | 'localCurrency'>,
 ): MarginResult {
-  const amount = totalLiquidado.minus(costTotal);
-  const pct = totalLiquidado.isZero() ? ZERO : amount.dividedBy(totalLiquidado);
+  const base = {
+    cargoValue: roundToMoney(cargoValue, country),
+    expense: roundToMoney(expense, country),
+    currency: country.localCurrency,
+  };
 
-  const status: MarginResult['status'] = isNegative(amount)
+  if (!cargoValue.greaterThan(0)) {
+    return { ...base, amount: roundToMoney(ZERO, country), pct: '0.0000', status: 'OK', basis: 'NONE' };
+  }
+
+  const amount = cargoValue.minus(expense);
+  const pct = amount.dividedBy(cargoValue);
+
+  const status: MarginResult['status'] = amount.isNegative()
     ? 'LOSS'
     : pct.lessThan(policy.criticalBelow)
       ? 'CRITICAL'
@@ -28,17 +40,5 @@ export function computeMargin(
         ? 'WARN'
         : 'OK';
 
-  const action: MarginResult['action'] =
-    status === 'LOSS' && policy.blockOnLoss
-      ? 'BLOCK'
-      : pct.lessThan(policy.requireReasonBelow)
-        ? 'REQUIRE_REASON'
-        : 'NONE';
-
-  return {
-    amount: roundToMoney(amount, country),
-    pct: pct.toFixed(4),
-    status,
-    action,
-  };
+  return { ...base, amount: roundToMoney(amount, country), pct: pct.toFixed(4), status, basis: 'CARGO' };
 }

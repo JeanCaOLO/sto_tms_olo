@@ -31,7 +31,7 @@ export default {
   'omsSimulator.colVolume': 'Volume (m³)',
   'omsSimulator.colItemCount': 'No. of items',
   'omsSimulator.colObservations': 'Notes',
-  'omsSimulator.colDispatchDate': 'Dispatch Date',
+  'omsSimulator.colDispatchDate': 'Delivery Date',
   'omsSimulator.colCreatedDate': 'Created Date',
   'omsSimulator.colBaseScore': 'Base score',
   'omsSimulator.colSimScore': 'Simulated score',

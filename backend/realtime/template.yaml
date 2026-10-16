@@ -1,0 +1,190 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: TMS - REALTIME | WebSocket de avisos en vivo (pedidos nuevos para Planificación) y su disparador HTTP
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [dev, qa, prod]
+  CommonStackName:
+    Type: String
+    Description: Stack de common-services del mismo ambiente (ej. dev-tms-common-services)
+  CommonLayerArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: Parámetro SSM con el ARN de la versión vigente de la Layer tms_common.
+
+Conditions:
+  IsProduction: !Equals [!Ref Environment, prod]
+
+Resources:
+  # Conexiones WebSocket vivas. Sin datos de negocio: solo id de conexión y usuario.
+  ConnectionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${AWS::StackName}-connections
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: connectionId, AttributeType: S }
+      KeySchema:
+        - { AttributeName: connectionId, KeyType: HASH }
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      SSESpecification:
+        SSEEnabled: true
+
+  WebSocketApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub ${AWS::StackName}-ws
+      Description: TMS - WebSocket de avisos en vivo
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: $request.body.action
+
+  WebSocketStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref WebSocketApi
+      StageName: !Ref Environment
+      AutoDeploy: true
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 50
+        ThrottlingRateLimit: 20
+
+  RealtimeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: realtime
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [dynamodb:PutItem, dynamodb:DeleteItem, dynamodb:Scan]
+                Resource: !GetAtt ConnectionsTable.Arn
+              - Effect: Allow
+                Action: execute-api:ManageConnections
+                Resource: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/${Environment}/POST/@connections/*
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Sub
+                  - arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${JwtSecretName}-*
+                  - JwtSecretName:
+                      Fn::ImportValue: !Sub ${CommonStackName}-JwtSecretName
+
+  RealtimeLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-realtime-api
+      RetentionInDays: !If [IsProduction, 30, 7]
+
+  # Fuera de la VPC a propósito: no toca Aurora y así llega a DynamoDB, Secrets
+  # Manager y la API de conexiones sin endpoints VPC.
+  RealtimeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-realtime-api
+      Description: TMS - REALTIME | $connect/$disconnect del WebSocket y aviso de pedidos nuevos
+      CodeUri: src/
+      Handler: app.handler
+      Runtime: python3.13
+      Architectures: [x86_64]
+      Timeout: 10
+      MemorySize: 256
+      Role: !GetAtt RealtimeRole.Arn
+      Layers:
+        - !Ref CommonLayerArn
+      LoggingConfig:
+        LogFormat: JSON
+        LogGroup: !Ref RealtimeLogGroup
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+          CONNECTIONS_TABLE: !Ref ConnectionsTable
+          WS_MANAGEMENT_ENDPOINT: !Sub https://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}
+          JWT_SECRET_NAME:
+            Fn::ImportValue: !Sub ${CommonStackName}-JwtSecretName
+
+  # --- WebSocket -------------------------------------------------------------------
+  WebSocketIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RealtimeFunction.Arn}/invocations
+
+  ConnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: $connect
+      Target: !Sub integrations/${WebSocketIntegration}
+
+  DisconnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: $disconnect
+      Target: !Sub integrations/${WebSocketIntegration}
+
+  DefaultRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocketApi
+      RouteKey: $default
+      Target: !Sub integrations/${WebSocketIntegration}
+
+  WebSocketPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref RealtimeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocketApi}/*
+
+  # --- Disparador HTTP en el API compartido -----------------------------------------
+  TriggerIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt RealtimeFunction.Arn
+      PayloadFormatVersion: "2.0"
+
+  TriggerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref RealtimeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub
+        - arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/*/*
+        - ApiId:
+            Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+
+  TriggerRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/v1/realtime/pedidos-nuevos
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${TriggerIntegration}
+
+Outputs:
+  WebSocketUrl:
+    Description: URL wss:// que usa el frontend (VITE_WS_URL)
+    Value: !Sub wss://${WebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}
+  RealtimeFunctionArn:
+    Value: !GetAtt RealtimeFunction.Arn

@@ -46,9 +46,18 @@ def ensure_app() -> str:
     return app_id
 
 
+def ws_url() -> str:
+    """URL wss:// del stack dev-tms-realtime (vacía si no está desplegado: la UI queda solo con polling)."""
+    result = aws("cloudformation", "describe-stacks", "--stack-name", "dev-tms-realtime", "--query",
+                 "Stacks[0].Outputs[?OutputKey=='WebSocketUrl'].OutputValue", "--output", "text", check=False)
+    value = result.stdout.strip() if result.returncode == 0 else ""
+    return "" if value == "None" else value
+
+
 def build(api_base: str) -> None:
-    step(f"Build (VITE_API_BASE={api_base})")
-    env = {**os.environ, "VITE_API_BASE": api_base, "VITE_MOCK_AUTH": "false"}
+    ws = ws_url()
+    step(f"Build (VITE_API_BASE={api_base}, VITE_WS_URL={ws or '(sin WebSocket)'})")
+    env = {**os.environ, "VITE_API_BASE": api_base, "VITE_MOCK_AUTH": "false", "VITE_WS_URL": ws}
     subprocess.run("npm run build", cwd=ROOT, env=env, shell=True, check=True)
 
 

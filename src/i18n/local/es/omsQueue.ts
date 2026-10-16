@@ -27,7 +27,7 @@ export default {
   'omsQueue.colVolume': 'Volumen (m³)',
   'omsQueue.colItemCount': 'N.º artículos',
   'omsQueue.colObservations': 'Observaciones',
-  'omsQueue.colDispatchDate': 'Fecha Despacho',
+  'omsQueue.colDispatchDate': 'Fecha Entrega',
   'omsQueue.colCreatedDate': 'Fecha creación',
   'omsQueue.colScore': 'Score',
   'omsQueue.colStatus': 'Estado',

@@ -3,7 +3,7 @@
 > **Generado el 2026-10-16** desde la base real con [`scripts/diccionario-datos.py`](../../scripts/diccionario-datos.py). No editar a mano: las estructuras (columnas, tipos, llaves, índices, triggers) salen del catálogo de PostgreSQL; las descripciones de tabla viven en el script. Para regenerar: abrir el túnel (`scripts/tunel-aurora.ps1`) y correr `python scripts/diccionario-datos.py`.
 
 - **Servidor:** PostgreSQL 17.7 on x86_64-pc-linux-gnu — cluster `db-tms-olo` (us-east-2), base `tms_olo`. Conexión y túnel: [`aws-inventario-tms.md`](aws-inventario-tms.md), [`../guides/tunel-ssm-a-rds.md`](../guides/tunel-ssm-a-rds.md).
-- **Contenido:** 64 tablas y 8 vistas en los esquemas `public` (negocio) y `audit` (bitácora).
+- **Contenido:** 67 tablas y 8 vistas en los esquemas `public` (negocio) y `audit` (bitácora).
 - **Filas:** conteo exacto (`count(*)`) al 2026-10-16. "—" = el rol de la app (`tms_app`) no tiene permiso de lectura.
 - Casi todas las tablas llevan `organization_id → organizations`; esa relación se omite en los diagramas para que se lean.
 
@@ -27,7 +27,7 @@
 
 **Sistema y auditoría:** [`schema_migrations`](#publicschema_migrations), [`audit.events`](#auditevents), [`audit.tracked_tables`](#audittracked_tables)
 
-**Sin clasificar (nuevas desde la última revisión):** [`geography_columns`](#publicgeography_columns), [`geometry_columns`](#publicgeometry_columns), [`spatial_ref_sys`](#publicspatial_ref_sys), [`tarifas_audit_log`](#publictarifas_audit_log), [`tarifas_cost_structure_rows`](#publictarifas_cost_structure_rows), [`tarifas_cost_structures`](#publictarifas_cost_structures), [`tarifas_country_settings`](#publictarifas_country_settings), [`tarifas_margin_policies`](#publictarifas_margin_policies), [`tarifas_party_variables`](#publictarifas_party_variables), [`tarifas_pricing_rules`](#publictarifas_pricing_rules), [`tarifas_pricing_templates`](#publictarifas_pricing_templates), [`tarifas_rate_table_rows`](#publictarifas_rate_table_rows), [`tarifas_rate_tables`](#publictarifas_rate_tables), [`tarifas_settlement_parties`](#publictarifas_settlement_parties), [`tarifas_settlements`](#publictarifas_settlements), [`tarifas_trip_order_marks`](#publictarifas_trip_order_marks), [`tarifas_v_devoluciones`](#publictarifas_v_devoluciones), [`tarifas_v_viaje_cargas`](#publictarifas_v_viaje_cargas), [`tarifas_v_viaje_pedidos`](#publictarifas_v_viaje_pedidos), [`tarifas_v_viajes`](#publictarifas_v_viajes), [`tarifas_zone_groups`](#publictarifas_zone_groups)
+**Sin clasificar (nuevas desde la última revisión):** [`geography_columns`](#publicgeography_columns), [`geometry_columns`](#publicgeometry_columns), [`spatial_ref_sys`](#publicspatial_ref_sys), [`tarifas_audit_log`](#publictarifas_audit_log), [`tarifas_cost_structure_rows`](#publictarifas_cost_structure_rows), [`tarifas_cost_structures`](#publictarifas_cost_structures), [`tarifas_country_settings`](#publictarifas_country_settings), [`tarifas_margin_policies`](#publictarifas_margin_policies), [`tarifas_party_variables`](#publictarifas_party_variables), [`tarifas_pricing_rules`](#publictarifas_pricing_rules), [`tarifas_pricing_templates`](#publictarifas_pricing_templates), [`tarifas_rate_table_rows`](#publictarifas_rate_table_rows), [`tarifas_rate_tables`](#publictarifas_rate_tables), [`tarifas_settlement_parties`](#publictarifas_settlement_parties), [`tarifas_settlements`](#publictarifas_settlements), [`tarifas_trip_order_marks`](#publictarifas_trip_order_marks), [`tarifas_v_devoluciones`](#publictarifas_v_devoluciones), [`tarifas_v_viaje_cargas`](#publictarifas_v_viaje_cargas), [`tarifas_v_viaje_pedidos`](#publictarifas_v_viaje_pedidos), [`tarifas_v_viajes`](#publictarifas_v_viajes), [`tarifas_zone_groups`](#publictarifas_zone_groups), [`tracking_evidences`](#publictracking_evidences), [`tracking_last_positions`](#publictracking_last_positions), [`tracking_positions`](#publictracking_positions)
 
 ## Observaciones (revisión 2026-09-30)
 
@@ -786,6 +786,7 @@ erDiagram
     orders ||--o{ plan_stops : "order_id"
     orders ||--o{ returns : "order_id"
     plan_trips ||--o{ plan_stops : "trip_id"
+    plan_trips ||--o{ routes : "plan_trip_id"
     route_plans ||--o{ plan_trips : "plan_id"
     routes ||--o{ dispatch_guides : "route_id"
     routes ||--o{ tracking_events : "route_id"
@@ -902,6 +903,7 @@ erDiagram
 | `updated_at` | `timestamp with time zone` | sí | `now()` |  |
 | `route_type_id` | `uuid` | sí |  | FK → [`zones`](#publiczones) |
 | `capacity_percentage` | `numeric` | sí |  |  |
+| `plan_trip_id` | `uuid` | sí |  | FK → [`plan_trips`](#publicplan_trips) |
 
 - Único: `UNIQUE (organization_id, route_number)`
 - Índice: `btree (route_date)` — `idx_routes_date`
@@ -909,6 +911,7 @@ erDiagram
 - Índice: `btree (organization_id)` — `idx_routes_org`
 - Índice: `btree (status)` — `idx_routes_status`
 - Índice: `btree (store_id)` — `idx_routes_store`
+- Índice: `btree (plan_trip_id) WHERE (plan_trip_id IS NOT NULL)` (único) — `ux_routes_plan_trip`
 - Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
 
 <a id="publicdispatch_guides"></a>
@@ -1673,8 +1676,13 @@ erDiagram
     countries ||--o{ tarifas_settlements : "country_id"
     countries ||--o{ tarifas_trip_order_marks : "country_id"
     countries ||--o{ tarifas_zone_groups : "country_id"
+    dispatch_guides ||--o{ tracking_evidences : "dispatch_guide_id"
+    drivers ||--o{ tracking_positions : "driver_id"
     routes ||--o{ tarifas_settlements : "trip_id"
     routes ||--o{ tarifas_trip_order_marks : "trip_id"
+    routes ||--o{ tracking_evidences : "route_id"
+    routes ||--o{ tracking_last_positions : "route_id"
+    routes ||--o{ tracking_positions : "route_id"
     tarifas_cost_structures ||--o{ tarifas_cost_structure_rows : "structure_id"
     tarifas_rate_tables ||--o{ tarifas_rate_table_rows : "table_id"
     tarifas_settlement_parties ||--o{ tarifas_cost_structures : "party_id"
@@ -1682,6 +1690,7 @@ erDiagram
     tarifas_settlement_parties ||--o{ tarifas_pricing_rules : "party_id"
     tarifas_settlement_parties ||--o{ tarifas_rate_tables : "party_id"
     tarifas_settlement_parties ||--o{ tarifas_settlements : "party_id"
+    vehicles ||--o{ tracking_positions : "vehicle_id"
 ```
 
 <a id="publicgeography_columns"></a>
@@ -2393,6 +2402,90 @@ SELECT r.id,
 
 - Índice: `btree (country_id)` — `tarifas_zone_groups_country_id_idx`
 - Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
+
+<a id="publictracking_evidences"></a>
+
+### `public.tracking_evidences`
+
+*tabla · 0 filas*
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `id` | `uuid` | no | `gen_random_uuid()` | **PK** |
+| `organization_id` | `uuid` | no |  | FK → [`organizations`](#publicorganizations) |
+| `route_id` | `uuid` | no |  | FK → [`routes`](#publicroutes) |
+| `dispatch_guide_id` | `uuid` | no |  | FK → [`dispatch_guides`](#publicdispatch_guides) |
+| `kind` | `text` | no |  |  |
+| `storage_key` | `text` | no |  |  |
+| `mime_type` | `text` | no |  |  |
+| `size_bytes` | `integer` | sí |  |  |
+| `captured_at` | `timestamp with time zone` | sí |  |  |
+| `latitude` | `numeric(10,8)` | sí |  |  |
+| `longitude` | `numeric(11,8)` | sí |  |  |
+| `client_id` | `uuid` | sí |  |  |
+| `created_by` | `uuid` | sí |  |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |
+
+- Check `tracking_evidences_kind_check`: `CHECK ((kind = ANY (ARRAY['photo_invoice'::text, 'signature'::text, 'photo_other'::text])))`
+- Índice: `btree (dispatch_guide_id)` — `ix_tracking_evidences_guide`
+- Índice: `btree (route_id)` — `ix_tracking_evidences_route`
+- Índice: `btree (client_id) WHERE (client_id IS NOT NULL)` (único) — `ux_tracking_evidences_client`
+- Índice: `btree (storage_key)` (único) — `ux_tracking_evidences_key`
+- Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
+
+<a id="publictracking_last_positions"></a>
+
+### `public.tracking_last_positions`
+
+*tabla · 0 filas*
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `route_id` | `uuid` | no |  | **PK** · FK → [`routes`](#publicroutes) |
+| `organization_id` | `uuid` | no |  | FK → [`organizations`](#publicorganizations) |
+| `latitude` | `numeric(10,8)` | no |  |  |
+| `longitude` | `numeric(11,8)` | no |  |  |
+| `speed_mps` | `numeric` | sí |  |  |
+| `heading_deg` | `numeric` | sí |  |  |
+| `battery_pct` | `smallint` | sí |  |  |
+| `recorded_at` | `timestamp with time zone` | no |  |  |
+| `updated_at` | `timestamp with time zone` | no | `now()` |  |
+
+- Índice: `btree (organization_id)` — `ix_tracking_last_positions_org`
+
+<a id="publictracking_positions"></a>
+
+### `public.tracking_positions`
+
+*tabla · 0 filas*
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `id` | `bigint` | no |  | **PK** |
+| `organization_id` | `uuid` | no |  | FK → [`organizations`](#publicorganizations) |
+| `route_id` | `uuid` | no |  | FK → [`routes`](#publicroutes) |
+| `vehicle_id` | `uuid` | sí |  | FK → [`vehicles`](#publicvehicles) |
+| `driver_id` | `uuid` | sí |  | FK → [`drivers`](#publicdrivers) |
+| `device_id` | `text` | sí |  |  |
+| `client_id` | `uuid` | no |  |  |
+| `latitude` | `numeric(10,8)` | no |  |  |
+| `longitude` | `numeric(11,8)` | no |  |  |
+| `accuracy_m` | `numeric` | sí |  |  |
+| `speed_mps` | `numeric` | sí |  |  |
+| `heading_deg` | `numeric` | sí |  |  |
+| `battery_pct` | `smallint` | sí |  |  |
+| `is_mock` | `boolean` | no | `false` |  |
+| `recorded_at` | `timestamp with time zone` | no |  |  |
+| `received_at` | `timestamp with time zone` | no | `now()` |  |
+
+- Check `tracking_positions_battery_pct_check`: `CHECK (((battery_pct IS NULL) OR ((battery_pct >= 0) AND (battery_pct <= 100))))`
+- Check `tracking_positions_heading_deg_check`: `CHECK (((heading_deg IS NULL) OR ((heading_deg >= (0)::numeric) AND (heading_deg <= (360)::numeric))))`
+- Check `tracking_positions_latitude_check`: `CHECK (((latitude >= ('-90'::integer)::numeric) AND (latitude <= (90)::numeric)))`
+- Check `tracking_positions_longitude_check`: `CHECK (((longitude >= ('-180'::integer)::numeric) AND (longitude <= (180)::numeric)))`
+- Check `tracking_positions_speed_mps_check`: `CHECK (((speed_mps IS NULL) OR ((speed_mps >= (0)::numeric) AND (speed_mps <= (90)::numeric))))`
+- Índice: `btree (route_id, recorded_at DESC)` — `ix_tracking_positions_route_time`
+- Índice: `brin (recorded_at)` — `ix_tracking_positions_time`
+- Índice: `btree (client_id)` (único) — `ux_tracking_positions_client`
 
 ---
 

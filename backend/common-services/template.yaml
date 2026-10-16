@@ -33,7 +33,7 @@ Resources:
       CorsConfiguration:
         AllowOrigins: [!Ref CorsAllowOrigin]
         AllowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
-        AllowHeaders: [Authorization, Content-Type]
+        AllowHeaders: [Authorization, Content-Type, X-Warehouse-Id, X-Customer-Id]
         MaxAge: 600
 
   TmsHttpApiStage:

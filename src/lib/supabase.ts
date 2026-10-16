@@ -18,7 +18,7 @@ export interface AuthSession {
 type AuthChangeEvent = "SIGNED_IN" | "SIGNED_OUT";
 type AuthListener = (event: AuthChangeEvent, session: AuthSession | null) => void;
 
-const STORAGE_KEY = "tms_session";
+export const STORAGE_KEY = "tms_session";
 
 function readSession(): AuthSession | null {
   try {
@@ -27,6 +27,11 @@ function readSession(): AuthSession | null {
   } catch {
     return null;
   }
+}
+
+/** Token de la sesión guardada, para canales que no pasan por apiFetch (WebSocket). */
+export function currentAccessToken(): string | null {
+  return readSession()?.access_token ?? null;
 }
 
 function writeSession(session: AuthSession | null) {
@@ -62,7 +67,7 @@ function operationalHeaders(headers: Headers) {
   }
 }
 
-export async function apiFetch(path: string, init: RequestInit = {}) {
+export async function apiFetch(path: string, init: NonNullable<Parameters<typeof fetch>[1]> = {}) {
   const current = readSession();
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "application/json");
@@ -70,7 +75,8 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
   operationalHeaders(headers);
   const res = await fetch(`${API_BASE}/api${path}`, { ...init, headers });
   const body = await res.json().catch(() => null);
-  return { ok: res.ok, status: res.status, body };
+  const normalizedError = typeof body?.error === 'string' ? { message: body.error } : (body?.error ?? null);
+  return { ok: res.ok, status: res.status, body: body ? { ...body, error: normalizedError } : { error: normalizedError } };
 }
 
 type Filter = [string, string, unknown];
@@ -90,6 +96,7 @@ class QueryBuilder implements PromiseLike<PgResult> {
   private filters: Filter[] = [];
   private orderSpec: { column: string; ascending: boolean } | null = null;
   private limitVal: number | null = null;
+  private offsetVal: number | null = null;
   private singleMode: "single" | "maybeSingle" | null = null;
   private wantCount: string | null = null;
   private headOnly = false;
@@ -145,6 +152,11 @@ class QueryBuilder implements PromiseLike<PgResult> {
     this.filters.push([column, "in", values]);
     return this;
   }
+  /** Búsqueda case-insensitive. `column` admite "a|b" para OR entre columnas. El `%` lo pone el llamador. */
+  ilike(column: string, pattern: string) {
+    this.filters.push([column, "ilike", pattern]);
+    return this;
+  }
 
   order(column: string, opts?: { ascending?: boolean }) {
     this.orderSpec = { column, ascending: opts?.ascending !== false };
@@ -153,6 +165,20 @@ class QueryBuilder implements PromiseLike<PgResult> {
 
   limit(n: number) {
     this.limitVal = n;
+    return this;
+  }
+
+  /**
+   * Paginación servidor estilo supabase-js: filas en el rango inclusivo
+   * [from, to]. Manda offset=from y limit=to-from+1 a /api/data. Combinar con
+   * .select(cols, { count: 'exact' }) para recibir el total sin paginar en
+   * `count`. El backend genérico `/api/data` respeta `offset` desde 2026-10-12.
+   */
+  range(from: number, to: number) {
+    const start = Math.max(0, Math.trunc(from));
+    const end = Math.max(start, Math.trunc(to));
+    this.offsetVal = start;
+    this.limitVal = end - start + 1;
     return this;
   }
 
@@ -194,6 +220,9 @@ class QueryBuilder implements PromiseLike<PgResult> {
         return { data: body.data, error: null };
       }
       if (this.mode === "update") {
+        if (!this.filters.length) {
+          return { data: null, error: { message: "UPDATE sin WHERE está prohibido: especifica filtros" } };
+        }
         const { ok, body } = await apiFetch(`/data/${this.table}`, {
           method: "PATCH",
           body: JSON.stringify({ values: this.updateValues, filters: this.filters, returning: this.wantReturning }),
@@ -202,6 +231,9 @@ class QueryBuilder implements PromiseLike<PgResult> {
         return { data: body.data, error: null };
       }
       if (this.mode === "delete") {
+        if (!this.filters.length) {
+          return { data: null, error: { message: "DELETE sin WHERE está prohibido: especifica filtros" } };
+        }
         const { ok, body } = await apiFetch(`/data/${this.table}`, {
           method: "DELETE",
           body: JSON.stringify({ filters: this.filters, returning: this.wantReturning }),
@@ -210,11 +242,17 @@ class QueryBuilder implements PromiseLike<PgResult> {
         return { data: body.data, error: null };
       }
 
+      // Check for empty in() filters: if any filter is 'in' with empty array, return no rows
+      if (this.filters.some((f) => f[1] === "in" && Array.isArray(f[2]) && f[2].length === 0)) {
+        return { data: [], error: null, count: 0 };
+      }
+
       const params = new URLSearchParams();
       params.set("select", this.selectStr);
       if (this.filters.length) params.set("filters", JSON.stringify(this.filters));
       if (this.orderSpec) params.set("order", JSON.stringify(this.orderSpec));
       if (this.limitVal != null) params.set("limit", String(this.limitVal));
+      if (this.offsetVal != null) params.set("offset", String(this.offsetVal));
       if (this.headOnly) params.set("head", "true");
       if (this.wantCount) params.set("count", this.wantCount);
       if (this.singleMode === "single") params.set("single", "true");
@@ -223,8 +261,9 @@ class QueryBuilder implements PromiseLike<PgResult> {
       const { ok, body } = await apiFetch(`/data/${this.table}?${params.toString()}`);
       if (!ok) return { data: null, error: body?.error ?? { message: "Error al consultar" } };
       return { data: body.data, error: null, count: body.count };
-    } catch (err: any) {
-      return { data: null, error: { message: err?.message ?? "Error de red" } };
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : "Error de red";
+      return { data: null, error: { message: errMsg } };
     }
   }
 
@@ -240,12 +279,21 @@ const auth = {
   async getSession(): Promise<{ data: { session: AuthSession | null }; error: PgError | null }> {
     const current = readSession();
     if (!current) return { data: { session: null }, error: null };
-    const { ok } = await apiFetch("/auth/session");
-    if (!ok) {
-      writeSession(null);
-      return { data: { session: null }, error: null };
+    try {
+      const { ok, status } = await apiFetch("/auth/session");
+      if (!ok) {
+        // Only clear session on auth errors (401/403), not on network errors (5xx)
+        if (status === 401 || status === 403) {
+          writeSession(null);
+          notify("SIGNED_OUT", null);
+        }
+        return { data: { session: null }, error: null };
+      }
+      return { data: { session: current }, error: null };
+    } catch (e) {
+      console.error("Error verificando sesión:", e);
+      return { data: { session: null }, error: { message: e instanceof Error ? e.message : "Error de red" } };
     }
-    return { data: { session: current }, error: null };
   },
 
   onAuthStateChange(callback: AuthListener) {
@@ -254,17 +302,22 @@ const auth = {
   },
 
   async signInWithPassword({ email, password }: { email: string; password: string }) {
-    const { ok, body } = await apiFetch("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    });
-    if (!ok) {
-      return { data: { session: null, user: null }, error: body?.error ?? { message: "Error al iniciar sesión" } };
+    try {
+      const { ok, body } = await apiFetch("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
+      if (!ok) {
+        return { data: { session: null, user: null }, error: body?.error ?? { message: "Error al iniciar sesión" } };
+      }
+      const session: AuthSession = body.data;
+      writeSession(session);
+      notify("SIGNED_IN", session);
+      return { data: { session, user: session.user }, error: null };
+    } catch (e) {
+      console.error("Error al iniciar sesión:", e);
+      return { data: { session: null, user: null }, error: { message: e instanceof Error ? e.message : "Error de red" } };
     }
-    const session: AuthSession = body.data;
-    writeSession(session);
-    notify("SIGNED_IN", session);
-    return { data: { session, user: session.user }, error: null };
   },
 
   async signOut() {
@@ -287,12 +340,17 @@ const auth = {
     password: string;
     options?: { data?: Record<string, unknown> };
   }) {
-    const { ok, body } = await apiFetch("/auth/signup", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    });
-    if (!ok) return { data: { user: null }, error: body?.error ?? { message: "Error al crear usuario" } };
-    return { data: { user: body.data.user }, error: null };
+    try {
+      const { ok, body } = await apiFetch("/auth/signup", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
+      if (!ok) return { data: { user: null }, error: body?.error ?? { message: "Error al crear usuario" } };
+      return { data: { user: body.data?.user }, error: null };
+    } catch (e) {
+      console.error("Error al crear usuario:", e);
+      return { data: { user: null }, error: { message: e instanceof Error ? e.message : "Error de red" } };
+    }
   },
 };
 
