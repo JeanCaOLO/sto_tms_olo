@@ -24,11 +24,12 @@ _EQ = {
     "IDALMACEN": "e.IDALMACEN", "IDSUCURSAL": "e.IDSUCURSAL",
     "TPEXES": "e.TPEXES", "TPEXSI": "e.TPEXSI", "PRIORIDAD": "e.PRIORIDAD",
 }
-# Cola real = abiertos, sin viaje, NO anulados y con entrega de hoy en adelante
-# (el ASC puro traía expediciones muertas de 2019/2020).
+# Cola de priorización (DECIDED 2026-09-14): pedidos DISPONIBLES —
+# TPEXES=DISP (estado) y TPEXSI=DISP (situación)— sin cerrar, sin viaje y con
+# entrega de hoy en adelante. Lo que está en PREP/GENE/EXPA aún no se planifica.
 _BASE = (
     "e.FECHACIERRE IS NULL AND e.NUMEROVIAJEWMH IS NULL "
-    "AND e.TPEXSI <> 'ANUL' AND e.TPEXES <> 'ANUL' "
+    "AND e.TPEXES = 'DISP' AND e.TPEXSI = 'DISP' "
     "AND e.FECHAEXPEDICIONPLANIFICADA >= CAST(GETDATE() AS date)"
 )
 _ORDEN = "ORDER BY e.FECHAEXPEDICIONPLANIFICADA"
