@@ -1,37 +1,17 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../hooks/useAuth';
-import { useOperationalContext } from '../../hooks/useOperationalContext';
-import DaySelector from './components/DaySelector';
-import PlanEditor from './components/PlanEditor';
+import CalendarioPlanificacion from './components/CalendarioPlanificacion';
 import PlanesTab from './components/PlanesTab';
-import { useCatalogos } from './use-catalogos';
-import { usePedidosDia } from './use-pedidos-dia';
-import { fechaEntregaObjetivo } from './plan-pedidos-api';
 
-type Tab = 'generar' | 'planes';
+type Tab = 'calendario' | 'planes';
 
-// Planificación 2: el planificador elige el día, genera un plan persistido
-// (draft) con viajes+paradas, lo edita moviendo pedidos entre viajes y lo
-// confirma. La pestaña "Planificaciones" lista los planes por estado. El país/
-// almacén/cliente salen del contexto operativo del headbar (no hay selector de
-// país en la página). Fallback mock si el backend de /planes no responde.
+// Planificación 2: el Calendario muestra los planes del día por zona; la pestaña
+// "Planificaciones" los lista por estado. El país/almacén salen del contexto
+// operativo del headbar. (La pestaña "Generar Plan" manual se retiró: la
+// planificación es automática sobre los pedidos de eFlow ingestados en Aurora.)
 export default function PlanificacionPage() {
   const { t } = useTranslation();
-  const { appUser } = useAuth();
-  const { selectedCountryId, selectedWarehouseId } = useOperationalContext();
-  const [tab, setTab] = useState<Tab>('generar');
-  const [fecha, setFecha] = useState<string>(fechaEntregaObjetivo());
-
-  const { vehiculos, conductores, loading: cargandoCatalogos } = useCatalogos(appUser);
-  const { pedidos, cargando: cargandoPedidos } = usePedidosDia(fecha);
-
-  const ctx = useMemo(
-    () => ({ pedidos, vehiculos, conductores, countryId: selectedCountryId, warehouseId: selectedWarehouseId }),
-    [pedidos, vehiculos, conductores, selectedCountryId, selectedWarehouseId],
-  );
-
-  const cargando = cargandoCatalogos || cargandoPedidos;
+  const [tab, setTab] = useState<Tab>('calendario');
 
   return (
     <div className="space-y-6">
@@ -40,31 +20,14 @@ export default function PlanificacionPage() {
           <h1 className="text-xl lg:text-2xl font-bold text-slate-800">{t('planning.title')}</h1>
           <p className="text-sm text-slate-500 mt-1">{t('planning.subtitle')}</p>
         </div>
-        <DaySelector value={fecha} onChange={setFecha} label={t('planning.day')} />
       </div>
 
       <div className="flex gap-1 border-b border-slate-200">
-        <TabButton active={tab === 'generar'} onClick={() => setTab('generar')} label={t('planning.tabGenerate')} testId="tab-generar" />
+        <TabButton active={tab === 'calendario'} onClick={() => setTab('calendario')} label={t('planning.tabCalendar')} testId="tab-calendario" />
         <TabButton active={tab === 'planes'} onClick={() => setTab('planes')} label={t('planning.tabPlans')} testId="tab-planes" />
       </div>
 
-      {tab === 'generar' ? (
-        cargando ? (
-          <div className="flex items-center justify-center h-48 text-slate-500">
-            <i className="ri-loader-4-line animate-spin text-2xl"></i>
-          </div>
-        ) : (
-          <PlanEditor
-            fecha={fecha}
-            pedidosCount={pedidos.length}
-            vehiculosCount={vehiculos.length}
-            ctx={ctx}
-            onConfirmed={() => setTab('planes')}
-          />
-        )
-      ) : (
-        <PlanesTab />
-      )}
+      {tab === 'calendario' ? <CalendarioPlanificacion /> : <PlanesTab />}
     </div>
   );
 }
