@@ -1,674 +1,140 @@
-import { useState, useEffect, useCallback } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../hooks/useAuth';
-import StatCard from '../../components/feature/StatCard';
-import Input from '../../components/base/Input';
-import Select from '../../components/base/Select';
-import { RouteCard } from './components/RouteCard';
-import { MapView } from './components/MapView';
-import { TrackingTimeline } from './components/TrackingTimeline';
+import Button from '../../components/base/Button';
 import { useModulePermissions } from '../../hooks/use-module-permissions';
+import { confirmAction } from '../../lib/confirm';
+import { notify } from '../../lib/notify';
+import { completarViaje, TrackingApiError } from './api';
+import IniciarViajeModal from './components/IniciarViajeModal';
+import ViajeDetallePanel from './components/ViajeDetallePanel';
+import ViajesSidebar from './components/ViajesSidebar';
+import { useViajeDetalle, useViajesEnVivo } from './hooks/useViajesEnVivo';
+import { formatAge } from './tracking-logic';
 
-interface Route {
-  id: string;
-  route_number: string;
-  route_date: string;
-  status: string;
-  total_stops: number;
-  completed_stops: number;
-  total_weight: number;
-  total_volume: number;
-  capacity_percentage: number | null;
-  route_type_id: string | null;
-  route_type_name: string | null;
-  driver: { full_name: string } | null;
-  vehicle: { plate: string } | null;
-  carrier: { name: string } | null;
-}
+// Leaflet pesa: el mapa se descarga solo al abrir Tracking.
+const FlotaMapa = lazy(() => import('./components/FlotaMapa'));
 
-interface Stop {
-  id: string;
-  guide_number: string;
-  sequence_number: number;
-  delivery_status: string | null;
-  status: string;
-  customer_name: string;
-  order_number: string;
-  delivery_address: string;
-  delivery_city: string;
-}
+const PAGE_SIZE = 30;
+const MAX_LIMIT = 100;
+const SEARCH_DEBOUNCE_MS = 300;
 
-interface TrackingEvent {
-  id: string;
-  route_id: string | null;
-  event_type: string;
-  event_status: string;
-  event_time: string;
-  notes: string | null;
-  route: { route_number: string } | null;
-}
-
-interface RutaTipo {
-  id: string;
-  name: string;
-}
-
-interface Toast {
-  id: string;
-  message: string;
-  type: 'success' | 'error' | 'info' | 'warning';
-  icon: string;
-}
-
-// ─── Toast Component ─────────────────────────────────────────────
-function ToastContainer({ toasts, onRemove }: { toasts: Toast[]; onRemove: (id: string) => void }) {
-  return (
-    <div className="fixed top-5 right-5 z-50 space-y-2 pointer-events-none">
-      {toasts.map((toast) => (
-        <div
-          key={toast.id}
-          className={`flex items-center gap-3 px-4 py-3 rounded-lg border text-sm font-medium pointer-events-auto
-            shadow-lg transition-all duration-300 animate-fade-in min-w-[280px]
-            ${toast.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : ''}
-            ${toast.type === 'error' ? 'bg-red-50 border-red-200 text-red-800' : ''}
-            ${toast.type === 'info' ? 'bg-teal-50 border-teal-200 text-teal-800' : ''}
-            ${toast.type === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-800' : ''}
-          `}
-        >
-          <i className={`${toast.icon} text-base flex-shrink-0`}></i>
-          <span className="flex-1">{toast.message}</span>
-          <button
-            onClick={() => onRemove(toast.id)}
-            className="ml-2 opacity-60 hover:opacity-100 transition-opacity cursor-pointer"
-          >
-            <i className="ri-close-line"></i>
-          </button>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ─── Auto-complete modal ─────────────────────────────────────────
-function CompleteRouteModal({
-  routeNumber,
-  onConfirm,
-  onCancel,
-}: {
-  routeNumber: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  const { t } = useTranslation();
-  return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
-      <div className="bg-white rounded-xl border border-slate-200 p-8 max-w-sm w-full mx-4 text-center">
-        <div className="w-16 h-16 flex items-center justify-center mx-auto mb-4 bg-emerald-100 rounded-full">
-          <i className="ri-checkbox-circle-line text-4xl text-emerald-600"></i>
-        </div>
-        <h3 className="text-lg font-bold text-slate-800 mb-2">{t('tracking.modalTitle')}</h3>
-        <p className="text-sm text-slate-500 mb-6">
-          La ruta <span className="font-semibold text-slate-700">{routeNumber}</span> tiene todas sus
-          entregas completadas. ¿Deseas marcarla como <strong>Completada</strong>?
-        </p>
-        <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            className="flex-1 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer whitespace-nowrap"
-          >
-            {t('tracking.modalLater')}
-          </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 py-2.5 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 transition-colors cursor-pointer whitespace-nowrap"
-          >
-            {t('tracking.modalComplete')}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Page ────────────────────────────────────────────────────────
 export default function TrackingPage() {
   const { t } = useTranslation();
-  const { appUser, loading: authLoading } = useAuth();
-  const { canEdit } = useModulePermissions('tracking');
-  const [routes, setRoutes] = useState<Route[]>([]);
-  const [rutas, setRutas] = useState<RutaTipo[]>([]);
-  const [trackingEvents, setTrackingEvents] = useState<TrackingEvent[]>([]);
-  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
-  const [selectedRouteStops, setSelectedRouteStops] = useState<Stop[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [rutaTypeFilter, setRutaTypeFilter] = useState('all');
-  const [loading, setLoading] = useState(false);
-  const [stopsLoading, setStopsLoading] = useState(false);
-  const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const [toasts, setToasts] = useState<Toast[]>([]);
-  const [showCompleteModal, setShowCompleteModal] = useState(false);
-  const [updatingStopId, setUpdatingStopId] = useState<string | null>(null);
+  const { canCreate, canEdit } = useModulePermissions('tracking');
 
-  // ─── Toast helpers ───────────────────────────────────────────
-  const addToast = useCallback((message: string, type: Toast['type'], icon: string) => {
-    const id = `${Date.now()}-${Math.random()}`;
-    setToasts((prev) => [...prev, { id, message, type, icon }]);
-    setTimeout(() => setToasts((prev) => prev.filter((toast) => toast.id !== id)), 4000);
-  }, []);
-
-  const removeToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id));
-  }, []);
-
-  // ─── Stats ───────────────────────────────────────────────────
-  const stats = {
-    activeRoutes: routes.filter((r) =>
-      ['active', 'En tránsito', 'in_progress'].includes(r.status)
-    ).length,
-    planificadas: routes.filter((r) =>
-      ['Planificada', 'planned'].includes(r.status)
-    ).length,
-    inTransit: routes.filter((r) =>
-      ['active', 'En tránsito', 'in_progress'].includes(r.status)
-    ).length,
-    completedToday: routes.filter((r) =>
-      ['Completada', 'completed'].includes(r.status) &&
-      r.route_date === new Date().toISOString().split('T')[0]
-    ).length,
-  };
-
-  // ─── Fetch routes ────────────────────────────────────────────
-  const fetchRoutes = useCallback(async () => {
-    if (!appUser?.organization_id) return;
-    try {
-      setLoading(true);
-      setFetchError(null);
-      const { data, error } = await supabase
-        .from('routes')
-        .select(`
-          *,
-          driver:drivers(full_name),
-          vehicle:vehicles(plate),
-          carrier:carriers(name),
-          route_type:zones(name)
-        `)
-        .eq('organization_id', appUser.organization_id)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        setFetchError(error.message);
-        return;
-      }
-
-      const mapped: Route[] = (data || []).map((r: any) => ({
-        ...r,
-        route_type_name: r.route_type?.name ?? null,
-      }));
-      setRoutes(mapped);
-    } catch (err: any) {
-      setFetchError(err?.message || 'Error desconocido');
-    } finally {
-      setLoading(false);
-    }
-  }, [appUser?.organization_id]);
-
-  const fetchRutas = useCallback(async () => {
-    if (!appUser?.organization_id) return;
-    const { data } = await supabase.from('zones').select('id, name').eq('status', 'active').order('name');
-    setRutas(data || []);
-  }, [appUser?.organization_id]);
-
-  const fetchTrackingEvents = useCallback(async () => {
-    if (!appUser?.organization_id) return;
-    try {
-      const { data, error } = await supabase
-        .from('tracking_events')
-        .select('*, route:routes(route_number)')
-        .eq('organization_id', appUser.organization_id)
-        .order('event_time', { ascending: false })
-        .limit(50);
-      if (!error) setTrackingEvents((data as TrackingEvent[]) || []);
-    } catch (err) {
-      console.error('Error fetching events:', err);
-    }
-  }, [appUser?.organization_id]);
-
-  const fetchStopsForRoute = useCallback(async (routeId: string) => {
-    if (!appUser?.organization_id) return;
-    try {
-      setStopsLoading(true);
-      const { data, error } = await supabase
-        .from('dispatch_guides')
-        .select(`
-          id,
-          guide_number,
-          sequence_number,
-          status,
-          delivery_status,
-          order:orders(
-            order_number,
-            delivery_address,
-            delivery_city,
-            customer:customers(name)
-          )
-        `)
-        .eq('route_id', routeId)
-        .eq('organization_id', appUser.organization_id)
-        .order('sequence_number', { ascending: true });
-
-      if (error) {
-        setSelectedRouteStops([]);
-        return;
-      }
-
-      const stops: Stop[] = (data || []).map((dg: any) => ({
-        id: dg.id,
-        guide_number: dg.guide_number,
-        sequence_number: dg.sequence_number,
-        status: dg.status || 'Pendiente',
-        delivery_status: dg.delivery_status,
-        customer_name: dg.order?.customer?.name || 'Cliente desconocido',
-        order_number: dg.order?.order_number || '',
-        delivery_address: dg.order?.delivery_address || 'Sin dirección',
-        delivery_city: dg.order?.delivery_city || '',
-      }));
-
-      setSelectedRouteStops(stops);
-    } catch (err) {
-      setSelectedRouteStops([]);
-    } finally {
-      setStopsLoading(false);
-    }
-  }, [appUser?.organization_id]);
-
-  // ─── Change route status ────────────────────────────────────
-  const handleChangeRouteStatus = async (routeId: string, newStatus: string) => {
-    try {
-      setUpdatingStatus(true);
-      const { error } = await supabase
-        .from('routes')
-        .update({ status: newStatus })
-        .eq('id', routeId);
-      if (error) throw error;
-
-      await supabase.from('tracking_events').insert({
-        route_id: routeId,
-        event_type: newStatus === 'En tránsito' ? 'route_started' : 'route_completed',
-        event_status: 'success',
-        event_time: new Date().toISOString(),
-        notes:
-          newStatus === 'En tránsito'
-            ? 'Ruta iniciada — conductor en camino'
-            : 'Ruta completada exitosamente',
-        organization_id: appUser!.organization_id,
-      });
-
-      await fetchRoutes();
-      await fetchTrackingEvents();
-
-      if (newStatus === 'En tránsito') {
-        addToast(t('tracking.toastRouteStarted'), 'success', 'ri-truck-line');
-        setSelectedRouteId(routeId);
-      } else if (newStatus === 'Completada') {
-        addToast(t('tracking.toastRouteCompleted'), 'success', 'ri-checkbox-circle-line');
-        setShowCompleteModal(false);
-      }
-    } catch (err) {
-      addToast(t('tracking.toastRouteStatusError'), 'error', 'ri-error-warning-line');
-    } finally {
-      setUpdatingStatus(false);
-    }
-  };
-
-  // ─── Mark stop ───────────────────────────────────────────────
-  const handleMarkStop = async (stopId: string, deliveryStatus: 'delivered' | 'failed' | 'pending') => {
-    if (!selectedRouteId || !appUser) return;
-    setUpdatingStopId(stopId);
-
-    const statusMap: Record<string, string> = {
-      delivered: 'Entregado',
-      failed: 'Fallido',
-      pending: 'Pendiente',
-    };
-
-    try {
-      const { error } = await supabase
-        .from('dispatch_guides')
-        .update({ delivery_status: deliveryStatus, status: statusMap[deliveryStatus] })
-        .eq('id', stopId);
-      if (error) throw error;
-
-      // Registrar tracking event
-      const eventMap: Record<string, string> = {
-        delivered: 'delivery_completed',
-        failed: 'delivery_failed',
-        pending: 'stop_arrived',
-      };
-      const stop = selectedRouteStops.find((s) => s.id === stopId);
-      await supabase.from('tracking_events').insert({
-        route_id: selectedRouteId,
-        event_type: eventMap[deliveryStatus],
-        event_status: deliveryStatus === 'failed' ? 'error' : deliveryStatus === 'pending' ? 'info' : 'success',
-        event_time: new Date().toISOString(),
-        notes:
-          deliveryStatus === 'delivered'
-            ? `Entrega completada — ${stop?.customer_name || 'Cliente'} (Parada ${stop?.sequence_number})`
-            : deliveryStatus === 'failed'
-            ? `Entrega fallida — ${stop?.customer_name || 'Cliente'} (Parada ${stop?.sequence_number})`
-            : `Parada ${stop?.sequence_number} revertida a pendiente`,
-        organization_id: appUser.organization_id,
-      });
-
-      const updatedStops = selectedRouteStops.map((s) =>
-        s.id === stopId ? { ...s, delivery_status: deliveryStatus, status: statusMap[deliveryStatus] } : s
-      );
-      setSelectedRouteStops(updatedStops);
-
-      const completedCount = updatedStops.filter((s) =>
-        s.delivery_status === 'delivered'
-      ).length;
-
-      await supabase
-        .from('routes')
-        .update({ completed_stops: completedCount })
-        .eq('id', selectedRouteId);
-
-      setRoutes((prev) =>
-        prev.map((r) =>
-          r.id === selectedRouteId ? { ...r, completed_stops: completedCount } : r
-        )
-      );
-
-      await fetchTrackingEvents();
-
-      if (deliveryStatus === 'delivered') {
-        addToast(t('tracking.toastDelivered'), 'success', 'ri-checkbox-circle-line');
-        // ¿Todas entregadas? Proponer completar ruta
-        const selectedRoute = routes.find((r) => r.id === selectedRouteId);
-        const isInTransit =
-          selectedRoute &&
-          ['active', 'in_progress', 'En tránsito'].includes(selectedRoute.status);
-        if (
-          isInTransit &&
-          completedCount === updatedStops.length &&
-          updatedStops.length > 0
-        ) {
-          setTimeout(() => setShowCompleteModal(true), 600);
-        }
-      } else if (deliveryStatus === 'failed') {
-        addToast(t('tracking.toastFailed'), 'warning', 'ri-close-circle-line');
-      } else {
-        addToast(t('tracking.toastReverted'), 'info', 'ri-arrow-go-back-line');
-      }
-    } catch (err) {
-      addToast(t('tracking.toastStopError'), 'error', 'ri-error-warning-line');
-    } finally {
-      setUpdatingStopId(null);
-    }
-  };
-
-  // ─── Legacy shim for MapView ──────────────────────────────────
-  const handleMarkStopDelivered = (stopId: string, delivered: boolean) =>
-    handleMarkStop(stopId, delivered ? 'delivered' : 'pending');
-
-  // ─── Effects ─────────────────────────────────────────────────
-  useEffect(() => {
-    if (!authLoading && appUser) {
-      fetchRoutes();
-      fetchTrackingEvents();
-      fetchRutas();
-    }
-  }, [authLoading, appUser, fetchRoutes, fetchTrackingEvents, fetchRutas]);
+  const [activos, setActivos] = useState(true);
+  const [search, setSearch] = useState('');
+  const [query, setQuery] = useState('');
+  const [limit, setLimit] = useState(PAGE_SIZE);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [starting, setStarting] = useState(false);
 
   useEffect(() => {
-    if (selectedRouteId && appUser) {
-      fetchStopsForRoute(selectedRouteId);
-    } else {
-      setSelectedRouteStops([]);
+    const timer = setTimeout(() => setQuery(search), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const params = useMemo(() => ({ activos, q: query, limit }), [activos, query, limit]);
+  const list = useViajesEnVivo(params);
+  const detail = useViajeDetalle(selectedId);
+
+  const viajes = list.data?.items ?? [];
+  const canLoadMore = viajes.length >= limit && limit < MAX_LIMIT;
+  const selected = viajes.find((v) => v.id === selectedId) ?? (detail.data?.id === selectedId ? detail.data : null);
+  const now = list.updatedAt ?? 0;
+
+  const select = (id: string) => {
+    if (id === selectedId) { setSelectedId(null); setExpanded(false); return; }
+    setSelectedId(id);
+  };
+
+  const refresh = () => { void list.refresh(); void detail.refresh(); };
+
+  const complete = useCallback(async () => {
+    if (!selected) return;
+    const pending = selected.progress.total - selected.progress.done;
+    const message = pending > 0
+      ? t('tracking.completeForce', { count: pending })
+      : t('tracking.completeConfirm', { route: selected.route_number });
+    if (!(await confirmAction({ message, confirmLabel: t('tracking.completeTrip') }))) return;
+    try {
+      await completarViaje(selected.id, pending > 0);
+      notify(t('tracking.toastCompleted'), 'success');
+      refresh();
+    } catch (err) {
+      const text = err instanceof TrackingApiError && err.message ? err.message : t('tracking.toastCompleteError');
+      notify(text, 'error');
     }
-  }, [selectedRouteId, appUser, fetchStopsForRoute]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, t]);
 
-  // ─── Filters ─────────────────────────────────────────────────
-  const filteredRoutes = routes.filter((route) => {
-    const q = searchTerm.toLowerCase();
-    const matchesSearch =
-      !q ||
-      route.route_number.toLowerCase().includes(q) ||
-      (route.driver?.full_name || '').toLowerCase().includes(q) ||
-      (route.vehicle?.plate || '').toLowerCase().includes(q) ||
-      (route.carrier?.name || '').toLowerCase().includes(q) ||
-      (route.route_type_name || '').toLowerCase().includes(q);
-
-    const matchesStatus =
-      statusFilter === 'all' ||
-      route.status === statusFilter ||
-      (statusFilter === 'En tránsito' &&
-        ['active', 'in_progress', 'En tránsito'].includes(route.status)) ||
-      (statusFilter === 'Completada' &&
-        ['Completada', 'completed'].includes(route.status));
-
-    const matchesRutaType =
-      rutaTypeFilter === 'all' || route.route_type_id === rutaTypeFilter;
-
-    return matchesSearch && matchesStatus && matchesRutaType;
-  });
-
-  const selectedRoute = selectedRouteId
-    ? routes.find((r) => r.id === selectedRouteId) || null
-    : null;
-
-  const selectedRouteEvents = selectedRouteId
-    ? trackingEvents.filter((e) => e.route_id === selectedRouteId)
-    : trackingEvents;
-
-  const isLoading = authLoading || loading;
+  const showPanel = expanded && selected !== null;
+  const layout = showPanel ? 'lg:grid-cols-[320px_minmax(0,1fr)_380px]' : 'lg:grid-cols-[320px_minmax(0,1fr)]';
 
   return (
-    <>
-      <ToastContainer toasts={toasts} onRemove={removeToast} />
-
-      {canEdit && showCompleteModal && selectedRoute && (
-        <CompleteRouteModal
-          routeNumber={selectedRoute.route_number}
-          onConfirm={() => handleChangeRouteStatus(selectedRoute.id, 'Completada')}
-          onCancel={() => setShowCompleteModal(false)}
-        />
-      )}
-
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800">{t('tracking.title')}</h1>
-            <p className="text-sm text-slate-500 mt-1">
-              {t('tracking.subtitle')}
-            </p>
-          </div>
-          <button
-            onClick={() => {
-              fetchRoutes();
-              fetchTrackingEvents();
-              if (selectedRouteId) fetchStopsForRoute(selectedRouteId);
-              addToast(t('tracking.toastDataUpdated'), 'info', 'ri-refresh-line');
-            }}
-            className="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer whitespace-nowrap"
-          >
-            <i className="ri-refresh-line"></i>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">{t('tracking.title')}</h1>
+          <p className="text-sm text-slate-600">{t('tracking.subtitle')}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {list.updatedAt && (
+            <span className="text-xs text-slate-500">{t('tracking.updatedAgo', { age: formatAge(new Date(list.updatedAt).toISOString(), Date.now()) })}</span>
+          )}
+          <Button variant="secondary" size="sm" onClick={refresh} icon={<i className="ri-refresh-line" />}>
             {t('tracking.refresh')}
-          </button>
-        </div>
-
-        {/* KPIs */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard title={t('tracking.kpiPlanned')} value={stats.planificadas} icon="ri-calendar-check-line" color="teal" />
-          <StatCard title={t('tracking.kpiInTransit')} value={stats.inTransit} icon="ri-truck-line" color="teal" />
-          <StatCard title={t('tracking.kpiCompletedToday')} value={stats.completedToday} icon="ri-checkbox-circle-line" color="emerald" />
-          <StatCard title={t('tracking.kpiTotalRoutes')} value={routes.length} icon="ri-route-line" color="teal" />
-        </div>
-
-        {/* Error banner */}
-        {fetchError && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
-            <i className="ri-error-warning-line text-red-500 text-lg flex-shrink-0"></i>
-            <div>
-              <p className="text-sm font-medium text-red-700">{t('tracking.loadError')}</p>
-              <p className="text-xs text-red-500 mt-0.5">{fetchError}</p>
-            </div>
-            <button
-              onClick={() => { setFetchError(null); fetchRoutes(); }}
-              className="ml-auto text-xs text-red-600 hover:underline cursor-pointer whitespace-nowrap"
-            >
-              {t('tracking.retry')}
-            </button>
-          </div>
-        )}
-
-        {/* Filtros */}
-        <div className="bg-white rounded-lg border border-slate-200 p-4">
-          <div className="flex flex-wrap gap-3">
-            <div className="flex-1 min-w-[220px]">
-              <Input
-                placeholder={t('tracking.search')}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                icon="ri-search-line"
-              />
-            </div>
-            <div className="w-44">
-              <Select value={rutaTypeFilter} onChange={(e) => setRutaTypeFilter(e.target.value)}>
-                <option value="all">{t('tracking.allRoutes')}</option>
-                {rutas.map((r) => (
-                  <option key={r.id} value={r.id}>{r.name}</option>
-                ))}
-              </Select>
-            </div>
-            <div className="w-44">
-              <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                <option value="all">{t('tracking.allStatuses')}</option>
-                <option value="Planificada">{t('tracking.statusPlanned')}</option>
-                <option value="En tránsito">{t('tracking.statusInTransit')}</option>
-                <option value="Completada">{t('tracking.statusCompleted')}</option>
-                <option value="delayed">{t('tracking.statusDelayed')}</option>
-              </Select>
-            </div>
-          </div>
-        </div>
-
-        {/* Panel principal */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Lista de rutas */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg border border-slate-200 p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-semibold text-slate-800">{t('tracking.routes')}</h2>
-                <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
-                  {isLoading ? '...' : t('tracking.routesCount', { count: filteredRoutes.length })}
-                </span>
-              </div>
-              <div className="space-y-3 max-h-[560px] overflow-y-auto pr-1">
-                {isLoading ? (
-                  <div className="flex flex-col items-center justify-center py-12 gap-3">
-                    <i className="ri-loader-4-line animate-spin text-teal-600 text-2xl"></i>
-                    <p className="text-xs text-slate-400">{t('tracking.loadingRoutes')}</p>
-                  </div>
-                ) : filteredRoutes.length === 0 ? (
-                  <div className="text-center py-12 text-slate-400">
-                    <div className="w-12 h-12 flex items-center justify-center mx-auto mb-3">
-                      <i className="ri-route-line text-4xl"></i>
-                    </div>
-                    <p className="text-sm">{t('tracking.noRoutes')}</p>
-                    <p className="text-xs mt-1">{t('tracking.noRoutesHint')}</p>
-                  </div>
-                ) : (
-                  filteredRoutes.map((route) => (
-                    <RouteCard
-                      key={route.id}
-                      route={{
-                        id: route.id,
-                        route_number: route.route_number,
-                        route_date: route.route_date,
-                        driver_name: route.driver?.full_name || t('tracking.noDriver'),
-                        vehicle_plate: route.vehicle?.plate || t('tracking.noVehicle'),
-                        carrier_name: route.carrier?.name || '',
-                        route_type_name: route.route_type_name || '',
-                        total_stops: route.total_stops,
-                        completed_stops: route.completed_stops,
-                        total_weight: route.total_weight,
-                        status: route.status,
-                      }}
-                      isSelected={selectedRouteId === route.id}
-                      onClick={() =>
-                        setSelectedRouteId(
-                          selectedRouteId === route.id ? null : route.id
-                        )
-                      }
-                      onChangeStatus={handleChangeRouteStatus}
-                      updatingStatus={updatingStatus}
-                      canEdit={canEdit}
-                    />
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Mapa + Paradas */}
-          <div className="lg:col-span-2">
-            <MapView
-              selectedRoute={
-                selectedRoute
-                  ? {
-                      id: selectedRoute.id,
-                      route_number: selectedRoute.route_number,
-                      route_date: selectedRoute.route_date,
-                      status: selectedRoute.status,
-                      driver_name: selectedRoute.driver?.full_name || '',
-                      vehicle_plate: selectedRoute.vehicle?.plate || '',
-                      route_type_name: selectedRoute.route_type_name || '',
-                    }
-                  : null
-              }
-              stops={selectedRouteStops}
-              stopsLoading={stopsLoading}
-              updatingStopId={updatingStopId}
-              onMarkStop={handleMarkStop}
-              onMarkStopDelivered={handleMarkStopDelivered}
-            />
-          </div>
-        </div>
-
-        {/* Timeline de eventos */}
-        <div className="bg-white rounded-lg border border-slate-200 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-base font-semibold text-slate-800">
-              <i className="ri-time-line mr-2 text-teal-600"></i>
-              {t('tracking.eventHistory')}
-              {selectedRoute && (
-                <span className="ml-2 text-sm font-normal text-slate-500">
-                  — {selectedRoute.route_number}
-                </span>
-              )}
-            </h2>
-            {selectedRoute && (
-              <button
-                onClick={() => setSelectedRouteId(null)}
-                className="text-xs text-teal-600 hover:underline cursor-pointer whitespace-nowrap"
-              >
-                <i className="ri-list-check mr-1"></i>
-                {t('tracking.viewAllEvents')}
-              </button>
-            )}
-          </div>
-          <TrackingTimeline
-            events={selectedRouteEvents.map((e) => ({
-              ...e,
-              route_number: e.route?.route_number,
-            }))}
-          />
+          </Button>
+          {canCreate && (
+            <Button size="sm" onClick={() => setStarting(true)} icon={<i className="ri-play-circle-line" />}>
+              {t('tracking.startTrip')}
+            </Button>
+          )}
         </div>
       </div>
-    </>
+
+      <div className={`grid grid-cols-1 gap-4 h-[calc(100vh-11rem)] min-h-[520px] ${layout}`}>
+        <ViajesSidebar
+          viajes={viajes}
+          loading={list.loading}
+          error={list.error}
+          activos={activos}
+          search={search}
+          selectedId={selectedId}
+          expanded={expanded}
+          now={now}
+          canLoadMore={canLoadMore}
+          onActivos={(value) => { setActivos(value); setLimit(PAGE_SIZE); }}
+          onSearch={(value) => { setSearch(value); setLimit(PAGE_SIZE); }}
+          onSelect={select}
+          onToggleMore={() => setExpanded((v) => !v)}
+          onLoadMore={() => setLimit((v) => Math.min(v + PAGE_SIZE, MAX_LIMIT))}
+          onRetry={refresh}
+        />
+        <Suspense fallback={<div className="rounded-lg border border-slate-200 bg-slate-50" />}>
+          <FlotaMapa viajes={viajes} selectedId={selectedId} detail={detail.data} onSelect={select} />
+        </Suspense>
+        {showPanel && selected && (
+          <ViajeDetallePanel
+            viaje={selected}
+            detail={detail.data}
+            loading={detail.loading}
+            canEdit={canEdit}
+            now={now}
+            onComplete={() => void complete()}
+            onClose={() => setExpanded(false)}
+          />
+        )}
+      </div>
+
+      {canCreate && (
+        <IniciarViajeModal
+          isOpen={starting}
+          onClose={() => setStarting(false)}
+          onStarted={(routeId) => { setActivos(true); setSelectedId(routeId); refresh(); }}
+        />
+      )}
+    </div>
   );
 }
