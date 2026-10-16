@@ -6,7 +6,8 @@ import { CalculationContent } from './CalculationContent';
 import { CalculationSidebar } from './CalculationSidebar';
 
 const SHOW_ORDERS_REASON = 'Cada guía lleva un pedido. Anular saca el pedido del reparto; '
-  + '"Liquidar después" lo deja con su proforma pendiente. Ninguna de las dos cambia lo que se le paga al transportista.';
+  + '"Liquidar después" lo deja con su proforma pendiente. Ninguna de las dos cambia lo que se le paga al transportista. '
+  + 'Las marcas se guardan al momento: siguen ahí aunque cierres sin emitir.';
 
 interface Props {
   ctrl: LiquidarViajeController;

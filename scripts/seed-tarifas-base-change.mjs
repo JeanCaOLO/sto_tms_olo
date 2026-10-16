@@ -1,3 +1,4 @@
+// OBSOLETO: la base ya no se elige al liquidar (sale de carriers.rate_type, ver sql/37). No ejecutar.
 // Reglas de PRUEBA para el "Cambiar base de cálculo" del liquidador (módulo Tarifas).
 //
 // Solo INSERTA reglas nuevas en `tarifas_pricing_rules` para algunos terceros de Costa Rica que ya

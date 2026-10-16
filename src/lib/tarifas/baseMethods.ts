@@ -10,7 +10,9 @@
 
 import Decimal from 'decimal.js';
 import { componentCostPerKm } from './cost';
+import { fuelEfficiencyFor, pickStructure, rowAppliesToTruck } from './cost/shared';
 import { evaluatePred, RuleShapeError } from './evaluator';
+import { classifyExpr, type ExprKind } from './exprKind';
 import { roundToMoney, toDecimal } from './money';
 import type {
   BaseInfo, BaseMethodId, BaseOverride, BaseSource, CalcIssue, CalculateInput, CostStructure,
@@ -33,6 +35,8 @@ export const BASE_METHODS: Record<BaseMethodId, BaseMethodMeta> = {
 
 export const BASE_METHOD_ORDER: readonly BaseMethodId[] = ['PER_KM', 'PER_UNIT', 'FIXED', 'VOLUME', 'TENDERING'];
 
+export { classifyExpr, type ExprKind };
+
 export const NO_DATA = 'No hay información para este cálculo.';
 const TENDERING_PENDING = 'Todavía no tiene un cálculo definido.';
 
@@ -45,55 +49,11 @@ export interface BaseMethodOption extends BaseMethodMeta {
   source?: BaseSource;
 }
 
-/** Qué cobra una expresión: el tipo de cobro al que pertenece y el concepto (para detectar duplicados). */
-export interface ExprKind {
-  method: BaseMethodId;
-  /** Concepto cobrado: 'km', 'volume', 'unit:<variable>' o 'fixed'. */
-  concept: string;
-  /** Si el monto sale de un tarifario, su código. */
-  table?: string;
-}
-
-function kindOfUnit(unit: string): ExprKind {
-  if (unit === 'km') return { method: 'PER_KM', concept: 'km' };
-  if (unit === 'truckVolumeM3') return { method: 'VOLUME', concept: 'volume' };
-  return { method: 'PER_UNIT', concept: `unit:${unit}` };
-}
-
-/** Clasifica una expresión. Null = no es un cobro "por algo" (porcentajes, expresiones mixtas). */
-export function classifyExpr(expr: Expr): ExprKind | null {
-  switch (expr.op) {
-    case 'FIXED':
-      return { method: 'FIXED', concept: 'fixed' };
-    case 'PER_KM':
-      return { method: 'PER_KM', concept: 'km' };
-    case 'PER_UNIT':
-    case 'TIERED':
-    case 'PER_BLOCK':
-      return kindOfUnit(expr.unit);
-    case 'LOOKUP_TABLE':
-      // Un tarifario por zona/camión da un importe por viaje: es la tarifa fija de siempre.
-      return { method: 'FIXED', concept: 'fixed', table: expr.table };
-    case 'CLAMP':
-      return classifyExpr(expr.value);
-    case 'MIN':
-    case 'MAX':
-      return expr.args[0] ? classifyExpr(expr.args[0]) : null;
-    case 'IF':
-      return classifyExpr(expr.then);
-    default:
-      return null;
-  }
-}
-
 /** Costo por km que ya dice la estructura de costos de la flota propia, con la estructura de la que sale. */
 export interface StructureKmCost {
   structure: CostStructure;
   perKm: Decimal;
 }
-
-const hasRows = (s: CostStructure | null | undefined, rows: CostStructureRow[] | undefined) =>
-  !!s?.active && !!rows?.length;
 
 /**
  * Costo por km de la estructura de costos (la de la compañía; si no tiene, la del país).
@@ -110,20 +70,19 @@ export function structureCostPerKm(
   vars?: VarBag,
 ): StructureKmCost | null {
   if (input.trip.fleetType !== 'OWN') return null;
-  const structure = hasRows(input.costStructure, input.costStructureRows)
-    ? input.costStructure!
-    : hasRows(input.defaultCostStructure, input.defaultCostStructureRows)
-      ? input.defaultCostStructure!
-      : null;
-  if (!structure) return null;
-  const rows = (structure === input.costStructure ? input.costStructureRows : input.defaultCostStructureRows) ?? [];
+  const picked = pickStructure(input);
+  if (!picked) return null;
+  const { structure, rows } = picked;
 
   const { kmPerYear, fuelPrice, fuelEfficiency } = structure.params;
   let perKm = new Decimal(0);
+  const tripKm = toDecimal(input.trip.km ?? 0);
+  const nights = Number(vars?.overnightNights ?? 0);
+  const tripDays = (Number.isFinite(nights) && nights > 0 ? nights : 0) + 1;
 
   for (const row of rows) {
     if (!row.active) continue;
-    if (row.truckType && row.truckType !== input.trip.truckTypeId) continue;
+    if (!rowAppliesToTruck(row, input.trip.truckTypeId)) continue;
     if (row.appliesWhen && vars) {
       try {
         if (!evaluatePred(row.appliesWhen, vars)) continue;
@@ -137,14 +96,17 @@ export function structureCostPerKm(
       rate = componentCostPerKm(row, kmPerYear);
     } else if (row.driver === 'PER_KM') {
       rate = toDecimal(row.amount);
-    } else if (row.driver === 'PER_MONTH_PRORATED' && kmPerYear && kmPerYear > 0) {
-      rate = toDecimal(row.amount).times(12).dividedBy(kmPerYear);
+    } else if (row.driver === 'PER_MONTH_PRORATED' && tripKm.greaterThan(0) && structure.operatingDaysPerMonth > 0) {
+      // Misma definición que el costo del viaje (`unitsForDriver`): el mensual se prorratea por día
+      // operativo y por la duración del viaje; acá se expresa por km del MISMO viaje, así la base por
+      // km y el costo de la estructura coinciden.
+      rate = toDecimal(row.amount).times(tripDays).dividedBy(structure.operatingDaysPerMonth).dividedBy(tripKm);
     }
     if (!rate) continue;
     perKm = row.sign === 'SUBTRACT' ? perKm.minus(rate) : perKm.plus(rate);
   }
 
-  const efficiency = input.trip.truckTypeId ? fuelEfficiency[input.trip.truckTypeId] : undefined;
+  const efficiency = fuelEfficiencyFor(fuelEfficiency, input.trip.truckTypeId);
   if (fuelPrice && efficiency && toDecimal(efficiency).greaterThan(0)) {
     perKm = perKm.plus(toDecimal(fuelPrice).dividedBy(toDecimal(efficiency)));
   }
@@ -158,12 +120,37 @@ export function sourceOfRule(rule: Rule, kind: ExprKind): BaseSource {
     : { kind: 'RULE', ref: rule.code, label: `Regla ${rule.name || rule.code}` };
 }
 
+const CONCEPT_OF_METHOD: Record<BaseMethodId, string> = {
+  PER_KM: 'km', PER_UNIT: 'unit', FIXED: 'fixed', VOLUME: 'volume', TENDERING: 'tendering',
+};
+
+/**
+ * Forma de cobro de una regla BASE: la que declara (`baseMethod`) y, en filas anteriores a ese campo,
+ * la que se deduce de su expresión. El concepto cobrado siempre sale de la expresión cuando se puede leer.
+ */
+export function baseKindOf(rule: Rule): ExprKind | null {
+  const kind = classifyExpr(rule.expression);
+  if (!rule.baseMethod) return kind;
+  return kind?.method === rule.baseMethod ? kind : { method: rule.baseMethod, concept: CONCEPT_OF_METHOD[rule.baseMethod] };
+}
+
+/** Aviso (no bloquea) cuando la forma de cobro declarada no coincide con lo que la expresión cobra. */
+export function baseMethodMismatch(rule: Rule): string | null {
+  if (rule.stage !== 'BASE' || !rule.baseMethod) return null;
+  const kind = classifyExpr(rule.expression);
+  if (kind?.method === rule.baseMethod) return null;
+  const declared = BASE_METHODS[rule.baseMethod].label;
+  return kind
+    ? `Declara base "${declared}" pero su fórmula cobra "${BASE_METHODS[kind.method].label}".`
+    : `Declara base "${declared}" pero su fórmula no se puede clasificar.`;
+}
+
 /** Reglas BASE ya resueltas (alcance, vigencia y condición) que pertenecen a un tipo de cobro. */
 export function baseRulesOf(applied: Rule[], method: BaseMethodId): { rule: Rule; kind: ExprKind }[] {
   return applied
     .filter((r) => r.stage === 'BASE')
     .flatMap((rule) => {
-      const kind = classifyExpr(rule.expression);
+      const kind = baseKindOf(rule);
       return kind && kind.method === method ? [{ rule, kind }] : [];
     });
 }

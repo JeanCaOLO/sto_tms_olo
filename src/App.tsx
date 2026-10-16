@@ -6,6 +6,7 @@ import { PermissionsProvider } from './hooks/usePermissions';
 import { OperationalContextProvider } from './hooks/useOperationalContext';
 import { SidebarProvider, useSidebar } from './hooks/useSidebar';
 import { ToastProvider } from './hooks/useToast';
+import ConfirmHost from './components/base/ConfirmHost';
 import Sidebar from './components/feature/Sidebar';
 import Header from './components/feature/Header';
 import RouteGuard from './components/feature/RouteGuard';
@@ -82,6 +83,7 @@ export default function App() {
           <SidebarProvider>
             <AppLayout />
           </SidebarProvider>
+          <ConfirmHost />
         </ToastProvider>
       </AuthProvider>
     </BrowserRouter>

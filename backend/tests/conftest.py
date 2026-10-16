@@ -23,6 +23,7 @@ STACK_SOURCES = {
     "tarifas": BACKEND / "tarifas" / "src",
     "realtime": BACKEND / "realtime" / "src",
     "documents": BACKEND / "documents" / "src",
+    "tracking": BACKEND / "tracking" / "src",
     "alerts": BACKEND / "alerts" / "src",
     "alerts-mailer": BACKEND / "alerts" / "mailer",
 }
@@ -31,7 +32,7 @@ STACK_MODULES = {"app", "table_modules", "admin_permissions", "admin_audit", "au
                  "admin_access", "admin_payload", "admin_sql", "admin_users", "admin_roles", "planning_sql", "delivery_points", "delivery_points_sql",
                  "models", "score", "regla_fecha", "analizador_observaciones", "cola_candidatos", "handoff_pedidos", "motor_reglas",
                  "tarifas_schema", "tarifas_sql", "tarifas_perms", "tarifas_db", "tarifas_metrics",
-                 "contract_files", "expirations", "email_body", "mailer"}
+                 "contract_files", "tracking_logic", "tracking_sql", "expirations", "email_body", "mailer"}
 
 sys.path.insert(0, str(LAYER))
 

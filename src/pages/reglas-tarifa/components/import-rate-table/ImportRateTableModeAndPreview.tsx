@@ -135,6 +135,18 @@ export default function ImportRateTableModeAndPreview({
             </ul>
           </div>
         )}
+
+        {(parsed.warnings?.length ?? 0) > 0 && (
+          <div className="mt-3 bg-sky-50 border border-sky-200 rounded-lg px-4 py-3">
+            <p className="text-xs font-medium text-sky-800 mb-1">Filas que se importan, pero conviene revisar</p>
+            <ul className="text-xs text-sky-700 space-y-0.5">
+              {parsed.warnings!.slice(0, 8).map((w) => (
+                <li key={w.sourceRow}>Fila {w.sourceRow + 1} ({w.key.join(' | ')}): {w.reason}</li>
+              ))}
+              {parsed.warnings!.length > 8 && <li>y {parsed.warnings!.length - 8} más…</li>}
+            </ul>
+          </div>
+        )}
       </div>
     </>
   );

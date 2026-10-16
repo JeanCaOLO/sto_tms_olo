@@ -28,7 +28,7 @@ const RULES: Rule[] = [
     expression: { op: 'PER_UNIT', unit: 'clientCount', rate: '2.00' },
   }),
   makeRule({
-    code: 'NUNCA', name: 'Regla que no aplica', stage: 'SURCHARGE',
+    code: 'NUNCA', name: 'Regla que no aplica', stage: 'VARIABLE',
     conditions: { p: 'GT', left: 'km', right: 100000 },
     expression: { op: 'FIXED', amount: '99.00' },
   }),

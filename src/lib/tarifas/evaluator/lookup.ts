@@ -3,6 +3,8 @@
 import type { RateTable, RateTableMatch, RateTableRow, VarBag } from '../types';
 import { RATE_TABLE_WILDCARD } from '../types';
 import { inRange, parseRange } from '../rateRange';
+import { tryDecimal } from '../money';
+import { looseEq } from './predicates';
 
 export interface RateTableLookup {
   row: RateTableRow;
@@ -11,16 +13,6 @@ export interface RateTableLookup {
   tiedWith: RateTableRow[];
 }
 
-// Igualdad tolerante a tipo: 40 (number) === "40" (string) cuando ambos son numéricos.
-function looseEq(a: string | number, b: string | number): boolean {
-  const toNum = (v: string | number) => (typeof v === 'number' ? v : Number(v));
-  if (typeof a === 'number' || typeof b === 'number') {
-    const an = toNum(a);
-    const bn = toNum(b);
-    if (!Number.isNaN(an) && !Number.isNaN(bn)) return an === bn;
-  }
-  return String(a) === String(b);
-}
 
 /**
  * Qué fila de la tabla corresponde a este viaje.
@@ -45,7 +37,11 @@ export function lookupRateTable(
       if (expected === undefined || expected === RATE_TABLE_WILDCARD) return true;
       // Una celda con rango ("101..300") cubre todos los valores de ese tramo.
       const range = parseRange(expected);
-      if (range) return inRange(Number(vars[column]), range);
+      if (range) {
+        // Un valor vacío o no numérico NO cae en el rango (Number('') valía 0 y casaba con "0..100").
+        const value = tryDecimal(vars[column]);
+        return value !== null && inRange(value.toNumber(), range);
+      }
       return looseEq(vars[column] ?? '', expected);
     }));
 

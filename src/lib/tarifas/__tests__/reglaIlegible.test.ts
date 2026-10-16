@@ -61,7 +61,7 @@ describe('el cálculo completo con una regla rota', () => {
   const rota = () => makeRule({
     code: 'R_ROTA',
     name: 'Recargo inventado',
-    stage: 'SURCHARGE',
+    stage: 'VARIABLE',
     expression: { op: 'NO_EXISTE', amount: '10.00' } as never,
   });
 
@@ -96,7 +96,7 @@ describe('el cálculo completo con una regla rota', () => {
       base(),
       makeRule({
         code: 'R_COND',
-        stage: 'SURCHARGE',
+        stage: 'VARIABLE',
         expression: { op: 'FIXED', amount: '10.00' },
         conditions: { p: 'QUIZAS' } as never,
       }),
