@@ -4,11 +4,13 @@ import Button from '../../components/base/Button';
 import { useModulePermissions } from '../../hooks/use-module-permissions';
 import { confirmAction } from '../../lib/confirm';
 import { notify } from '../../lib/notify';
-import { completarViaje, TrackingApiError } from './api';
+import { completarViaje, revisarViaje, TrackingApiError } from './api';
 import IniciarViajeModal from './components/IniciarViajeModal';
+import ResumenBar from './components/ResumenBar';
 import ViajeDetallePanel from './components/ViajeDetallePanel';
 import ViajesSidebar from './components/ViajesSidebar';
-import { useViajeDetalle, useViajesEnVivo } from './hooks/useViajesEnVivo';
+import { useResumen, useViajeDetalle, useViajesEnVivo } from './hooks/useViajesEnVivo';
+import type { ListMode } from './types';
 import { formatAge } from './tracking-logic';
 
 // Leaflet pesa: el mapa se descarga solo al abrir Tracking.
@@ -26,7 +28,7 @@ export default function TrackingPage() {
   const { t } = useTranslation();
   const { canCreate, canEdit } = useModulePermissions('tracking');
 
-  const [activos, setActivos] = useState(true);
+  const [mode, setMode] = useState<ListMode>('active');
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [limit, setLimit] = useState(PAGE_SIZE);
@@ -39,8 +41,9 @@ export default function TrackingPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  const params = useMemo(() => ({ activos, q: query, limit }), [activos, query, limit]);
+  const params = useMemo(() => ({ mode, q: query, limit }), [mode, query, limit]);
   const list = useViajesEnVivo(params);
+  const resumen = useResumen();
   const detail = useViajeDetalle(selectedId);
 
   const viajes = list.data?.items ?? [];
@@ -53,7 +56,7 @@ export default function TrackingPage() {
     setSelectedId(id);
   };
 
-  const refresh = () => { void list.refresh(); void detail.refresh(); };
+  const refresh = () => { void list.refresh(); void detail.refresh(); void resumen.refresh(); };
 
   const complete = useCallback(async () => {
     if (!selected) return;
@@ -69,6 +72,19 @@ export default function TrackingPage() {
     } catch (err) {
       const text = err instanceof TrackingApiError && err.message ? err.message : t('tracking.toastCompleteError');
       notify(text, 'error');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, t]);
+
+  const review = useCallback(async () => {
+    if (!selected) return;
+    if (!(await confirmAction({ message: t('tracking.reviewConfirm', { route: selected.route_number }), confirmLabel: t('tracking.reviewMark') }))) return;
+    try {
+      await revisarViaje(selected.id);
+      notify(t('tracking.toastReviewed'), 'success');
+      refresh();
+    } catch (err) {
+      notify(err instanceof TrackingApiError && err.message ? err.message : t('tracking.toastReviewError'), 'error');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, t]);
@@ -98,18 +114,21 @@ export default function TrackingPage() {
         </div>
       </div>
 
-      <div className={`grid grid-cols-1 gap-4 h-[calc(100vh-11rem)] min-h-[520px] ${layout}`}>
+      <ResumenBar resumen={resumen.data} />
+
+      <div className={`grid grid-cols-1 gap-4 h-[calc(100vh-16rem)] min-h-[520px] ${layout}`}>
         <ViajesSidebar
           viajes={viajes}
           loading={list.loading}
           error={list.error}
-          activos={activos}
+          mode={mode}
+          reviewCount={resumen.data?.to_review ?? null}
           search={search}
           selectedId={selectedId}
           expanded={expanded}
           now={now}
           canLoadMore={canLoadMore}
-          onActivos={(value) => { setActivos(value); setLimit(PAGE_SIZE); }}
+          onMode={(value) => { setMode(value); setLimit(PAGE_SIZE); }}
           onSearch={(value) => { setSearch(value); setLimit(PAGE_SIZE); }}
           onSelect={select}
           onToggleMore={() => setExpanded((v) => !v)}
@@ -127,6 +146,7 @@ export default function TrackingPage() {
             canEdit={canEdit}
             now={now}
             onComplete={() => void complete()}
+            onReview={() => void review()}
             onClose={() => setExpanded(false)}
           />
         )}
@@ -136,7 +156,7 @@ export default function TrackingPage() {
         <IniciarViajeModal
           isOpen={starting}
           onClose={() => setStarting(false)}
-          onStarted={(routeId) => { setActivos(true); setSelectedId(routeId); refresh(); }}
+          onStarted={(routeId) => { setMode('active'); setSelectedId(routeId); refresh(); }}
         />
       )}
     </div>

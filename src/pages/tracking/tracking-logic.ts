@@ -1,5 +1,5 @@
 // Reglas puras de presentación del tracking (sin React): colores, etiquetas y tiempos relativos.
-import type { MapColor, RouteState, Signal, StopState, Viaje } from './types';
+import type { AlertCode, MapColor, ReviewColor, ReviewReasonCode, RouteState, Signal, Stop, StopState, Viaje } from './types';
 
 export const COLOR_HEX: Record<MapColor, string> = {
   green: '#059669',
@@ -81,4 +81,72 @@ export const EVIDENCE_KEY: Record<string, string> = {
 /** Un viaje en tránsito sin paradas pendientes está listo para cerrarse. */
 export function readyToComplete(viaje: Pick<Viaje, 'state' | 'progress'>): boolean {
   return viaje.state === 'active' && viaje.progress.total > 0 && viaje.progress.done >= viaje.progress.total;
+}
+
+// --- alertas, retraso, cercanía y semáforo -----------------------------------------------------------
+
+export const ALERT_META: Record<AlertCode, { key: string; icon: string; cls: string }> = {
+  incident: { key: 'tracking.alertIncident', icon: 'ri-chat-warning-line', cls: 'bg-amber-100 text-amber-800' },
+  failed: { key: 'tracking.alertFailed', icon: 'ri-close-circle-line', cls: 'bg-red-100 text-red-700' },
+  no_signal: { key: 'tracking.alertNoSignal', icon: 'ri-signal-wifi-off-line', cls: 'bg-slate-200 text-slate-700' },
+  late: { key: 'tracking.alertLate', icon: 'ri-time-line', cls: 'bg-red-100 text-red-700' },
+  stopped: { key: 'tracking.alertStopped', icon: 'ri-pause-circle-line', cls: 'bg-amber-100 text-amber-800' },
+};
+
+export const REVIEW_HEX: Record<ReviewColor, string> = { green: '#059669', amber: '#d97706', red: '#dc2626' };
+export const REVIEW_KEY: Record<ReviewColor, string> = {
+  green: 'tracking.reviewGreen',
+  amber: 'tracking.reviewAmber',
+  red: 'tracking.reviewRed',
+};
+export const REVIEW_REASON_KEY: Record<ReviewReasonCode, string> = {
+  failed: 'tracking.reasonFailed',
+  missing_evidence: 'tracking.reasonMissingEvidence',
+  incidents: 'tracking.reasonIncidents',
+  pickups: 'tracking.reasonPickups',
+  returns: 'tracking.reasonReturns',
+  late: 'tracking.reasonLate',
+};
+
+/** "850 m" / "12.4 km"; null si no hay distancia. */
+export function formatDistance(meters: number | null | undefined): string | null {
+  if (meters == null) return null;
+  return meters < 1000 ? `${Math.round(meters)} m` : `${(meters / 1000).toFixed(1)} km`;
+}
+
+/** Hora local "HH:MM" de un ISO; null si no es válido. */
+export function formatClock(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+/** Retraso en minutos → variante de badge: ≤15 a tiempo, ≤60 aviso, más peligro; null sin dato. */
+export function delayVariant(min: number | null | undefined): BadgeVariant {
+  if (min == null) return 'default';
+  if (min > 60) return 'danger';
+  if (min > 15) return 'warning';
+  return 'success';
+}
+
+/** Paradas pendientes de la más cercana a la más lejana (sin distancia, al final y por secuencia). */
+export function nearestPending(stops: Stop[]): Stop[] {
+  return stops
+    .filter((s) => s.state === 'pending')
+    .sort((a, b) => {
+      if (a.distance_m == null && b.distance_m == null) return a.sequence - b.sequence;
+      if (a.distance_m == null) return 1;
+      if (b.distance_m == null) return -1;
+      return a.distance_m - b.distance_m;
+    });
+}
+
+/** Enlaces para abrir la parada en Google Maps o Waze (navegación externa, sin llave de API). */
+export function navigationLinks(lat: number | null, lng: number | null): { maps: string; waze: string } | null {
+  if (lat == null || lng == null) return null;
+  return {
+    maps: `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,
+    waze: `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`,
+  };
 }

@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import type { Viaje } from '../types';
-import { ageSeconds, formatAge, positioned, readyToComplete, speedKmh, stateVariant, stopVariant } from '../tracking-logic';
+import type { Stop, Viaje } from '../types';
+import {
+  ageSeconds, delayVariant, formatAge, formatDistance, navigationLinks, nearestPending, positioned, readyToComplete,
+  speedKmh, stateVariant, stopVariant,
+} from '../tracking-logic';
 
 const NOW = Date.parse('2026-10-16T15:00:00Z');
 
 const viaje = (over: Partial<Viaje> = {}): Viaje => ({
-  id: 'v1', route_number: 'VJ-1', state: 'active', status_raw: 'En tránsito', signal: 'online', color: 'green',
+  id: 'v1', route_number: 'VJ-1', state: 'active', status_raw: 'En tránsito', phase: 'en_ruta', signal: 'online', color: 'green',
   driver_name: null, plate: null, carrier_name: null, zone_name: null, started_at: null, ended_at: null,
+  planned_end_at: null, total_distance_km: null, capacity_percentage: null, delay_min: null, incidents: 0, alerts: [], review: null,
   route_date: null, position: null, progress: { total: 4, done: 2, delivered: 2, failed: 0, percent: 50 }, ...over,
 });
 
@@ -50,5 +54,45 @@ describe('tracking-logic', () => {
     expect(readyToComplete(viaje({ progress: { total: 4, done: 4, delivered: 3, failed: 1, percent: 100 } }))).toBe(true);
     expect(readyToComplete(viaje({ state: 'completed', progress: { total: 4, done: 4, delivered: 4, failed: 0, percent: 100 } }))).toBe(false);
     expect(readyToComplete(viaje({ progress: { total: 0, done: 0, delivered: 0, failed: 0, percent: 0 } }))).toBe(false);
+  });
+});
+
+
+const pending = (over: Partial<Stop>): Stop => ({
+  id: 's', guide_number: 'G', sequence: 1, state: 'pending', order_number: 'P', invoice_number: null, customer_name: null,
+  address: null, city: null, items: null, weight: null, lat: null, lng: null, arrived_at: null, recipient_name: null,
+  evidences: [], incidents: [], returns: [], planned_arrival_at: null, distance_m: null, eta_at: null, delay_min: null, ...over,
+});
+
+describe('tracking-logic: monitor', () => {
+  it('formatea la distancia en m o km', () => {
+    expect(formatDistance(850)).toBe('850 m');
+    expect(formatDistance(12400)).toBe('12.4 km');
+    expect(formatDistance(null)).toBeNull();
+  });
+
+  it('el retraso pasa de a tiempo a aviso y a peligro', () => {
+    expect(delayVariant(null)).toBe('default');
+    expect(delayVariant(-5)).toBe('success');
+    expect(delayVariant(15)).toBe('success');
+    expect(delayVariant(16)).toBe('warning');
+    expect(delayVariant(61)).toBe('danger');
+  });
+
+  it('ordena las pendientes por cercanía y deja al final las que no tienen distancia', () => {
+    const stops = [
+      pending({ id: 'x', sequence: 1, distance_m: null }),
+      pending({ id: 'far', sequence: 2, distance_m: 5000 }),
+      pending({ id: 'done', sequence: 3, state: 'delivered', distance_m: 1 }),
+      pending({ id: 'near', sequence: 4, distance_m: 300 }),
+    ];
+    expect(nearestPending(stops).map((s) => s.id)).toEqual(['near', 'far', 'x']);
+  });
+
+  it('arma los enlaces de navegación solo con coordenadas', () => {
+    expect(navigationLinks(null, -84)).toBeNull();
+    const links = navigationLinks(9.93, -84.08);
+    expect(links?.maps).toBe('https://www.google.com/maps/dir/?api=1&destination=9.93,-84.08');
+    expect(links?.waze).toBe('https://waze.com/ul?ll=9.93,-84.08&navigate=yes');
   });
 });

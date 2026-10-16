@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const apiFetch = vi.fn();
 vi.mock('../../../lib/supabase', () => ({ apiFetch: (...args: unknown[]) => apiFetch(...args) }));
 
-import { completarViaje, getViaje, iniciarViaje, listViajes, TrackingApiError } from '../api';
+import { completarViaje, getResumen, getViaje, iniciarViaje, listViajes, revisarViaje, TrackingApiError } from '../api';
 
 const ok = (data: unknown) => ({ ok: true, status: 200, body: { data, error: null } });
 
@@ -12,9 +12,9 @@ beforeEach(() => apiFetch.mockReset());
 describe('api de tracking', () => {
   it('arma la consulta de la lista con filtro de activos y búsqueda', async () => {
     apiFetch.mockResolvedValue(ok({ items: [], next_cursor: null }));
-    await listViajes({ activos: true, q: ' ABC ', limit: 30 });
+    await listViajes({ mode: 'active', q: ' ABC ', limit: 30 });
     expect(apiFetch).toHaveBeenCalledWith('/v1/tracking/viajes?limit=30&activos=1&q=ABC', undefined);
-    await listViajes({ activos: false, q: '', limit: 60 });
+    await listViajes({ mode: 'all', q: '', limit: 60 });
     expect(apiFetch).toHaveBeenLastCalledWith('/v1/tracking/viajes?limit=60', undefined);
   });
 
@@ -43,5 +43,26 @@ describe('api de tracking', () => {
   it('usa el status HTTP si el cuerpo no trae mensaje', async () => {
     apiFetch.mockResolvedValue({ ok: false, status: 502, body: null });
     await expect(getViaje('x')).rejects.toThrow('HTTP 502');
+  });
+});
+
+
+describe('api de tracking: monitor', () => {
+  beforeEach(() => apiFetch.mockReset());
+
+  it('pide solo los viajes completados sin revisar', async () => {
+    apiFetch.mockResolvedValue(ok({ items: [], next_cursor: null }));
+    await listViajes({ mode: 'review', q: '', limit: 30 });
+    expect(apiFetch).toHaveBeenCalledWith('/v1/tracking/viajes?limit=30&por_revisar=1', undefined);
+  });
+
+  it('consulta el resumen y marca un viaje como revisado', async () => {
+    apiFetch.mockResolvedValue(ok({ active: 2 }));
+    expect(await getResumen()).toEqual({ active: 2 });
+    expect(apiFetch).toHaveBeenCalledWith('/v1/tracking/resumen', undefined);
+    await revisarViaje('r1');
+    expect(apiFetch).toHaveBeenLastCalledWith('/v1/tracking/viajes/r1/revisar', { method: 'POST', body: '{}' });
+    await revisarViaje('r1', 'ok');
+    expect(apiFetch).toHaveBeenLastCalledWith('/v1/tracking/viajes/r1/revisar', { method: 'POST', body: '{"note":"ok"}' });
   });
 });

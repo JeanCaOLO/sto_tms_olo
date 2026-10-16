@@ -17,14 +17,14 @@ interface Props {
 const DEFAULT_CENTER: [number, number] = [9.93, -84.08];
 const DEFAULT_ZOOM = 8;
 
-const truckIcon = (color: string, selected: boolean) => {
+const truckIcon = (color: string, selected: boolean, alert: boolean) => {
   const size = selected ? 38 : 30;
   return L.divIcon({
     className: '',
     html: `<div style="width:${size}px;height:${size}px;border-radius:9999px;background:${color};color:#fff;
-      display:flex;align-items:center;justify-content:center;font-size:${selected ? 20 : 16}px;
+      position:relative;display:flex;align-items:center;justify-content:center;font-size:${selected ? 20 : 16}px;
       border:3px solid #fff;box-shadow:0 0 0 ${selected ? 3 : 0}px ${color},0 1px 4px rgba(0,0,0,.45);">
-      <i class="ri-truck-fill"></i></div>`,
+      <i class="ri-truck-fill"></i>${alert ? '<span style="position:absolute;top:-3px;right:-3px;width:12px;height:12px;border-radius:9999px;background:#dc2626;border:2px solid #fff;"></span>' : ''}</div>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   });
@@ -97,7 +97,7 @@ export default function FlotaMapa({ viajes, selectedId, detail, onSelect }: Prop
           <Marker
             key={v.id}
             position={[v.position!.lat, v.position!.lng]}
-            icon={truckIcon(COLOR_HEX[v.color], v.id === selectedId)}
+            icon={truckIcon(COLOR_HEX[v.color], v.id === selectedId, v.alerts.length > 0)}
             zIndexOffset={v.id === selectedId ? 1000 : 0}
             eventHandlers={{ click: () => onSelect(v.id) }}
           >

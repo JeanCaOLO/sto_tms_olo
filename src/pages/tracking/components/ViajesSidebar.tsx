@@ -1,19 +1,20 @@
 import { useTranslation } from 'react-i18next';
 import Input from '../../../components/base/Input';
-import type { Viaje } from '../types';
+import type { ListMode, Viaje } from '../types';
 import ViajeCard from './ViajeCard';
 
 interface Props {
   viajes: Viaje[];
   loading: boolean;
   error: Error | null;
-  activos: boolean;
+  mode: ListMode;
+  reviewCount: number | null;
   search: string;
   selectedId: string | null;
   expanded: boolean;
   now: number;
   canLoadMore: boolean;
-  onActivos: (value: boolean) => void;
+  onMode: (value: ListMode) => void;
   onSearch: (value: string) => void;
   onSelect: (id: string) => void;
   onToggleMore: () => void;
@@ -27,16 +28,19 @@ const chip = (on: boolean) =>
 /** Lista lateral de viajes: filtro Activos/Todos, búsqueda y tarjetas (recientes primero). */
 export default function ViajesSidebar(props: Props) {
   const { t } = useTranslation();
-  const { viajes, loading, error, activos } = props;
+  const { viajes, loading, error, mode } = props;
   return (
     <aside className="flex flex-col min-h-0 bg-white border border-slate-200 rounded-lg overflow-hidden">
       <div className="p-3 space-y-2 border-b border-slate-100">
         <div className="inline-flex bg-slate-100 rounded-lg p-1" role="group">
-          <button type="button" className={chip(activos)} aria-pressed={activos} onClick={() => props.onActivos(true)}>
+          <button type="button" className={chip(mode === 'active')} aria-pressed={mode === 'active'} onClick={() => props.onMode('active')}>
             {t('tracking.filterActive')}
           </button>
-          <button type="button" className={chip(!activos)} aria-pressed={!activos} onClick={() => props.onActivos(false)}>
+          <button type="button" className={chip(mode === 'all')} aria-pressed={mode === 'all'} onClick={() => props.onMode('all')}>
             {t('tracking.filterAll')}
+          </button>
+          <button type="button" className={chip(mode === 'review')} aria-pressed={mode === 'review'} onClick={() => props.onMode('review')}>
+            {t('tracking.filterReview')}{props.reviewCount ? ` (${props.reviewCount})` : ''}
           </button>
         </div>
         <Input

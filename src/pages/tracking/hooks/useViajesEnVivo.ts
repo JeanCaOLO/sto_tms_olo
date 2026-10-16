@@ -1,11 +1,17 @@
 import { useCallback } from 'react';
-import { getViaje, listViajes, type ListParams } from '../api';
+import { getResumen, getViaje, listViajes, type ListParams } from '../api';
 import { usePolling } from './usePolling';
 
 /** Lista de viajes (recientes primero) refrescada cada 10 s. */
 export function useViajesEnVivo(params: ListParams) {
-  const fetcher = useCallback(() => listViajes(params), [params.activos, params.q, params.limit]); // eslint-disable-line react-hooks/exhaustive-deps
-  return usePolling(fetcher, [params.activos, params.q, params.limit]);
+  const fetcher = useCallback(() => listViajes(params), [params.mode, params.q, params.limit]); // eslint-disable-line react-hooks/exhaustive-deps
+  return usePolling(fetcher, [params.mode, params.q, params.limit]);
+}
+
+/** KPIs de la franja superior, refrescados cada 10 s. */
+export function useResumen() {
+  const fetcher = useCallback(() => getResumen(), []);
+  return usePolling(fetcher, []);
 }
 
 /** Detalle del viaje abierto; sin id no consulta. */

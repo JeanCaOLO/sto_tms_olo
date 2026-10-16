@@ -3,7 +3,11 @@ import { useTranslation } from 'react-i18next';
 import Badge from '../../../components/base/Badge';
 import Button from '../../../components/base/Button';
 import type { Stop, TripEvent, Viaje, ViajeDetalle } from '../types';
-import { EVIDENCE_KEY, STATE_KEY, STOP_KEY, formatAge, readyToComplete, speedKmh, stateVariant, stopVariant } from '../tracking-logic';
+import {
+  EVIDENCE_KEY, REVIEW_HEX, REVIEW_KEY, REVIEW_REASON_KEY, STATE_KEY, STOP_KEY, delayVariant, formatAge, formatClock,
+  formatDistance, navigationLinks, nearestPending, readyToComplete, speedKmh, stateVariant, stopVariant,
+} from '../tracking-logic';
+import AlertDots from './AlertDots';
 import ProgressBar from './ProgressBar';
 
 interface Props {
@@ -13,15 +17,24 @@ interface Props {
   canEdit: boolean;
   now: number;
   onComplete: () => void;
+  onReview: () => void;
   onClose: () => void;
 }
 
 function StopEvidence({ stop }: { stop: Stop }) {
   const { t } = useTranslation();
+  const links = navigationLinks(stop.lat, stop.lng);
   const hasAny = stop.evidences.length || stop.incidents.length || stop.returns.length;
   return (
     <div className="mt-2 space-y-3 border-t border-slate-100 pt-3 text-xs">
       {stop.recipient_name && <p className="text-slate-600">{t('tracking.recipient', { name: stop.recipient_name })}</p>}
+      {stop.address && <p className="text-slate-600">{stop.address}</p>}
+      {links && (
+        <p className="flex gap-3">
+          <a href={links.maps} target="_blank" rel="noreferrer" className="text-teal-700 hover:underline">{t('tracking.openMaps')}</a>
+          <a href={links.waze} target="_blank" rel="noreferrer" className="text-teal-700 hover:underline">{t('tracking.openWaze')}</a>
+        </p>
+      )}
       {!hasAny && <p className="text-slate-400">{t('tracking.noEvidences')}</p>}
       {stop.evidences.length > 0 && (
         <div>
@@ -41,7 +54,9 @@ function StopEvidence({ stop }: { stop: Stop }) {
           <p className="font-medium text-slate-700 mb-1">{t('tracking.incidents')}</p>
           <ul className="space-y-1">
             {stop.incidents.map((item, index) => (
-              <li key={`${item.at}-${index}`} className="rounded bg-amber-50 text-amber-800 px-2 py-1">{item.text}</li>
+              <li key={`${item.at}-${index}`} className="rounded bg-amber-50 text-amber-800 px-2 py-1">
+                {item.kind === 'pickup' ? `${t('tracking.pickup')}: ` : ''}{item.text}
+              </li>
             ))}
           </ul>
         </div>
@@ -78,6 +93,17 @@ function StopItem({ stop }: { stop: Stop }) {
         </span>
         <Badge size="sm" variant={stopVariant(stop.state)}>{t(STOP_KEY[stop.state])}</Badge>
       </button>
+      {stop.state === 'pending' && (stop.distance_m != null || stop.eta_at) && (
+        <p className="mt-1 ml-9 flex flex-wrap items-center gap-x-2 text-xs text-slate-500">
+          {stop.distance_m != null && <span>{t('tracking.distance', { value: formatDistance(stop.distance_m) })}</span>}
+          {stop.eta_at && <span>{t('tracking.eta', { time: formatClock(stop.eta_at) })}</span>}
+          {stop.delay_min != null && (
+            <Badge size="sm" variant={delayVariant(stop.delay_min)}>
+              {stop.delay_min > 15 ? t('tracking.delayLate', { min: stop.delay_min }) : t('tracking.delayOk')}
+            </Badge>
+          )}
+        </p>
+      )}
       {open && <StopEvidence stop={stop} />}
     </li>
   );
@@ -93,12 +119,14 @@ function EventLine({ event }: { event: TripEvent }) {
 }
 
 /** Panel derecho: avance, pedidos del viaje y, por pedido, lo que subió la app (evidencias, novedades, devoluciones). */
-export default function ViajeDetallePanel({ viaje, detail, loading, canEdit, now, onComplete, onClose }: Props) {
+export default function ViajeDetallePanel({ viaje, detail, loading, canEdit, now, onComplete, onReview, onClose }: Props) {
   const { t } = useTranslation();
   const [advanced, setAdvanced] = useState(false);
   const view = detail ?? viaje;
   const age = formatAge(viaje.position?.recorded_at, now);
   const kmh = speedKmh(viaje.position?.speed_mps);
+  const nextStops = detail ? nearestPending(detail.stops).slice(0, 3) : [];
+  const departed = formatClock(detail?.departed_at);
 
   return (
     <aside className="flex flex-col min-h-0 bg-white border border-slate-200 rounded-lg overflow-hidden" aria-label={viaje.route_number}>
@@ -124,8 +152,10 @@ export default function ViajeDetallePanel({ viaje, detail, loading, canEdit, now
             <span className="font-medium">{view.progress.percent}%</span>
           </p>
         </div>
+        {viaje.alerts.length > 0 && <div className="mt-2"><AlertDots alerts={viaje.alerts} showText /></div>}
         {viaje.state === 'active' && (
           <p className="mt-2 text-xs text-slate-500 flex flex-wrap gap-x-3">
+            {viaje.phase === 'por_salir' ? <span>{t('tracking.phaseDeparting')}</span> : departed && <span>{t('tracking.departedAt', { time: departed })}</span>}
             {age && <span>{t('tracking.lastSeen', { age })}</span>}
             {kmh !== null && <span>{t('tracking.speed', { kmh })}</span>}
             {viaje.position?.battery_pct != null && <span>{t('tracking.battery', { pct: viaje.position.battery_pct })}</span>}
@@ -139,6 +169,52 @@ export default function ViajeDetallePanel({ viaje, detail, loading, canEdit, now
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {viaje.review && (
+          <section className="rounded-lg border border-slate-200 p-3" aria-label={t('tracking.reviewTitle')}>
+            <p className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+              <span className="w-3 h-3 rounded-full" style={{ background: REVIEW_HEX[viaje.review.color] }} aria-hidden />
+              {t(REVIEW_KEY[viaje.review.color])}
+            </p>
+            {viaje.review.reasons.length > 0 && (
+              <ul className="mt-2 space-y-1 text-xs text-slate-600">
+                {viaje.review.reasons.map((reason) => (
+                  <li key={reason.code}>{t(REVIEW_REASON_KEY[reason.code], { count: reason.count })}</li>
+                ))}
+              </ul>
+            )}
+            {viaje.review.reviewed_at ? (
+              <p className="mt-2 text-xs text-teal-700">
+                {t('tracking.reviewDone', { name: viaje.review.reviewed_by ?? '-', date: new Date(viaje.review.reviewed_at).toLocaleString() })}
+              </p>
+            ) : (
+              canEdit && <Button size="sm" className="mt-3" onClick={onReview}>{t('tracking.reviewMark')}</Button>
+            )}
+          </section>
+        )}
+
+        {nextStops.length > 0 && (
+          <section aria-label={t('tracking.nextStops')}>
+            <h3 className="text-sm font-semibold text-slate-800 mb-2">{t('tracking.nextStops')}</h3>
+            <ul className="space-y-1.5">
+              {nextStops.map((stop) => (
+                <li key={stop.id} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs">
+                  <span className="min-w-0">
+                    <span className="block font-medium text-slate-800 truncate">{stop.sequence}. {stop.customer_name ?? stop.order_number}</span>
+                    <span className="text-slate-500">
+                      {formatDistance(stop.distance_m) ?? '-'}{stop.eta_at ? ` · ${t('tracking.eta', { time: formatClock(stop.eta_at) })}` : ''}
+                    </span>
+                  </span>
+                  {stop.delay_min != null && (
+                    <Badge size="sm" variant={delayVariant(stop.delay_min)}>
+                      {stop.delay_min > 15 ? t('tracking.delayLate', { min: stop.delay_min }) : t('tracking.delayOk')}
+                    </Badge>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         <section>
           <h3 className="text-sm font-semibold text-slate-800 mb-2">{t('tracking.orders')}</h3>
           {loading && !detail && <p className="text-sm text-slate-500">{t('tracking.loading')}</p>}

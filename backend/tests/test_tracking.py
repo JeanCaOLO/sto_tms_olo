@@ -150,6 +150,8 @@ def _event(route, *, path=None, query=None, body=None):
 def _row(**over):
     base = {"id": ROUTE, "route_number": "VJ-1", "route_date": date(2026, 10, 16), "status": "En tránsito",
             "actual_start_time": NOW - timedelta(hours=1), "actual_end_time": None, "planned_start_time": None,
+            "planned_end_time": None, "total_distance": None, "capacity_percentage": None,
+            "origin_lat": None, "origin_lng": None,
             "created_at": NOW - timedelta(hours=2), "plan_trip_id": TRIP, "country_id": "cr",
             "driver_name": "Ana", "plate": "ABC123", "carrier_name": "Trans", "zone_name": "GAM",
             "last_lat": 9.9, "last_lng": -84.1, "speed_mps": 8, "heading_deg": 90, "battery_pct": 70,
@@ -197,7 +199,8 @@ def test_country_filter_is_applied(tracking, caller_permissions):
 def _plan_trip(**over):
     base = {"id": TRIP, "status": "pending", "delivery_zone": "GAM", "vehicle_id": "veh", "driver_id": "drv",
             "total_weight": 10, "total_volume": 2, "organization_id": ORG, "country_id": "cr",
-            "plan_date": date(2026, 10, 16), "plan_status": "confirmed", "carrier_id": "car"}
+            "plan_date": date(2026, 10, 16), "plan_status": "confirmed", "carrier_id": "car",
+            "vehicle_capacity_weight": 1000}
     base.update(over)
     return base
 
@@ -205,8 +208,9 @@ def _plan_trip(**over):
 def test_start_viaje_bridges_plan_trip_into_route_and_guides(tracking):
     app, db = tracking
     db.answer("FROM plan_trips pt", [_plan_trip()])
-    db.answer("FROM plan_stops", [{"order_id": "o1"}, {"order_id": "o2"}])
-    db.answer("FROM stores", [{"id": "store-1"}])
+    db.answer("FROM plan_stops", [{"order_id": "o1", "lat": 9.93, "lng": -84.08},
+                                  {"order_id": "o2", "lat": 9.95, "lng": -84.10}])
+    db.answer("FROM stores", [{"id": "store-1", "latitude": 9.90, "longitude": -84.05}])
     db.answer("INSERT INTO routes", [{"id": ROUTE}])
     response = app.handler(_event("POST /api/v1/tracking/viajes/{id}/iniciar", path={"id": TRIP}), None)
     assert response["statusCode"] == 201
@@ -370,3 +374,173 @@ def test_evidence_confirm_rejects_foreign_key_and_missing_upload(tracking, monke
     own = logic.new_evidence_key(ROUTE, GUIDE, "image/jpeg")
     assert app.handler(_event(route, path={"id": GUIDE}, body={"kind": "signature", "key": own}), None)["statusCode"] == 400
     assert not db.wrote("INSERT INTO tracking_evidences")
+
+
+# --- ETA, retraso, alertas y semáforo (reglas puras) -----------------------------------------------
+
+def test_plan_schedule_chains_travel_and_service_time(logic):
+    stops = [{"lat": 9.93, "lng": -84.08}, {"lat": 9.95, "lng": -84.10}, {"lat": None, "lng": None}]
+    plan = logic.plan_schedule((9.90, -84.05), stops, NOW)
+    a1, a2, a3 = plan["arrivals"]
+    assert NOW < a1 < a2 and a3 - a2 == timedelta(minutes=logic.SERVICE_MIN)  # sin coordenadas: no suma recorrido
+    assert plan["end"] == a3 and plan["total_km"] > 0
+    assert logic.plan_schedule(None, [{"lat": 9.9, "lng": -84.1}], NOW)["arrivals"] == [NOW]  # sin sede: sin viaje inicial
+
+
+def test_stop_metrics_orders_pending_stops_and_computes_delay(logic):
+    planned = NOW + timedelta(minutes=5)
+    stops = [
+        {"id": "a", "state": "delivered", "sequence": 1, "lat": 9.9, "lng": -84.0, "planned_arrival": NOW},
+        {"id": "c", "state": "pending", "sequence": 3, "lat": 10.2, "lng": -84.2, "planned_arrival": planned},
+        {"id": "b", "state": "pending", "sequence": 2, "lat": 9.95, "lng": -84.05, "planned_arrival": planned},
+    ]
+    result = logic.stop_metrics((9.90, -84.0), stops, NOW)
+    assert result["next_stop_id"] == "b" and "a" not in result["by_stop"]
+    b, c = result["by_stop"]["b"], result["by_stop"]["c"]
+    assert b["distance_m"] > 0 and c["eta_at"] > b["eta_at"] + timedelta(minutes=logic.SERVICE_MIN)
+    assert b["delay_min"] == round((b["eta_at"] - planned).total_seconds() / 60)
+    assert result["delay_min"] == b["delay_min"]
+    assert logic.stop_metrics(None, stops, NOW)["by_stop"]["b"]["distance_m"] is None  # sin posición
+
+
+def test_departure_uses_a_geofence_around_the_origin(logic):
+    origin = (9.90, -84.05)
+    assert logic.is_departed(None, origin) is False
+    assert logic.is_departed((9.9001, -84.0501), origin) is False       # en la sede
+    assert logic.is_departed((9.95, -84.05), origin) is True
+    assert logic.is_departed((9.9, -84.05), None) is True                # sin sede geocodificada: basta tener posición
+    early = [{"latitude": 9.9, "longitude": -84.05, "recorded_at": NOW},
+             {"latitude": 9.95, "longitude": -84.05, "recorded_at": NOW + timedelta(minutes=10)}]
+    assert logic.first_departure(early, origin) == NOW + timedelta(minutes=10)
+
+
+def test_stopped_minutes_counts_time_at_the_same_place(logic):
+    still = [{"latitude": 9.9, "longitude": -84.05, "recorded_at": NOW - timedelta(minutes=m)} for m in (30, 20, 10, 0)]
+    assert logic.stopped_minutes(still, NOW) == 30
+    moving = still[:-1] + [{"latitude": 9.95, "longitude": -84.05, "recorded_at": NOW}]
+    assert logic.stopped_minutes(moving, NOW) == 0
+    assert logic.stopped_minutes([], NOW) == 0
+
+
+def _codes(logic, sig="online", failed=0, incidents=0, delay=None, stopped=0):
+    return [a["code"] for a in logic.alerts("active", sig, failed, incidents, delay, stopped)]
+
+
+def test_alerts_only_for_active_trips(logic):
+    assert logic.alerts("completed", "offline", 1, 1, 90) == []
+    assert _codes(logic) == []
+    assert _codes(logic, sig="offline", failed=1, incidents=2, delay=16, stopped=25) == ["incident", "failed", "no_signal", "late"]
+    assert _codes(logic, delay=15) == []                  # el umbral es estricto
+    assert _codes(logic, stopped=25) == ["stopped"]
+    assert _codes(logic, sig="stale", stopped=25) == []   # sin señal confiable no se afirma que esté detenido
+
+
+@pytest.mark.parametrize("metrics,color,codes", [
+    ({}, "green", []),
+    ({"incidents": 1}, "amber", ["incidents"]),
+    ({"pickups": 1, "returns": 2}, "amber", ["pickups", "returns"]),
+    ({"max_delay_min": 30}, "amber", ["late"]),
+    ({"max_delay_min": 15}, "green", []),
+    ({"failed": 1, "incidents": 1}, "red", ["failed", "incidents"]),
+    ({"missing_evidence": 2}, "red", ["missing_evidence"]),
+    ({"max_delay_min": 61}, "red", ["late"]),
+])
+def test_review_summary_traffic_light(logic, metrics, color, codes):
+    result = logic.review_summary(metrics)
+    assert result["color"] == color and [r["code"] for r in result["reasons"]] == codes
+
+
+# --- endpoints nuevos ------------------------------------------------------------------------------
+
+def test_start_viaje_saves_planned_times_distance_and_capacity(tracking):
+    app, db = tracking
+    db.answer("FROM plan_trips pt", [_plan_trip(total_weight=250)])
+    db.answer("FROM plan_stops", [{"order_id": "o1", "lat": 9.93, "lng": -84.08},
+                                  {"order_id": "o2", "lat": 9.95, "lng": -84.10}])
+    db.answer("FROM stores", [{"id": "store-1", "latitude": 9.90, "longitude": -84.05}])
+    db.answer("INSERT INTO routes", [{"id": ROUTE}])
+    app.handler(_event("POST /api/v1/tracking/viajes/{id}/iniciar", path={"id": TRIP}), None)
+    route_params = db.wrote("INSERT INTO routes")[0][1]
+    planned_end, km, capacity = route_params[-3:]
+    arrivals = [params[-1] for _, params in db.wrote("INSERT INTO dispatch_guides")]
+    assert arrivals[0] > NOW and arrivals[1] > arrivals[0] and planned_end == arrivals[1]
+    assert km > 0 and capacity == 25.0
+
+
+def test_add_incident_accepts_pickup_and_rejects_other_kinds(tracking):
+    app, db = tracking
+    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row()])
+    ok = app.handler(_event("POST /api/v1/tracking/paradas/{id}/novedades", path={"id": GUIDE},
+                            body={"description": "Recoger caja dañada", "kind": "pickup"}), None)
+    assert ok["statusCode"] == 201 and db.wrote("INSERT INTO tracking_events")[0][1][3] == "pickup"
+    bad = app.handler(_event("POST /api/v1/tracking/paradas/{id}/novedades", path={"id": GUIDE},
+                             body={"description": "x", "kind": "otra"}), None)
+    assert bad["statusCode"] == 400
+
+
+def test_review_viaje_requires_completed_and_records_reviewer(tracking):
+    app, db = tracking
+    db.answer("FROM routes r JOIN stores", [{"id": ROUTE, "organization_id": ORG, "status": "En tránsito", "country_id": "cr"}])
+    early = app.handler(_event("POST /api/v1/tracking/viajes/{id}/revisar", path={"id": ROUTE}, body={}), None)
+    assert early["statusCode"] == 409 and not db.wrote("INSERT INTO tracking_reviews")
+    db.answer("FROM routes r JOIN stores", [{"id": ROUTE, "organization_id": ORG, "status": "Completada", "country_id": "cr"}])
+    done = app.handler(_event("POST /api/v1/tracking/viajes/{id}/revisar", path={"id": ROUTE},
+                              body={"note": "Todo en orden"}), None)
+    assert done["statusCode"] == 200
+    review = db.wrote("INSERT INTO tracking_reviews")[0][1]
+    assert review[0] == ROUTE and review[3] == "Todo en orden"
+    assert db.wrote("INSERT INTO tracking_events")[0][1][3] == "route_reviewed"
+
+
+def test_review_requires_edit_permission(tracking, caller_permissions):
+    app, _ = tracking
+    caller_permissions.set(make_permissions({"tracking": ["view"]}))
+    response = app.handler(_event("POST /api/v1/tracking/viajes/{id}/revisar", path={"id": ROUTE}, body={}), None)
+    assert response["statusCode"] == 403
+
+
+def test_list_viajes_flags_alerts_phase_and_traffic_light(tracking):
+    app, db = tracking
+    done_id = "55555555-5555-4555-8555-555555555555"
+    rows = [_row(origin_lat=9.9, origin_lng=-84.1, last_lat=9.9, last_lng=-84.1),
+            _row(id=done_id, status="Completada", last_lat=None, last_position_at=None)]
+    db.answer("FROM routes r", rows)
+    db.answer("count(*) FILTER (WHERE event_type", [{"route_id": ROUTE, "incidents": 2, "pickups": 0}])
+    db.answer("AS next_planned", [{"route_id": ROUTE, "total": 3, "delivered": 0, "failed": 1,
+                                   "next_planned": NOW - timedelta(minutes=40)}])
+    db.answer("AS missing_evidence", [{"route_id": done_id, "failed": 0, "missing_evidence": 1, "max_delay_min": 5}])
+    items = body_of(app.handler(_event("GET /api/v1/tracking/viajes"), None))["data"]["items"]
+    active, completed = items
+    assert active["phase"] == "en_ruta"                       # ya cerró una parada
+    assert [a["code"] for a in active["alerts"]] == ["incident", "failed", "late"]
+    assert completed["review"]["color"] == "red" and completed["review"]["reviewed_at"] is None
+
+
+def test_list_por_revisar_filters_unreviewed_completed(tracking):
+    app, db = tracking
+    db.answer("FROM routes r", [])
+    app.handler(_event("GET /api/v1/tracking/viajes", query={"por_revisar": "1"}), None)
+    sql, _ = db.wrote("SELECT r.id")[0]
+    assert "NOT EXISTS (SELECT 1 FROM tracking_reviews" in sql
+
+
+def test_summary_aggregates_active_trips(tracking):
+    app, db = tracking
+    db.answer("count(*) AS n", [{"n": 3}])
+    db.answer("FROM routes r", [_row(), _row(id="55555555-5555-4555-8555-555555555555")])
+    db.answer("AS next_planned", [{"route_id": ROUTE, "total": 4, "delivered": 1, "failed": 0,
+                                   "next_planned": NOW - timedelta(minutes=30)}])
+    data = body_of(app.handler(_event("GET /api/v1/tracking/resumen"), None))["data"]
+    assert data["active"] == 2 and data["late"] == 1 and data["on_time"] == 1
+    assert data["stops_done"] == 1 and data["stops_total"] == 4 and data["to_review"] == 3
+
+
+def test_list_phase_is_por_salir_until_the_truck_leaves_the_origin(tracking):
+    app, db = tracking
+    db.answer("FROM routes r", [_row(origin_lat=9.9, origin_lng=-84.1, last_lat=9.9, last_lng=-84.1)])
+    db.answer("AS next_planned", [{"route_id": ROUTE, "total": 3, "delivered": 0, "failed": 0, "next_planned": None}])
+    item = body_of(app.handler(_event("GET /api/v1/tracking/viajes"), None))["data"]["items"][0]
+    assert item["phase"] == "por_salir" and item["alerts"] == []
+    db.answer("FROM routes r", [_row(origin_lat=9.5, origin_lng=-84.1)])  # camión a ~45 km de la sede
+    item = body_of(app.handler(_event("GET /api/v1/tracking/viajes"), None))["data"]["items"][0]
+    assert item["phase"] == "en_ruta"

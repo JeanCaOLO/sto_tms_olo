@@ -75,17 +75,31 @@ def _float(value) -> float | None:
     return None if value is None else float(value)
 
 
-def _viaje(row: dict, counts: dict | None, now: datetime) -> dict:
+def _coords(lat, lng) -> tuple[float, float] | None:
+    return None if lat is None or lng is None else (float(lat), float(lng))
+
+
+def _viaje(row: dict, counts: dict | None, now: datetime, extra: dict | None = None) -> dict:
+    """Vista de un viaje. `extra`: incidents, pickups, returns, metrics, review_row, delay_min, stopped_min."""
+    extra = extra or {}
     state = logic.route_state(row["status"])
     sig = logic.signal(row["last_position_at"], now) if state == "active" else "none"
     counts = counts or {"total": 0, "delivered": 0, "failed": 0}
     done = int(counts["delivered"]) + int(counts["failed"])
     total = int(counts["total"])
+    position = _coords(row["last_lat"], row["last_lng"])
+    phase = None
+    if state == "active":
+        departed = done > 0 or logic.is_departed(position, _coords(row["origin_lat"], row["origin_lng"]))
+        phase = "en_ruta" if departed else "por_salir"
+    incidents = int(extra.get("incidents") or 0)
+    delay = extra.get("delay_min")
     return {
         "id": str(row["id"]),
         "route_number": row["route_number"],
         "state": state,
         "status_raw": row["status"],
+        "phase": phase,
         "signal": sig,
         "color": logic.map_color(state, sig),
         "driver_name": row["driver_name"],
@@ -94,15 +108,67 @@ def _viaje(row: dict, counts: dict | None, now: datetime) -> dict:
         "zone_name": row["zone_name"],
         "started_at": _iso(row["actual_start_time"]),
         "ended_at": _iso(row["actual_end_time"]),
+        "planned_end_at": _iso(row["planned_end_time"]),
+        "total_distance_km": _float(row["total_distance"]),
+        "capacity_percentage": _float(row["capacity_percentage"]),
         "route_date": row["route_date"].isoformat() if row["route_date"] else None,
-        "position": None if row["last_lat"] is None else {
-            "lat": _float(row["last_lat"]), "lng": _float(row["last_lng"]),
+        "position": None if position is None else {
+            "lat": position[0], "lng": position[1],
             "speed_mps": _float(row["speed_mps"]), "heading_deg": _float(row["heading_deg"]),
             "battery_pct": row["battery_pct"], "recorded_at": _iso(row["last_position_at"]),
         },
         "progress": {"total": total, "done": done, "delivered": int(counts["delivered"]),
                      "failed": int(counts["failed"]), "percent": round(done * 100 / total) if total else 0},
+        "delay_min": delay,
+        "incidents": incidents,
+        "alerts": logic.alerts(state, sig, int(counts["failed"]), incidents, delay, int(extra.get("stopped_min") or 0)),
+        "review": _review(state, extra),
     }
+
+
+def _review(state: str, extra: dict) -> dict | None:
+    """Semáforo + estado de revisión de un viaje completado (None para los demás)."""
+    if state != "completed":
+        return None
+    metrics = dict(extra.get("metrics") or {})
+    metrics.update({"incidents": extra.get("incidents"), "pickups": extra.get("pickups"),
+                    "returns": extra.get("returns")})
+    summary = logic.review_summary(metrics)
+    row = extra.get("review_row")
+    summary.update({"reviewed_at": _iso(row["reviewed_at"]) if row else None,
+                    "reviewed_by": row["reviewed_by_name"] if row else None,
+                    "note": row["note"] if row else None})
+    return summary
+
+
+def _by_route(rows: list[dict]) -> dict[str, dict]:
+    return {str(r["route_id"]): r for r in rows}
+
+
+def _extras(page: list[dict], counts: dict[str, dict], now: datetime) -> dict[str, dict]:
+    """Datos de alertas y semáforo para la lista (consultas por lote, no por viaje)."""
+    ids = [str(r["id"]) for r in page]
+    if not ids:
+        return {}
+    events = _by_route(pg.query(sql.EVENT_COUNTS_SQL, [ids]))
+    done_ids = [str(r["id"]) for r in page if logic.route_state(r["status"]) == "completed"]
+    metrics = returns = reviews = {}
+    if done_ids:
+        metrics = _by_route(pg.query(sql.REVIEW_METRICS_SQL, [done_ids]))
+        returns = _by_route(pg.query(sql.RETURN_COUNTS_SQL, [done_ids]))
+        reviews = _by_route(pg.query(sql.REVIEWS_SQL, [done_ids]))
+    extras = {}
+    for row in page:
+        rid = str(row["id"])
+        planned = (counts.get(rid) or {}).get("next_planned")
+        extras[rid] = {
+            "incidents": (events.get(rid) or {}).get("incidents"),
+            "pickups": (events.get(rid) or {}).get("pickups"),
+            "returns": (returns.get(rid) or {}).get("returns"),
+            "metrics": metrics.get(rid), "review_row": reviews.get(rid),
+            "delay_min": None if planned is None else round((now - logic._aware(planned)).total_seconds() / 60),
+        }
+    return extras
 
 
 def _route_access(caller, org_id: str, route_id: str) -> dict:
@@ -131,6 +197,10 @@ def list_viajes(event: dict) -> dict:
     if str(query.get("activos", "")).lower() in ("1", "true", "si", "sí"):
         where.append("lower(r.status) = ANY(%s)")
         params.append(logic.ACTIVE_STATUS_SQL_VALUES)
+    if str(query.get("por_revisar", "")).lower() in ("1", "true", "si", "sí"):
+        where.append("lower(r.status) = ANY(%s)")
+        params.append(logic.COMPLETED_STATUS_SQL_VALUES)
+        where.append("NOT EXISTS (SELECT 1 FROM tracking_reviews tr WHERE tr.route_id = r.id)")
     allowed = caller.country_filter
     if allowed is not None:
         where.append("s.country_id = ANY(%s::uuid[])")
@@ -154,7 +224,8 @@ def list_viajes(event: dict) -> dict:
     counts = {str(c["route_id"]): c for c in pg.query(sql.PROGRESS_SQL, [ids])} if ids else {}
     now = _now()
     next_cursor = f"{_iso(page[-1]['sort_at'])}|{page[-1]['id']}" if has_more else None
-    return _ok({"items": [_viaje(row, counts.get(str(row["id"])), now) for row in page],
+    extras = _extras(page, counts, now)
+    return _ok({"items": [_viaje(row, counts.get(str(row["id"])), now, extras.get(str(row["id"]))) for row in page],
                 "next_cursor": next_cursor})
 
 
@@ -190,9 +261,34 @@ def get_viaje(event: dict) -> dict:
             {k: (str(v) if k == "id" else v) for k, v in ret.items() if k != "dispatch_guide_id"})
     notes_by_guide: dict[str, list] = {}
     for ev in events:
-        if ev["event_type"] == "incident" and ev["dispatch_guide_id"]:
+        if ev["event_type"] in ("incident", "pickup") and ev["dispatch_guide_id"]:
             notes_by_guide.setdefault(str(ev["dispatch_guide_id"]), []).append(
-                {"at": _iso(ev["event_time"]), "text": ev["notes"]})
+                {"at": _iso(ev["event_time"]), "text": ev["notes"], "kind": ev["event_type"]})
+
+    now = _now()
+    state = logic.route_state(row["status"])
+    position = _coords(row["last_lat"], row["last_lng"])
+    origin = _coords(row["origin_lat"], row["origin_lng"])
+    chronological = list(reversed(trail))
+    stop_inputs = [{
+        "id": str(g["id"]), "state": logic.guide_state(g["delivery_status"], g["status"]),
+        "sequence": g["sequence_number"], "lat": _float(g["latitude"]), "lng": _float(g["longitude"]),
+        "planned_arrival": g["planned_arrival_time"]} for g in guides]
+    live = (logic.stop_metrics(position, stop_inputs, now) if state == "active"
+            else {"by_stop": {}, "next_stop_id": None, "delay_min": None})
+
+    def stop_timing(g: dict, stop_id: str) -> dict:
+        metrics = live["by_stop"].get(stop_id)
+        delay = None
+        if g["actual_arrival_time"] is not None and g["planned_arrival_time"] is not None:
+            gap = logic._aware(g["actual_arrival_time"]) - logic._aware(g["planned_arrival_time"])
+            delay = round(gap.total_seconds() / 60)
+        return {
+            "planned_arrival_at": _iso(g["planned_arrival_time"]),
+            "distance_m": metrics["distance_m"] if metrics else None,
+            "eta_at": _iso(metrics["eta_at"]) if metrics else None,
+            "delay_min": metrics["delay_min"] if metrics else delay,
+        }
 
     stops = [{
         "id": str(g["id"]), "guide_number": g["guide_number"], "sequence": g["sequence_number"],
@@ -205,19 +301,67 @@ def get_viaje(event: dict) -> dict:
         "evidences": by_guide_ev.get(str(g["id"]), []),
         "incidents": notes_by_guide.get(str(g["id"]), []),
         "returns": by_guide_ret.get(str(g["id"]), []),
+        **stop_timing(g, str(g["id"])),
     } for g in guides]
 
-    data = _viaje(row, counts, _now())
+    event_counts = {"incident": 0, "pickup": 0}
+    for ev in events:
+        if ev["event_type"] in event_counts:
+            event_counts[ev["event_type"]] += 1
+    extra = {"incidents": event_counts["incident"], "pickups": event_counts["pickup"], "returns": len(returns),
+             "delay_min": live["delay_min"], "stopped_min": logic.stopped_minutes(chronological, now)}
+    if state == "completed":
+        extra["metrics"] = (pg.query(sql.REVIEW_METRICS_SQL, [[route_id]]) or [None])[0]
+        extra["review_row"] = (pg.query(sql.REVIEWS_SQL, [[route_id]]) or [None])[0]
+    departed_at = (logic.first_departure(pg.query(sql.FIRST_POSITIONS_SQL, [route_id]), origin)
+                   if state in ("active", "completed") and position else None)
+
+    data = _viaje(row, counts, now, extra)
     data.update({
         "stops": stops,
+        "next_stop_id": live["next_stop_id"],
+        "departed_at": _iso(departed_at),
         "events": [{"id": str(e["id"]), "type": e["event_type"], "status": e["event_status"],
                     "at": _iso(e["event_time"]), "notes": e["notes"],
                     "stop_id": None if e["dispatch_guide_id"] is None else str(e["dispatch_guide_id"])}
                    for e in events],
         "trail": [{"lat": _float(p["latitude"]), "lng": _float(p["longitude"]), "at": _iso(p["recorded_at"])}
-                  for p in reversed(trail)],
+                  for p in chronological],
     })
     return _ok(data)
+
+
+def summary(event: dict) -> dict:
+    """KPIs para la franja superior: viajes en ruta, retrasos, entregas, novedades, por revisar."""
+    caller, org_id = _caller(event, "view")
+    allowed = caller.country_filter
+    where, params = ["r.organization_id = %s", "lower(r.status) = ANY(%s)"], [org_id, logic.ACTIVE_STATUS_SQL_VALUES]
+    country = ""
+    if allowed is not None:
+        where.append("s.country_id = ANY(%s::uuid[])")
+        params.append(list(allowed))
+        country = "AND s.country_id = ANY(%s::uuid[])"
+    rows = pg.query(f"SELECT {sql.VIAJE_COLUMNS} {sql.VIAJE_JOINS} WHERE {' AND '.join(where)} "
+                    "ORDER BY sort_at DESC LIMIT 300", params)
+    ids = [str(r["id"]) for r in rows]
+    counts = {str(c["route_id"]): c for c in pg.query(sql.PROGRESS_SQL, [ids])} if ids else {}
+    now = _now()
+    extras = _extras(rows, counts, now)
+    viajes = [_viaje(r, counts.get(str(r["id"])), now, extras.get(str(r["id"]))) for r in rows]
+    pending_params = [org_id, logic.COMPLETED_STATUS_SQL_VALUES] + ([list(allowed)] if allowed is not None else [])
+    pending = pg.query(sql.PENDING_REVIEW_COUNT_SQL.format(country=country), pending_params)
+    late = [v for v in viajes if any(a["code"] == logic.ALERT_LATE for a in v["alerts"])]
+    return _ok({
+        "active": len(viajes),
+        "departing": sum(v["phase"] == "por_salir" for v in viajes),
+        "late": len(late),
+        "on_time": len(viajes) - len(late),
+        "no_signal": sum(any(a["code"] == logic.ALERT_NO_SIGNAL for a in v["alerts"]) for v in viajes),
+        "stops_done": sum(v["progress"]["done"] for v in viajes),
+        "stops_total": sum(v["progress"]["total"] for v in viajes),
+        "incidents": sum(v["incidents"] for v in viajes),
+        "to_review": int(pending[0]["n"]) if pending else 0,
+    })
 
 
 def list_planificados(event: dict) -> dict:
@@ -264,14 +408,22 @@ def start_viaje(event: dict) -> dict:
             raise HttpError(409, "No hay una tienda de origen configurada para el país del plan.")
         zone = run(sql.ZONE_SQL, [org_id, trip["delivery_zone"], trip["delivery_zone"]]) if trip["delivery_zone"] else []
         route_number = f"VJ-{trip['plan_date'].strftime('%Y%m%d')}-{str(trip['id'])[:8].upper()}"
+        # Horas planificadas (salida = ahora): referencia fija para medir el retraso. Planificación no las guarda.
+        plan = logic.plan_schedule(_coords(stores[0]["latitude"], stores[0]["longitude"]),
+                                   [{"lat": _float(st["lat"]), "lng": _float(st["lng"])} for st in stops], _now())
+        capacity = None
+        if trip["total_weight"] is not None and trip["vehicle_capacity_weight"]:
+            capacity = round(float(trip["total_weight"]) * 100 / float(trip["vehicle_capacity_weight"]), 2)
         route = run(sql.INSERT_ROUTE_SQL, [
             org_id, stores[0]["id"], trip["driver_id"], trip["vehicle_id"], trip["carrier_id"], route_number,
             trip["plan_date"], len(stops), trip["total_weight"], trip["total_volume"],
-            "Iniciado desde Planificación (tracking en vivo).", zone[0]["id"] if zone else None, trip_id])
+            "Iniciado desde Planificación (tracking en vivo).", zone[0]["id"] if zone else None, trip_id,
+            plan["end"], plan["total_km"], capacity])
         route_id = route[0]["id"]
         for index, stop in enumerate(stops, start=1):
             run(sql.INSERT_GUIDE_SQL, [org_id, route_id, stop["order_id"], f"{route_number}-{index}", index,
-                                       "Generada al iniciar el viaje desde Planificación."])
+                                       "Generada al iniciar el viaje desde Planificación.",
+                                       plan["arrivals"][index - 1]])
         _event(run, org_id, route_id, None, "route_started", "info", "Viaje iniciado", caller.app_user_id)
         return {"route_id": str(route_id), "created": True, "route_number": route_number}
 
@@ -300,6 +452,31 @@ def complete_viaje(event: dict) -> dict:
         run(sql.COMPLETE_ROUTE_SQL, [int(counts["done"]), route_id])
         _event(run, org_id, route_id, None, "route_completed", "success", "Viaje completado", caller.app_user_id)
         return {"route_id": route_id, "pending": int(counts["pending"])}
+
+    return _ok(pg.run_in_transaction(work))
+
+
+def review_viaje(event: dict) -> dict:
+    """El administrador marca un viaje COMPLETADO como revisado (quién y cuándo; nota opcional)."""
+    caller, org_id = _caller(event, "edit")
+    route_id = path_param(event, "id")
+    if not logic.is_uuid(route_id):
+        raise HttpError(404, "Viaje no encontrado")
+    body = json_body(event)
+    note = ((body.get("note") if isinstance(body, dict) else None) or "").strip() or None
+    if note and len(note) > 500:
+        raise HttpError(400, "La nota no puede superar 500 caracteres")
+
+    def work(run):
+        route = run(sql.ROUTE_ROW_SQL, [route_id])
+        if not route or str(route[0]["organization_id"]) != org_id:
+            raise HttpError(404, "Viaje no encontrado")
+        _check_country(caller, route[0]["country_id"])
+        if logic.route_state(route[0]["status"]) != "completed":
+            raise HttpError(409, "Solo se puede revisar un viaje completado.")
+        run(sql.UPSERT_REVIEW_SQL, [route_id, org_id, caller.app_user_id, note])
+        _event(run, org_id, route_id, None, "route_reviewed", "info", note or "Viaje revisado", caller.app_user_id)
+        return {"route_id": route_id}
 
     return _ok(pg.run_in_transaction(work))
 
@@ -408,12 +585,15 @@ def add_incident(event: dict) -> dict:
     description = ((body.get("description") if isinstance(body, dict) else None) or "").strip()
     if not description:
         raise HttpError(400, "La novedad requiere una descripción")
+    kind = (body.get("kind") if isinstance(body, dict) else None) or "incident"
+    if kind not in ("incident", "pickup"):
+        raise HttpError(400, "kind debe ser incident o pickup")
     lat, lng = logic.coords(body)
     guide = _guide_access(caller, org_id, guide_id)
 
     def work(run):
-        _event(run, org_id, guide["route_id"], guide_id, "incident", "warning", description, caller.app_user_id,
-               lat, lng)
+        _event(run, org_id, guide["route_id"], guide_id, kind, "warning" if kind == "incident" else "info",
+               description, caller.app_user_id, lat, lng)
 
     pg.run_in_transaction(work)
     return _ok({"stop_id": guide_id}, 201)
@@ -477,8 +657,10 @@ ROUTES = {
     "GET /api/v1/tracking/viajes": list_viajes,
     "GET /api/v1/tracking/viajes/{id}": get_viaje,
     "GET /api/v1/tracking/planificados": list_planificados,
+    "GET /api/v1/tracking/resumen": summary,
     "POST /api/v1/tracking/viajes/{id}/iniciar": start_viaje,
     "POST /api/v1/tracking/viajes/{id}/completar": complete_viaje,
+    "POST /api/v1/tracking/viajes/{id}/revisar": review_viaje,
     "POST /api/v1/tracking/posiciones": ingest_positions,
     "POST /api/v1/tracking/paradas/{id}/transicion": transition_stop,
     "POST /api/v1/tracking/paradas/{id}/novedades": add_incident,

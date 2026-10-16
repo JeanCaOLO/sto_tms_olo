@@ -1,5 +1,6 @@
 """Reglas puras del tracking en vivo (sin BD ni AWS): estados, señal GPS, progreso, validaciones."""
 
+import math
 import re
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -18,6 +19,7 @@ _COMPLETED = {"completada", "completed"}
 _CANCELLED = {"anulado", "anulada", "cancelled", "cancelada"}
 
 ACTIVE_STATUS_SQL_VALUES = sorted(_ACTIVE)
+COMPLETED_STATUS_SQL_VALUES = sorted(_COMPLETED)
 
 GUIDE_PENDING, GUIDE_DELIVERED, GUIDE_FAILED = "pending", "delivered", "failed"
 GUIDE_STATUS_TEXT = {GUIDE_PENDING: "Pendiente", GUIDE_DELIVERED: "Entregado", GUIDE_FAILED: "Fallido"}
@@ -98,6 +100,162 @@ def progress(guide_states: list[str]) -> dict:
     done = delivered + failed
     return {"total": total, "done": done, "delivered": delivered, "failed": failed,
             "percent": round(done * 100 / total) if total else 0}
+
+
+# --- ETA, retraso, alertas y semáforo ----------------------------------------------------------------
+# Mismas constantes que Planificación (src/pages/planificacion/distance-matrix.ts y time-windows.ts) para
+# que el retraso compare contra lo que el planificador habría estimado.
+SPEED_KMH = 30
+DETOUR_FACTOR = 1.35
+SERVICE_MIN = 5
+DEFAULT_WINDOW_END = (19, 0)
+
+LATE_MIN = 15          # alerta "retraso"
+VERY_LATE_MIN = 60     # semáforo rojo
+STOPPED_MIN = 20       # alerta "detenido"
+STOPPED_RADIUS_M = 75  # movimiento menor a esto = sigue en el mismo sitio
+DEPARTURE_RADIUS_M = 300
+
+ALERT_INCIDENT, ALERT_NO_SIGNAL, ALERT_FAILED = "incident", "no_signal", "failed"
+ALERT_LATE, ALERT_STOPPED = "late", "stopped"
+
+
+def haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """Distancia en línea recta (km)."""
+    rad = math.radians
+    d_lat, d_lng = rad(lat2 - lat1), rad(lng2 - lng1)
+    h = math.sin(d_lat / 2) ** 2 + math.cos(rad(lat1)) * math.cos(rad(lat2)) * math.sin(d_lng / 2) ** 2
+    return 2 * 6371 * math.asin(math.sqrt(h))
+
+
+def drive_minutes(straight_km: float) -> float:
+    return straight_km * DETOUR_FACTOR / SPEED_KMH * 60
+
+
+def _point(item) -> tuple[float, float] | None:
+    lat, lng = item.get("lat"), item.get("lng")
+    return None if lat is None or lng is None else (float(lat), float(lng))
+
+
+def plan_schedule(origin: tuple[float, float] | None, stops: list[dict], start: datetime) -> dict:
+    """Horas planificadas por parada (en el orden dado) saliendo de `origin` a `start`.
+
+    `stops`: [{"lat","lng"}]. Una parada sin coordenadas no suma recorrido. Devuelve
+    {"arrivals": [datetime], "total_km": float (con desvío), "end": datetime}."""
+    clock, here, total_km, arrivals = _aware(start), origin, 0.0, []
+    for index, stop in enumerate(stops):
+        point = _point(stop)
+        if point and here:
+            km = haversine_km(here[0], here[1], point[0], point[1])
+            total_km += km * DETOUR_FACTOR
+            clock += timedelta(minutes=drive_minutes(km))
+        arrivals.append(clock)
+        clock += timedelta(minutes=SERVICE_MIN)
+        here = point or here
+    end = arrivals[-1] if arrivals else clock
+    return {"arrivals": arrivals, "total_km": round(total_km, 2), "end": end}
+
+
+def window_end(plan_date, window_time) -> datetime:
+    """Fin de ventana de entrega: hora del punto de entrega (o 19:00) en la fecha del plan, UTC."""
+    hour, minute = (window_time.hour, window_time.minute) if window_time else DEFAULT_WINDOW_END
+    return datetime(plan_date.year, plan_date.month, plan_date.day, hour, minute, tzinfo=timezone.utc)
+
+
+def stop_metrics(position: tuple[float, float] | None, stops: list[dict], now: datetime) -> dict:
+    """Distancia, ETA y retraso de las paradas PENDIENTES.
+
+    `stops`: [{"id","state","sequence","lat","lng","planned_arrival": datetime|None}]. El ETA encadena
+    las paradas pendientes en orden de secuencia desde la posición actual. Devuelve
+    {"by_stop": {id: {...}}, "next_stop_id", "delay_min"} (delay_min = el de la próxima parada)."""
+    now = _aware(now)
+    pending = sorted((s for s in stops if s["state"] == GUIDE_PENDING), key=lambda s: s["sequence"])
+    by_stop, clock, here = {}, now, position
+    for stop in pending:
+        point = _point(stop)
+        distance_m = None
+        if point and position:
+            distance_m = round(haversine_km(position[0], position[1], point[0], point[1]) * 1000)
+        if point and here:
+            clock += timedelta(minutes=drive_minutes(haversine_km(here[0], here[1], point[0], point[1])))
+        planned = stop.get("planned_arrival")
+        delay = None if planned is None else round((clock - _aware(planned)).total_seconds() / 60)
+        by_stop[stop["id"]] = {"distance_m": distance_m, "eta_at": clock, "delay_min": delay}
+        clock += timedelta(minutes=SERVICE_MIN)
+        here = point or here
+    next_id = pending[0]["id"] if pending else None
+    return {"by_stop": by_stop, "next_stop_id": next_id,
+            "delay_min": by_stop[next_id]["delay_min"] if next_id else None}
+
+
+def is_departed(position: tuple[float, float] | None, origin: tuple[float, float] | None) -> bool:
+    """False = "por salir". Sin sede geocodificada, basta con haber reportado posición."""
+    if position is None:
+        return False
+    if origin is None:
+        return True
+    return haversine_km(*position, *origin) * 1000 > DEPARTURE_RADIUS_M
+
+
+def first_departure(positions: list[dict], origin: tuple[float, float] | None) -> datetime | None:
+    """Hora de la primera posición fuera de la geocerca de la sede (positions en orden cronológico)."""
+    for p in positions:
+        if is_departed((float(p["latitude"]), float(p["longitude"])), origin):
+            return p["recorded_at"]
+    return None
+
+
+def stopped_minutes(positions: list[dict], now: datetime) -> int:
+    """Minutos que el camión lleva en el mismo sitio (positions cronológicas; mira hacia atrás desde la última)."""
+    if not positions:
+        return 0
+    last = positions[-1]
+    anchor = (float(last["latitude"]), float(last["longitude"]))
+    since = last["recorded_at"]
+    for p in reversed(positions[:-1]):
+        if haversine_km(anchor[0], anchor[1], float(p["latitude"]), float(p["longitude"])) * 1000 > STOPPED_RADIUS_M:
+            break
+        since = p["recorded_at"]
+    return max(0, round((_aware(now) - _aware(since)).total_seconds() / 60))
+
+
+def alerts(state: str, signal_value: str, failed: int, incidents: int, delay_min: int | None,
+           stopped_min: int = 0) -> list[dict]:
+    """Alertas de un viaje EN TRÁNSITO: [{"code","count"?}]. Para otros estados no hay alertas."""
+    if state != "active":
+        return []
+    out = []
+    if incidents:
+        out.append({"code": ALERT_INCIDENT, "count": incidents})
+    if failed:
+        out.append({"code": ALERT_FAILED, "count": failed})
+    if signal_value in ("offline", "none"):
+        out.append({"code": ALERT_NO_SIGNAL})
+    if delay_min is not None and delay_min > LATE_MIN:
+        out.append({"code": ALERT_LATE, "count": delay_min})
+    if stopped_min >= STOPPED_MIN and signal_value == "online":
+        out.append({"code": ALERT_STOPPED, "count": stopped_min})
+    return out
+
+
+def review_summary(metrics: dict) -> dict:
+    """Semáforo de un viaje COMPLETADO.
+
+    metrics: failed, missing_evidence, incidents, pickups, returns, max_delay_min (cualquiera puede faltar).
+    rojo: paradas fallidas, entregas sin factura+firma o retraso > 60 min.
+    ámbar: novedades, recolectas, devoluciones o retraso > 15 min. verde: nada de lo anterior."""
+    def n(key):
+        return int(metrics.get(key) or 0)
+    delay = metrics.get("max_delay_min")
+    delay = 0 if delay is None else round(float(delay))
+    red = [{"code": code, "count": n(code)} for code in ("failed", "missing_evidence") if n(code)]
+    if delay > VERY_LATE_MIN:
+        red.append({"code": "late", "count": delay})
+    amber = [{"code": code, "count": n(code)} for code in ("incidents", "pickups", "returns") if n(code)]
+    if LATE_MIN < delay <= VERY_LATE_MIN:
+        amber.append({"code": "late", "count": delay})
+    color = "red" if red else "amber" if amber else "green"
+    return {"color": color, "reasons": red + amber}
 
 
 def parse_time(raw, label: str = "recorded_at") -> datetime:
