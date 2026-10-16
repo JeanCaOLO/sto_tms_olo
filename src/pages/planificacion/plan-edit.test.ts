@@ -9,6 +9,7 @@ function planDePrueba(): RoutePlan {
     stop_order: 1,
     order_number: order_id,
     customer_name: null,
+    delivery_address: null,
     delivery_city: null,
     delivery_zone: null,
     delivery_latitude: null,

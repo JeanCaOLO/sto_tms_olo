@@ -24,6 +24,7 @@ export interface PlanStop {
   // los arrastra del Pedido original). Peso/volumen null = desconocido.
   order_number: string;
   customer_name: string | null;
+  delivery_address: string | null;
   delivery_city: string | null;
   delivery_zone: string | null;
   // Coords del punto de entrega (para el mapa) — el backend las embebe.
@@ -31,6 +32,13 @@ export interface PlanStop {
   delivery_longitude: number | null;
   total_weight: number | null;
   total_volume: number | null;
+  // ¿El pedido está en movimiento CARCA (= despachado)? false = sin factura/sin
+  // pago → la vista lo marca como advertencia. Opcional: solo lo trae el sim.
+  en_carca?: boolean;
+  // Prioridad de la expedición (EPA: -0 falla = 1 urgente, -1 regular = 2).
+  // Numérica invertida (menor = más urgente). null/undefined = sin prioridad.
+  prioridad?: number | null;
+  compania?: string | null; // IDCOMPANIA (0029 = EPA, 0109 = Cofersa)
 }
 
 // Un viaje = un camión dentro del plan (plan_trips).
@@ -52,6 +60,9 @@ export interface PlanTrip {
   vehicle_capacity_weight: number;
   vehicle_capacity_volume: number;
   is_flota_propia: boolean;
+  // Nº de viaje que GENERA la planificación y se "escribe" a eFlow (NUMEROVIAJEWMH).
+  // En el sim se asigna al mapear y se cachea en localStorage (no se toca Aurora).
+  numero_viaje?: string | null;
   stops: PlanStop[];
 }
 
