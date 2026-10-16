@@ -2,7 +2,7 @@
 
 import type { Money } from './variables';
 import type { Stage } from './ast';
-import type { RuleScope } from './ast';
+import type { RuleCategory, RuleScope } from './ast';
 import type { RateTableMatch, Override } from './rateTable';
 import type { CostBreakdown, MarginResult } from './cost';
 import type { Allocation } from './cargo';
@@ -15,6 +15,8 @@ export type TraceSource = 'RULE' | 'ADHOC' | 'COST_ROW';
 export interface TraceLine {
   seq: number;
   stage: Stage;
+  /** Etiqueta de reporte de la regla (recargo, modificador…). No participa del cálculo. */
+  category?: RuleCategory | null;
   ruleId: string | null; // null = línea ad-hoc sin persistir
   ruleCode: string;
   label: string;
@@ -74,7 +76,9 @@ export interface CalcIssue {
     | 'COMPANIA_SIN_PERFIL'
     | 'COMPANIA_INACTIVA'
     /** Una regla no se pudo leer: el total está incompleto hasta arreglarla. */
-    | 'REGLA_ILEGIBLE';
+    | 'REGLA_ILEGIBLE'
+    /** Dos reglas activas con el mismo código y alcance aplican a la vez: el cargo se cobraría dos veces. */
+    | 'REGLA_DUPLICADA';
   message: string;
   ruleCode?: string;
 }

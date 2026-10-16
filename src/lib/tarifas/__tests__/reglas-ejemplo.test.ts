@@ -66,7 +66,7 @@ describe('las seis reglas del requerimiento', () => {
     // cómo se llame el modelo de camión.
     const grande = makeRule({
       code: 'RECARGO_GRANDE',
-      stage: 'MODIFIER',
+      stage: 'VARIABLE',
       priority: 20,
       conditions: { p: 'GTE', left: 'truckWeightTons', right: 10 },
       expression: { op: 'PERCENT', pct: '0.20', base: { of: 'STAGE_SUBTOTAL', stage: 'BASE' } },
@@ -89,7 +89,7 @@ describe('las seis reglas del requerimiento', () => {
   it('4. cada peaje transitado suma 20 (variable personalizada por viaje)', () => {
     const regla = makeRule({
       code: 'BONO_PEAJE',
-      stage: 'SURCHARGE',
+      stage: 'VARIABLE',
       expression: { op: 'PER_UNIT', unit: 'custom:peajes', rate: '20.00' },
     });
 
@@ -100,7 +100,7 @@ describe('las seis reglas del requerimiento', () => {
   it('5. si hay más de 20 peajes, suma 10', () => {
     const regla = makeRule({
       code: 'EXTRA_20_PEAJES',
-      stage: 'SURCHARGE',
+      stage: 'VARIABLE',
       conditions: { p: 'GT', left: 'custom:peajes', right: 20 },
       expression: { op: 'FIXED', amount: '10.00' },
     });
@@ -112,7 +112,7 @@ describe('las seis reglas del requerimiento', () => {
   it('6. cada 10 peajes, suma 15', () => {
     const regla = makeRule({
       code: 'BLOQUE_PEAJES',
-      stage: 'SURCHARGE',
+      stage: 'VARIABLE',
       expression: { op: 'PER_BLOCK', unit: 'custom:peajes', blockSize: 10, amount: '15.00' },
     });
 
@@ -123,16 +123,16 @@ describe('las seis reglas del requerimiento', () => {
 
   it('las tres reglas de peajes conviven y el desglose explica cada una', () => {
     const porPeaje = makeRule({
-      code: 'BONO_PEAJE', stage: 'SURCHARGE', priority: 10,
+      code: 'BONO_PEAJE', stage: 'VARIABLE', priority: 10,
       expression: { op: 'PER_UNIT', unit: 'custom:peajes', rate: '20.00' },
     });
     const masDe20 = makeRule({
-      code: 'EXTRA_20_PEAJES', stage: 'SURCHARGE', priority: 20,
+      code: 'EXTRA_20_PEAJES', stage: 'VARIABLE', priority: 20,
       conditions: { p: 'GT', left: 'custom:peajes', right: 20 },
       expression: { op: 'FIXED', amount: '10.00' },
     });
     const cada10 = makeRule({
-      code: 'BLOQUE_PEAJES', stage: 'SURCHARGE', priority: 30,
+      code: 'BLOQUE_PEAJES', stage: 'VARIABLE', priority: 30,
       expression: { op: 'PER_BLOCK', unit: 'custom:peajes', blockSize: 10, amount: '15.00' },
     });
 
@@ -146,7 +146,7 @@ describe('las seis reglas del requerimiento', () => {
 
   it('una variable por viaje que no se cargó vale su valor por defecto (0): no cobra peajes que no hubo', () => {
     const regla = makeRule({
-      code: 'BONO_PEAJE', stage: 'SURCHARGE',
+      code: 'BONO_PEAJE', stage: 'VARIABLE',
       expression: { op: 'PER_UNIT', unit: 'custom:peajes', rate: '20.00' },
     });
     expect(total([regla])).toBe('0.00');
@@ -156,7 +156,7 @@ describe('las seis reglas del requerimiento', () => {
 describe('PER_BLOCK — bordes', () => {
   it('no cuenta bloques parciales', () => {
     const regla = makeRule({
-      code: 'B', stage: 'SURCHARGE',
+      code: 'B', stage: 'VARIABLE',
       expression: { op: 'PER_BLOCK', unit: 'custom:recolectas', blockSize: 3, amount: '5.00' },
     });
     expect(total([regla], recolectas(2))).toBe('0.00');
@@ -167,7 +167,7 @@ describe('PER_BLOCK — bordes', () => {
     // Antes lanzaba un Error genérico que abortaba toda la liquidación; ahora la regla se marca
     // ilegible y el cálculo sigue, pero bloqueado hasta que alguien la corrija.
     const regla = makeRule({
-      code: 'B', stage: 'SURCHARGE',
+      code: 'B', stage: 'VARIABLE',
       expression: { op: 'PER_BLOCK', unit: 'custom:peajes', blockSize: 0, amount: '5.00' },
     });
     const result = run([regla], peajes(10));

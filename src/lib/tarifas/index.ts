@@ -24,7 +24,12 @@ import { toDecimal } from './money';
 
 export function calculate(input: CalculateInput): CalcResult {
   const derived = deriveContext(input);
-  const { applied, candidates, discarded, warnings: resolverWarnings } = resolveRules(input, derived);
+  const { applied, candidates, discarded, warnings: resolverWarnings, conflicts } = resolveRules(input, derived);
+  // Mismo código y alcance aplicando a la vez = doble cobro: frena la emisión. Misma lógica o mismo nombre
+  // con otro código no cambian el total de por sí: se avisa.
+  const duplicateIssues = conflicts.filter((c) => c.kind === 'MISMO_CODIGO')
+    .map((c) => ({ code: 'REGLA_DUPLICADA' as const, message: c.message, ruleCode: c.codes[0] }));
+  const conflictWarnings = conflicts.filter((c) => c.kind !== 'MISMO_CODIGO').map((c) => c.message);
 
   // Los gastos van primero: son la base del total de la flota propia.
   const costWarnings: string[] = [];
@@ -69,8 +74,8 @@ export function calculate(input: CalculateInput): CalcResult {
     cost,
     margin,
     allocation,
-    warnings: [...resolverWarnings, ...(chosen?.warnings ?? []), ...charge.warnings, ...costWarnings],
-    blockingIssues: [...(chosen?.issues ?? []), ...charge.blockingIssues],
+    warnings: [...resolverWarnings, ...conflictWarnings, ...(chosen?.warnings ?? []), ...charge.warnings, ...costWarnings],
+    blockingIssues: [...duplicateIssues, ...(chosen?.issues ?? []), ...charge.blockingIssues],
     ...(chosen?.base ? { base: chosen.base } : {}),
   };
 }

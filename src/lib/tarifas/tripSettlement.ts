@@ -274,7 +274,7 @@ function emptyResult(catalog: TarifasCatalog, issues: CalcIssue[]): CalcResult {
   return {
     trace: [],
     discarded: [],
-    stageSubtotals: { BASE: '0', VARIABLE: '0', MODIFIER: '0', SURCHARGE: '0', ADJUSTMENT: '0', TAX: '0' },
+    stageSubtotals: { BASE: '0', VARIABLE: '0', ADJUSTMENT: '0', TAX: '0' },
     totalLiquidado: '0',
     currency,
     cost: { total: '0', breakdown: [], modelId: 'NONE', currency },

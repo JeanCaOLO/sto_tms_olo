@@ -2,10 +2,12 @@
 import Input from '../../../../components/base/Input';
 import Select from '../../../../components/base/Select';
 import { BASE_METHODS, BASE_METHOD_ORDER } from '../../../../lib/tarifas/baseMethods';
-import type { BaseMethodId, Stage } from '../../../../lib/tarifas/types';
+import type { BaseMethodId, RuleCategory, Stage } from '../../../../lib/tarifas/types';
+import { CATEGORY_OPTIONS, PHASE_OPTIONS } from './stageOptions';
 
 interface RuleStackingSectionProps {
   stage: Stage;
+  category: RuleCategory | '';
   stacking: 'SUM' | 'MAX' | 'EXCLUSIVE';
   exclusionGroup: string;
   appliesToBase: BaseMethodId[];
@@ -13,6 +15,7 @@ interface RuleStackingSectionProps {
   active: boolean;
   onAppliesToBaseChange: (methods: BaseMethodId[]) => void;
   onStageChange: (stage: Stage) => void;
+  onCategoryChange: (category: RuleCategory | '') => void;
   onStackingChange: (stacking: 'SUM' | 'MAX' | 'EXCLUSIVE') => void;
   onExclusionGroupChange: (group: string) => void;
   onPriorityChange: (priority: number) => void;
@@ -25,17 +28,9 @@ const STACKING_OPTIONS = [
   { value: 'EXCLUSIVE', label: 'Compite: gana la de mayor prioridad' },
 ];
 
-const STAGE_OPTIONS: { value: Stage; label: string }[] = [
-  { value: 'BASE', label: 'Base (precio base de la ruta)' },
-  { value: 'VARIABLE', label: 'Variable (cliente / kg / bulto)' },
-  { value: 'MODIFIER', label: 'Modificador (ajuste por servicio)' },
-  { value: 'SURCHARGE', label: 'Recargo (pernocta, peajes y otros variables propios)' },
-  { value: 'ADJUSTMENT', label: 'Ajuste (descuentos/penalidades)' },
-  { value: 'TAX', label: 'Impuesto' },
-];
-
 export default function RuleStackingSection({
   stage,
+  category,
   stacking,
   exclusionGroup,
   appliesToBase,
@@ -43,26 +38,37 @@ export default function RuleStackingSection({
   active,
   onAppliesToBaseChange,
   onStageChange,
+  onCategoryChange,
   onStackingChange,
   onExclusionGroupChange,
   onPriorityChange,
   onActiveChange,
 }: RuleStackingSectionProps) {
+  // "Compite: gana una sola" solo existe en la BASE; en las demás fases anularía recargos ajenos.
+  const stackingOptions = stage === 'BASE' ? STACKING_OPTIONS : STACKING_OPTIONS.filter((o) => o.value !== 'EXCLUSIVE');
   return (
     <section className="border-t border-gray-200 pt-4">
       <h3 className="text-sm font-semibold text-gray-700 mb-3">Cómo convive con las demás reglas</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Select
-          label="Etapa del cálculo *"
+          label="Fase del cálculo *"
           value={stage}
           onChange={(e) => onStageChange(e.target.value as Stage)}
-          options={STAGE_OPTIONS}
+          options={PHASE_OPTIONS}
         />
+        {stage !== 'BASE' && (
+          <Select
+            label="Categoría (solo para el desglose)"
+            value={category}
+            onChange={(e) => onCategoryChange(e.target.value as RuleCategory | '')}
+            options={CATEGORY_OPTIONS}
+          />
+        )}
         <Select
           label="¿Se suma o compite? *"
           value={stacking}
           onChange={(e) => onStackingChange(e.target.value as 'SUM' | 'MAX' | 'EXCLUSIVE')}
-          options={STACKING_OPTIONS}
+          options={stackingOptions}
         />
         {stacking === 'MAX' && (
           <Input

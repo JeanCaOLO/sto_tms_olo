@@ -629,6 +629,10 @@
           "type": "text",
           "nullable": false
         },
+        "category": {
+          "type": "text",
+          "nullable": true
+        },
         "priority": {
           "type": "int",
           "nullable": false

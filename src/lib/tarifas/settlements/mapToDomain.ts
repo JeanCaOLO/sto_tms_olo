@@ -1,6 +1,8 @@
 // Conversión de fila de BD a dominio SettlementRecord.
 
+import Decimal from 'decimal.js';
 import type { Row } from '../data';
+import { legacyCategory, normalizeStage } from '../types';
 import type {
   Allocation, MarginStatus, Override, Rule, SettlementOrder, SettlementRecord, SettlementReturn,
   SettlementBaseChange, SettlementStatus, Stage, TraceLine, TripContext, TripEdits, TripRecord,
@@ -13,6 +15,29 @@ import type {
  */
 export function dateOnly(value: unknown): string {
   return value == null ? '' : String(value).slice(0, 10);
+}
+
+/** Una regla guardada con etapa vieja (6 etapas) se lee en las 4 fases; la etapa vieja queda como categoría. */
+function normalizeRule(rule: Rule): Rule {
+  const legacy = legacyCategory(rule.stage);
+  return legacy === null && rule.stage === normalizeStage(rule.stage)
+    ? rule
+    : { ...rule, stage: normalizeStage(rule.stage), category: rule.category ?? legacy };
+}
+
+function normalizeTraceLine(line: TraceLine): TraceLine {
+  const legacy = legacyCategory(line.stage);
+  return legacy === null ? line : { ...line, stage: normalizeStage(line.stage), category: line.category ?? legacy };
+}
+
+/** Subtotales guardados con 6 claves → 4 fases (MODIFIER y SURCHARGE se suman a VARIABLE). No re-liquida nada. */
+function normalizeStageSubtotals(raw: Record<string, string>): Record<Stage, string> {
+  const out: Record<string, Decimal> = {};
+  for (const [stage, amount] of Object.entries(raw)) {
+    const phase = normalizeStage(stage);
+    out[phase] = (out[phase] ?? new Decimal(0)).plus(amount);
+  }
+  return Object.fromEntries(Object.entries(out).map(([k, v]) => [k, v.toFixed()])) as Record<Stage, string>;
 }
 
 export function mapToDomain(row: Row): SettlementRecord {
@@ -42,13 +67,13 @@ export function mapToDomain(row: Row): SettlementRecord {
     allocation: (row.allocation ?? null) as Allocation | null,
     orders: (row.orders ?? null) as SettlementOrder[] | null,
     trip: (row.trip ?? {}) as TripContext,
-    trace: (row.trace ?? []) as TraceLine[],
+    trace: ((row.trace ?? []) as TraceLine[]).map(normalizeTraceLine),
     discarded: row.discarded ?? [],
-    stageSubtotals: (row.stage_subtotals ?? {}) as Record<Stage, string>,
+    stageSubtotals: normalizeStageSubtotals((row.stage_subtotals ?? {}) as Record<string, string>),
     warnings: (row.warnings ?? []) as string[],
     overrides: (row.overrides ?? {}) as Record<string, Override>,
-    adhocRules: (row.adhoc_rules ?? []) as Rule[],
-    rulesUsed: (row.rules_used ?? []) as Rule[],
+    adhocRules: ((row.adhoc_rules ?? []) as Rule[]).map(normalizeRule),
+    rulesUsed: ((row.rules_used ?? []) as Rule[]).map(normalizeRule),
     excludedSeqs: (row.excluded_seqs ?? []) as number[],
     baseChange: (row.base_change ?? null) as SettlementBaseChange | null,
     returns: (row.returns ?? []) as SettlementReturn[],

@@ -84,15 +84,15 @@ describe('M2 — grupo MAX', () => {
       country: makeCountryVE(), trip: makeTrip(), zones, zoneGroups, locations,
       ...makeOwnCostStructure(), marginPolicy: makeMarginPolicy(),
       rules: [
-        makeRule({ code: 'M1', stage: 'SURCHARGE', stacking: 'MAX', exclusionGroup: 'G', expression: { op: 'FIXED', amount: '50' } }),
+        makeRule({ code: 'M1', stage: 'VARIABLE', stacking: 'MAX', exclusionGroup: 'G', expression: { op: 'FIXED', amount: '50' } }),
         makeRule({
-          code: 'M2', stage: 'SURCHARGE', stacking: 'MAX', exclusionGroup: 'G',
+          code: 'M2', stage: 'VARIABLE', stacking: 'MAX', exclusionGroup: 'G',
           expression: { op: 'LOOKUP_TABLE', table: 'NO_EXISTE', fallback: { op: 'FIXED', amount: '10' } },
         }),
       ],
     };
     const result = calculate(input);
-    const lineas = result.trace.filter((l) => l.stage === 'SURCHARGE');
+    const lineas = result.trace.filter((l) => l.stage === 'VARIABLE');
     expect(lineas.map((l) => l.ruleCode)).toEqual(['M1']);
     expect(lineas[0]!.tableMatch).toBeUndefined();
     expect(result.warnings.filter((w) => w.includes('NO_EXISTE'))).toHaveLength(0);
@@ -101,7 +101,7 @@ describe('M2 — grupo MAX', () => {
 
 describe('orden de reglas único', () => {
   it('compareRules ordena etapa → prioridad → alcance → código', () => {
-    const a = makeRule({ code: 'A', stage: 'SURCHARGE', priority: 1, expression: { op: 'FIXED', amount: '1' } });
+    const a = makeRule({ code: 'A', stage: 'VARIABLE', priority: 1, expression: { op: 'FIXED', amount: '1' } });
     const b = makeRule({ code: 'B', stage: 'BASE', priority: 9, expression: { op: 'FIXED', amount: '1' } });
     expect([a, b].sort(compareRules).map((r) => r.code)).toEqual(['B', 'A']);
   });

@@ -25,7 +25,7 @@ import {
 import { setActorRole } from '../src/lib/tarifas/actor';
 import { snapshotOrders } from '../src/lib/tarifas/tripOrders';
 import { COMPONENTES_CR, FIJOS_CR, PARAMETROS_CR } from '../src/lib/tarifas/__tests__/fixtures/costaRicaFleet';
-import type { TripEdits } from '../src/lib/tarifas/types';
+import { legacyCategory, normalizeStage, type TripEdits } from '../src/lib/tarifas/types';
 
 const ROOT = resolve(import.meta.dirname ?? __dirname, '..');
 const SEED_IN = resolve(ROOT, 'src/lib/tarifas/__tests__/fixtures/seed.json');
@@ -276,7 +276,8 @@ function rule(spec: RuleSpec) {
   ruleSeq += 1;
   work.pricingRules.push({
     id: `RULE_CR_${String(ruleSeq).padStart(2, '0')}`, country_id: CR, scope: spec.party ? 'PARTY' : 'COUNTRY',
-    party_id: spec.party ? `PARTY_CR_${spec.party}` : null, code: spec.code, name: spec.name, stage: spec.stage,
+    party_id: spec.party ? `PARTY_CR_${spec.party}` : null, code: spec.code, name: spec.name,
+    stage: normalizeStage(spec.stage), category: legacyCategory(spec.stage),
     priority: spec.priority, stacking: spec.stacking ?? 'SUM', exclusion_group: spec.exclusionGroup ?? null,
     conditions: spec.conditions, expression: spec.expression, description: spec.description ?? null, reason: spec.reason ?? null,
     effect: spec.effect ?? 'INCREASE', builder: null, condition_builder: null, is_adhoc: false, active: spec.active ?? true,
@@ -853,7 +854,7 @@ for (const cc of VE_CO) {
     fRule += 1;
     work.pricingRules.push({
       id: `RULE_${C}_${String(fRule).padStart(2, '0')}`, country_id: C, scope: r.party ? 'PARTY' : 'COUNTRY', party_id: r.party ? partyId(r.party) : null,
-      code: r.code, name: r.name, stage: r.stage, priority: r.priority, stacking: r.stacking ?? 'SUM', exclusion_group: r.excl ?? null,
+      code: r.code, name: r.name, stage: normalizeStage(r.stage), category: legacyCategory(r.stage), priority: r.priority, stacking: r.stacking ?? 'SUM', exclusion_group: r.excl ?? null,
       conditions: r.conditions, expression: r.expression, description: r.description ?? null, reason: r.reason ?? null, effect: r.effect ?? 'INCREASE',
       builder: null, condition_builder: null, is_adhoc: false, active: r.active ?? true, effective_from: r.from ?? null, effective_to: r.to ?? null, version: r.version ?? 1,
     });

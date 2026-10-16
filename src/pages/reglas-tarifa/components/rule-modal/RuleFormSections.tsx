@@ -99,13 +99,18 @@ export function RuleFormSections({ m }: { m: RuleModalModel }) {
       />
       <RuleStackingSection
         stage={formData.stage}
+        category={formData.category}
         stacking={formData.stacking}
         exclusionGroup={formData.exclusion_group}
         appliesToBase={formData.applies_to_base}
         onAppliesToBaseChange={(methods) => updateFormField('applies_to_base', methods)}
         priority={formData.priority}
         active={formData.active}
-        onStageChange={(stage) => updateFormField('stage', stage)}
+        onStageChange={(stage) => {
+          updateFormField('stage', stage);
+          if (stage !== 'BASE' && formData.stacking === 'EXCLUSIVE') updateFormField('stacking', 'SUM');
+        }}
+        onCategoryChange={(category) => updateFormField('category', category)}
         onStackingChange={(stacking) => updateFormField('stacking', stacking)}
         onExclusionGroupChange={(group) => updateFormField('exclusion_group', group)}
         onPriorityChange={(priority) => updateFormField('priority', priority)}

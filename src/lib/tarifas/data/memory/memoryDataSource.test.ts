@@ -59,10 +59,10 @@ describe('MemoryDataSource — consultas', () => {
     const rules = await db.find('pricingRule', {
       where: [
         { column: 'country_id', op: 'eq', value: 'VE' },
-        { column: 'stage', op: 'eq', value: 'SURCHARGE' },
+        { column: 'stage', op: 'eq', value: 'VARIABLE' },
       ],
     });
-    expect(rules.every((r) => r.country_id === 'VE' && r.stage === 'SURCHARGE')).toBe(true);
+    expect(rules.every((r) => r.country_id === 'VE' && r.stage === 'VARIABLE')).toBe(true);
     expect(rules.length).toBeGreaterThan(0);
   });
 
@@ -88,7 +88,7 @@ describe('MemoryDataSource — consultas', () => {
       where: [{ column: 'country_id', op: 'eq', value: 'VE' }],
       orderBy: [{ column: 'stage', locale: true }, { column: 'priority' }],
     });
-    const surcharges = rules.filter((r) => r.stage === 'SURCHARGE').map((r) => r.priority);
+    const surcharges = rules.filter((r) => r.stage === 'VARIABLE').map((r) => r.priority);
     expect(surcharges).toEqual([...surcharges].sort((a, b) => a - b));
   });
 

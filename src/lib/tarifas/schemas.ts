@@ -3,7 +3,7 @@
 // Puerto literal de vista-tarifas-fase1/src/kernel/schemas.ts.
 
 import { z } from 'zod';
-import { STAGE_ORDER } from './types';
+import { RULE_CATEGORIES, STAGE_ORDER, normalizeStage } from './types';
 
 export const MoneySchema = z
   .string()
@@ -20,9 +20,14 @@ export const DateOnlySchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida: se espera AAAA-MM-DD');
 
-export const StageSchema = z.enum(STAGE_ORDER as [string, ...string[]]) as z.ZodEnum<
-  ['BASE', 'VARIABLE', 'MODIFIER', 'SURCHARGE', 'ADJUSTMENT', 'TAX']
->;
+// Acepta también las etapas viejas (MODIFIER/SURCHARGE) y las pliega a VARIABLE: así se siguen leyendo
+// reglas guardadas antes de la simplificación a 4 fases.
+export const StageSchema = z.preprocess(
+  (raw) => (typeof raw === 'string' ? normalizeStage(raw) : raw),
+  z.enum(STAGE_ORDER as [string, ...string[]]),
+) as unknown as z.ZodType<'BASE' | 'VARIABLE' | 'ADJUSTMENT' | 'TAX'>;
+
+export const RuleCategorySchema = z.enum(RULE_CATEGORIES as [string, ...string[]]);
 
 // Variable personalizada de una compañía. No se puede enumerar en tiempo de compilación (se
 // declaran en caliente), así que se valida por forma; que exista de verdad lo verifica el editor de
@@ -136,6 +141,7 @@ export const RuleSchema = z.object({
   code: z.string().min(1),
   name: z.string().min(1),
   stage: StageSchema,
+  category: RuleCategorySchema.nullable().optional(),
   priority: z.number().int(),
   stacking: z.enum(['SUM', 'MAX', 'EXCLUSIVE']),
   exclusionGroup: z.string().nullable(),
@@ -161,6 +167,11 @@ export const RuleSchema = z.object({
   // La forma de cobro la define la BASE; un ajuste solo se liga a una (`appliesToBase`).
   (rule) => rule.stage === 'BASE' ? !(rule.appliesToBase?.length) : !rule.baseMethod,
   { message: 'La forma de cobro solo se declara en la etapa BASE y el ligado a una base, en los ajustes.', path: ['baseMethod'] },
+).refine(
+  // "Una sola gana" solo tiene sentido en la BASE (una regla de país vs. la de la compañía). En las
+  // demás fases anularía recargos ajenos por accidente: ahí se usa SUM, o MAX con grupo explícito.
+  (rule) => rule.stacking !== 'EXCLUSIVE' || rule.stage === 'BASE',
+  { message: 'EXCLUSIVE solo se permite en la fase BASE; en las demás usá SUM, o MAX con un grupo.', path: ['stacking'] },
 ).refine(
   (rule) => rule.baseMethod !== 'TENDERING',
   { message: 'Tendering todavía no tiene un cálculo definido.', path: ['baseMethod'] },
