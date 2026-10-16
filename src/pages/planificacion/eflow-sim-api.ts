@@ -8,7 +8,9 @@
 // sin barra final, query string solo con los filtros no vacíos. A diferencia de
 // eflow-api.ts, NO lleva ?pais= (el seed del sim es único, no enruta por país).
 
-const TIMEOUT_MS = 4000;
+// 12s: el modo live consulta EFLOW real por túnel (SQL Server), bastante más
+// lento que el seed; con 4s el GET caía al fallback antes de responder.
+const TIMEOUT_MS = 12000;
 
 // Base del API. Vacío en dev (Vite proxya /api/*); en build = URL del API
 // Gateway (p. ej. https://<id>.execute-api.<region>.amazonaws.com/<env>). Sin
