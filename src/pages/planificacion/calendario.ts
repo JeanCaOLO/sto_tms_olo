@@ -65,7 +65,9 @@ export function zonasPresentes(planes: RoutePlan[], fechasISO: string[]): string
     if (!visibles.has(p.plan_date)) continue;
     for (const t of p.trips) zonas.add(t.delivery_zone);
   }
-  return [...zonas].sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
+  // Coerción defensiva: una expedición sin RUTA (EPA/0029) puede dejar zona
+  // vacía; sin esto, null.localeCompare tumbaba el calendario al ordenar.
+  return [...zonas].sort((a, b) => (a ?? '').localeCompare(b ?? '', 'es', { numeric: true }));
 }
 
 // ¿Alguno de estos viajes lleva pedidos aún NO despachados (fuera de CARCA)?

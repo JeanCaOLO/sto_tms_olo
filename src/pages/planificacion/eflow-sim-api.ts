@@ -10,6 +10,8 @@
 
 // 12s: el modo live consulta EFLOW real por túnel (SQL Server), bastante más
 // lento que el seed; con 4s el GET caía al fallback antes de responder.
+import type { Articulo } from './types';
+
 const TIMEOUT_MS = 12000;
 
 // Base del API. Vacío en dev (Vite proxya /api/*); en build = URL del API
@@ -151,6 +153,21 @@ export function fetchExpedicionesCabecera(filtros: FiltrosCabecera = {}): Promis
 
 export function fetchExpedicionesDetalle(filtros: FiltrosDetalle = {}): Promise<ExpedicionDetalle[]> {
   return getJson<ExpedicionDetalle[]>(RUTA_DETALLE + construirQuery(filtros));
+}
+
+// Artículos (líneas) de una expedición del sim, para el modal de detalle del
+// pin. Mapea EXPEDICIONESDETALLE → Articulo. La DESCRIPCION no viene del WMS
+// (vive en ARTICULOSGESTION); por ahora el nombre queda vacío y se ve el código.
+export async function fetchArticulosEflowSim(idExpedicion: string): Promise<Articulo[]> {
+  const lineas = await fetchExpedicionesDetalle({ IDEXPEDICION: idExpedicion });
+  return lineas.map((d) => ({
+    product_code: d.IDARTICULO ?? '—',
+    product_name: d.DESCRIPCION ?? '',
+    quantity: d.CANTIDAD ?? 0,
+    weight: d.PESO,
+    volume: d.VOLUMEN,
+    guia_fiscal: d.GUIAFISCAL,
+  }));
 }
 
 export function actualizarCabecera(payload: UpdateCabecera): Promise<RespuestaUpdate> {

@@ -9,6 +9,9 @@ import type { PlanStop, PlanTrip, RoutePlan } from './planes-types';
 
 const LS_KEY = 'tms.eflowSim.planes.v1';
 const PARADAS_POR_VIAJE = 3;
+// Zona para expediciones SIN ruta asignada (EPA/0029 llega sin RUTA en eFlow).
+// Evita delivery_zone null, que rompía el orden de zonas del calendario.
+const SIN_RUTA = 'S/R';
 const FLOTA = [
   ['CL-1234', 'Hino 300'], ['CL-5678', 'Isuzu NPR'],
   ['CL-9012', 'Hino 500'], ['CL-3344', 'Mitsubishi Canter'],
@@ -53,7 +56,7 @@ function toStop(c: ExpedicionCabecera, det: ExpedicionDetalle[], orden: number):
   return {
     id: `stop-${c.IDEXPEDICION}`, order_id: c.IDEXPEDICION, stop_order: orden,
     order_number: c.IDEXPEDICION, customer_name: c.NOMBRECLIENTE,
-    delivery_address: c.DIRECCIONENTREGA, delivery_city: null, delivery_zone: c.RUTA,
+    delivery_address: c.DIRECCIONENTREGA, delivery_city: null, delivery_zone: c.RUTA ?? SIN_RUTA,
     delivery_latitude: num(c.LATITUD), delivery_longitude: num(c.LONGITUD),
     total_weight: sumar(det, 'PESO'), total_volume: sumar(det, 'VOLUMEN'),
     en_carca: enCarca(c.IDEXPEDICION), prioridad: c.PRIORIDAD, compania: c.IDCOMPANIA,
@@ -75,7 +78,7 @@ function toTrip(fecha: string, zona: string, seq: number, stops: PlanStop[]): Pl
 
 function toPlan(fecha: string, filas: ExpedicionCabecera[], detPorExp: Map<string, ExpedicionDetalle[]>): RoutePlan {
   const trips: PlanTrip[] = [];
-  for (const [zona, pedidos] of [...agrupar(filas, (c) => c.RUTA).entries()].sort()) {
+  for (const [zona, pedidos] of [...agrupar(filas, (c) => c.RUTA ?? SIN_RUTA).entries()].sort()) {
     chunk(pedidos, PARADAS_POR_VIAJE).forEach((grupo, i) => {
       const stops = grupo.map((c, k) => toStop(c, detPorExp.get(c.IDEXPEDICION) ?? [], k + 1));
       trips.push(toTrip(fecha, zona, i + 1, stops));

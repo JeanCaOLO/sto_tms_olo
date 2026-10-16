@@ -5,6 +5,7 @@ import Button from '../../../components/base/Button';
 import type { PlanStop } from '../planes-types';
 import type { Articulo } from '../types';
 import { fetchArticulosDePedido } from '../plan-pedidos-api';
+import { fetchArticulosEflowSim } from '../eflow-sim-api';
 
 interface Props {
   parada: PlanStop | null;
@@ -27,7 +28,13 @@ export default function ParadaModal({ parada, onClose }: Props) {
     }
     let vivo = true;
     setArticulos(null);
-    fetchArticulosDePedido(parada.order_id).then((a) => {
+    // Pedido de eFlow-sim (trae compania) → GET del detalle de eFlow (líneas);
+    // pedido de Aurora → endpoint de artículos del pedido planificado.
+    const cargar =
+      parada.compania != null
+        ? fetchArticulosEflowSim(parada.order_id)
+        : fetchArticulosDePedido(parada.order_id);
+    cargar.then((a) => {
       if (vivo) setArticulos(a);
     });
     return () => {

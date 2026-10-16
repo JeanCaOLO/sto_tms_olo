@@ -73,6 +73,13 @@ describe('mapExpediciones', () => {
     expect(stops.some((s) => s.en_carca === false)).toBe(true); // hay sin despachar
   });
 
+  it('expedición sin RUTA (EPA) → zona "S/R", nunca null (rompía el calendario)', () => {
+    const planes = mapExpediciones([{ ...cab('x', '2026-10-15', null as unknown as string) }], [linea('x')]);
+    const zonas = planes.flatMap((p) => p.trips).map((t) => t.delivery_zone);
+    expect(zonas).toContain('S/R');
+    expect(zonas).not.toContain(null);
+  });
+
   it('EPA (0029): lee las expediciones -0/-1 con su prioridad uniforme', () => {
     const { cabecera, detalle } = seedEflowSim();
     const epaStops = mapExpediciones(cabecera, detalle)
