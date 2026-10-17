@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { backoffDelay } from '../hooks/polling-runner';
 import { usePolling } from '../hooks/usePolling';
 
 beforeEach(() => vi.useFakeTimers());
@@ -85,5 +86,12 @@ describe('usePolling', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
     expect(fetcher).not.toHaveBeenCalled();
     expect(result.current.data).toBeNull();
+  });
+
+  it('la espera crece al doble por cada error seguido, con tope de 60 s', () => {
+    expect(backoffDelay(15_000, 0)).toBe(15_000);
+    expect(backoffDelay(15_000, 1)).toBe(30_000);
+    expect(backoffDelay(15_000, 2)).toBe(60_000);
+    expect(backoffDelay(15_000, 5)).toBe(60_000);
   });
 });

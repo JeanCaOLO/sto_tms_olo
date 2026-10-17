@@ -16,6 +16,7 @@ import type { ListMode } from './types';
 // Leaflet pesa: el mapa se descarga solo al abrir Tracking. La simulación es solo del modo mock.
 const FlotaMapa = lazy(() => import('./components/FlotaMapa'));
 const SimulacionControles = lazy(() => import('./components/SimulacionControles'));
+const CierrePlanificacion = lazy(() => import('./mock/CierrePlanificacion'));
 
 const PAGE_SIZE = 30;
 const MAX_LIMIT = 100;
@@ -65,7 +66,10 @@ export default function TrackingPage() {
     setLimit(PAGE_SIZE);
   };
 
-  const layout = selected ? 'lg:grid-cols-[320px_minmax(0,1fr)_380px]' : 'lg:grid-cols-[320px_minmax(0,1fr)]';
+  // En laptops (lg) columnas más angostas para que el mapa no quede aplastado; desde 2xl (≥ 1536 px), las anchas.
+  const layout = selected
+    ? 'lg:grid-cols-[260px_minmax(0,1fr)_320px] 2xl:grid-cols-[320px_minmax(0,1fr)_380px]'
+    : 'lg:grid-cols-[260px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)]';
 
   return (
     <div className="flex flex-col gap-4">
@@ -128,7 +132,11 @@ export default function TrackingPage() {
             now={now}
             onReplay={() => setReplaying(true)}
             onClose={() => setSelectedId(null)}
-          />
+          >
+            {mock && selected.state === 'active' && (
+              <Suspense fallback={null}><CierrePlanificacion tripId={selected.id} onDone={refresh} /></Suspense>
+            )}
+          </ViajeDetallePanel>
         )}
       </div>
 

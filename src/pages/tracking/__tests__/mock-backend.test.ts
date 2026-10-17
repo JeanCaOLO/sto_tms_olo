@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createFakeTrackingBackend } from '../mock/fakeTrackingBackend';
-import { driveMinutes, getSimulation, haversineM, resetSimulation, setRoadProvider, setSimulation, simNow } from '../mock/sim';
+import { driveMinutes, getSimulation, haversineM, resetSimulation, setRoadProvider, setSimulation, simNow, simPlanClose } from '../mock/sim';
 import type { Recorrido, ViajeDetalle, ViajesPage } from '../types';
 
 const backend = createFakeTrackingBackend({ latencyMs: 0 });
@@ -138,6 +138,27 @@ describe('backend simulado del tracking (contrato v2)', () => {
     expect(points.some((p) => haversineM([p.lat, p.lng], via) < 1)).toBe(true);
     const times = points.map((p) => Date.parse(p.at));
     expect(times.every((t, i) => i === 0 || t >= times[i - 1])).toBe(true);
+  });
+
+  it('Planificación termina o cancela un viaje: Tracking lo muestra cerrado y fuera de Activos', async () => {
+    const before = (await get<ViajesPage>('/viajes?activos=1&limit=50&include=summary')).summary!;
+    simPlanClose('demo-cr-01', 'completed');
+    simPlanClose('demo-cr-02', 'cancelled');
+    const after = await get<ViajesPage>('/viajes?activos=1&limit=50&include=summary');
+    expect(after.items.some((v) => v.id === 'demo-cr-01' || v.id === 'demo-cr-02')).toBe(false);
+    expect(after.summary!.active).toBe(before.active - 2);
+    expect(after.summary!.completed_today).toBe(before.completed_today + 1); // la cancelada no cuenta
+    const all = (await get<ViajesPage>('/viajes?limit=50')).items;
+    expect(all.find((v) => v.id === 'demo-cr-01')).toMatchObject({ state: 'completed', color: 'blue', alerts: [] });
+    expect(all.find((v) => v.id === 'demo-cr-02')).toMatchObject({ state: 'cancelled', color: 'gray' });
+    expect(() => simPlanClose('demo-cr-01', 'cancelled')).toThrow(/ya está cerrado/);
+  });
+
+  it('cerrar la última parada no termina el viaje (lo termina Planificación)', async () => {
+    const d = await get<ViajeDetalle>('/viajes/demo-cr-c1');
+    expect(d.state).toBe('completed'); // escenario ya cerrado del JSON
+    const { items } = await get<ViajesPage>('/viajes?activos=1&limit=50');
+    expect(items.every((v) => v.state === 'active')).toBe(true);
   });
 
   it('rutas desconocidas responden 404 y la pausa congela el reloj', async () => {

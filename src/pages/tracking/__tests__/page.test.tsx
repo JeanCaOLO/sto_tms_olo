@@ -64,6 +64,17 @@ describe('TrackingPage (modo mock)', () => {
     expect(screen.queryByText('VJ-DEMO-CR-01')).toBeNull();
   });
 
+  it('en mock se puede simular que Planificación termina el viaje', async () => {
+    render(<TrackingPage />);
+    fireEvent.click(await screen.findByText('VJ-DEMO-VN-01'));
+    await within(panel()).findByText(/Pruebas \(mock\)/);
+    fireEvent.click(within(panel()).getByRole('button', { name: 'Completar' }));
+    await waitFor(() => expect(within(panel()).getByText('Completado')).toBeTruthy());
+    expect(within(panel()).queryByText(/Pruebas \(mock\)/)).toBeNull(); // ya no está activo
+    // La tarjeta sale de "Activos"; el panel sigue abierto mostrando el viaje ya cerrado.
+    await waitFor(() => expect(screen.queryByRole('button', { name: /VJ-DEMO-VN-01/ })).toBeNull());
+  });
+
   it('en mock muestra los controles de prueba; la acción de completar no existe', async () => {
     render(<TrackingPage />);
     await screen.findByText('VJ-DEMO-CR-01');

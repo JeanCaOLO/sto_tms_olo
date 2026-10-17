@@ -43,6 +43,7 @@ Todo lo que necesita el túnel a Aurora está en **[pendientes-tunel.md](./pendi
 | `src/pages/tracking/mock/` | `sim.ts` (simulación), `fakeTrackingBackend.ts` (rutas HTTP simuladas), `installTrackingMock.ts`. |
 | `src/pages/tracking/route-osrm.ts` | Ruta por calles (OSRM) con caché; sin respaldo en línea recta. |
 | `backend/tracking/src/` | `app.py` (handlers), `tracking_logic.py` (reglas puras), `tracking_sql.py`. |
+| `e2e/tracking.spec.ts` | Prueba de punta a punta en navegador (modo mock). |
 | `scripts/tracking-contract-check.mjs` | Verifica el contrato v2 contra un backend real y mide tiempos (requiere túnel). |
 | `scripts/simular-posiciones.mjs` | Simula un camión enviando GPS al backend real (`--por-calles`). |
 | `scripts/seed-tracking-demo.mjs`, `scripts/limpiar-tracking-prueba.mjs` | Datos de prueba en Aurora y su limpieza. |

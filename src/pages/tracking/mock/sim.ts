@@ -50,6 +50,8 @@ interface SStop { id: string; def: StopDef; state: StopState; arrivedAt: number 
 interface STrip {
   id: string; def: PlannedDef | TripDef; routeNumber: string; origin: [number, number]; stops: SStop[];
   startedAt: number; endedAt: number | null; departedAt: number | null; lastSignalAt: number; pos: [number, number];
+  /** Cómo lo terminó Planificación (los completados del JSON: 'completed'). */
+  closedAs: 'completed' | 'cancelled';
   moving: boolean; stoppedMin: number; planned: number[]; plannedEnd: number; trail: Position[];
   /** Calles por recorrer hasta cada parada pendiente (id → puntos); vacío = línea recta. */
   legs: Map<string, [number, number][]>; roadsAsked: boolean;
@@ -158,7 +160,7 @@ function seed(now: number) {
       id: def.id, def, routeNumber: def.route_number, origin: def.origin, stops, startedAt,
       endedAt: def.endedMinAgo != null ? now - def.endedMinAgo * MIN : null, departedAt: atOrigin ? null : startedAt + 2 * MIN,
       lastSignalAt: now - def.lastSignalMinAgo * MIN, pos, moving: def.moving ?? false, stoppedMin: def.stoppedMin ?? 0,
-      planned: plan.planned, plannedEnd: plan.end, trail: [], legs: new Map(), roadsAsked: false,
+      planned: plan.planned, plannedEnd: plan.end, trail: [], legs: new Map(), roadsAsked: false, closedAs: 'completed',
     };
     // Calibra el plan para que el retraso de la próxima parada sea el pedido en el JSON (por defecto, a tiempo).
     const target = trip.endedAt == null ? stops.findIndex((s) => s.state === 'pending') : -1;
@@ -330,11 +332,13 @@ function etas(trip: STrip, now: number): Map<string, Eta> {
 const hasGps = (trip: STrip) => !('noGps' in trip.def && trip.def.noGps);
 
 function toViaje(trip: STrip, now: number): Viaje {
-  const state = trip.endedAt != null ? 'completed' : 'active';
+  const state = trip.endedAt != null ? trip.closedAs : 'active';
   const active = state === 'active';
   const signal: Signal = active && hasGps(trip) ? signalOf(trip, now) : 'none';
   const phase: Phase | null = active ? (trip.departedAt != null ? 'en_ruta' : 'por_salir') : null;
-  const color: MapColor = !active ? 'blue' : signal === 'online' ? 'green' : signal === 'stale' ? 'amber' : 'gray';
+  // Como tracking_logic.map_color: azul completado, gris anulado o sin señal.
+  const live: MapColor = signal === 'online' ? 'green' : signal === 'stale' ? 'amber' : 'gray';
+  const color: MapColor = state === 'completed' ? 'blue' : active ? live : 'gray';
   // Sin GPS no hay ETA (como el backend): sin retraso ni alerta "late".
   const delivered = trip.stops.filter((s) => s.state === 'delivered').length;
   const failed = trip.stops.filter((s) => s.state === 'failed').length;
@@ -418,7 +422,7 @@ function simSummary(country: string | null, now: number): Resumen {
   const active = scoped.filter((t) => t.endedAt == null).map((t) => toViaje(t, now));
   const late = active.filter((v) => v.alerts.some((a) => a.code === 'late')).length;
   const completedToday = scoped.filter((t) => {
-    if (t.endedAt == null) return false;
+    if (t.endedAt == null || t.closedAs !== 'completed') return false;
     const tz = TIMEZONES[t.def.country] ?? 'UTC';
     return localDate(t.endedAt, tz) === localDate(now, tz);
   }).length;
@@ -470,7 +474,22 @@ export function simStart(planTripId: string) {
   trips.push({
     id, def, routeNumber: `VJ-MOCK-${def.id.toUpperCase()}`, origin: def.origin, stops, startedAt: now, endedAt: null, departedAt: null,
     lastSignalAt: now, pos: def.origin, moving: true, stoppedMin: 0, planned: plan.planned, plannedEnd: plan.end,
-    trail: [point(def.origin, now, false)], legs: new Map(), roadsAsked: false,
+    trail: [point(def.origin, now, false)], legs: new Map(), roadsAsked: false, closedAs: 'completed',
   });
   return { route_id: id, created: true };
+}
+
+/**
+ * Solo modo mock: simula que Planificación termina (completar) o cancela el viaje. En real Tracking no escribe
+ * eso: lo lee de `plan_trips`. Aquí basta con marcar el viaje cerrado para ver cómo se muestra.
+ */
+export function simPlanClose(id: string, as: 'completed' | 'cancelled') {
+  const now = clock();
+  ensure(now);
+  const trip = byId(id);
+  if (trip.endedAt != null) throw new SimError('El viaje ya está cerrado', 409);
+  trip.endedAt = now;
+  trip.closedAs = as;
+  trip.moving = false;
+  return { route_id: id, state: as };
 }

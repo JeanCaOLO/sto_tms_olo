@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import Badge from '../../../components/base/Badge';
 import Button from '../../../components/base/Button';
@@ -15,10 +16,12 @@ interface Props {
   now: number;
   onReplay: () => void;
   onClose: () => void;
+  /** Hueco para controles de pruebas (solo modo mock); el panel normal no tiene acciones. */
+  children?: ReactNode;
 }
 
 /** Panel derecho, solo lectura: avance, hacia dónde va y los pedidos con sus evidencias de entrega. */
-export default function ViajeDetallePanel({ viaje, detail, error, now, onReplay, onClose }: Props) {
+export default function ViajeDetallePanel({ viaje, detail, error, now, onReplay, onClose, children }: Props) {
   const { t } = useTranslation();
   const view = detail ?? viaje;
   const age = formatAge(viaje.position?.recorded_at, now, t);
@@ -70,6 +73,7 @@ export default function ViajeDetallePanel({ viaje, detail, error, now, onReplay,
         <Button size="sm" variant="secondary" onClick={onReplay} icon={<i className="ri-route-line" />}>
           {t('tracking.replay')}
         </Button>
+        {children}
       </div>
 
       <section className="flex-1 overflow-y-auto p-4">
