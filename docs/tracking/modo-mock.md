@@ -21,7 +21,7 @@ Solo funciona en desarrollo: `MOCK_AUTH_ENABLED` exige `import.meta.env.DEV`, as
 
 - **Reloj propio**: velocidad 0,5× a 60× y pausa (controles arriba a la derecha). "Hace X" usa ese reloj.
 - **Camiones por calles**: al arrancar pide a OSRM la ruta hasta las paradas pendientes (y rehace por calles el tramo ya recorrido del escenario). Las peticiones van de a una (el OSRM público admite ~1/s). Si OSRM no responde, el camión va en línea recta: la simulación nunca se bloquea.
-- Al llegar a una parada la marca entregada con factura + firma; con la última, el viaje se cierra solo (en real lo reporta la app / Planificación).
+- Al llegar a una parada la marca entregada con factura + firma; con la última, el camión se detiene y el viaje sigue activo ("Sin paradas pendientes"): en real lo termina Planificación. En el mock solo aparecen cerrados los escenarios completados del JSON.
 - Refresco cada 3 s (en real, 15 s).
 - **Iniciar viaje (pruebas)**: inicia los planes de `planned` del JSON.
 - Reiniciar (⟲) vuelve al estado inicial. El estado no persiste al recargar.

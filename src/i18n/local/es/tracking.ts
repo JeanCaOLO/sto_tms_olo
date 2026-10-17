@@ -45,7 +45,7 @@ export default {
   'tracking.stateUnknown': 'Sin estado',
   'tracking.phaseDeparting': 'Por salir',
   'tracking.nowHeading': 'Rumbo a {{stop}}',
-  'tracking.nowDone': 'Sin paradas pendientes',
+  'tracking.nowDone': 'Sin paradas pendientes · se cierra desde Planificación',
   'tracking.eta': 'llega ~{{time}}',
   'tracking.nextBadge': 'Siguiente',
   'tracking.stopPending': 'Pendiente',

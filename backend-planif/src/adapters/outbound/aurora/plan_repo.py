@@ -16,15 +16,6 @@ from adapters.outbound.aurora.schema_probe import tabla_existe
 from adapters.outbound.aurora import sql
 from lib.tms_common import pg
 
-# Estado de la ruta de Tracking cuando Planificación cierra su viaje (vocabulario que escribe Tracking).
-_ROUTE_CLOSED_STATUS = {"completed": "Completada", "cancelled": "Cancelada"}
-
-
-def _cierra_ruta(status: str) -> bool:
-    """¿Hay que cerrar también la ruta de Tracking? Solo al completar/cancelar y si el esquema de Tracking
-    (sql/40: routes.plan_trip_id + tracking_last_positions) está aplicado; si no, Planificación sigue igual."""
-    return status in _ROUTE_CLOSED_STATUS and tabla_existe("tracking_last_positions")
-
 
 def _parada_from_row(s: dict) -> Parada:
     return Parada(
@@ -183,11 +174,7 @@ class AuroraPlanRepo:
     def actualizar_estado(self, plan_id: str, status: str) -> Plan:
         if self._usa_mock():
             return _mock_store.actualizar_estado(plan_id, status)
-        cerrar = _cierra_ruta(status)  # sonda de esquema fuera de la transacción
-        with pg.transaction() as run:
-            run(sql.UPDATE_STATUS_SQL, [status, plan_id])
-            if cerrar:  # cerrar el plan cierra las rutas de todos sus viajes
-                run(sql.CLOSE_ROUTES_OF_PLAN_SQL, [_ROUTE_CLOSED_STATUS[status], plan_id])
+        pg.query(sql.UPDATE_STATUS_SQL, [status, plan_id])
         plan = self.obtener(plan_id)
         if plan is None:
             raise ValueError(f"Plan no encontrado tras actualizar estado: {plan_id}")
@@ -198,11 +185,7 @@ class AuroraPlanRepo:
         el plan que lo contiene, o None si el viaje no existe / no estaba pending."""
         if self._usa_mock():
             return None
-        cerrar = _cierra_ruta(status)
-        with pg.transaction() as run:
-            rows = run(sql.UPDATE_TRIP_STATUS_SQL, [status, trip_id])
-            if rows and cerrar:
-                run(sql.CLOSE_ROUTE_OF_TRIP_SQL, [_ROUTE_CLOSED_STATUS[status], trip_id])
+        rows = pg.query(sql.UPDATE_TRIP_STATUS_SQL, [status, trip_id])
         if not rows:
             return None
         return self.obtener(str(rows[0]["plan_id"]))

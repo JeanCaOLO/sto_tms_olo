@@ -10,8 +10,16 @@ FAILED_SQL = "('failed', 'fallido')"
 # Evidencias que el módulo acepta (factura firmada y firma). Las filas antiguas de otros tipos no se leen.
 EVIDENCE_KINDS_SQL = "('photo_invoice', 'signature')"
 
-VIAJE_COLUMNS = """
-  r.id, r.route_number, r.route_date, r.status, r.actual_start_time, r.actual_end_time,
+# El viaje lo TERMINA Planificación (completar / cancelar en plan_trips). Tracking no escribe en Planificación:
+# solo LEE ese estado y muestra el viaje cerrado aunque `routes` siga "En tránsito" (la hora de cierre es la
+# del cambio en Planificación). Rutas sin plan (legado) usan solo routes.status.
+PLAN_TRIP_JOIN = "LEFT JOIN plan_trips pt ON pt.id = r.plan_trip_id"
+STATUS_EXPR = "CASE pt.status WHEN 'completed' THEN 'Completada' WHEN 'cancelled' THEN 'Anulada' ELSE r.status END"
+END_EXPR = "COALESCE(r.actual_end_time, CASE WHEN pt.status IN ('completed', 'cancelled') THEN pt.updated_at END)"
+OPEN_IN_PLAN = "(pt.status IS NULL OR pt.status NOT IN ('completed', 'cancelled'))"
+
+VIAJE_COLUMNS = f"""
+  r.id, r.route_number, r.route_date, {STATUS_EXPR} AS status, r.actual_start_time, {END_EXPR} AS actual_end_time,
   r.planned_end_time, r.created_at, r.departed_at,
   s.country_id, s.name AS origin_name, s.latitude AS origin_lat, s.longitude AS origin_lng,
   co.code AS country, co.timezone AS timezone,
@@ -21,7 +29,7 @@ VIAJE_COLUMNS = """
   COALESCE(r.actual_start_time, r.created_at) AS sort_at
 """
 
-VIAJE_JOINS = """
+VIAJE_JOINS = f"""
 FROM routes r
 JOIN stores s ON s.id = r.store_id
 JOIN countries co ON co.id = s.country_id
@@ -29,6 +37,7 @@ LEFT JOIN drivers d ON d.id = r.driver_id
 LEFT JOIN vehicles v ON v.id = r.vehicle_id
 LEFT JOIN zones z ON z.id = r.route_type_id
 LEFT JOIN tracking_last_positions lp ON lp.route_id = r.id
+{PLAN_TRIP_JOIN}
 """
 
 # Progreso por ruta, calculado de las guías (no del contador denormalizado completed_stops).
@@ -64,12 +73,13 @@ ORDER BY route_id, recorded_at
 """
 
 # Viajes completados hoy (día local del país). `where` lo arma app.py con el alcance (org, país, día).
-COMPLETED_TODAY_SQL = """
+COMPLETED_TODAY_SQL = f"""
 SELECT count(*) AS n
 FROM routes r
 JOIN stores s ON s.id = r.store_id
 JOIN countries co ON co.id = s.country_id
-WHERE {where}
+{PLAN_TRIP_JOIN}
+WHERE {{where}}
 """
 
 
@@ -195,7 +205,7 @@ DRIVER_BY_USER_SQL = "SELECT id FROM drivers WHERE app_user_id = %s"
 
 MY_ROUTES_SQL = f"""
 SELECT {VIAJE_COLUMNS} {VIAJE_JOINS}
-WHERE r.organization_id = %s AND r.driver_id = %s AND lower(r.status) = ANY(%s)
+WHERE r.organization_id = %s AND r.driver_id = %s AND lower(r.status) = ANY(%s) AND {OPEN_IN_PLAN}
 ORDER BY sort_at DESC LIMIT 10
 """
 
@@ -247,11 +257,6 @@ FROM dispatch_guides g WHERE g.route_id = %s
 """
 
 SET_COMPLETED_STOPS_SQL = "UPDATE routes SET completed_stops = %s, updated_at = now() WHERE id = %s"
-# Cierre automático al cerrar la última parada; idempotente (no pisa un cierre ya registrado).
-COMPLETE_ROUTE_SQL = """
-UPDATE routes SET status = 'Completada', actual_end_time = %s, completed_stops = %s, updated_at = now()
-WHERE id = %s AND actual_end_time IS NULL
-"""
 
 INSERT_EVIDENCE_SQL = """
 INSERT INTO tracking_evidences (organization_id, route_id, dispatch_guide_id, kind, storage_key, mime_type,

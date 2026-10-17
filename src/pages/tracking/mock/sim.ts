@@ -1,6 +1,7 @@
 // Simulación del modo mock: lee data/viajes-demo.json (tiempos relativos a "ahora") y produce la misma forma
 // que /api/v1/tracking/* (contrato v2). Mantiene estado en memoria: los camiones avanzan solos (tiempo
-// acelerado) y, al entregar la última parada, el viaje se cierra solo (lo que en real reporta la app del chofer).
+// acelerado) y se detienen al entregar la última parada. El viaje NO se cierra aquí: lo termina Planificación
+// (en el mock, solo los escenarios ya completados del JSON aparecen cerrados).
 // Reglas iguales a backend/tracking/src/tracking_logic.py. La consume solo fakeTrackingBackend.ts.
 import demo from '../data/viajes-demo.json';
 import type {
@@ -278,7 +279,7 @@ function advance(now: number) {
     const at = () => from + (now - from) * (1 - meters / budget); // hora del punto según lo ya recorrido
     while (meters > 0) {
       const target = nextPending(trip);
-      if (!target) { trip.endedAt = now; break; }
+      if (!target) { trip.moving = false; break; } // sin paradas pendientes: espera el cierre de Planificación
       const leg = trip.legs.get(target.id);
       const to = leg?.length ? leg[0] : coords(target);
       const dist = haversineM(trip.pos, to);
@@ -289,7 +290,7 @@ function advance(now: number) {
         meters = Math.max(0, meters - dist);
         arrive(trip, target, at());
         addTrail(trip, at(), true);
-        if (!nextPending(trip)) { trip.endedAt = now; break; }
+        if (!nextPending(trip)) { trip.moving = false; break; }
         continue;
       }
       const f = meters / dist;

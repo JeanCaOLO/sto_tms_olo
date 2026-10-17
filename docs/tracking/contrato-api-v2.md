@@ -72,13 +72,18 @@ La web **no** tiene umbrales propios: pinta `signal`, `color` y `alerts` tal com
 - `POST /paradas/{id}/evidencias/upload-url` y `POST /paradas/{id}/evidencias` — solo `photo_invoice` y `signature` (`photo_other` → 422).
 
 ## Cierre del viaje
-El viaje se **completa solo** cuando la app cierra (entregada o fallida) su **última parada**: en la misma transacción de `POST /paradas/{id}/transicion` el backend pone `status = 'Completada'` y `actual_end_time` = hora de ese cierre (`occurred_at`), registra el evento `route_completed` y responde `route_completed: true`. Es idempotente (no pisa un cierre previo). Reabrir una parada (`to: pending`) nunca completa el viaje; una vez completado, sus paradas ya no se pueden transicionar (409).
+**Tracking no termina viajes.** El viaje lo termina **Planificación** (completar o cancelar el viaje en `plan_trips`). Tracking solo **lee** ese estado, sin escribir en Planificación:
+- `status` del viaje = `Completada` si `plan_trips.status = 'completed'`, `Anulada` si `'cancelled'`; si no, el de `routes`.
+- `ended_at` = `routes.actual_end_time` o, si lo cerró Planificación, `plan_trips.updated_at`.
+- "Activos" y los KPIs excluyen los viajes terminados en Planificación; "Completados hoy" los cuenta.
+- Cerrar la última parada **no** cierra el viaje: queda "Sin paradas pendientes · se cierra desde Planificación".
+- La app puede seguir enviando posiciones y cerrando paradas de un viaje ya terminado en Planificación (no se pierden datos); simplemente ya no se muestra como activo.
 
-También se cierra **desde Planificación**: completar o cancelar el viaje (`plan_trips`) o el plan entero cierra la ruta ligada (`Completada` / `Cancelada`). Ver [decisiones.md](./decisiones.md#3-cierre-de-viajes--decidido-2026-10-17).
+El cierre automático (con la última parada) y la sincronización de estados entre módulos quedan **pendientes**: ver [pendientes-tunel.md](./pendientes-tunel.md#pendiente-cierre-automático-y-sincronización-entre-módulos).
 
 ## Retirado en v2
 `POST /paradas/{id}/novedades`, `POST /paradas/{id}/devoluciones`, filtro `por_revisar`, campos `review`, `incidents`, `status_raw`, `carrier_name`, `capacity_percentage`, `total_distance_km`, `events`, `trail`. `GET /resumen` queda deprecado (devuelve la forma de `summary`; la web no lo usa).
 
 **Eliminados el 2026-10-17** (Tracking solo monitorea; responden 404):
-- `POST /viajes/{id}/completar` — completaba el viaje a mano desde la web (con `force` si quedaban paradas abiertas). Reemplazo: cierre automático (arriba). El estado de los viajes de **Planificación** (`plan_trips`: completar / cancelar / reabrir, FR7) es otro endpoint de ese módulo y no se tocó.
+- `POST /viajes/{id}/completar` — completaba el viaje a mano desde la web (con `force` si quedaban paradas abiertas). Reemplazo: el viaje se termina en **Planificación** (`/planificacion/viajes/{tripId}/completar|cancelar`, FR7) y Tracking lo refleja (arriba).
 - `POST /viajes/{id}/revisar` — marcaba un viaje completado como revisado (quién, cuándo, nota) en `tracking_reviews`. La tabla (`sql/42_tracking_revisiones.sql`) **se conserva** con sus datos, sin uso; si se retoma la revisión, la lógica estaba en `backend/tracking/src/app.py` (`review_viaje`) en el commit `ad8fe25`.

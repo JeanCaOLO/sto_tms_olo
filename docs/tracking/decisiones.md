@@ -25,9 +25,17 @@ Con muchos camiones cerca (p. ej. todos en el GAM) y el mapa alejado, los ícono
 
 ## 3. Cierre de viajes — DECIDIDO 2026-10-17
 
-- Tracking solo monitorea: `POST /viajes/{id}/completar` y `/revisar` se eliminaron (detalle en [contrato-api-v2.md](./contrato-api-v2.md#retirado-en-v2)). `tracking_reviews` se conserva sin uso.
-- El viaje se **cierra solo** cuando la app cierra su última parada.
-- **Si se cierra en Planificación, se cierra en todo:** completar o cancelar un viaje (`/planificacion/viajes/{tripId}/completar|cancelar`) o el plan entero (`/planificacion/planes/{id}/completar|cancelar`) cierra también la ruta de Tracking ligada (`routes.plan_trip_id` → `Completada` / `Cancelada`), en la misma transacción y sin pisar un cierre previo. Reabrir en Planificación no reabre la ruta. Código: `backend-planif/src/adapters/outbound/aurora/plan_repo.py`; pruebas: `backend/tests/test_planif_cierre_tracking.py`.
+**Restricción:** los cambios solo pueden tocar el módulo de Tracking; no se alteran otros módulos.
+
+- Tracking **solo monitorea**: `POST /viajes/{id}/completar` y `/revisar` se eliminaron (detalle en [contrato-api-v2.md](./contrato-api-v2.md#retirado-en-v2)). `tracking_reviews` se conserva sin uso.
+- **El viaje se termina desde Planificación** (completar/cancelar, FR7). Tracking **lee** `plan_trips.status` (solo lectura) y muestra el viaje como completado/anulado, fuera de "Activos". No escribe en Planificación ni Planificación escribe en Tracking.
+- Cerrar la última parada no cierra el viaje (queda "Sin paradas pendientes · se cierra desde Planificación").
+- **Pendiente** (requiere tocar otros módulos o acordarlo): cierre automático con la última parada y sincronizar `routes.status` con Planificación — ver [pendientes-tunel.md](./pendientes-tunel.md#pendiente-cierre-automático-y-sincronización-entre-módulos).
+
+### Efecto en otros módulos
+Ninguno: Tracking solo agregó una **lectura** de `plan_trips` (un `LEFT JOIN`). No escribe en `plan_trips`, y Planificación quedó sin cambios.
+
+Consecuencia a tener en cuenta: como `routes.status` ya no lo cambia nadie (antes lo hacía "Completar viaje" de la web), los módulos que leen `routes` directamente —**Liquidaciones** (`tarifas_v_viajes`), Dashboard y Reportes— no ven como completado un viaje terminado en Planificación. Resolverlo es parte del pendiente de sincronización.
 
 ## 4. OSRM y proveedor de mapas — DECIDIDO 2026-10-17: se mantienen como están
 

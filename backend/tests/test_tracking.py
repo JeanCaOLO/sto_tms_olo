@@ -261,33 +261,43 @@ def test_transition_updates_guide_counter_and_event_atomically(tracking):
     body = {"to": "delivered", "receiver_name": "Luis"}
     result = body_of(app.handler(_event("POST /api/v1/tracking/paradas/{id}/transicion", path={"id": GUIDE},
                                         body=body), None))["data"]
-    assert result == {"stop_id": GUIDE, "state": "delivered", "done": 3, "pending": 1, "distance_m": None,
-                      "route_completed": False}
+    assert result == {"stop_id": GUIDE, "state": "delivered", "done": 3, "pending": 1, "distance_m": None}
     assert db.wrote("UPDATE dispatch_guides")[0][1][:2] == ["delivered", "Entregado"]
     assert db.wrote("UPDATE routes SET completed_stops")[0][1] == [3, ROUTE]
     assert db.wrote("INSERT INTO tracking_events")[0][1][3] == "delivery_completed"
 
 
-def test_closing_the_last_stop_completes_the_trip_at_that_time(tracking):
+def test_closing_the_last_stop_does_not_end_the_trip_nor_touch_planificacion(tracking):
+    """Tracking solo monitorea: el viaje lo termina Planificación. Cerrar la última parada no escribe el cierre."""
     app, db = tracking
     db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row()])
     db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 4, "pending": 0}])
-    body = {"to": "failed", "reason": "Cerrado", "occurred_at": "2026-10-16T14:30:00Z"}
-    result = body_of(app.handler(_event("POST /api/v1/tracking/paradas/{id}/transicion", path={"id": GUIDE},
-                                        body=body), None))["data"]
-    assert result["route_completed"] is True
-    sql, params = db.wrote("UPDATE routes SET status = 'Completada'")[0]
-    assert "actual_end_time IS NULL" in sql  # idempotente: no pisa un cierre previo
-    assert params[0].isoformat().startswith("2026-10-16T14:30") and params[1:] == [4, ROUTE]
-    assert [p[3] for _, p in db.wrote("INSERT INTO tracking_events")][-1] == "route_completed"
+    app.handler(_event("POST /api/v1/tracking/paradas/{id}/transicion", path={"id": GUIDE},
+                       body={"to": "delivered"}), None)
+    assert not db.wrote("UPDATE routes SET status")
+    assert not any("plan_trips" in sql and sql.startswith(("UPDATE", "INSERT")) for sql, _ in db.calls)
 
 
-def test_reverting_a_stop_never_completes_the_trip(tracking):
+def test_trip_closed_in_planificacion_is_shown_closed_in_tracking(tracking):
+    """Solo lectura de plan_trips: completado/cancelado en Planificación = cerrado en Tracking."""
     app, db = tracking
-    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row(delivery_status="delivered")])
-    db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 3, "pending": 0}])
-    app.handler(_event("POST /api/v1/tracking/paradas/{id}/transicion", path={"id": GUIDE}, body={"to": "pending"}), None)
-    assert not db.wrote("UPDATE routes SET status = 'Completada'")
+    db.answer("FROM routes r", [])
+    app.handler(_event("GET /api/v1/tracking/viajes", query={"activos": "1", "include": "summary"}), None)
+    listing = db.wrote("SELECT r.id")[0][0]
+    assert "LEFT JOIN plan_trips pt ON pt.id = r.plan_trip_id" in listing
+    assert "CASE pt.status WHEN 'completed' THEN 'Completada' WHEN 'cancelled' THEN 'Anulada' ELSE r.status END AS status" in listing
+    assert "pt.status NOT IN ('completed', 'cancelled')" in listing  # "Activos" excluye lo terminado en Planificación
+    today = [sql for sql, _ in db.calls if sql.startswith("SELECT count(*) AS n")][0]
+    assert "COALESCE(r.actual_end_time, CASE WHEN pt.status IN ('completed', 'cancelled') THEN pt.updated_at END)" in today
+
+
+def test_list_item_of_a_trip_closed_in_planificacion(tracking):
+    app, db = tracking
+    closed_at = NOW - timedelta(minutes=30)
+    db.answer("FROM routes r", [_row(status="Completada", actual_end_time=closed_at)])
+    item = body_of(app.handler(_event("GET /api/v1/tracking/viajes"), None))["data"]["items"][0]
+    assert item["state"] == "completed" and item["color"] == "blue" and item["ended_at"] == closed_at.isoformat()
+    assert not any(a["code"] in ("late", "no_signal", "stopped") for a in item["alerts"])
 
 
 def test_completar_and_revisar_endpoints_are_gone(tracking):

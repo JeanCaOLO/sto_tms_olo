@@ -45,7 +45,7 @@ export default {
   'tracking.stateUnknown': 'No status',
   'tracking.phaseDeparting': 'Departing',
   'tracking.nowHeading': 'Heading to {{stop}}',
-  'tracking.nowDone': 'No pending stops',
+  'tracking.nowDone': 'No pending stops · closed from Planning',
   'tracking.eta': 'arrives ~{{time}}',
   'tracking.nextBadge': 'Next',
   'tracking.stopPending': 'Pending',

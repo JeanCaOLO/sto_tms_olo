@@ -5,8 +5,9 @@ Lectura (web): lista de viajes con progreso, alertas y última posición (`inclu
 detalle con paradas y evidencias de entrega, recorrido simplificado para el replay y los viajes planificados
 listos para iniciar.
 Escritura (app del chofer; iniciar solo en pruebas): iniciar viaje desde Planificación, ingesta de posiciones
-por lotes, transición de parada y evidencias de entrega (factura firmada y firma; subida directa a S3). El viaje
-se cierra SOLO al cerrar (entregada o fallida) su última parada: no hay endpoint de completar ni de revisar.
+por lotes, transición de parada y evidencias de entrega (factura firmada y firma; subida directa a S3). Tracking
+NO termina viajes: los termina Planificación (completar/cancelar en plan_trips) y Tracking solo lee ese estado.
+No hay endpoint de completar ni de revisar.
 
 Permisos: módulo `tracking` (view para leer; create para iniciar e ingestar; edit para transicionar paradas y
 evidencias) + país de la tienda de origen de la ruta.
@@ -253,7 +254,8 @@ def _scope(caller, org_id: str, query: dict, *, only_active: bool) -> tuple[list
     """Cláusulas WHERE comunes a la lista y a los KPIs: organización, activos, país (pais ∩ rol)."""
     where, params = ["r.organization_id = %s"], [org_id]
     if only_active:
-        where.append("lower(r.status) = ANY(%s)")
+        # Activo = en tránsito en Tracking Y no terminado en Planificación (que es quien cierra el viaje).
+        where.append(f"lower(r.status) = ANY(%s) AND {sql.OPEN_IN_PLAN}")
         params.append(logic.ACTIVE_STATUS_SQL_VALUES)
     raw = (query.get("pais") or "").strip().upper()
     if raw:
@@ -279,8 +281,8 @@ def _summary(caller, org_id: str, query: dict, now: datetime) -> dict:
     no_signal = sum(any(a["code"] == logic.ALERT_NO_SIGNAL for a in v["alerts"]) for v in viajes)
     # Completados hoy en el día local del país (timezone de countries).
     where, params = _scope(caller, org_id, query, only_active=False)
-    where += ["lower(r.status) = ANY(%s)", "r.actual_end_time IS NOT NULL",
-              "(r.actual_end_time AT TIME ZONE coalesce(co.timezone, 'UTC'))::date"
+    where += [f"lower({sql.STATUS_EXPR}) = ANY(%s)", f"{sql.END_EXPR} IS NOT NULL",
+              f"({sql.END_EXPR} AT TIME ZONE coalesce(co.timezone, 'UTC'))::date"
               " = (%s::timestamptz AT TIME ZONE coalesce(co.timezone, 'UTC'))::date"]
     params += [logic.COMPLETED_STATUS_SQL_VALUES, now]
     today = _rq(sql.COMPLETED_TODAY_SQL.format(where=" AND ".join(where)), params)
@@ -652,14 +654,8 @@ def transition_stop(event: dict) -> dict:
         if outside:
             _event(run, org_id, route_id, guide_id, "geofence_out", "warning",
                    f"Entrega fuera de la geocerca ({distance_m} m): {reason}", caller.app_user_id, lat, lng, when)
-        # Última parada cerrada (entregada o fallida) → el viaje se completa solo, a la hora de ese cierre.
-        closed = target != logic.GUIDE_PENDING and int(counts["pending"]) == 0
-        if closed:
-            run(sql.COMPLETE_ROUTE_SQL, [when, int(counts["done"]), route_id])
-            _event(run, org_id, route_id, None, "route_completed", "success", "Viaje completado (última parada cerrada)",
-                   caller.app_user_id, when=when)
         return {"stop_id": guide_id, "state": target, "done": int(counts["done"]), "pending": int(counts["pending"]),
-                "distance_m": distance_m, "route_completed": closed}
+                "distance_m": distance_m}
 
     return _ok(pg.run_in_transaction(work))
 
