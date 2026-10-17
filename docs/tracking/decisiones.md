@@ -1,6 +1,8 @@
 # Decisiones de Tracking (y por qué)
 
-## 1. Posiciones por POST en lotes + web con polling (no WebSocket)
+## 1. Posiciones por POST en lotes + web con polling (no WebSocket) — DECIDIDO 2026-10-17
+
+**Decisión:** se mantiene el POST (app → backend) y la consulta periódica (web). El WebSocket queda descartado mientras la escala sea la actual.
 
 Hay **dos tramos**, y conviene no mezclarlos:
 
@@ -17,15 +19,19 @@ Hay **dos tramos**, y conviene no mezclarlos:
 
 **Cuándo convendría el WebSocket (`dev-tms-realtime` ya existe para Planificación):** muchas pantallas abiertas a la vez (decenas), o necesidad de reacción inmediata (p. ej. una alerta de pánico). Aun así, la forma recomendada sería **híbrida**: el WebSocket solo avisa "hay datos nuevos de tal viaje" y la web hace el mismo GET de siempre. Así no se duplica la lógica y, sin avisos, no se consulta en vano. No se implementa mientras no haga falta.
 
-## 2. Agrupar camiones en el mapa (clustering) — no se hace todavía
+## 2. Agrupar camiones en el mapa (clustering) — HECHO 2026-10-17
 
-Con muchos camiones cerca (p. ej. todos en el GAM) y el mapa alejado, los íconos se **encimen** y no se pueden distinguir ni hacer clic. El clustering los reemplaza por una burbuja con el número ("12") que se separa al acercar el mapa o al hacer clic (librería `leaflet.markercluster`). Hoy la flota visible es chica (~12 vehículos en CR): no hace falta. Conviene agregarlo cuando haya más de 50–100 camiones visibles a la vez.
+Con muchos camiones cerca (p. ej. todos en el GAM) y el mapa alejado, los íconos se **encimen** y no se pueden distinguir ni hacer clic. El clustering los reemplaza por una burbuja con el número ("12") que se separa al acercar el mapa o al hacer clic (librería `leaflet.markercluster`). **Implementado sin dependencias nuevas** (`components/map/cluster.ts` + `FlotaCamiones.tsx`): solo agrupa los íconos que en pantalla quedarían a menos de ~36 px; con la flota separada no cambia nada. La burbuja lleva borde rojo si algún camión del grupo tiene alerta; clic = acerca hasta separarlos; desde zoom 16 nunca agrupa; el camión elegido nunca se agrupa.
 
-## 3. Completar y revisar viajes — eliminados
+## 3. Cierre de viajes — DECIDIDO 2026-10-17
 
-Tracking solo monitorea. `POST /viajes/{id}/completar` y `/revisar` se eliminaron (detalle en [contrato-api-v2.md](./contrato-api-v2.md#retirado-en-v2)). El viaje se **cierra solo** cuando la app cierra su última parada. `tracking_reviews` se conserva sin uso.
+- Tracking solo monitorea: `POST /viajes/{id}/completar` y `/revisar` se eliminaron (detalle en [contrato-api-v2.md](./contrato-api-v2.md#retirado-en-v2)). `tracking_reviews` se conserva sin uso.
+- El viaje se **cierra solo** cuando la app cierra su última parada.
+- **Si se cierra en Planificación, se cierra en todo:** completar o cancelar un viaje (`/planificacion/viajes/{tripId}/completar|cancelar`) o el plan entero (`/planificacion/planes/{id}/completar|cancelar`) cierra también la ruta de Tracking ligada (`routes.plan_trip_id` → `Completada` / `Cancelada`), en la misma transacción y sin pisar un cierre previo. Reabrir en Planificación no reabre la ruta. Código: `backend-planif/src/adapters/outbound/aurora/plan_repo.py`; pruebas: `backend/tests/test_planif_cierre_tracking.py`.
 
-## 4. OSRM y proveedor de mapas propios para producción
+## 4. OSRM y proveedor de mapas — DECIDIDO 2026-10-17: se mantienen como están
+
+**Decisión:** no se tocan; los servicios públicos actuales (OSRM demo y tiles de OpenStreetMap) funcionan para el uso actual. Lo de abajo queda como referencia por si en el futuro hubiera límites o caídas.
 
 Son dos servicios externos distintos que hoy usamos en su versión **pública y gratuita**:
 
@@ -34,4 +40,4 @@ Son dos servicios externos distintos que hoy usamos en su versión **pública y 
 | **OSRM** (motor de rutas) | Calcula el camino por calles entre puntos: la línea de la ruta en Tracking, los camiones del mock y las distancias reales de Planificación | `router.project-osrm.org` (demo público) | Sin SLA (nadie garantiza que esté arriba), ~1 petición/s, puede bloquearnos o caerse; además mandamos coordenadas de clientes a un tercero | Disponibilidad y velocidad bajo nuestro control, sin límite de peticiones, los datos no salen de AWS. Ya está preparado: `infra/osrm/` (Docker, se arma solo con el mapa de Costa Rica; agregar Venezuela). Se publica en AWS (ECS/EC2) y se apunta con `VITE_OSRM_URL`. Costo: el servidor (sin licencia). |
 | **Tiles** (el dibujo del mapa) | Las imágenes de fondo con calles y nombres que se ven en Leaflet | `tile.openstreetmap.org` | Su política prohíbe uso intensivo/comercial: con muchos usuarios pueden limitarnos o bloquearnos, y el mapa quedaría en gris | Un proveedor con contrato y SLA (MapTiler, Stadia, Mapbox o **Amazon Location Service**, que encaja con el estándar AWS de Intelix). Se cambia solo `VITE_MAP_TILES_URL` (y la llave del proveedor). Costo por cantidad de mapas cargados; hay capas gratuitas para volúmenes bajos. |
 
-Ninguno bloquea el desarrollo actual; son requisitos **antes de producción** con usuarios reales.
+Si algún día aparecen bloqueos o lentitud, la salida está documentada arriba; mientras tanto no hay acción.

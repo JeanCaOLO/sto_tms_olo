@@ -52,3 +52,16 @@ export function originIcon(): L.DivIcon {
     iconAnchor: [15, 15],
   }));
 }
+
+/** Burbuja de un grupo de camiones: el número; borde rojo si alguno tiene alerta. */
+export function clusterIcon(count: number, alert: boolean): L.DivIcon {
+  const label = count > 99 ? '99+' : String(count);
+  return cached(`cluster|${label}|${alert}`, () => L.divIcon({
+    className: '',
+    html: `<div style="width:40px;height:40px;border-radius:9999px;background:#0f766e;color:#fff;display:flex;
+      align-items:center;justify-content:center;font-size:14px;font-weight:700;border:3px solid ${alert ? '#dc2626' : '#fff'};
+      box-shadow:0 0 0 4px rgba(15,118,110,.25),0 1px 4px rgba(0,0,0,.45);">${label}</div>`,
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
+  }));
+}

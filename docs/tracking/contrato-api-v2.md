@@ -74,6 +74,8 @@ La web **no** tiene umbrales propios: pinta `signal`, `color` y `alerts` tal com
 ## Cierre del viaje
 El viaje se **completa solo** cuando la app cierra (entregada o fallida) su **última parada**: en la misma transacción de `POST /paradas/{id}/transicion` el backend pone `status = 'Completada'` y `actual_end_time` = hora de ese cierre (`occurred_at`), registra el evento `route_completed` y responde `route_completed: true`. Es idempotente (no pisa un cierre previo). Reabrir una parada (`to: pending`) nunca completa el viaje; una vez completado, sus paradas ya no se pueden transicionar (409).
 
+También se cierra **desde Planificación**: completar o cancelar el viaje (`plan_trips`) o el plan entero cierra la ruta ligada (`Completada` / `Cancelada`). Ver [decisiones.md](./decisiones.md#3-cierre-de-viajes--decidido-2026-10-17).
+
 ## Retirado en v2
 `POST /paradas/{id}/novedades`, `POST /paradas/{id}/devoluciones`, filtro `por_revisar`, campos `review`, `incidents`, `status_raw`, `carrier_name`, `capacity_percentage`, `total_distance_km`, `events`, `trail`. `GET /resumen` queda deprecado (devuelve la forma de `summary`; la web no lo usa).
 

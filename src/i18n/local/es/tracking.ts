@@ -26,6 +26,7 @@ export default {
   'tracking.progress': '{{done}} de {{total}} paradas',
   'tracking.noStops': 'Sin paradas',
   'tracking.noPosition': 'Sin ubicación todavía',
+  'tracking.clusterTip': '{{count}} camiones aquí: clic para acercar',
   'tracking.noDriver': 'Sin conductor',
   'tracking.noVehicle': 'Sin vehículo',
   'tracking.lastSeen': 'Última señal hace {{age}}',

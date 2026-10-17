@@ -103,6 +103,7 @@ No hay código que cambiar: el cliente ya es el real.
    - Cerrar la última parada (`POST /paradas/{id}/transicion`) → el viaje pasa a `Completada` solo (`route_completed: true`, `actual_end_time` = hora del cierre).
    - Enviar posiciones dentro de las 2 h siguientes al cierre → se aceptan (no se pierden) sin mover la última posición.
    - Dos `iniciar` simultáneos → uno `created: true`, otro `created: false` (no 500).
+   - Completar o cancelar ese viaje (o su plan) en Planificación → la ruta pasa a `Completada` / `Cancelada` y sale de "Activos" en Tracking.
 
 ## T6 — Planes de consulta con los índices nuevos
 
@@ -157,9 +158,5 @@ Hoy crece sin límite (~360 000 filas/día con 200 camiones según el blueprint)
 
 | Pendiente | Cómo |
 |---|---|
-| OSRM propio para producción | Levantar `infra/osrm/` (Docker) y poner `VITE_OSRM_URL`. El público no tiene SLA y limita ~1 req/s. |
-| Tiles de mapa para producción | Proveedor con SLA (MapTiler, Stadia, Mapbox…) en `VITE_MAP_TILES_URL`. `tile.openstreetmap.org` no admite carga de producción. |
 | App móvil | Ajustarse al contrato v2: sin novedades/devoluciones/`photo_other`; brechas B1–B10 en `.test/blueprint/mobile-tracking-tms/05-brechas-y-checklist.md`. |
-| Sincronizar cierre con Planificación | Hecho: los endpoints `completar`/`revisar` de Tracking se eliminaron y el viaje se cierra solo con la última parada. Falta decidir si el "completar" de Planificación (FR7, `plan_trips`) debe cerrar también la ruta de Tracking ligada (`routes.plan_trip_id`) y viceversa; es código de Planificación. |
 | Caché de permisos | Cada request hace 2–3 consultas de permisos (`tms_common/permissions.py`). Cachearlas por usuario 60 s en el contenedor Lambda; toca la capa común de todos los módulos: coordinarlo con el dueño de backend. |
-| Push en vez de polling | Si la flota crece: publicar la última posición por el WebSocket existente (`dev-tms-realtime`) y dejar el polling como respaldo. |

@@ -148,6 +148,20 @@ WHERE id = %s
 RETURNING plan_id
 """
 
+# Si Planificación cierra (completa o cancela) un viaje o el plan entero, se cierra en todo: la ruta de
+# Tracking ligada (routes.plan_trip_id, la crea el puente "iniciar") deja de estar en tránsito. Solo rutas
+# aún abiertas; no pisa un cierre previo (p. ej. el automático al cerrar la última parada).
+CLOSE_ROUTE_OF_TRIP_SQL = """
+UPDATE routes SET status = %s, actual_end_time = now(), updated_at = now()
+WHERE plan_trip_id = %s AND actual_end_time IS NULL
+"""
+
+CLOSE_ROUTES_OF_PLAN_SQL = """
+UPDATE routes r SET status = %s, actual_end_time = now(), updated_at = now()
+FROM plan_trips pt
+WHERE pt.plan_id = %s AND r.plan_trip_id = pt.id AND r.actual_end_time IS NULL
+"""
+
 SELECT_STOPS_SQL = """
 SELECT order_id, stop_order, order_number, customer_name, delivery_city, delivery_zone,
        latitude::float AS latitude, longitude::float AS longitude,

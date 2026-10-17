@@ -26,6 +26,7 @@ export default {
   'tracking.progress': '{{done}} of {{total}} stops',
   'tracking.noStops': 'No stops',
   'tracking.noPosition': 'No location yet',
+  'tracking.clusterTip': '{{count}} trucks here: click to zoom in',
   'tracking.noDriver': 'No driver',
   'tracking.noVehicle': 'No vehicle',
   'tracking.lastSeen': 'Last signal {{age}} ago',

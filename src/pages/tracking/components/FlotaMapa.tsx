@@ -7,7 +7,7 @@ import type { Viaje, ViajeDetalle } from '../types';
 import { COLOR_HEX, positioned } from '../tracking-logic';
 import ReplayLayer from './map/ReplayLayer';
 import RutaViaje from './map/RutaViaje';
-import TruckMarker from './map/TruckMarker';
+import FlotaCamiones from './map/FlotaCamiones';
 
 interface Props {
   /** Cambia al elegir otro país, modo o KPI: el mapa vuelve a encuadrar la flota visible. */
@@ -67,7 +67,7 @@ function Vista({ viajes, selectedId, detail, fitKey }: Pick<Props, 'viajes' | 's
   return null;
 }
 
-/** Mapa de la flota: un camión por viaje (color = señal) y, del viaje elegido, su ruta por calles y paradas. */
+/** Mapa de la flota: un camión por viaje (color = señal; los encimados se agrupan) y, del elegido, su ruta y paradas. */
 export default function FlotaMapa({ fitKey, viajes, selectedId, detail, replaying, onSelect, onReplayClose }: Props) {
   const { t } = useTranslation();
   const trucks = useMemo(() => positioned(viajes), [viajes]);
@@ -78,19 +78,7 @@ export default function FlotaMapa({ fitKey, viajes, selectedId, detail, replayin
       <MapContainer center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} className="w-full h-full" scrollWheelZoom>
         <TileLayer url={TILES_URL} attribution="&copy; OpenStreetMap" />
         {detail && !replayOf && <RutaViaje detail={detail} />}
-        {trucks.filter((v) => v.id !== replayOf?.id).map((v) => (
-          <TruckMarker
-            key={v.id}
-            id={v.id}
-            lat={v.position!.lat}
-            lng={v.position!.lng}
-            color={COLOR_HEX[v.color]}
-            selected={v.id === selectedId}
-            alert={v.alerts.length > 0}
-            label={`${v.route_number} · ${v.driver_name ?? v.plate ?? ''}`}
-            onSelect={onSelect}
-          />
-        ))}
+        <FlotaCamiones trucks={trucks} selectedId={selectedId} hiddenId={replayOf?.id ?? null} onSelect={onSelect} />
         {replayOf && <ReplayLayer key={replayOf.id} tripId={replayOf.id} color={COLOR_HEX[replayOf.color]} timezone={replayOf.timezone} onClose={onReplayClose} />}
         <Vista viajes={viajes} selectedId={selectedId} detail={detail} fitKey={fitKey} />
       </MapContainer>
