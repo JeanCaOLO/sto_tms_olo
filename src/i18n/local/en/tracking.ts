@@ -114,4 +114,11 @@ export default {
   'tracking.reasonReturns': '{{count}} return(s)',
   'tracking.reasonLate': 'Up to {{count}} min late',
   'tracking.close': 'Close',
+  'tracking.replay': 'Replay route',
+  'tracking.replayTitle': 'Route replay',
+  'tracking.replayTimeline': 'Route timeline',
+  'tracking.replaySpeed': 'Playback speed',
+  'tracking.replayStops': '{{count}} stop(s) detected',
+  'tracking.replayExit': 'Exit replay',
+  'tracking.replayStopTip': 'Stopped {{min}} min',
 };

@@ -18,6 +18,7 @@ interface Props {
   now: number;
   onComplete: () => void;
   onReview: () => void;
+  onReplay: () => void;
   onClose: () => void;
 }
 
@@ -119,7 +120,7 @@ function EventLine({ event }: { event: TripEvent }) {
 }
 
 /** Panel derecho: avance, pedidos del viaje y, por pedido, lo que subió la app (evidencias, novedades, devoluciones). */
-export default function ViajeDetallePanel({ viaje, detail, loading, canEdit, now, onComplete, onReview, onClose }: Props) {
+export default function ViajeDetallePanel({ viaje, detail, loading, canEdit, now, onComplete, onReview, onReplay, onClose }: Props) {
   const { t } = useTranslation();
   const [advanced, setAdvanced] = useState(false);
   const view = detail ?? viaje;
@@ -167,6 +168,11 @@ export default function ViajeDetallePanel({ viaje, detail, loading, canEdit, now
             )}
             {viaje.delay_min != null && viaje.delay_min > 15 && <span className="ml-2"><Badge size="sm" variant={delayVariant(viaje.delay_min)}>{t('tracking.delayLate', { min: viaje.delay_min })}</Badge></span>}
           </p>
+        )}
+        {(detail?.trail.length ?? 0) > 1 && (
+          <Button size="sm" variant="secondary" className="mt-3 mr-2" onClick={onReplay} icon={<i className="ri-route-line" />}>
+            {t('tracking.replay')}
+          </Button>
         )}
         {canEdit && viaje.state === 'active' && (
           <Button size="sm" variant={readyToComplete(view) ? 'success' : 'secondary'} className="mt-3" onClick={onComplete}>

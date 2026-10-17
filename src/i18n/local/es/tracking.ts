@@ -114,4 +114,11 @@ export default {
   'tracking.reasonReturns': '{{count}} devolución(es)',
   'tracking.reasonLate': 'Retraso de hasta {{count}} min',
   'tracking.close': 'Cerrar',
+  'tracking.replay': 'Reproducir recorrido',
+  'tracking.replayTitle': 'Reproducción del recorrido',
+  'tracking.replayTimeline': 'Línea de tiempo del recorrido',
+  'tracking.replaySpeed': 'Velocidad de reproducción',
+  'tracking.replayStops': '{{count}} parada(s) detectada(s)',
+  'tracking.replayExit': 'Salir de la reproducción',
+  'tracking.replayStopTip': 'Detenido {{min}} min',
 };

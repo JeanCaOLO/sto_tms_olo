@@ -10,7 +10,10 @@ import SimulacionControles from './components/SimulacionControles';
 import ResumenBar from './components/ResumenBar';
 import ViajeDetallePanel from './components/ViajeDetallePanel';
 import ViajesSidebar from './components/ViajesSidebar';
+import ReplayControles from './components/ReplayControles';
+import { useReplay } from './hooks/useReplay';
 import { useTrackingCountry } from './hooks/useTrackingCountry';
+import { detectStops, pointAt, validTrail } from './replay-logic';
 import { useResumen, useViajeDetalle, useViajesEnVivo } from './hooks/useViajesEnVivo';
 import type { ListMode } from './types';
 
@@ -36,9 +39,14 @@ export default function TrackingPage() {
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [replaying, setReplaying] = useState(false);
+  const replayClock = useReplay();
+  const resetReplay = replayClock.reset;
 
   // Al cambiar de país se cierra el viaje abierto: puede ser de otro país.
   useEffect(() => { setSelectedId(null); }, [country]);
+  // El replay es de un solo viaje: al cambiar de viaje se cierra.
+  useEffect(() => { setReplaying(false); resetReplay(); }, [selectedId, resetReplay]);
 
   useEffect(() => {
     const timer = setTimeout(() => setQuery(search), SEARCH_DEBOUNCE_MS);
@@ -92,6 +100,13 @@ export default function TrackingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, t]);
 
+  const replayTrail = useMemo(() => (detail.data?.id === selectedId ? validTrail(detail.data.trail) : []), [detail.data, selectedId]);
+  const replayStops = useMemo(() => detectStops(replayTrail), [replayTrail]);
+  const replayPoint = replaying ? pointAt(replayTrail, replayClock.progress) : null;
+  const replay = replayPoint ? { trail: replayTrail, point: replayPoint, stops: replayStops } : null;
+  const stopReplay = () => { setReplaying(false); replayClock.reset(); };
+  const startReplay = () => { replayClock.reset(); setReplaying(true); replayClock.toggle(); };
+
   const showPanel = selected !== null;
   const layout = showPanel ? 'lg:grid-cols-[320px_minmax(0,1fr)_380px]' : 'lg:grid-cols-[320px_minmax(0,1fr)]';
 
@@ -131,7 +146,21 @@ export default function TrackingPage() {
           onRetry={refresh}
         />
         <Suspense fallback={<div className="rounded-lg border border-slate-200 bg-slate-50" />}>
-          <FlotaMapa fitKey={country} viajes={viajes} selectedId={selectedId} detail={detail.data} onSelect={select} />
+          <FlotaMapa fitKey={country} viajes={viajes} selectedId={selectedId} detail={detail.data} onSelect={select} replay={replay}>
+            {replay && (
+              <ReplayControles
+                progress={replayClock.progress}
+                playing={replayClock.playing}
+                speed={replayClock.speed}
+                at={replay.point.at}
+                stops={replay.stops.length}
+                onToggle={replayClock.toggle}
+                onSeek={replayClock.seek}
+                onSpeed={replayClock.setSpeed}
+                onClose={stopReplay}
+              />
+            )}
+          </FlotaMapa>
         </Suspense>
         {showPanel && selected && (
           <ViajeDetallePanel
@@ -142,6 +171,7 @@ export default function TrackingPage() {
             now={now}
             onComplete={() => void complete()}
             onReview={() => void review()}
+            onReplay={startReplay}
             onClose={() => setSelectedId(null)}
           />
         )}

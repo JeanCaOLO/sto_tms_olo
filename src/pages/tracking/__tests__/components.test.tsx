@@ -81,7 +81,7 @@ describe('ViajesSidebar', () => {
 });
 
 describe('ViajeDetallePanel', () => {
-  const base = { viaje: viaje(), loading: false, canEdit: true, now: NOW, onComplete: vi.fn(), onReview: vi.fn(), onClose: vi.fn() };
+  const base = { viaje: viaje(), loading: false, canEdit: true, now: NOW, onComplete: vi.fn(), onReview: vi.fn(), onReplay: vi.fn(), onClose: vi.fn() };
 
   it('lista los pedidos y revela las evidencias al abrir uno', () => {
     const withEvidence = stop({
@@ -126,6 +126,15 @@ describe('ViajeDetallePanel', () => {
     expect(screen.queryByText('Completar viaje')).toBeNull();
   });
 
+  it('ofrece reproducir el recorrido solo si el rastro tiene al menos 2 puntos', () => {
+    const trail = [{ lat: 9.9, lng: -84, at: '2026-10-16T13:00:00Z' }, { lat: 9.91, lng: -84, at: '2026-10-16T13:05:00Z' }];
+    const { rerender } = render(<ViajeDetallePanel {...base} detail={{ ...detail([]), trail }} />);
+    fireEvent.click(screen.getByText('Reproducir recorrido'));
+    expect(base.onReplay).toHaveBeenCalled();
+    rerender(<ViajeDetallePanel {...base} detail={{ ...detail([]), trail: trail.slice(0, 1) }} />);
+    expect(screen.queryByText('Reproducir recorrido')).toBeNull();
+  });
+
   it('cierra con la X', () => {
     render(<ViajeDetallePanel {...base} detail={detail([])} />);
     fireEvent.click(screen.getByLabelText('Cerrar'));
@@ -135,7 +144,7 @@ describe('ViajeDetallePanel', () => {
 
 
 describe('monitor: alertas, semáforo y paradas cercanas', () => {
-  const base = { viaje: viaje(), loading: false, canEdit: true, now: NOW, onComplete: vi.fn(), onReview: vi.fn(), onClose: vi.fn() };
+  const base = { viaje: viaje(), loading: false, canEdit: true, now: NOW, onComplete: vi.fn(), onReview: vi.fn(), onReplay: vi.fn(), onClose: vi.fn() };
 
   it('la tarjeta muestra las alertas del viaje y "Por salir" antes de la salida', () => {
     const alerts = [{ code: 'incident' as const, count: 2 }, { code: 'late' as const, count: 25 }];

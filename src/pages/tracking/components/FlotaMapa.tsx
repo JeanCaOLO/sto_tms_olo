@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { MapContainer, Marker, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet';
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { CircleMarker, MapContainer, Marker, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useTranslation } from 'react-i18next';
 import type { Viaje, ViajeDetalle } from '../types';
 import { COLOR_HEX, STOP_COLOR_HEX, positioned } from '../tracking-logic';
+import type { DetectedStop, ReplayPoint, TrailPoint } from '../replay-logic';
 
 interface Props {
   /** Cambia al elegir otro país: el mapa vuelve a encuadrar la flota visible. */
@@ -13,6 +14,10 @@ interface Props {
   selectedId: string | null;
   detail: ViajeDetalle | null;
   onSelect: (id: string) => void;
+  /** Replay del recorrido del viaje elegido; con valor, reemplaza al camión en vivo y a su rastro. */
+  replay?: { trail: TrailPoint[]; point: ReplayPoint; stops: DetectedStop[] } | null;
+  /** Controles superpuestos al mapa (barra del replay). */
+  children?: ReactNode;
 }
 
 // Costa Rica: vista inicial cuando todavía no hay ningún camión con posición.
@@ -79,7 +84,7 @@ function Vista({ viajes, selectedId, detail, fitKey }: Pick<Props, 'viajes' | 's
 }
 
 /** Mapa de la flota: un camión por viaje con posición (color = estado/señal) y, del viaje elegido, rastro y paradas. */
-export default function FlotaMapa({ fitKey, viajes, selectedId, detail, onSelect }: Props) {
+export default function FlotaMapa({ fitKey, viajes, selectedId, detail, onSelect, replay, children }: Props) {
   const { t } = useTranslation();
   const trucks = useMemo(() => positioned(viajes), [viajes]);
   const shown = detail && detail.id === selectedId ? detail : null;
@@ -88,7 +93,7 @@ export default function FlotaMapa({ fitKey, viajes, selectedId, detail, onSelect
     <div className="relative isolate h-full min-h-[320px] rounded-lg overflow-hidden border border-slate-200">
       <MapContainer center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} className="w-full h-full" scrollWheelZoom>
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap" />
-        {shown && shown.trail.length > 1 && (
+        {shown && shown.trail.length > 1 && !replay && (
           <Polyline
             positions={shown.trail.map((p) => [p.lat, p.lng] as [number, number])}
             pathOptions={{ color: COLOR_HEX[shown.color], weight: 3, opacity: 0.7 }}
@@ -99,7 +104,22 @@ export default function FlotaMapa({ fitKey, viajes, selectedId, detail, onSelect
             <Tooltip direction="top">{s.customer_name ?? s.order_number}</Tooltip>
           </Marker>
         ))}
-        {trucks.map((v) => (
+        {replay && shown && (
+          <>
+            <Polyline positions={replay.trail.map((p) => [p.lat, p.lng] as [number, number])} pathOptions={{ color: '#94a3b8', weight: 3, opacity: 0.6, dashArray: '6 6' }} />
+            <Polyline
+              positions={[...replay.trail.slice(0, replay.point.index + 1).map((p) => [p.lat, p.lng] as [number, number]), [replay.point.lat, replay.point.lng] as [number, number]]}
+              pathOptions={{ color: COLOR_HEX[shown.color], weight: 4, opacity: 0.9 }}
+            />
+            {replay.stops.map((s) => (
+              <CircleMarker key={s.fromMs} center={[s.lat, s.lng]} radius={8} pathOptions={{ color: '#b45309', fillColor: '#f59e0b', fillOpacity: 0.8, weight: 2 }}>
+                <Tooltip direction="top">{t('tracking.replayStopTip', { min: Math.round((s.toMs - s.fromMs) / 60000) })}</Tooltip>
+              </CircleMarker>
+            ))}
+            <Marker position={[replay.point.lat, replay.point.lng]} icon={truckIcon(COLOR_HEX[shown.color], true, false)} zIndexOffset={2000} />
+          </>
+        )}
+        {trucks.filter((v) => !(replay && v.id === selectedId)).map((v) => (
           <Marker
             key={v.id}
             position={[v.position!.lat, v.position!.lng]}
@@ -126,6 +146,7 @@ export default function FlotaMapa({ fitKey, viajes, selectedId, detail, onSelect
           </li>
         ))}
       </ul>
+      {children}
       {!trucks.length && (
         <p className="absolute top-3 left-1/2 -translate-x-1/2 z-[500] bg-white/95 rounded-lg shadow px-3 py-1.5 text-xs text-slate-600">
           {t('tracking.noPosition')}
