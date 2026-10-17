@@ -261,10 +261,39 @@ def test_transition_updates_guide_counter_and_event_atomically(tracking):
     body = {"to": "delivered", "receiver_name": "Luis"}
     result = body_of(app.handler(_event("POST /api/v1/tracking/paradas/{id}/transicion", path={"id": GUIDE},
                                         body=body), None))["data"]
-    assert result == {"stop_id": GUIDE, "state": "delivered", "done": 3, "pending": 1, "distance_m": None}
+    assert result == {"stop_id": GUIDE, "state": "delivered", "done": 3, "pending": 1, "distance_m": None,
+                      "route_completed": False}
     assert db.wrote("UPDATE dispatch_guides")[0][1][:2] == ["delivered", "Entregado"]
     assert db.wrote("UPDATE routes SET completed_stops")[0][1] == [3, ROUTE]
     assert db.wrote("INSERT INTO tracking_events")[0][1][3] == "delivery_completed"
+
+
+def test_closing_the_last_stop_completes_the_trip_at_that_time(tracking):
+    app, db = tracking
+    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row()])
+    db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 4, "pending": 0}])
+    body = {"to": "failed", "reason": "Cerrado", "occurred_at": "2026-10-16T14:30:00Z"}
+    result = body_of(app.handler(_event("POST /api/v1/tracking/paradas/{id}/transicion", path={"id": GUIDE},
+                                        body=body), None))["data"]
+    assert result["route_completed"] is True
+    sql, params = db.wrote("UPDATE routes SET status = 'Completada'")[0]
+    assert "actual_end_time IS NULL" in sql  # idempotente: no pisa un cierre previo
+    assert params[0].isoformat().startswith("2026-10-16T14:30") and params[1:] == [4, ROUTE]
+    assert [p[3] for _, p in db.wrote("INSERT INTO tracking_events")][-1] == "route_completed"
+
+
+def test_reverting_a_stop_never_completes_the_trip(tracking):
+    app, db = tracking
+    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row(delivery_status="delivered")])
+    db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 3, "pending": 0}])
+    app.handler(_event("POST /api/v1/tracking/paradas/{id}/transicion", path={"id": GUIDE}, body={"to": "pending"}), None)
+    assert not db.wrote("UPDATE routes SET status = 'Completada'")
+
+
+def test_completar_and_revisar_endpoints_are_gone(tracking):
+    app, _ = tracking
+    for route in ("POST /api/v1/tracking/viajes/{id}/completar", "POST /api/v1/tracking/viajes/{id}/revisar"):
+        assert app.handler(_event(route, path={"id": ROUTE}, body={}), None)["statusCode"] == 404, route
 
 
 def test_transition_needs_an_active_route(tracking):
@@ -273,17 +302,6 @@ def test_transition_needs_an_active_route(tracking):
     response = app.handler(_event("POST /api/v1/tracking/paradas/{id}/transicion", path={"id": GUIDE},
                                   body={"to": "delivered"}), None)
     assert response["statusCode"] == 409
-
-
-def test_complete_viaje_refuses_pending_stops_unless_forced(tracking):
-    app, db = tracking
-    db.answer("FROM routes r JOIN stores", [{"id": ROUTE, "organization_id": ORG, "status": "En tránsito",
-                                              "vehicle_id": None, "driver_id": None, "country_id": "cr"}])
-    db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 2, "pending": 1}])
-    route = "POST /api/v1/tracking/viajes/{id}/completar"
-    assert app.handler(_event(route, path={"id": ROUTE}, body={}), None)["statusCode"] == 409
-    assert app.handler(_event(route, path={"id": ROUTE}, body={"force": True}), None)["statusCode"] == 200
-    assert db.wrote("UPDATE routes SET status = 'Completada'")[0][1] == [2, ROUTE]
 
 
 class FakeS3:
@@ -406,27 +424,6 @@ def test_start_viaje_saves_planned_times_distance_and_capacity(tracking):
     assert km > 0 and capacity == 25.0
 
 
-def test_review_viaje_requires_completed_and_records_reviewer(tracking):
-    app, db = tracking
-    db.answer("FROM routes r JOIN stores", [{"id": ROUTE, "organization_id": ORG, "status": "En tránsito", "country_id": "cr"}])
-    early = app.handler(_event("POST /api/v1/tracking/viajes/{id}/revisar", path={"id": ROUTE}, body={}), None)
-    assert early["statusCode"] == 409 and not db.wrote("INSERT INTO tracking_reviews")
-    db.answer("FROM routes r JOIN stores", [{"id": ROUTE, "organization_id": ORG, "status": "Completada", "country_id": "cr"}])
-    done = app.handler(_event("POST /api/v1/tracking/viajes/{id}/revisar", path={"id": ROUTE},
-                              body={"note": "Todo en orden"}), None)
-    assert done["statusCode"] == 200
-    review = db.wrote("INSERT INTO tracking_reviews")[0][1]
-    assert review[0] == ROUTE and review[3] == "Todo en orden"
-    assert db.wrote("INSERT INTO tracking_events")[0][1][3] == "route_reviewed"
-
-
-def test_review_requires_edit_permission(tracking, caller_permissions):
-    app, _ = tracking
-    caller_permissions.set(make_permissions({"tracking": ["view"]}))
-    response = app.handler(_event("POST /api/v1/tracking/viajes/{id}/revisar", path={"id": ROUTE}, body={}), None)
-    assert response["statusCode"] == 403
-
-
 # --- app del chofer: aislamiento, mi-viaje, geocerca y devoluciones ------------------------------------
 
 STOP_LAT, STOP_LNG = 9.9300, -84.0800
@@ -452,9 +449,7 @@ def test_driver_cannot_use_admin_endpoints(driver):
     app, _ = driver
     for route, path in [("GET /api/v1/tracking/viajes", None), ("GET /api/v1/tracking/resumen", None),
                         ("GET /api/v1/tracking/planificados", None),
-                        ("POST /api/v1/tracking/viajes/{id}/iniciar", {"id": TRIP}),
-                        ("POST /api/v1/tracking/viajes/{id}/completar", {"id": ROUTE}),
-                        ("POST /api/v1/tracking/viajes/{id}/revisar", {"id": ROUTE})]:
+                        ("POST /api/v1/tracking/viajes/{id}/iniciar", {"id": TRIP})]:
         assert app.handler(_event(route, path=path), None)["statusCode"] == 403, route
 
 

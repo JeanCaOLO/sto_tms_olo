@@ -23,6 +23,7 @@ Todo lo que necesita el túnel a Aurora está en **[pendientes-tunel.md](./pendi
 | [contrato-api-v2.md](./contrato-api-v2.md) | Endpoints, campos, reglas de alertas y KPIs. Fuente única para backend, mock y app. |
 | [modo-mock.md](./modo-mock.md) | Cómo correr la pantalla sin túnel, escenarios de prueba y cómo agregar otros. |
 | [pendientes-tunel.md](./pendientes-tunel.md) | Lo que falta y requiere túnel/AWS, con el cómo paso a paso. |
+| [decisiones.md](./decisiones.md) | Por qué POST + polling y no WebSocket, clustering, cierre automático del viaje, OSRM y tiles propios. |
 | `docs/work/2026-10/2026-10-17-tracking-saneamiento-monitoreo.md` | Bitácora del cambio a "solo monitoreo" + optimización. |
 
 ## Cómo se ve la pantalla

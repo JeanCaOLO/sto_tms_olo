@@ -71,5 +71,12 @@ La web **no** tiene umbrales propios: pinta `signal`, `color` y `alerts` tal com
 - `POST /paradas/{id}/transicion` — `pending | delivered | failed` (fallida exige motivo). Entrega fuera de la geocerca de 150 m: evento `geofence_out`.
 - `POST /paradas/{id}/evidencias/upload-url` y `POST /paradas/{id}/evidencias` — solo `photo_invoice` y `signature` (`photo_other` → 422).
 
+## Cierre del viaje
+El viaje se **completa solo** cuando la app cierra (entregada o fallida) su **última parada**: en la misma transacción de `POST /paradas/{id}/transicion` el backend pone `status = 'Completada'` y `actual_end_time` = hora de ese cierre (`occurred_at`), registra el evento `route_completed` y responde `route_completed: true`. Es idempotente (no pisa un cierre previo). Reabrir una parada (`to: pending`) nunca completa el viaje; una vez completado, sus paradas ya no se pueden transicionar (409).
+
 ## Retirado en v2
-`POST /paradas/{id}/novedades`, `POST /paradas/{id}/devoluciones`, filtro `por_revisar`, campos `review`, `incidents`, `status_raw`, `carrier_name`, `capacity_percentage`, `total_distance_km`, `events`, `trail`. `GET /resumen` queda deprecado (devuelve la forma de `summary`). `POST /completar` y `/revisar` siguen en el backend pero la web ya no los usa (ver [pendientes-tunel.md](./pendientes-tunel.md#otros-pendientes-sin-túnel)).
+`POST /paradas/{id}/novedades`, `POST /paradas/{id}/devoluciones`, filtro `por_revisar`, campos `review`, `incidents`, `status_raw`, `carrier_name`, `capacity_percentage`, `total_distance_km`, `events`, `trail`. `GET /resumen` queda deprecado (devuelve la forma de `summary`; la web no lo usa).
+
+**Eliminados el 2026-10-17** (Tracking solo monitorea; responden 404):
+- `POST /viajes/{id}/completar` — completaba el viaje a mano desde la web (con `force` si quedaban paradas abiertas). Reemplazo: cierre automático (arriba). El estado de los viajes de **Planificación** (`plan_trips`: completar / cancelar / reabrir, FR7) es otro endpoint de ese módulo y no se tocó.
+- `POST /viajes/{id}/revisar` — marcaba un viaje completado como revisado (quién, cuándo, nota) en `tracking_reviews`. La tabla (`sql/42_tracking_revisiones.sql`) **se conserva** con sus datos, sin uso; si se retoma la revisión, la lógica estaba en `backend/tracking/src/app.py` (`review_viaje`) en el commit `ad8fe25`.

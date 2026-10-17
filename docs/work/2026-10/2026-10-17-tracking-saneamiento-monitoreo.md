@@ -56,3 +56,5 @@ Detalle y pasos para cada uno en `docs/tracking/pendientes-tunel.md` (lo que req
 - `GET /planificados` del backend ahora filtra por `pais` (el mock ya lo hacía).
 - Hallazgo: `npm run api:local` (`backend-planif/serve.py`) no sirve el stack `tracking`; con túnel usar `npm run api:local:base`.
 - Documentación del módulo en `docs/tracking/` (README, contrato v2, modo mock, pendientes con túnel paso a paso).
+- Eliminados `POST /viajes/{id}/completar` y `/revisar` (backend, template, tests; documentados en `docs/tracking/contrato-api-v2.md`). Para que los viajes no queden "En tránsito" para siempre, `POST /paradas/{id}/transicion` completa el viaje solo al cerrar la última parada (idempotente, `actual_end_time` = hora del cierre, evento `route_completed`). `tracking_reviews` se conserva sin uso.
+- `docs/tracking/decisiones.md`: por qué POST + polling y no WebSocket, clustering, OSRM y tiles propios.

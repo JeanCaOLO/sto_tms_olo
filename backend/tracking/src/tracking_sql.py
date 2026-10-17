@@ -72,11 +72,6 @@ JOIN countries co ON co.id = s.country_id
 WHERE {where}
 """
 
-UPSERT_REVIEW_SQL = """
-INSERT INTO tracking_reviews (route_id, organization_id, reviewed_by, note)
-VALUES (%s, %s, %s, %s)
-ON CONFLICT (route_id) DO UPDATE SET reviewed_by = EXCLUDED.reviewed_by, reviewed_at = now(), note = EXCLUDED.note
-"""
 
 SET_DEPARTED_SQL = "UPDATE routes SET departed_at = %s WHERE id = %s AND departed_at IS NULL"
 
@@ -252,9 +247,10 @@ FROM dispatch_guides g WHERE g.route_id = %s
 """
 
 SET_COMPLETED_STOPS_SQL = "UPDATE routes SET completed_stops = %s, updated_at = now() WHERE id = %s"
+# Cierre automático al cerrar la última parada; idempotente (no pisa un cierre ya registrado).
 COMPLETE_ROUTE_SQL = """
-UPDATE routes SET status = 'Completada', actual_end_time = now(), completed_stops = %s, updated_at = now()
-WHERE id = %s
+UPDATE routes SET status = 'Completada', actual_end_time = %s, completed_stops = %s, updated_at = now()
+WHERE id = %s AND actual_end_time IS NULL
 """
 
 INSERT_EVIDENCE_SQL = """

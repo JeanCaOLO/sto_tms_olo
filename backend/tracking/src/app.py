@@ -4,15 +4,16 @@ cancelar viajes es de Planificación.
 Lectura (web): lista de viajes con progreso, alertas y última posición (`include=summary` agrega los KPIs),
 detalle con paradas y evidencias de entrega, recorrido simplificado para el replay y los viajes planificados
 listos para iniciar.
-Escritura (web / app del chofer): iniciar viaje desde Planificación, completar, ingesta de posiciones por
-lotes, transición de parada y evidencias de entrega (factura firmada y firma; subida directa a S3).
+Escritura (app del chofer; iniciar solo en pruebas): iniciar viaje desde Planificación, ingesta de posiciones
+por lotes, transición de parada y evidencias de entrega (factura firmada y firma; subida directa a S3). El viaje
+se cierra SOLO al cerrar (entregada o fallida) su última parada: no hay endpoint de completar ni de revisar.
 
-Permisos: módulo `tracking` (view para leer; create para iniciar e ingestar; edit para completar, revisar,
-transicionar paradas y evidencias) + país de la tienda de origen de la ruta.
+Permisos: módulo `tracking` (view para leer; create para iniciar e ingestar; edit para transicionar paradas y
+evidencias) + país de la tienda de origen de la ruta.
 
 App del chofer (rol `Chofer`): solo opera los viajes donde `routes.driver_id` es el conductor enlazado a su
 usuario (`drivers.app_user_id`). Ve `mi-viaje`, el detalle y el recorrido de SUS viajes y escribe posiciones,
-paradas, evidencias y consentimiento; lo demás (lista general, KPIs, iniciar, completar, revisar) es del
+paradas, evidencias y consentimiento; lo demás (lista general, KPIs, iniciar) es del
 administrador y le responde 403. Un viaje ajeno responde 404 (no revela que existe).
 """
 
@@ -509,56 +510,6 @@ def start_viaje(event: dict) -> dict:
     return _ok(result, 201 if result["created"] else 200)
 
 
-def complete_viaje(event: dict) -> dict:
-    caller, org_id = _caller(event, "edit")
-    route_id = path_param(event, "id")
-    if not logic.is_uuid(route_id):
-        raise HttpError(404, "Viaje no encontrado")
-    body = json_body(event)
-    force = isinstance(body, dict) and bool(body.get("force"))
-
-    def work(run):
-        route = run(sql.ROUTE_ROW_SQL, [route_id])
-        if not route or str(route[0]["organization_id"]) != org_id:
-            raise HttpError(404, "Viaje no encontrado")
-        _check_country(caller, route[0]["country_id"])
-        if logic.route_state(route[0]["status"]) != "active":
-            raise HttpError(409, "Solo se puede completar un viaje en tránsito.")
-        counts = run(sql.COUNT_DONE_SQL, [route_id])[0]
-        if int(counts["pending"]) and not force:
-            raise HttpError(409, f"Quedan {int(counts['pending'])} parada(s) sin cerrar.")
-        run(sql.COMPLETE_ROUTE_SQL, [int(counts["done"]), route_id])
-        _event(run, org_id, route_id, None, "route_completed", "success", "Viaje completado", caller.app_user_id)
-        return {"route_id": route_id, "pending": int(counts["pending"])}
-
-    return _ok(pg.run_in_transaction(work))
-
-
-def review_viaje(event: dict) -> dict:
-    """El administrador marca un viaje COMPLETADO como revisado (quién y cuándo; nota opcional)."""
-    caller, org_id = _caller(event, "edit")
-    route_id = path_param(event, "id")
-    if not logic.is_uuid(route_id):
-        raise HttpError(404, "Viaje no encontrado")
-    body = json_body(event)
-    note = ((body.get("note") if isinstance(body, dict) else None) or "").strip() or None
-    if note and len(note) > 500:
-        raise HttpError(400, "La nota no puede superar 500 caracteres")
-
-    def work(run):
-        route = run(sql.ROUTE_ROW_SQL, [route_id])
-        if not route or str(route[0]["organization_id"]) != org_id:
-            raise HttpError(404, "Viaje no encontrado")
-        _check_country(caller, route[0]["country_id"])
-        if logic.route_state(route[0]["status"]) != "completed":
-            raise HttpError(409, "Solo se puede revisar un viaje completado.")
-        run(sql.UPSERT_REVIEW_SQL, [route_id, org_id, caller.app_user_id, note])
-        _event(run, org_id, route_id, None, "route_reviewed", "info", note or "Viaje revisado", caller.app_user_id)
-        return {"route_id": route_id}
-
-    return _ok(pg.run_in_transaction(work))
-
-
 def _ingest(run, org_id: str, valid: list[dict], device_id, now: datetime, mine: str | None) -> dict:
     """Escritura de un lote dentro de UNA transacción: puntos, última posición por viaje y salida de la sede."""
     rejected = []
@@ -701,8 +652,14 @@ def transition_stop(event: dict) -> dict:
         if outside:
             _event(run, org_id, route_id, guide_id, "geofence_out", "warning",
                    f"Entrega fuera de la geocerca ({distance_m} m): {reason}", caller.app_user_id, lat, lng, when)
+        # Última parada cerrada (entregada o fallida) → el viaje se completa solo, a la hora de ese cierre.
+        closed = target != logic.GUIDE_PENDING and int(counts["pending"]) == 0
+        if closed:
+            run(sql.COMPLETE_ROUTE_SQL, [when, int(counts["done"]), route_id])
+            _event(run, org_id, route_id, None, "route_completed", "success", "Viaje completado (última parada cerrada)",
+                   caller.app_user_id, when=when)
         return {"stop_id": guide_id, "state": target, "done": int(counts["done"]), "pending": int(counts["pending"]),
-                "distance_m": distance_m}
+                "distance_m": distance_m, "route_completed": closed}
 
     return _ok(pg.run_in_transaction(work))
 
@@ -820,8 +777,6 @@ ROUTES = {
     "GET /api/v1/tracking/planificados": list_planificados,
     "GET /api/v1/tracking/resumen": summary,
     "POST /api/v1/tracking/viajes/{id}/iniciar": start_viaje,
-    "POST /api/v1/tracking/viajes/{id}/completar": complete_viaje,
-    "POST /api/v1/tracking/viajes/{id}/revisar": review_viaje,
     "POST /api/v1/tracking/posiciones": ingest_positions,
     "POST /api/v1/tracking/paradas/{id}/transicion": transition_stop,
     "POST /api/v1/tracking/paradas/{id}/evidencias/upload-url": evidence_upload_url,

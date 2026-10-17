@@ -219,27 +219,8 @@ Resources:
         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
       Target: !Sub integrations/${TrackingApiIntegration}
 
-  CompleteViajeRoute:
-    Type: AWS::ApiGatewayV2::Route
-    Properties:
-      ApiId:
-        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
-      RouteKey: POST /api/v1/tracking/viajes/{id}/completar
-      AuthorizationType: CUSTOM
-      AuthorizerId:
-        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
-      Target: !Sub integrations/${TrackingApiIntegration}
-
-  ReviewViajeRoute:
-    Type: AWS::ApiGatewayV2::Route
-    Properties:
-      ApiId:
-        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
-      RouteKey: POST /api/v1/tracking/viajes/{id}/revisar
-      AuthorizationType: CUSTOM
-      AuthorizerId:
-        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
-      Target: !Sub integrations/${TrackingApiIntegration}
+  # Retiradas 2026-10-17: POST /viajes/{id}/completar y /revisar (Tracking solo monitorea; el viaje se cierra
+  # solo al cerrar su última parada). Ver docs/tracking/contrato-api-v2.md "Retirado".
 
   SummaryRoute:
     Type: AWS::ApiGatewayV2::Route
