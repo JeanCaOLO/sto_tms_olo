@@ -10,6 +10,7 @@ interface Props {
   speed: number;
   /** Instante (ms epoch) que muestra el replay. */
   at: number;
+  timezone: string | null;
   stops: number;
   onToggle: () => void;
   onSeek: (value: number) => void;
@@ -18,11 +19,11 @@ interface Props {
 }
 
 /** Barra de reproducción del recorrido: play/pausa, línea de tiempo, velocidad y hora que se está viendo. */
-export default function ReplayControles({ progress, playing, speed, at, stops, onToggle, onSeek, onSpeed, onClose }: Props) {
+export default function ReplayControles({ progress, playing, speed, at, timezone, stops, onToggle, onSeek, onSpeed, onClose }: Props) {
   const { t } = useTranslation();
   return (
     <div
-      className="absolute bottom-3 left-1/2 -translate-x-1/2 z-[500] flex w-[min(92%,560px)] items-center gap-2 rounded-lg bg-white/95 px-3 py-2 shadow"
+      className="flex w-full items-center gap-2 rounded-lg bg-white/95 px-3 py-2 shadow"
       role="group"
       aria-label={t('tracking.replayTitle')}
     >
@@ -38,7 +39,7 @@ export default function ReplayControles({ progress, playing, speed, at, stops, o
         className="min-w-0 flex-1 accent-teal-600"
         aria-label={t('tracking.replayTimeline')}
       />
-      <span className="w-12 text-center text-xs font-semibold text-slate-700 tabular-nums">{formatClock(new Date(at).toISOString()) ?? '--:--'}</span>
+      <span className="w-12 text-center text-xs font-semibold text-slate-700 tabular-nums">{formatClock(new Date(at).toISOString(), timezone) ?? '--:--'}</span>
       <select
         value={speed}
         onChange={(e) => onSpeed(Number(e.target.value))}

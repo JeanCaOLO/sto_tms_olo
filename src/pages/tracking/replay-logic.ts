@@ -1,7 +1,7 @@
 // Reglas puras del replay del recorrido: interpolación sobre el rastro y detección de paradas.
-import type { ViajeDetalle } from './types';
+import type { RecorridoPoint } from './types';
 
-export type TrailPoint = ViajeDetalle['trail'][number];
+export type TrailPoint = RecorridoPoint;
 
 export interface ReplayPoint {
   lat: number;

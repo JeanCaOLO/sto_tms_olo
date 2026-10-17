@@ -8,6 +8,8 @@
 //
 // Aborta si alguna otra tabla (fuera de la lista conocida) referencia las
 // guías o la ruta con filas, para no borrar datos ajenos por cascada manual.
+// `returns` ya no se borra aquí (las devoluciones salieron del módulo): si tiene filas
+// ligadas a las guías, el script aborta y hay que revisarlas a mano.
 
 import pg from 'pg';
 
@@ -29,7 +31,6 @@ const CHILDREN = [
   ['tracking_evidences', 'route_id', 'route'],
   ['tracking_positions', 'route_id', 'route'],
   ['tracking_last_positions', 'route_id', 'route'],
-  ['returns', 'dispatch_guide_id', 'guide'],
   ['tracking_events', 'route_id', 'route'],
   ['dispatch_guides', 'route_id', 'route'],
   ['routes', 'id', 'route'],
