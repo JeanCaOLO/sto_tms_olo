@@ -49,6 +49,7 @@ Campos de un escenario (`TripDef` en `sim.ts`): `startedMinAgo`, `lastSignalMinA
 
 - `__tests__/mock-backend.test.ts`: el backend simulado cumple el contrato (forma, KPIs, país, cursor, 404/400, sin GPS, calles).
 - `__tests__/api.test.ts`: el cliente arma bien las URLs y traduce errores.
+- `__tests__/page.test.tsx`: la página entera sobre el backend simulado (cambiar de viaje sin ver el detalle anterior, una sola llamada lista + KPIs, nunca `/viajes/null`, filtro por KPI).
 - El equivalente contra el backend real es `scripts/tracking-contract-check.mjs` (necesita túnel; ver [pendientes-tunel.md](./pendientes-tunel.md#t3--verificar-el-contrato-v2-contra-el-backend-real)).
 
 ## Límites del mock (lo que solo se valida con túnel)
