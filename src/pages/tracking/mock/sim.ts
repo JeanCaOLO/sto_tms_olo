@@ -40,6 +40,8 @@ interface TripDef {
   id: string; route_number: string; country: string; zone: string; driver: string; plate: string;
   origin: [number, number]; stops: StopDef[]; startedMinAgo: number; endedMinAgo?: number; lastSignalMinAgo: number;
   at: 'origin' | `stop:${number}` | [number, number]; moving?: boolean; stoppedMin?: number; delayMin?: number;
+  /** Aún no llegó ninguna posición GPS (señal 'none': sin camión en el mapa y sin alerta de "sin señal"). */
+  noGps?: boolean;
 }
 interface PlannedDef { id: string; zone: string; plate: string; driver: string; country: string; origin: [number, number]; stops: StopDef[] }
 
@@ -48,6 +50,8 @@ interface STrip {
   id: string; def: PlannedDef | TripDef; routeNumber: string; origin: [number, number]; stops: SStop[];
   startedAt: number; endedAt: number | null; departedAt: number | null; lastSignalAt: number; pos: [number, number];
   moving: boolean; stoppedMin: number; planned: number[]; plannedEnd: number; trail: Position[];
+  /** Calles por recorrer hasta cada parada pendiente (id → puntos); vacío = línea recta. */
+  legs: Map<string, [number, number][]>; roadsAsked: boolean;
 }
 
 // --- geometría y tiempos -----------------------------------------------------------------------------
@@ -153,7 +157,7 @@ function seed(now: number) {
       id: def.id, def, routeNumber: def.route_number, origin: def.origin, stops, startedAt,
       endedAt: def.endedMinAgo != null ? now - def.endedMinAgo * MIN : null, departedAt: atOrigin ? null : startedAt + 2 * MIN,
       lastSignalAt: now - def.lastSignalMinAgo * MIN, pos, moving: def.moving ?? false, stoppedMin: def.stoppedMin ?? 0,
-      planned: plan.planned, plannedEnd: plan.end, trail: [],
+      planned: plan.planned, plannedEnd: plan.end, trail: [], legs: new Map(), roadsAsked: false,
     };
     // Calibra el plan para que el retraso de la próxima parada sea el pedido en el JSON (por defecto, a tiempo).
     const target = trip.endedAt == null ? stops.findIndex((s) => s.state === 'pending') : -1;
@@ -175,6 +179,7 @@ function seed(now: number) {
 
 function ensure(now: number) {
   if (!seeded) seed(now);
+  trips.forEach(requestRoads); // una vez por viaje (guardado en roadsAsked)
   advance(now);
 }
 
@@ -195,36 +200,104 @@ function nextPending(trip: STrip): SStop | undefined {
   return trip.stops.find((s) => s.state === 'pending');
 }
 
+// --- calles (solo modo mock): el camión sigue la ruta de OSRM -----------------------------------------
+// Sin proveedor (pruebas unitarias, OSRM caído) el camión va en línea recta: la simulación nunca se bloquea.
+
+/** Tramos por calles para [p0, p1, ...]: un tramo por par consecutivo; [] si no hay ruta. */
+export type RoadProvider = (points: [number, number][]) => Promise<[number, number][][]>;
+let roads: RoadProvider | null = null;
+
+/** Lo instala el modo mock (installTrackingMock.ts) con el cliente OSRM; null = línea recta. */
+export function setRoadProvider(provider: RoadProvider | null) {
+  roads = provider;
+}
+
+const TRAIL_STEP_M = 40; // un punto de rastro cada ~40 m recorridos (las curvas quedan en el replay)
+
+/** Reparte `path` entre `from` y `to` (ms) según la distancia recorrida. */
+function timedPath(path: [number, number][], from: number, to: number, moving: boolean): Position[] {
+  const cumulative = path.map((_, i) => (i === 0 ? 0 : haversineM(path[i - 1], path[i])));
+  for (let i = 1; i < cumulative.length; i++) cumulative[i] += cumulative[i - 1];
+  const total = cumulative[cumulative.length - 1] || 1;
+  return path.map((p, i) => point(p, from + (to - from) * (cumulative[i] / total), moving));
+}
+
+/**
+ * Pide (una vez por viaje) las calles hasta las paradas pendientes y, para el tramo ya recorrido del escenario
+ * demo (sede → paradas cerradas → posición), rehace el rastro inicial por calles para que el replay no sea recto.
+ */
+function requestRoads(trip: STrip) {
+  if (!roads || trip.roadsAsked) return;
+  trip.roadsAsked = true;
+  const pending = trip.endedAt == null ? trip.stops.filter((s) => s.state === 'pending') : [];
+  if (pending.length) {
+    roads([trip.pos, ...pending.map(coords)])
+      .then((legs) => { if (legs.length === pending.length) pending.forEach((s, i) => { if (legs[i].length > 1) trip.legs.set(s.id, legs[i].slice(1)); }); })
+      .catch(() => { /* sin calles: línea recta */ });
+  }
+  const done = trip.stops.filter((s) => s.state !== 'pending' && s.arrivedAt != null).map(coords);
+  const history = [trip.origin, ...done, trip.pos].filter((p, i, all) => i === 0 || haversineM(all[i - 1], p) > 1);
+  const seededUntil = trip.lastSignalAt;
+  if (history.length > 1) {
+    roads(history)
+      .then((legs) => {
+        const path = legs.flat();
+        if (path.length < 2 || legs.length !== history.length - 1) return;
+        const later = trip.trail.filter((p) => Date.parse(p.recorded_at) > seededUntil);
+        trip.trail = [...timedPath(path, trip.startedAt, seededUntil, trip.moving), ...later].slice(-MAX_TRAIL);
+      })
+      .catch(() => { /* conserva el rastro recto */ });
+  }
+}
+
+function addTrail(trip: STrip, at: number, force = false) {
+  const last = trip.trail[trip.trail.length - 1];
+  if (!force && last && haversineM([last.lat, last.lng], trip.pos) < TRAIL_STEP_M) return;
+  trip.trail.push(point(trip.pos, at, true));
+  if (trip.trail.length > MAX_TRAIL) trip.trail.shift();
+}
+
+function arrive(trip: STrip, stop: SStop, at: number) {
+  trip.pos = coords(stop);
+  stop.state = 'delivered';
+  stop.arrivedAt = at;
+  stop.evidence = 'full';
+  stop.recipient = 'Recibe encargado';
+  trip.legs.delete(stop.id);
+}
+
 function advance(now: number) {
   if (now - lastTick < TICK_MS) return;
-  const elapsed = (now - lastTick) / 1000; // segundos simulados
+  const from = lastTick;
+  const budget = ((now - from) / 1000) * (SPEED_KMH / 3.6); // metros que alcanza a recorrer en el tiempo simulado
   lastTick = now;
   for (const trip of trips) {
     if (trip.endedAt != null || !trip.moving) continue;
     trip.lastSignalAt = now;
-    let meters = elapsed * (SPEED_KMH / 3.6);
+    let meters = budget;
+    const at = () => from + (now - from) * (1 - meters / budget); // hora del punto según lo ya recorrido
     while (meters > 0) {
       const target = nextPending(trip);
       if (!target) { trip.endedAt = now; break; }
-      const to = coords(target);
+      const leg = trip.legs.get(target.id);
+      const to = leg?.length ? leg[0] : coords(target);
       const dist = haversineM(trip.pos, to);
-      if (dist <= meters + ARRIVE_M) {
-        trip.pos = to;
-        target.state = 'delivered';
-        target.arrivedAt = now;
-        target.evidence = 'full';
-        target.recipient = 'Recibe encargado';
-        meters -= dist;
+      if (leg?.length) {
+        // Por calles: avanza vértice a vértice; al agotar el tramo, el último salto a la parada es recto y corto.
+        if (dist <= meters) { trip.pos = to; leg.shift(); meters -= dist; addTrail(trip, at()); continue; }
+      } else if (dist <= meters + ARRIVE_M) {
+        meters = Math.max(0, meters - dist);
+        arrive(trip, target, at());
+        addTrail(trip, at(), true);
         if (!nextPending(trip)) { trip.endedAt = now; break; }
-      } else {
-        const f = meters / dist;
-        trip.pos = [trip.pos[0] + (to[0] - trip.pos[0]) * f, trip.pos[1] + (to[1] - trip.pos[1]) * f];
-        meters = 0;
+        continue;
       }
+      const f = meters / dist;
+      trip.pos = [trip.pos[0] + (to[0] - trip.pos[0]) * f, trip.pos[1] + (to[1] - trip.pos[1]) * f];
+      meters = 0;
     }
     if (trip.departedAt == null && haversineM(trip.pos, trip.origin) > DEPARTURE_M) trip.departedAt = now;
-    trip.trail.push(point(trip.pos, now, true));
-    if (trip.trail.length > MAX_TRAIL) trip.trail.shift();
+    addTrail(trip, now, true);
   }
 }
 
@@ -253,17 +326,20 @@ function etas(trip: STrip, now: number): Map<string, Eta> {
   return out;
 }
 
+const hasGps = (trip: STrip) => !('noGps' in trip.def && trip.def.noGps);
+
 function toViaje(trip: STrip, now: number): Viaje {
   const state = trip.endedAt != null ? 'completed' : 'active';
   const active = state === 'active';
-  const signal: Signal = active ? signalOf(trip, now) : 'none';
+  const signal: Signal = active && hasGps(trip) ? signalOf(trip, now) : 'none';
   const phase: Phase | null = active ? (trip.departedAt != null ? 'en_ruta' : 'por_salir') : null;
   const color: MapColor = !active ? 'blue' : signal === 'online' ? 'green' : signal === 'stale' ? 'amber' : 'gray';
+  // Sin GPS no hay ETA (como el backend): sin retraso ni alerta "late".
   const delivered = trip.stops.filter((s) => s.state === 'delivered').length;
   const failed = trip.stops.filter((s) => s.state === 'failed').length;
   const total = trip.stops.length;
   const next = nextPending(trip);
-  const delay = active && next ? etas(trip, now).get(next.id)?.delay ?? null : null;
+  const delay = active && next && hasGps(trip) ? etas(trip, now).get(next.id)?.delay ?? null : null;
   const alerts: TripAlert[] = [];
   if (failed > 0) alerts.push({ code: 'failed', count: failed });
   if (active && signal === 'offline') alerts.push({ code: 'no_signal' });
@@ -274,7 +350,7 @@ function toViaje(trip: STrip, now: number): Viaje {
     id: trip.id, route_number: trip.routeNumber, state, phase, signal, color, driver_name: def.driver, plate: def.plate,
     zone_name: def.zone, country: def.country, timezone: TIMEZONES[def.country] ?? null, started_at: iso(trip.startedAt),
     ended_at: iso(trip.endedAt), planned_end_at: iso(trip.plannedEnd), route_date: localDate(trip.startedAt, TIMEZONES[def.country] ?? 'UTC'),
-    position: point(trip.pos, trip.lastSignalAt, trip.moving && active && !paused),
+    position: hasGps(trip) ? point(trip.pos, trip.lastSignalAt, trip.moving && active && !paused) : null,
     progress: { total, done: delivered + failed, delivered, failed, percent: total ? Math.round(((delivered + failed) / total) * 100) : 0 },
     delay_min: delay, alerts,
   };
@@ -355,7 +431,7 @@ export function simDetail(id: string): ViajeDetalle {
   const now = clock();
   ensure(now);
   const trip = byId(id);
-  const next = trip.endedAt == null ? etas(trip, now) : new Map<string, Eta>();
+  const next = trip.endedAt == null && hasGps(trip) ? etas(trip, now) : new Map<string, Eta>();
   return {
     ...toViaje(trip, now),
     origin: { lat: trip.origin[0], lng: trip.origin[1], name: `CD-${trip.def.country}` },
@@ -368,7 +444,8 @@ export function simDetail(id: string): ViajeDetalle {
 export function simRecorrido(id: string): Recorrido {
   const now = clock();
   ensure(now);
-  return { points: byId(id).trail.map((p) => ({ lat: p.lat, lng: p.lng, at: p.recorded_at })) };
+  const trip = byId(id);
+  return { points: hasGps(trip) ? trip.trail.map((p) => ({ lat: p.lat, lng: p.lng, at: p.recorded_at })) : [] };
 }
 
 export function simPlanned(country: string | null): ViajePlanificado[] {
@@ -392,7 +469,7 @@ export function simStart(planTripId: string) {
   trips.push({
     id, def, routeNumber: `VJ-MOCK-${def.id.toUpperCase()}`, origin: def.origin, stops, startedAt: now, endedAt: null, departedAt: null,
     lastSignalAt: now, pos: def.origin, moving: true, stoppedMin: 0, planned: plan.planned, plannedEnd: plan.end,
-    trail: [point(def.origin, now, false)],
+    trail: [point(def.origin, now, false)], legs: new Map(), roadsAsked: false,
   });
   return { route_id: id, created: true };
 }

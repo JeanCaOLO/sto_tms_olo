@@ -219,6 +219,52 @@
    "at": "origin"
   },
   {
+   "id": "demo-cr-07",
+   "route_number": "VJ-DEMO-CR-07",
+   "country": "CR",
+   "zone": "Alajuela",
+   "driver": "Sofía Araya Solís",
+   "plate": "CL-188301",
+   "origin": [
+    9.9281,
+    -84.0907
+   ],
+   "stops": [
+    {
+     "customer": "Supermercado La Esperanza",
+     "address": "Av. Principal #22, Pavas",
+     "city": "Pavas",
+     "lat": 9.936,
+     "lng": -84.126,
+     "invoice": "FAC-71012",
+     "state": "pending"
+    },
+    {
+     "customer": "Abastos El Progreso",
+     "address": "Av. Principal #23, Santa Ana",
+     "city": "Santa Ana",
+     "lat": 9.933,
+     "lng": -84.183,
+     "invoice": "FAC-71013",
+     "state": "pending"
+    },
+    {
+     "customer": "Ferretería Central",
+     "address": "Av. Principal #24, Alajuela",
+     "city": "Alajuela",
+     "lat": 10.0162,
+     "lng": -84.214,
+     "invoice": "FAC-71014",
+     "state": "pending"
+    }
+   ],
+   "delayMin": 0,
+   "startedMinAgo": 6,
+   "lastSignalMinAgo": 6,
+   "at": "origin",
+   "noGps": true
+  },
+  {
    "id": "demo-cr-05",
    "route_number": "VJ-DEMO-CR-05",
    "country": "CR",

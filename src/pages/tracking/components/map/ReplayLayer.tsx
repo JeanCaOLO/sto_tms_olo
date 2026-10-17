@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, type ReactNode } from 'react';
-import { CircleMarker, Marker, Polyline, Tooltip } from 'react-leaflet';
+import { CircleMarker, Marker, Polyline, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { useTranslation } from 'react-i18next';
 import { useReplay } from '../../hooks/useReplay';
@@ -27,10 +27,15 @@ export default function ReplayLayer({ tripId, color, timezone, onClose }: Props)
   const stops = useMemo(() => detectStops(trail), [trail]);
   const point = pointAt(trail, clock.progress);
   const controls = useRef<HTMLDivElement>(null);
+  const map = useMap();
   const { toggle } = clock;
 
-  // Arranca solo al llegar el recorrido; los clics en la barra no deben arrastrar ni hacer zoom en el mapa.
-  useEffect(() => { if (trail.length > 1) toggle(); }, [trail, toggle]);
+  // Al llegar el recorrido: encuadrarlo y arrancar. Los clics en la barra no deben arrastrar ni hacer zoom en el mapa.
+  useEffect(() => {
+    if (trail.length < 2) return;
+    map.fitBounds(L.latLngBounds(trail.map((p) => [p.lat, p.lng] as [number, number])), { padding: [50, 50], maxZoom: 16 });
+    toggle();
+  }, [trail, toggle, map]);
   useEffect(() => {
     if (controls.current) { L.DomEvent.disableClickPropagation(controls.current); L.DomEvent.disableScrollPropagation(controls.current); }
   });
@@ -50,10 +55,10 @@ export default function ReplayLayer({ tripId, color, timezone, onClose }: Props)
   }
   return (
     <>
-      <Polyline positions={trail.map((p) => [p.lat, p.lng] as [number, number])} pathOptions={{ color: '#94a3b8', weight: 3, opacity: 0.6, dashArray: '6 6' }} />
+      <Polyline positions={trail.map((p) => [p.lat, p.lng] as [number, number])} pathOptions={{ color: '#475569', weight: 4, opacity: 0.55, dashArray: '6 8' }} />
       <Polyline
         positions={[...trail.slice(0, point.index + 1).map((p) => [p.lat, p.lng] as [number, number]), [point.lat, point.lng] as [number, number]]}
-        pathOptions={{ color, weight: 4, opacity: 0.9 }}
+        pathOptions={{ color, weight: 5, opacity: 0.95 }}
       />
       {stops.map((s) => (
         <CircleMarker key={s.fromMs} center={[s.lat, s.lng]} radius={8} pathOptions={{ color: '#b45309', fillColor: '#f59e0b', fillOpacity: 0.8, weight: 2 }}>

@@ -6,6 +6,7 @@ import { SimError, simDetail, simList, simPlanned, simRecorrido, simStart } from
 
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 30;
+const PAIS = /^[A-Z]{2}$/;
 
 type Result = Awaited<ReturnType<TrackingTransport>>;
 
@@ -14,14 +15,17 @@ const fail = (status: number, message: string): Result => ({ ok: false, status, 
 
 function route(method: string, path: string, query: URLSearchParams): Result {
   const parts = path.replace(/^\/v1\/tracking\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
-  const pais = query.get('pais');
+  const rawPais = (query.get('pais') ?? '').trim().toUpperCase();
+  if (rawPais && !PAIS.test(rawPais)) return fail(400, 'pais inválido');
+  const pais = rawPais || null;
   if (method === 'GET' && parts.length === 1 && parts[0] === 'viajes') {
     const raw = query.get('limit');
     const limit = raw == null ? DEFAULT_LIMIT : Number(raw);
     if (!Number.isInteger(limit) || limit < 1) return fail(400, 'limit inválido');
     return ok(simList({
       mode: query.get('activos') === '1' ? 'active' : 'all', q: query.get('q') ?? '', limit: Math.min(limit, MAX_LIMIT),
-      cursor: query.get('cursor'), country: pais, summary: query.get('include') === 'summary',
+      // Como el backend: los KPIs solo con la primera página (sin cursor).
+      cursor: query.get('cursor'), country: pais, summary: !query.get('cursor') && (query.get('include') ?? '').split(',').includes('summary'),
     }));
   }
   if (method === 'GET' && parts.length === 2 && parts[0] === 'viajes') return ok(simDetail(parts[1]));

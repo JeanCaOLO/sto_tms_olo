@@ -40,9 +40,19 @@ Panel con el detalle del viaje anterior; `GET /viajes/null` al refrescar sin sel
 - Navegador (mock, Playwright): lista, KPIs, detalle, evidencias, ruta OSRM, replay y filtro por KPI sin errores de página.
 
 ## Pendientes
+Detalle y pasos para cada uno en `docs/tracking/pendientes-tunel.md` (lo que requiere túnel/AWS) y `docs/tracking/README.md`.
+
 1. Aplicar `sql/44` (requiere privilegio para `create extension pg_trgm`) — con el túnel: dry-run y `--execute`.
 2. Desplegar el stack `tracking` (Intelix) y probar contra Aurora/API Gateway: gzip, URLs firmadas y `serve.py` solo probados con fakes.
 3. App móvil: el contrato cambió (sin novedades/devoluciones/`photo_other`); ver `.test/blueprint/mobile-tracking-tms/01` y `04`.
 4. OSRM y tiles propios para producción (`VITE_OSRM_URL`, `VITE_MAP_TILES_URL`); los públicos no tienen SLA.
 5. Decidir si `POST /completar` y `/revisar` siguen en el backend (la web ya no los usa).
 6. Retención/partición de `tracking_positions` y caché de permisos en `tms_common` (propuestas, sin hacer).
+
+## Continuación (mismo día): mock más fiel y documentación de pendientes
+- Mock: los camiones siguen las calles (OSRM, peticiones en cola de a una; si OSRM falla, línea recta) y el tramo ya recorrido de cada escenario se rehace por calles, así el replay no muestra rectas. Nuevo escenario VJ-DEMO-CR-07 (por salir sin GPS: señal `none`, sin alerta). El backend simulado valida `pais` (400) y manda KPIs solo en la primera página, como el real.
+- Replay: encuadra el recorrido al cargar; trazos más visibles.
+- Scripts para cuando haya túnel: `scripts/tracking-contract-check.mjs` (verifica el contrato v2 contra el backend real y mide tiempos/tamaños) y `scripts/simular-posiciones.mjs --por-calles` (usa la sede del viaje y OSRM).
+- `GET /planificados` del backend ahora filtra por `pais` (el mock ya lo hacía).
+- Hallazgo: `npm run api:local` (`backend-planif/serve.py`) no sirve el stack `tracking`; con túnel usar `npm run api:local:base`.
+- Documentación del módulo en `docs/tracking/` (README, contrato v2, modo mock, pendientes con túnel paso a paso).
