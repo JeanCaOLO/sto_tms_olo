@@ -17,7 +17,14 @@ Todo lo de abajo quedó **preparado pero sin ejecutar** porque requiere el túne
 
 ## Verificación en navegador contra Aurora (2026-10-19, modo API)
 
-Probado con la sesión del usuario en `localhost:3001` → backend `:4001` → Aurora: KPIs, selector CR/Venezuela, lista Activos/Todos, panel, ruta por calles (OSRM), replay, polling (lista + detalle cada 15 s). Bugs hallados y corregidos: (1) viaje con señal de hace 2 días mostraba "Retraso de 4038 min" y "0 m" → sin ETA/late con señal caducada; (2) los KPIs se vaciaban ("—") al cambiar Activos/Todos → se conserva el último valor; (3) paradas pendientes en gris poco visibles → violeta. Observaciones sin cambio: "A tiempo" cuenta también los viajes sin señal (`on_time = active − late`); los 503 que ve el depurador son peticiones abortadas al cambiar de filtro. Falta con token (F1/F2): contrato v2 por script, iniciar/posiciones/geocerca/idempotencia y roles.
+Probado con la sesión del usuario en `localhost:3001` → backend `:4001` → Aurora: KPIs, selector CR/Venezuela, lista Activos/Todos, panel, ruta por calles (OSRM), replay, polling (lista + detalle cada 15 s). Bugs hallados y corregidos: (1) viaje con señal de hace 2 días mostraba "Retraso de 4038 min" y "0 m" → sin ETA/late con señal caducada; (2) los KPIs se vaciaban ("—") al cambiar Activos/Todos → se conserva el último valor; (3) paradas pendientes en gris poco visibles → violeta. Observaciones sin cambio: "A tiempo" cuenta también los viajes sin señal (`on_time = active − late`); los 503 que ve el depurador son peticiones abortadas al cambiar de filtro. 
+
+### Con token (2026-10-19): T3, T5 y T7 hechos
+- **T3** `tracking-contract-check.mjs` contra `:4001`/Aurora: "Contrato v2 OK" en CR y VN.
+- **T5** `scripts/tracking-e2e-real.mjs [--pais CR|VN] [--plan <plan_trip_id>]`: 28 chequeos OK en CR y en VN (iniciar concurrente e idempotente, `por_salir`→`en_ruta`, `departed_at`, ETA, duplicados, mock/impreciso sin mover el camión, lote 201 → 400, futuro rechazado, geocerca 150 m, fallida con motivo, `photo_other` 422). Los viajes de prueba se limpiaron con `limpiar-tracking-prueba.mjs`.
+- **T7** latencia local (VPN→Aurora, p50): lista + KPIs 0,7–1,3 s, detalle ~0,8 s, recorrido ~0,6 s; en Lambda dentro de la VPC es ~1 ms por consulta. Gzip activo (`content-encoding: gzip`).
+- Hallazgo de datos: hay paradas sin coordenadas en planes reales (p. ej. el plan de 2026-10-25 trae 12 paradas sin lat/lng ni en `orders` ni en `plan_stops`): el viaje se muestra pero sin ETA, distancia ni marcadores. Es un tema de geocodificación de pedidos en Planificación/OMS.
+- Sin probar: roles (token de Chofer), retraso/"detenido"/"sin señal" con posiciones antiguas insertadas por SQL, cierre desde Planificación, subida real a S3 (T8), `EXPLAIN` (T6) con volumen.
 
 ## Resumen
 
