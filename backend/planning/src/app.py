@@ -15,15 +15,14 @@ capacidad no asigne camiones con datos inventados.
 import json
 import re
 
+import plan_builder
+import plans_read
+from planning_sql import ORDERS_SQL
 from tms_common import permissions, pg
 from tms_common.errors import HttpError
 from tms_common.event import auth_user, path_param, query_params
 from tms_common.handler import tms_handler
 from tms_common.responses import json_response
-
-import plan_builder
-import plans_read
-from planning_sql import ORDERS_SQL
 
 ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TOMORROW = "manana"
