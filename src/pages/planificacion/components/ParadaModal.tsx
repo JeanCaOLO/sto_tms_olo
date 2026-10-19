@@ -61,9 +61,19 @@ export default function ParadaModal({ parada, onClose }: Props) {
     const etiqueta = parada.prioridad === 1 ? t('planning.priorityFalla') : t('planning.priorityRegular');
     filas.push([t('planning.priority'), `${parada.prioridad} · ${etiqueta}`]);
   }
+  if (parada.observaciones) {
+    filas.push([t('planning.observations'), parada.observaciones]);
+  }
 
   return (
     <AdminModal title={t('planning.stopDetail')} onClose={onClose}>
+      {parada.es_cliente_retira && (
+        <div className="px-6 pt-4">
+          <span className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg bg-amber-100 text-amber-800 border border-amber-300">
+            <i className="ri-store-2-line"></i>{t('planning.clientePickup')}
+          </span>
+        </div>
+      )}
       <dl className="px-6 py-4 space-y-3">
         {filas.map(([label, value]) => (
           <div key={label} className="flex justify-between gap-4 text-sm">

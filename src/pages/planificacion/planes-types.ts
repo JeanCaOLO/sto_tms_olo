@@ -35,6 +35,10 @@ export interface PlanStop {
   // ¿El pedido está en movimiento CARCA (= despachado)? false = sin factura/sin
   // pago → la vista lo marca como advertencia. Opcional: solo lo trae el sim.
   en_carca?: boolean;
+  // El cliente retira en almacén (no se entrega). Detectado de las observaciones
+  // de eFlow (Capa 1). observaciones = texto libre original.
+  es_cliente_retira?: boolean;
+  observaciones?: string | null;
   // Prioridad de la expedición (EPA: -0 falla = 1 urgente, -1 regular = 2).
   // Numérica invertida (menor = más urgente). null/undefined = sin prioridad.
   prioridad?: number | null;
