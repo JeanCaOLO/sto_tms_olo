@@ -38,7 +38,6 @@ export interface PlanStop {
   // Prioridad de la expedición (EPA: -0 falla = 1 urgente, -1 regular = 2).
   // Numérica invertida (menor = más urgente). null/undefined = sin prioridad.
   prioridad?: number | null;
-  compania?: string | null; // IDCOMPANIA (0029 = EPA, 0109 = Cofersa)
 }
 
 // Un viaje = un camión dentro del plan (plan_trips).
