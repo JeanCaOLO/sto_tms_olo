@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import AdminModal from '../../configuracion/components/AdminModal';
 import Button from '../../../components/base/Button';
+import TripMapa from './TripMapa';
 import type { PlanStop } from '../planes-types';
 import type { Articulo } from '../types';
 import { fetchArticulosDePedido } from '../plan-pedidos-api';
@@ -46,7 +47,9 @@ export default function ParadaModal({ parada, onClose }: Props) {
   const peso = parada.total_weight != null ? `${parada.total_weight} kg` : DASH;
   const volumen = parada.total_volume != null ? `${parada.total_volume} m³` : DASH;
 
+  const tieneCoords = parada.delivery_latitude != null && parada.delivery_longitude != null;
   const filas: [string, string][] = [
+    [t('planning.stopNumber'), `#${parada.stop_order}`],
     [t('planning.customer'), parada.customer_name || DASH],
     [t('planning.orderNumber'), parada.order_number || DASH],
     [t('planning.location'), ubicacion],
@@ -69,6 +72,20 @@ export default function ParadaModal({ parada, onClose }: Props) {
           </div>
         ))}
       </dl>
+
+      {tieneCoords && (
+        <div className="px-6 pb-4">
+          <TripMapa
+            paradas={[{
+              id: parada.order_id,
+              delivery_latitude: parada.delivery_latitude as number,
+              delivery_longitude: parada.delivery_longitude as number,
+              stop_number: parada.stop_order,
+            }]}
+            alturaClase="h-[180px]"
+          />
+        </div>
+      )}
 
       <div className="px-6 pb-4">
         <p className="text-[11px] uppercase tracking-wide text-slate-400 font-medium mb-2">

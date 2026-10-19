@@ -48,6 +48,7 @@ export default {
   'planning.stopDetail': 'Detalle de la parada',
   'planning.customer': 'Cliente',
   'planning.orderNumber': 'Pedido Nº',
+  'planning.stopNumber': 'Parada',
   'planning.location': 'Ubicación',
   'planning.coordinates': 'Coordenadas',
   'planning.close': 'Cerrar',

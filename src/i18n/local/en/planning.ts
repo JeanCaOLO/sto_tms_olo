@@ -48,6 +48,7 @@ export default {
   'planning.stopDetail': 'Stop detail',
   'planning.customer': 'Customer',
   'planning.orderNumber': 'Order No.',
+  'planning.stopNumber': 'Stop',
   'planning.location': 'Location',
   'planning.coordinates': 'Coordinates',
   'planning.close': 'Close',
