@@ -30,7 +30,7 @@ ORDER BY t.sequence_order
 _STOPS = """
 SELECT s.id, s.trip_id, s.order_id, s.stop_order, s.order_number, s.customer_name,
        s.delivery_city, s.delivery_zone, s.latitude, s.longitude, s.weight, s.volume,
-       o.delivery_address, o.priority, o.eflow_id_compania
+       s.es_cliente_retira, o.delivery_address, o.priority, o.eflow_id_compania, o.observaciones
 FROM plan_stops s
 LEFT JOIN orders o ON o.id = s.order_id
 WHERE s.trip_id = ANY(%s)
@@ -57,6 +57,7 @@ def _stop(r: dict) -> dict:
         "delivery_latitude": _val(r["latitude"]), "delivery_longitude": _val(r["longitude"]),
         "total_weight": _val(r["weight"]), "total_volume": _val(r["volume"]),
         "prioridad": r["priority"], "compania": r["eflow_id_compania"],
+        "es_cliente_retira": bool(r["es_cliente_retira"]), "observaciones": r["observaciones"],
     }
 
 

@@ -56,7 +56,7 @@ _ORDERS = """
 SELECT o.id, o.order_number, o.delivery_city, o.delivery_zone,
        o.delivery_latitude::float AS lat, o.delivery_longitude::float AS lng,
        o.total_weight::float AS weight, o.total_volume::float AS volume, o.priority,
-       fc.name AS customer_name,
+       fc.name AS customer_name, o.es_cliente_retira,
        o.eflow_id_compania, o.eflow_id_almacen, o.eflow_id_sucursal, o.eflow_id_expedicion
 FROM orders o
 LEFT JOIN final_customers fc ON fc.id = o.final_customer_id
@@ -132,8 +132,8 @@ INSERT INTO plan_trips (plan_id, vehicle_id, delivery_zone, sequence_order, tota
 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,true,'pending',%s,%s) RETURNING id"""
 _INS_STOP = """
 INSERT INTO plan_stops (trip_id, order_id, stop_order, order_number, customer_name, delivery_city,
-  delivery_zone, latitude, longitude, weight, volume)
-VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
+  delivery_zone, latitude, longitude, weight, volume, es_cliente_retira)
+VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
 
 
 def _persistir_viaje(run, plan_id: str, zona: str, seq: int, viaje: dict, run_id: str, numero: str) -> None:
@@ -145,7 +145,7 @@ def _persistir_viaje(run, plan_id: str, zona: str, seq: int, viaje: dict, run_id
                               veh["plate"], veh["cw"], veh["cv"], numero, lead])[0]["id"]
     for i, o in enumerate(_ordenar_por_ruta(viaje["pedidos"]), start=1):
         run(_INS_STOP, [trip_id, o["id"], i, o["order_number"], o["customer_name"], o["delivery_city"],
-                        o["delivery_zone"], o["lat"], o["lng"], o["weight"], o["volume"]])
+                        o["delivery_zone"], o["lat"], o["lng"], o["weight"], o["volume"], o["es_cliente_retira"]])
         run(_UPD_ORDER, [numero, lead, run_id, o["id"]])  # denormaliza al pedido para el OMS
         if o["eflow_id_expedicion"]:  # write-back simulado del nº de viaje a eFlow
             run(_UPD_SIM, [wmh, run_id, o["eflow_id_almacen"], o["eflow_id_compania"],

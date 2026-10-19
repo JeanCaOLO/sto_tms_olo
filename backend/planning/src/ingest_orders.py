@@ -12,6 +12,7 @@ re-ingestar NO duplica, actualiza estado/fecha/peso.
 Read-only contra eFlow; la única escritura es el UPSERT en `orders`.
 """
 
+import cliente_retira
 import sim_eflow_sync
 from tms_common import eflow_db, pg
 
@@ -28,7 +29,7 @@ SELECT TOP (%(limite)s)
   e.IDCOMPANIA, e.IDALMACEN, e.IDSUCURSAL, e.IDEXPEDICION, e.IDCLIENTE,
   e.RUTA, e.PRIORIDAD, e.TPEXES, e.TPEXSI,
   CONVERT(varchar(10), e.FECHAEXPEDICIONPLANIFICADA, 23) AS FECHA,
-  e.PESOPEDIDO_TOTAL, e.CUBICAJEPEDIDO_TOTAL,
+  e.PESOPEDIDO_TOTAL, e.CUBICAJEPEDIDO_TOTAL, e.OBSERVACIONESEXPEDICION AS OBSERVACIONES,
   cl.DIRECCIONLARGA, cl.LATITUD, cl.LONGITUD
 FROM {sap}.dbo.EXPEDICIONESCABECERA e
 LEFT JOIN {sap}.dbo.CLIENTES cl
@@ -68,8 +69,9 @@ INSERT INTO orders (
   order_number, order_date, delivery_date, planned_dispatch_at,
   total_weight, total_volume, delivery_address, delivery_latitude, delivery_longitude,
   delivery_zone, priority, status, wms_status, wms_situation,
+  observaciones, es_cliente_retira,
   eflow_id_compania, eflow_id_almacen, eflow_id_sucursal, eflow_id_expedicion, eflow_id_cliente)
-VALUES (%s,%s,%s,%s,%s, %s,%s,%s,%s, %s,%s,%s,%s,%s, %s,%s,'pending',%s,%s, %s,%s,%s,%s,%s)
+VALUES (%s,%s,%s,%s,%s, %s,%s,%s,%s, %s,%s,%s,%s,%s, %s,%s,'pending',%s,%s, %s,%s, %s,%s,%s,%s,%s)
 ON CONFLICT (eflow_id_almacen, eflow_id_compania, eflow_id_sucursal, eflow_id_expedicion)
 DO UPDATE SET
   delivery_date = EXCLUDED.delivery_date, planned_dispatch_at = EXCLUDED.planned_dispatch_at,
@@ -78,6 +80,7 @@ DO UPDATE SET
   delivery_latitude = EXCLUDED.delivery_latitude, delivery_longitude = EXCLUDED.delivery_longitude,
   delivery_zone = EXCLUDED.delivery_zone, priority = EXCLUDED.priority,
   wms_status = EXCLUDED.wms_status, wms_situation = EXCLUDED.wms_situation,
+  observaciones = EXCLUDED.observaciones, es_cliente_retira = EXCLUDED.es_cliente_retira,
   final_customer_id = EXCLUDED.final_customer_id, updated_at = now()"""
 
 
@@ -118,6 +121,7 @@ def ingest_cr(limite: int = 500, dry_run: bool = False) -> dict:
                 r["PESOPEDIDO_TOTAL"], r["CUBICAJEPEDIDO_TOTAL"], r["DIRECCIONLARGA"],
                 _coord(r["LATITUD"]), _coord(r["LONGITUD"]),
                 r["RUTA"], _prioridad(r["PRIORIDAD"]), r["TPEXES"], r["TPEXSI"],
+                r["OBSERVACIONES"], cliente_retira.es_cliente_retira(r["OBSERVACIONES"]),
                 str(r["IDCOMPANIA"]), str(r["IDALMACEN"]), str(r["IDSUCURSAL"]),
                 str(r["IDEXPEDICION"]), str(r["IDCLIENTE"]) if r["IDCLIENTE"] is not None else None,
             ])
