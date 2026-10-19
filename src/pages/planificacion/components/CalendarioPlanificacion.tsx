@@ -3,6 +3,7 @@ import { addDays, addMonths, format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useTranslation } from 'react-i18next';
 import { usePlanesList } from '../use-planes-list';
+import { replanificarTodo } from '../planes-api';
 import {
   diasMes, diasSemana, filtrarPorZonas, isoDe, numeroDeViaje, zonasPresentes,
   type VistaCalendario,
@@ -31,6 +32,17 @@ export default function CalendarioPlanificacion() {
   const [ancla, setAncla] = useState<Date>(() => new Date());
   const [zonasSel, setZonasSel] = useState<Set<string>>(new Set());
   const [detalle, setDetalle] = useState<{ fechaISO: string; zonaCodigo: string | null } | null>(null);
+  const [replanificando, setReplanificando] = useState(false);
+
+  async function replanificar() {
+    setReplanificando(true);
+    try {
+      await replanificarTodo();
+      await recargar();
+    } finally {
+      setReplanificando(false);
+    }
+  }
 
   const dias = useMemo(
     () => (vista === 'mes' ? diasMes(ancla) : vista === 'dia' ? [ancla] : diasSemana(ancla)),
@@ -80,7 +92,17 @@ export default function CalendarioPlanificacion() {
         </div>
       </div>
 
-      <FiltroZonas zonas={zonasRango} seleccionadas={zonasSel} onToggle={toggleZona} onTodas={() => setZonasSel(new Set())} />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <FiltroZonas zonas={zonasRango} seleccionadas={zonasSel} onToggle={toggleZona} onTodas={() => setZonasSel(new Set())} />
+        <button
+          onClick={replanificar}
+          disabled={replanificando}
+          className="inline-flex items-center gap-1.5 self-start shrink-0 px-3 py-1.5 text-sm font-semibold rounded-lg bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white cursor-pointer"
+        >
+          <i className={`ri-refresh-line ${replanificando ? 'animate-spin' : ''}`}></i>
+          {replanificando ? t('planning.replanning') : t('planning.replan')}
+        </button>
+      </div>
 
       {cargando ? (
         <div className="flex items-center justify-center h-48 text-slate-500">

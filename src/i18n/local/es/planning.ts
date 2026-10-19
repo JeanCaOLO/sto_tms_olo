@@ -49,6 +49,8 @@ export default {
   'planning.customer': 'Cliente',
   'planning.orderNumber': 'Pedido Nº',
   'planning.stopNumber': 'Parada',
+  'planning.replan': 'Replanificar',
+  'planning.replanning': 'Replanificando…',
   'planning.location': 'Ubicación',
   'planning.coordinates': 'Coordenadas',
   'planning.close': 'Cerrar',
