@@ -88,7 +88,8 @@ def build_plan(event: dict) -> dict:
     if not rows:
         raise HttpError(400, "Almacén inexistente")
     plan_id = plan_builder.construir_y_persistir(user["org"], str(rows[0]["country_id"]), warehouse, fecha, user["id"])
-    return json_response(200, {"data": plans_read.obtener(user["org"], plan_id), "error": None})
+    plan = plans_read.obtener(user["org"], plan_id) if plan_id else None
+    return json_response(200, {"data": plan, "error": None})
 
 
 ROUTES = {

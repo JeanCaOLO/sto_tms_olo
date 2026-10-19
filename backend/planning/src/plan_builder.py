@@ -83,9 +83,13 @@ def _agrupar_por_zona(pedidos: list[dict]) -> dict:
     return zonas
 
 
-def construir_y_persistir(org: str, country: str, warehouse: str, fecha: str, created_by: str) -> str:
-    """Planifica el día sobre orders y persiste. Devuelve el id del route_plan."""
+def construir_y_persistir(org: str, country: str, warehouse: str, fecha: str, created_by: str) -> str | None:
+    """Planifica el día sobre orders y persiste. Devuelve el id del route_plan, o
+    None si no hay pedidos ese día (en tal caso borra el plan previo, no deja uno vacío)."""
     pedidos = pg.query(_ORDERS, [org, warehouse, fecha])
+    if not pedidos:
+        pg.run_in_transaction(lambda run: _borrar_plan_del_dia(run, org, warehouse, fecha))
+        return None
     flota = pg.query(_FLOTA, [org])
     if not flota:
         from tms_common.errors import HttpError
