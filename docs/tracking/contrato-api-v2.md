@@ -31,7 +31,10 @@ Respuesta: `{ items: Viaje[], next_cursor: string | null, summary?: Resumen }`.
 | `started_at`, `ended_at`, `planned_end_at`, `route_date` | ISO o null |
 | `position` | `{ lat, lng, speed_mps, recorded_at }` o null |
 | `progress` | `{ total, done, delivered, failed, percent }` (fallidas cuentan como cerradas) |
-| `delay_min` | minutos de retraso contra la siguiente parada, o null |
+| `due_date` | fecha límite de entrega `YYYY-MM-DD` = `route_plans.plan_date` de Planificación (igual a `orders.delivery_date` de sus pedidos); sin plan, `routes.route_date` |
+| `assigned_at` | ISO: cuándo se asignó el viaje (`plan_trips.created_at`; sin plan, `routes.created_at`) |
+| `days_late` | días calendario pasados de `due_date` en la zona del país; 0 en plazo o si el viaje ya no está en tránsito |
+| `delay_min` | minutos de la ETA de la siguiente parada contra su hora planificada, o null. Solo informativo: NO genera alerta |
 | `alerts` | `{ code, count? }[]`, `code` ∈ `failed` · `no_signal` · `late` · `stopped` |
 
 **Resumen** (por VIAJES): `{ active, on_time, late, no_signal, completed_today }`. `on_time = active − late`. `completed_today`: completados cuyo `actual_end_time` cae hoy en la zona del país.
@@ -54,7 +57,7 @@ Viaje + `{ origin: { lat, lng, name } | null, next_stop_id, departed_at, stops: 
 |---|---|
 | Señal | `online` ≤ 5 min · `stale` ≤ 30 min · `offline` después · `none` si nunca hubo posición (umbrales amplios por la cobertura móvil irregular) |
 | Color en mapa | verde online · ámbar stale · gris offline/none · azul completado |
-| `late` | retraso > 15 min = ETA a la siguiente parada pendiente (por secuencia) − su hora planificada. Igual en lista y detalle. Sin posición, o con la señal caducada (`offline`), no hay ETA ni `late` (`distance_m`/`eta_at`/`delay_min` = null): el aviso es `no_signal`, no un retraso de días. |
+| `late` | el viaje sigue en tránsito y ya pasó su día de entrega: `days_late` ≥ 1 (`count` = días). Se cuenta por DÍA calendario en la zona del país, no por la hora de cada parada: el día de entrega aún no está atrasado. Igual en lista, detalle y KPI «Retrasados». La ETA por parada (`delay_min`) sigue siendo informativa y sin posición/señal caducada es null. |
 | `stopped` | ≥ 20 min sin moverse más de 75 m (ventana de 60 min de posiciones), solo con señal online |
 | `no_signal` | solo si hubo señal y caducó (`offline`); `none` no alerta |
 | `failed` | alguna parada fallida |

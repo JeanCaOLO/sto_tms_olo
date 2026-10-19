@@ -22,7 +22,7 @@ if (!token) {
   process.exit(1);
 }
 
-const VIAJE_KEYS = ['alerts', 'color', 'country', 'delay_min', 'driver_name', 'ended_at', 'id', 'phase', 'planned_end_at', 'plate',
+const VIAJE_KEYS = ['alerts', 'assigned_at', 'color', 'country', 'days_late', 'delay_min', 'driver_name', 'due_date', 'ended_at', 'id', 'phase', 'planned_end_at', 'plate',
   'position', 'progress', 'route_date', 'route_number', 'signal', 'started_at', 'state', 'timezone', 'zone_name'];
 const DETAIL_EXTRA = ['departed_at', 'next_stop_id', 'origin', 'stops'];
 const SUMMARY_KEYS = ['active', 'completed_today', 'late', 'no_signal', 'on_time'];

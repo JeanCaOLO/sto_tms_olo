@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import Badge from '../../../components/base/Badge';
 import type { Viaje } from '../types';
-import { COLOR_HEX, STATE_KEY, formatAge, stateVariant } from '../tracking-logic';
+import { COLOR_HEX, STATE_KEY, formatAge, formatDay, stateVariant } from '../tracking-logic';
 import AlertDots from './AlertDots';
 import ProgressBar from './ProgressBar';
 
@@ -16,6 +16,8 @@ interface Props {
 export default function ViajeCard({ viaje, selected, now, onSelect }: Props) {
   const { t } = useTranslation();
   const age = viaje.state === 'active' ? formatAge(viaje.position?.recorded_at, now, t) : null;
+  const due = formatDay(viaje.due_date);
+  const assigned = formatDay(viaje.assigned_at, viaje.timezone);
   return (
     <button
       type="button"
@@ -35,6 +37,11 @@ export default function ViajeCard({ viaje, selected, now, onSelect }: Props) {
       <p className="mt-1 text-xs text-slate-600 truncate">
         {viaje.driver_name ?? t('tracking.noDriver')} · {viaje.plate ?? t('tracking.noVehicle')}
       </p>
+      {(assigned || due) && (
+        <p className="text-xs text-slate-500 truncate">
+          {assigned && `${t('tracking.assigned')} ${assigned}`}{assigned && due ? ' · ' : ''}{due && `${t('tracking.dueDate')} ${due}`}
+        </p>
+      )}
       {viaje.alerts.length > 0 && <div className="mt-2"><AlertDots alerts={viaje.alerts} /></div>}
       <div className="mt-2">
         <ProgressBar percent={viaje.progress.percent} failed={viaje.progress.failed} total={viaje.progress.total} />

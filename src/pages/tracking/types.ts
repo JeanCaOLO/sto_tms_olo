@@ -49,6 +49,12 @@ export interface Viaje {
   ended_at: string | null;
   planned_end_at: string | null;
   route_date: string | null;
+  /** Fecha límite de entrega (YYYY-MM-DD, la de Planificación). */
+  due_date: string | null;
+  /** Cuándo se asignó el viaje (se creó en Planificación). */
+  assigned_at: string | null;
+  /** Días pasados de la fecha límite (0 = en plazo o ya cerrado). El retraso se mide por día de entrega. */
+  days_late: number;
   position: Position | null;
   progress: Progress;
   delay_min: number | null;

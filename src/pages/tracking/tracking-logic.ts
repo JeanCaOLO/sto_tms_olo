@@ -97,10 +97,18 @@ export function formatClock(iso: string | null | undefined, timezone?: string | 
   }
 }
 
-/** Retraso del viaje (minutos) si el backend lo marcó como alerta; null si va a tiempo. */
-export function lateMinutes(viaje: Pick<Viaje, 'alerts'>): number | null {
-  const late = viaje.alerts.find((a) => a.code === 'late');
-  return late ? late.count ?? null : null;
+/** Día corto ("2 oct") de una fecha. `date` puede ser YYYY-MM-DD (fecha de entrega: sin desplazar por zona) o un
+ * ISO con hora (se muestra el día en la zona del viaje). null si no es válida. */
+export function formatDay(date: string | null | undefined, timezone?: string | null): string | null {
+  if (!date) return null;
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(date);
+  const value = new Date(dateOnly ? `${date}T00:00:00Z` : date);
+  if (Number.isNaN(value.getTime())) return null;
+  try {
+    return value.toLocaleDateString([], { day: 'numeric', month: 'short', timeZone: dateOnly ? 'UTC' : timezone ?? undefined });
+  } catch {
+    return value.toLocaleDateString([], { day: 'numeric', month: 'short' });
+  }
 }
 
 // --- filtro rápido desde los KPIs (por viaje) ---------------------------------------------------------

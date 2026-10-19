@@ -10,10 +10,10 @@ import type {
 } from '../types';
 
 const MIN = 60_000;
+const DAY = 24 * 60 * MIN;
 const SPEED_KMH = 30;
 const DETOUR = 1.35;
 const SERVICE_MIN = 5;
-const LATE_MIN = 15;
 const STOPPED_MIN = 20;
 const ONLINE_MIN = 5;
 const STALE_MIN = 30;
@@ -41,6 +41,8 @@ interface TripDef {
   id: string; route_number: string; country: string; zone: string; driver: string; plate: string;
   origin: [number, number]; stops: StopDef[]; startedMinAgo: number; endedMinAgo?: number; lastSignalMinAgo: number;
   at: 'origin' | `stop:${number}` | [number, number]; moving?: boolean; stoppedMin?: number; delayMin?: number;
+  /** Días pasados de la fecha de entrega (el viaje debía entregarse antes); sin esto, entrega hoy. */
+  daysLate?: number;
   /** Aún no llegó ninguna posición GPS (señal 'none': sin camión en el mapa y sin alerta de "sin señal"). */
   noGps?: boolean;
 }
@@ -86,6 +88,11 @@ function schedule(origin: [number, number], stops: SStop[], from: number): { pla
     return arrive;
   });
   return { planned, end: t };
+}
+
+/** Días enteros entre dos fechas YYYY-MM-DD (b − a). */
+function daysBetween(a: string, b: string): number {
+  return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / DAY);
 }
 
 /** Fecha local (YYYY-MM-DD) de un instante en la zona del país. */
@@ -348,13 +355,19 @@ function toViaje(trip: STrip, now: number): Viaje {
   const alerts: TripAlert[] = [];
   if (failed > 0) alerts.push({ code: 'failed', count: failed });
   if (active && signal === 'offline') alerts.push({ code: 'no_signal' });
-  if (active && delay != null && delay > LATE_MIN) alerts.push({ code: 'late', count: delay });
+  // Retraso = días pasados de la fecha de entrega (como el backend), no minutos contra la hora de cada parada.
+  const zone = TIMEZONES[trip.def.country] ?? 'UTC';
+  const late = 'daysLate' in trip.def ? trip.def.daysLate ?? 0 : 0;
+  const dueDate = localDate(trip.startedAt - late * DAY, zone);
+  const daysLate = active ? Math.max(0, daysBetween(dueDate, localDate(now, zone))) : 0;
+  if (daysLate > 0) alerts.push({ code: 'late', count: daysLate });
   if (active && trip.stoppedMin >= STOPPED_MIN) alerts.push({ code: 'stopped', count: trip.stoppedMin });
   const def = trip.def;
   return {
     id: trip.id, route_number: trip.routeNumber, state, phase, signal, color, driver_name: def.driver, plate: def.plate,
     zone_name: def.zone, country: def.country, timezone: TIMEZONES[def.country] ?? null, started_at: iso(trip.startedAt),
-    ended_at: iso(trip.endedAt), planned_end_at: iso(trip.plannedEnd), route_date: localDate(trip.startedAt, TIMEZONES[def.country] ?? 'UTC'),
+    ended_at: iso(trip.endedAt), planned_end_at: iso(trip.plannedEnd), route_date: localDate(trip.startedAt, zone), due_date: dueDate,
+    assigned_at: iso(trip.startedAt - (late + 1) * DAY), days_late: daysLate,
     position: hasGps(trip) ? point(trip.pos, trip.lastSignalAt, trip.moving && active && !paused) : null,
     progress: { total, done: delivered + failed, delivered, failed, percent: total ? Math.round(((delivered + failed) / total) * 100) : 0 },
     delay_min: delay, alerts,

@@ -212,3 +212,12 @@ Diseñado y probado el 2026-10-17, **retirado** por la restricción de no altera
 |---|---|
 | App móvil | Ajustarse al contrato v2: sin novedades/devoluciones/`photo_other`; brechas B1–B10 en `.test/blueprint/mobile-tracking-tms/05-brechas-y-checklist.md`. |
 | Caché de permisos | Cada request hace 2–3 consultas de permisos (`tms_common/permissions.py`). Cachearlas por usuario 60 s en el contenedor Lambda; toca la capa común de todos los módulos: coordinarlo con el dueño de backend. |
+
+## Retraso por día de entrega (2026-10-19)
+
+Pedido del usuario: el retraso es **pasarse del día de entrega**, y la interfaz debe mostrar cuándo se asignó el viaje, su fecha límite y los días de atraso. Datos reales de Planificación (verificado en Aurora): `route_plans.plan_date` = fecha de entrega (coincide con `orders.delivery_date` de todas las paradas) y `plan_trips.created_at` = asignación; Planificación no guarda hora de salida. Sin tablas ni columnas nuevas: `VIAJE_COLUMNS` agrega `due_date`/`assigned_at` con un `LEFT JOIN route_plans`.
+
+- Contrato: `due_date`, `assigned_at`, `days_late`; la alerta `late` y el KPI «Retrasados» pasan a `days_late ≥ 1`. El umbral de 15 min por ETA se eliminó como alerta (`delay_min` queda informativo).
+- Web: tarjeta («Asignado 1 oct · Entrega 2 oct») y panel de detalle (Asignado / Entrega / Atraso).
+- Observación de datos: algunos viajes de prueba tienen `plan_trips.created_at` posterior a `plan_date` (p. ej. VJ-20260922-A371FA20); no es un bug del módulo.
+- Pendiente: «A tiempo» (`active − late`) sigue contando viajes sin señal.

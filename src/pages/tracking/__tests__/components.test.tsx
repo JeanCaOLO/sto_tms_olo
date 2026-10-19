@@ -15,7 +15,7 @@ const NOW = Date.parse('2026-10-16T15:00:00Z');
 const viaje = (over: Partial<Viaje> = {}): Viaje => ({
   id: 'v1', route_number: 'VJ-20261016-AAAA', state: 'active', phase: 'en_ruta', signal: 'online', color: 'green',
   driver_name: 'Ana Mora', plate: 'ABC123', zone_name: null, country: 'CR', timezone: 'America/Costa_Rica',
-  started_at: null, ended_at: null, planned_end_at: null, route_date: null, delay_min: null, alerts: [],
+  started_at: null, ended_at: null, planned_end_at: null, route_date: null, due_date: null, assigned_at: null, days_late: 0, delay_min: null, alerts: [],
   position: { lat: 9.9, lng: -84, speed_mps: 10, recorded_at: '2026-10-16T14:59:30Z' },
   progress: { total: 4, done: 2, delivered: 1, failed: 1, percent: 50 }, ...over,
 });
@@ -67,10 +67,15 @@ describe('ViajesSidebar', () => {
     expect(props.onRetry).toHaveBeenCalled();
   });
 
+  it('la tarjeta muestra asignación y fecha de entrega', () => {
+    render(<ViajesSidebar {...sidebarProps({ viajes: [viaje({ due_date: '2026-10-02', assigned_at: '2026-10-01T15:00:00Z', timezone: 'America/Costa_Rica' })] })} />);
+    expect(screen.getByText(/Asignado .* · Entrega /).textContent).toMatch(/Asignado.*1.*Entrega.*2/);
+  });
+
   it('muestra alertas y "Por salir" en la tarjeta', () => {
     render(<ViajesSidebar {...sidebarProps({ viajes: [viaje({ phase: 'por_salir', alerts: [{ code: 'late', count: 25 }] })] })} />);
     expect(screen.getByText('Por salir')).toBeTruthy();
-    expect(screen.getByLabelText('Alertas del viaje').textContent).toContain('Retraso de 25 min');
+    expect(screen.getByLabelText('Alertas del viaje').textContent).toContain('Atrasado 25 d');
   });
 
   it('ofrece cargar más cuando hay otra página', () => {

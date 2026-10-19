@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Viaje } from '../types';
 import {
-  ageSeconds, formatAge, formatClock, formatDistance, lateMinutes, matchesKpi, positioned, stateVariant, stopVariant,
+  ageSeconds, formatAge, formatClock, formatDay, formatDistance, matchesKpi, positioned, stateVariant, stopVariant,
 } from '../tracking-logic';
 
 const NOW = Date.parse('2026-10-16T15:00:00Z');
@@ -10,7 +10,7 @@ const t = (key: string, o?: Record<string, unknown>) => `${o?.count}${key.replac
 const viaje = (over: Partial<Viaje> = {}): Viaje => ({
   id: 'v1', route_number: 'VJ-1', state: 'active', phase: 'en_ruta', signal: 'online', color: 'green', driver_name: null, plate: null,
   zone_name: null, country: 'CR', timezone: 'America/Costa_Rica', started_at: null, ended_at: null, planned_end_at: null,
-  route_date: null, position: null, progress: { total: 4, done: 2, delivered: 2, failed: 0, percent: 50 }, delay_min: null, alerts: [],
+  route_date: null, due_date: null, assigned_at: null, days_late: 0, position: null, progress: { total: 4, done: 2, delivered: 2, failed: 0, percent: 50 }, delay_min: null, alerts: [],
   ...over,
 });
 
@@ -41,6 +41,10 @@ describe('tracking-logic', () => {
     expect(stateVariant('completed', 'none')).toBe('info');
     expect(stopVariant('failed')).toBe('danger');
     expect(positioned([viaje(), viaje({ id: 'v2', position: { lat: 1, lng: 2, speed_mps: null, recorded_at: '' } })])).toHaveLength(1);
+    expect(formatDay('2026-10-02')).toMatch(/2/);
+    expect(formatDay('2026-10-02T03:00:00Z', 'America/Costa_Rica')).toBe(formatDay('2026-10-01'));  // 21:00 del día anterior
+    expect(formatDay(null)).toBeNull();
+    expect(formatDay('x')).toBeNull();
     expect(formatDistance(850)).toBe('850 m');
     expect(formatDistance(12400)).toBe('12.4 km');
   });
@@ -50,8 +54,6 @@ describe('tracking-logic', () => {
     const noSignal = viaje({ alerts: [{ code: 'no_signal' }] });
     const doneToday = viaje({ state: 'completed', ended_at: '2026-10-16T14:00:00Z' });
     const doneYesterday = viaje({ state: 'completed', ended_at: '2026-10-15T14:00:00Z' });
-    expect(lateMinutes(late)).toBe(30);
-    expect(lateMinutes(viaje())).toBeNull();
     expect(matchesKpi(late, 'late', NOW)).toBe(true);
     expect(matchesKpi(late, 'on_time', NOW)).toBe(false);
     expect(matchesKpi(noSignal, 'no_signal', NOW)).toBe(true);

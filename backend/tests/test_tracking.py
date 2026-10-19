@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -162,6 +163,7 @@ def _row(**over):
     base = {"id": ROUTE, "route_number": "VJ-1", "route_date": date(2026, 10, 16), "status": "En tránsito",
             "actual_start_time": NOW - timedelta(hours=1), "actual_end_time": None, "planned_end_time": None,
             "created_at": NOW - timedelta(hours=2), "departed_at": None,
+            "due_date": date(2026, 10, 16), "assigned_at": NOW - timedelta(days=1),
             "organization_id": ORG, "country_id": "cr-id", "country": "CR", "timezone": "America/Costa_Rica",
             "origin_name": "Sede", "origin_lat": None, "origin_lng": None, "driver_id": None,
             "driver_name": "Ana", "plate": "ABC123", "zone_name": "GAM",
@@ -415,8 +417,8 @@ def test_stopped_minutes_counts_time_at_the_same_place(logic):
     assert logic.stopped_minutes([], NOW) == 0
 
 
-def _codes(logic, sig="online", failed=0, delay=None, stopped=0):
-    return [a["code"] for a in logic.alerts("active", sig, failed, delay, stopped)]
+def _codes(logic, sig="online", failed=0, late=0, stopped=0):
+    return [a["code"] for a in logic.alerts("active", sig, failed, late, stopped)]
 
 # --- endpoints nuevos ------------------------------------------------------------------------------
 
@@ -578,8 +580,9 @@ def test_record_consent_is_idempotent_per_version(driver):
 def test_alerts_only_for_active_trips(logic):
     assert logic.alerts("completed", "offline", 1, 90) == []
     assert _codes(logic) == []
-    assert _codes(logic, sig="offline", failed=1, delay=16, stopped=25) == ["failed", "no_signal", "late"]
-    assert _codes(logic, delay=15) == []                  # el umbral es estricto
+    assert _codes(logic, sig="offline", failed=1, late=2, stopped=25) == ["failed", "no_signal", "late"]
+    assert logic.alerts("active", "online", 0, 3) == [{"code": "late", "count": 3}]   # count = días
+    assert _codes(logic, late=0) == []                    # en plazo: sin alerta
     assert _codes(logic, stopped=25) == ["stopped"]
     assert _codes(logic, sig="stale", stopped=25) == []   # sin señal confiable no se afirma que esté detenido
 
@@ -614,13 +617,14 @@ def test_late_rule_is_the_same_in_list_and_detail(tracking):
     db.answer("FROM routes r JOIN stores s", [row])
     detail = body_of(app.handler(_event("GET /api/v1/tracking/viajes/{id}", path={"id": ROUTE}), None))["data"]
     assert item["delay_min"] == detail["delay_min"] and 45 <= item["delay_min"] <= 55
-    assert [a["code"] for a in item["alerts"]] == ["late"] == [a["code"] for a in detail["alerts"]]
+    # El retraso es por DÍA de entrega: ir 45 min tarde en una parada de hoy no es "retrasado".
+    assert item["alerts"] == [] == detail["alerts"] and item["days_late"] == 0 == detail["days_late"]
     assert detail["next_stop_id"] == detail["stops"][0]["id"]
 
 
 def test_no_position_means_no_eta_and_no_late_alert(logic):
     stops = logic.stop_inputs([_full_stop(1, planned=LATE_STOP)])
-    assert logic.alerts("active", "none", 0, None) == []
+    assert logic.alerts("active", "none", 0) == []
     assert stops[0]["state"] == "pending" and stops[0]["planned_arrival"] == LATE_STOP
 
 
@@ -679,7 +683,7 @@ def test_pais_outside_the_role_is_still_restricted_and_invalid_codes_are_400(tra
 def test_include_summary_counts_all_active_trips_with_one_query_set(tracking):
     app, db = tracking
     rows = [
-        _row(id=ROUTE, last_position_at=NOW - timedelta(seconds=30)),                   # tarde
+        _row(id=ROUTE, last_position_at=NOW - timedelta(seconds=30), due_date=date(2026, 10, 15)),  # pasó su día
         _row(id="00000000-0000-4000-8000-000000000021", last_position_at=NOW - timedelta(hours=2)),  # sin señal
         _row(id="00000000-0000-4000-8000-000000000022", last_position_at=NOW - timedelta(seconds=30)),
     ]
@@ -1051,3 +1055,37 @@ def test_gzip_skips_small_bodies_and_other_encodings(logic):
     assert app._gzip_response({"headers": {"accept-encoding": "br"}}, big) is big
     assert app._gzip_response({}, big) is big
     assert app._gzip_response({"headers": {"Accept-Encoding": "gzip"}}, big)["isBase64Encoded"] is True
+
+
+def _has_tzdata():
+    try:
+        ZoneInfo("America/Costa_Rica")
+        return True
+    except Exception:       # Windows sin el paquete tzdata; en Lambda (Linux) la base de zonas existe
+        return False
+
+
+@pytest.mark.skipif(not _has_tzdata(), reason="sin base de zonas horarias (pip install tzdata)")
+def test_days_late_counts_calendar_days_in_the_country_timezone(logic):
+    tz = "America/Costa_Rica"            # UTC-6: NOW (15:00Z) es 09:00 del 16-oct allá
+    assert logic.days_late(date(2026, 10, 16), NOW, tz) == 0      # el día de entrega aún no vence
+    assert logic.days_late(date(2026, 10, 17), NOW, tz) == 0      # fecha futura: en plazo
+    assert logic.days_late(date(2026, 10, 2), NOW, tz) == 14
+    late_night = datetime(2026, 10, 17, 3, 0, tzinfo=timezone.utc)  # 17-oct 03:00Z = 16-oct 21:00 en CR
+    assert logic.days_late(date(2026, 10, 16), late_night, tz) == 0
+    assert logic.days_late(date(2026, 10, 16), late_night, "UTC") == 1
+    assert logic.days_late(None, NOW, tz) == 0
+    assert logic.days_late(date(2026, 10, 2), NOW, "No/Existe") == 14        # zona desconocida: UTC
+
+
+def test_trip_past_its_delivery_day_is_late_in_list_detail_and_kpi(tracking):
+    app, db = tracking
+    old = _row(due_date=date(2026, 10, 2), assigned_at=NOW - timedelta(days=15))
+    db.answer("count(*) AS n", [{"n": 0}])
+    db.answer("GROUP BY g.route_id", [_progress(ROUTE)])
+    db.answer("FROM routes r", [old])
+    item = body_of(app.handler(_event("GET /api/v1/tracking/viajes", query={"include": "summary"}), None))["data"]
+    trip = item["items"][0]
+    assert trip["due_date"] == "2026-10-02" and trip["days_late"] == 14 and trip["assigned_at"].startswith("2026-10-01")
+    assert {"code": "late", "count": 14} in trip["alerts"]
+    assert item["summary"]["late"] == 1 and item["summary"]["on_time"] == 0

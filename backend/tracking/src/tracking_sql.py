@@ -21,6 +21,7 @@ OPEN_IN_PLAN = "(pt.status IS NULL OR pt.status NOT IN ('completed', 'cancelled'
 VIAJE_COLUMNS = f"""
   r.id, r.route_number, r.route_date, {STATUS_EXPR} AS status, r.actual_start_time, {END_EXPR} AS actual_end_time,
   r.planned_end_time, r.created_at, r.departed_at,
+  COALESCE(rp.plan_date, r.route_date) AS due_date, COALESCE(pt.created_at, r.created_at) AS assigned_at,
   s.country_id, s.name AS origin_name, s.latitude AS origin_lat, s.longitude AS origin_lng,
   co.code AS country, co.timezone AS timezone,
   d.full_name AS driver_name, v.plate, z.name AS zone_name,
@@ -38,6 +39,7 @@ LEFT JOIN vehicles v ON v.id = r.vehicle_id
 LEFT JOIN zones z ON z.id = r.route_type_id
 LEFT JOIN tracking_last_positions lp ON lp.route_id = r.id
 {PLAN_TRIP_JOIN}
+LEFT JOIN route_plans rp ON rp.id = pt.plan_id
 """
 
 # Progreso por ruta, calculado de las guías (no del contador denormalizado completed_stops).

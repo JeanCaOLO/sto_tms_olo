@@ -4,6 +4,7 @@ import math
 import re
 import uuid
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from tms_common.errors import HttpError
 
@@ -119,7 +120,6 @@ DETOUR_FACTOR = 1.35
 SERVICE_MIN = 5
 DEFAULT_WINDOW_END = (19, 0)
 
-LATE_MIN = 15          # alerta "retraso"
 STOPPED_MIN = 20       # alerta "detenido"
 STOPPED_RADIUS_M = 75  # movimiento menor a esto = sigue en el mismo sitio
 STOPPED_WINDOW_MIN = 60  # ventana de posiciones que se mira hacia atrás: el conteo de "detenido" tope = 60 min
@@ -317,9 +317,22 @@ def simplify_trail(points: list[dict], epsilon_m: float = TRAIL_EPSILON_M, cap: 
     return [points[index] for index in kept]
 
 
-def alerts(state: str, signal_value: str, failed: int, delay_min: int | None, stopped_min: int = 0) -> list[dict]:
+def days_late(due_date, now: datetime, tz: str | None) -> int:
+    """Días que el viaje lleva pasado de su fecha de entrega (día calendario en la zona del país); 0 si está en
+    plazo. El retraso se mide por DÍA de entrega, no por la hora planificada de cada parada."""
+    if due_date is None:
+        return 0
+    try:
+        zone = ZoneInfo(tz) if tz else timezone.utc
+    except (ZoneInfoNotFoundError, ValueError):
+        zone = timezone.utc
+    return max(0, (_aware(now).astimezone(zone).date() - due_date).days)
+
+
+def alerts(state: str, signal_value: str, failed: int, late_days: int = 0, stopped_min: int = 0) -> list[dict]:
     """Alertas de un viaje EN TRÁNSITO: [{"code","count"?}]. Para otros estados no hay alertas.
 
+    late: `count` = días pasados de la fecha de entrega.
     no_signal: solo si hubo señal y caducó (signal 'offline'); 'none' (nunca hubo GPS) no alerta.
     stopped: solo con señal 'online', para no afirmar que está detenido sin datos recientes."""
     if state != "active":
@@ -329,8 +342,8 @@ def alerts(state: str, signal_value: str, failed: int, delay_min: int | None, st
         out.append({"code": ALERT_FAILED, "count": failed})
     if signal_value == "offline":
         out.append({"code": ALERT_NO_SIGNAL})
-    if delay_min is not None and delay_min > LATE_MIN:
-        out.append({"code": ALERT_LATE, "count": delay_min})
+    if late_days > 0:
+        out.append({"code": ALERT_LATE, "count": late_days})
     if stopped_min >= STOPPED_MIN and signal_value == "online":
         out.append({"code": ALERT_STOPPED, "count": stopped_min})
     return out

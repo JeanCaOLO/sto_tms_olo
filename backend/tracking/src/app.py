@@ -229,6 +229,7 @@ def _viaje(row: dict, counts: dict | None, live: dict, stopped: int, now: dateti
                     or logic.is_departed(position, _coords(row["origin_lat"], row["origin_lng"])))
         phase = "en_ruta" if departed else "por_salir"
     delay = live["delay_min"]
+    late_days = logic.days_late(row["due_date"], now, row["timezone"]) if state == "active" else 0
     return {
         "id": str(row["id"]),
         "route_number": row["route_number"],
@@ -245,6 +246,9 @@ def _viaje(row: dict, counts: dict | None, live: dict, stopped: int, now: dateti
         "ended_at": _iso(row["actual_end_time"]),
         "planned_end_at": _iso(row["planned_end_time"]),
         "route_date": row["route_date"].isoformat() if row["route_date"] else None,
+        "due_date": row["due_date"].isoformat() if row["due_date"] else None,
+        "assigned_at": _iso(row["assigned_at"]),
+        "days_late": late_days,
         "position": None if position is None else {
             "lat": position[0], "lng": position[1],
             "speed_mps": _float(row["speed_mps"]), "recorded_at": _iso(row["last_position_at"]),
@@ -252,7 +256,7 @@ def _viaje(row: dict, counts: dict | None, live: dict, stopped: int, now: dateti
         "progress": {"total": total, "done": done, "delivered": int(counts["delivered"]),
                      "failed": int(counts["failed"]), "percent": round(done * 100 / total) if total else 0},
         "delay_min": delay,
-        "alerts": logic.alerts(state, sig, int(counts["failed"]), delay, stopped),
+        "alerts": logic.alerts(state, sig, int(counts["failed"]), late_days, stopped),
     }
 
 

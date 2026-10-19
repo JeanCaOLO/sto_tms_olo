@@ -42,7 +42,7 @@ Solo funciona en desarrollo: `MOCK_AUTH_ENABLED` exige `import.meta.env.DEV`, as
 | VJ-DEMO-CR-C1, VN-C2, CR-C3, VN-C4 | CR/VN | Completados (C3 con fallida y una entrega sin firma) |
 | `planned`: plan-cr-01, plan-cr-02, plan-vn-01 | | Para "Iniciar viaje (pruebas)" |
 
-Campos de un escenario (`TripDef` en `sim.ts`): `startedMinAgo`, `lastSignalMinAgo`, `endedMinAgo` (completado), `at` (`origin`, `stop:N` o `[lat, lng]`), `moving`, `stoppedMin`, `delayMin` (retraso deseado de la próxima parada), `noGps`, y por parada `state`, `arrivedMinAgo`, `evidence` (`full` = factura + firma, `invoice` = solo factura, `none`) y `recipient`.
+Campos de un escenario (`TripDef` en `sim.ts`): `startedMinAgo`, `lastSignalMinAgo`, `endedMinAgo` (completado), `at` (`origin`, `stop:N` o `[lat, lng]`), `moving`, `stoppedMin`, `delayMin` (retraso deseado de la próxima parada, solo informativo), `daysLate` (días pasados de la fecha de entrega: es lo que dispara `late`), `noGps`, y por parada `state`, `arrivedMinAgo`, `evidence` (`full` = factura + firma, `invoice` = solo factura, `none`) y `recipient`.
 
 **Agregar un escenario:** copiar uno parecido en `trips`, cambiar `id` / `route_number` / `invoice`, ajustar los campos y comprobar con `npx vitest run src/pages/tracking`.
 

@@ -4,7 +4,7 @@ import Badge from '../../../components/base/Badge';
 import Button from '../../../components/base/Button';
 import { ordenarPorCercania } from '../stop-order';
 import type { Viaje, ViajeDetalle } from '../types';
-import { STATE_KEY, formatAge, formatClock, formatDistance, stateVariant } from '../tracking-logic';
+import { STATE_KEY, formatAge, formatClock, formatDay, formatDistance, stateVariant } from '../tracking-logic';
 import AlertDots from './AlertDots';
 import ParadaItem from './ParadaItem';
 import ProgressBar from './ProgressBar';
@@ -55,6 +55,16 @@ export default function ViajeDetallePanel({ viaje, detail, error, now, onReplay,
             <span className="font-medium">{view.progress.percent}%</span>
           </p>
         </div>
+        <dl className="grid grid-cols-3 gap-2 text-xs">
+          <div><dt className="text-slate-500">{t('tracking.assigned')}</dt><dd className="font-medium text-slate-800">{formatDay(viaje.assigned_at, viaje.timezone) ?? '—'}</dd></div>
+          <div><dt className="text-slate-500">{t('tracking.dueDate')}</dt><dd className="font-medium text-slate-800">{formatDay(viaje.due_date) ?? '—'}</dd></div>
+          <div>
+            <dt className="text-slate-500">{t('tracking.overdue')}</dt>
+            <dd className={`font-medium ${viaje.days_late > 0 ? 'text-red-600' : 'text-slate-800'}`}>
+              {viaje.state !== 'active' ? '—' : viaje.days_late > 0 ? t('tracking.daysLate', { count: viaje.days_late }) : t('tracking.onTimeDays')}
+            </dd>
+          </div>
+        </dl>
         {viaje.alerts.length > 0 && <AlertDots alerts={viaje.alerts} showText />}
         {viaje.state === 'active' && (
           <p className="text-sm text-slate-700" aria-live="polite">
