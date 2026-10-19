@@ -53,6 +53,7 @@ export default {
   'planning.replanning': 'Replanificando…',
   'planning.clientePickup': 'Cliente retira en almacén',
   'planning.clientePickupShort': 'Retira',
+  'planning.clientePickupNoTruck': 'Cliente retira · sin camión',
   'planning.observations': 'Observaciones',
   'planning.location': 'Ubicación',
   'planning.coordinates': 'Coordenadas',

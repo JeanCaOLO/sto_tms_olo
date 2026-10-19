@@ -53,6 +53,7 @@ export default {
   'planning.replanning': 'Replanning…',
   'planning.clientePickup': 'Customer pickup at warehouse',
   'planning.clientePickupShort': 'Pickup',
+  'planning.clientePickupNoTruck': 'Customer pickup · no truck',
   'planning.observations': 'Notes',
   'planning.location': 'Location',
   'planning.coordinates': 'Coordinates',

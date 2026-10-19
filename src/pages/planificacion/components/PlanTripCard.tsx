@@ -76,8 +76,9 @@ export default function PlanTripCard({
       setProcesando(false);
     }
   }
-  const titulo = zonaNombre || trip.delivery_zone;
-  const mostrarCodigo = zonaNombre && zonaNombre !== trip.delivery_zone;
+  const esRetira = trip.delivery_zone === 'RETIRA' || !trip.vehicle_plate;
+  const titulo = esRetira ? t('planning.clientePickup') : (zonaNombre || trip.delivery_zone);
+  const mostrarCodigo = !esRetira && zonaNombre && zonaNombre !== trip.delivery_zone;
   const hayPeso = trip.total_weight != null;
   const hayVolumen = trip.total_volume != null;
 
@@ -113,13 +114,20 @@ export default function PlanTripCard({
             {mostrarCodigo && (
               <p className="text-[10px] text-slate-400 font-mono">{t('planning.zoneCode')} {trip.delivery_zone}</p>
             )}
-            <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-              <i className="ri-truck-line"></i>
-              <span className="truncate">{trip.vehicle_plate} · {trip.vehicle_label}</span>
-              {trip.is_flota_propia && (
-                <span className="shrink-0 text-teal-600 font-medium">· {t('planning.ownFleet')}</span>
-              )}
-            </p>
+            {esRetira ? (
+              <p className="text-xs text-amber-700 mt-1 flex items-center gap-1 font-medium">
+                <i className="ri-store-2-line"></i>
+                <span className="truncate">{t('planning.clientePickupNoTruck')}</span>
+              </p>
+            ) : (
+              <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                <i className="ri-truck-line"></i>
+                <span className="truncate">{trip.vehicle_plate} · {trip.vehicle_label}</span>
+                {trip.is_flota_propia && (
+                  <span className="shrink-0 text-teal-600 font-medium">· {t('planning.ownFleet')}</span>
+                )}
+              </p>
+            )}
           </div>
           <button
             type="button"
