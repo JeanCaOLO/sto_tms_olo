@@ -13,8 +13,10 @@ capacidad no asigne camiones con datos inventados.
 """
 
 import json
+import logging
 import re
 
+import ingest_orders
 import plan_builder
 import plans_read
 from planning_sql import ORDERS_SQL
@@ -87,6 +89,12 @@ def build_plan(event: dict) -> dict:
     rows = pg.query("SELECT country_id FROM warehouses WHERE id = %s", [warehouse])
     if not rows:
         raise HttpError(400, "Almacén inexistente")
+    # Replan: primero ingesta lo nuevo de eFlow (best-effort: si eFlow no está
+    # disponible, se planifica sobre los pedidos ya ingestados), luego arma el día.
+    try:
+        ingest_orders.ingest_cr()
+    except Exception:  # noqa: BLE001 - frontera: no bloquear la planificación por eFlow
+        logging.getLogger().warning("ingest eFlow no disponible; se planifica sobre lo ya ingestado")
     plan_id = plan_builder.construir_y_persistir(user["org"], str(rows[0]["country_id"]), warehouse, fecha, user["id"])
     plan = plans_read.obtener(user["org"], plan_id) if plan_id else None
     return json_response(200, {"data": plan, "error": None})
