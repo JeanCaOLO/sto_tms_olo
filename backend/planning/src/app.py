@@ -59,6 +59,10 @@ def _warehouse(event: dict) -> str | None:
     return (event.get("headers") or {}).get("x-warehouse-id") or None
 
 
+def _customer(event: dict) -> str | None:
+    return (event.get("headers") or {}).get("x-customer-id") or None
+
+
 def list_orders(event: dict) -> dict:
     permissions.for_event(event).require("planificacion", "view")
     date_sql, date_params = _date_filter(query_params(event))
@@ -68,7 +72,8 @@ def list_orders(event: dict) -> dict:
 
 def list_planes(event: dict) -> dict:
     permissions.for_event(event).require("planificacion", "view")
-    return json_response(200, {"data": plans_read.listar(_organization(event), _warehouse(event)), "error": None})
+    data = plans_read.listar(_organization(event), _warehouse(event), _customer(event))
+    return json_response(200, {"data": data, "error": None})
 
 
 def get_plan(event: dict) -> dict:
@@ -97,9 +102,14 @@ def build_plan(event: dict) -> dict:
         ingest_orders.ingest_cr()
     except Exception:  # noqa: BLE001 - frontera: no bloquear la planificación por eFlow
         logging.getLogger().warning("ingest eFlow no disponible; se planifica sobre lo ya ingestado")
-    plan_id = plan_builder.construir_y_persistir(user["org"], str(rows[0]["country_id"]), warehouse, fecha, user["id"])
-    plan = plans_read.obtener(user["org"], plan_id) if plan_id else None
-    return json_response(200, {"data": plan, "error": None})
+    country = str(rows[0]["country_id"])
+    # Un plan por CLIENTE (compañía) del día: planificaciones separadas Cofersa/EPA.
+    custs = pg.query("""SELECT DISTINCT customer_id FROM orders WHERE organization_id=%s AND warehouse_id=%s
+                        AND delivery_date=%s::date AND wms_status='DISP' AND wms_situation='DISP'
+                        AND eflow_id_expedicion IS NOT NULL""", [user["org"], warehouse, fecha])
+    armados = [plan_builder.construir_y_persistir(user["org"], country, warehouse, str(c["customer_id"]), fecha, user["id"])
+               for c in custs]
+    return json_response(200, {"data": {"planes": [p for p in armados if p]}, "error": None})
 
 
 def get_articulos(event: dict) -> dict:

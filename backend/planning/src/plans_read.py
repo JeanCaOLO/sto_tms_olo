@@ -14,6 +14,7 @@ _PLANS = """
 SELECT id, country_id, warehouse_id, plan_date, status, notes, created_at, updated_at
 FROM route_plans
 WHERE organization_id = %s AND (%s::uuid IS NULL OR warehouse_id = %s::uuid)
+  AND (%s::uuid IS NULL OR customer_id = %s::uuid)
 ORDER BY plan_date DESC
 """
 
@@ -98,8 +99,8 @@ def _ensamblar(planes: list[dict]) -> list[dict]:
     return [_plan(p, trips_por_plan.get(p["id"], [])) for p in planes]
 
 
-def listar(org: str, warehouse: str | None) -> list[dict]:
-    return _ensamblar(pg.query(_PLANS, [org, warehouse, warehouse]))
+def listar(org: str, warehouse: str | None, customer: str | None = None) -> list[dict]:
+    return _ensamblar(pg.query(_PLANS, [org, warehouse, warehouse, customer, customer]))
 
 
 def obtener(org: str, plan_id: str) -> dict | None:
