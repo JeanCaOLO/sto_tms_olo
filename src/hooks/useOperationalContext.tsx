@@ -160,20 +160,27 @@ export function OperationalContextProvider({ children }: { children: ReactNode }
     writePersisted({ countryId: selectedCountryId, warehouseId: selectedWarehouseId, customerId: selectedCustomerId });
   }, [selectedCountryId, selectedWarehouseId, selectedCustomerId]);
 
+  // Persistir SINCRÓNICAMENTE al seleccionar: apiFetch lee el contexto del
+  // localStorage, y los effects del consumidor (p. ej. el fetch del calendario)
+  // corren antes que el effect de persistencia del provider — si no se escribe
+  // acá, la primera request tras cambiar el filtro sale con el valor ANTERIOR.
   const selectCountry = useCallback((countryId: string | null) => {
+    writePersisted({ countryId, warehouseId: null, customerId: null });
     setSelectedCountryId(countryId);
     setSelectedWarehouseId(null);
     setSelectedCustomerId(null);
   }, []);
 
   const selectWarehouse = useCallback((warehouseId: string | null) => {
+    writePersisted({ countryId: selectedCountryId, warehouseId, customerId: null });
     setSelectedWarehouseId(warehouseId);
     setSelectedCustomerId(null);
-  }, []);
+  }, [selectedCountryId]);
 
   const selectCustomer = useCallback((customerId: string | null) => {
+    writePersisted({ countryId: selectedCountryId, warehouseId: selectedWarehouseId, customerId });
     setSelectedCustomerId(customerId);
-  }, []);
+  }, [selectedCountryId, selectedWarehouseId]);
 
   return (
     <OperationalContext.Provider

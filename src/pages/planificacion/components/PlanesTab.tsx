@@ -1,63 +1,84 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePlanesList } from '../use-planes-list';
-import { useZonasNombre } from '../use-zonas-nombre';
-import PlanTripCard from './PlanTripCard';
+import DetalleModal from './DetalleModal';
+import VistaTabla from './VistaTabla';
 import type { PlanStatus, RoutePlan } from '../planes-types';
 
 const FILTROS: (PlanStatus | 'all')[] = ['all', 'draft', 'confirmed', 'completed', 'cancelled'];
 
-// Punto de color + estilo del pill por estado (para que los filtros y los
-// badges lean de un vistazo).
-const ESTADO_UI: Record<PlanStatus, { badge: string; dot: string }> = {
-  draft: { badge: 'bg-slate-100 text-slate-700', dot: 'bg-slate-400' },
-  confirmed: { badge: 'bg-teal-50 text-teal-700', dot: 'bg-teal-500' },
-  completed: { badge: 'bg-emerald-50 text-emerald-700', dot: 'bg-emerald-500' },
-  cancelled: { badge: 'bg-red-50 text-red-700', dot: 'bg-red-500' },
+// Punto de color por estado (para que los filtros se lean de un vistazo).
+const ESTADO_DOT: Record<PlanStatus, string> = {
+  draft: 'bg-slate-400',
+  confirmed: 'bg-teal-500',
+  completed: 'bg-emerald-500',
+  cancelled: 'bg-red-500',
 };
 
-function fmt(iso: string): string {
-  const d = new Date(`${iso}T00:00:00`);
-  return d.toLocaleDateString('es-CR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+// Un plan entra en "Completadas"/"Canceladas" si tiene ≥1 viaje en ese estado
+// (completar/cancelar es por viaje); "Borrador"/"Confirmado" es estado del plan.
+function coincideEstado(p: RoutePlan, filtro: PlanStatus | 'all'): boolean {
+  if (filtro === 'all') return true;
+  if (filtro === 'completed') return p.trips.some((tr) => tr.status === 'completed');
+  if (filtro === 'cancelled') return p.trips.some((tr) => tr.status === 'cancelled');
+  return p.status === filtro;
 }
 
-// Pestaña "Planificaciones": cada plan es una tarjeta desplegable que muestra
-// fecha, estado, rutas y paradas; al expandir, cada ruta con su mapa. Las
-// acciones (completar/cancelar) viven en la cabecera de cada plan.
+// Pestaña "Planificaciones": misma vista tipo tabla del calendario (zonas×días)
+// sobre los planes REALES de Aurora, con filtro por estado y por fecha. Abrir una
+// celda reusa DetalleModal (mapa + paradas + pedidos + artículos).
 export default function PlanesTab() {
   const { t } = useTranslation();
-  const [filtro, setFiltro] = useState<PlanStatus | 'all'>('all');
   const { planes, cargando, recargar } = usePlanesList();
+  const [filtro, setFiltro] = useState<PlanStatus | 'all'>('all');
+  const [fecha, setFecha] = useState('');
+  const [detalle, setDetalle] = useState<{ fechaISO: string; zonaCodigo: string } | null>(null);
 
-  // El filtro opera sobre el estado de los VIAJES (completar/cancelar es por
-  // viaje): un plan entra en "Completadas"/"Canceladas" si tiene ≥1 viaje en ese
-  // estado. "Borrador"/"Confirmado" siguen siendo el ciclo de vida del plan.
-  const visibles = planes.filter((p) => {
-    if (filtro === 'all') return true;
-    if (filtro === 'completed') return p.trips.some((t) => t.status === 'completed');
-    if (filtro === 'cancelled') return p.trips.some((t) => t.status === 'cancelled');
-    return p.status === filtro;
-  });
+  const visibles = useMemo(
+    () => planes.filter((p) => coincideEstado(p, filtro) && (!fecha || p.plan_date === fecha)),
+    [planes, filtro, fecha],
+  );
+  const dias = useMemo(
+    () => [...new Set(visibles.map((p) => p.plan_date))].sort().map((iso) => new Date(`${iso}T00:00:00`)),
+    [visibles],
+  );
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        {FILTROS.map((f) => {
-          const activo = filtro === f;
-          const dot = f !== 'all' ? ESTADO_UI[f].dot : 'bg-slate-400';
-          return (
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {FILTROS.map((f) => (
             <button
               key={f}
               onClick={() => setFiltro(f)}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg cursor-pointer transition-colors ${
-                activo ? 'bg-teal-600 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                filtro === f ? 'bg-teal-600 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
               }`}
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${activo ? 'bg-white' : dot}`}></span>
+              <span className={`w-1.5 h-1.5 rounded-full ${filtro === f ? 'bg-white' : f !== 'all' ? ESTADO_DOT[f] : 'bg-slate-400'}`}></span>
               {t(`planning.status.${f}`)}
             </button>
-          );
-        })}
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={fecha}
+            onChange={(e) => setFecha(e.target.value)}
+            aria-label={t('planning.day')}
+            className="px-3 py-1.5 text-sm rounded-lg border border-slate-200 text-slate-600 cursor-pointer"
+          />
+          {fecha && (
+            <button
+              onClick={() => setFecha('')}
+              aria-label={t('planning.close')}
+              className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 cursor-pointer"
+            >
+              <i className="ri-close-line text-lg"></i>
+            </button>
+          )}
+        </div>
       </div>
 
       {cargando ? (
@@ -70,96 +91,17 @@ export default function PlanesTab() {
           <p className="text-sm">{t('planning.noPlans')}</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {visibles.map((p) => (
-            <PlanCard key={p.id} plan={p} onViajeActualizado={recargar} />
-          ))}
-        </div>
+        <VistaTabla planes={visibles} dias={dias} onAbrirCelda={(f, z) => setDetalle({ fechaISO: f, zonaCodigo: z })} />
       )}
-    </div>
-  );
-}
 
-function PlanCard({
-  plan,
-  onViajeActualizado,
-}: {
-  plan: RoutePlan;
-  onViajeActualizado: () => void | Promise<void>;
-}) {
-  const { t } = useTranslation();
-  const { nombreDe } = useZonasNombre();
-  const [abierto, setAbierto] = useState(false);
-
-  const ui = ESTADO_UI[plan.status];
-  const paradas = plan.trips.reduce((acc, trip) => acc + trip.stops.length, 0);
-  const completados = plan.trips.filter((tr) => tr.status === 'completed').length;
-  const cancelados = plan.trips.filter((tr) => tr.status === 'cancelled').length;
-
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      <div className="flex items-center gap-3 p-4">
-        <button
-          onClick={() => setAbierto((v) => !v)}
-          aria-expanded={abierto}
-          className="flex items-center gap-3 flex-1 min-w-0 text-left cursor-pointer"
-        >
-          <i
-            className={`ri-arrow-right-s-line text-xl text-slate-400 transition-transform shrink-0 ${abierto ? 'rotate-90' : ''}`}
-          ></i>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-slate-800 capitalize truncate">{fmt(plan.plan_date)}</p>
-            <p className="text-xs text-slate-500 mt-0.5 flex flex-wrap items-center gap-x-2">
-              <span><i className="ri-route-line mr-1"></i>{plan.trips.length} {t('planning.routesWord')}</span>
-              <span><i className="ri-map-pin-line mr-1"></i>{paradas} {t('planning.stopsWord')}</span>
-              {completados > 0 && (
-                <span className="text-emerald-600">
-                  <i className="ri-check-double-line mr-1"></i>{completados} {t('planning.status.completed').toLowerCase()}
-                </span>
-              )}
-              {cancelados > 0 && (
-                <span className="text-red-600">
-                  <i className="ri-close-line mr-1"></i>{cancelados} {t('planning.status.cancelled').toLowerCase()}
-                </span>
-              )}
-              {plan.unassigned_order_numbers.length > 0 && (
-                <span className="text-amber-600">
-                  <i className="ri-alert-line mr-1"></i>{plan.unassigned_order_numbers.length} {t('planning.unassignedShort')}
-                </span>
-              )}
-            </p>
-          </div>
-        </button>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${ui.badge}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${ui.dot}`}></span>
-            {t(`planning.status.${plan.status}`)}
-          </span>
-        </div>
-      </div>
-
-      {abierto && (
-        <div className="border-t border-slate-100 bg-slate-50 p-4">
-          {plan.trips.length === 0 ? (
-            <p className="text-center text-sm text-slate-400 py-6">{t('planning.noStops')}</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {plan.trips.map((trip, i) => (
-                <PlanTripCard
-                  key={trip.id}
-                  trip={trip}
-                  indice={i}
-                  zonaNombre={nombreDe(trip.delivery_zone)}
-                  editable={false}
-                  destinos={[]}
-                  onMover={() => {}}
-                  onViajeActualizado={onViajeActualizado}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+      {detalle && (
+        <DetalleModal
+          planes={visibles}
+          fechaISO={detalle.fechaISO}
+          zonaCodigo={detalle.zonaCodigo}
+          onClose={() => setDetalle(null)}
+          onRecargar={recargar}
+        />
       )}
     </div>
   );

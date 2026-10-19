@@ -3,7 +3,7 @@ import { addDays, addMonths, format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useTranslation } from 'react-i18next';
 import { usePlanesList } from '../use-planes-list';
-import { useEflowSimPlanes } from '../use-eflow-sim-planes';
+import { replanificarTodo } from '../planes-api';
 import {
   diasMes, diasSemana, filtrarPorZonas, isoDe, numeroDeViaje, zonasPresentes,
   type VistaCalendario,
@@ -21,22 +21,28 @@ function fmtDia(iso: string): string {
 }
 
 // Calendario de planificación: rango día/semana/mes × modo cuadrícula/tabla, con
-// filtro por zona. Toma los planes de Aurora (usePlanesList) y, si no hay, del
-// API simulado de eFlow cacheado en localStorage (useEflowSimPlanes). Abrir una
-// celda/día reusa PlanTripCard (mapa + paradas + pedidos + artículos) en un modal.
+// filtro por zona. Toma los planes REALES persistidos en Aurora (usePlanesList).
+// Abrir una celda/día reusa PlanTripCard (mapa + paradas + pedidos + artículos)
+// en un modal.
 export default function CalendarioPlanificacion() {
   const { t } = useTranslation();
-  const { planes: reales, cargando: cargandoReales, recargar } = usePlanesList();
-  const { planes: eflow, cargando: cargandoEflow, regenerar } = useEflowSimPlanes();
+  const { planes: base, cargando, recargar } = usePlanesList();
   const [vista, setVista] = useState<VistaCalendario>('semana');
   const [modo, setModo] = useState<Modo>('cuadricula');
   const [ancla, setAncla] = useState<Date>(() => new Date());
   const [zonasSel, setZonasSel] = useState<Set<string>>(new Set());
   const [detalle, setDetalle] = useState<{ fechaISO: string; zonaCodigo: string | null } | null>(null);
+  const [replanificando, setReplanificando] = useState(false);
 
-  const usandoSim = reales.length === 0;
-  const base = usandoSim ? eflow : reales;
-  const cargando = cargandoReales || (usandoSim && cargandoEflow);
+  async function replanificar() {
+    setReplanificando(true);
+    try {
+      await replanificarTodo();
+      await recargar();
+    } finally {
+      setReplanificando(false);
+    }
+  }
 
   const dias = useMemo(
     () => (vista === 'mes' ? diasMes(ancla) : vista === 'dia' ? [ancla] : diasSemana(ancla)),
@@ -88,20 +94,15 @@ export default function CalendarioPlanificacion() {
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <FiltroZonas zonas={zonasRango} seleccionadas={zonasSel} onToggle={toggleZona} onTodas={() => setZonasSel(new Set())} />
-        {usandoSim && (
-          <button onClick={regenerar} className="inline-flex items-center gap-1.5 self-start px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 cursor-pointer">
-            <i className="ri-refresh-line"></i>
-            {t('planning.refreshEflow')}
-          </button>
-        )}
+        <button
+          onClick={replanificar}
+          disabled={replanificando}
+          className="inline-flex items-center gap-1.5 self-start shrink-0 px-3 py-1.5 text-sm font-semibold rounded-lg bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white cursor-pointer"
+        >
+          <i className={`ri-refresh-line ${replanificando ? 'animate-spin' : ''}`}></i>
+          {replanificando ? t('planning.replanning') : t('planning.replan')}
+        </button>
       </div>
-
-      {usandoSim && (
-        <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          <i className="ri-information-line"></i>
-          {t('planning.simBanner')}
-        </div>
-      )}
 
       {cargando ? (
         <div className="flex items-center justify-center h-48 text-slate-500">
