@@ -149,6 +149,7 @@ def tracking(monkeypatch):
     db.answer("FROM app_users", [{"organization_id": ORG}])
     app = load_stack_module("tracking")
     app._URL_CACHE.clear()
+    app._SUMMARY_CACHE.clear()
     monkeypatch.setattr(app, "_now", lambda: NOW)
     return app, db
 
@@ -434,6 +435,24 @@ def test_start_viaje_saves_planned_times_distance_and_capacity(tracking):
     assert km > 0 and capacity == 25.0
 
 
+def test_start_viaje_without_origin_coordinates_leaves_planned_times_empty(tracking):
+    """Sede sin lat/lng (p. ej. CD-CR): no hay primer tramo que estimar, así que no se inventan horas (sin falso retraso)."""
+    app, db = tracking
+    db.answer("FROM plan_trips pt", [_plan_trip()])
+    db.answer("FROM plan_stops", [{"order_id": "o1", "lat": 9.93, "lng": -84.08}])
+    db.answer("FROM stores", [{"id": "store-1", "latitude": None, "longitude": None}])
+    db.answer("INSERT INTO routes", [{"id": ROUTE}])
+    app.handler(_event("POST /api/v1/tracking/viajes/{id}/iniciar", path={"id": TRIP}), None)
+    assert db.wrote("INSERT INTO routes")[0][1][-3] is None
+    assert [params[-1] for _, params in db.wrote("INSERT INTO dispatch_guides")] == [None]
+
+
+def test_list_rejects_a_cursor_with_an_invalid_timestamp(tracking):
+    app, _ = tracking
+    cursor = "no-es-fecha|11111111-1111-4111-8111-111111111111"
+    assert app.handler(_event("GET /api/v1/tracking/viajes", query={"cursor": cursor}), None)["statusCode"] == 400
+
+
 # --- app del chofer: aislamiento, mi-viaje, geocerca y devoluciones ------------------------------------
 
 STOP_LAT, STOP_LNG = 9.9300, -84.0800
@@ -609,14 +628,12 @@ def test_stopped_is_alerted_in_the_list_from_batched_positions(tracking):
     app, db = tracking
     db.answer("GROUP BY g.route_id", [_progress(ROUTE)])
     db.answer("FROM routes r", [_row()])
-    still = [{"route_id": ROUTE, "latitude": 9.9, "longitude": -84.05,
-              "recorded_at": NOW - timedelta(minutes=m)} for m in (25, 15, 5, 0)]
-    db.answer("recorded_at >= %s::timestamptz", still)
+    db.answer("FROM tracking_positions p", [{"route_id": ROUTE, "since": NOW - timedelta(minutes=25)}])
     item = body_of(app.handler(_event("GET /api/v1/tracking/viajes"), None))["data"]["items"][0]
     assert {"code": "stopped", "count": 25} in item["alerts"]
-    stopped_query = db.wrote("SELECT route_id, latitude")[0]
-    assert "NOT is_mock" in stopped_query[0] and "accuracy_m <= 200" in stopped_query[0]
-    assert stopped_query[1][1] == NOW - timedelta(minutes=60)
+    stopped_query = next(c for c in db.calls if "FROM tracking_positions p" in c[0])
+    assert "NOT p.is_mock" in stopped_query[0] and "accuracy_m <= 200" in stopped_query[0]
+    assert "interval '60 minutes'" in stopped_query[0] and "> 75" in stopped_query[0]
 
 
 def test_list_page_uses_a_fixed_number_of_queries(tracking):
@@ -785,6 +802,37 @@ def test_stopped_by_route_groups_per_route(logic):
             {"route_id": "r2", "latitude": 9.9, "longitude": -84.05, "recorded_at": NOW - timedelta(minutes=3)},
             {"route_id": "r2", "latitude": 9.95, "longitude": -84.05, "recorded_at": NOW}]
     assert logic.stopped_by_route(rows, NOW) == {"r1": 22, "r2": 0}
+
+
+def test_stopped_from_since_turns_the_db_answer_into_minutes(logic):
+    rows = [{"route_id": "r1", "since": NOW - timedelta(minutes=22)}, {"route_id": "r2", "since": None}]
+    assert logic.stopped_from_since(rows, NOW) == {"r1": 22}
+
+
+def test_summary_is_cached_for_a_few_seconds_per_scope(tracking, monkeypatch):
+    app, db = tracking
+    db.answer("count(*) AS n", [{"n": 2}])
+    db.answer("FROM routes r", [_row()])
+    first = body_of(app.handler(_event("GET /api/v1/tracking/viajes", query={"include": "summary"}), None))
+    calls = len(db.calls)
+    second = body_of(app.handler(_event("GET /api/v1/tracking/viajes", query={"include": "summary", "limit": "5"}), None))
+    summary_queries = lambda: [c for c in db.calls[calls:] if "count(*) AS n" in c[0]]
+    assert second["data"]["summary"] == first["data"]["summary"] and not summary_queries()
+    monkeypatch.setattr(app, "_now", lambda: NOW + timedelta(seconds=app.SUMMARY_TTL_SECONDS + 1))
+    app.handler(_event("GET /api/v1/tracking/viajes", query={"include": "summary"}), None)
+    assert summary_queries()
+
+
+def test_offline_signal_gives_no_eta_nor_late_alert(tracking):
+    """Posición de hace 2 días: ni "retraso de 4000 min" ni distancia 0 m; solo la alerta no_signal."""
+    app, db = tracking
+    old = _row(last_position_at=NOW - timedelta(days=2))
+    db.answer("GROUP BY g.route_id", [_progress(ROUTE)])
+    db.answer("FROM routes r", [old])
+    db.answer("SELECT g.route_id, g.id, g.sequence_number", [_full_stop(1, planned=LATE_STOP)])
+    item = body_of(app.handler(_event("GET /api/v1/tracking/viajes"), None))["data"]["items"][0]
+    codes = [a["code"] for a in item["alerts"]]
+    assert "no_signal" in codes and "late" not in codes and item["delay_min"] is None
 
 
 def test_positions_usable_and_route_grace_rules(logic):

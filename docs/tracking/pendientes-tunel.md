@@ -4,13 +4,28 @@ Todo lo de abajo quedó **preparado pero sin ejecutar** porque requiere el túne
 
 > **Orden obligatorio:** el backend v2 (`backend/tracking`) lee la columna `routes.departed_at`. **Aplicar `sql/44` (T2) ANTES** de levantar o desplegar el backend v2 contra una base; si no, `GET /viajes` falla con `column r.departed_at does not exist`.
 
+## Pendiente de datos: ubicación de la sede de Costa Rica
+
+`stores` `CD-CR` (Bodega Central OLO CR) **no tiene latitud/longitud** (VN sí). Hay que pedir las ubicaciones de inicio de CR y cargarlas en `stores` (lo hace quien administre el catálogo; Tracking no inventa coordenadas). Mientras tanto: el viaje se inicia sin horas planificadas (no hay falso retraso, solo no se mide el atraso), no se dibuja la sede en el mapa y "por salir / en ruta" cae al respaldo "ya reportó posición".
+
+## Optimización de lecturas (2026-10-19)
+
+- "Detenido" se calcula en la BD (`STOPPED_SINCE_SQL`, una fila por viaje) en vez de traer hasta 60 min de posiciones de todos los camiones (≈24 mil filas por refresco con 200 camiones). Misma regla (75 m, 20 min), validada contra Aurora.
+- Los KPIs se cachean 5 s por (organización, país, países del rol) en el contenedor Lambda: N pantallas = 1 cálculo.
+- "Completados hoy" solo mira viajes creados en los últimos 30 días.
+- `cursor` con fecha inválida responde 400.
+
+## Verificación en navegador contra Aurora (2026-10-19, modo API)
+
+Probado con la sesión del usuario en `localhost:3001` → backend `:4001` → Aurora: KPIs, selector CR/Venezuela, lista Activos/Todos, panel, ruta por calles (OSRM), replay, polling (lista + detalle cada 15 s). Bugs hallados y corregidos: (1) viaje con señal de hace 2 días mostraba "Retraso de 4038 min" y "0 m" → sin ETA/late con señal caducada; (2) los KPIs se vaciaban ("—") al cambiar Activos/Todos → se conserva el último valor; (3) paradas pendientes en gris poco visibles → violeta. Observaciones sin cambio: "A tiempo" cuenta también los viajes sin señal (`on_time = active − late`); los 503 que ve el depurador son peticiones abortadas al cambiar de filtro. Falta con token (F1/F2): contrato v2 por script, iniciar/posiciones/geocerca/idempotencia y roles.
+
 ## Resumen
 
 | # | Pendiente | Requiere | Estado |
 |---|---|---|---|
 | T0 | Abrir túnel y levantar el backend de tracking en local | túnel | — |
 | T1 | Verificar qué migraciones de tracking (40–43) están aplicadas | túnel | sin verificar |
-| T2 | Aplicar `sql/44_tracking_rendimiento.sql` | túnel + rol DDL | escrita, no aplicada |
+| T2 | Aplicar `sql/44_tracking_rendimiento.sql` | túnel + rol DDL | **APLICADA 2026-10-19** (dry-run y execute; columna + 6 índices verificados) |
 | T3 | Verificar el contrato v2 contra el backend real | túnel | script listo |
 | T4 | Pasar la web de mock a API | túnel | listo (solo configuración) |
 | T5 | Probar la ingesta real (seed, iniciar, posiciones por calles) | túnel | scripts listos |

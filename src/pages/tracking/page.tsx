@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Button from '../../components/base/Button';
 import { useModulePermissions } from '../../hooks/use-module-permissions';
@@ -57,6 +57,10 @@ export default function TrackingPage() {
   const canLoadMore = viajes.length >= limit && limit < MAX_LIMIT;
   const stale = list.error !== null && list.data !== null;
 
+  // Los KPIs no dependen de Activos/Todos ni del filtro: se conserva el último valor del país mientras recarga.
+  const keptSummary = useRef<{ country: string | null; summary: NonNullable<typeof list.data>['summary'] } | null>(null);
+  if (list.data?.summary) keptSummary.current = { country, summary: list.data.summary };
+  const summary = list.data?.summary ?? (keptSummary.current?.country === country ? keptSummary.current.summary : null);
   const select = useCallback((id: string) => setSelectedId((current) => (current === id ? null : id)), []);
   const refresh = () => { list.refresh(); detail.refresh(); };
   const pickKpi = (value: KpiFilter | null) => {
@@ -93,7 +97,7 @@ export default function TrackingPage() {
         </p>
       )}
 
-      <ResumenBar resumen={list.data?.summary ?? null} selected={kpi} onSelect={pickKpi} />
+      <ResumenBar resumen={summary ?? null} selected={kpi} onSelect={pickKpi} />
 
       <div className={`grid grid-cols-1 gap-4 h-[calc(100vh-16rem)] min-h-[520px] ${layout}`}>
         <ViajesSidebar

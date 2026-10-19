@@ -63,13 +63,28 @@ LEFT JOIN plan_stops ps ON ps.trip_id = r.plan_trip_id AND ps.order_id = g.order
 WHERE g.route_id = ANY(%s::uuid[])
 """
 
-# Posiciones recientes (ventana de STOPPED_WINDOW_MIN) para medir cuánto lleva detenido cada camión.
-# Usa el índice (route_id, recorded_at desc); excluye mock y precisión mala, igual que la posición.
-STOPPED_POSITIONS_SQL = """
-SELECT route_id, latitude, longitude, recorded_at FROM tracking_positions
-WHERE route_id = ANY(%s::uuid[]) AND recorded_at >= %s::timestamptz
-  AND NOT is_mock AND (accuracy_m IS NULL OR accuracy_m <= 200)
-ORDER BY route_id, recorded_at
+# Desde cuándo está detenido cada camión, calculado EN LA BD (una fila por ruta, no miles de posiciones):
+# `far.t` = último punto de la ventana a más de {radius} m de la última posición; el camión lleva quieto desde
+# la primera posición posterior a `far.t` (o desde el inicio de la ventana si nunca se alejó). Misma regla que
+# logic.stopped_minutes. Ventana con `now()` de la BD: así el único parámetro son los ids y va en 1 round-trip.
+STOPPED_SINCE_SQL = """
+WITH w AS (
+  SELECT p.route_id, p.recorded_at,
+         6371000 * 2 * asin(sqrt(
+           power(sin(radians(p.latitude - lp.latitude) / 2), 2)
+           + cos(radians(lp.latitude)) * cos(radians(p.latitude)) * power(sin(radians(p.longitude - lp.longitude) / 2), 2)
+         )) AS dist_m
+  FROM tracking_positions p
+  JOIN tracking_last_positions lp ON lp.route_id = p.route_id
+  WHERE p.route_id = ANY(%s::uuid[]) AND p.recorded_at >= now() - interval '{window} minutes'
+    AND NOT p.is_mock AND (p.accuracy_m IS NULL OR p.accuracy_m <= 200)
+), far AS (
+  SELECT route_id, max(recorded_at) AS t FROM w WHERE dist_m > {radius} GROUP BY route_id
+)
+SELECT w.route_id, min(w.recorded_at) AS since
+FROM w LEFT JOIN far ON far.route_id = w.route_id
+WHERE far.t IS NULL OR w.recorded_at > far.t
+GROUP BY w.route_id
 """
 
 # Viajes completados hoy (día local del país). `where` lo arma app.py con el alcance (org, país, día).

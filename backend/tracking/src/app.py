@@ -40,6 +40,8 @@ UNIQUE_VIOLATION = "23505"   # SQLSTATE de unicidad (lo traduce tms_common.pg a 
 GZIP_MIN_BYTES = 1024        # por debajo, comprimir no compensa el base64
 
 _s3 = None
+SUMMARY_TTL_SECONDS = 5  # KPIs: todas las pantallas del mismo alcance comparten el cálculo durante unos segundos
+_SUMMARY_CACHE: dict[tuple, tuple[datetime, dict]] = {}
 _URL_CACHE: dict[str, tuple[str, float]] = {}  # storage_key -> (url firmada, vence en epoch s)
 
 
@@ -170,11 +172,14 @@ def _rej(pos: dict, reason: str) -> dict:
 
 # --- vista de viajes ----------------------------------------------------------------------------------
 
-def _live(state: str, position, guides: list[dict], now: datetime) -> dict:
+def _live(state: str, position, guides: list[dict], now: datetime, last_at=None) -> dict:
     """ETA y retraso de las paradas pendientes: la MISMA regla para la lista y el detalle. Solo viajes en
-    tránsito. Sin posición no hay ETA: los retrasos quedan en None (no se alerta sin datos)."""
+    tránsito. Sin posición, o con la señal caducada (`offline`: la posición ya no dice dónde está el camión),
+    no hay ETA: los retrasos quedan en None; el aviso es `no_signal`, no un retraso de días."""
     if state != "active":
         return {"by_stop": {}, "next_stop_id": None, "delay_min": None}
+    if position is not None and logic.signal(last_at, now) == "offline":
+        position = None
     result = logic.stop_metrics(position, logic.stop_inputs(guides), now)
     if position is None:
         for metrics in result["by_stop"].values():
@@ -187,8 +192,8 @@ def _stopped(route_ids: list[str], now: datetime) -> dict[str, int]:
     """Minutos detenidos por ruta: UNA consulta de posiciones recientes para todas las rutas (tope de ventana)."""
     if not route_ids:
         return {}
-    cutoff = now - timedelta(minutes=logic.STOPPED_WINDOW_MIN)
-    return logic.stopped_by_route(_rq(sql.STOPPED_POSITIONS_SQL, [route_ids, cutoff]), now)
+    query = sql.STOPPED_SINCE_SQL.format(window=logic.STOPPED_WINDOW_MIN, radius=logic.STOPPED_RADIUS_M)
+    return logic.stopped_from_since(_rq(query, [route_ids]), now)
 
 
 def _batch(rows: list[dict], now: datetime) -> dict:
@@ -205,7 +210,8 @@ def _batch(rows: list[dict], now: datetime) -> dict:
 def _list_item(row: dict, batch: dict, now: datetime) -> dict:
     rid = str(row["id"])
     state = logic.route_state(row["status"])
-    live = _live(state, _coords(row["last_lat"], row["last_lng"]), batch["guides"].get(rid, []), now)
+    live = _live(state, _coords(row["last_lat"], row["last_lng"]), batch["guides"].get(rid, []), now,
+                 row["last_position_at"])
     return _viaje(row, batch["counts"].get(rid), live, batch["stopped"].get(rid, 0), now)
 
 
@@ -271,7 +277,21 @@ def _scope(caller, org_id: str, query: dict, *, only_active: bool) -> tuple[list
 
 
 def _summary(caller, org_id: str, query: dict, now: datetime) -> dict:
-    """KPIs de TODOS los viajes activos del alcance (no solo la página). Consultas por lote, no por viaje."""
+    """KPIs de TODOS los viajes activos del alcance (no solo la página), con caché de SUMMARY_TTL_SECONDS por
+    (organización, país pedido, países del rol): N pantallas abiertas cuestan un cálculo, no N."""
+    allowed = caller.country_filter
+    key = (org_id, (query.get("pais") or "").strip().upper(), None if allowed is None else tuple(sorted(allowed)))
+    hit = _SUMMARY_CACHE.get(key)
+    if hit and timedelta(0) <= now - hit[0] < timedelta(seconds=SUMMARY_TTL_SECONDS):
+        return dict(hit[1])
+    data = _compute_summary(caller, org_id, query, now)
+    if len(_SUMMARY_CACHE) >= 200:
+        _SUMMARY_CACHE.clear()
+    _SUMMARY_CACHE[key] = (now, data)
+    return dict(data)
+
+
+def _compute_summary(caller, org_id: str, query: dict, now: datetime) -> dict:
     where, params = _scope(caller, org_id, query, only_active=True)
     rows = _rq(f"SELECT {sql.VIAJE_COLUMNS} {sql.VIAJE_JOINS} WHERE {' AND '.join(where)} ORDER BY sort_at DESC",
                params)
@@ -281,10 +301,11 @@ def _summary(caller, org_id: str, query: dict, now: datetime) -> dict:
     no_signal = sum(any(a["code"] == logic.ALERT_NO_SIGNAL for a in v["alerts"]) for v in viajes)
     # Completados hoy en el día local del país (timezone de countries).
     where, params = _scope(caller, org_id, query, only_active=False)
-    where += [f"lower({sql.STATUS_EXPR}) = ANY(%s)", f"{sql.END_EXPR} IS NOT NULL",
+    # Acotado a viajes creados en los últimos 30 días: sin esto la consulta escanea todo el histórico de la org.
+    where += ["r.created_at >= %s", f"lower({sql.STATUS_EXPR}) = ANY(%s)", f"{sql.END_EXPR} IS NOT NULL",
               f"({sql.END_EXPR} AT TIME ZONE coalesce(co.timezone, 'UTC'))::date"
               " = (%s::timestamptz AT TIME ZONE coalesce(co.timezone, 'UTC'))::date"]
-    params += [logic.COMPLETED_STATUS_SQL_VALUES, now]
+    params += [now - timedelta(days=30), logic.COMPLETED_STATUS_SQL_VALUES, now]
     today = _rq(sql.COMPLETED_TODAY_SQL.format(where=" AND ".join(where)), params)
     return {
         "active": len(viajes),
@@ -328,6 +349,10 @@ def list_viajes(event: dict) -> dict:
     cursor = query.get("cursor")
     if cursor:
         sort_at, _, last_id = cursor.partition("|")
+        try:
+            logic.parse_time(sort_at, "cursor")
+        except ValueError:
+            raise HttpError(400, "cursor inválido") from None
         if not logic.is_uuid(last_id):
             raise HttpError(400, "cursor inválido")
         where.append("(COALESCE(r.actual_start_time, r.created_at), r.id) < (%s::timestamptz, %s::uuid)")
@@ -399,7 +424,7 @@ def _detail(route_id: str, *, driver: bool = False) -> dict:
     state = logic.route_state(row["status"])
     position = _coords(row["last_lat"], row["last_lng"])
     origin = _coords(row["origin_lat"], row["origin_lng"])
-    live = _live(state, position, guides, now)
+    live = _live(state, position, guides, now, row["last_position_at"])
     stopped = _stopped([route_id] if state == "active" else [], now).get(route_id, 0)
     data = _viaje(row, counts, live, stopped, now)
     data.update({
@@ -480,8 +505,12 @@ def start_viaje(event: dict) -> dict:
         zone = run(sql.ZONE_SQL, [org_id, trip["delivery_zone"], trip["delivery_zone"]]) if trip["delivery_zone"] else []
         route_number = f"VJ-{trip['plan_date'].strftime('%Y%m%d')}-{str(trip['id'])[:8].upper()}"
         # Horas planificadas (salida = ahora): referencia fija para medir el retraso. Planificación no las guarda.
-        plan = logic.plan_schedule(_coords(stores[0]["latitude"], stores[0]["longitude"]),
-                                   [{"lat": _float(st["lat"]), "lng": _float(st["lng"])} for st in stops], _now())
+        origin = _coords(stores[0]["latitude"], stores[0]["longitude"])
+        plan = logic.plan_schedule(origin, [{"lat": _float(st["lat"]), "lng": _float(st["lng"])} for st in stops],
+                                   _now())
+        if origin is None:
+            # Sin coordenadas de la sede no hay primer tramo que estimar: sin hora planificada no hay falso retraso.
+            plan = {"arrivals": [None] * len(stops), "end": None, "total_km": None}
         capacity = None
         if trip["total_weight"] is not None and trip["vehicle_capacity_weight"]:
             capacity = round(float(trip["total_weight"]) * 100 / float(trip["vehicle_capacity_weight"]), 2)

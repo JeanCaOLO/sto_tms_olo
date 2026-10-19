@@ -54,7 +54,7 @@ Viaje + `{ origin: { lat, lng, name } | null, next_stop_id, departed_at, stops: 
 |---|---|
 | Señal | `online` ≤ 5 min · `stale` ≤ 30 min · `offline` después · `none` si nunca hubo posición (umbrales amplios por la cobertura móvil irregular) |
 | Color en mapa | verde online · ámbar stale · gris offline/none · azul completado |
-| `late` | retraso > 15 min = ETA a la siguiente parada pendiente (por secuencia) − su hora planificada. Igual en lista y detalle. Sin posición no hay ETA ni `late`. |
+| `late` | retraso > 15 min = ETA a la siguiente parada pendiente (por secuencia) − su hora planificada. Igual en lista y detalle. Sin posición, o con la señal caducada (`offline`), no hay ETA ni `late` (`distance_m`/`eta_at`/`delay_min` = null): el aviso es `no_signal`, no un retraso de días. |
 | `stopped` | ≥ 20 min sin moverse más de 75 m (ventana de 60 min de posiciones), solo con señal online |
 | `no_signal` | solo si hubo señal y caducó (`offline`); `none` no alerta |
 | `failed` | alguna parada fallida |

@@ -344,7 +344,7 @@ function toViaje(trip: STrip, now: number): Viaje {
   const failed = trip.stops.filter((s) => s.state === 'failed').length;
   const total = trip.stops.length;
   const next = nextPending(trip);
-  const delay = active && next && hasGps(trip) ? etas(trip, now).get(next.id)?.delay ?? null : null;
+  const delay = active && next && hasGps(trip) && signal !== 'offline' ? etas(trip, now).get(next.id)?.delay ?? null : null;
   const alerts: TripAlert[] = [];
   if (failed > 0) alerts.push({ code: 'failed', count: failed });
   if (active && signal === 'offline') alerts.push({ code: 'no_signal' });
@@ -436,7 +436,7 @@ export function simDetail(id: string): ViajeDetalle {
   const now = clock();
   ensure(now);
   const trip = byId(id);
-  const next = trip.endedAt == null && hasGps(trip) ? etas(trip, now) : new Map<string, Eta>();
+  const next = trip.endedAt == null && hasGps(trip) && signalOf(trip, now) !== 'offline' ? etas(trip, now) : new Map<string, Eta>();
   return {
     ...toViaje(trip, now),
     origin: { lat: trip.origin[0], lng: trip.origin[1], name: `CD-${trip.def.country}` },

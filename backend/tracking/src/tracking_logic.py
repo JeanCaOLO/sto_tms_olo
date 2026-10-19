@@ -250,6 +250,12 @@ def stopped_by_route(rows: list[dict], now: datetime) -> dict[str, int]:
     return {route: stopped_minutes(points, now) for route, points in grouped.items()}
 
 
+def stopped_from_since(rows: list[dict], now: datetime) -> dict[str, int]:
+    """Minutos detenidos por ruta desde `since` (la BD ya resolvió desde cuándo está en el mismo sitio)."""
+    return {str(r["route_id"]): max(0, round((_aware(now) - _aware(r["since"])).total_seconds() / 60))
+            for r in rows if r["since"] is not None}
+
+
 def positions_usable(is_mock: bool, accuracy_m) -> bool:
     """Un punto mock o con precisión > 200 m se guarda pero no cuenta para la posición ni el recorrido."""
     return not is_mock and (accuracy_m is None or float(accuracy_m) <= ACCURACY_MAX_M)
