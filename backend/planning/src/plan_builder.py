@@ -7,6 +7,9 @@ número fijo de paradas. Idempotente: re-planificar un día borra sus planes y l
 reconstruye con la cola vigente (replan).
 """
 
+import math
+import uuid
+
 from tms_common import pg
 
 # Márgenes de seguridad (ver capacity-fit.ts / Decreto 31363-MOPT): el peso es
@@ -16,12 +19,29 @@ MARGEN_VOLUMEN = 0.95
 # Tope operativo de paradas por viaje (una jornada no hace infinitas entregas);
 # knob de calibración, sobre todo para zonas de pedidos sin peso (EPA).
 MAX_PARADAS = 25
+# Depósito de origen CR + alcance de una jornada (línea recta): knob del T-n.
+DEPOT_CR = (9.9281, -84.0907)
+KM_POR_DIA = 70
+
+
+def _haversine_km(a: tuple[float, float], b: tuple[float, float]) -> float:
+    r = 6371.0
+    dlat, dlng = math.radians(b[0] - a[0]), math.radians(b[1] - a[1])
+    h = math.sin(dlat / 2) ** 2 + math.cos(math.radians(a[0])) * math.cos(math.radians(b[0])) * math.sin(dlng / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(h))
+
+
+def _lead_time_dias(pedidos: list[dict]) -> int | None:
+    """T-n por distancia real de la parada más lejana al depósito. None sin coords."""
+    kms = [_haversine_km(DEPOT_CR, (o["lat"], o["lng"])) for o in pedidos if o["lat"] is not None and o["lng"] is not None]
+    return 1 + int(max(kms) // KM_POR_DIA) if kms else None
 
 _ORDERS = """
 SELECT o.id, o.order_number, o.delivery_city, o.delivery_zone,
        o.delivery_latitude::float AS lat, o.delivery_longitude::float AS lng,
        o.total_weight::float AS weight, o.total_volume::float AS volume, o.priority,
-       fc.name AS customer_name
+       fc.name AS customer_name,
+       o.eflow_id_compania, o.eflow_id_almacen, o.eflow_id_sucursal, o.eflow_id_expedicion
 FROM orders o
 LEFT JOIN final_customers fc ON fc.id = o.final_customer_id
 WHERE o.organization_id = %s AND o.warehouse_id = %s
@@ -83,6 +103,37 @@ def _agrupar_por_zona(pedidos: list[dict]) -> dict:
     return zonas
 
 
+_UPD_ORDER = "UPDATE orders SET numero_viaje=%s, lead_time_days=%s, planning_run_id=%s, updated_at=now() WHERE id=%s"
+_UPSERT_SIM = """
+INSERT INTO eflow_sim_cabecera (id_compania, id_almacen, id_sucursal, id_expedicion, numero_viaje_wmh, planning_run_id)
+VALUES (%s,%s,%s,%s,%s,%s)
+ON CONFLICT (id_almacen, id_compania, id_sucursal, id_expedicion)
+DO UPDATE SET numero_viaje_wmh=EXCLUDED.numero_viaje_wmh, planning_run_id=EXCLUDED.planning_run_id, escrito_en=now()"""
+_INS_TRIP = """
+INSERT INTO plan_trips (plan_id, vehicle_id, delivery_zone, sequence_order, total_weight, total_volume,
+  vehicle_plate, vehicle_capacity_weight, vehicle_capacity_volume, is_owned, status, numero_viaje, lead_time_days)
+VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,true,'pending',%s,%s) RETURNING id"""
+_INS_STOP = """
+INSERT INTO plan_stops (trip_id, order_id, stop_order, order_number, customer_name, delivery_city,
+  delivery_zone, latitude, longitude, weight, volume)
+VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
+
+
+def _persistir_viaje(run, plan_id: str, zona: str, seq: int, viaje: dict, run_id: str, numero: str) -> None:
+    """Inserta el viaje y sus paradas, y estampa el resultado en orders + eFlow sim."""
+    veh = viaje["veh"]
+    lead = _lead_time_dias(viaje["pedidos"])
+    trip_id = run(_INS_TRIP, [plan_id, veh["id"], zona, seq, viaje["peso"], viaje["volumen"],
+                              veh["plate"], veh["cw"], veh["cv"], numero, lead])[0]["id"]
+    for i, o in enumerate(viaje["pedidos"], start=1):
+        run(_INS_STOP, [trip_id, o["id"], i, o["order_number"], o["customer_name"], o["delivery_city"],
+                        o["delivery_zone"], o["lat"], o["lng"], o["weight"], o["volume"]])
+        run(_UPD_ORDER, [numero, lead, run_id, o["id"]])  # denormaliza al pedido para el OMS
+        if o["eflow_id_expedicion"]:  # write-back simulado del nº de viaje a eFlow
+            run(_UPSERT_SIM, [o["eflow_id_compania"], o["eflow_id_almacen"], o["eflow_id_sucursal"],
+                              o["eflow_id_expedicion"], numero, run_id])
+
+
 def construir_y_persistir(org: str, country: str, warehouse: str, fecha: str, created_by: str) -> str | None:
     """Planifica el día sobre orders y persiste. Devuelve el id del route_plan, o
     None si no hay pedidos ese día (en tal caso borra el plan previo, no deja uno vacío)."""
@@ -94,6 +145,9 @@ def construir_y_persistir(org: str, country: str, warehouse: str, fecha: str, cr
     if not flota:
         from tms_common.errors import HttpError
         raise HttpError(409, "No hay flota propia activa para planificar")
+
+    run_id = str(uuid.uuid4())
+    fecha_compact = fecha.replace("-", "")
 
     def trabajo(run):
         _borrar_plan_del_dia(run, org, warehouse, fecha)
@@ -107,20 +161,7 @@ def construir_y_persistir(org: str, country: str, warehouse: str, fecha: str, cr
             viajes, vi = _empacar(ped_zona, flota, vi)
             for viaje in viajes:
                 seq += 1
-                veh = viaje["veh"]
-                trip = run("""INSERT INTO plan_trips (plan_id, vehicle_id, delivery_zone, sequence_order,
-                                 total_weight, total_volume, vehicle_plate, vehicle_capacity_weight,
-                                 vehicle_capacity_volume, is_owned, status)
-                              VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,true,'pending') RETURNING id""",
-                           [plan_id, veh["id"], zona, seq, viaje["peso"], viaje["volumen"],
-                            veh["plate"], veh["cw"], veh["cv"]])
-                trip_id = trip[0]["id"]
-                for i, o in enumerate(viaje["pedidos"], start=1):
-                    run("""INSERT INTO plan_stops (trip_id, order_id, stop_order, order_number, customer_name,
-                             delivery_city, delivery_zone, latitude, longitude, weight, volume)
-                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                        [trip_id, o["id"], i, o["order_number"], o["customer_name"], o["delivery_city"],
-                         o["delivery_zone"], o["lat"], o["lng"], o["weight"], o["volume"]])
+                _persistir_viaje(run, plan_id, zona, seq, viaje, run_id, f"{fecha_compact}-{seq:03d}")
         return plan_id
 
     return str(pg.run_in_transaction(trabajo))
