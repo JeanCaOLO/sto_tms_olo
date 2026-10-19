@@ -495,7 +495,7 @@ def test_driver_cannot_read_a_trip_of_another_driver(driver):
 
 def test_driver_positions_of_another_trip_are_rejected_and_not_written(driver):
     app, db = driver
-    db.answer("FROM routes r JOIN stores s ON s.id = r.store_id WHERE r.organization_id", [_route_for_ingest(driver_id=OTHER_DRIVER)])
+    db.answer("origin_lat, s.longitude AS origin_lng, co.code AS country", [_route_for_ingest(driver_id=OTHER_DRIVER)])
     result = body_of(app.handler(_event("POST /api/v1/tracking/posiciones", body={"positions": [_pos()]}), None))["data"]
     assert result["accepted"] == 0 and result["rejected"][0]["reason"] == "viaje no encontrado"
     assert not db.wrote("INSERT INTO tracking_positions") and not db.wrote("INSERT INTO tracking_last_positions")
@@ -504,7 +504,7 @@ def test_driver_positions_of_another_trip_are_rejected_and_not_written(driver):
 def test_driver_can_write_positions_of_own_trip(driver):
     app, db = driver
     good = _pos()
-    db.answer("FROM routes r JOIN stores s ON s.id = r.store_id WHERE r.organization_id", [_route_for_ingest(driver_id=DRIVER)])
+    db.answer("origin_lat, s.longitude AS origin_lng, co.code AS country", [_route_for_ingest(driver_id=DRIVER)])
     db.answer("INSERT INTO tracking_positions", [{"client_id": good["client_id"]}])
     result = body_of(app.handler(_event("POST /api/v1/tracking/posiciones", body={"positions": [good]}), None))["data"]
     assert result["accepted"] == 1 and result["rejected"] == []
@@ -863,7 +863,7 @@ def _ids(*values):
 def test_ingest_stores_rejected_routes_and_moves_last_position_once(tracking):
     app, db = tracking
     good = _pos()
-    db.answer("FROM routes r JOIN stores s ON s.id = r.store_id WHERE r.organization_id", [_route_for_ingest()])
+    db.answer("origin_lat, s.longitude AS origin_lng, co.code AS country", [_route_for_ingest()])
     db.answer("INSERT INTO tracking_positions", _ids(good["client_id"]))
     body = {"device_id": "dev-1", "positions": [
         good,
@@ -879,7 +879,7 @@ def test_ingest_stores_rejected_routes_and_moves_last_position_once(tracking):
 def test_ingest_grace_stores_late_points_without_moving_last_position(tracking):
     app, db = tracking
     closed = _route_for_ingest(status="Completada", actual_end_time=NOW - timedelta(hours=1))
-    db.answer("FROM routes r JOIN stores s ON s.id = r.store_id WHERE r.organization_id", [closed])
+    db.answer("origin_lat, s.longitude AS origin_lng, co.code AS country", [closed])
     db.answer("INSERT INTO tracking_positions", _ids(_pos()["client_id"]))
     result = body_of(app.handler(_event("POST /api/v1/tracking/posiciones", body={"positions": [_pos()]}), None))["data"]
     assert result["accepted"] == 1
@@ -889,7 +889,7 @@ def test_ingest_grace_stores_late_points_without_moving_last_position(tracking):
 def test_ingest_rejects_points_after_the_grace_window(tracking):
     app, db = tracking
     old = _route_for_ingest(status="Completada", actual_end_time=NOW - timedelta(hours=3))
-    db.answer("FROM routes r JOIN stores s ON s.id = r.store_id WHERE r.organization_id", [old])
+    db.answer("origin_lat, s.longitude AS origin_lng, co.code AS country", [old])
     result = body_of(app.handler(_event("POST /api/v1/tracking/posiciones", body={"positions": [_pos()]}), None))["data"]
     assert result["accepted"] == 0 and result["rejected"][0]["reason"] == "viaje no activo"
     assert not db.wrote("INSERT INTO tracking_positions")
@@ -898,7 +898,7 @@ def test_ingest_rejects_points_after_the_grace_window(tracking):
 def test_ingest_batches_last_positions_into_one_statement(tracking):
     app, db = tracking
     r1, r2 = ROUTE, "99999999-9999-4999-8999-999999999999"
-    db.answer("FROM routes r JOIN stores s ON s.id = r.store_id WHERE r.organization_id",
+    db.answer("origin_lat, s.longitude AS origin_lng, co.code AS country",
               [_route_for_ingest(), _route_for_ingest(id=r2)])
     batch = [_pos(client_id=f"aaaaaaaa-aaaa-4aaa-8aaa-00000000000{i}", route_id=r1 if i < 2 else r2,
                   recorded_at=f"2026-10-16T14:5{i}:00Z") for i in range(4)]
@@ -912,7 +912,7 @@ def test_ingest_batches_last_positions_into_one_statement(tracking):
 
 def test_ingest_mock_and_low_accuracy_points_are_stored_but_do_not_move_position(tracking):
     app, db = tracking
-    db.answer("FROM routes r JOIN stores s ON s.id = r.store_id WHERE r.organization_id", [_route_for_ingest()])
+    db.answer("origin_lat, s.longitude AS origin_lng, co.code AS country", [_route_for_ingest()])
     mock = _pos(is_mock=True)
     poor = _pos(client_id="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", accuracy_m=500)
     db.answer("INSERT INTO tracking_positions", _ids(mock["client_id"], poor["client_id"]))
@@ -926,7 +926,7 @@ def test_ingest_mock_and_low_accuracy_points_are_stored_but_do_not_move_position
 def test_ingest_sets_departed_at_on_first_point_far_from_the_store(tracking):
     app, db = tracking
     route = _route_for_ingest(origin_lat=9.90, origin_lng=-84.05)
-    db.answer("FROM routes r JOIN stores s ON s.id = r.store_id WHERE r.organization_id", [route])
+    db.answer("origin_lat, s.longitude AS origin_lng, co.code AS country", [route])
     near = _pos(lat=9.9001, lng=-84.0501, recorded_at="2026-10-16T14:50:00Z")
     far = _pos(client_id="cccccccc-cccc-4ccc-8ccc-cccccccccccc", lat=9.95, lng=-84.05, recorded_at="2026-10-16T14:55:00Z")
     db.answer("INSERT INTO tracking_positions", _ids(near["client_id"], far["client_id"]))
@@ -939,7 +939,7 @@ def test_ingest_sets_departed_at_on_first_point_far_from_the_store(tracking):
 def test_ingest_does_not_overwrite_an_existing_departure(tracking):
     app, db = tracking
     route = _route_for_ingest(origin_lat=9.90, origin_lng=-84.05, departed_at=NOW - timedelta(hours=1))
-    db.answer("FROM routes r JOIN stores s ON s.id = r.store_id WHERE r.organization_id", [route])
+    db.answer("origin_lat, s.longitude AS origin_lng, co.code AS country", [route])
     db.answer("INSERT INTO tracking_positions", _ids(_pos()["client_id"]))
     app.handler(_event("POST /api/v1/tracking/posiciones", body={"positions": [_pos(lat=9.95)]}), None)
     assert not db.wrote("UPDATE routes SET departed_at")
@@ -1089,3 +1089,20 @@ def test_trip_past_its_delivery_day_is_late_in_list_detail_and_kpi(tracking):
     assert trip["due_date"] == "2026-10-02" and trip["days_late"] == 14 and trip["assigned_at"].startswith("2026-10-01")
     assert {"code": "late", "count": 14} in trip["alerts"]
     assert item["summary"]["late"] == 1 and item["summary"]["on_time"] == 0
+
+
+def test_origin_coords_prefers_company_then_store_then_country(logic):
+    assert logic.origin_coords("VN", "febeca", None, None) == (10.1897571, -67.9507191)
+    assert logic.origin_coords("VN", "BEVAL", 10.4575, -66.9419) == (10.1789068, -67.9539846)   # la sede de la empresa gana
+    assert logic.origin_coords("VN", None, 10.4575, -66.9419) == (10.4575, -66.9419)             # sin empresa: la tienda
+    assert logic.origin_coords("CR", "COFERSA", None, None) == (9.9967249, -84.2607843)          # CD-CR sin coordenadas
+    assert logic.origin_coords("CR", None, "9.9", "-84.1") == (9.9, -84.1)
+    assert logic.origin_coords("XX", None, None, None) is None
+
+
+def test_detail_origin_uses_the_fixed_company_site(tracking):
+    app, db = tracking
+    db.answer("FROM routes r JOIN stores s", [_row(country="VN", customer_code="FEBECA", origin_lat=10.4575, origin_lng=-66.9419)])
+    db.answer("cu.phone AS customer_phone", [_full_stop(1)])
+    data = body_of(app.handler(_event("GET /api/v1/tracking/viajes/{id}", path={"id": ROUTE}), None))["data"]
+    assert data["origin"]["lat"] == 10.1897571 and data["origin"]["lng"] == -67.9507191

@@ -23,7 +23,7 @@ VIAJE_COLUMNS = f"""
   r.planned_end_time, r.created_at, r.departed_at,
   COALESCE(rp.plan_date, r.route_date) AS due_date, COALESCE(pt.created_at, r.created_at) AS assigned_at,
   s.country_id, s.name AS origin_name, s.latitude AS origin_lat, s.longitude AS origin_lng,
-  co.code AS country, co.timezone AS timezone,
+  co.code AS country, co.timezone AS timezone, cu.code AS customer_code,
   d.full_name AS driver_name, v.plate, z.name AS zone_name,
   lp.latitude AS last_lat, lp.longitude AS last_lng, lp.speed_mps,
   lp.recorded_at AS last_position_at,
@@ -40,6 +40,7 @@ LEFT JOIN zones z ON z.id = r.route_type_id
 LEFT JOIN tracking_last_positions lp ON lp.route_id = r.id
 {PLAN_TRIP_JOIN}
 LEFT JOIN route_plans rp ON rp.id = pt.plan_id
+LEFT JOIN customers cu ON cu.id = rp.customer_id
 """
 
 # Progreso por ruta, calculado de las guías (no del contador denormalizado completed_stops).
@@ -151,9 +152,11 @@ PLAN_TRIP_SQL = """
 SELECT pt.id, pt.status, pt.delivery_zone, pt.vehicle_id, pt.driver_id, pt.total_weight, pt.total_volume,
        pt.vehicle_capacity_weight,
        rp.organization_id, rp.country_id, rp.plan_date, rp.status AS plan_status,
-       COALESCE(d.carrier_id, v.carrier_id) AS carrier_id
+       COALESCE(d.carrier_id, v.carrier_id) AS carrier_id, co.code AS country, cu.code AS customer_code
 FROM plan_trips pt
 JOIN route_plans rp ON rp.id = pt.plan_id
+LEFT JOIN countries co ON co.id = rp.country_id
+LEFT JOIN customers cu ON cu.id = rp.customer_id
 LEFT JOIN drivers d ON d.id = pt.driver_id
 LEFT JOIN vehicles v ON v.id = pt.vehicle_id
 WHERE pt.id = %s
@@ -200,8 +203,12 @@ FROM routes r JOIN stores s ON s.id = r.store_id WHERE r.id = %s
 # Insumos de la ingesta: estado, cierre (para la gracia de 2 h), sede (para detectar la salida) y salida previa.
 ROUTES_FOR_POSITIONS_SQL = """
 SELECT r.id, r.status, r.vehicle_id, r.driver_id, r.departed_at, r.actual_end_time,
-       s.latitude AS origin_lat, s.longitude AS origin_lng
+       s.latitude AS origin_lat, s.longitude AS origin_lng, co.code AS country, cu.code AS customer_code
 FROM routes r JOIN stores s ON s.id = r.store_id
+JOIN countries co ON co.id = s.country_id
+LEFT JOIN plan_trips pt ON pt.id = r.plan_trip_id
+LEFT JOIN route_plans rp ON rp.id = pt.plan_id
+LEFT JOIN customers cu ON cu.id = rp.customer_id
 WHERE r.organization_id = %s AND r.id = ANY(%s::uuid[])
 """
 
