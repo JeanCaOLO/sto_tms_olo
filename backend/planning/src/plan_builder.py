@@ -120,11 +120,12 @@ def _agrupar_por_zona(pedidos: list[dict]) -> dict:
 
 
 _UPD_ORDER = "UPDATE orders SET numero_viaje=%s, lead_time_days=%s, planning_run_id=%s, updated_at=now() WHERE id=%s"
-_UPSERT_SIM = """
-INSERT INTO eflow_sim_cabecera (id_compania, id_almacen, id_sucursal, id_expedicion, numero_viaje_wmh, planning_run_id)
-VALUES (%s,%s,%s,%s,%s,%s)
-ON CONFLICT (id_almacen, id_compania, id_sucursal, id_expedicion)
-DO UPDATE SET numero_viaje_wmh=EXCLUDED.numero_viaje_wmh, planning_run_id=EXCLUDED.planning_run_id, escrito_en=now()"""
+# Write-back del nº de viaje a la tabla espejo de eFlow (mismos nombres que el
+# origen). UPDATE (no insert): solo escribe sobre la fila ya espejada desde eFlow,
+# para no crear filas parciales. NUMEROVIAJEWMH es bigint (nº de viaje sin guion).
+_UPD_SIM = """
+UPDATE sim_expedicionescabecera SET "NUMEROVIAJEWMH"=%s, planning_run_id=%s, escrito_en=now()
+WHERE "IDALMACEN"=%s AND "IDCOMPANIA"=%s AND "IDSUCURSAL"=%s AND "IDEXPEDICION"=%s"""
 _INS_TRIP = """
 INSERT INTO plan_trips (plan_id, vehicle_id, delivery_zone, sequence_order, total_weight, total_volume,
   vehicle_plate, vehicle_capacity_weight, vehicle_capacity_volume, is_owned, status, numero_viaje, lead_time_days)
@@ -139,6 +140,7 @@ def _persistir_viaje(run, plan_id: str, zona: str, seq: int, viaje: dict, run_id
     """Inserta el viaje y sus paradas, y estampa el resultado en orders + eFlow sim."""
     veh = viaje["veh"]
     lead = _lead_time_dias(viaje["pedidos"])
+    wmh = int(numero.replace("-", ""))  # NUMEROVIAJEWMH es bigint (nº de viaje sin guion)
     trip_id = run(_INS_TRIP, [plan_id, veh["id"], zona, seq, viaje["peso"], viaje["volumen"],
                               veh["plate"], veh["cw"], veh["cv"], numero, lead])[0]["id"]
     for i, o in enumerate(_ordenar_por_ruta(viaje["pedidos"]), start=1):
@@ -146,8 +148,8 @@ def _persistir_viaje(run, plan_id: str, zona: str, seq: int, viaje: dict, run_id
                         o["delivery_zone"], o["lat"], o["lng"], o["weight"], o["volume"]])
         run(_UPD_ORDER, [numero, lead, run_id, o["id"]])  # denormaliza al pedido para el OMS
         if o["eflow_id_expedicion"]:  # write-back simulado del nº de viaje a eFlow
-            run(_UPSERT_SIM, [o["eflow_id_compania"], o["eflow_id_almacen"], o["eflow_id_sucursal"],
-                              o["eflow_id_expedicion"], numero, run_id])
+            run(_UPD_SIM, [wmh, run_id, o["eflow_id_almacen"], o["eflow_id_compania"],
+                           o["eflow_id_sucursal"], o["eflow_id_expedicion"]])
 
 
 def construir_y_persistir(org: str, country: str, warehouse: str, fecha: str, created_by: str) -> str | None:

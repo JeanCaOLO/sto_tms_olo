@@ -12,6 +12,7 @@ re-ingestar NO duplica, actualiza estado/fecha/peso.
 Read-only contra eFlow; la única escritura es el UPSERT en `orders`.
 """
 
+import sim_eflow_sync
 from tms_common import eflow_db, pg
 
 PAIS = "cr"
@@ -121,4 +122,7 @@ def ingest_cr(limite: int = 500, dry_run: bool = False) -> dict:
                 str(r["IDEXPEDICION"]), str(r["IDCLIENTE"]) if r["IDCLIENTE"] is not None else None,
             ])
         upserted += 1
-    return {"leidos": len(filas), "upserted": upserted, "saltados": len(faltantes), "faltantes": faltantes[:20], "dry_run": dry_run}
+    # Espejo de la cabecera de eFlow (sim_expedicionescabecera) para el write-back.
+    espejadas = 0 if dry_run else sim_eflow_sync.sincronizar()
+    return {"leidos": len(filas), "upserted": upserted, "saltados": len(faltantes),
+            "espejadas": espejadas, "faltantes": faltantes[:20], "dry_run": dry_run}
