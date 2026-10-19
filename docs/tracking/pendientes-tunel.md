@@ -17,7 +17,7 @@ Todo lo de abajo quedó **preparado pero sin ejecutar** porque requiere el túne
 
 ## Verificación en navegador contra Aurora (2026-10-19, modo API)
 
-Probado con la sesión del usuario en `localhost:3001` → backend `:4001` → Aurora: KPIs, selector CR/Venezuela, lista Activos/Todos, panel, ruta por calles (OSRM), replay, polling (lista + detalle cada 15 s). Bugs hallados y corregidos: (1) viaje con señal de hace 2 días mostraba "Retraso de 4038 min" y "0 m" → sin ETA/late con señal caducada; (2) los KPIs se vaciaban ("—") al cambiar Activos/Todos → se conserva el último valor; (3) paradas pendientes en gris poco visibles → violeta. Observaciones sin cambio: "A tiempo" cuenta también los viajes sin señal (`on_time = active − late`); los 503 que ve el depurador son peticiones abortadas al cambiar de filtro. 
+Probado con la sesión del usuario en `localhost:3001` → backend `:4001` → Aurora: KPIs, selector CR/Venezuela, lista Activos/Todos, panel, ruta por calles (OSRM), replay, polling (lista + detalle cada 15 s). Bugs hallados y corregidos: (1) viaje con señal de hace 2 días mostraba "Retraso de 4038 min" y "0 m" → sin ETA/late con señal caducada; (2) los KPIs se vaciaban ("—") al cambiar Activos/Todos → se conserva el último valor; (3) paradas pendientes en gris poco visibles → teal de la marca (#0f766e), la siguiente con borde oscuro y anillo claro. Observaciones sin cambio: "A tiempo" cuenta también los viajes sin señal (`on_time = active − late`); los 503 que ve el depurador son peticiones abortadas al cambiar de filtro. 
 
 ### Con token (2026-10-19): T3, T5 y T7 hechos
 - **T3** `tracking-contract-check.mjs` contra `:4001`/Aurora: "Contrato v2 OK" en CR y VN.

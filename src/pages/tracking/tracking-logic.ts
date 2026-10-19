@@ -10,7 +10,7 @@ export const COLOR_HEX: Record<MapColor, string> = {
 };
 
 export const STOP_COLOR_HEX: Record<StopState, string> = {
-  pending: '#7c3aed',
+  pending: '#0f766e',
   delivered: '#059669',
   failed: '#dc2626',
 };

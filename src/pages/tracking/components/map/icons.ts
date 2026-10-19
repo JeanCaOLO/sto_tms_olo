@@ -31,12 +31,12 @@ export function stopIcon(sequence: number, state: StopState, next: boolean): L.D
   return cached(`stop|${sequence}|${state}|${next}`, () => {
     const color = STOP_COLOR_HEX[state];
     const inner = state === 'delivered' ? '<i class="ri-check-line"></i>' : state === 'failed' ? '<i class="ri-close-line"></i>' : String(sequence);
-    const ring = next ? `<span class="animate-ping" style="position:absolute;inset:-6px;border-radius:9999px;border:3px solid #0d9488;opacity:.6"></span>` : '';
+    const ring = next ? `<span class="animate-ping" style="position:absolute;inset:-6px;border-radius:9999px;border:3px solid #2dd4bf;opacity:.8"></span>` : '';
     return L.divIcon({
       className: '',
       html: `<div style="position:relative;width:30px;height:30px;">${ring}<div style="position:relative;width:30px;height:30px;border-radius:9999px;
         background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;
-        border:3px solid ${next ? '#0d9488' : '#fff'};box-shadow:0 1px 4px rgba(0,0,0,.45);">${inner}</div></div>`,
+        border:3px solid ${next ? '#0f172a' : '#fff'};box-shadow:0 1px 4px rgba(0,0,0,.45);">${inner}</div></div>`,
       iconSize: [30, 30],
       iconAnchor: [15, 15],
     });
