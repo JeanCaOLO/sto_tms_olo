@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import Button from '../../../components/base/Button';
 import Modal from '../../../components/base/Modal';
 import { notify } from '../../../lib/notify';
-import { iniciarViaje, listPlanificados } from '../api';
+import { errorKey, iniciarViaje, listPlanificados } from '../api';
 import { useTrackingCountry } from '../hooks/useTrackingCountry';
 import type { ViajePlanificado } from '../types';
 
@@ -13,7 +13,7 @@ interface Props {
   onStarted: (routeId: string) => void;
 }
 
-/** Viajes de planes confirmados que todavía no se han iniciado; "Iniciar" los pasa a seguimiento en vivo. */
+/** Solo modo mock: viajes de planes confirmados sin iniciar; "Iniciar" los pasa a seguimiento (en real lo reporta la app). */
 export default function IniciarViajeModal({ isOpen, onClose, onStarted }: Props) {
   const { t } = useTranslation();
   const [items, setItems] = useState<ViajePlanificado[] | null>(null);
@@ -43,7 +43,7 @@ export default function IniciarViajeModal({ isOpen, onClose, onStarted }: Props)
       onStarted(result.route_id);
       onClose();
     } catch (err) {
-      notify(err instanceof Error && err.message ? err.message : t('tracking.toastStartError'), 'error');
+      notify(t(errorKey(err)), 'error');
     } finally {
       setStarting(null);
     }

@@ -1,24 +1,41 @@
-import { useCallback } from 'react';
-import { clockNow, getResumen, getViaje, IS_LOCAL, listViajes, type ListParams } from '../api';
+import { useCallback, useEffect, useState } from 'react';
+import { getRecorrido, getViaje, listViajes, pollIntervalMs } from '../api';
+import type { ListMode, Recorrido } from '../types';
 import { usePolling } from './usePolling';
 
-// Con datos locales la simulación va rápida: se consulta cada 2 s para ver el avance; con el backend, cada 10 s.
-const POLL = IS_LOCAL ? { intervalMs: 2000, clock: clockNow } : { clock: clockNow };
-
-/** Lista de viajes (recientes primero), refrescada sola. */
-export function useViajesEnVivo(params: ListParams) {
-  const fetcher = useCallback(() => listViajes(params), [params.mode, params.q, params.limit, params.country]); // eslint-disable-line react-hooks/exhaustive-deps
-  return usePolling(fetcher, [params.mode, params.q, params.limit, params.country], POLL);
+export interface ListFilters {
+  mode: ListMode;
+  q: string;
+  limit: number;
+  country: string | null;
 }
 
-/** KPIs de la franja superior, refrescados solos. */
-export function useResumen(country: string | null = null) {
-  const fetcher = useCallback(() => getResumen(country), [country]);
-  return usePolling(fetcher, [country], POLL);
+/** Lista de viajes (recientes primero) + KPIs en UNA sola llamada, refrescada sola. */
+export function useViajesEnVivo({ mode, q, limit, country }: ListFilters) {
+  const fetcher = useCallback(
+    (signal: AbortSignal) => listViajes({ mode, q, limit, country, summary: true }, signal),
+    [mode, q, limit, country],
+  );
+  return usePolling(fetcher, [mode, q, limit, country], { intervalMs: pollIntervalMs() });
 }
 
 /** Detalle del viaje abierto; sin id no consulta. */
 export function useViajeDetalle(id: string | null) {
-  const fetcher = useCallback(() => getViaje(id as string), [id]);
-  return usePolling(fetcher, [id], { ...POLL, enabled: id !== null });
+  const fetcher = useCallback((signal: AbortSignal) => getViaje(id as string, signal), [id]);
+  return usePolling(fetcher, [id], { enabled: id !== null, intervalMs: pollIntervalMs() });
+}
+
+/** Recorrido completo del viaje, una sola vez (para el replay); null = sin pedir. */
+export function useRecorrido(id: string | null) {
+  const [state, setState] = useState<{ id: string; data: Recorrido | null; error: boolean } | null>(null);
+  useEffect(() => {
+    if (!id) { setState(null); return undefined; }
+    const controller = new AbortController();
+    setState({ id, data: null, error: false });
+    getRecorrido(id, controller.signal)
+      .then((data) => setState({ id, data, error: false }))
+      .catch(() => { if (!controller.signal.aborted) setState({ id, data: null, error: true }); });
+    return () => controller.abort();
+  }, [id]);
+  return state && state.id === id ? state : null;
 }

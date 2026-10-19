@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getSimulation, resetSimulation, setSimulation, SPEEDS } from '../api';
+import { getSimulation, resetSimulation, setSimulation, SPEEDS } from '../mock/sim';
 
 const btn = 'w-8 h-8 flex items-center justify-center rounded-md text-slate-700 hover:bg-slate-200 disabled:opacity-40 cursor-pointer';
 
-/** Modo de pruebas: pausa, más lento y más rápido para la simulación de los camiones. */
+/** Solo modo mock (la página lo carga en diferido): pausa, más lento, más rápido y reinicio de la simulación. */
 export default function SimulacionControles({ onChange }: { onChange: () => void }) {
   const { t } = useTranslation();
   const [sim, setSim] = useState(getSimulation);
