@@ -76,7 +76,5 @@ def config_por_defecto(_pedido: PedidoCandidato) -> ConfiguracionReglas:
     """
     return ConfiguracionReglas(
         pesos={regla_fecha.REGLA: 1.0, obs.REGLA: 1.0},
-        duracion_ruta_dias=1,
         prioridad_cliente_retira=1,
-        escribir_prioridad_al_wms=False,  # TODO(negocio): confirmar destino de PRIORIDAD
     )

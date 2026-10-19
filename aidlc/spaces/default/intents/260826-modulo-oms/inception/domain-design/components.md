@@ -1,9 +1,30 @@
 # Catálogo de componentes — Módulo OMS (rebanada delgada de 1ª entrega)
 
-> Intent: `260826-modulo-oms`. Etapa: Domain Design (Inception, **re-corrida por
-> el pivote WMH, 2026-09-30**). Lead: arquitecto; apoyo: plataforma AWS, diseño.
-> Deriva de `requirements.md` v3 (FR12 retirado), `stories.md` v3 y las
-> decisiones firmes de `project.md` (`## Decided` D1–D6, C3-SUPERSEDE, C2-RESUELTO).
+> Intent: `260826-modulo-oms`. Etapa: Domain Design (Inception, **re-corrida v4 por
+> reuniones de negocio — inversión del flujo OMS↔Planificación, 2026-10-16**).
+> Lead: arquitecto; apoyo: plataforma AWS, diseño. Deriva de `requirements.md` v4
+> y `stories.md` v4 y de `project.md` (`## Decided`).
+>
+> **Nomenclatura (vigente)**: WMS = **EFLOW**; módulo que parte EPA por línea =
+> **EPRAC**. (No "IPRAC"/"IFLOW".)
+>
+> **Correcciones de esta re-corrida v4 (D7–D13), SUPERSEDE del modelo D6:**
+> - **Flujo invertido (D7)**: Planificación procesa, asigna viaje y **activa al
+>   OMS** por una **lambda de activación asíncrona** (nuevo componente
+>   `LambdaActivacion`). El OMS **lee de `public.orders`** (no de
+>   `EXPEDICIONESCABECERA`).
+> - **Escritura real a EFLOW (D8)**: `HandoffPedidosOMS` hace escritura 1 = UPDATE
+>   a `public.orders`, escritura 2 = **EFLOW real** (`TPEXSI='GENE'` + `PRIORIDAD`,
+>   flag TRUE). **No** escribe el número de viaje. **No existe `oms.pedidos`**
+>   (esquema único `public`, BD 2026-10-16).
+> - **EPA (D9)**: nuevo componente/regla **`ReglaEPA`** que **cortocircuita** el
+>   score (prioridad pre-asignada por EPRAC guion-0/1).
+> - **Regla fecha generalizada (D10)**: `ReglaFecha` = `fecha_entrega − duración`,
+>   con **duración como insumo de Planificación** (no parámetro fijo).
+> - **cliente retira = zona (D11)**: `AnalizadorObservaciones` **diferido a
+>   futuro**; nueva **`ReglaClienteRetiraZona`** (por `delivery_zone`).
+> - **Backorder (D13)**: nuevo componente **`BackorderInventario`**, loop propio
+>   **desacoplado** de la corrida.
 >
 > **ALCANCE ACOTADO (decisión de secuencia del usuario)**: esta corrida detalla
 > **solo los 5 componentes de la rebanada delgada de 1ª entrega** (motor propio
@@ -18,8 +39,11 @@
 > **propio del OMS, nuevo, en Lambda Python** (C2-RESUELTO: no portar AST, no
 > motor compartido, no tocar Liquidaciones); multi-compañía **por scope**
 > CUSTOMER→WAREHOUSE→COUNTRY→GLOBAL (C3-SUPERSEDE, no Lambda por compañía);
-> **dos escrituras** en el handoff (D6: tabla propia del OMS + situación WMS); el
-> viaje lo arma Planificación DESPUÉS (ruteo dinámico, D5).
+> **flujo invertido** (D7: Planificación activa al OMS vía LambdaActivacion async;
+> el OMS lee de `public.orders`); **dos escrituras** en el handoff (D7/D8: UPDATE a
+> `public.orders` + EFLOW real `TPEXSI='GENE'`+`PRIORIDAD`; **no** hay `oms.pedidos`,
+> esquema único `public`); el viaje lo arma Planificación ANTES de activar al OMS;
+> el OMS **no** escribe el número de viaje.
 
 ## Parte A — Catálogo (fuente de verdad)
 
@@ -31,38 +55,49 @@ components:
       Núcleo automático del OMS (FR2, FR3, FR6, NFR1), construido NUEVO y propio
       del OMS en Lambda Python (C2-RESUELTO: no se porta el AST de
       src/lib/tarifas/, no se comparte motor con el TMS, no se toca Liquidaciones;
-      OMS y TMS son módulos separados que se comunican). Por cada corrida: toma los
-      candidatos de ColaCandidatos, resuelve las reglas aplicables POR SCOPE
-      (CUSTOMER→WAREHOUSE→COUNTRY→GLOBAL, la más específica gana), invoca las reglas
-      ejecutables (ReglaFecha, AnalizadorObservaciones), calcula el SCORE PONDERADO
-      (submódulo puro de cálculo: suma de pesos → prioridad numérica INVERTIDA
-      menor=más urgente, con desempate estable fecha→hora→id), aplica el UMBRAL DE
-      INYECCIÓN (FR3.4/NFR4) y ordena a HandoffPedidosOMS generar los que pasan.
-      Aplica el EFECTO "cliente retira" (marca de agrupación en viaje/cliente dummy
-      + prioridad máxima vía el peso). Corre ≥1 vez/día y en horas de corte,
-      revisitando prioridades. NO escribe fechas. NO arma viajes (eso es de
+      OMS y TMS son módulos separados que se comunican). **Lo ACTIVA
+      LambdaActivacion** (D7: Planificación lo dispara tras asignar viaje; ya NO
+      cron/EventBridge). Por cada corrida: toma los candidatos de ColaCandidatos
+      (leídos de `public.orders`), resuelve las reglas aplicables POR SCOPE
+      (CUSTOMER→WAREHOUSE→COUNTRY→GLOBAL, la más específica gana). **Deriva los
+      pedidos EPA a ReglaEPA** (D9: EPA cortocircuita fecha/score, prioridad
+      pre-asignada por EPRAC). Para Cofersa/mayoreo invoca las reglas ejecutables
+      (ReglaFecha generalizada T−duración, ReglaClienteRetiraZona por zona),
+      calcula el SCORE PONDERADO (submódulo puro: suma de pesos → prioridad numérica
+      INVERTIDA menor=más urgente, desempate estable fecha→hora→id), aplica el
+      UMBRAL DE INYECCIÓN (FR3.4/NFR4) y ordena a HandoffPedidosOMS generar los que
+      pasan. Aplica el EFECTO "cliente retira" (prioridad máxima + agrupación).
+      **AnalizadorObservaciones queda FUERA de la ruta activa (diferido, D11).** NO
+      escribe fechas. NO escribe el número de viaje. NO arma viajes (eso es de
       Planificación). El cálculo de score se mantiene como submódulo PURO testeable
-      sin montar el motor (regla Testing Posture, project.md 2026-08-28).
+      (regla Testing Posture).
     responsibilities:
-      - Orquestar la corrida (resolver reglas por scope → invocar reglas → score → umbral → orden)
+      - Ser activado por LambdaActivacion y orquestar la corrida del lote/scope
+      - Derivar los pedidos EPA a ReglaEPA (cortocircuito); el resto a fecha/zona/score
       - Calcular el score ponderado y la prioridad numérica invertida (submódulo puro)
       - Aplicar el umbral de inyección (corte por capacidad)
-      - Aplicar el efecto "cliente retira" (marca de agrupación en viaje/cliente dummy)
-      - Ordenar el handoff de los pedidos que pasan el umbral
+      - Aplicar el efecto "cliente retira" (prioridad máxima + agrupación)
+      - Ordenar el handoff (UPDATE orders + escritura EFLOW) de los pedidos que pasan
     depends_on:
       - component: ColaCandidatos
-        interaction: obtiene los pedidos candidatos a priorizar
+        interaction: obtiene los pedidos candidatos del lote/scope (de public.orders)
+        style: sync
+      - component: ReglaEPA
+        interaction: deriva los pedidos EPA (cortocircuita fecha/score; prioridad pre-asignada)
         style: sync
       - component: ReglaFecha
-        interaction: evalúa la regla T-1 sobre cada pedido (con parámetros de ruta por scope)
+        interaction: evalúa fecha_entrega − duración (Cofersa/mayoreo; duración = insumo de Planificación)
         style: sync
-      - component: AnalizadorObservaciones
-        interaction: clasifica las observaciones (cliente retira) por lote
+      - component: ReglaClienteRetiraZona
+        interaction: detecta cliente-retira por delivery_zone (prioridad máxima)
         style: sync
       - component: HandoffPedidosOMS
-        interaction: ordena las dos escrituras (tabla OMS + situación WMS) de los pedidos que pasan el umbral
+        interaction: ordena las dos escrituras (UPDATE orders + EFLOW GENE+prioridad) de los pedidos que pasan
         style: sync
-    dependents: []
+    dependents:
+      - component: LambdaActivacion
+        interaction: lo activa con el lote/scope (planning_run_id + scope) de forma asíncrona
+        style: async
     external_dependencies:
       - name: ConfiguracionReglas (parámetros por scope)
         kind: other
@@ -82,27 +117,77 @@ components:
             relationship: cada RegistroPrioridad corresponde a un PedidoCandidato leído de la cola
 
   - name: ReglaFecha
-    summary: Regla T-1 — decide cuándo preparar un pedido según su fecha de entrega (regla 1 de 1ª entrega).
+    summary: Regla de fecha generalizada — fecha_listo = fecha_entrega − duración_logística (T-1 es el caso Cofersa).
     behaviour: >
-      Regla ejecutable 1 (FR2/FR6.1). Usa como fecha base el campo
-      **`FECHAEXPEDICIONPLANIFICADA` de EXPEDICIONESCABECERA** (datetime **NOT NULL**;
-      la fecha de entrega que envía el cliente) — la lee como INSUMO y NO la modifica
-      (invariante: no escribe fechas). Cálculo: listo = fecha de entrega − 1 día,
-      **ajustado por la duración de ruta (ESTIMADA) y las horas de corte**. CONTRATO
-      EXPLÍCITO: como las rutas son DINÁMICAS y Planificación las arma DESPUÉS de que
-      el OMS prioriza, el OMS **no conoce la duración real de la ruta** al priorizar →
-      la "duración de ruta" del T-1 es un **estimado/parámetro de configuración por
-      cliente/zona**, resuelto por scope (CUSTOMER→WAREHOUSE→COUNTRY→GLOBAL, C3), NO
-      una constante global ni la ruta real. Aporta su peso al score. NO escribe nada
-      (solo evalúa). FALLBACK (US8, nombres DDL confirmados 2026-10-01): como
-      `FECHAEXPEDICIONPLANIFICADA` es NOT NULL, el fallback por ruta **NO se dispara
-      por NULL** sino por **valor por defecto/centinela** (caso "el cliente no envía
-      fecha y se llena por default", p. ej. Cofersa). El contrato define el
-      disparador como "fecha = centinela/default conocido", no "fecha nula".
+      Regla ejecutable 1 (FR2/FR6.1). Usa como fecha base `delivery_date` (desde
+      `public.orders`, poblada desde EFLOW `FECHAEXPEDICIONPLANIFICADA`; la fecha de
+      entrega del cliente) — la lee como INSUMO y NO la modifica (invariante). **D10
+      — regla generalizada**: `fecha_listo = fecha_de_entrega − duración_logística`.
+      **T-1 es el caso particular** con duración = 1 (Cofersa CR). La
+      **duración_logística es un INSUMO POR PEDIDO/VIAJE que entrega Planificación**
+      (ya NO un parámetro fijo de config del OMS): Cofersa CR = 1 día; mayoreo VE =
+      dinámica (días de rodada por clúster/distancia que calcula Planificación;
+      rutas/duraciones VE pendientes con comercial). Default 1 día para Cofersa si
+      Planificación no entrega valor. Ajusta por horas de corte. Aporta su peso al
+      score. **NO aplica a EPA** (ReglaEPA cortocircuita). FALLBACK (US7/US8): como
+      `delivery_date` puede venir con valor por defecto/centinela (Cofersa la llena
+      por default), el disparador del fallback es "fecha = centinela/default", no
+      "fecha nula". NO escribe nada (solo evalúa).
     responsibilities:
-      - Evaluar la regla T-1 con FECHAEXPEDICIONPLANIFICADA como insumo (sin modificarla)
-      - Ajustar por duración de ruta ESTIMADA (parámetro por scope) y horas de corte
-      - Disparar el fallback por ruta (US8) ante fecha = centinela/default (no por NULL)
+      - Evaluar fecha_listo = fecha_entrega − duración_logística (T-1 = caso Cofersa)
+      - Tomar la duración logística como INSUMO de Planificación (no parámetro fijo); default 1 día Cofersa
+      - Disparar el fallback ante fecha = centinela/default (no por NULL); no aplica a EPA
+    depends_on: []
+    dependents:
+      - component: MotorReglasOMS
+        interaction: el motor invoca la regla durante la corrida (Cofersa/mayoreo, no EPA)
+        style: sync
+    external_dependencies:
+      - name: duración_logística (insumo por pedido/viaje de Planificación)
+        kind: other
+        purpose: días para fecha_listo; Cofersa=1, VE dinámica (de Planificación); reemplaza el parámetro fijo duracion_ruta_dias (D10)
+    entities: []
+
+  - name: ReglaEPA
+    summary: Rama EPA que CORTOCIRCUITA el score — prioridad pre-asignada por EPRAC (NUEVO, D9).
+    behaviour: >
+      Regla ejecutable para pedidos de **EPA** (`customer_type = TIENDA`). D9: EPA
+      **NO calcula** prioridad — **cortocircuita** el motor de fecha/score. **EPRAC**
+      (módulo que parte los pedidos de EPA por línea) crea dos expediciones con el
+      mismo número + guion: **guion-0** (artículos en falla ⇒ prioridad 0, la más
+      alta) y **guion-1** (regular ⇒ prioridad 1). ReglaEPA **toma la prioridad que
+      ya traen** (0/1) sin recalcular, y marca ambas expediciones para liberarse
+      JUNTAS. NO pasa por ReglaFecha ni por el score ponderado. El EFECTO (poner
+      ambas en `wms_situation = GENE` con su prioridad) lo aplica el flujo normal de
+      MotorReglasOMS→HandoffPedidosOMS. Es una regla/rama propia, no un caso del
+      motor de fecha.
+    responsibilities:
+      - Detectar pedidos EPA (customer_type=TIENDA) y cortocircuitar fecha/score
+      - Tomar la prioridad pre-asignada por EPRAC (guion-0=0, guion-1=1) sin recalcular
+      - Marcar ambas expediciones (guion-0/guion-1) para liberarse juntas
+    depends_on: []
+    dependents:
+      - component: MotorReglasOMS
+        interaction: el motor deriva los pedidos EPA a esta rama en vez de fecha/score
+        style: sync
+    external_dependencies:
+      - name: EPRAC (módulo que parte EPA por línea y pre-asigna prioridad)
+        kind: other
+        purpose: origen de la prioridad pre-asignada (guion-0/guion-1); el OMS la respeta, no la recalcula
+    entities: []
+
+  - name: ReglaClienteRetiraZona
+    summary: Detecta "cliente retira" por ZONA (delivery_zone) y lo prioriza al máximo (D11, reemplaza la vía por observaciones).
+    behaviour: >
+      Regla ejecutable (FR6.2). **D11**: "cliente retira" se identifica por la
+      **zona** del pedido (`delivery_zone`), **NO** interpretando el texto de
+      observaciones ni con IA. Un pedido cuya zona es la de "cliente retira" recibe
+      la **prioridad más alta** y se agrupa en su viaje/cliente correspondiente.
+      Determinista y testeable sin IA. El EFECTO (prioridad máxima vía peso +
+      agrupación) lo aplica MotorReglasOMS.
+    responsibilities:
+      - Detectar cliente-retira por delivery_zone (no por observaciones)
+      - Señalar prioridad máxima + agrupación para esos pedidos
     depends_on: []
     dependents:
       - component: MotorReglasOMS
@@ -112,113 +197,177 @@ components:
     entities: []
 
   - name: AnalizadorObservaciones
-    summary: Interpreta observaciones con IA (Bedrock) para clasificar "cliente retira" (reglas 2-3 de 1ª entrega).
+    summary: (DIFERIDO A FUTURO — D11) Interpretaría observaciones con IA (Bedrock) para salidas futuras.
     behaviour: >
-      Reglas ejecutables 2/3 (FR6.2/FR6.3/FR7). Interpreta el texto libre de
-      `OBSERVACIONESEXPEDICION` (varchar(500), nivel cabecera) con un modelo nativo
-      de Amazon Bedrock (ultraligero); la
-      primera salida a implementar es "cliente retira". Invoca POR LOTE (una corrida
-      sobre las ~400 observaciones/día), no una llamada por pedido (FR7.4). El prompt
-      vive en el código de la Lambda, NO es editable desde la UI (FR7.2). Degrada
-      sin bloquear: si Bedrock falla/timeout, el pedido se prioriza por las demás
-      reglas. FRONTERA: solo DETECTA/clasifica (produce la marca "cliente retira");
-      el EFECTO (prioridad máxima vía peso + marca de agrupación en viaje/cliente
-      dummy) lo aplica MotorReglasOMS. Testabilidad: la clasificación se prueba con
-      clasificador STUB en unitarios; la integración real con Bedrock es test de
-      contrato aparte.
+      **DIFERIDO A FUTURO (D11, 2026-10-16)**. Negocio decidió modelar "cliente
+      retira" como ZONA (ver ReglaClienteRetiraZona), no interpretando observaciones.
+      El análisis del texto libre de `observaciones` con un modelo de Amazon Bedrock
+      **sale de esta entrega** y queda como requerimiento futuro para OTRAS salidas
+      (cambio de dirección, cita, urgencia). NO se construye en la rebanada. Se
+      conserva en el catálogo como componente futuro, sin dependientes activos.
     responsibilities:
-      - Clasificar las observaciones por lote (cliente retira como primera salida)
-      - Degradar sin bloquear el motor ante fallo/timeout de Bedrock
-      - (NO aplica el efecto; eso es de MotorReglasOMS)
+      - (FUTURO) Clasificar observaciones con IA para salidas distintas de cliente-retira
     depends_on: []
-    dependents:
-      - component: MotorReglasOMS
-        interaction: el motor invoca la clasificación por lote durante la corrida
-        style: sync
+    dependents: []
     external_dependencies:
       - name: Amazon Bedrock
         kind: third-party-api
-        purpose: clasificación del texto libre de observaciones (modelo ultraligero, prompt en código; hoy no integrado — a construir)
+        purpose: (futuro) clasificación del texto libre de observaciones; NO en esta entrega (D11)
+    entities: []
+
+  - name: BackorderInventario
+    summary: Loop PROPIO y DESACOPLADO — re-genera las acciones omitidas por inventario cuando entra stock (NUEVO, D13).
+    behaviour: >
+      Nueva responsabilidad del OMS (FR6c/D13). Es un **loop/componente PROPIO
+      DESACOPLADO** de la ruta de priorización: NO vive dentro del handoff de la
+      corrida ni de la LambdaActivacion — es una **revisión continua / por evento**.
+      Mecánica conceptual: (1) leer las **acciones liberadas que quedaron omitidas**
+      por falta de inventario; (2) **chequear inventario**; (3) **re-mandar a generar
+      solo esas acciones** (situación `GENE` con su prioridad) cuando entre stock.
+      Reutiliza el borde de escritura (HandoffPedidosOMS) para re-generar. ALCANCE
+      REBANADA: solo el ESQUELETO del componente + las open questions; el diseño fino
+      NO se cierra. Open questions (hechos de integración/negocio, NO inventar):
+      OQ-BO1 de dónde lee las acciones omitidas en EFLOW (tabla/estado); OQ-BO2 cuál
+      es la fuente de inventario; OQ-BO3 el disparador del re-chequeo (evento de
+      entrada de inventario vs. barrido periódico).
+    responsibilities:
+      - Leer las acciones liberadas omitidas por falta de inventario (backorder)
+      - Chequear inventario y re-mandar a generar solo esas acciones cuando entre stock
+      - Operar como loop desacoplado de la corrida (continuo/por evento), no en el handoff del lote
+    depends_on:
+      - component: HandoffPedidosOMS
+        interaction: reutiliza la escritura para re-generar las acciones cuando entra stock
+        style: sync
+    dependents: []
+    external_dependencies:
+      - name: EFLOW (acciones omitidas) — tabla/estado OQ-BO1
+        kind: database
+        purpose: origen de las acciones liberadas omitidas por inventario (tabla/estado por confirmar, OQ-BO1)
+      - name: Fuente de inventario — OQ-BO2
+        kind: other
+        purpose: inventario que el OMS consulta para decidir re-generar (por confirmar, OQ-BO2)
+    entities: []
+
+  - name: LambdaActivacion
+    summary: Puerta de entrada ASÍNCRONA — Planificación activa al OMS sobre un lote ya procesado (NUEVO, D7/FR0).
+    behaviour: >
+      Nuevo borde de ENTRADA del flujo invertido (D7). CONTRATO RESUELTO con el
+      dueño de Planificación (2026-10-16): mecanismo = **columna como fuente de
+      verdad + lambda como SEÑAL** (no llaves en el payload). Planificación invoca
+      esta lambda de forma ASÍNCRONA (event-driven, fire-and-forget) tras asignar
+      los viajes; la señal PUEDE llevar IDs + `planning_run_id` para
+      correlación/latencia, pero NO es la fuente de verdad del lote. La lambda solo
+      ARRANCA la corrida (MotorReglasOMS); el conjunto de trabajo lo resuelve
+      ColaCandidatos leyendo public.orders por la columna `oms_processed_at` (ver
+      ColaCandidatos). RED DE SEGURIDAD: si la señal se pierde/reintenta, un barrido
+      periódico sobre `oms_processed_at IS NULL` recupera el trabajo (idempotencia
+      natural por columna, no por run_id). El OMS procesa por compañía (batching
+      propio; Planificación no lo conoce).
+    responsibilities:
+      - Recibir la señal asíncrona de Planificación (arranca la corrida)
+      - Arrancar MotorReglasOMS; el conjunto lo resuelve ColaCandidatos por columna
+      - Soportar el barrido periódico como red de seguridad (idempotencia por oms_processed_at)
+    depends_on:
+      - component: MotorReglasOMS
+        interaction: arranca la corrida; el lote se resuelve por lectura de orders (oms_processed_at)
+        style: async
+    dependents: []
+    external_dependencies:
+      - name: Planificación (otro módulo, emite la señal)
+        kind: other
+        purpose: avisa al OMS tras asignar viajes (señal, no fuente de verdad del lote). CONTRATO RESUELTO 2026-10-16: pull por columna oms_processed_at + lambda señal
     entities: []
 
   - name: ColaCandidatos
-    summary: Lee del WMS/EFLOW los pedidos candidatos a priorizar (borde de ENTRADA, adaptador de lectura).
+    summary: Lee de public.orders los pedidos del lote ya procesado por Planificación (borde de ENTRADA, adaptador de lectura).
     behaviour: >
-      Encapsula el lado LECTURA del OMS sobre EFLOW (FR1). Resuelve la cola en
-      `EFLOW_OLO.dbo.EXPEDICIONESCABECERA` (SQL Server). Filtro real (nombres DDL
-      confirmados 2026-10-01): `FECHACIERRE IS NULL` (datetime NULL) + estado
-      `TPEXES = 'DISP'` + situación `TPEXSI = 'DISP'` (ambos varchar(6), FK
-      TIPOSINTEGRACION) + `NUMEROVIAJEWMH IS NULL` (bigint NULL = sin viaje). Equivale
-      al anti-join de "no procesados" con `ALMACENMOVIMIENTOS_CARCAM` por
-      `IDALMACEN+IDCOMPANIA+IDSUCURSAL+IDEXPEDICION`. Mantiene el filtro de almacén.
-      Expone `FECHAEXPEDICIONPLANIFICADA` (datetime NOT NULL) y `OBSERVACIONESEXPEDICION`
-      (varchar(500)) como insumos de las reglas. Lee sobre la réplica de EFLOW_OLO
-      (NFR9; hoy EFLOW en mock, réplica inexistente OQ-2). Aísla el esquema del WMS
-      del dominio del OMS (adaptador de lectura).
+      Encapsula el lado LECTURA del OMS (FR1). **CAMBIO D7**: ya NO lee de
+      `EFLOW_OLO.dbo.EXPEDICIONESCABECERA` ni usa el anti-join con
+      `ALMACENMOVIMIENTOS_CARCAM`. Resuelve la cola sobre **`public.orders`** (Aurora
+      `tms_olo`) por **POLLING DE COLUMNA** (contrato CERRADO 2026-10-16, ADR-007):
+      **`planning_run_id IS NOT NULL AND oms_processed_at IS NULL`** — pedidos que
+      Planificación ya procesó y dejó pendientes de priorizar. La **columna es la
+      única fuente de verdad** (activación v1 = polling; EventBridge = futuro). El
+      OMS ordena/batcha el conjunto NULL por compañía. Expone los insumos desde
+      `orders`: `delivery_date`, `lead_time_days` (duración logística DINÁMICA que
+      entrega Planificación por pedido — puede venir NULL → default 1 día, D10),
+      `observaciones`, `delivery_zone` (base de cliente-retira, D11), `customer_type`
+      (TIENDA/MAYOREO para separar EPA de Cofersa/mayoreo), `numero_viaje` (formato
+      YYYYMMDD-NNN; lo escribe Planificación), `planning_run_id`, y la llave EFLOW
+      (`eflow_id_almacen/compania/sucursal/expedicion`). Aísla el acceso a `orders`
+      del dominio del OMS. (`wms_trip_number` queda ELIMINADA del contrato — ADR-0004
+      de Planificación; el número de viaje es `numero_viaje`.)
     responsibilities:
-      - Filtrar y devolver los candidatos (TPEXES/TPEXSI='DISP', FECHACIERRE IS NULL, NUMEROVIAJEWMH IS NULL)
-      - Exponer FECHAEXPEDICIONPLANIFICADA y OBSERVACIONESEXPEDICION como insumos de las reglas
-      - Aislar el esquema del WMS/EFLOW del dominio del OMS (adaptador de lectura)
+      - Resolver la cola por polling de public.orders: planning_run_id IS NOT NULL AND oms_processed_at IS NULL
+      - Exponer delivery_date, lead_time_days (dinámico), observaciones, delivery_zone, customer_type, numero_viaje, planning_run_id y la llave EFLOW
+      - Aislar el acceso a public.orders del dominio del OMS (adaptador de lectura)
     depends_on: []
     dependents:
       - component: MotorReglasOMS
-        interaction: le pide el conjunto de pedidos candidatos de un scope para priorizar
+        interaction: le pide el conjunto de pedidos candidatos del lote/scope para priorizar
         style: sync
     external_dependencies:
-      - name: EFLOW_OLO / WMS (réplica de lectura, SQL Server)
+      - name: public.orders (Aurora tms_olo, esquema único public)
         kind: database
-        purpose: origen de los pedidos (EXPEDICIONESCABECERA, ALMACENMOVIMIENTOS_CARCAM); hoy mock, réplica inexistente (OQ-2)
+        purpose: origen de los pedidos del lote (ingeridos desde EFLOW; con viaje de Planificación). Reemplaza la lectura directa de EXPEDICIONESCABECERA (D7)
     entities:
       - name: PedidoCandidato
-        identifier: IDALMACEN+IDCOMPANIA+IDSUCURSAL+IDEXPEDICION (PK de EXPEDICIONESCABECERA)
-        attributes: [IDEXPEDICION, IDALMACEN, IDCOMPANIA, IDSUCURSAL, TPEXES, TPEXSI, FECHACIERRE, FECHAEXPEDICIONPLANIFICADA, NUMEROVIAJEWMH, OBSERVACIONESEXPEDICION, PRIORIDAD, PESOPEDIDO_TOTAL, CUBICAJEPEDIDO_TOTAL]
+        identifier: llave EFLOW (eflow_id_almacen+compania+sucursal+expedicion) en public.orders
+        attributes: [eflow_id_almacen, eflow_id_compania, eflow_id_sucursal, eflow_id_expedicion, delivery_date, lead_time_days, observaciones, delivery_zone, customer_type, wms_trip_number, oms_processed_at, wms_status, wms_situation, priority, total_weight, total_volume]
         references: []
 
   - name: HandoffPedidosOMS
-    summary: Borde de SALIDA (D6) — dos escrituras — tabla propia del OMS (handoff) + situación en el WMS (dispara picking).
+    summary: Borde de SALIDA (D7/D8) — dos escrituras — UPDATE a public.orders + escritura real a EFLOW (situación GENE + prioridad).
     behaviour: >
-      Encapsula el lado ESCRITURA del OMS (FR8, D6) con DOS ESCRITURAS, DOS
-      PROPÓSITOS. **Escritura 1 (handoff)**: persiste el pedido priorizado en la
-      TABLA DE PEDIDOS PROPIA DEL OMS (esquema OMS de `logistica_olo`, Aurora) con la
-      `PRIORIDAD` (int) + status + situación = generada, en escritura ATÓMICA (nunca
-      generada sin prioridad). Esta tabla es la superficie que lee Planificación (no
-      el WMS); puede cargar `PESOPEDIDO_TOTAL`/`CUBICAJEPEDIDO_TOTAL` cuando vengan
-      (OQ-8, informada). **Escritura 2 (disparo de picking)** (nombres DDL
-      confirmados 2026-10-01): actualiza `TPEXSI → 'GENE'` (situación) en
-      `EFLOW_OLO.dbo.EXPEDICIONESCABECERA`; el **estado `TPEXES` PERMANECE en 'DISP'**
-      (solo cambia la situación) para que el WMS genere el picking. ORDEN: escritura
-      1 (Aurora) ANTES de escritura 2 (WMS/SQL Server). FALLO PARCIAL: si la 2 falla
-      tras la 1, el registro OMS queda "disparo pendiente" y se REINTENTA de forma
-      idempotente sin re-crear el handoff. SIN 2PC entre Aurora y SQL Server EFLOW
-      (ponytail: dos stores, orden + reintento idempotente; upgrade = outbox/
-      reconciliación). IDEMPOTENCIA de corrida por la **PK (IDALMACEN, IDCOMPANIA,
-      IDSUCURSAL, IDEXPEDICION)**: re-correr no duplica el handoff ni re-dispara el
-      picking. NO escribe fechas (invariante). NO toca el WMH.
+      Encapsula el lado ESCRITURA del OMS (FR8, D7/D8) con DOS ESCRITURAS.
+      **SUPERSEDE de D6**: ya NO existe tabla propia `oms.pedidos` (esquema único
+      `public`, BD 2026-10-16). **Escritura 1 (public.orders)**: hace UPDATE a
+      `public.orders` por la LLAVE EFLOW (`eflow_id_almacen/compania/sucursal/
+      expedicion`) con `priority` (int) + `oms_score` + `wms_situation = 'GENE'` +
+      `handoff_status` + `prioritization_run_id` + **`oms_processed_at = now()`**
+      (marca el pedido como procesado, consistente con `handoff_status='completado'`;
+      es lo que lo saca de la cola pull — ADR-007), en escritura ATÓMICA (nunca GENE
+      sin prioridad). El pedido YA existe en orders (lo ingirió la carga desde
+      EFLOW; es lo que Planificación procesó y la Cola muestra); si no existe, es
+      error (PedidoNoIngerido). **Escritura 2 (situación=GENE + PRIORIDAD, D8 — vía
+      COSTURA)**: **eFlow real es READ-ONLY**; el OMS **nunca escribe directo a
+      eFlow**. La escritura va por un **endpoint que proveerá EPRAC**; como aún no
+      existe, se **simula escribiendo en `sim_expedicionescabecera`** (Aurora, ya
+      creada) detrás de una **interface intercambiable** (destino hoy =
+      `sim_expedicionescabecera`; mañana = endpoint EPRAC, sin tocar el motor). Pone
+      `TPEXSI='GENE'` + `PRIORIDAD`; el estado `TPEXES` PERMANECE 'DISP'. **GENE lo
+      pone SOLO el OMS** (Planificación deja los pedidos en `DISP`). **NO escribe
+      `numero_viaje`** (lo escribe Planificación) ni toca el picking. ORDEN:
+      escritura 1 (orders) ANTES de escritura 2 (sim/endpoint). FALLO PARCIAL: si la
+      2 falla, el pedido queda `handoff_status='disparo_pendiente'` y se REINTENTA
+      idempotente por la llave EFLOW. SIN 2PC (ponytail: dos stores, orden +
+      reintento; upgrade = outbox/reconciliación). IDEMPOTENCIA por
+      `oms_processed_at` + llave EFLOW. NO escribe fechas (invariante).
     responsibilities:
-      - Escritura 1 — persistir el pedido priorizado (PRIORIDAD int + status + situación) en la tabla propia del OMS (atómica, handoff)
-      - Escritura 2 — actualizar TPEXSI='GENE' en EXPEDICIONESCABECERA (TPEXES permanece 'DISP') para disparar picking
-      - Garantizar orden, reintento idempotente de la 2, e idempotencia de corrida por la PK
-      - Garantizar invariantes de escritura (no fechas, no WMH)
+      - Escritura 1 — UPDATE a public.orders (priority, oms_score, wms_situation=GENE, handoff_status, prioritization_run_id, oms_processed_at=now()) por la llave EFLOW (atómica)
+      - Escritura 2 — EFLOW real EXPEDICIONESCABECERA (TPEXSI='GENE' + PRIORIDAD; TPEXES permanece 'DISP')
+      - Garantizar orden, reintento idempotente de la 2, idempotencia por corrida + llave EFLOW
+      - Garantizar invariantes (no fechas, no número de viaje, no picking)
     depends_on: []
     dependents:
       - component: MotorReglasOMS
         interaction: el motor ordena las dos escrituras de los pedidos que pasan el umbral
         style: sync
     external_dependencies:
-      - name: PedidosOMS (tabla propia, esquema OMS de logistica_olo, Aurora)
+      - name: public.orders (Aurora tms_olo, esquema único public)
         kind: database
-        purpose: superficie de handoff que lee Planificación (escritura 1); puede cargar peso/volumen (OQ-8)
+        purpose: escritura 1 — resultado del OMS (prioridad, score, situación, handoff_status) por la llave EFLOW; superficie compartida con Planificación. Reemplaza la tabla propia oms.pedidos de D6 (descartada)
       - name: EFLOW_OLO / WMS — EXPEDICIONESCABECERA (SQL Server)
         kind: database
-        purpose: actualizar TPEXSI='GENE' (TPEXES permanece 'DISP') para disparar el picking (escritura 2); hoy mock
+        purpose: escritura 2 — TPEXSI='GENE' + PRIORIDAD (TPEXES permanece 'DISP') para disparar el picking (D8, flag TRUE); el número de viaje NO lo escribe el OMS
     entities:
       - name: PedidoOMS
-        identifier: IDALMACEN+IDCOMPANIA+IDSUCURSAL+IDEXPEDICION (misma PK que EXPEDICIONESCABECERA)
-        attributes: [IDEXPEDICION, IDALMACEN, IDCOMPANIA, IDSUCURSAL, prioridad, status, situacion, estadoHandoff, pesoTotal, cubicajeTotal, corrida]
+        identifier: llave EFLOW en public.orders (eflow_id_almacen+compania+sucursal+expedicion)
+        attributes: [eflow_id_almacen, eflow_id_compania, eflow_id_sucursal, eflow_id_expedicion, priority, oms_score, wms_situation, handoff_status, prioritization_run_id]
         references:
           - entity: RegistroPrioridad
             owned_by: MotorReglasOMS
-            relationship: cada PedidoOMS materializa el RegistroPrioridad calculado por el motor
+            relationship: cada fila de orders actualizada materializa el RegistroPrioridad calculado por el motor
 ```
 
 ## Parte B — Vista humana
@@ -227,81 +376,106 @@ components:
 
 ```mermaid
 flowchart TD
+  plan["Planificación (procesa, asigna viaje, ACTIVA al OMS)"]
+
   subgraph oms["OMS — rebanada de 1ª entrega (Lambda Python)"]
+    activa["LambdaActivacion (entrada async, D7)"]
     motor["MotorReglasOMS (NUEVO)"]
-    rfecha["ReglaFecha (T-1)"]
-    robs["AnalizadorObservaciones"]
-    cola["ColaCandidatos (entrada)"]
-    handoff["HandoffPedidosOMS (salida, D6)"]
+    repa["ReglaEPA (cortocircuito, D9)"]
+    rfecha["ReglaFecha (T − duración, D10)"]
+    rzona["ReglaClienteRetiraZona (D11)"]
+    cola["ColaCandidatos (lee orders)"]
+    handoff["HandoffPedidosOMS (salida, D7/D8)"]
+    backorder["BackorderInventario (loop desacoplado, D13)"]
+    robs["AnalizadorObservaciones (DIFERIDO, D11)"]:::deferred
   end
 
   subgraph ext["Dependencias externas"]
-    eflow["EFLOW_OLO / WMS (mock)"]
-    bedrock["Amazon Bedrock"]
-    pedidosoms[("PedidosOMS\n(esquema OMS logistica_olo)")]
-    cfg["ConfiguracionReglas\n(parámetros por scope)"]
+    orders[("public.orders\n(Aurora tms_olo)")]
+    eflow["EFLOW / WMS (EXPEDICIONESCABECERA)"]
+    cfg["ConfiguracionReglas\n(pesos/umbral por scope)"]
+    inv["Fuente de inventario\n(OQ-BO2)"]
   end
 
-  plan["Planificación (lee la tabla del OMS)"]
-
+  plan -->|planning_run_id + scope async| activa
+  activa --> motor
   motor --> cola
+  motor --> repa
   motor --> rfecha
-  motor --> robs
+  motor --> rzona
   motor --> handoff
   motor -. parámetros por scope .-> cfg
-  cola --> eflow
-  robs --> bedrock
-  handoff -->|escritura 1 handoff| pedidosoms
-  handoff -->|escritura 2 situación| eflow
-  pedidosoms --> plan
+  cola --> orders
+  handoff -->|escritura 1 UPDATE| orders
+  handoff -->|escritura 2 GENE+prioridad| eflow
+  orders --> plan
+  backorder -. re-genera .-> handoff
+  backorder -.-> inv
+  classDef deferred stroke-dasharray: 5 5,opacity:0.6
 ```
 
-**Fallback en texto.** `MotorReglasOMS` (nuevo, Lambda Python) orquesta: toma
-candidatos de `ColaCandidatos` (que lee EFLOW/WMS), invoca `ReglaFecha` (T-1 con
-parámetros de ruta por scope) y `AnalizadorObservaciones` (Bedrock, cliente
-retira), calcula el score internamente, aplica el umbral y ordena a
-`HandoffPedidosOMS` las dos escrituras: (1) la tabla propia `PedidosOMS` (handoff,
-que lee Planificación) y (2) la situación en el WMS (dispara picking). Los
-parámetros de reglas (pesos, umbral, días/cortes/duración estimada de ruta) se
-resuelven por scope CUSTOMER→WAREHOUSE→COUNTRY→GLOBAL.
+**Fallback en texto.** Planificación procesa los pedidos, les asigna viaje
+(escribe `wms_trip_number` en EFLOW y `orders`) y **activa al OMS** mediante
+`LambdaActivacion` (asíncrona; `planning_run_id` + scope). `MotorReglasOMS` (nuevo,
+Lambda Python) toma los candidatos de `ColaCandidatos` (que lee **`public.orders`**,
+no EFLOW), **deriva EPA a `ReglaEPA`** (prioridad pre-asignada por EPRAC,
+cortocircuita), y para Cofersa/mayoreo invoca `ReglaFecha` (T − duración, con la
+duración como insumo de Planificación) y `ReglaClienteRetiraZona` (por
+`delivery_zone`), calcula el score, aplica el umbral y ordena a `HandoffPedidosOMS`
+las dos escrituras: (1) **UPDATE a `public.orders`** y (2) **EFLOW real** (`TPEXSI='GENE'`
++ `PRIORIDAD`; sin número de viaje). `BackorderInventario` corre como loop aparte
+(desacoplado) y re-genera las acciones omitidas cuando entra stock.
+`AnalizadorObservaciones` queda **diferido** (D11).
 
 ### Resumen de componentes (en alcance)
 
 | Componente | Propósito | Depende de | Dependientes | Entidades propias |
 |---|---|---|---|---|
-| MotorReglasOMS | Motor propio del OMS (orquesta + score + umbral + efecto cliente-retira) | ColaCandidatos, ReglaFecha, AnalizadorObservaciones, HandoffPedidosOMS | — | RegistroPrioridad |
-| ReglaFecha | Regla T-1 (fecha de entrega − 1, ajuste por ruta estimada/scope + cortes) | — | MotorReglasOMS | — |
-| AnalizadorObservaciones | Clasifica observaciones con IA (cliente retira) | — | MotorReglasOMS | — |
-| ColaCandidatos | Lectura de EFLOW/WMS (adaptador de entrada) | — | MotorReglasOMS | PedidoCandidato |
-| HandoffPedidosOMS | Dos escrituras: tabla OMS (handoff) + situación WMS (picking) | — | MotorReglasOMS | PedidoOMS |
+| LambdaActivacion | Entrada async: Planificación activa al OMS (planning_run_id + scope) | MotorReglasOMS | — | — |
+| MotorReglasOMS | Motor propio (orquesta + score + umbral + efecto cliente-retira) | ColaCandidatos, ReglaEPA, ReglaFecha, ReglaClienteRetiraZona, HandoffPedidosOMS | LambdaActivacion | RegistroPrioridad |
+| ReglaEPA | Cortocircuito EPA (prioridad pre-asignada por EPRAC, guion-0/1) | — | MotorReglasOMS | — |
+| ReglaFecha | Fecha generalizada (fecha_entrega − duración; duración = insumo de Planificación) | — | MotorReglasOMS | — |
+| ReglaClienteRetiraZona | Cliente-retira por delivery_zone (prioridad máxima) | — | MotorReglasOMS | — |
+| ColaCandidatos | Lectura de public.orders (adaptador de entrada) | — | MotorReglasOMS | PedidoCandidato |
+| HandoffPedidosOMS | Dos escrituras: UPDATE orders + EFLOW (GENE+prioridad) | — | MotorReglasOMS | PedidoOMS |
+| BackorderInventario | Loop desacoplado: re-genera acciones omitidas al entrar stock | HandoffPedidosOMS | — | — |
+| AnalizadorObservaciones | **DIFERIDO (D11)** — IA observaciones a futuro | — | — | — |
 
 ### Propiedad de entidades (en alcance)
 
 | Entidad | Componente dueño | Identificador | Atributos | Referencias |
 |---|---|---|---|---|
-| PedidoCandidato | ColaCandidatos | IDALMACEN+IDCOMPANIA+IDSUCURSAL+IDEXPEDICION (PK) | IDEXPEDICION, IDALMACEN, IDCOMPANIA, IDSUCURSAL, TPEXES, TPEXSI, FECHACIERRE, FECHAEXPEDICIONPLANIFICADA, NUMEROVIAJEWMH, OBSERVACIONESEXPEDICION, PRIORIDAD, PESOPEDIDO_TOTAL, CUBICAJEPEDIDO_TOTAL | — |
-| RegistroPrioridad | MotorReglasOMS | PK + corrida | IDEXPEDICION, IDALMACEN, IDCOMPANIA, IDSUCURSAL, prioridad, score, tipoOrigen, umbralAplicado, corrida, clienteRetira, grupoViajeDummy | → PedidoCandidato (ColaCandidatos) |
-| PedidoOMS | HandoffPedidosOMS | IDALMACEN+IDCOMPANIA+IDSUCURSAL+IDEXPEDICION (PK) | IDEXPEDICION, IDALMACEN, IDCOMPANIA, IDSUCURSAL, prioridad, status, situacion, estadoHandoff, pesoTotal, cubicajeTotal, corrida | → RegistroPrioridad (MotorReglasOMS) |
+| PedidoCandidato | ColaCandidatos | llave EFLOW en public.orders | eflow_id_almacen/compania/sucursal/expedicion, delivery_date, lead_time_days, observaciones, delivery_zone, customer_type, wms_trip_number, oms_processed_at, wms_status, wms_situation, priority, total_weight, total_volume | — |
+| RegistroPrioridad | MotorReglasOMS | llave EFLOW + corrida | llave EFLOW, prioridad, score, tipoOrigen, umbralAplicado, prioritization_run_id, clienteRetira, esEPA | → PedidoCandidato (ColaCandidatos) |
+| PedidoOMS | HandoffPedidosOMS | llave EFLOW en public.orders | eflow_id_almacen/compania/sucursal/expedicion, priority, oms_score, wms_situation, handoff_status, prioritization_run_id | → RegistroPrioridad (MotorReglasOMS) |
 
 ### Dependencias externas (en alcance)
 
 | Componente | Dependencia | Tipo | Propósito |
 |---|---|---|---|
-| ColaCandidatos | EFLOW_OLO / WMS (réplica lectura) | database | Origen de pedidos (hoy mock, réplica OQ-2) |
-| AnalizadorObservaciones | Amazon Bedrock | third-party-api | Clasificación IA (a construir) |
-| HandoffPedidosOMS | PedidosOMS (esquema OMS) | database | Tabla propia = superficie de handoff (escritura 1) |
-| HandoffPedidosOMS | EFLOW_OLO / WMS | database | Voltear situación → picking (escritura 2) |
-| MotorReglasOMS | ConfiguracionReglas (por scope) | other | Pesos, umbral, parámetros de ruta por scope |
+| LambdaActivacion | Planificación (emite señal) | other | Señal async que arranca la corrida (no fuente de verdad). Contrato RESUELTO 2026-10-16: pull por columna + lambda señal |
+| ColaCandidatos | public.orders (Aurora) | database | Pull por columna: wms_trip_number IS NOT NULL AND oms_processed_at IS NULL. Reemplaza la lectura de EXPEDICIONESCABECERA (D7) |
+| HandoffPedidosOMS | public.orders (Aurora) | database | Escritura 1: UPDATE (prioridad, score, situación). Reemplaza oms.pedidos (descartada) |
+| HandoffPedidosOMS | EFLOW / WMS (EXPEDICIONESCABECERA) | database | Escritura 2: TPEXSI='GENE' + PRIORIDAD (D8); sin número de viaje |
+| ReglaEPA | EPRAC | other | Prioridad pre-asignada (guion-0/1); el OMS la respeta |
+| ReglaFecha | duración logística (de Planificación) | other | Insumo por pedido/viaje; Cofersa=1, VE dinámica (D10) |
+| BackorderInventario | EFLOW (acciones omitidas, OQ-BO1) + inventario (OQ-BO2) | database | Backorder: origen y fuente de inventario por confirmar |
+| MotorReglasOMS | ConfiguracionReglas (por scope) | other | Pesos, umbral, parámetros por scope |
+| AnalizadorObservaciones | Amazon Bedrock | third-party-api | **DIFERIDO (D11)** — no en esta entrega |
 
 ### Racional (por qué cada bloque es separado)
 
 | Componente | Por qué es un bloque distinto |
 |---|---|
+| LambdaActivacion | Puerta de entrada async del flujo invertido (D7); aísla el contrato con Planificación y la idempotencia por corrida |
 | MotorReglasOMS | Núcleo del OMS; propio y nuevo (C2); dueño del ciclo de corrida y del score (submódulo puro testeable) |
-| ReglaFecha | Lógica T-1 con contrato propio (fecha como insumo, duración estimada por scope); cambia con reglas de fecha/cortes |
-| AnalizadorObservaciones | Concern distinta (IA/Bedrock); ritmo de cambio propio (prompt/modelo), degradación propia; solo detecta |
-| ColaCandidatos | Adaptador de lectura; aísla el esquema del WMS del dominio |
-| HandoffPedidosOMS | Adaptador de escritura con los invariantes D6 (dos escrituras, orden, idempotencia); dueño de la tabla propia del OMS |
+| ReglaEPA | Rama que cortocircuita fecha/score (D9); ritmo y origen propios (EPRAC); no es un caso del motor de fecha |
+| ReglaFecha | Fecha generalizada (fecha − duración); duración = insumo de Planificación (D10); cambia con reglas de fecha/cortes |
+| ReglaClienteRetiraZona | Detección por zona (D11); determinista, reemplaza la vía por observaciones/IA |
+| ColaCandidatos | Adaptador de lectura; aísla el acceso a public.orders del dominio (D7) |
+| HandoffPedidosOMS | Adaptador de escritura con los invariantes D7/D8 (UPDATE orders + EFLOW real, orden, idempotencia, sin número de viaje) |
+| BackorderInventario | Loop propio DESACOPLADO de la corrida (D13); ritmo continuo/por evento, concern de inventario separada |
+| AnalizadorObservaciones | DIFERIDO (D11); concern de IA/Bedrock, fuera de esta entrega |
 
 ## Componentes DIFERIDOS (fuera de esta corrida acotada — no eliminados)
 

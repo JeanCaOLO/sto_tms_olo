@@ -1,109 +1,99 @@
-# Plan de Bolts — Módulo OMS (rebanada delgada de 1ª entrega)
+# Plan de Bolts — Módulo OMS (rebanada delgada, flujo invertido v4)
 
 > Intent: `260826-modulo-oms`. Etapa: Delivery Planning (Inception, capstone,
-> 2026-10-01). Consume: requirements.md v3, stories.md v3, components.md (acotado),
-> unit-of-work.md (U1/U2), unit-of-work-dependency.md (DAG `U1 → U2`).
+> **re-corrida v4, 2026-10-16**). Consume: requirements.md v4, stories.md v4,
+> components.md v4, unit-of-work.md (U1/U2), unit-of-work-dependency.md (DAG U2→U1),
+> contract-summary.md (C1 activación, C2 handoff).
+>
+> Nomenclatura: WMS = **EFLOW**; módulo que parte EPA por línea = **EPRAC**.
 >
 > Un **Bolt** es una unidad desplegable de trabajo dentro de Construcción: una
 > pasada completa de diseño + construcción + tests sobre una o varias Unidades de
-> Trabajo, que termina en algo que corre. Este plan ordena los Bolts de la
-> rebanada actual.
+> Trabajo, que termina en algo que corre.
 
 ## Resumen
 
-La rebanada de 1ª entrega es un **único Bolt** (walking skeleton). Un **walking
-skeleton** (Cockburn) es el primer slice de punta a punta que toca cada capa de
-la arquitectura y prueba que el todo se sostiene, antes de refinar funcionalidad.
-Aquí el esqueleto cubre el flujo completo del motor del OMS contra mocks/stubs
-declarados, con las dos unidades de la rebanada construidas juntas.
+La rebanada tiene 2 unidades (U1 `motor-reglas-oms`, U2 `backorder-inventario-oms`)
+con DAG `U2 → U1`. El plan: **Bolt 1 = U1** (walking skeleton), ahora informado por
+los contratos ya formalizados (C1 activación por pull-de-columna + señal; C2
+handoff a `orders` + EFLOW). **U2 NO entra a construcción** en esta rebanada: está
+**bloqueado por OQ-BO1/BO2/BO3** (integraciones de backorder a resolver en la
+próxima reunión). Se registra como Bolt 2 **bloqueado**, no planificado para
+construir aún.
 
 ## Secuencia de Bolts
 
-| Bolt | Unidades | ¿Walking skeleton? | Mob |
-|---|---|---|---|
-| Bolt 1 | U1 `motor-reglas-oms` (service) + U2 `esquema-pedidos-oms` (spec) | Sí | `aidlc-developer-agent` |
+| Bolt | Unidades | ¿Walking skeleton? | Estado | Mob |
+|---|---|---|---|---|
+| Bolt 1 | U1 `motor-reglas-oms` | Sí | Listo para construir | `aidlc-developer-agent` |
+| Bolt 2 | U2 `backorder-inventario-oms` | No | **BLOQUEADO** (OQ-BO1/BO2/BO3) | `aidlc-developer-agent` (cuando se desbloquee) |
 
-## Bolt 1 — Esqueleto de `motor-reglas-oms` + `esquema-pedidos-oms`
+## Bolt 1 — Esqueleto de `motor-reglas-oms` (walking skeleton)
 
-- **Unidades que agrupa**: U1 (`motor-reglas-oms`, service) y U2
-  (`esquema-pedidos-oms`, spec). U2 es un `spec` pequeño y prerequisito directo de
-  la escritura 1 del handoff (`HandoffPedidosOMS` escribe en la tabla `PedidosOMS`
-  cuyo esquema define U2), por eso se construye dentro del mismo Bolt y no como un
-  Bolt separado. Respeta el DAG `U1 → U2` (U2 se materializa antes de que U1 use su
-  escritura 1).
+- **Unidad**: U1 `motor-reglas-oms` (service, Lambda Python). 7 componentes
+  internos: LambdaActivacion, ColaCandidatos, MotorReglasOMS, ReglaEPA, ReglaFecha,
+  ReglaClienteRetiraZona, HandoffPedidosOMS.
+- **¿Es el walking skeleton?**: Sí. Prueba de punta a punta todas las capas del
+  flujo invertido, informado por los contratos formalizados:
+  1. **Activación (C1)** — `LambdaActivacion` recibe la señal; `ColaCandidatos`
+     resuelve el lote por **pull de columna** (`wms_trip_number IS NOT NULL AND
+     oms_processed_at IS NULL`) sobre `public.orders`.
+  2. **Reglas** — `ReglaEPA` (cortocircuito EPA), `ReglaFecha` (T−duración leyendo
+     `lead_time_days`), `ReglaClienteRetiraZona` (por `delivery_zone`).
+  3. **Orquestación + score** — `MotorReglasOMS` (submódulo puro de score; batching
+     por compañía; umbral).
+  4. **Handoff (C2)** — `HandoffPedidosOMS`: UPDATE a `public.orders`
+     (prioridad, score, `wms_situation='GENE'`, handoff_status, prioritization_run_id,
+     `oms_processed_at=now()`) + escritura a **EFLOW** (`TPEXSI='GENE'`+`PRIORIDAD`,
+     `TPEXES` permanece `DISP`, sin número de viaje).
+- **Definition of Done**: los 7 módulos existen como código Python ejecutable en
+  una Lambda; el score corre como submódulo puro testeable; tests unitarios verdes
+  (incl. EPA cortocircuito, cliente-retira por zona, pull por columna, dos
+  escrituras); el flujo corre de punta a punta contra mocks/stubs declarados
+  (EFLOW mock; señal simulada; barrido simulado).
+- **Confidence hypothesis (qué prueba este Bolt)**: que el flujo invertido
+  (activación por señal + pull de columna → reglas → score → dos escrituras
+  idempotentes con `oms_processed_at`) es construible y testeable tal como lo
+  fijaron C1 y C2, antes de conectar datos reales (réplica EFLOW, Bedrock no aplica
+  —diferido—).
+- **Demo esperada**: una corrida que, dado un lote mock en `orders` con viaje y
+  `oms_processed_at NULL`, prioriza (EPA pre-asignada; Cofersa por fecha;
+  cliente-retira por zona), hace las dos escrituras, estampa `oms_processed_at`, y
+  al re-correr (señal duplicada o barrido) **no re-prioriza** (idempotencia por
+  columna).
+- **Mob**: `aidlc-developer-agent` (scope `classic`, team-formation SKIP).
 
-- **¿Es el walking skeleton?**: Sí. Prueba de punta a punta todas las capas de la
-  arquitectura de la rebanada:
-  1. **Entrada** — `ColaCandidatos` lee `EXPEDICIONESCABECERA` (TPEXES/TPEXSI=
-     `'DISP'`, `FECHACIERRE IS NULL`, `NUMEROVIAJEWMH IS NULL`; anti-join con
-     `ALMACENMOVIMIENTOS_CARCAM`). Contra **mock** (la réplica de `EFLOW_OLO` aún
-     no existe, OQ-2).
-  2. **Reglas** — `ReglaFecha` (T-1 sobre `FECHAEXPEDICIONPLANIFICADA`, duración de
-     ruta estimada por scope, fallback por valor centinela) +
-     `AnalizadorObservaciones` (cliente-retira sobre `OBSERVACIONESEXPEDICION`,
-     contra un **clasificador stub** determinístico — Bedrock a construir).
-  3. **Orquestación + score** — `MotorReglasOMS` resuelve reglas por scope
-     (CUSTOMER→WAREHOUSE→COUNTRY→GLOBAL), invoca las reglas, calcula el **score
-     ponderado como submódulo puro y testeable** (Testing Posture), aplica umbral y
-     orden, y el efecto cliente-retira.
-  4. **Salida** — `HandoffPedidosOMS` ejecuta las **dos escrituras** (D6): (1) la
-     tabla propia del OMS `PedidosOMS` (esquema de U2); (2) `TPEXSI='GENE'` en
-     `EXPEDICIONESCABECERA` (`TPEXES` permanece `'DISP'`). Orden: 1 antes de 2, sin
-     2PC, idempotencia por PK, reintento. La escritura de `PRIORIDAD` al WMS queda
-     tras un **flag/config parametrizable** con `TODO` visible (pendiente de
-     confirmar si va a la tabla del OMS, al WMS, o a ambos).
-  5. **Persistencia** — migración del esquema `PedidosOMS` (U2) en Aurora
-     (esquema OMS de `logistica_olo`).
+## Bolt 2 — `backorder-inventario-oms` (BLOQUEADO)
 
-- **Definition of Done**:
-  - Los 5 módulos internos existen como código Python ejecutable dentro de una
-    Lambda (estándar Intelix SAM) del backend.
-  - El cálculo de score corre como **submódulo puro testeable**, sin dependencia de
-    I/O (Testing Posture del proyecto).
-  - Tests unitarios verdes para cada módulo; el clasificador de observaciones usa
-    el stub determinístico en los unitarios.
-  - El esquema de `PedidosOMS` está migrado.
-  - El flujo completo corre de punta a punta contra los mocks/stubs declarados
-    (ver `external-dependency-map.md`).
-  - Las dependencias con mock/stub quedan marcadas con `TODO` visible en el código
-    (réplica EFLOW y Bedrock), para no perder de vista que el esqueleto NO corre
-    contra el WMS real todavía.
-
-- **Hipótesis de confianza (qué prueba shipping este Bolt)**: que la arquitectura
-  elegida — motor propio del OMS (sin AST compartido con el TMS, C2-RESUELTO),
-  Lambda única con partición por **scope** (no por compañía, C3-SUPERSEDE), dos
-  escrituras idempotentes sin 2PC — es **construible y testeable tal como quedó
-  diseñada**, antes de invertir en la integración real con Bedrock y la réplica de
-  EFLOW.
-
-- **Demo esperada**: una corrida del motor sobre un conjunto de pedidos mock que
-  (a) calcula score y prioridad numérica invertida, (b) detecta cliente-retira vía
-  stub, (c) produce las dos escrituras (fila en `PedidosOMS` + `TPEXSI='GENE'` en
-  el mock del WMS), (d) muestra idempotencia al re-correr (no duplica por PK).
-
-- **Mob que lo posee**: `aidlc-developer-agent` (team-formation fue SKIP en el
-  scope `classic`; sin equipos humanos declarados, aplica el default de la
-  framework).
+- **Unidad**: U2 `backorder-inventario-oms` (service, loop desacoplado, D13).
+- **Estado**: **BLOQUEADO — no entra a construcción en esta rebanada.** Depende de
+  resolver **OQ-BO1** (tabla/estado de acciones omitidas en EFLOW), **OQ-BO2**
+  (fuente de inventario) y **OQ-BO3** (disparador del re-chequeo). Son hechos de
+  integración/negocio para la **próxima reunión**.
+- **Qué falta para desbloquear**: cerrar las 3 OQ; luego su contrato (hoy abierto
+  en Contract Design) se formaliza y el Bolt 2 se planifica para construir.
+- **Mob (cuando se desbloquee)**: `aidlc-developer-agent`.
 
 ## Iteración de Construcción
 
-Con un solo Bolt que construye una unidad completa (U1) junto con su spec de datos
-(U2) antes que cualquier otra cosa, el orden natural es **unit-major**
-(diseñar y construir la unidad completa, con el primer código ejecutable al cierre
-del bloque), coherente con un plan walking-skeleton-first. Se registrará
+Con un solo Bolt construible (U1) y el segundo bloqueado, el orden es
+**unit-major** (diseñar y construir U1 completa primero; primer código ejecutable
+al cierre del bloque), coherente con walking-skeleton-first. Se registrará
 `set-construction-iteration unit-major` en el handoff de la etapa.
 
 ## Sources
 
-- `aidlc/spaces/default/intents/260826-modulo-oms/inception/requirements-analysis/requirements.md` (v3).
-- `aidlc/spaces/default/intents/260826-modulo-oms/inception/user-stories/stories.md` (v3, rebanada US1, US7–US13).
-- `aidlc/spaces/default/intents/260826-modulo-oms/inception/domain-design/components.md` (acotado, 5 componentes).
-- `aidlc/spaces/default/intents/260826-modulo-oms/inception/units-generation/unit-of-work.md` (U1/U2).
-- `aidlc/spaces/default/intents/260826-modulo-oms/inception/units-generation/unit-of-work-dependency.md` (DAG `U1 → U2`).
+- `aidlc/spaces/default/intents/260826-modulo-oms/inception/requirements-analysis/requirements.md` (v4).
+- `aidlc/spaces/default/intents/260826-modulo-oms/inception/user-stories/stories.md` (v4).
+- `aidlc/spaces/default/intents/260826-modulo-oms/inception/domain-design/components.md` (v4).
+- `aidlc/spaces/default/intents/260826-modulo-oms/inception/units-generation/unit-of-work.md` (U1/U2) y `unit-of-work-dependency.md` (DAG U2→U1).
+- `aidlc/spaces/default/intents/260826-modulo-oms/inception/contract-design/contract-summary.md` (C1, C2).
 
 ## Assumptions & Open Questions
 
-- Un solo Bolt para la rebanada actual. Al ampliar el alcance (CatalogoReglas,
-  Simulador, Auditoría, Panel, UI) surgirán nuevos Bolts en una corrida posterior.
-- Catálogos `TIPOSINTEGRACION` y `CLIENTES`/`ALMACENCOMPANIA` pendientes de pedir
-  antes del code-generation contra datos reales (no bloquean el esqueleto).
+- Bolt 1 (U1) es construible ya: C1 y C2 están formalizados; depende de recursos
+  existentes (`public.orders`, EFLOW) con mock/stub en el esqueleto.
+- Bolt 2 (U2) bloqueado por OQ-BO1/BO2/BO3; no se construye hasta resolverlas.
+- La duración logística de VE usa hoy un mapa estático zona→días
+  (`orders.lead_time_days`); el cálculo dinámico por clúster es futuro (no bloquea
+  Bolt 1, que cubre Cofersa=1 y el mecanismo de lectura).

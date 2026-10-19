@@ -18,7 +18,8 @@
 --     el paso 5).
 --
 -- NO se agregan (decisiones de otros equipos / del usuario):
---   * wms_trip_number (NUMEROVIAJEWMH): retirada a propósito en sql/20 (ADR-0004).
+--   * wms_trip_number (NUMEROVIAJEWMH): la agregó sql/19 y la dropea sql/46; el
+--     número de viaje del pedido es orders.numero_viaje (ADR-0004 de Planificación).
 --   * dock (MUELLEEXPEDICION): descartado en el mapeo de campos del OMS.
 --   * total_volume no cambia de tipo: lo usan las vistas de tarifas
 --     (tarifas_v_viaje_cargas / tarifas_v_viaje_pedidos). Pendiente con su equipo.

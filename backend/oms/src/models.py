@@ -13,30 +13,46 @@ Decisiones de dominio ancladas (ver project.md `## Decided` y domain-design):
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import datetime
 
 
 @dataclass(frozen=True)
 class PedidoCandidato:
-    """Proyección de LECTURA de un pedido de EFLOW/WMS (EXPEDICIONESCABECERA).
+    """Proyección de LECTURA de un pedido de la cola del OMS (public.orders, Aurora).
 
     Es lo que `ColaCandidatos` devuelve: la cola de pedidos elegibles para
-    priorizar. Clave de negocio = la PK compuesta de EXPEDICIONESCABECERA, que
-    es también la clave de idempotencia del handoff.
+    priorizar. La cola se resuelve HOY por POLLING de columna sobre public.orders
+    (contrato v4, confirmado con negocio): un pedido está listo para que el OMS lo
+    procese cuando `planning_run_id IS NOT NULL AND oms_processed_at IS NULL`. Esa
+    columna es la ÚNICA fuente de verdad de activación (EventBridge = futuro no
+    bloqueante). El OMS ya NO lee de EXPEDICIONESCABECERA con TPEXES/TPEXSI='DISP'
+    ni filtra por NUMEROVIAJEWMH.
 
-    Campos tomados del DDL real (docs/wms-eflow/EFLOW_OLO-ddl.sql):
-    - id_almacen/id_compania/id_sucursal/id_expedicion: PK compuesta. Son varchar en
-      EFLOW (ceros a la izquierda: '0029'; expediciones con letras: 'P0002002260922'),
-      por eso `str` y no `int`. En Aurora: orders.eflow_id_* (sql/43).
-    - fecha_expedicion_planificada: datetime NOT NULL. Fecha de ENTREGA que manda
+    Clave de negocio = la llave EFLOW (uq_order_eflow_key, sql/43), que es también
+    la clave de idempotencia del handoff.
+
+    Campos (de public.orders, ver sql/43 y docs/reference/mapeo-pedidos-eflow-orders.md):
+    - id_almacen/id_compania/id_sucursal/id_expedicion: llave EFLOW (orders.eflow_id_*).
+      Son varchar en EFLOW (ceros a la izquierda: '0029'; expediciones con letras:
+      'P0002002260922'), por eso `str` y no `int`.
+    - fecha_expedicion_planificada: orders.delivery_date. Fecha de ENTREGA que manda
       el cliente. Insumo del T-1; el OMS NO la modifica.
-    - observaciones: OBSERVACIONESEXPEDICION varchar(500), texto libre (nivel
-      cabecera) que lee AnalizadorObservaciones.
-    - peso_total/cubicaje_total: PESOPEDIDO_TOTAL/CUBICAJEPEDIDO_TOTAL float NULL
+    - lead_time_days: orders.lead_time_days. Duración logística DINÁMICA (la calcula
+      Planificación por distancia haversine: GAM T-1, La Fortuna T-2, Guanacaste T-3).
+      Puede venir NULL → la regla de fecha aplica su default (1 día, Cofersa).
+    - numero_viaje: orders.numero_viaje (formato 'YYYYMMDD-NNN'). Reemplaza al viejo
+      wms_trip_number (eliminado del contrato, ADR-0004 de Planificación). Puede ser NULL.
+    - planning_run_id: orders.planning_run_id. Correlación de la corrida de
+      Planificación; su presencia (NOT NULL) activa la cola del OMS.
+    - oms_processed_at: orders.oms_processed_at. NULL mientras el OMS no lo procesa;
+      el OMS la estampa now() al completar el handoff (lo saca de la cola).
+    - observaciones: orders.observaciones, texto libre que lee AnalizadorObservaciones.
+    - delivery_zone: orders.delivery_zone (EFLOW RUTA). Parte del scope de reglas.
+    - customer_type: final_customers.customer_type ('TIENDA' | 'MAYOREO').
+    - peso_total/cubicaje_total: orders.total_weight/total_volume float NULL
       (OQ-8: pueden venir null; null = desconocido, nunca 0).
     - country_id/warehouse_id/customer_id: la cadena de scope del pedido, para
-      resolver qué reglas aplican. Pueden faltar hasta cablear el maestro de
-      compañía (TODO catálogos CLIENTES/ALMACENCOMPANIA).
+      resolver qué reglas aplican.
     """
 
     id_almacen: str
@@ -44,7 +60,13 @@ class PedidoCandidato:
     id_sucursal: str
     id_expedicion: str
     fecha_expedicion_planificada: datetime
+    lead_time_days: int | None = None
+    numero_viaje: str | None = None
+    planning_run_id: str | None = None
+    oms_processed_at: datetime | None = None
     observaciones: str | None = None
+    delivery_zone: str | None = None
+    customer_type: str | None = None
     peso_total: float | None = None
     cubicaje_total: float | None = None
     country_id: str | None = None
@@ -133,6 +155,11 @@ class PedidoOMS:
 NIVELES_SCOPE: tuple[str, ...] = ("CUSTOMER", "WAREHOUSE", "COUNTRY", "GLOBAL")
 
 
+# Default de duración logística (días) cuando orders.lead_time_days viene NULL.
+# Caso Cofersa (contrato v4): el pedido no trae lead time → el OMS asume 1 día (T-1).
+LEAD_TIME_DEFAULT_DIAS = 1
+
+
 @dataclass(frozen=True)
 class ConfiguracionReglas:
     """Parámetros del motor resueltos por scope (CUSTOMER→WAREHOUSE→COUNTRY→GLOBAL).
@@ -141,13 +168,15 @@ class ConfiguracionReglas:
     config editable por compañía (CatalogoReglas, componente diferido).
 
     - pesos: peso de cada regla en el score ponderado (nombre_regla → peso).
-    - duracion_ruta_dias: días estimados de ruta, para ajustar el T-1 por scope.
     - prioridad_cliente_retira: prioridad numérica a asignar al caso cliente-retira.
-    - escribir_prioridad_al_wms: FLAG parametrizable (D6). Si la PRIORIDAD se
-      escribe también en el WMS o solo en la tabla del OMS está POR CONFIRMAR.
+
+    NOTA (contrato v4): la duración logística del T-1 ya NO es un parámetro estático
+    de config — ahora se lee de `orders.lead_time_days` por pedido (dinámico, lo
+    calcula Planificación). La regla de fecha aplica LEAD_TIME_DEFAULT_DIAS cuando
+    viene NULL. El viejo flag `escribir_prioridad_al_wms` también desapareció: la
+    escritura 2 del handoff ahora va detrás de una interface/costura intercambiable
+    (ver EscritorSituacion en handoff_pedidos), no detrás de un flag.
     """
 
     pesos: dict[str, float]
-    duracion_ruta_dias: int = 1
     prioridad_cliente_retira: int = 1
-    escribir_prioridad_al_wms: bool = False  # TODO(confirmar negocio): ver HandoffPedidosOMS
