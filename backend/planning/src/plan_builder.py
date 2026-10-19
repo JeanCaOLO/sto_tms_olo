@@ -36,6 +36,22 @@ def _lead_time_dias(pedidos: list[dict]) -> int | None:
     kms = [_haversine_km(DEPOT_CR, (o["lat"], o["lng"])) for o in pedidos if o["lat"] is not None and o["lng"] is not None]
     return 1 + int(max(kms) // KM_POR_DIA) if kms else None
 
+
+def _ordenar_por_ruta(pedidos: list[dict]) -> list[dict]:
+    """Ordena las paradas por vecino más cercano desde el depósito, para que el
+    nº de parada 1→N siga el camino real (y los pedidos del mismo punto queden
+    consecutivos). Los pedidos sin coordenadas van al final."""
+    con = [o for o in pedidos if o["lat"] is not None and o["lng"] is not None]
+    sin = [o for o in pedidos if o["lat"] is None or o["lng"] is None]
+    orden: list[dict] = []
+    actual = DEPOT_CR
+    while con:
+        nxt = min(con, key=lambda o: _haversine_km(actual, (o["lat"], o["lng"])))
+        orden.append(nxt)
+        con.remove(nxt)
+        actual = (nxt["lat"], nxt["lng"])
+    return orden + sin
+
 _ORDERS = """
 SELECT o.id, o.order_number, o.delivery_city, o.delivery_zone,
        o.delivery_latitude::float AS lat, o.delivery_longitude::float AS lng,
@@ -125,7 +141,7 @@ def _persistir_viaje(run, plan_id: str, zona: str, seq: int, viaje: dict, run_id
     lead = _lead_time_dias(viaje["pedidos"])
     trip_id = run(_INS_TRIP, [plan_id, veh["id"], zona, seq, viaje["peso"], viaje["volumen"],
                               veh["plate"], veh["cw"], veh["cv"], numero, lead])[0]["id"]
-    for i, o in enumerate(viaje["pedidos"], start=1):
+    for i, o in enumerate(_ordenar_por_ruta(viaje["pedidos"]), start=1):
         run(_INS_STOP, [trip_id, o["id"], i, o["order_number"], o["customer_name"], o["delivery_city"],
                         o["delivery_zone"], o["lat"], o["lng"], o["weight"], o["volume"]])
         run(_UPD_ORDER, [numero, lead, run_id, o["id"]])  # denormaliza al pedido para el OMS
