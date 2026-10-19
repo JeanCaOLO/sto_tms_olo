@@ -17,6 +17,7 @@ import logging
 import re
 
 import ingest_orders
+import pedido_articulos
 import plan_builder
 import plans_read
 from planning_sql import ORDERS_SQL
@@ -100,8 +101,15 @@ def build_plan(event: dict) -> dict:
     return json_response(200, {"data": plan, "error": None})
 
 
+def get_articulos(event: dict) -> dict:
+    permissions.for_event(event).require("planificacion", "view")
+    data = pedido_articulos.articulos(path_param(event, "id"), _organization(event))
+    return json_response(200, {"data": data, "error": None})
+
+
 ROUTES = {
     "GET /api/v1/planificacion/pedidos": list_orders,
+    "GET /api/v1/planificacion/pedidos/{id}/articulos": get_articulos,
     "GET /api/v1/planificacion/planes": list_planes,
     "GET /api/v1/planificacion/planes/{id}": get_plan,
     "POST /api/v1/planificacion/planes": build_plan,
