@@ -6,7 +6,7 @@ Todo lo de abajo quedó **preparado pero sin ejecutar** porque requiere el túne
 
 ## Pendiente de datos: ubicación de la sede de Costa Rica
 
-`stores` `CD-CR` (Bodega Central OLO CR) **no tiene latitud/longitud** (VN sí). Hay que pedir las ubicaciones de inicio de CR y cargarlas en `stores` (lo hace quien administre el catálogo; Tracking no inventa coordenadas). Mientras tanto: el viaje se inicia sin horas planificadas (no hay falso retraso, solo no se mide el atraso), no se dibuja la sede en el mapa y "por salir / en ruta" cae al respaldo "ya reportó posición".
+`stores` `CD-CR` (Bodega Central OLO CR) **no tiene latitud/longitud** (VN sí). Hay que pedir las ubicaciones de inicio de CR y cargarlas en `stores` (lo hace quien administre el catálogo; Tracking no inventa coordenadas). Mientras tanto, para ordenar las paradas por cercanía (mapa y lista, `src/pages/tracking/stop-order.ts`) se parte de la **primera parada pendiente de la secuencia**; **pendiente: usar la sede de CR cuando exista** (el orden ya la usa si `origin` viene en el detalle). El viaje se inicia sin horas planificadas (no hay falso retraso, solo no se mide el atraso), no se dibuja la sede en el mapa y "por salir / en ruta" cae al respaldo "ya reportó posición".
 
 ## Optimización de lecturas (2026-10-19)
 

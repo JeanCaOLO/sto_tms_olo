@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import Badge from '../../../components/base/Badge';
 import Button from '../../../components/base/Button';
+import { ordenarPorCercania } from '../stop-order';
 import type { Viaje, ViajeDetalle } from '../types';
 import { STATE_KEY, formatAge, formatClock, formatDistance, stateVariant } from '../tracking-logic';
 import AlertDots from './AlertDots';
@@ -81,7 +82,7 @@ export default function ViajeDetallePanel({ viaje, detail, error, now, onReplay,
         {!detail && !error && <p className="text-sm text-slate-500">{t('tracking.loading')}</p>}
         {!detail && error && <p className="text-sm text-red-600">{t('tracking.detailError')}</p>}
         <ul className="space-y-2">
-          {detail?.stops.map((stop) => (
+          {detail && ordenarPorCercania(detail.origin, detail.stops).map((stop) => (
             <ParadaItem key={stop.id} stop={stop} isNext={stop.id === detail.next_stop_id} timezone={viaje.timezone} />
           ))}
         </ul>
