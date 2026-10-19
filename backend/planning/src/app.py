@@ -20,6 +20,7 @@ import ingest_orders
 import pedido_articulos
 import plan_builder
 import plans_read
+import replan
 from planning_sql import ORDERS_SQL
 from tms_common import permissions, pg
 from tms_common.errors import HttpError
@@ -107,12 +108,31 @@ def get_articulos(event: dict) -> dict:
     return json_response(200, {"data": data, "error": None})
 
 
+def replan_todo(event: dict) -> dict:
+    """Replanifica TODOS los días pendientes: ingesta eFlow y arma cada día."""
+    permissions.for_event(event).require("planificacion", "edit")
+    user = _app_user(event)
+    warehouse = _warehouse(event)
+    if not warehouse:
+        raise HttpError(400, "Falta el almacén (x-warehouse-id) para replanificar")
+    rows = pg.query("SELECT country_id FROM warehouses WHERE id = %s", [warehouse])
+    if not rows:
+        raise HttpError(400, "Almacén inexistente")
+    try:
+        ingest_orders.ingest_cr()
+    except Exception:  # noqa: BLE001 - frontera: no bloquear por eFlow
+        logging.getLogger().warning("ingest eFlow no disponible; se replanifica sobre lo ya ingestado")
+    res = replan.replanificar_todo(user["org"], str(rows[0]["country_id"]), warehouse, user["id"])
+    return json_response(200, {"data": res, "error": None})
+
+
 ROUTES = {
     "GET /api/v1/planificacion/pedidos": list_orders,
     "GET /api/v1/planificacion/pedidos/{id}/articulos": get_articulos,
     "GET /api/v1/planificacion/planes": list_planes,
     "GET /api/v1/planificacion/planes/{id}": get_plan,
     "POST /api/v1/planificacion/planes": build_plan,
+    "POST /api/v1/planificacion/planes/replanificar": replan_todo,
 }
 
 handler = tms_handler(ROUTES)
