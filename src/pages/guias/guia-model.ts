@@ -6,6 +6,7 @@ import type { PlanStatus, PlanTrip, RoutePlan } from '../planificacion/planes-ty
 export interface Guia {
   id: string; // trip.id
   guide_number: string;
+  numero_viaje: string; // nº de viaje real del planificador (plan_trips.numero_viaje)
   plan_date: string;
   plan_status: PlanStatus;
   zona: string;
@@ -63,6 +64,7 @@ export function planesToGuias(
       out.push({
         id: trip.id,
         guide_number: guideNumber(plan, trip),
+        numero_viaje: trip.numero_viaje || String(trip.sequence_order),
         plan_date: plan.plan_date,
         plan_status: plan.status,
         zona: nombreDe(trip.delivery_zone) || trip.delivery_zone,
