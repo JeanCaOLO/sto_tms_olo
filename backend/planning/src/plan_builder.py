@@ -16,9 +16,9 @@ from tms_common import pg
 # límite legal, el volumen solo geometría de carga.
 MARGEN_PESO = 0.85
 MARGEN_VOLUMEN = 0.95
-# Tope operativo de paradas por viaje (una jornada no hace infinitas entregas);
-# knob de calibración, sobre todo para zonas de pedidos sin peso (EPA).
-MAX_PARADAS = 25
+# Tope de pedidos por viaje: ~16/camión (reunión 2026-10-13 Ana/Eduardo: "~16
+# pedidos y ~80% capacidad; al superar → nuevo viaje"). Antes 25 → salían de 24.
+MAX_PARADAS = 16
 # Depósito de origen CR + alcance de una jornada (línea recta): knob del T-n.
 DEPOT_CR = (9.9281, -84.0907)
 KM_POR_DIA = 70
