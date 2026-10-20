@@ -73,12 +73,85 @@ Tiles pagos (p. ej. MapTiler Flex, $30) más **OSRM propio** (ya existe `infra/o
 5. Pedir ruta sin `steps` cuando no se necesite el detalle (menor tamaño y a veces menor costo).
 6. Cachear tiles en el navegador (cabeceras estándar); en LocationIQ está prohibido cachear tiles del lado servidor.
 
-## Recomendación preliminar
+## Qué suma y qué resta cada herramienta al proyecto actual
 
-- **Mapbox**: mejor balance costo/soporte; exige reescribir mapas.
-- **Stadia Maps**: más barato con soporte comercial y sin reescribir mapas; exige adaptador de ruteo.
-- **Google**: el más completo y de mayor soporte; caro si la matriz no se optimiza antes.
-- **Amazon Location**: encaja con la infraestructura AWS de Intelix; falta confirmar tarifas.
+Referencia del proyecto actual: React + Leaflet, ruteo con formato OSRM (`/route`, `/table`), tiles ya configurables en Tracking, backend Python/Lambda en AWS operado por Intelix, app móvil del chofer en desarrollo. Los puntos marcados con (*) son conocimiento general del producto, no leídos en la investigación: confirmarlos en la prueba de concepto.
+
+### 1. Google Maps Platform
+- **Suma:** cobertura y calidad de datos muy altas; tráfico en vivo (Routes Pro) para ETA más real; Route Optimization (ordena paradas con restricciones); geocodificación y autocompletado de direcciones muy buenos (útil para cargar puntos de entrega); soporte y facturación comerciales conocidos.
+- **Resta:** exige reemplazar Leaflet por su SDK en 3 pantallas; formato de ruteo distinto a OSRM (adaptador); es el más caro si la matriz no se optimiza (≈ $1.700 al mes con el volumen supuesto); términos estrictos de almacenamiento de resultados (*).
+
+### 2. Mapbox
+- **Suma:** Directions, Matrix y Optimization con 100 mil solicitudes gratis al mes cada uno; mapas vectoriales personalizables (estilos de marca); formato de Directions/Matrix parecido a OSRM, adaptador pequeño (*); costo bajo con el volumen actual (≈ $560, solo la matriz excede el gratis).
+- **Resta:** requiere `react-map-gl`/GL JS en lugar de Leaflet; geocoding permanente (para guardar coordenadas) se cobra aparte desde el primer pedido; la matriz tiene límite de coordenadas por solicitud (*), hay que partir matrices grandes.
+
+### 3. HERE
+- **Suma:** enfoque logístico (ruteo de camión, restricciones, tráfico); matriz y secuenciación de paradas nativas; tiles compatibles con Leaflet.
+- **Resta:** precios actuales no publicados (solo datos de 2022); la matriz cuenta por celdas y puede encarecerse mucho; cotización y contrato con ventas.
+
+### 4. TomTom
+- **Suma:** de lo más barato (ruteo y geocoding $0,75/1.000); tráfico y optimización de paradas ($4/1.000); tiles compatibles con Leaflet; se puede fijar el precio hasta 2028.
+- **Resta:** al superar la cuota gratis diaria **bloquea** las solicitudes en lugar de cobrarlas (riesgo operativo en producción si no hay crédito prepago); cambio de precios en julio 2026 sin tabla verificada; ruteo en otro formato (adaptador).
+
+### 5. Stadia Maps
+- **Suma:** todo en una cuenta (tiles, ruteo, matriz, geocoding) con créditos y tarifa plana por plan; cuesta ≈ $80 al mes con el volumen supuesto; tiles compatibles con Leaflet (cambio de URL); ruteo con Valhalla, que admite perfiles de camión y tráfico (*); sobrecosto predecible ($0,02–0,03 por 1.000 créditos).
+- **Resta:** ruteo y matriz con formato distinto a OSRM (adaptador); la matriz consume el 70 % de los créditos (10 por elemento); proveedor más pequeño que Google/HERE (menor historial de soporte a gran escala, *); el plan gratis no permite uso comercial.
+
+### 6. Geoapify
+- **Suma:** planes baratos y escalonados ($59–$179); ruteo y geocoding a 1 crédito; cambio de proveedor de tiles fácil; permite resultados persistentes según reseñas de terceros (sin verificar).
+- **Resta:** no se leyó el costo de matriz ni de tiles; soporte más básico en planes bajos; límites de solicitudes por segundo (5 a 30) que pueden frenar una optimización con muchas llamadas.
+
+### 7. MapTiler Cloud
+- **Suma:** tiles vectoriales y raster de calidad, plan Flex $30 con soporte comercial; no cambia nada de ruteo; mínimo riesgo de migración.
+- **Resta:** **no tiene ruteo ni matriz**: hay que mantener OSRM propio u otro proveedor; SLA 99,9 % solo en plan Custom; búsqueda limitada.
+
+### 8. Amazon Location Service
+- **Suma:** misma facturación, IAM y red que el resto de la plataforma AWS que opera Intelix; se puede llamar desde las Lambdas sin exponer claves en el navegador; crédito inicial hasta $200; descuento por volumen sobre $5.000; geocoding con opción «Stored» para guardar resultados.
+- **Resta:** tarifas por 1.000 no leídas (no se puede comparar costo); la matriz cobra cada par origen-destino; datos de terceros (HERE/Esri) con precios por bucket que cambian según parámetros; ruteo en otro formato; mapas con MapLibre (no Leaflet puro) (*).
+
+### 9. GraphHopper
+- **Suma:** motor de ruteo especializado en logística (matriz, optimización de rutas de flota, map matching); es código abierto: se puede autohospedar el mismo motor sin cobro por solicitud; geocoding barato (0,3 créditos).
+- **Resta:** no ofrece tiles (hay que sumar otro proveedor de mapas); planes por crédito diario con costo de ruteo/matriz no leído (€199–479 al mes estimado); límites de ubicaciones por solicitud según plan (30 en Basic, 80 en Standard); el plan gratis no es comercial.
+
+### 10. Microsoft Azure Maps
+- **Suma:** sucesor oficial de Bing Maps for Enterprise (Bing se retira en 2028); matriz y búsqueda incluidas; descuentos por volumen.
+- **Resta:** precios pagos no publicados; cupo gratis muy bajo (1.000 ruteos al mes); sumar un segundo proveedor cloud sin otro motivo; ruteo en otro formato.
+
+### 11. Esri ArcGIS Location Platform
+- **Suma:** gratis hasta 2 millones de tiles y 20 mil rutas al mes según terceros (sin verificar), con lo que el costo actual podría ser mínimo; fuerte en análisis geoespacial (zonas, áreas de servicio) si el proyecto crece hacia planificación por zonas.
+- **Resta:** precios y reglas de almacenamiento complejos (guardar geocodes se cobra aparte); ecosistema distinto (ArcGIS JS/Leaflet con plugin); no verificado en detalle.
+
+### 12. LocationIQ
+- **Suma:** barato y simple (Developer $100); permite guardar las respuestas mientras la cuenta esté activa (útil para geocodificar una vez); incluye ruteo y geocoding con tiles compatibles con Leaflet.
+- **Resta:** cuota de matriz no especificada; límites diarios blandos y error 429 al pasarlos; prohíbe cachear tiles en servidor; soporte prioritario solo desde el plan de $200.
+
+### 13. Radar
+- **Suma:** $0,50/1.000 llamadas incluye geocoding, ruteo y matriz por elemento: la matriz sale mucho más barata que en Google; además ofrece geocercas y seguimiento de viajes que podrían reemplazar piezas propias de Tracking (a evaluar).
+- **Resta:** sin plan gratis ni prueba de uso libre; compromiso anual con cuota mensual comprometida; precios por llamadas fijados por ventas; tiles/mapa propio no confirmado.
+
+### 14. openrouteservice (HeiGIT)
+- **Suma:** motor abierto con ruteo, matriz, optimización y geocoding; puede autohospedarse (sin costo por solicitud); datos basados en OSM.
+- **Resta:** no se pudo leer su página de planes (condiciones comerciales y SLA sin verificar); sin tiles; el servicio gratuito público tiene cuotas bajas (*).
+
+### Opción híbrida: MapTiler (tiles) + OSRM propio
+- **Suma:** mínimo cambio de código (solo `VITE_MAP_TILES_URL` y `VITE_OSRM_URL`); costo fijo bajo; sin límites por solicitud para la matriz.
+- **Resta:** hay que operar y actualizar el servidor OSRM (mapas OSM de CR y VN); el uptime y el soporte quedan a cargo del equipo; calidad de datos en Venezuela depende de OSM; sin tráfico en vivo.
+
+## Top 3 por precio, ventajas y confiabilidad
+
+Criterios: **precio** con el volumen supuesto; **ventajas** para el proyecto (cambio de código, cobertura de funciones); **confiabilidad** según lo leído (modelo de cobro predecible, límites que bloquean o no, soporte). No se leyeron SLA de ningún proveedor salvo MapTiler (99,9 % solo en plan Custom), así que la confiabilidad es un juicio, no una cifra.
+
+| Puesto | Proveedor | Precio estimado/mes | Ventajas | Confiabilidad | Riesgo principal |
+|---|---|---|---|---|---|
+| 1 | **Mapbox** | ≈ $560 (solo la matriz paga; con matriz guardada, casi $0) | Todo en una cuenta; 100 mil solicitudes gratis por API; precios publicados y escalonados; Directions/Matrix parecidos a OSRM | Alta: pago por uso sin bloqueos, precios claros y soporte comercial | Reescribir los 3 mapas de Leaflet a GL JS; geocoding permanente se cobra |
+| 2 | **Stadia Maps** | ≈ $80 (≈ $32 si la matriz se guarda) | El más barato con soporte comercial publicado; Leaflet se mantiene (cambio de URL); créditos previsibles | Media-alta: plan con tope y sobrecosto definido; proveedor más pequeño | Adaptador de ruteo (Valhalla ≠ OSRM); matriz consume la mayoría de créditos |
+| 3 | **Google Maps Platform** | ≈ $1.700 (≈ $150 con matriz optimizada) | Mejor calidad de datos, tráfico en vivo, optimización de rutas y geocoding; mayor respaldo comercial | Muy alta: proveedor más grande, SLA y soporte comercial | Costo si no se optimiza la matriz; SDK propio y términos de almacenamiento estrictos |
+
+**Menciones (no entran al top por falta de datos):**
+- **Amazon Location:** podría subir al top 3 por encajar con la infraestructura AWS, pero no se leyeron las tarifas. Es el primero a cotizar.
+- **TomTom:** el más barato sobre el papel (≈ $30–60), pero bloquea al pasar la cuota gratis y los precios nuevos de julio 2026 no se verificaron.
+
+**Cómo desempatar:** si el criterio principal es no tocar el frontend, Stadia sube al puesto 1. Si es el menor riesgo de proveedor y la mejor calidad de datos en Venezuela y Costa Rica, Google sube al puesto 1 y el gasto se controla guardando la matriz. Una prueba de ruta real por proveedor en CR y VN debe confirmar o cambiar este orden.
 
 ## Pendientes antes de decidir
 
