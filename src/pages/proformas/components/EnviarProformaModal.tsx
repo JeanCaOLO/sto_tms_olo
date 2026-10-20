@@ -52,7 +52,14 @@ export default function EnviarProformaModal({ detail, onClose, onSent }: Props) 
 
         {m.step === 'opened' ? (
           <div className="space-y-3 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-900">
-            <p>Se abrió Gmail y se descargó <strong>{m.fileName}</strong>. Adjunta el PDF, revisa y envía el correo.</p>
+            {m.via === 'eml' ? (
+              <p>
+                Se descargó <strong>Proforma-{detail.proforma.number}.eml</strong>. Ábrelo (doble clic): se abre en tu programa de
+                correo (Outlook, Mail) con destinatarios, asunto, mensaje y el <strong>PDF ya adjunto</strong>. Revisa y envía.
+              </p>
+            ) : (
+              <p>Se abrió Gmail y se descargó <strong>{m.fileName}</strong>. Gmail no permite adjuntar por enlace: adjunta el PDF, revisa y envía.</p>
+            )}
             <div className="flex justify-end gap-2">
               <Button variant="secondary" onClick={onClose}>Aún no lo envié</Button>
               <Button variant="success" disabled={m.busy} onClick={() => void m.confirmSent()}>Ya lo envié</Button>
@@ -63,11 +70,18 @@ export default function EnviarProformaModal({ detail, onClose, onSent }: Props) 
             <Button variant="secondary" disabled={m.busy} icon={<i className="ri-download-line" />} onClick={() => void m.downloadPdf()}>
               Descargar PDF
             </Button>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button variant="secondary" onClick={onClose}>Cancelar</Button>
               <Button
+                variant="secondary" disabled={!ready} icon={<i className="ri-attachment-2" />}
+                title="Descarga un borrador (.eml) con el PDF ya adjunto; se abre en Outlook/Mail"
+                onClick={() => void m.downloadEml()}
+              >
+                Borrador con PDF adjunto
+              </Button>
+              <Button
                 variant={direct ? 'secondary' : 'primary'} disabled={!ready} icon={<i className="ri-mail-send-line" />}
-                title="Abre Gmail con el correo armado; adjuntas el PDF descargado y lo envías tú"
+                title="Abre Gmail con el correo armado; el PDF se descarga aparte y lo adjuntas tú (Gmail no admite adjuntos por enlace)"
                 onClick={() => void m.openInGmail()}
               >
                 {m.busy ? 'Preparando…' : 'Abrir en Gmail'}

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { formatMoney } from '../../../lib/tarifas/format';
 import {
-  blobToBase64, buildRecipients, fillTemplate, getCarrierEmail, getEmailConfig, gmailComposeUrl, markEmailSent,
+  blobToBase64, buildEml, buildRecipients, fillTemplate, getCarrierEmail, getEmailConfig, gmailComposeUrl, markEmailSent,
   sendProformaDirect, type EmailConfig, type ProformaDetail,
 } from '../../../lib/tarifas/proformas';
 import { downloadBlob, renderProformaPdf } from '../lib/proformaPdf';
@@ -17,6 +17,7 @@ export function useEnviarProforma(detail: ProformaDetail, onSent: () => void) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<'edit' | 'opened'>('edit');
+  const [via, setVia] = useState<'gmail' | 'eml'>('gmail');
 
   useEffect(() => {
     (async () => {
@@ -52,8 +53,25 @@ export function useEnviarProforma(detail: ProformaDetail, onSent: () => void) {
   const openInGmail = useCallback(async () => {
     await downloadPdf();
     window.open(gmailComposeUrl({ to: recipients, subject, body }), '_blank', 'noopener');
+    setVia('gmail');
     setStep('opened');
   }, [downloadPdf, recipients, subject, body]);
+
+  /** Borrador .eml con el PDF ya ADJUNTO: se abre en Outlook/Mail listo para enviar. Gmail web no lo permite por enlace. */
+  const downloadEml = useCallback(async () => {
+    setBusy(true); setError(null);
+    try {
+      const pdfBase64 = await blobToBase64(await renderProformaPdf(detail));
+      const eml = buildEml({ to: recipients, subject, body, attachment: { fileName, base64: pdfBase64 } });
+      downloadBlob(new Blob([eml], { type: 'message/rfc822' }), `Proforma-${proforma.number}.eml`);
+      setVia('eml');
+      setStep('opened');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo armar el borrador.');
+    } finally {
+      setBusy(false);
+    }
+  }, [detail, recipients, subject, body, fileName, proforma.number]);
 
   /** Directo: el PDF viaja al servidor, que envía por Gmail con la cuenta conectada del usuario. */
   const sendDirect = useCallback(async () => {
@@ -83,6 +101,6 @@ export function useEnviarProforma(detail: ProformaDetail, onSent: () => void) {
 
   return {
     config, carrierEmail, to, setTo, subject, setSubject, body, setBody, recipients,
-    busy, error, step, fileName, downloadPdf, openInGmail, sendDirect, confirmSent,
+    busy, error, step, via, fileName, downloadPdf, openInGmail, downloadEml, sendDirect, confirmSent,
   };
 }

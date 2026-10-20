@@ -86,6 +86,23 @@ describe('con fases configuradas', () => {
     expect((await listSettlementSummaries({ countryId: COUNTRY })).every((s) => s.status === 'En Revisión')).toBe(true);
   });
 
+  it('una liquidación liberada (proforma anulada o excluida) NO se reagrupa sola con el barrido', async () => {
+    const [a, b] = await seed(2);
+    await assignSettlements(COUNTRY, [a!, b!]);
+    const [row] = await listProformas(COUNTRY);
+    // anular: items excluidos y liquidaciones de vuelta a Borrador (lo que hace el servidor)
+    for (const s of ['stl_0', 'stl_1']) await db().update('settlement', s, { status: 'Borrador' });
+    for (const item of await db().find('proformaItem', {})) await db().update('proformaItem', String(item.id), { state: 'excluded', exclusion_reason: 'Proforma anulada' });
+    await db().update('proforma', row!.proforma.id, { status: 'Anulado' });
+
+    expect(await assignPendingSettlements(COUNTRY)).toMatchObject({ created: 0, added: 0, error: null });
+    expect(await status('stl_0')).toBe('Borrador');
+    // en cambio una liquidación NUEVA (p. ej. la re-liquidación) sí entra sola
+    const fresh = { ...a!, id: 'stl_new', number: 'LIQ-VE-009' };
+    await db().insert('settlement', { ...(await db().findOne('settlement', 'stl_0'))!, id: 'stl_new', number: 'LIQ-VE-009', trip_id: 'TRIP_RT_VE_A3' });
+    expect((await assignSettlements(COUNTRY, [fresh])).created).toBe(1);
+  });
+
   it('pickOpenProforma ignora las que ya tienen una fase decidida o no están en revisión', async () => {
     const [a] = await seed(1);
     await assignSettlements(COUNTRY, [a!]);

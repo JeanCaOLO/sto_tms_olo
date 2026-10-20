@@ -49,6 +49,16 @@ export async function getProformaDetail(id: string): Promise<ProformaDetail | nu
   return { proforma, phases: phaseRows.map(rowToPhase), items, settlements };
 }
 
+/**
+ * Ids de liquidaciones que alguna vez estuvieron en una proforma, incluso las excluidas o de proformas
+ * anuladas. El barrido NO las reagrupa solo: se liberaron a propósito (para corregirlas o re-liquidarlas)
+ * y agruparlas de nuevo al instante lo impediría.
+ */
+export async function everGroupedSettlementIds(): Promise<Set<string>> {
+  const rows = await db().find('proformaItem', { columns: ['settlement_id'] });
+  return new Set(rows.map((r) => String(r.settlement_id)));
+}
+
 /** Ids de liquidaciones que ya están INCLUIDAS en alguna proforma: no se pueden agrupar de nuevo. */
 export async function groupedSettlementIds(): Promise<Set<string>> {
   const rows = await db().find('proformaItem', {

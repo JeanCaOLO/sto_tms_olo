@@ -56,7 +56,7 @@ export default function ProformaItemsTable({ detail, canToggle, busy, onInclude,
           title={i.included ? 'Excluir de esta proforma' : 'Volver a incluir'}
           onClick={() => (i.included ? onExclude(i.settlementId) : onInclude(i.settlementId))}
         >
-          <i className={i.included ? 'ri-subtract-line' : 'ri-add-line'} />
+          {i.included ? 'Excluir' : 'Incluir'}
         </Button>
       ) : undefined}
     />

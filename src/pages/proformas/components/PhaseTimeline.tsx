@@ -14,10 +14,12 @@ interface Props {
   phases: ProformaPhase[];
   /** Solo superadministrador: botón para quitar una fase pendiente. */
   onSkip?: (phase: ProformaPhase) => void;
+  /** false = la proforma ya no está en revisión (anulada, aprobada…): ninguna fase va "en curso". */
+  reviewing?: boolean;
 }
 
-export default function PhaseTimeline({ phases, onSkip }: Props) {
-  const current = currentPhase(phases);
+export default function PhaseTimeline({ phases, onSkip, reviewing = true }: Props) {
+  const current = reviewing ? currentPhase(phases) : null;
   return (
     <ol className="space-y-2">
       {[...phases].sort((a, b) => a.position - b.position).map((p) => {

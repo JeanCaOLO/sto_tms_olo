@@ -5,6 +5,13 @@ Fecha: 2026-10-20. Alcance: solo tarifador. Sin despliegue, sin push. La migraci
 ## Qué se pidió
 Un flujo nuevo: se liquidan los viajes → se genera la **proforma** → pasa por varias fases de revisión, cada una aprobada por un rol (o un usuario concreto) uno tras otro → queda aprobada → se envía por correo al transportista para que la confirme. Todo configurable por país, con excepciones por proforma y un dashboard de pendientes.
 
+## Generación AUTOMÁTICA (decidido el 2026-10-20, reemplaza al botón "Nueva proforma")
+- Al **emitir o re-liquidar**, la liquidación entra sola a la proforma **abierta** de su transportista; si no hay, se crea (`src/lib/tarifas/proformas/autoAssign.ts`, enganchado en `emitSettlement` y `reliquidateSettlement`). Un fallo al asignar nunca tumba la emisión.
+- **Abierta** = En Revisión y sin ninguna fase decidida. Tras la primera decisión se cierra y la siguiente liquidación abre otra.
+- **Sin fases en el país**: se liquida normal y la liquidación queda en Borrador. El **barrido** (`assignPendingSettlements`) la agrupa al guardar las fases y cada vez que se abre Proformas (si el usuario puede editar proformas). Cubre también lo liquidado antes de esta función.
+- Re-liquidar una liquidación que está dentro de una proforma se bloquea con mensaje (excluirla o anular la proforma primero).
+- Backend: quien liquida (`tarifas`) puede crear y sumar a proformas; el estado y las fases siguen protegidos.
+
 ## Decisiones
 - **Proforma = varias liquidaciones de UN transportista** (se puede excluir una y aprobar el resto). Una liquidación está incluida en una sola proforma a la vez.
 - **Mismos estados que la liquidación** (Borrador / En Revisión / Aprobado / Pagado / Anulado). La liquidación sigue a la proforma: al agruparla pasa a *En Revisión*, al aprobarse la proforma a *Aprobado*, si se excluye o anula vuelve a *Borrador*. Desde el Historial de Liquidaciones ya no se pasa a mano a *En Revisión*/*Aprobado* (lo lleva la proforma).
@@ -28,6 +35,18 @@ Un flujo nuevo: se liquidan los viajes → se genera la **proforma** → pasa po
 - **Directo (modo configurable):** cada usuario conecta su cuenta de Google una vez (scope `gmail.send`, no lee el buzón); el refresh token se guarda y "Enviar ahora" manda el correo con el PDF adjunto.
 - Destinatarios: los fijos del país + (opcional) el correo del transportista del catálogo (`carriers.email`).
 - El PDF se genera en el navegador (`jspdf` + `html2canvas`, cargados bajo demanda). Es una imagen: el texto no es seleccionable.
+
+## Probar el envío directo con Google EN LOCAL (sin desplegar)
+1. Google Cloud Console → proyecto → *APIs y servicios* → habilitar **Gmail API** → *Pantalla de consentimiento* (tipo Interno si la cuenta es de un Workspace propio; si no, Externo en modo prueba y agrega tu correo como usuario de prueba) → scope `.../auth/gmail.send`.
+2. *Credenciales* → Crear ID de cliente OAuth → **Aplicación web** → URI de redirección autorizada: `http://localhost:3000/api/tarifas-mail/google/callback`.
+3. En `.env.local` (ignorado por git; nunca en el repo ni en el chat):
+   ```
+   GOOGLE_CLIENT_ID=...apps.googleusercontent.com
+   GOOGLE_CLIENT_SECRET=...
+   GOOGLE_TOKEN_DIR=.google-tokens.local
+   ```
+4. Reiniciar `npm run api:local:base`. En Proformas → Configuración → Forma de envío "Directo" → *Conectar con Google*. El token queda en `GOOGLE_TOKEN_DIR` (carpeta `*.local`, ignorada por git).
+En AWS el cliente va en el secreto `/<env>/tms/google-oauth` (consola) y los tokens en Secrets Manager.
 
 ## Para poner en marcha (lo hace quien administra la BD / Intelix)
 1. Aplicar `sql/46_proformas.sql` (dry-run primero: `node --env-file=.env.local scripts/run-migration.mjs sql/46_proformas.sql`, luego `--execute`). Da el módulo `tarifas.proformas` solo a administradores: asignarlo a los roles en Configuración → Roles.

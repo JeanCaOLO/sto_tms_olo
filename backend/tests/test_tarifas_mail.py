@@ -206,6 +206,65 @@ def test_pdf_demasiado_grande_es_413(mail):
     assert send(app, pdfBase64=big)["statusCode"] == 413
 
 
+# ── Modo local (backend/local/serve.py): credenciales en .env.local y tokens en archivos ────────
+
+@pytest.fixture
+def local(monkeypatch, tmp_path):
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "local-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "local-secret")
+    monkeypatch.setenv("GOOGLE_TOKEN_DIR", str(tmp_path / "tokens"))
+    monkeypatch.delenv("GOOGLE_REDIRECT_URI", raising=False)
+    monkeypatch.delenv("APP_URL", raising=False)
+    monkeypatch.delenv("TARIFAS_FUNCTION", raising=False)
+    app = load_stack_module("tarifas-mail")
+    app._client_cache.clear()
+    http = {"form": [], "json": []}
+    monkeypatch.setattr(app.google_oauth.http_util, "post_form", lambda url, data: http["form"].append(data) or {"access_token": "AT", "refresh_token": "RT"})
+    monkeypatch.setattr(app.google_oauth.http_util, "get_json", lambda url, bearer: {"email": "yo@gmail.com"})
+    monkeypatch.setattr(app.gmail_send.http_util, "post_json", lambda url, payload, bearer: http["json"].append(payload) or {"id": "m1"})
+    return app, tmp_path / "tokens", http
+
+
+def test_local_usa_el_cliente_del_entorno_y_la_url_de_retorno_por_defecto(local):
+    app, _, _ = local
+    url = body_of(call(app, "POST /api/tarifas-mail/google/start"))["data"]["url"]
+    assert "client_id=local-id" in url
+    assert "redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fapi%2Ftarifas-mail%2Fgoogle%2Fcallback" in url
+
+
+def test_local_conecta_guarda_el_token_en_archivo_y_redirige_a_localhost(local):
+    app, folder, _ = local
+    state = app.google_oauth.sign_state("auth-1", "local-secret")
+    response = app.handler({"routeKey": "GET /api/tarifas-mail/google/callback",
+                            "queryStringParameters": {"code": "c", "state": state}}, None)
+    assert response["headers"]["Location"] == "http://localhost:3000/proformas?google=connected"
+    assert json.loads((folder / "auth-1.json").read_text()) == {"refresh_token": "RT", "email": "yo@gmail.com"}
+    assert body_of(call(app, "GET /api/tarifas-mail/google/status"))["data"] == {"connected": True, "email": "yo@gmail.com"}
+    call(app, "DELETE /api/tarifas-mail/google")
+    assert not (folder / "auth-1.json").exists()
+
+
+def test_local_envia_verificando_el_permiso_en_proceso(local, monkeypatch):
+    import sys
+    import types
+    app, folder, http = local
+    seen = []
+    stub = types.SimpleNamespace(authorize_send=lambda req: seen.append(req) or {"ok": True})
+    monkeypatch.setitem(sys.modules, "proformas_api", stub)
+    folder.mkdir(parents=True)
+    (folder / "auth-1.json").write_text(json.dumps({"refresh_token": "RT", "email": "yo@gmail.com"}))
+    response = send(app)
+    assert response["statusCode"] == 200 and body_of(response)["data"]["from"] == "yo@gmail.com"
+    assert seen == [{"action": "authorize_send", "user_id": "auth-1", "proforma_id": "pro_1"}]
+    assert http["json"][0]["raw"]
+
+
+def test_el_id_de_usuario_no_puede_escapar_de_la_carpeta_de_tokens(local):
+    app, _, _ = local
+    with pytest.raises(ValueError):
+        app.token_store.get_connection("../../etc/passwd")
+
+
 def test_ruta_desconocida_es_404(mail):
     app, *_ = mail
     assert app.handler({"routeKey": "GET /nada"}, None)["statusCode"] == 404

@@ -19,7 +19,8 @@ interface Props {
 export default function DecisionPanel({ detail, actor, canEdit, busy, onAsk }: Props) {
   const { proforma, phases } = detail;
   const current = currentPhase(phases);
-  const myTurn = !!actor && !!current && canApprove(actor, current, phases);
+  // Solo se decide mientras la proforma está en revisión (una anulada o aprobada ya no tiene turno).
+  const myTurn = proforma.status === 'En Revisión' && !!actor && !!current && canApprove(actor, current, phases);
   const rejected = proforma.status === 'Borrador' && phases.some((p) => p.state === 'rechazada');
   const open = proforma.status !== 'Anulado' && proforma.status !== 'Pagado';
 

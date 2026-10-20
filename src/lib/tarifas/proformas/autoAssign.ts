@@ -12,7 +12,7 @@ import { groupByCarrier, type CarrierGroup, type GroupableSettlement } from './g
 import { itemToRow, rowToItem, rowToPhase, rowToProforma } from './mapRows';
 import { proformaAuditRow } from './proformaAudit';
 import { proformaTotal } from './proformaTotals';
-import { groupedSettlementIds, type ProformaWithPhases } from './proformaQueries';
+import { everGroupedSettlementIds, groupedSettlementIds, type ProformaWithPhases } from './proformaQueries';
 import { canEditItems } from './setItemIncluded';
 
 export interface AssignResult {
@@ -85,10 +85,12 @@ async function assignGroup(countryId: string, group: CarrierGroup): Promise<Assi
 }
 
 /** Agrupa las liquidaciones (solo las en Borrador sin proforma) por transportista y las asigna. Nunca lanza. */
-export async function assignSettlements(countryId: string, settlements: GroupableSettlement[]): Promise<AssignResult> {
+export async function assignSettlements(
+  countryId: string, settlements: GroupableSettlement[], skip?: Set<string>,
+): Promise<AssignResult> {
   const total = { ...EMPTY };
   try {
-    for (const group of groupByCarrier(settlements, await groupedSettlementIds())) {
+    for (const group of groupByCarrier(settlements, skip ?? await groupedSettlementIds())) {
       const result = await assignGroup(countryId, group);
       total.created += result.created;
       total.added += result.added;
@@ -118,8 +120,12 @@ export async function autoAssignSettlement(settlement: SettlementRecord): Promis
 /** Barrido: agrupa las liquidaciones en Borrador que quedaron sin proforma (sin fases al liquidar, o anteriores a la función). */
 export async function assignPendingSettlements(countryId: string): Promise<AssignResult> {
   try {
-    const settlements = await listSettlementSummaries({ countryId, includeVoided: false });
-    return await assignSettlements(countryId, settlements.map(toGroupable));
+    const [settlements, released] = await Promise.all([
+      listSettlementSummaries({ countryId, includeVoided: false }),
+      everGroupedSettlementIds(),
+    ]);
+    // Las que ya pasaron por una proforma (liberadas al excluir o anular) no se agrupan solas otra vez.
+    return await assignSettlements(countryId, settlements.map(toGroupable), released);
   } catch (error) {
     return { ...EMPTY, error: error instanceof Error ? error.message : String(error) };
   }

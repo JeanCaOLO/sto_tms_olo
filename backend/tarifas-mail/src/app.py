@@ -45,8 +45,21 @@ def _ok(data: object) -> dict:
     return _response(200, {"data": data, "error": None})
 
 
+def is_local() -> bool:
+    """Desarrollo local (`backend/local/serve.py`): el cliente OAuth viene de GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET
+    (.env.local) y no hay AWS. En AWS esas variables no existen y se usa Secrets Manager."""
+    return bool(os.environ.get("GOOGLE_CLIENT_ID"))
+
+
+def redirect_uri() -> str:
+    default = "http://localhost:3000/api/tarifas-mail/google/callback" if is_local() else ""
+    return os.environ.get("GOOGLE_REDIRECT_URI") or default
+
+
 def google_client() -> dict:
     """Credenciales del cliente OAuth (secreto del propio stack). Se leen una vez por contenedor."""
+    if is_local():
+        return {"client_id": os.environ["GOOGLE_CLIENT_ID"], "client_secret": os.environ.get("GOOGLE_CLIENT_SECRET", "")}
     if "value" not in _client_cache:
         raw = _aws("secretsmanager").get_secret_value(SecretId=os.environ["GOOGLE_OAUTH_SECRET_NAME"])
         value = json.loads(raw["SecretString"])
@@ -64,7 +77,7 @@ def _user_id(event: dict) -> str:
 
 
 def _app_url(path: str, **query: str) -> str:
-    base = os.environ.get("APP_URL", "").rstrip("/")
+    base = (os.environ.get("APP_URL") or ("http://localhost:3000" if is_local() else "")).rstrip("/")
     return f"{base}{path}" + (f"?{urlencode(query)}" if query else "")
 
 
@@ -78,7 +91,7 @@ def status(event: dict) -> dict:
 def start(event: dict) -> dict:
     client = google_client()
     state = google_oauth.sign_state(_user_id(event), client["client_secret"])
-    return _ok({"url": google_oauth.build_auth_url(client, os.environ["GOOGLE_REDIRECT_URI"], state)})
+    return _ok({"url": google_oauth.build_auth_url(client, redirect_uri(), state)})
 
 
 def callback(event: dict) -> dict:
@@ -89,7 +102,7 @@ def callback(event: dict) -> dict:
             raise google_oauth.OAuthError(400, "No se concedió el permiso de Google.")
         client = google_client()
         user_id = google_oauth.verify_state(query.get("state", ""), client["client_secret"])
-        connection = google_oauth.exchange_code(client, os.environ["GOOGLE_REDIRECT_URI"], query.get("code", ""))
+        connection = google_oauth.exchange_code(client, redirect_uri(), query.get("code", ""))
         token_store.save_connection(user_id, connection)
         target = _app_url("/proformas", google="connected")
     except google_oauth.OAuthError as err:
@@ -107,12 +120,15 @@ def disconnect(event: dict) -> dict:
 
 def authorize_send(user_id: str, proforma_id: str) -> None:
     """Pregunta a la Lambda de tarifas (en la VPC) si este usuario puede enviar esta proforma."""
-    response = _aws("lambda").invoke(
-        FunctionName=os.environ["TARIFAS_FUNCTION"],
-        Payload=json.dumps({"action": "authorize_send", "user_id": user_id, "proforma_id": proforma_id}).encode("utf-8"))
-    payload = json.loads(response["Payload"].read())
-    if response.get("FunctionError"):
-        raise gmail_send.MailError(502, "No se pudo verificar el permiso de envío.")
+    request = {"action": "authorize_send", "user_id": user_id, "proforma_id": proforma_id}
+    if is_local() and not os.environ.get("TARIFAS_FUNCTION"):
+        import proformas_api  # servidor local: misma verificación, en proceso, sin invocar una Lambda
+        payload = proformas_api.authorize_send(request)
+    else:
+        response = _aws("lambda").invoke(FunctionName=os.environ["TARIFAS_FUNCTION"], Payload=json.dumps(request).encode("utf-8"))
+        payload = json.loads(response["Payload"].read())
+        if response.get("FunctionError"):
+            raise gmail_send.MailError(502, "No se pudo verificar el permiso de envío.")
     if not payload.get("ok"):
         raise gmail_send.MailError(int(payload.get("status", 403)), payload.get("message", "No puedes enviar esta proforma."))
 

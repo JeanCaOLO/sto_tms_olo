@@ -29,6 +29,8 @@ export {
   DEFAULT_SUBJECT, DEFAULT_BODY,
 } from './flowConfig';
 export type { FlowPhaseDraft, EmailConfig } from './flowConfig';
+export { buildEml, encodeSubject } from './buildEml';
+export type { EmlInput } from './buildEml';
 export { fillTemplate, buildRecipients, gmailComposeUrl } from './emailTemplate';
 export type { TemplateVars, ComposeInput } from './emailTemplate';
 export { getCarrierEmail, markEmailSent } from './emailActions';

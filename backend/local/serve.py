@@ -32,12 +32,15 @@ STACKS = {
     "admin": BACKEND / "admin" / "src",
     "planning": BACKEND / "planning" / "src",
     "tarifas": BACKEND / "tarifas" / "src",
+    # Envío de proformas por Gmail: en local usa GOOGLE_CLIENT_ID/SECRET de .env.local y guarda tokens en archivos.
+    "tarifas_mail": BACKEND / "tarifas-mail" / "src",
     "tracking": BACKEND / "tracking" / "src",
     "eflow_sim": BACKEND / "eflow-sim" / "src",
 }
 AUTHORIZER = BACKEND / "common-services" / "src" / "authorizer" / "app.py"
 PUBLIC_STACKS = {"eflow", "eflow_sim"}
-PUBLIC_ROUTES = {"POST /api/auth/login"}
+# El callback de Google llega sin sesión del TMS (la identidad va en `state`, firmado), como en API Gateway.
+PUBLIC_ROUTES = {"POST /api/auth/login", "GET /api/tarifas-mail/google/callback"}
 DEFAULT_PORT = 4000
 # Lambda atiende una request por contenedor y tms_common reutiliza UNA conexión
 # por proceso: correr handlers en paralelo intercala lecturas del mismo socket.

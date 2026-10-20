@@ -94,6 +94,7 @@ export default function DetalleProformaModal({ proformaId, actor, canEdit, onClo
               <h3 className="mb-2 text-sm font-semibold text-slate-700">Fases de aprobación</h3>
               <PhaseTimeline
                 phases={detail.phases}
+                reviewing={proforma.status === 'En Revisión'}
                 onSkip={isSuperAdmin(actor?.roleName) && proforma.status === 'En Revisión' ? (phase) => setPending({ kind: 'skip', phase }) : undefined}
               />
             </section>
