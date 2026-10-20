@@ -107,6 +107,7 @@ def _borrar_plan_del_dia(run, org: str, warehouse: str, customer: str, fecha: st
              SELECT t.id FROM plan_trips t JOIN route_plans pl ON pl.id = t.plan_id WHERE pl.{sel})""", p)
     run(f"DELETE FROM plan_trips WHERE plan_id IN (SELECT id FROM route_plans WHERE {sel})", p)
     run(f"DELETE FROM route_plans WHERE {sel}", p)
+    run("UPDATE orders SET planning_run_id=NULL, numero_viaje=NULL, dispatch_date=NULL, updated_at=now() WHERE organization_id=%s AND warehouse_id=%s AND customer_id=%s AND delivery_date=%s::date AND planning_run_id IS NOT NULL", p)  # OMS: pedidos caidos del plan vuelven a NULL (si siguen, _persistir_viaje los re-estampa)
 
 
 def _agrupar_por_zona(pedidos: list[dict]) -> dict:
@@ -118,9 +119,8 @@ def _agrupar_por_zona(pedidos: list[dict]) -> dict:
 
 # dispatch_date = salida = delivery_date (ya en la fila) - lead_time_days; sin lead (NULL) queda NULL y el OMS usa su default.
 _UPD_ORDER = "UPDATE orders SET numero_viaje=%s, lead_time_days=%s, dispatch_date=(delivery_date - make_interval(days => %s))::date, planning_run_id=%s, updated_at=now() WHERE id=%s"
-# Write-back del nº de viaje a la tabla espejo de eFlow (mismos nombres que el
-# origen). UPDATE (no insert): solo escribe sobre la fila ya espejada desde eFlow,
-# para no crear filas parciales. NUMEROVIAJEWMH es bigint (nº de viaje sin guion).
+# Write-back del nº de viaje a la tabla espejo de eFlow. UPDATE (no insert): solo sobre
+# la fila ya espejada (no crea parciales). NUMEROVIAJEWMH es bigint (nº de viaje sin guion).
 _UPD_SIM = """
 UPDATE sim_expedicionescabecera SET "NUMEROVIAJEWMH"=%s, planning_run_id=%s, escrito_en=now()
 WHERE "IDALMACEN"=%s AND "IDCOMPANIA"=%s AND "IDSUCURSAL"=%s AND "IDEXPEDICION"=%s"""
