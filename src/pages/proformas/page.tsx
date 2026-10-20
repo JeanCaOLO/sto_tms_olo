@@ -12,7 +12,6 @@ import { useTarifasActor } from '../../hooks/useTarifasActor';
 import { formatMoney } from '../../lib/tarifas/format';
 import { canApprove, currentPhase } from '../../lib/tarifas/proformas';
 import DetalleProformaModal from './components/DetalleProformaModal';
-import GenerarProformaModal from './components/GenerarProformaModal';
 import EmailConfigForm from './config/EmailConfigForm';
 import FlowPhasesEditor from './config/FlowPhasesEditor';
 import { useGoogleReturn } from './hooks/useGoogleReturn';
@@ -27,15 +26,15 @@ const tabClass = (current: Tab, tab: Tab) =>
 
 export default function ProformasPage() {
   const { country, countryId, problem, selectedName, loading: loadingCountries } = useActiveCountry();
-  const { canCreate, canEdit } = useModulePermissions('tarifas.proformas');
+  const { canEdit } = useModulePermissions('tarifas.proformas');
   const { canEdit: canConfigure } = useModulePermissions('tarifas.config');
   useTarifasActor();
   const actor = useProformaActor();
   const google = useGoogleReturn();
-  const { rows, loading, error, reload } = useProformaList(countryId);
+  // Quien gestiona proformas ejecuta el barrido: agrupa las liquidaciones que quedaron sin proforma.
+  const { rows, loading, error, reload } = useProformaList(countryId, canEdit);
   const [tab, setTab] = useState<Tab>('pending');
   const [openId, setOpenId] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
 
   const mine = useMemo(() => rows.filter(({ proforma, phases }) => {
     const current = currentPhase(phases);
@@ -55,12 +54,9 @@ export default function ProformasPage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-800">Proformas</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Las liquidaciones de un transportista pasan por las fases de aprobación y, al final, se le envía la proforma por correo.
+            Cada liquidación entra sola a la proforma de su transportista. La proforma pasa por las fases de aprobación y, al final, se le envía por correo.
           </p>
         </div>
-        {canCreate && countryId && (
-          <Button icon={<i className="ri-add-line" />} onClick={() => setCreating(true)}>Nueva proforma</Button>
-        )}
       </div>
 
       <CountryScopeBar country={country} problem={problem} selectedName={selectedName} loading={loadingCountries} />
@@ -112,13 +108,6 @@ export default function ProformasPage() {
         )}
       </Card>
 
-      {creating && countryId && (
-        <GenerarProformaModal
-          countryId={countryId}
-          onClose={() => setCreating(false)}
-          onCreated={(p) => { setCreating(false); void reload(); setOpenId(p.id); }}
-        />
-      )}
       {openId && (
         <DetalleProformaModal proformaId={openId} actor={actor} canEdit={canEdit} onClose={() => setOpenId(null)} onChanged={() => void reload()} />
       )}

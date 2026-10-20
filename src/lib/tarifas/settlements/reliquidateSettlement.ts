@@ -1,5 +1,6 @@
 // Re-liquidar un viaje.
 
+import { autoAssignSettlement } from '../proformas/autoAssign';
 import { failed, isNumberCollision } from './errorHandling';
 import { attemptReliquidate } from './reliquidateLogic';
 import { blockingIssues, validateSettlement } from './validation';
@@ -24,7 +25,9 @@ export async function reliquidateSettlement(
   if (Object.keys(errors).length > 0) return { status: 'invalid', errors };
 
   try {
-    return await attemptReliquidate(currentId, input, reason);
+    const result = await attemptReliquidate(currentId, input, reason);
+    if (result.status === 'saved') await autoAssignSettlement(result.settlement);
+    return result;
   } catch (error) {
     const isCollision = await isNumberCollision(error, input.trip.id);
     return failed(error, { isNumberCollision: isCollision });

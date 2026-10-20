@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { listRoles, listUsers, type AdminRole, type AdminUser } from '../../configuracion/admin/admin-api';
-import { listFlowPhases, saveFlowPhases, type FlowPhaseDraft } from '../../../lib/tarifas/proformas';
+import { assignPendingSettlements, listFlowPhases, saveFlowPhases, type FlowPhaseDraft } from '../../../lib/tarifas/proformas';
 
 export const EMPTY_DRAFT: FlowPhaseDraft = {
   name: '', approverType: 'role', roleName: null, userId: null, approverLabel: '', active: true,
@@ -29,8 +29,11 @@ export function useFlowEditor(countryId: string) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Hasta que llega la plantilla guardada no se puede editar: la carga pisaba lo que el usuario ya había agregado.
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setLoading(true);
     let cancelled = false;
     (async () => {
       try {
@@ -41,6 +44,8 @@ export function useFlowEditor(countryId: string) {
         setUsers(userList);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'No se pudo cargar la configuración (requiere rol administrador).');
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
@@ -53,8 +58,13 @@ export function useFlowEditor(countryId: string) {
     const result = await saveFlowPhases(countryId, drafts.map((d) => withApprover(d, roles, users)));
     setSaving(false);
     if (result.error) setError(result.error);
-    else setNotice('Fases guardadas. Las proformas nuevas las usarán; las ya creadas conservan las suyas.');
+    else {
+      // Con fases configuradas, las liquidaciones que esperaban sin proforma se agrupan ya.
+      const swept = await assignPendingSettlements(countryId);
+      const made = swept.created + swept.added;
+      setNotice(`Fases guardadas. Las proformas nuevas las usarán; las ya creadas conservan las suyas.${made > 0 ? ` Se agruparon ${made} liquidaciones pendientes.` : ''}`);
+    }
   }, [countryId, drafts, roles, users]);
 
-  return { drafts, setDrafts, roles, users, error, notice, saving, save };
+  return { drafts, setDrafts, roles, users, error, notice, saving, loading, save };
 }

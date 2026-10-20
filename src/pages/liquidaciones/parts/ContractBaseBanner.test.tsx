@@ -7,15 +7,16 @@ import type { TripCalculation } from '../../../lib/tarifas/tripSettlement';
 type Over = {
   isOwnFleet?: boolean;
   method?: string;
+  source?: 'CARRIER' | 'TENDER';
   amount?: string;
   contract?: TripCalculation['contract'];
 };
 
-const calc = ({ isOwnFleet = false, method, amount, contract = null }: Over): TripCalculation => ({
+const calc = ({ isOwnFleet = false, method, source = 'CARRIER', amount, contract = null }: Over): TripCalculation => ({
   trip: { isOwnFleet },
   result: {
     currency: 'CRC', trace: [],
-    ...(method ? { base: { method, source: { kind: 'CARRIER', ref: 'x', label: 'Tarifa fija del transportista' }, replaced: [], duplicates: [] } } : {}),
+    ...(method ? { base: { method, source: { kind: source, ref: 'x', label: 'Tarifa fija del transportista' }, replaced: [], duplicates: [] } } : {}),
   },
   input: { ...(amount ? { baseOverride: { method, amount } } : {}) },
   contract,
@@ -34,6 +35,20 @@ describe('ContractBaseBanner', () => {
     expect(texto).toContain('Transosa');
     expect(texto).toContain('vigente hasta 31/12/2999');
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('tendering: dice que el monto fue adjudicado, no que es una tarifa fija del contrato', () => {
+    render(<ContractBaseBanner calculation={calc({
+      method: 'FIXED', source: 'TENDER', amount: '50000',
+      contract: { carrierName: 'Transosa', contractExpiry: '2999-12-31', expired: false },
+    })} />);
+    const texto = screen.getByTestId('contract-base-banner').textContent ?? '';
+    expect(texto).toContain('monto adjudicado por tendering');
+    expect(texto).toContain('50');
+    expect(texto).toContain('Transosa');
+    expect(texto).toContain('adjudicación del viaje');
+    expect(texto).not.toContain('según el contrato');
+    expect(texto).not.toContain('Tarifa fija');
   });
 
   it('contrato vencido: alerta ámbar que deja liquidar', () => {

@@ -16,6 +16,10 @@ export { nextProformaNumber } from './nextProformaNumber';
 export { listProformas, getProformaDetail, groupedSettlementIds } from './proformaQueries';
 export type { ProformaWithPhases, ProformaDetail } from './proformaQueries';
 export { createProforma } from './createProforma';
+export {
+  autoAssignSettlement, assignPendingSettlements, assignSettlements, pickOpenProforma, toGroupable,
+} from './autoAssign';
+export type { AssignResult } from './autoAssign';
 export type { CreateProformaInput, CreateProformaResult } from './createProforma';
 export { decideProforma } from './decideProforma';
 export type { DecisionAction, DecisionInput } from './decideProforma';

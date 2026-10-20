@@ -63,6 +63,14 @@ def _write_module(table: Table) -> str:
     return MODULE if table.name in LIQUIDATION_TABLES else CONFIG_MODULE
 
 
+def _require_write(caller: permissions.Permissions, table: Table, action: str) -> None:
+    """Las proformas se generan solas al liquidar: quien liquida (`tarifas`) también puede crearlas y
+    sumarles liquidaciones. El estado y las fases de una proforma NO se tocan por aquí (ver proformas_api)."""
+    if table.name in PROFORMA_TABLES and caller.can(MODULE, action):
+        return
+    caller.require(_write_module(table), action)
+
+
 def _reader(event: dict) -> permissions.Permissions:
     """Leer exige poder liquidar, configurar o gestionar proformas: el cálculo y las pantallas leen lo mismo."""
     caller = tarifas_perms.for_event(event)
@@ -74,7 +82,7 @@ def _reader(event: dict) -> permissions.Permissions:
 def _writer(event: dict, table_name: str, action: str, operation: str) -> tuple[permissions.Permissions, Table]:
     caller = tarifas_perms.for_event(event)
     table = _writable(table_name, operation)
-    caller.require(_write_module(table), action)
+    _require_write(caller, table, action)
     return caller, table
 
 
@@ -247,7 +255,7 @@ def _planned(caller: permissions.Permissions, op: object, event: dict) -> list[t
         raise HttpError(400, 'Cada operación debe ser { op: "insert" | "insert_many" | "update" | "delete", table, id?, values?, rows? }')
     kind = op["op"]
     table = _writable(str(op.get("table")), kind)
-    caller.require(_write_module(table), TX_OPERATIONS[kind])
+    _require_write(caller, table, TX_OPERATIONS[kind])
     proformas_api.check_direct_write(table.name, "insert" if kind == "insert_many" else kind, op.get("values"))
     if kind == "insert_many":
         rows = op.get("rows")

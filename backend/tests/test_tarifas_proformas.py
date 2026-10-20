@@ -199,6 +199,24 @@ def test_la_api_generica_rechaza_cambios_de_flujo(api, route, path, body):
     assert db.calls == []
 
 
+def test_quien_liquida_puede_crear_y_sumar_a_proformas_pero_no_cambiar_fases(api, caller_permissions):
+    app, db = api()
+    as_role(caller_permissions, "Liquidador", modules={"tarifas": "*"})  # sin tarifas.proformas
+    ok = app.handler(http_event("POST /api/tarifas/tx", body={"ops": [
+        {"op": "insert", "table": "tarifas_proformas", "values": {"id": "pro_9", "status": "En Revisión"}},
+        {"op": "insert", "table": "tarifas_proforma_items", "values": {"id": "pri_1", "proforma_id": "pro_9"}},
+        {"op": "update", "table": "tarifas_proformas", "id": "pro_9", "values": {"total_amount": "10.00"}}]}, user=USER), None)
+    assert ok["statusCode"] == 200
+    phases = app.handler(http_event("POST /api/tarifas/tx", body={"ops": [
+        {"op": "update", "table": "tarifas_proforma_phases", "id": "f1", "values": {"state": "aprobada"}}]}, user=USER), None)
+    assert phases["statusCode"] == 405
+    # sin ninguno de los dos módulos no escribe
+    as_role(caller_permissions, "Chofer", modules={"tarifas.config": "*"})
+    denied = app.handler(http_event("POST /api/tarifas/tx", body={"ops": [
+        {"op": "insert", "table": "tarifas_proformas", "values": {"id": "pro_8"}}]}, user=USER), None)
+    assert denied["statusCode"] == 403
+
+
 def test_la_api_generica_si_permite_crear_y_editar_datos(api):
     app, db = api()
     ok = app.handler(http_event("PATCH /api/tarifas/{table}/{id}", path={"table": "tarifas_proformas", "id": "pro_1"},

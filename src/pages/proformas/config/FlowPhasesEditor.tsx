@@ -8,7 +8,7 @@ import { EMPTY_DRAFT, move, useFlowEditor } from './useFlowEditor';
 const FIELD = 'rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500';
 
 export default function FlowPhasesEditor({ countryId }: { countryId: string }) {
-  const { drafts, setDrafts, roles, users, error, notice, saving, save } = useFlowEditor(countryId);
+  const { drafts, setDrafts, roles, users, error, notice, saving, loading, save } = useFlowEditor(countryId);
   const patch = (index: number, change: Partial<FlowPhaseDraft>) =>
     setDrafts((list) => list.map((d, i) => (i === index ? { ...d, ...change } : d)));
 
@@ -56,11 +56,12 @@ export default function FlowPhasesEditor({ countryId }: { countryId: string }) {
             </li>
           ))}
         </ol>
-        {drafts.length === 0 && <div className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">Sin fases: no se podrán generar proformas en este país.</div>}
+        {loading && <div className="py-3 text-center text-slate-500"><i className="ri-loader-4-line animate-spin text-xl" /></div>}
+        {!loading && drafts.length === 0 && <div className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">Sin fases: no se podrán generar proformas en este país.</div>}
 
         <div className="flex justify-between">
-          <Button variant="secondary" icon={<i className="ri-add-line" />} onClick={() => setDrafts((l) => [...l, { ...EMPTY_DRAFT }])}>Agregar fase</Button>
-          <Button disabled={saving} onClick={() => void save()}>{saving ? 'Guardando…' : 'Guardar fases'}</Button>
+          <Button variant="secondary" disabled={loading} icon={<i className="ri-add-line" />} onClick={() => setDrafts((l) => [...l, { ...EMPTY_DRAFT }])}>Agregar fase</Button>
+          <Button disabled={saving || loading} onClick={() => void save()}>{saving ? 'Guardando…' : 'Guardar fases'}</Button>
         </div>
       </div>
     </Card>

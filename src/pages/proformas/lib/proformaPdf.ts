@@ -33,10 +33,11 @@ export async function renderProformaPdf(detail: ProformaDetail): Promise<Blob> {
     const canvas = await html2canvas(host, { scale: RENDER_SCALE, backgroundColor: '#ffffff' });
     const image = canvas.toDataURL('image/png');
     const height = imageHeightMm(canvas.width, canvas.height);
-    const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
     pageOffsets(height).forEach((offset, index) => {
       if (index > 0) pdf.addPage();
-      pdf.addImage(image, 'PNG', 0, offset, A4_WIDTH_MM, height);
+      // Misma imagen en cada página (alias) y compresión: sin ella un PNG de una sola línea pesaba ~3 MB.
+      pdf.addImage(image, 'PNG', 0, offset, A4_WIDTH_MM, height, 'proforma', 'FAST');
     });
     return pdf.output('blob');
   } finally {

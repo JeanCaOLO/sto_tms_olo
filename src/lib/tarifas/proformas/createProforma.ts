@@ -18,7 +18,10 @@ export interface CreateProformaInput {
   settlements: GroupableSettlement[];
 }
 
-export type CreateProformaResult = { error: string; proforma?: undefined } | { error: null; proforma: ProformaRecord };
+export type CreateProformaResult =
+  /** `reason: 'no-phases'` = el país no tiene fases: no es un fallo, la liquidación espera a que se configuren. */
+  | { error: string; reason?: 'no-phases'; proforma?: undefined }
+  | { error: null; reason?: undefined; proforma: ProformaRecord };
 
 const NUMBER_PAGE = 2000;
 
@@ -60,7 +63,9 @@ export async function createProforma(input: CreateProformaInput): Promise<Create
     ]);
     const proformaId = newId('pro');
     const phases = buildPhases(proformaId, templates.map(rowToFlowPhase), () => newId('prp'));
-    if (phases.length === 0) return { error: 'Este país no tiene fases de aprobación configuradas. Configúralas en Proformas → Configuración.' };
+    if (phases.length === 0) {
+      return { error: 'Este país no tiene fases de aprobación configuradas. Configúralas en Proformas → Configuración.', reason: 'no-phases' };
+    }
 
     const items: ProformaItem[] = input.settlements.map((s) => ({
       id: newId('pri'), proformaId, settlementId: s.id, included: true, exclusionReason: null, amount: s.totalAmount,
