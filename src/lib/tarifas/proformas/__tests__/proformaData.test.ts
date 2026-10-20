@@ -26,7 +26,7 @@ async function seedSettlements(): Promise<GroupableSettlement[]> {
       warnings: [], overrides: {}, adhoc_rules: [], rules_used: [], excluded_seqs: [], returns: [],
       created_at: '2026-10-19T10:00:00Z', updated_at: '2026-10-19T10:00:00Z',
     });
-    out.push({ id: String(row.id), carrierId: CARRIER, carrierName: 'Transporte Andino', totalAmount: 100 + i, currency: 'VES', status: 'Borrador' });
+    out.push({ id: String(row.id), number: String(row.number), carrierId: CARRIER, carrierName: 'Transporte Andino', totalAmount: 100 + i, currency: 'VES', status: 'Borrador' });
   }
   return out;
 }

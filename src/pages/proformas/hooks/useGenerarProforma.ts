@@ -23,7 +23,7 @@ export function useGenerarProforma(countryId: string, onCreated: (proforma: Prof
           groupedSettlementIds(),
         ]);
         const items: GroupableSettlement[] = settlements.map((s) => ({
-          id: s.id, carrierId: s.tripInfo.carrierId ?? null, carrierName: s.tripInfo.carrierName ?? null,
+          id: s.id, number: s.number, carrierId: s.tripInfo.carrierId ?? null, carrierName: s.tripInfo.carrierName ?? null,
           totalAmount: Number(s.totalAmount), currency: s.currency, status: s.status,
         }));
         if (!cancelled) setGroups(groupByCarrier(items, grouped));

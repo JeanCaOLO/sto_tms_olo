@@ -22,10 +22,10 @@ export default function GenerarProformaModal({ countryId, onClose, onCreated }: 
     {
       key: 'pick', header: '', accessor: (s) => (selected.has(s.id) ? 1 : 0),
       render: (s) => (
-        <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggle(s.id)} aria-label={`Incluir ${s.id}`} />
+        <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggle(s.id)} aria-label={`Incluir ${s.number}`} />
       ),
     },
-    { key: 'id', header: 'Liquidación', sortable: true, accessor: (s) => s.id },
+    { key: 'number', header: 'Liquidación', sortable: true, accessor: (s) => s.number },
     { key: 'total', header: 'Total', sortable: true, align: 'right', accessor: (s) => s.totalAmount, render: (s) => formatMoney(String(s.totalAmount), s.currency) },
   ];
 

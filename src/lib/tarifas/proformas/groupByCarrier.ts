@@ -3,6 +3,8 @@
 
 export interface GroupableSettlement {
   id: string;
+  /** Número legible (`LIQ-CR-001`): es lo que la gente reconoce, no el id interno. */
+  number: string;
   carrierId: string | null;
   carrierName: string | null;
   totalAmount: number;

@@ -113,7 +113,7 @@ describe('items y totales', () => {
 
 describe('groupByCarrier', () => {
   const s = (id: string, carrierId: string | null, status = 'Borrador') =>
-    ({ id, carrierId, carrierName: carrierId?.toUpperCase() ?? null, totalAmount: 1, currency: 'VES', status });
+    ({ id, number: `LIQ-${id}`, carrierId, carrierName: carrierId?.toUpperCase() ?? null, totalAmount: 1, currency: 'VES', status });
   it('agrupa por transportista y omite las que no están en Borrador, ya agrupadas y sin transportista', () => {
     const groups = groupByCarrier(
       [s('a', 'x'), s('b', 'x'), s('c', 'y', 'Anulado'), s('d', null), s('e', 'x'), s('f', 'x', 'En Revisión'), s('g', 'x', 'Aprobado')],
