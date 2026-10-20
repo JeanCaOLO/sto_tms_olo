@@ -116,7 +116,8 @@ def _agrupar_por_zona(pedidos: list[dict]) -> dict:
     return zonas
 
 
-_UPD_ORDER = "UPDATE orders SET numero_viaje=%s, lead_time_days=%s, planning_run_id=%s, updated_at=now() WHERE id=%s"
+# dispatch_date = salida = delivery_date (ya en la fila) - lead_time_days; sin lead (NULL) queda NULL y el OMS usa su default.
+_UPD_ORDER = "UPDATE orders SET numero_viaje=%s, lead_time_days=%s, dispatch_date=(delivery_date - make_interval(days => %s))::date, planning_run_id=%s, updated_at=now() WHERE id=%s"
 # Write-back del nº de viaje a la tabla espejo de eFlow (mismos nombres que el
 # origen). UPDATE (no insert): solo escribe sobre la fila ya espejada desde eFlow,
 # para no crear filas parciales. NUMEROVIAJEWMH es bigint (nº de viaje sin guion).
@@ -146,7 +147,7 @@ def _persistir_viaje(run, plan_id: str, zona: str, seq: int, viaje: dict, run_id
     for i, o in enumerate(_ordenar_por_ruta(viaje["pedidos"]), start=1):
         run(_INS_STOP, [trip_id, o["id"], i, o["order_number"], o["customer_name"], o["delivery_city"],
                         o["delivery_zone"], o["lat"], o["lng"], o["weight"], o["volume"], o["es_cliente_retira"]])
-        run(_UPD_ORDER, [numero, lead, run_id, o["id"]])  # denormaliza al pedido para el OMS
+        run(_UPD_ORDER, [numero, lead, lead, run_id, o["id"]])  # denormaliza al pedido para el OMS (lead dos veces: col + intervalo)
         if o["eflow_id_expedicion"]:  # write-back simulado del nº de viaje a eFlow
             run(_UPD_SIM, [wmh, run_id, o["eflow_id_almacen"], o["eflow_id_compania"],
                            o["eflow_id_sucursal"], o["eflow_id_expedicion"]])
