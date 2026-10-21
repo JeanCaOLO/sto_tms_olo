@@ -2,6 +2,7 @@
 
 import { db } from '../data';
 import { flowPhaseToRow, rowToFlowPhase } from './mapRows';
+import { proformaConfigAuditRow } from './proformaAudit';
 import type { ApproverType, FlowPhaseTemplate } from './types';
 
 export type FlowPhaseDraft = Omit<FlowPhaseTemplate, 'id' | 'countryId' | 'position'>;
@@ -48,11 +49,13 @@ export async function saveFlowPhases(countryId: string, drafts: FlowPhaseDraft[]
   if (invalid) return { error: invalid };
   try {
     const current = await listFlowPhases(countryId);
+    const names = (list: { name: string; approverLabel: string }[]) => list.map((p) => `${p.name} (${p.approverLabel})`);
     await db().transaction(async (tx) => {
       for (const old of current) await tx.delete('proformaFlowPhase', old.id);
       for (const [i, d] of drafts.entries()) {
         await tx.insert('proformaFlowPhase', flowPhaseToRow({ ...d, id: newId('prf'), countryId, position: i + 1 }));
       }
+      await tx.insert('auditLog', proformaConfigAuditRow(countryId, { fases: names(current) }, { fases: names(drafts) }, 'Fases de aprobación'));
     });
     return { error: null };
   } catch (error) {
@@ -95,8 +98,13 @@ export async function saveEmailConfig(config: EmailConfig): Promise<{ error: str
     mode: config.mode,
   };
   try {
-    if (config.id) await db().update('proformaEmailConfig', config.id, values);
-    else await db().insert('proformaEmailConfig', { id: newId('pre'), ...values });
+    await db().transaction(async (tx) => {
+      if (config.id) await tx.update('proformaEmailConfig', config.id, values);
+      else await tx.insert('proformaEmailConfig', { id: newId('pre'), ...values });
+      await tx.insert('auditLog', proformaConfigAuditRow(
+        config.countryId, null, { modo: values.mode, destinatarios: values.recipients, correoTransportista: values.include_carrier_email }, 'Correo de proformas',
+      ));
+    });
     return { error: null };
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) };

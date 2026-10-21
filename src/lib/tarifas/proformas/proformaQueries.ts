@@ -16,12 +16,32 @@ export interface ProformaDetail extends ProformaWithPhases {
   settlements: Map<string, SettlementRecord>;
 }
 
-/** Proformas del país, la más nueva primero, cada una con sus fases (para mostrar en qué fase va). */
-export async function listProformas(countryId: string): Promise<ProformaWithPhases[]> {
-  const rows = await db().find('proforma', {
-    where: [{ column: 'country_id', op: 'eq', value: countryId }],
-    orderBy: [{ column: 'created_at', direction: 'desc' }],
-  });
+/** 'active' = lo que pide atención (en revisión, o aprobada sin enviar); 'all' = el historial reciente. */
+export type ProformaScope = 'active' | 'all';
+
+export const HISTORY_LIMIT = 300;
+
+const BY_NEWEST = [{ column: 'created_at', direction: 'desc' as const }];
+
+async function findProformaRows(countryId: string, scope: ProformaScope) {
+  const inCountry = { column: 'country_id', op: 'eq' as const, value: countryId };
+  if (scope === 'all') return db().find('proforma', { where: [inCountry], orderBy: BY_NEWEST, limit: HISTORY_LIMIT });
+  const [reviewing, toSend] = await Promise.all([
+    db().find('proforma', { where: [inCountry, { column: 'status', op: 'eq', value: 'En Revisión' }], orderBy: BY_NEWEST }),
+    db().find('proforma', {
+      where: [inCountry, { column: 'status', op: 'eq', value: 'Aprobado' }, { column: 'email_sent_at', op: 'isNull' }],
+      orderBy: BY_NEWEST,
+    }),
+  ]);
+  return [...reviewing, ...toSend].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+}
+
+/**
+ * Proformas del país, la más nueva primero, cada una con sus fases (para mostrar en qué fase va).
+ * El dashboard pide 'active' (poco y siempre vigente); el historial ('all') se pide al abrirlo y con tope.
+ */
+export async function listProformas(countryId: string, scope: ProformaScope = 'all'): Promise<ProformaWithPhases[]> {
+  const rows = await findProformaRows(countryId, scope);
   if (rows.length === 0) return [];
   const phaseRows = await db().find('proformaPhase', {
     where: [{ column: 'proforma_id', op: 'in', value: rows.map((r) => String(r.id)) }],

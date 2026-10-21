@@ -38,6 +38,11 @@ export default function EnviarProformaModal({ detail, onClose, onSent }: Props) 
         <label className="block text-sm font-medium text-slate-700">
           Para (separa varios con coma)
           <input className={FIELD} value={m.to} onChange={(e) => m.setTo(e.target.value)} />
+          {m.carrierEmail && (
+            <span className="mt-1 block text-xs font-normal text-slate-500">
+              Correo de {detail.proforma.carrierName} en el catálogo de transportistas: {m.carrierEmail}
+            </span>
+          )}
         </label>
         <label className="block text-sm font-medium text-slate-700">
           Asunto

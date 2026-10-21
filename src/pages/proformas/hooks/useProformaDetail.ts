@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   decideProforma, getProformaDetail, setItemIncluded,
   type DecisionInput, type ProformaDetail,
@@ -10,11 +10,16 @@ export function useProformaDetail(proformaId: string, onChanged: () => void) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // `alive` descarta respuestas de una proforma que ya no es la abierta (o del modal ya cerrado).
+  const alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, [proformaId]);
+
   const reload = useCallback(async () => {
     try {
-      setDetail(await getProformaDetail(proformaId));
+      const loaded = await getProformaDetail(proformaId);
+      if (alive.current) { setDetail(loaded); setError(null); }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo cargar la proforma.');
+      if (alive.current) setError(e instanceof Error ? e.message : 'No se pudo cargar la proforma.');
     }
   }, [proformaId]);
 

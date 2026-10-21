@@ -19,10 +19,14 @@ export function useEnviarProforma(detail: ProformaDetail, onSent: () => void) {
   const [step, setStep] = useState<'edit' | 'opened'>('edit');
   const [via, setVia] = useState<'gmail' | 'eml'>('gmail');
 
+  // Se arma una vez por proforma: depender del objeto `proforma` volvía a rellenar el correo (y borraba lo editado)
+  // cada vez que el detalle se recargaba.
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       try {
         const [cfg, email] = await Promise.all([getEmailConfig(proforma.countryId), getCarrierEmail(proforma.carrierId)]);
+        if (cancelled) return;
         const vars = { number: proforma.number, carrier: proforma.carrierName, total: formatMoney(String(proforma.totalAmount), proforma.currency) };
         setConfig(cfg);
         setCarrierEmail(email);
@@ -30,10 +34,12 @@ export function useEnviarProforma(detail: ProformaDetail, onSent: () => void) {
         setSubject(fillTemplate(cfg.subjectTemplate, vars));
         setBody(fillTemplate(cfg.bodyTemplate, vars));
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'No se pudo preparar el correo.');
+        if (!cancelled) setError(e instanceof Error ? e.message : 'No se pudo preparar el correo.');
       }
     })();
-  }, [proforma]);
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proforma.id]);
 
   const recipients = useMemo(() => buildRecipients(to.split(/[\s,;]+/), true, null), [to]);
   const fileName = `Proforma-${proforma.number}.pdf`;

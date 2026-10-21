@@ -36,6 +36,14 @@ describe('correo del transportista y envío', () => {
     expect(await getCarrierEmail('NO_EXISTE')).toBeNull();
   });
 
+  it('el destinatario es el correo del transportista, nunca el del conductor', async () => {
+    // Solo se lee `carriers.email`: sin correo en el catálogo no hay destinatario del transportista (no se busca otro).
+    const email = await getCarrierEmail('CARRIER_VE_1');
+    expect(email).toBeNull();
+    expect(buildRecipients([], true, email)).toEqual([]);
+    expect(buildRecipients([], true, 'empresa@transportes.com')).toEqual(['empresa@transportes.com']);
+  });
+
   it('marca la proforma como enviada con bitácora', async () => {
     const now = '2026-10-20T10:00:00Z';
     await db().insert('proforma', {

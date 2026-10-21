@@ -5,11 +5,14 @@ import Modal from '../../../components/base/Modal';
 import Badge from '../../../components/base/Badge';
 import Button from '../../../components/base/Button';
 import { formatMoney } from '../../../lib/tarifas/format';
-import { canEditItems, currentPhase, isSuperAdmin, phaseLabel, type PhaseActor, type ProformaPhase } from '../../../lib/tarifas/proformas';
+import { canEditItems, currentPhase, isSuperAdmin, phaseLabel, type PhaseActor, type ProformaDetail, type ProformaPhase } from '../../../lib/tarifas/proformas';
+import DetalleLiquidacionModal from '../../liquidaciones/components/DetalleLiquidacionModal';
 import { useProformaDetail } from '../hooks/useProformaDetail';
+import { useSettlementDetail } from '../hooks/useSettlementDetail';
 import DecisionPanel, { type Ask } from './DecisionPanel';
 import EnviarProformaModal from './EnviarProformaModal';
 import PhaseTimeline from './PhaseTimeline';
+import ProformaBitacora from './ProformaBitacora';
 import ProformaItemsTable from './ProformaItemsTable';
 import ReasonModal from './ReasonModal';
 
@@ -27,6 +30,9 @@ const TEXTS: Record<Pending['kind'], { title: string; label: string; confirm: st
   exclude: { title: 'Excluir liquidación', label: 'Motivo de la exclusión', confirm: 'Excluir', required: true },
 };
 
+const historyKey = ({ proforma, phases, items }: ProformaDetail) =>
+  `${proforma.status}-${phases.filter((p) => p.state !== 'pendiente').length}-${items.filter((i) => i.included).length}`;
+
 interface Props {
   proformaId: string;
   actor: PhaseActor | null;
@@ -39,6 +45,8 @@ export default function DetalleProformaModal({ proformaId, actor, canEdit, onClo
   const { detail, error, busy, decide, toggleItem, refresh } = useProformaDetail(proformaId, onChanged);
   const [pending, setPending] = useState<Pending | null>(null);
   const [sending, setSending] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const line = useSettlementDetail();
 
   async function confirm(text: string) {
     if (!pending) return;
@@ -60,8 +68,8 @@ export default function DetalleProformaModal({ proformaId, actor, canEdit, onClo
 
   return (
     <>
-    {/* Con un motivo pendiente, Esc cierra solo ese diálogo y no el detalle. */}
-    <Modal isOpen title="Detalle de proforma" onClose={() => { if (!pending && !sending) onClose(); }} widthClass="max-w-4xl">
+    {/* Con un motivo, el envío o el desglose de una línea abiertos, Esc no cierra el detalle. */}
+    <Modal isOpen title="Detalle de proforma" onClose={() => { if (!pending && !sending && !line.settlement) onClose(); }} widthClass="max-w-4xl">
       <div className="space-y-5 p-6">
         {!detail && !error && <div className="py-10 text-center text-slate-500"><i className="ri-loader-4-line animate-spin text-2xl" /></div>}
         {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
@@ -87,7 +95,9 @@ export default function DetalleProformaModal({ proformaId, actor, canEdit, onClo
                 detail={detail} canToggle={editable} busy={busy}
                 onInclude={(id) => void toggleItem(id, true, null)}
                 onExclude={(id) => setPending({ kind: 'exclude', settlementId: id })}
+                onOpen={(id) => void line.open(id)}
               />
+              {line.error && <p className="mt-2 text-sm text-red-700">{line.error}</p>}
             </section>
 
             <section>
@@ -100,6 +110,18 @@ export default function DetalleProformaModal({ proformaId, actor, canEdit, onClo
             </section>
 
             <DecisionPanel detail={detail} actor={actor} canEdit={canEdit} busy={busy} onAsk={(kind) => setPending({ kind })} />
+
+            <section>
+              <button type="button" aria-expanded={showHistory} className="cursor-pointer text-sm font-semibold text-slate-700" onClick={() => setShowHistory((v) => !v)}>
+                <i className={`${showHistory ? 'ri-arrow-down-s-line' : 'ri-arrow-right-s-line'} mr-1`} />Historial
+              </button>
+              {showHistory && (
+                <div className="mt-2">
+                  {/* La clave cambia con cada decisión o exclusión: el historial se vuelve a leer. */}
+                  <ProformaBitacora key={historyKey(detail)} proformaId={proforma.id} />
+                </div>
+              )}
+            </section>
           </>
         )}
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
@@ -115,6 +137,7 @@ export default function DetalleProformaModal({ proformaId, actor, canEdit, onClo
     {sending && detail && (
       <EnviarProformaModal detail={detail} onClose={() => setSending(false)} onSent={() => { setSending(false); void refresh(); }} />
     )}
+    <DetalleLiquidacionModal settlement={line.settlement} onClose={line.close} />
     {pending && texts && (
       <ReasonModal
         title={texts.title} label={texts.label} confirmLabel={texts.confirm}

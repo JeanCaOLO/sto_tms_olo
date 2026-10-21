@@ -14,9 +14,11 @@ interface Props {
   busy: boolean;
   onInclude: (settlementId: string) => void;
   onExclude: (settlementId: string) => void;
+  /** Clic en una línea: abre el desglose de esa liquidación. */
+  onOpen: (settlementId: string) => void;
 }
 
-export default function ProformaItemsTable({ detail, canToggle, busy, onInclude, onExclude }: Props) {
+export default function ProformaItemsTable({ detail, canToggle, busy, onInclude, onExclude, onOpen }: Props) {
   const currency = detail.proforma.currency;
   const columns: DataTableColumn<Item>[] = [
     {
@@ -50,15 +52,23 @@ export default function ProformaItemsTable({ detail, canToggle, busy, onInclude,
       pageSize={10}
       emptyMessage="La proforma no tiene liquidaciones"
       exportFileName={`proforma_${detail.proforma.number}`}
-      actions={canToggle ? (i) => (
-        <Button
-          variant="ghost" size="sm" disabled={busy}
-          title={i.included ? 'Excluir de esta proforma' : 'Volver a incluir'}
-          onClick={() => (i.included ? onExclude(i.settlementId) : onInclude(i.settlementId))}
-        >
-          {i.included ? 'Excluir' : 'Incluir'}
-        </Button>
-      ) : undefined}
+      onRowClick={(i) => onOpen(i.settlementId)}
+      actions={(i) => (
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" title="Ver el desglose de la liquidación" onClick={() => onOpen(i.settlementId)}>
+            <i className="ri-eye-line" />
+          </Button>
+          {canToggle && (
+            <Button
+              variant="ghost" size="sm" disabled={busy}
+              title={i.included ? 'Excluir de esta proforma' : 'Volver a incluir'}
+              onClick={() => (i.included ? onExclude(i.settlementId) : onInclude(i.settlementId))}
+            >
+              {i.included ? 'Excluir' : 'Incluir'}
+            </Button>
+          )}
+        </div>
+      )}
     />
   );
 }

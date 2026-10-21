@@ -14,7 +14,10 @@ export { groupByCarrier } from './groupByCarrier';
 export type { GroupableSettlement, CarrierGroup } from './groupByCarrier';
 export { nextProformaNumber } from './nextProformaNumber';
 export { listProformas, getProformaDetail, groupedSettlementIds } from './proformaQueries';
-export type { ProformaWithPhases, ProformaDetail } from './proformaQueries';
+export type { ProformaWithPhases, ProformaDetail, ProformaScope } from './proformaQueries';
+export { pendingForActor, isWaitingFor } from './pendingForActor';
+export { listProformaEvents } from './proformaAuditQueries';
+export type { ProformaEvent } from './proformaAuditQueries';
 export { createProforma } from './createProforma';
 export {
   autoAssignSettlement, assignPendingSettlements, assignSettlements, pickOpenProforma, toGroupable,
