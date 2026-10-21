@@ -106,21 +106,27 @@ def correr(
     hoy = hoy or datetime.now(timezone.utc).date()
     corrida_id = _corrida_id(hoy)
 
-    pedidos: list[PedidoCandidato] = cola_candidatos.candidatos(limite=limite)
-    registros = motor_reglas.priorizar(pedidos, resolver_config, hoy=hoy)
+    try:
+        pedidos: list[PedidoCandidato] = cola_candidatos.candidatos(limite=limite)
+        registros = motor_reglas.priorizar(pedidos, resolver_config, hoy=hoy)
 
-    # Pasada 1: priorizar todos (deja DISP, sin oms_processed_at).
-    _priorizar(pedidos, registros, corrida_id)
+        # Pasada 1: priorizar todos (deja DISP, sin oms_processed_at).
+        _priorizar(pedidos, registros, corrida_id)
 
-    # Pasada 2: liberar solo los que cruzan la ventana (por viaje "gratis": mismo
-    # dispatch_date en un numero_viaje => cruzan juntos). Se lee SOLO dispatch_date.
-    en_ventana = [
-        (pedido, registro)
-        for pedido, registro in zip(pedidos, registros)
-        if handoff_pedidos.en_ventana_liberacion(
-            pedido.dispatch_date, hoy, resolver_config(pedido).dias_prep_picking)
-    ]
-    liberados, pendientes, prioridades = _liberar(en_ventana)
+        # Pasada 2: liberar solo los que cruzan la ventana (por viaje "gratis": mismo
+        # dispatch_date en un numero_viaje => cruzan juntos). Se lee SOLO dispatch_date.
+        en_ventana = [
+            (pedido, registro)
+            for pedido, registro in zip(pedidos, registros)
+            if handoff_pedidos.en_ventana_liberacion(
+                pedido.dispatch_date, hoy, resolver_config(pedido).dias_prep_picking)
+        ]
+        liberados, pendientes, prioridades = _liberar(en_ventana)
+    except Exception as exc:  # noqa: BLE001 — registra el fallo y re-lanza
+        # Best-effort: si la BD está caída, este log también falla (solo CloudWatch).
+        oms_log.registrar("barrido", f"Barrido FALLÓ: {exc}", level="error",
+                          corrida_id=corrida_id, detail={"error": str(exc)})
+        raise
 
     resumen = {
         "total": len(pedidos),
@@ -161,14 +167,20 @@ def procesar_viaje(event: dict) -> dict:
     hoy = datetime.now(timezone.utc).date()
     corrida_id = _corrida_id(hoy)
 
-    pedidos = [
-        p for p in cola_candidatos.candidatos()
-        if p.numero_viaje == numero_viaje
-        and (subconjunto is None or p.id_expedicion in subconjunto)
-    ]
-    registros = motor_reglas.priorizar(pedidos, motor_reglas.config_por_defecto, hoy=hoy)
-    _priorizar(pedidos, registros, corrida_id)
-    liberados, pendientes, prioridades = _liberar(list(zip(pedidos, registros)))
+    try:
+        pedidos = [
+            p for p in cola_candidatos.candidatos()
+            if p.numero_viaje == numero_viaje
+            and (subconjunto is None or p.id_expedicion in subconjunto)
+        ]
+        registros = motor_reglas.priorizar(pedidos, motor_reglas.config_por_defecto, hoy=hoy)
+        _priorizar(pedidos, registros, corrida_id)
+        liberados, pendientes, prioridades = _liberar(list(zip(pedidos, registros)))
+    except Exception as exc:  # noqa: BLE001 — registra el fallo y re-lanza
+        oms_log.registrar("procesar_viaje", f"Procesar viaje {numero_viaje} FALLÓ: {exc}",
+                          level="error", corrida_id=corrida_id, numero_viaje=numero_viaje,
+                          actor="manual", detail={"error": str(exc)})
+        raise
 
     oms_log.registrar(
         "procesar_viaje",
