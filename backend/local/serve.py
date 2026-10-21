@@ -34,6 +34,7 @@ STACKS = {
     "tarifas": BACKEND / "tarifas" / "src",
     # Envío de proformas por Gmail: en local usa GOOGLE_CLIENT_ID/SECRET de .env.local y guarda tokens en archivos.
     "tarifas_mail": BACKEND / "tarifas-mail" / "src",
+    "oms": BACKEND / "oms" / "src",
     "tracking": BACKEND / "tracking" / "src",
     "eflow_sim": BACKEND / "eflow-sim" / "src",
 }

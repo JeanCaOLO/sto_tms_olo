@@ -3,23 +3,32 @@
   "unit": "motor-reglas-oms",
   "intent": "260826-modulo-oms",
   "kind": "service",
-  "note": "Esqueleto ejecutable del motor de reglas propio del OMS (Lambda Python). Reconciliación contable: código ya construido y verificado (16/16 unidad + 142/142 suite). functional-design compensado inline; nfr/infra diferidos con gate.",
-  "upstream_ids": ["US1", "US7", "US8", "US9", "US10", "US11b", "US12", "US13"],
+  "note": "As-built reconciliado al modelo v4 + ADR-013 (desacople priorizacion->liberacion). Codigo ya construido y verificado en rama oms: 36/36 unidad (test_oms.py) + 287/287 suite. Supera la version 2026-10-01 (oms.pedidos, analizador_observaciones activo, cola TPEXES/TPEXSI='DISP', dos escrituras D6) — modelo viejo.",
+  "upstream_ids": ["US0", "US1", "US7", "US8", "US9", "US9b", "US9c", "US10", "US11b", "US-EPA", "US13"],
   "coverage": [
-    { "id": "US1",   "status": "OK", "target": "backend/oms/src/cola_candidatos.py" },
-    { "id": "US7",   "status": "OK", "target": "backend/oms/src/regla_fecha.py" },
-    { "id": "US8",   "status": "OK", "target": "backend/oms/src/regla_fecha.py", "note": "fallback por valor centinela (FECHA NOT NULL)" },
-    { "id": "US9",   "status": "OK", "target": "backend/oms/src/handoff_pedidos.py", "note": "dos escrituras D6; escribe en oms.pedidos (U2) + TPEXSI='GENE'" },
-    { "id": "US10",  "status": "OK", "target": "backend/oms/src/motor_reglas.py" },
-    { "id": "US11b", "status": "OK", "target": "backend/oms/src/motor_reglas.py" },
-    { "id": "US12",  "status": "OK", "target": "backend/oms/src/analizador_observaciones.py", "note": "clasificador stub; Bedrock diferido" },
-    { "id": "US13",  "status": "OK", "target": "backend/oms/src/analizador_observaciones.py" }
+    { "id": "US0",    "status": "OK", "target": "backend/oms/src/cola_candidatos.py", "note": "activacion por polling de columna (planning_run_id IS NOT NULL AND oms_processed_at IS NULL)" },
+    { "id": "US1",    "status": "OK", "target": "backend/oms/src/cola_candidatos.py" },
+    { "id": "US7",    "status": "OK", "target": "backend/oms/src/regla_fecha.py" },
+    { "id": "US8",    "status": "OK", "target": "backend/oms/src/regla_fecha.py", "note": "lead_time_days dinamico (insumo de Planificacion, default 1)" },
+    { "id": "US9",    "status": "OK", "target": "backend/oms/src/handoff_pedidos.py", "note": "priorizar_pedido(): UPDATE orders deja DISP, sin oms_processed_at, sin costura (ADR-013)" },
+    { "id": "US9b",   "status": "OK", "target": "backend/oms/src/handoff_pedidos.py", "note": "liberar_pedido() + en_ventana_liberacion(): GENE + oms_processed_at por la costura EscritorSituacion; liberacion por viaje via dispatch_date" },
+    { "id": "US9c",   "status": "OK", "target": "backend/oms/src/app.py", "note": "POST /api/v1/oms/viajes/{numero_viaje}/procesar: accion manual gated por rol, ignora ventana, subconjunto opcional" },
+    { "id": "US10",   "status": "OK", "target": "backend/oms/src/motor_reglas.py" },
+    { "id": "US11b",  "status": "OK", "target": "backend/oms/src/motor_reglas.py" },
+    { "id": "US-EPA", "status": "OK", "target": "backend/oms/src/motor_reglas.py", "note": "EPA cortocircuita el score (ReglaEPA)" },
+    { "id": "US13",   "status": "OK", "target": "backend/oms/src/motor_reglas.py", "note": "cliente-retira por delivery_zone (D11); NO por analizador_observaciones" }
   ],
-  "pure_submodule": { "path": "backend/oms/src/score.py", "note": "cálculo de score como submódulo puro testeable (Testing Posture)" },
+  "pure_submodules": [
+    { "path": "backend/oms/src/score.py", "note": "calculo de score como submodulo puro testeable (Testing Posture)" },
+    { "path": "backend/oms/src/handoff_pedidos.py#en_ventana_liberacion", "note": "predicado de ventana puro (hoy >= dispatch_date - dias_prep_picking)" }
+  ],
   "verified_by": ["backend/tests/test_oms.py"],
-  "test_results": { "unit": "16/16", "suite": "142/142" },
+  "test_results": { "unit": "36/36", "suite": "287/287" },
+  "release_migration": "sql/47_orders_release_indexes.sql",
   "deferred": [
-    "Réplica EFLOW real (mock), Bedrock real (stub): adaptadores aislados con TODO.",
-    "Despliegue SAM/infra, destino de PRIORIDAD al WMS: reactivar nfr-requirements + nfr-design + infrastructure-design (gate en external-dependency-map.md)."
-  ]
+    "analizador_observaciones.py: stub DIFERIDO (D11, Bedrock futuro); cliente-retira activo es por zona (US13).",
+    "Escritura 2 a eFlow real por endpoint EPRAC (futuro) detras de la costura EscritorSituacion; hoy simulada en sim_expedicionescabecera.",
+    "Deploy/infra de Intelix (SAM): wiring W1/W2/W3 en external-dependency-map (trigger 5x/dia, ruta API Gateway de la accion manual, IAM de escritura a sim_expedicionescabecera)."
+  ],
+  "open_questions": ["OQ-REL1 (replan de un pedido ya liberado -> stale; no bloquea v1)"]
 }

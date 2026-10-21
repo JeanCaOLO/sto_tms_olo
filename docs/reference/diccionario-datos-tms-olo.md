@@ -1,17 +1,17 @@
 # Diccionario de datos — `tms_olo` (Aurora PostgreSQL)
 
-> **Generado el 2026-10-12** desde la base real con [`scripts/diccionario-datos.py`](../../scripts/diccionario-datos.py). No editar a mano: las estructuras (columnas, tipos, llaves, índices, triggers) salen del catálogo de PostgreSQL; las descripciones de tabla viven en el script. Para regenerar: abrir el túnel (`scripts/tunel-aurora.ps1`) y correr `python scripts/diccionario-datos.py`.
+> **Generado el 2026-10-16** desde la base real con [`scripts/diccionario-datos.py`](../../scripts/diccionario-datos.py). No editar a mano: las estructuras (columnas, tipos, llaves, índices, triggers) salen del catálogo de PostgreSQL; las descripciones de tabla viven en el script. Para regenerar: abrir el túnel (`scripts/tunel-aurora.ps1`) y correr `python scripts/diccionario-datos.py`.
 
 - **Servidor:** PostgreSQL 17.7 on x86_64-pc-linux-gnu — cluster `db-tms-olo` (us-east-2), base `tms_olo`. Conexión y túnel: [`aws-inventario-tms.md`](aws-inventario-tms.md), [`../guides/tunel-ssm-a-rds.md`](../guides/tunel-ssm-a-rds.md).
-- **Contenido:** 63 tablas y 8 vistas en los esquemas `public` (negocio) y `audit` (bitácora).
-- **Filas:** conteo exacto (`count(*)`) al 2026-10-12. "—" = el rol de la app (`tms_app`) no tiene permiso de lectura.
+- **Contenido:** 67 tablas y 8 vistas en los esquemas `public` (negocio) y `audit` (bitácora).
+- **Filas:** conteo exacto (`count(*)`) al 2026-10-16. "—" = el rol de la app (`tms_app`) no tiene permiso de lectura.
 - Casi todas las tablas llevan `organization_id → organizations`; esa relación se omite en los diagramas para que se lean.
 
 ## Índice
 
 **Organización, países y almacenes:** [`organizations`](#publicorganizations), [`countries`](#publiccountries), [`warehouses`](#publicwarehouses), [`stores`](#publicstores), [`zones`](#publiczones)
 
-**Clientes y puntos de entrega:** [`customers`](#publiccustomers), [`final_customers`](#publicfinal_customers), [`delivery_points`](#publicdelivery_points), [`addresses`](#publicaddresses), [`contacts`](#publiccontacts)
+**Clientes y puntos de entrega:** [`customers`](#publiccustomers), [`branches`](#publicbranches), [`final_customers`](#publicfinal_customers), [`delivery_points`](#publicdelivery_points), [`addresses`](#publicaddresses), [`contacts`](#publiccontacts)
 
 **Transportistas y flota:** [`carriers`](#publiccarriers), [`drivers`](#publicdrivers), [`driver_license_types`](#publicdriver_license_types), [`driver_licenses`](#publicdriver_licenses), [`vehicles`](#publicvehicles), [`vehicle_types`](#publicvehicle_types)
 
@@ -27,7 +27,7 @@
 
 **Sistema y auditoría:** [`schema_migrations`](#publicschema_migrations), [`audit.events`](#auditevents), [`audit.tracked_tables`](#audittracked_tables)
 
-**Sin clasificar (nuevas desde la última revisión):** [`geography_columns`](#publicgeography_columns), [`geometry_columns`](#publicgeometry_columns), [`spatial_ref_sys`](#publicspatial_ref_sys), [`tarifas_audit_log`](#publictarifas_audit_log), [`tarifas_cost_structure_rows`](#publictarifas_cost_structure_rows), [`tarifas_cost_structures`](#publictarifas_cost_structures), [`tarifas_country_settings`](#publictarifas_country_settings), [`tarifas_margin_policies`](#publictarifas_margin_policies), [`tarifas_party_variables`](#publictarifas_party_variables), [`tarifas_pricing_rules`](#publictarifas_pricing_rules), [`tarifas_pricing_templates`](#publictarifas_pricing_templates), [`tarifas_rate_table_rows`](#publictarifas_rate_table_rows), [`tarifas_rate_tables`](#publictarifas_rate_tables), [`tarifas_settlement_parties`](#publictarifas_settlement_parties), [`tarifas_settlements`](#publictarifas_settlements), [`tarifas_trip_order_marks`](#publictarifas_trip_order_marks), [`tarifas_v_devoluciones`](#publictarifas_v_devoluciones), [`tarifas_v_viaje_cargas`](#publictarifas_v_viaje_cargas), [`tarifas_v_viaje_pedidos`](#publictarifas_v_viaje_pedidos), [`tarifas_v_viajes`](#publictarifas_v_viajes), [`tarifas_zone_groups`](#publictarifas_zone_groups)
+**Sin clasificar (nuevas desde la última revisión):** [`geography_columns`](#publicgeography_columns), [`geometry_columns`](#publicgeometry_columns), [`spatial_ref_sys`](#publicspatial_ref_sys), [`tarifas_audit_log`](#publictarifas_audit_log), [`tarifas_cost_structure_rows`](#publictarifas_cost_structure_rows), [`tarifas_cost_structures`](#publictarifas_cost_structures), [`tarifas_country_settings`](#publictarifas_country_settings), [`tarifas_margin_policies`](#publictarifas_margin_policies), [`tarifas_party_variables`](#publictarifas_party_variables), [`tarifas_pricing_rules`](#publictarifas_pricing_rules), [`tarifas_pricing_templates`](#publictarifas_pricing_templates), [`tarifas_rate_table_rows`](#publictarifas_rate_table_rows), [`tarifas_rate_tables`](#publictarifas_rate_tables), [`tarifas_settlement_parties`](#publictarifas_settlement_parties), [`tarifas_settlements`](#publictarifas_settlements), [`tarifas_trip_order_marks`](#publictarifas_trip_order_marks), [`tarifas_v_devoluciones`](#publictarifas_v_devoluciones), [`tarifas_v_viaje_cargas`](#publictarifas_v_viaje_cargas), [`tarifas_v_viaje_pedidos`](#publictarifas_v_viaje_pedidos), [`tarifas_v_viajes`](#publictarifas_v_viajes), [`tarifas_zone_groups`](#publictarifas_zone_groups), [`tracking_evidences`](#publictracking_evidences), [`tracking_last_positions`](#publictracking_last_positions), [`tracking_positions`](#publictracking_positions)
 
 ## Observaciones (revisión 2026-09-30)
 
@@ -40,8 +40,9 @@
   `driver_license_types` (renombrada en `sql/06`). La FK real apunta bien.
 - **Tablas vacías (0 filas):** `contacts`, `contracts`, `contract_documents`, `driver_licenses`, `rates`, `returns`,
   `role_countries`, `rutas_costeo`, `settlements`, `sku_cotizaciones`, `tracking_events`.
-- **Todavía no existe nada del OMS:** ni la base `logistica_olo` con esquemas `OMS`/`TMS` (decidido el 2026-09-15) ni
-  las tablas propias del OMS (`route_dispatch_schedule`, `order_priority_*`, simulaciones). Todo esto es `tms_olo`.
+- **El OMS no tiene esquema propio** (decidido el 2026-10-16; reemplaza los esquemas `OMS`/`TMS` del 2026-09-15):
+  todo vive en `public`. El OMS lee y escribe sus pedidos en `public.orders`; sus tablas propias (simulaciones,
+  etc.) todavía no existen y se crearán también en `public`.
 - **Casi sin `COMMENT ON`:** solo 3 tablas y 6 columnas tienen comentario en la base; las descripciones de este
   documento se escribieron a partir de los nombres, las columnas y los scripts `sql/`.
 - **Permisos de `tms_app`:** no puede leer `public.schema_migrations` ni `audit.tracked_tables`, por eso no se cuentan
@@ -124,7 +125,7 @@ erDiagram
 | `country_id` | `uuid` | no |  | FK → [`countries`](#publiccountries) |
 | `code` | `text` | no |  |  |
 | `name` | `text` | no |  |  |
-| `timezone` | `text` | sí |  |  |
+| `timezone` | `text` | no |  |  |
 | `currency_id` | `text` | sí |  |  |
 | `address` | `text` | sí |  |  |
 | `latitude` | `numeric` | sí |  |  |
@@ -132,8 +133,11 @@ erDiagram
 | `active` | `boolean` | no | `true` |  |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |
+| `source_system` | `text` | sí |  | Instancia de EFLOW de donde viene el almacén: EFLOW_OLO (CR), EFLOW_FEBECA, EFLOW_BEVAL (VE). |
+| `external_code` | `character varying(4)` | sí |  | EFLOW ALMACENES.IDALMACEN. Único por source_system. |
 
 - Único: `UNIQUE (country_id, code)`
+- Índice: `btree (source_system, external_code) WHERE (external_code IS NOT NULL)` (único) — `uidx_warehouse_source_external_code`
 - Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
 
 <a id="publicstores"></a>
@@ -216,6 +220,7 @@ erDiagram
     addresses ||--o{ delivery_points : "address_id"
     countries ||--o{ addresses : "country_id"
     countries ||--o{ customers : "country_id"
+    customers ||--o{ branches : "customer_id"
     customers ||--o{ final_customers : "customer_id"
     delivery_points ||--o{ contacts : "delivery_point_id"
     final_customers ||--o{ contacts : "final_customer_id"
@@ -228,7 +233,7 @@ erDiagram
 
 ### `public.customers`
 
-*tabla · 5 filas* — Clientes de OLO (Cofersa, EPA…), por país y almacén.
+*tabla · 5 filas* — Compañías clientes de OLO (Cofersa, EPA…) = EFLOW COMPANIA; código EFLOW en `external_code` (`sql/40`).
 
 > Comentario en la base: Incluye Cofersa/EPA como clientes reales desde 2026-09-16 (antes solo existían como fuentes de datos/reglas del OMS, no como filas de este catálogo).
 
@@ -253,39 +258,88 @@ erDiagram
 | `created_at` | `timestamp with time zone` | sí | `now()` |  |
 | `updated_at` | `timestamp with time zone` | sí | `now()` |  |
 | `warehouse_id` | `uuid` | sí |  | FK → [`warehouses`](#publicwarehouses) |
+| `source_system` | `text` | sí |  | Instancia de EFLOW de donde viene la compañía: EFLOW_OLO (CR), EFLOW_FEBECA, EFLOW_BEVAL (VE). |
+| `external_code` | `character varying(4)` | sí |  | EFLOW COMPANIA.IDCOMPANIA (ej. 0029 = EPA, 0109 = Cofersa). Único por source_system. |
 
 - Único: `UNIQUE (organization_id, code)`
-- Índice: `btree (warehouse_id, code)` (único) — `customers_warehouse_id_code_key`
-- Índice: `btree (country_id)` — `idx_customers_country`
-- Índice: `btree (organization_id)` — `idx_customers_org`
-- Índice: `btree (delivery_zone)` — `idx_customers_zone`
+- Índice: `gin (name gin_trgm_ops)` — `customers_name_trgm`
+- Índice: `btree (country_id)` — `idx_customer_country`
+- Índice: `btree (delivery_zone)` — `idx_customer_delivery_zone`
+- Índice: `btree (organization_id)` — `idx_customer_organization`
+- Índice: `btree (source_system, external_code) WHERE (external_code IS NOT NULL)` (único) — `uidx_customer_source_external_code`
+- Índice: `btree (warehouse_id, code)` (único) — `uidx_customer_warehouse_code`
+- Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
+
+<a id="publicbranches"></a>
+
+### `public.branches`
+
+*tabla · 8 filas* — Sucursales de cada compañía = EFLOW SUCURSAL (sobrante, garantías, crossdock…) (`sql/40`).
+
+> Comentario en la base: Sucursales de cada compañía (EFLOW SUCURSAL, PK IDCOMPANIA+IDSUCURSAL). Cambian reglas de despacho/prioridad (sobrante, garantía, crossdock).
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `id` | `uuid` | no | `gen_random_uuid()` | **PK** |
+| `customer_id` | `uuid` | no |  | FK → [`customers`](#publiccustomers) |
+| `external_code` | `character varying(4)` | no |  | EFLOW SUCURSAL.IDSUCURSAL. Único por compañía. |
+| `name` | `text` | no |  | EFLOW NOMBRELARGOSUCURSAL. |
+| `short_name` | `text` | sí |  | EFLOW NOMBRECORTOSUCURSAL. |
+| `branch_type` | `text` | sí |  | EFLOW TIPOSUCURSAL. |
+| `tax_id` | `text` | sí |  | EFLOW NUMEROIDENTIFICACION. |
+| `erp_reference` | `text` | sí |  | EFLOW IDREFERENCIAERP (cruce con Softland). |
+| `country` | `text` | sí |  |  |
+| `province` | `text` | sí |  |  |
+| `city` | `text` | sí |  |  |
+| `address` | `text` | sí |  |  |
+| `email` | `text` | sí |  |  |
+| `phone` | `text` | sí |  |  |
+| `status` | `text` | no | `'active'::text` | Derivado de EFLOW SITUACION. |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |
+| `updated_at` | `timestamp with time zone` | no | `now()` |  |
+
+- Check `ck_branch_status`: `CHECK ((status = ANY (ARRAY['active'::text, 'inactive'::text])))`
+- Único: `UNIQUE (customer_id, external_code)`
+- Índice: `btree (customer_id)` — `idx_branch_customer`
 - Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
 
 <a id="publicfinal_customers"></a>
 
 ### `public.final_customers`
 
-*tabla · 10.306 filas* — Clientes finales de cada cliente (a quién se le entrega).
+*tabla · 32.871 filas* — Clientes destino = EFLOW CLIENTES: tiendas EPA (`TIENDA`) y clientes de mayoreo (`MAYOREO`) (`sql/41`–`42`).
 
 | Columna | Tipo | Nulo | Default | Notas |
 |---|---|---|---|---|
 | `id` | `uuid` | no | `gen_random_uuid()` | **PK** |
 | `customer_id` | `uuid` | no |  | FK → [`customers`](#publiccustomers) |
-| `external_code` | `text` | no |  |  |
-| `name` | `text` | no |  |  |
+| `external_code` | `text` | no |  | EFLOW CLIENTES.IDCLIENTE (texto, ceros a la izquierda). Único por compañía (customer_id). |
+| `name` | `text` | no |  | EFLOW NOMBRELARGO. |
 | `region` | `text` | sí |  |  |
-| `status` | `text` | no | `'active'::text` |  |
+| `status` | `text` | no | `'active'::text` | active / inactive. Derivado de EFLOW TPCLSI (DISP -> active, BLOQ -> inactive). |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |
+| `customer_type` | `text` | no |  | TIENDA (tiendas de EPA) o MAYOREO (resto de clientes). |
+| `short_name` | `text` | sí |  | EFLOW NOMBRECORTO. |
+| `contact` | `text` | sí |  | EFLOW CONTACTO. |
+| `phone` | `text` | sí |  | EFLOW TELEFONO. |
+| `mobile` | `text` | sí |  | EFLOW CELULAR. |
+| `email` | `text` | sí |  | EFLOW EMAIL. |
+| `erp_reference` | `text` | sí |  | EFLOW REFERENCIA_ERP. |
+| `wms_client_type` | `text` | sí |  | EFLOW TPCLIE (ej. NACION, INTERN). |
+| `wms_client_class` | `text` | sí |  | EFLOW TPCLSE (ej. A, B, C, Z). |
 
+- Check `ck_final_customer_customer_type`: `CHECK ((customer_type = ANY (ARRAY['TIENDA'::text, 'MAYOREO'::text])))`
+- Check `ck_final_customer_status`: `CHECK ((status = ANY (ARRAY['active'::text, 'inactive'::text])))`
 - Único: `UNIQUE (customer_id, external_code)`
+- Índice: `btree (customer_id, customer_type)` — `idx_final_customer_customer_type`
 - Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
 
 <a id="publicdelivery_points"></a>
 
 ### `public.delivery_points`
 
-*tabla · 10.304 filas* — Puntos de entrega de un cliente final, con dirección, ventana horaria, zona y códigos de ruta/zona WMS.
+*tabla · 32.871 filas* — Puntos de entrega de un cliente final, con dirección, ventana horaria, zona y códigos de ruta/zona WMS.
 
 | Columna | Tipo | Nulo | Default | Notas |
 |---|---|---|---|---|
@@ -305,6 +359,7 @@ erDiagram
 | `route_code` | `text` | sí |  |  |
 | `wms_zone_code` | `text` | sí |  |  |
 | `zone_source` | `text` | no | `'map'::text` |  |
+| `contact_phone` | `text` | sí |  |  |
 
 - Check `delivery_points_zone_source_check`: `CHECK ((zone_source = ANY (ARRAY['map'::text, 'manual'::text, 'wms'::text])))`
 - Índice: `btree (final_customer_id, external_code) WHERE (external_code IS NOT NULL)` (único) — `delivery_points_final_customer_external_code_key`
@@ -318,7 +373,7 @@ erDiagram
 
 ### `public.addresses`
 
-*tabla · 10.304 filas* — Direcciones geocodificables, referenciadas por los puntos de entrega.
+*tabla · 32.871 filas* — Direcciones geocodificables, referenciadas por los puntos de entrega.
 
 | Columna | Tipo | Nulo | Default | Notas |
 |---|---|---|---|---|
@@ -399,8 +454,14 @@ erDiagram
 | `payment_account` | `text` | sí |  | Cuenta bancaria/contable para pagar al transportista (borrador, 2026-09-16) |
 | `softland_code` | `text` | sí |  | Código del transportista en Softland (ERP externo) — integración aún no confirmada (borrador, 2026-09-16) |
 | `is_flota_propia` | `boolean` | no | `false` | true = flota propia de la empresa (prioridad en el reparto automático de Planificación); false = transportista tercero. |
+| `contract_expiry` | `date` | sí |  |  |
+| `contract_file_key` | `text` | sí |  |  |
+| `rate_type` | `text` | sí |  |  |
+| `flat_rate_amount` | `numeric` | sí |  |  |
 
+- Check `carriers_flat_rate_amount_check`: `CHECK (((flat_rate_amount IS NULL) OR (flat_rate_amount >= (0)::numeric)))`
 - Único: `UNIQUE (organization_id, code)`
+- Check `carriers_rate_type_check`: `CHECK (((rate_type IS NULL) OR (rate_type = ANY (ARRAY['PER_KM'::text, 'PER_UNIT'::text, 'FIXED'::text, 'VOLUME'::text, 'TENDERING'::text]))))`
 - Índice: `btree (organization_id)` — `idx_carriers_org`
 - Índice: `btree (status)` — `idx_carriers_status`
 - Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
@@ -505,7 +566,13 @@ erDiagram
 | `pallets` | `integer` | sí |  |  |
 | `image_url` | `text` | sí |  |  |
 | `notes` | `text` | sí |  |  |
+| `container_width` | `numeric` | sí |  |  |
+| `container_height` | `numeric` | sí |  |  |
+| `container_length` | `numeric` | sí |  |  |
+| `container_unit` | `text` | no | `'cm'::text` |  |
 
+- Check `vehicles_container_dimensions_check`: `CHECK (((COALESCE(container_width, (1)::numeric) > (0)::numeric) AND (COALESCE(container_height, (1)::numeric) > (0)::numeric) AND (COALESCE(container_length, (1)::numeric) > (0)::numeric)))`
+- Check `vehicles_container_unit_check`: `CHECK ((container_unit = ANY (ARRAY['cm'::text, 'in'::text, 'ft'::text])))`
 - Único: `UNIQUE (organization_id, plate)`
 - Índice: `btree (carrier_id)` — `idx_vehicles_carrier`
 - Índice: `btree (organization_id)` — `idx_vehicles_org`
@@ -538,11 +605,15 @@ erDiagram
 
 ```mermaid
 erDiagram
+    branches ||--o{ orders : "branch_id"
     customers ||--o{ orders : "customer_id"
     delivery_points ||--o{ orders : "delivery_point_id"
+    final_customers ||--o{ orders : "final_customer_id"
     final_customers ||--o{ wms_expediciones : "final_customer_id"
     orders ||--o{ order_items : "order_id"
     stores ||--o{ orders : "store_id"
+    warehouses ||--o{ orders : "destination_warehouse_id"
+    warehouses ||--o{ orders : "warehouse_id"
     warehouses ||--o{ wms_expediciones : "warehouse_id"
     zones ||--o{ orders : "route_type_id"
 ```
@@ -551,71 +622,119 @@ erDiagram
 
 ### `public.orders`
 
-*tabla · 1.234 filas* — Pedidos a entregar (encabezado): cliente, punto de entrega, fechas, totales, prioridad y estado.
+*tabla · 1.234 filas* — Pedidos = EFLOW EXPEDICIONESCABECERA (`sql/43`): almacén, sucursal, cliente destino, llave EFLOW, datos del WMS y resultado del OMS.
+
+> Comentario en la base: Pedidos. Equivale a EFLOW EXPEDICIONESCABECERA (PK IDALMACEN+IDCOMPANIA+IDSUCURSAL+IDEXPEDICION). El OMS escribe aquí prioridad, score y situación; Planificación lee de aquí.
 
 | Columna | Tipo | Nulo | Default | Notas |
 |---|---|---|---|---|
 | `id` | `uuid` | no | `gen_random_uuid()` | **PK** |
 | `organization_id` | `uuid` | no |  | FK → [`organizations`](#publicorganizations) |
-| `store_id` | `uuid` | no |  | FK → [`stores`](#publicstores) |
+| `store_id` | `uuid` | sí |  | FK → [`stores`](#publicstores) |
 | `customer_id` | `uuid` | no |  | FK → [`customers`](#publiccustomers) |
 | `order_number` | `character varying(100)` | no |  |  |
 | `invoice_number` | `character varying(100)` | sí |  |  |
 | `order_date` | `date` | no |  |  |
-| `delivery_date` | `date` | sí |  |  |
+| `delivery_date` | `date` | sí |  | EFLOW FECHAEXPEDICIONPLANIFICADA: fecha de ENTREGA que manda el cliente. El OMS la lee y no la modifica. |
 | `total_weight` | `numeric(10,2)` | sí |  |  |
 | `total_volume` | `numeric(10,2)` | sí |  |  |
 | `total_items` | `integer` | sí |  |  |
 | `total_amount` | `numeric(12,2)` | sí |  |  |
-| `delivery_address` | `text` | no |  |  |
+| `delivery_address` | `text` | sí |  |  |
 | `delivery_city` | `character varying(100)` | sí |  |  |
 | `delivery_latitude` | `numeric(10,8)` | sí |  |  |
 | `delivery_longitude` | `numeric(11,8)` | sí |  |  |
 | `delivery_zone` | `character varying(100)` | sí |  |  |
-| `priority` | `character varying(50)` | sí | `'normal'::character varying` |  |
+| `priority` | `integer` | sí |  | Prioridad numérica invertida (EFLOW PRIORIDAD): menor número = más urgente. |
 | `status` | `character varying(50)` | sí | `'pending'::character varying` |  |
 | `notes` | `text` | sí |  |  |
 | `created_at` | `timestamp with time zone` | sí | `now()` |  |
 | `updated_at` | `timestamp with time zone` | sí | `now()` |  |
 | `route_type_id` | `uuid` | sí |  | FK → [`zones`](#publiczones) |
 | `delivery_point_id` | `uuid` | sí |  | FK → [`delivery_points`](#publicdelivery_points) |
+| `warehouse_id` | `uuid` | no |  | FK → [`warehouses`](#publicwarehouses) · Almacén del pedido (EFLOW IDALMACEN -> warehouses.external_code). |
+| `branch_id` | `uuid` | no |  | FK → [`branches`](#publicbranches) · Sucursal de la compañía (EFLOW IDSUCURSAL -> branches.external_code). |
+| `final_customer_id` | `uuid` | no |  | FK → [`final_customers`](#publicfinal_customers) · Cliente destino: tienda o mayoreo (EFLOW IDCLIENTE -> final_customers.external_code). |
+| `destination_warehouse_id` | `uuid` | sí |  | FK → [`warehouses`](#publicwarehouses) · Almacén destino (EFLOW IDALMACENDESTINO), para traslados entre almacenes. |
+| `eflow_id_almacen` | `character varying(4)` | sí |  | EFLOW IDALMACEN. Parte de la llave única de EFLOW. |
+| `eflow_id_compania` | `character varying(4)` | sí |  | EFLOW IDCOMPANIA. Parte de la llave única de EFLOW. |
+| `eflow_id_sucursal` | `character varying(4)` | sí |  | EFLOW IDSUCURSAL. Parte de la llave única de EFLOW. |
+| `eflow_id_expedicion` | `character varying(50)` | sí |  | EFLOW IDEXPEDICION. Parte de la llave única de EFLOW (se repite entre sucursales). |
+| `eflow_id_cliente` | `character varying(30)` | sí |  | EFLOW IDCLIENTE, tal cual viene (se conserva aunque no se resuelva final_customer_id). |
+| `order_type` | `character varying(6)` | sí |  | EFLOW TPEXPE (tipo de expedición, ej. EXPERP). |
+| `wms_status` | `character varying(6)` | sí |  | EFLOW TPEXES (estado en el WMS, ej. DISP). status es el estado del TMS. |
+| `wms_situation` | `character varying(6)` | sí |  | EFLOW TPEXSI (situación en el WMS). El OMS la deja en GENE (generada) para que el WMS haga el picking. |
+| `drop_code` | `character varying(3)` | sí |  | EFLOW BAJADA. |
+| `emergency` | `boolean` | sí |  | EFLOW EMERGENCIA (varchar(1) en EFLOW). |
+| `erp_document` | `character varying(50)` | sí |  | EFLOW DOCUMENTOERP. |
+| `wms_notes` | `text` | sí |  | EFLOW OBSERVACIONESEXPEDICION (texto del cliente/vendedor; lo analiza la regla de observaciones). notes es para notas del TMS. |
+| `generated_at` | `timestamp with time zone` | sí |  | EFLOW FECHAGENERACION (cuándo el pedido quedó generado). |
+| `closed_at` | `timestamp with time zone` | sí |  | EFLOW FECHACIERRE. La cola del OMS solo toma pedidos sin cierre. |
+| `planned_dispatch_at` | `timestamp with time zone` | sí |  | EFLOW FECHAPLANIFICADADESPACHO. |
+| `wms_created_at` | `timestamp with time zone` | sí |  | EFLOW FECHACREACION. |
+| `wms_modified_at` | `timestamp with time zone` | sí |  | EFLOW FECHAMODIFICACION. |
+| `oms_score` | `numeric(10,2)` | sí |  | Score calculado por el motor de reglas del OMS. |
+| `handoff_status` | `text` | sí |  | Estado de la escritura de vuelta al WMS: disparo_pendiente \| completado. |
+| `prioritization_run_id` | `text` | sí |  | Corrida de priorización del OMS que dejó el pedido así. |
 
-- Único: `UNIQUE (organization_id, order_number)`
-- Índice: `btree (customer_id)` — `idx_orders_customer`
-- Índice: `btree (order_date)` — `idx_orders_date`
-- Índice: `btree (organization_id)` — `idx_orders_org`
-- Índice: `btree (status)` — `idx_orders_status`
-- Índice: `btree (store_id)` — `idx_orders_store`
+- Check `ck_order_handoff_status`: `CHECK ((handoff_status = ANY (ARRAY['disparo_pendiente'::text, 'completado'::text])))`
+- Check `ck_order_priority`: `CHECK ((priority >= 1))`
+- Único: `UNIQUE (eflow_id_almacen, eflow_id_compania, eflow_id_sucursal, eflow_id_expedicion)`
+- Índice: `btree (branch_id)` — `idx_order_branch`
+- Índice: `btree (customer_id)` — `idx_order_customer`
+- Índice: `btree (final_customer_id)` — `idx_order_final_customer`
+- Índice: `btree (handoff_status) WHERE (handoff_status IS NOT NULL)` — `idx_order_handoff_status`
+- Índice: `btree (order_date)` — `idx_order_order_date`
+- Índice: `btree (organization_id)` — `idx_order_organization`
+- Índice: `btree (status)` — `idx_order_status`
+- Índice: `btree (store_id)` — `idx_order_store`
+- Índice: `btree (warehouse_id)` — `idx_order_warehouse`
+- Índice: `btree (wms_situation)` — `idx_order_wms_situation`
+- Índice: `gin (order_number gin_trgm_ops)` — `orders_order_number_trgm`
 - Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
 
 <a id="publicorder_items"></a>
 
 ### `public.order_items`
 
-*tabla · 2.526 filas* — Líneas (productos) de cada pedido.
+*tabla · 2.526 filas* — Líneas del pedido = EFLOW EXPEDICIONESDETALLE (`sql/44`).
+
+> Comentario en la base: Líneas del pedido. Equivale a EFLOW EXPEDICIONESDETALLE (PK = la de EXPEDICIONESCABECERA + IDEXPEDICIONLINEA).
 
 | Columna | Tipo | Nulo | Default | Notas |
 |---|---|---|---|---|
 | `id` | `uuid` | no | `gen_random_uuid()` | **PK** |
 | `order_id` | `uuid` | no |  | FK → [`orders`](#publicorders) |
-| `product_code` | `character varying(100)` | no |  |  |
-| `product_name` | `character varying(255)` | no |  |  |
-| `quantity` | `integer` | no |  |  |
-| `weight` | `numeric(10,2)` | sí |  |  |
-| `volume` | `numeric(10,2)` | sí |  |  |
+| `product_code` | `character varying(100)` | no |  | EFLOW IDARTICULO. |
+| `product_name` | `character varying(255)` | sí |  | Nombre del artículo (EFLOW ARTICULOSGESTION; el detalle no lo trae). |
+| `quantity` | `integer` | no |  | EFLOW UNIDADESPEDIDAS. |
+| `weight` | `numeric(10,2)` | sí |  | EFLOW PESOPEDIDO. |
+| `volume` | `numeric(12,4)` | sí |  | EFLOW CUBICAJEPEDIDO (m³). |
 | `unit_price` | `numeric(12,2)` | sí |  |  |
 | `total_price` | `numeric(12,2)` | sí |  |  |
 | `created_at` | `timestamp with time zone` | sí | `now()` |  |
 | `guia_fiscal` | `character varying` | sí |  | Guía fiscal por línea (WMS EFLOW: EXPEDICIONESDETALLE.GUIAFISCAL). Puede ser NULL. |
+| `line_number` | `integer` | no |  | EFLOW IDEXPEDICIONLINEA. Único por pedido. |
+| `presentation` | `character varying(6)` | sí |  | EFLOW IDPRESENTACION. |
+| `lot` | `character varying(30)` | sí |  | EFLOW LOTEEXPECIFICO. |
+| `quantity_prepared` | `integer` | sí |  | EFLOW UNIDADESPREPARADAS. |
+| `quantity_loaded` | `integer` | sí |  | EFLOW UNIDADESCARGADAS. |
+| `quantity_cancelled` | `integer` | sí |  | EFLOW UNIDADESANULADAS. |
+| `expiry_date` | `date` | sí |  | EFLOW FECHACADUCIDAD. |
+| `wms_status` | `character varying(6)` | sí |  | EFLOW TPEXES (estado de la línea en el WMS). |
+| `wms_situation` | `character varying(6)` | sí |  | EFLOW TPEXSI (situación de la línea en el WMS). |
+| `notes` | `text` | sí |  | EFLOW OBSERVACIONES de la línea. |
 
-- Índice: `btree (order_id)` — `idx_order_items_order`
+- Check `ck_order_item_line_number`: `CHECK ((line_number >= 1))`
+- Único: `UNIQUE (order_id, line_number)`
+- Índice: `btree (order_id)` — `idx_order_item_order`
 - Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
 
 <a id="publicwms_expediciones"></a>
 
 ### `public.wms_expediciones`
 
-*tabla · 50 filas* — Staging de expediciones traídas del WMS/EFLOW (`sql/07`): estado, situación, avance, prioridad y viaje WMH.
+*tabla · 50 filas* — Staging de expediciones del WMS/EFLOW (`sql/07`). EN RETIRO: la reemplaza `orders` (`sql/43`); falta migrar a Planificación.
 
 | Columna | Tipo | Nulo | Default | Notas |
 |---|---|---|---|---|
@@ -667,6 +786,7 @@ erDiagram
     orders ||--o{ plan_stops : "order_id"
     orders ||--o{ returns : "order_id"
     plan_trips ||--o{ plan_stops : "trip_id"
+    plan_trips ||--o{ routes : "plan_trip_id"
     route_plans ||--o{ plan_trips : "plan_id"
     routes ||--o{ dispatch_guides : "route_id"
     routes ||--o{ tracking_events : "route_id"
@@ -783,6 +903,7 @@ erDiagram
 | `updated_at` | `timestamp with time zone` | sí | `now()` |  |
 | `route_type_id` | `uuid` | sí |  | FK → [`zones`](#publiczones) |
 | `capacity_percentage` | `numeric` | sí |  |  |
+| `plan_trip_id` | `uuid` | sí |  | FK → [`plan_trips`](#publicplan_trips) |
 
 - Único: `UNIQUE (organization_id, route_number)`
 - Índice: `btree (route_date)` — `idx_routes_date`
@@ -790,6 +911,7 @@ erDiagram
 - Índice: `btree (organization_id)` — `idx_routes_org`
 - Índice: `btree (status)` — `idx_routes_status`
 - Índice: `btree (store_id)` — `idx_routes_store`
+- Índice: `btree (plan_trip_id) WHERE (plan_trip_id IS NOT NULL)` (único) — `ux_routes_plan_trip`
 - Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
 
 <a id="publicdispatch_guides"></a>
@@ -821,6 +943,7 @@ erDiagram
 | `updated_at` | `timestamp with time zone` | sí | `now()` |  |
 
 - Único: `UNIQUE (organization_id, guide_number)`
+- Índice: `gin (guide_number gin_trgm_ops)` — `dispatch_guides_guide_number_trgm`
 - Índice: `btree (order_id)` — `idx_dispatch_guides_order`
 - Índice: `btree (organization_id)` — `idx_dispatch_guides_org`
 - Índice: `btree (route_id)` — `idx_dispatch_guides_route`
@@ -1490,7 +1613,7 @@ erDiagram
 
 ### `audit.events`
 
-*tabla particionada · 45.184 filas* — Bitácora de auditoría (`sql/16`–`17`, ADR 0003): quién cambió qué, con antes/después. Particionada por mes e inmutable.
+*tabla particionada · 134.050 filas* — Bitácora de auditoría (`sql/16`–`17`, ADR 0003): quién cambió qué, con antes/después. Particionada por mes e inmutable.
 
 Particionada por `RANGE (occurred_at)`. Particiones: `events_2026_09`, `events_2026_10`, `events_2026_11`, `events_2026_12`, `events_2027_01`, `events_2027_02`, `events_2027_03`, `events_2027_04`, `events_2027_05`, `events_2027_06`, `events_2027_07`, `events_2027_08`, `events_2027_09`, `events_2027_10`, `events_2027_11`, `events_2027_12`, `events_default`.
 
@@ -1553,8 +1676,13 @@ erDiagram
     countries ||--o{ tarifas_settlements : "country_id"
     countries ||--o{ tarifas_trip_order_marks : "country_id"
     countries ||--o{ tarifas_zone_groups : "country_id"
+    dispatch_guides ||--o{ tracking_evidences : "dispatch_guide_id"
+    drivers ||--o{ tracking_positions : "driver_id"
     routes ||--o{ tarifas_settlements : "trip_id"
     routes ||--o{ tarifas_trip_order_marks : "trip_id"
+    routes ||--o{ tracking_evidences : "route_id"
+    routes ||--o{ tracking_last_positions : "route_id"
+    routes ||--o{ tracking_positions : "route_id"
     tarifas_cost_structures ||--o{ tarifas_cost_structure_rows : "structure_id"
     tarifas_rate_tables ||--o{ tarifas_rate_table_rows : "table_id"
     tarifas_settlement_parties ||--o{ tarifas_cost_structures : "party_id"
@@ -1562,6 +1690,7 @@ erDiagram
     tarifas_settlement_parties ||--o{ tarifas_pricing_rules : "party_id"
     tarifas_settlement_parties ||--o{ tarifas_rate_tables : "party_id"
     tarifas_settlement_parties ||--o{ tarifas_settlements : "party_id"
+    vehicles ||--o{ tracking_positions : "vehicle_id"
 ```
 
 <a id="publicgeography_columns"></a>
@@ -1684,7 +1813,7 @@ SELECT current_database()::character varying(256) AS f_table_catalog,
 
 ### `public.tarifas_audit_log`
 
-*tabla · 58 filas*
+*tabla · 61 filas*
 
 | Columna | Tipo | Nulo | Default | Notas |
 |---|---|---|---|---|
@@ -1815,7 +1944,7 @@ SELECT current_database()::character varying(256) AS f_table_catalog,
 
 ### `public.tarifas_pricing_rules`
 
-*tabla · 73 filas*
+*tabla · 105 filas*
 
 | Columna | Tipo | Nulo | Default | Notas |
 |---|---|---|---|---|
@@ -1841,7 +1970,11 @@ SELECT current_database()::character varying(256) AS f_table_catalog,
 | `effective_from` | `text` | sí |  |  |
 | `effective_to` | `text` | sí |  |  |
 | `version` | `integer` | no |  |  |
+| `base_method` | `text` | sí |  | Forma de cobro que declara una regla BASE (NULL = se deduce de la expresión). Solo etapa BASE. |
+| `applies_to_base` | `jsonb` | sí |  | Formas de cobro de la base a las que está ligado el ajuste (NULL o [] = aplica con cualquier base). Solo etapas que no son BASE. |
 
+- Check `tarifas_pricing_rules_applies_to_base_check`: `CHECK (((applies_to_base IS NULL) OR ((jsonb_typeof(applies_to_base) = 'array'::text) AND (applies_to_base <@ '["PER_KM", "PER_UNIT", "FIXED", "VOLUME", "TENDERING"]'::jsonb))))`
+- Check `tarifas_pricing_rules_base_method_check`: `CHECK (((base_method IS NULL) OR ((stage = 'BASE'::text) AND (base_method = ANY (ARRAY['PER_KM'::text, 'PER_UNIT'::text, 'FIXED'::text, 'VOLUME'::text])))))`
 - Índice: `btree (country_id)` — `tarifas_pricing_rules_country_id_idx`
 - Índice: `btree (party_id)` — `tarifas_pricing_rules_party_id_idx`
 - Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
@@ -1922,7 +2055,7 @@ SELECT current_database()::character varying(256) AS f_table_catalog,
 
 ### `public.tarifas_settlements`
 
-*tabla · 16 filas*
+*tabla · 17 filas*
 
 | Columna | Tipo | Nulo | Default | Notas |
 |---|---|---|---|---|
@@ -2269,6 +2402,90 @@ SELECT r.id,
 
 - Índice: `btree (country_id)` — `tarifas_zone_groups_country_id_idx`
 - Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
+
+<a id="publictracking_evidences"></a>
+
+### `public.tracking_evidences`
+
+*tabla · 0 filas*
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `id` | `uuid` | no | `gen_random_uuid()` | **PK** |
+| `organization_id` | `uuid` | no |  | FK → [`organizations`](#publicorganizations) |
+| `route_id` | `uuid` | no |  | FK → [`routes`](#publicroutes) |
+| `dispatch_guide_id` | `uuid` | no |  | FK → [`dispatch_guides`](#publicdispatch_guides) |
+| `kind` | `text` | no |  |  |
+| `storage_key` | `text` | no |  |  |
+| `mime_type` | `text` | no |  |  |
+| `size_bytes` | `integer` | sí |  |  |
+| `captured_at` | `timestamp with time zone` | sí |  |  |
+| `latitude` | `numeric(10,8)` | sí |  |  |
+| `longitude` | `numeric(11,8)` | sí |  |  |
+| `client_id` | `uuid` | sí |  |  |
+| `created_by` | `uuid` | sí |  |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |
+
+- Check `tracking_evidences_kind_check`: `CHECK ((kind = ANY (ARRAY['photo_invoice'::text, 'signature'::text, 'photo_other'::text])))`
+- Índice: `btree (dispatch_guide_id)` — `ix_tracking_evidences_guide`
+- Índice: `btree (route_id)` — `ix_tracking_evidences_route`
+- Índice: `btree (client_id) WHERE (client_id IS NOT NULL)` (único) — `ux_tracking_evidences_client`
+- Índice: `btree (storage_key)` (único) — `ux_tracking_evidences_key`
+- Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.
+
+<a id="publictracking_last_positions"></a>
+
+### `public.tracking_last_positions`
+
+*tabla · 0 filas*
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `route_id` | `uuid` | no |  | **PK** · FK → [`routes`](#publicroutes) |
+| `organization_id` | `uuid` | no |  | FK → [`organizations`](#publicorganizations) |
+| `latitude` | `numeric(10,8)` | no |  |  |
+| `longitude` | `numeric(11,8)` | no |  |  |
+| `speed_mps` | `numeric` | sí |  |  |
+| `heading_deg` | `numeric` | sí |  |  |
+| `battery_pct` | `smallint` | sí |  |  |
+| `recorded_at` | `timestamp with time zone` | no |  |  |
+| `updated_at` | `timestamp with time zone` | no | `now()` |  |
+
+- Índice: `btree (organization_id)` — `ix_tracking_last_positions_org`
+
+<a id="publictracking_positions"></a>
+
+### `public.tracking_positions`
+
+*tabla · 0 filas*
+
+| Columna | Tipo | Nulo | Default | Notas |
+|---|---|---|---|---|
+| `id` | `bigint` | no |  | **PK** |
+| `organization_id` | `uuid` | no |  | FK → [`organizations`](#publicorganizations) |
+| `route_id` | `uuid` | no |  | FK → [`routes`](#publicroutes) |
+| `vehicle_id` | `uuid` | sí |  | FK → [`vehicles`](#publicvehicles) |
+| `driver_id` | `uuid` | sí |  | FK → [`drivers`](#publicdrivers) |
+| `device_id` | `text` | sí |  |  |
+| `client_id` | `uuid` | no |  |  |
+| `latitude` | `numeric(10,8)` | no |  |  |
+| `longitude` | `numeric(11,8)` | no |  |  |
+| `accuracy_m` | `numeric` | sí |  |  |
+| `speed_mps` | `numeric` | sí |  |  |
+| `heading_deg` | `numeric` | sí |  |  |
+| `battery_pct` | `smallint` | sí |  |  |
+| `is_mock` | `boolean` | no | `false` |  |
+| `recorded_at` | `timestamp with time zone` | no |  |  |
+| `received_at` | `timestamp with time zone` | no | `now()` |  |
+
+- Check `tracking_positions_battery_pct_check`: `CHECK (((battery_pct IS NULL) OR ((battery_pct >= 0) AND (battery_pct <= 100))))`
+- Check `tracking_positions_heading_deg_check`: `CHECK (((heading_deg IS NULL) OR ((heading_deg >= (0)::numeric) AND (heading_deg <= (360)::numeric))))`
+- Check `tracking_positions_latitude_check`: `CHECK (((latitude >= ('-90'::integer)::numeric) AND (latitude <= (90)::numeric)))`
+- Check `tracking_positions_longitude_check`: `CHECK (((longitude >= ('-180'::integer)::numeric) AND (longitude <= (180)::numeric)))`
+- Check `tracking_positions_speed_mps_check`: `CHECK (((speed_mps IS NULL) OR ((speed_mps >= (0)::numeric) AND (speed_mps <= (90)::numeric))))`
+- Índice: `btree (route_id, recorded_at DESC)` — `ix_tracking_positions_route_time`
+- Índice: `brin (recorded_at)` — `ix_tracking_positions_time`
+- Índice: `btree (client_id)` (único) — `ux_tracking_positions_client`
 
 ---
 

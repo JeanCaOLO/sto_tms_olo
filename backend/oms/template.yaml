@@ -2,13 +2,16 @@ AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: TMS - OMS | Motor de reglas de priorización (esqueleto 1a entrega, /api/v1/oms/*)
 
-# NOTA (infrastructure-design DIFERIDA, gate de reactivación):
-# Este template es el ESQUELETO mínimo que calca el patrón de context/template.yaml
-# (Lambda + Layer tms_common + rutas HTTP API). La infra definitiva —el schedule
-# de EventBridge para la corrida automática (NFR1), el IAM fino, y la ruta/VPC a
-# EFLOW real— se diseña en infrastructure-design. NO desplegar al sandbox hasta
-# reactivar nfr-requirements + nfr-design + infrastructure-design
-# (ver external-dependency-map.md). El esqueleto corre local/en tests, contra mocks.
+# NOTA (W1/W2/W3 del external-dependency-map ya cableados, 2026-10-21):
+# Lambda + Layer tms_common + rutas HTTP API, MÁS:
+#   W1 — EventBridge Schedule que invoca el barrido (correr()) 5×/día.
+#   W2 — ruta HTTP de la acción manual "Procesar a Eflow".
+#   W3 — escritura a sim_expedicionescabecera: NO es IAM a nivel de tabla (la
+#        Lambda autentica a Aurora con el secreto del Layer); es un GRANT de
+#        Postgres sobre la tabla al usuario de la app (ver abajo y sql).
+# OMS_SOURCE es un parámetro (mock | live): el sandbox se despliega con live para
+# leer public.orders y escribir a sim_expedicionescabecera. eFlow real = read-only.
+# Despliegue: SOLO Intelix.
 
 Parameters:
   Environment:
@@ -20,6 +23,21 @@ Parameters:
   CommonLayerArn:
     Type: AWS::SSM::Parameter::Value<String>
     Description: Parámetro SSM con el ARN de la versión vigente de la Layer tms_common.
+  OmsSource:
+    Type: String
+    AllowedValues: [mock, live]
+    Default: mock
+    Description: >
+      mock = datos fijos, no toca Aurora/eFlow (tests/demo).
+      live = lee public.orders y escribe a sim_expedicionescabecera.
+      El sandbox se despliega con OmsSource=live.
+  BarridoSchedule:
+    Type: String
+    Default: cron(0 12,15,18,21,23 * * ? *)
+    Description: >
+      Expresión de EventBridge para el barrido (W1). Default = 5×/día (UTC) para
+      qa/prod. En dev se usa algo frecuente (p. ej. rate(15 minutes)) vía samconfig
+      para no esperar horas al probar.
   SubnetIds:
     Type: AWS::SSM::Parameter::Value<List<String>>
   SecurityGroupId:
@@ -59,11 +77,21 @@ Resources:
       Environment:
         Variables:
           ENVIRONMENT: !Ref Environment
-          # OMS_SOURCE=mock (default): corre contra datos fijos sin tocar EFLOW/WMS.
-          # TODO(infrastructure-design): poner 'live' solo tras reactivar el diseño NFR/infra.
-          OMS_SOURCE: mock
+          OMS_SOURCE: !Ref OmsSource
           TMS_DB_SECRET_NAME:
             Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName
+      # W1 — Trigger programado del barrido (ADR-013, BARRIDO_VECES_POR_DIA=5).
+      # EventBridge invoca la función con un "Scheduled Event"; app.handler lo
+      # detecta y corre correr() (priorizar + liberar). Horas en UTC (CR = UTC-6):
+      # 12,15,18,21,23 UTC ≈ 06,09,12,15,17 CR. Frecuencia/hora de corte por
+      # compañía = futuro. Ajustable sin tocar código.
+      Events:
+        BarridoProgramado:
+          Type: Schedule
+          Properties:
+            Schedule: !Ref BarridoSchedule
+            Description: Barrido OMS (priorizar + liberar, ADR-013)
+            Enabled: true
 
   OmsApiIntegration:
     Type: AWS::ApiGatewayV2::Integration
@@ -107,9 +135,27 @@ Resources:
         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
       Target: !Sub integrations/${OmsApiIntegration}
 
-  # TODO(infrastructure-design DIFERIDA): regla de EventBridge Schedule que invoque
-  # OmsApiFunction para la corrida automática (NFR1: >=1/día + cortes). No se define
-  # en el esqueleto; se diseña al reactivar infrastructure-design.
+  # W2 — Acción manual "Procesar a Eflow" (US9c). Gated por rol en el código
+  # (permissions.require("oms","edit") en procesar_viaje); el authorizer JWT
+  # propaga el scope del usuario. {numero_viaje} es parámetro de ruta.
+  OmsProcesarViajeRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/v1/oms/viajes/{numero_viaje}/procesar
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${OmsApiIntegration}
+
+  # W3 — Escritura a sim_expedicionescabecera (destino de la costura EscritorSituacion
+  # mientras no exista el endpoint EPRAC; eFlow real = read-only). NO es un permiso IAM
+  # a nivel de tabla: la Lambda autentica a Aurora con el secreto del Layer
+  # (TMS_DB_SECRET_NAME) y tiene red por VpcConfig. El permiso de ESCRITURA es un GRANT
+  # de Postgres, y YA ESTÁ: el rol de la app (tms_app, sql/18) tiene INSERT/UPDATE sobre
+  # sim_expedicionescabecera y oms_logs (grant general en public + trigger de auto-grant
+  # en tablas nuevas). Verificado en el sandbox 2026-10-21. No requiere acción extra.
 
 Outputs:
   OmsApiFunctionArn:

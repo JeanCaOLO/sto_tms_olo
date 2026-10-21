@@ -1,0 +1,32 @@
+{
+  "stage": "functional-design",
+  "intent": "260826-modulo-oms",
+  "unit": "motor-reglas-oms",
+  "note": "As-built (rama oms, 24 tests OMS / 275 suite verdes). Diseño funcional de U1 que documenta las firmas/contratos de los 7 módulos de la corrida, coherente con el contrato cerrado (ADR-007 polling, ADR-008 eFlow read-only + costura, ADR-010 lead_time_days dinámico). AnalizadorObservaciones diferido (D11).",
+  "upstream_ids": ["US0", "US1", "US7", "US8", "US9", "US10", "US11b", "US-EPA", "US13"],
+  "coverage": [
+    { "id": "US0",    "status": "OK", "target": "cola_candidatos.py / app.py (BR1.1, BR1.2)" },
+    { "id": "US1",    "status": "OK", "target": "cola_candidatos.py (BR1.1)" },
+    { "id": "US7",    "status": "OK", "target": "regla_fecha.py (BR2.1)" },
+    { "id": "US8",    "status": "OK", "target": "regla_fecha.py (BR2.1)" },
+    { "id": "US9",    "status": "OK", "target": "handoff_pedidos.py (BR1.2, BR6.1, BR6.2)" },
+    { "id": "US10",   "status": "OK", "target": "score.py / motor_reglas.py (BR3.1)" },
+    { "id": "US11b",  "status": "OK", "target": "score.py / motor_reglas.py (BR3.1)" },
+    { "id": "US-EPA", "status": "OK", "target": "motor_reglas.py — ReglaEPA (BR4.1)" },
+    { "id": "US13",   "status": "OK", "target": "motor_reglas.py — ReglaClienteRetiraZona (BR5.1)" }
+  ],
+  "rules": [
+    { "id": "BR1.1", "module": "cola_candidatos.py",   "traces_to": ["FR0", "FR1", "US0", "US1"] },
+    { "id": "BR1.2", "module": "handoff_pedidos.py",   "traces_to": ["FR0", "FR8", "US0", "US9"] },
+    { "id": "BR2.1", "module": "regla_fecha.py",       "traces_to": ["FR2", "US7", "US8"] },
+    { "id": "BR3.1", "module": "score.py",             "traces_to": ["FR3", "US10", "US11b"] },
+    { "id": "BR4.1", "module": "motor_reglas.py",      "traces_to": ["FR6b", "US-EPA"] },
+    { "id": "BR5.1", "module": "motor_reglas.py",      "traces_to": ["FR6", "US13"] },
+    { "id": "BR6.1", "module": "handoff_pedidos.py",   "traces_to": ["FR8", "US9"] },
+    { "id": "BR6.2", "module": "handoff_pedidos.py",   "traces_to": ["FR8", "US9"] }
+  ],
+  "deferred_not_in_this_slice": {
+    "analizador_observaciones.py": "DIFERIDO (D11): cliente-retira es zona (BR5.1 / US13), no IA."
+  },
+  "as_built": true
+}
