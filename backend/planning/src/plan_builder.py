@@ -107,7 +107,7 @@ def _borrar_plan_del_dia(run, org: str, warehouse: str, customer: str, fecha: st
              SELECT t.id FROM plan_trips t JOIN route_plans pl ON pl.id = t.plan_id WHERE pl.{sel})""", p)
     run(f"DELETE FROM plan_trips WHERE plan_id IN (SELECT id FROM route_plans WHERE {sel})", p)
     run(f"DELETE FROM route_plans WHERE {sel}", p)
-    run("UPDATE orders SET planning_run_id=NULL, numero_viaje=NULL, dispatch_date=NULL, updated_at=now() WHERE organization_id=%s AND warehouse_id=%s AND customer_id=%s AND delivery_date=%s::date AND planning_run_id IS NOT NULL", p)  # OMS: pedidos caidos del plan vuelven a NULL (si siguen, _persistir_viaje los re-estampa)
+    run("UPDATE orders SET planning_run_id=NULL, numero_viaje=NULL, dispatch_date=NULL, lead_time_days=NULL, updated_at=now() WHERE organization_id=%s AND warehouse_id=%s AND customer_id=%s AND (delivery_date=%s::date OR numero_viaje LIKE %s) AND planning_run_id IS NOT NULL", p + [f"{fecha.replace('-', '')}-%"])  # OMS: pedidos caidos del plan vuelven a NULL -- por delivery_date O por nº de viaje del dia (asi alcanza a los que cambiaron de fecha); si siguen, _persistir_viaje los re-estampa
 
 
 def _agrupar_por_zona(pedidos: list[dict]) -> dict:
