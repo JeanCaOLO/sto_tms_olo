@@ -15,7 +15,7 @@ Los 4 roles del OMS ya están cerrados (ver Adenda del documento de la reunión)
 - **Scope**: classic
 - **Start Date**: 2026-08-26T23:45:55Z
 - **State Version**: 8
-- **Active Agent**: aidlc-architect-agent
+- **Active Agent**: aidlc-developer-agent
 - **Worktree Path**:
 - **Bolt Refs**:
 - **Practices Affirmed Timestamp**:
@@ -36,7 +36,7 @@ Los 4 roles del OMS ya están cerrados (ver Adenda del documento de la reunión)
 ## Execution Plan Summary
 - **Total Stages**: 26
 - **Completed**: 10
-- **In Progress**: functional-design
+- **In Progress**: code-generation
 
 ## Runtime State
 - **Revision Count**: 2
@@ -81,11 +81,11 @@ Los 4 roles del OMS ya están cerrados (ver Adenda del documento de la reunión)
 
 ### CONSTRUCTION PHASE
 Per unit: [TBD]
-- [-] functional-design — EXECUTE
-- [ ] nfr-requirements — EXECUTE
-- [ ] nfr-design — EXECUTE
-- [ ] infrastructure-design — EXECUTE
-- [ ] code-generation — EXECUTE
+- [S] functional-design — EXECUTE
+- [S] nfr-requirements — EXECUTE
+- [S] nfr-design — EXECUTE
+- [S] infrastructure-design — EXECUTE
+- [-] code-generation — EXECUTE
 - [ ] build-and-test — EXECUTE
 - [ ] ci-pipeline — EXECUTE
 
@@ -100,12 +100,12 @@ Per unit: [TBD]
 
 ## Current Status
 - **Lifecycle Phase**: CONSTRUCTION
-- **Current Stage**: functional-design
-- **Next Stage**: nfr-requirements
+- **Current Stage**: code-generation
+- **Next Stage**: build-and-test
 - **Status**: Running
-- **Last Updated**: 2026-10-19T12:03:36Z
+- **Last Updated**: 2026-10-21T12:29:53Z
 
 ## Session Resume Point
 - **Last Completed Stage**: delivery-planning
-- **Next Action**: Execute Functional Design
+- **Next Action**: Execute Code Generation
 - **Pending Artifacts**: none

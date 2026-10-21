@@ -43,6 +43,7 @@ SELECT o.eflow_id_almacen,
        o.numero_viaje,
        o.planning_run_id,
        o.oms_processed_at,
+       o.dispatch_date,
        o.observaciones,
        o.delivery_zone,
        fc.customer_type,
@@ -89,6 +90,7 @@ def _desde_fila(fila: dict) -> PedidoCandidato:
         numero_viaje=fila.get("numero_viaje"),
         planning_run_id=fila.get("planning_run_id"),
         oms_processed_at=fila.get("oms_processed_at"),
+        dispatch_date=fila.get("dispatch_date"),
         observaciones=fila.get("observaciones"),
         delivery_zone=fila.get("delivery_zone"),
         customer_type=fila.get("customer_type"),
@@ -103,9 +105,14 @@ def _mock_candidatos() -> list[PedidoCandidato]:
     """Dataset fijo del esqueleto: cubre los caminos que prueban las reglas.
 
     Todos traen planning_run_id (ya corridos por Planificación) y oms_processed_at
-    NULL (aún no priorizados): así reflejan la cola v4. Incluye: un pedido urgente
+    NULL (aún no liberados): así reflejan la cola v4. Incluye: un pedido urgente
     (entrega mañana), uno con margen, uno con fecha centinela (fallback), y uno con
     observación de cliente retira. lead_time_days dinámico (uno NULL → default).
+
+    dispatch_date (ADR-013): respecto al ancla 2026-10-01 con dias_prep_picking=1,
+    SOLO el pedido 1001 (dispatch 2026-10-02) cae dentro de la ventana de liberación
+    (10-01 >= 10-02 − 1d); 1002 (10-10) y 1004 (10-08) quedan fuera, y 1003 trae
+    dispatch_date NULL (sin viaje) → no se libera.
     """
     _ = datetime(2026, 10, 1, 12, 0, tzinfo=timezone.utc)  # ancla temporal de referencia
     return [
@@ -113,6 +120,7 @@ def _mock_candidatos() -> list[PedidoCandidato]:
             id_almacen="0001", id_compania="0109", id_sucursal="0001", id_expedicion="1001",
             fecha_expedicion_planificada=datetime(2026, 10, 2, 0, 0, tzinfo=timezone.utc),
             lead_time_days=1, numero_viaje="20261002-001", planning_run_id="plan-2026-10-01-a",
+            dispatch_date=datetime(2026, 10, 2, 0, 0, tzinfo=timezone.utc),
             observaciones="Entregar en recepción", delivery_zone="GAM", customer_type="MAYOREO",
             peso_total=120.5, cubicaje_total=1.2,
             country_id="cr", warehouse_id="w1", customer_id="cofersa",
@@ -121,6 +129,7 @@ def _mock_candidatos() -> list[PedidoCandidato]:
             id_almacen="0001", id_compania="0109", id_sucursal="0001", id_expedicion="1002",
             fecha_expedicion_planificada=datetime(2026, 10, 10, 0, 0, tzinfo=timezone.utc),
             lead_time_days=3, numero_viaje="20261010-002", planning_run_id="plan-2026-10-01-a",
+            dispatch_date=datetime(2026, 10, 10, 0, 0, tzinfo=timezone.utc),
             observaciones=None, delivery_zone="Guanacaste", customer_type="TIENDA",
             peso_total=None, cubicaje_total=None,
             country_id="cr", warehouse_id="w1", customer_id="epa",
@@ -137,6 +146,7 @@ def _mock_candidatos() -> list[PedidoCandidato]:
             id_almacen="0001", id_compania="0109", id_sucursal="0001", id_expedicion="1004",
             fecha_expedicion_planificada=datetime(2026, 10, 8, 0, 0, tzinfo=timezone.utc),
             lead_time_days=2, numero_viaje="20261008-004", planning_run_id="plan-2026-10-01-a",
+            dispatch_date=datetime(2026, 10, 8, 0, 0, tzinfo=timezone.utc),
             observaciones="El cliente retira en bodega el viernes", delivery_zone="La Fortuna",
             customer_type="TIENDA", peso_total=50.0, cubicaje_total=0.4,
             country_id="cr", warehouse_id="w1", customer_id="epa",

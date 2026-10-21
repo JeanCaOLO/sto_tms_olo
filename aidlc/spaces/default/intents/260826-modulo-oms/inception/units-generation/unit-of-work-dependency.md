@@ -42,11 +42,34 @@ cierre de U1.
 
 ## Bloque de dependencias (machine-readable)
 
+> **U2 DIFERIDA del unit set de Construction (2026-10-19).** `backorder-inventario-oms`
+> está **bloqueada** por OQ-BO1 (tabla/estado de acciones omitidas en EFLOW),
+> OQ-BO2 (fuente de inventario) y OQ-BO3 (disparador del re-chequeo) — sin
+> definición de negocio y sin código. Code Generation es `execution: ALWAYS` y no
+> admite skip por unidad, así que se la retira del unit set de ESTA pasada de
+> Construction para que la etapa se asiente solo sobre U1 (as-built). **U2 NO se
+> elimina del proyecto**: sigue descrita en la prosa de este archivo y en
+> `unit-of-work.md` como unidad futura.
+>
+> **Cómo re-agregar U2 a Construction** (cuando negocio cierre OQ-BO1/BO2/BO3):
+> descomentar el bloque `backorder-inventario-oms` de abajo, correr
+> `bun .kiro/tools/aidlc-runtime.ts compile` para recomputar el `bolt_dag`, y
+> re-entrar a Construction por U2 (su arista `U2 → U1` sigue siendo válida: reusa
+> `HandoffPedidosOMS` de U1). Reversible y trazable.
+
 ```yaml
 units:
   - name: motor-reglas-oms
     kind: service
     depends_on: []
+```
+
+**U2 diferida (fuera del bloque `units` activo).** Para re-agregar
+`backorder-inventario-oms` a Construction cuando negocio cierre OQ-BO1/BO2/BO3,
+reinsertar esta entrada dentro del bloque `units` de arriba y recompilar el
+runtime-graph:
+
+```text
   - name: backorder-inventario-oms
     kind: service
     depends_on: [motor-reglas-oms]

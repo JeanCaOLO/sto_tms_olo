@@ -14,6 +14,7 @@
     { "path": "backend/oms/template.yaml" },
     { "path": "backend/oms/samconfig.toml" },
     { "path": "backend/tests/test_oms.py" },
-    { "path": "backend/tests/conftest.py" }
+    { "path": "backend/tests/conftest.py" },
+    { "path": "sql/47_orders_release_indexes.sql" }
   ]
 }

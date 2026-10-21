@@ -44,8 +44,14 @@ class PedidoCandidato:
       wms_trip_number (eliminado del contrato, ADR-0004 de Planificación). Puede ser NULL.
     - planning_run_id: orders.planning_run_id. Correlación de la corrida de
       Planificación; su presencia (NOT NULL) activa la cola del OMS.
-    - oms_processed_at: orders.oms_processed_at. NULL mientras el OMS no lo procesa;
-      el OMS la estampa now() al completar el handoff (lo saca de la cola).
+    - oms_processed_at: orders.oms_processed_at. NULL mientras el OMS no LIBERA el
+      pedido a eFlow; el OMS la estampa now() en la PASADA DE LIBERACIÓN (no al
+      priorizar, ADR-013), que lo saca de la cola. Semántica: LIBERADO, no priorizado.
+    - dispatch_date: orders.dispatch_date. Fecha (date) de salida del viaje que
+      estampa Planificación (= delivery_date − lead_time_days), IGUAL para todos los
+      pedidos de un mismo numero_viaje. Insumo de la pasada de liberación de ADR-013
+      (`now() >= dispatch_date − dias_prep_picking`); el OMS solo la LEE. Puede ser NULL
+      (pedido sin plan todavía) → no se libera.
     - observaciones: orders.observaciones, texto libre que lee AnalizadorObservaciones.
     - delivery_zone: orders.delivery_zone (EFLOW RUTA). Parte del scope de reglas.
     - customer_type: final_customers.customer_type ('TIENDA' | 'MAYOREO').
@@ -64,6 +70,7 @@ class PedidoCandidato:
     numero_viaje: str | None = None
     planning_run_id: str | None = None
     oms_processed_at: datetime | None = None
+    dispatch_date: datetime | None = None
     observaciones: str | None = None
     delivery_zone: str | None = None
     customer_type: str | None = None
@@ -159,6 +166,12 @@ NIVELES_SCOPE: tuple[str, ...] = ("CUSTOMER", "WAREHOUSE", "COUNTRY", "GLOBAL")
 # Caso Cofersa (contrato v4): el pedido no trae lead time → el OMS asume 1 día (T-1).
 LEAD_TIME_DEFAULT_DIAS = 1
 
+# Frecuencia del barrido de priorización/liberación (ADR-013, v1). El negocio pidió
+# 5 corridas/día; la hora de corte y la frecuencia por compañía son parámetro A FUTURO.
+# Es documentación de intención: el schedule (EventBridge) se cablea en
+# infrastructure-design (DIFERIDA); aquí NO hay scheduler.
+BARRIDO_VECES_POR_DIA = 5
+
 
 @dataclass(frozen=True)
 class ConfiguracionReglas:
@@ -169,6 +182,10 @@ class ConfiguracionReglas:
 
     - pesos: peso de cada regla en el score ponderado (nombre_regla → peso).
     - prioridad_cliente_retira: prioridad numérica a asignar al caso cliente-retira.
+    - dias_prep_picking: días de prep de picking que la pasada de liberación de
+      ADR-013 resta a `dispatch_date` para abrir la ventana de liberación
+      (`now() >= dispatch_date − dias_prep_picking`). Default 1 (política del OMS);
+      parametrizable por compañía a futuro.
 
     NOTA (contrato v4): la duración logística del T-1 ya NO es un parámetro estático
     de config — ahora se lee de `orders.lead_time_days` por pedido (dinámico, lo
@@ -180,3 +197,4 @@ class ConfiguracionReglas:
 
     pesos: dict[str, float]
     prioridad_cliente_retira: int = 1
+    dias_prep_picking: int = 1

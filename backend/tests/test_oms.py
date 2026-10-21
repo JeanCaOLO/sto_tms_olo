@@ -9,7 +9,7 @@ from datetime import date, datetime, timezone
 
 import pytest
 
-from conftest import body_of, http_event, load_stack_module
+from conftest import body_of, http_event, load_stack_module, make_permissions
 
 
 # --- Submódulo puro de score (el corazón testeable) ---------------------------
@@ -218,10 +218,52 @@ def test_cola_mock_refleja_el_modelo_v4():
     assert any(p.lead_time_days is not None for p in pedidos)
 
 
-# --- HandoffPedidosOMS (costura escritura 2, oms_processed_at, estado) --------
+# --- HandoffPedidosOMS ADR-013: priorizar (deja DISP) vs. liberar (GENE + costura) ---
 
-def test_handoff_escritura2_va_por_la_costura_y_no_toca_eflow(monkeypatch):
-    """La escritura 2 pasa por EscritorSituacion, nunca escribe a eFlow real."""
+def test_priorizar_live_deja_disp_y_no_estampa_oms_processed_at(monkeypatch):
+    """(a) Priorizar hace UPDATE orders SIN 'GENE' ni oms_processed_at y NO usa la costura."""
+    handoff = load_stack_module("oms", "handoff_pedidos")
+    models = load_stack_module("oms", "models")
+    from tms_common import pg
+
+    llamadas = []
+    monkeypatch.setenv("OMS_SOURCE", "live")
+    monkeypatch.setattr(pg, "query", lambda sql, params=(): llamadas.append((sql, list(params))) or [{"id": "o-1"}])
+    pedido = _pedido(models, fecha=datetime(2026, 10, 2, tzinfo=timezone.utc), exp="P0002002260922")
+    registro = models.RegistroPrioridad(pk=pedido.pk, prioridad=2, score=80.0, cliente_retira=False)
+
+    handoff.priorizar_pedido(pedido, registro, "corrida-1")
+
+    # Una sola escritura (no hay costura en priorizar) a orders por la llave EFLOW.
+    assert len(llamadas) == 1
+    sql, params = llamadas[0]
+    assert "UPDATE orders" in sql and "eflow_id_expedicion" in sql
+    # Priorizar NO libera: no estampa oms_processed_at ni pone 'GENE'.
+    assert "oms_processed_at" not in sql
+    assert "wms_situation" not in sql
+    assert params == [2, 80.0, handoff.ESTADO_PRIORIZADO, "corrida-1",
+                      "0001", "0109", "0001", "P0002002260922"]
+    # Nunca a eFlow real ni a la costura (sim_expedicionescabecera).
+    assert not any("sim_expedicionescabecera" in c[0] for c in llamadas)
+    assert not any("EXPEDICIONESCABECERA" in c[0] for c in llamadas)
+
+
+def test_priorizar_live_falla_si_el_pedido_no_esta_en_orders(monkeypatch):
+    handoff = load_stack_module("oms", "handoff_pedidos")
+    models = load_stack_module("oms", "models")
+    from tms_common import pg
+
+    monkeypatch.setenv("OMS_SOURCE", "live")
+    monkeypatch.setattr(pg, "query", lambda sql, params=(): [])
+    pedido = _pedido(models, fecha=datetime(2026, 10, 2, tzinfo=timezone.utc), exp="NO-EXISTE")
+    registro = models.RegistroPrioridad(pk=pedido.pk, prioridad=1, score=100.0, cliente_retira=False)
+
+    with pytest.raises(handoff.PedidoNoIngerido):
+        handoff.priorizar_pedido(pedido, registro, "corrida-1")
+
+
+def test_liberar_escritura2_va_por_la_costura_y_no_toca_eflow():
+    """La liberación fija 'GENE' + PRIORIDAD por EscritorSituacion, nunca eFlow real."""
     handoff = load_stack_module("oms", "handoff_pedidos")
     models = load_stack_module("oms", "models")
 
@@ -233,14 +275,46 @@ def test_handoff_escritura2_va_por_la_costura_y_no_toca_eflow(monkeypatch):
 
     pedido = _pedido(models, fecha=datetime(2026, 10, 2, tzinfo=timezone.utc), exp="1001")
     registro = models.RegistroPrioridad(pk=pedido.pk, prioridad=3, score=70.0, cliente_retira=False)
-    estado = handoff.ejecutar(pedido, registro, models.ConfiguracionReglas(pesos={}),
-                              "corrida-test", escritor=EscritorFake())
+    estado = handoff.liberar_pedido(pedido, registro, escritor=EscritorFake())
     assert estado == handoff.ESTADO_COMPLETADO
-    # La situación 'GENE' + PRIORIDAD se fijó por la costura, no por una escritura directa a eFlow.
     assert marcados == [(pedido.pk, 3)]
 
 
-def test_handoff_sim_writer_escribe_a_sim_expedicionescabecera_en_live(monkeypatch):
+def test_liberar_completa_en_mock():
+    handoff = load_stack_module("oms", "handoff_pedidos")
+    models = load_stack_module("oms", "models")
+    pedido = _pedido(models, fecha=datetime(2026, 10, 2, tzinfo=timezone.utc), exp="1001")
+    registro = models.RegistroPrioridad(pk=pedido.pk, prioridad=1, score=100.0, cliente_retira=False)
+    estado = handoff.liberar_pedido(pedido, registro)
+    assert estado == handoff.ESTADO_COMPLETADO
+
+
+def test_liberar_live_escribe_gene_y_estampa_oms_processed_at(monkeypatch):
+    """(b) Liberar: UPDATE orders con 'GENE' + oms_processed_at=now() y pasa por la costura."""
+    handoff = load_stack_module("oms", "handoff_pedidos")
+    models = load_stack_module("oms", "models")
+    from tms_common import pg
+
+    llamadas = []
+    monkeypatch.setenv("OMS_SOURCE", "live")
+    monkeypatch.setattr(pg, "query", lambda sql, params=(): llamadas.append((sql, list(params))) or [{"id": "o-1"}])
+    pedido = _pedido(models, fecha=datetime(2026, 10, 2, tzinfo=timezone.utc), exp="P0002002260922")
+    registro = models.RegistroPrioridad(pk=pedido.pk, prioridad=2, score=80.0, cliente_retira=False)
+
+    estado = handoff.liberar_pedido(pedido, registro)
+
+    assert estado == handoff.ESTADO_COMPLETADO
+    sql, params = llamadas[0]
+    # Escritura 1: UPDATE orders con 'GENE' + oms_processed_at = now() (= LIBERADO).
+    assert "UPDATE orders" in sql and "eflow_id_expedicion" in sql
+    assert "oms_processed_at = now()" in sql
+    assert params == ["GENE", handoff.ESTADO_PENDIENTE, "0001", "0109", "0001", "P0002002260922"]
+    # Escritura 2 fue a la costura (sim_expedicionescabecera), nunca a eFlow real.
+    assert any("sim_expedicionescabecera" in c[0] for c in llamadas)
+    assert not any("EXPEDICIONESCABECERA" in c[0] for c in llamadas)
+
+
+def test_sim_writer_escribe_a_sim_expedicionescabecera_en_live(monkeypatch):
     """El writer por defecto (hoy) escribe a sim_expedicionescabecera, NO a eFlow real."""
     handoff = load_stack_module("oms", "handoff_pedidos")
     models = load_stack_module("oms", "models")
@@ -258,43 +332,8 @@ def test_handoff_sim_writer_escribe_a_sim_expedicionescabecera_en_live(monkeypat
     assert params == ["0001", "0109", "0001", "1001", 2]
 
 
-def test_handoff_ejecutar_completa_en_mock():
-    handoff = load_stack_module("oms", "handoff_pedidos")
-    models = load_stack_module("oms", "models")
-    pedido = _pedido(models, fecha=datetime(2026, 10, 2, tzinfo=timezone.utc), exp="1001")
-    registro = models.RegistroPrioridad(pk=pedido.pk, prioridad=1, score=100.0, cliente_retira=False)
-    config = models.ConfiguracionReglas(pesos={})
-    estado = handoff.ejecutar(pedido, registro, config, "corrida-test")
-    assert estado == handoff.ESTADO_COMPLETADO
-
-
-def test_handoff_live_actualiza_orders_y_estampa_oms_processed_at(monkeypatch):
-    handoff = load_stack_module("oms", "handoff_pedidos")
-    models = load_stack_module("oms", "models")
-    from tms_common import pg
-
-    llamadas = []
-    monkeypatch.setenv("OMS_SOURCE", "live")
-    monkeypatch.setattr(pg, "query", lambda sql, params=(): llamadas.append((sql, list(params))) or [{"id": "o-1"}])
-    pedido = _pedido(models, fecha=datetime(2026, 10, 2, tzinfo=timezone.utc), exp="P0002002260922")
-    registro = models.RegistroPrioridad(pk=pedido.pk, prioridad=2, score=80.0, cliente_retira=False)
-
-    estado = handoff.ejecutar(pedido, registro, models.ConfiguracionReglas(pesos={}), "corrida-1")
-
-    # Dos escrituras completan en live (sim writer también usa pg) => completado.
-    assert estado == handoff.ESTADO_COMPLETADO
-    sql, params = llamadas[0]
-    # Escritura 1: UPDATE orders por la llave EFLOW, estampando oms_processed_at = now().
-    assert "UPDATE orders" in sql and "eflow_id_expedicion" in sql
-    assert "oms_processed_at = now()" in sql
-    assert params == [2, 80.0, "GENE", handoff.ESTADO_PENDIENTE, "corrida-1", "0001", "0109", "0001", "P0002002260922"]
-    # Escritura 2 fue a la costura (sim_expedicionescabecera), nunca a eFlow real.
-    assert any("sim_expedicionescabecera" in c[0] for c in llamadas)
-    assert not any("EXPEDICIONESCABECERA" in c[0] for c in llamadas)
-
-
-def test_handoff_live_queda_pendiente_si_falla_la_escritura_2(monkeypatch):
-    """Si la escritura 2 (costura) falla, el pedido queda 'disparo_pendiente'."""
+def test_liberar_queda_pendiente_si_falla_la_escritura_2():
+    """(c) Si la escritura 2 (costura) falla, el pedido queda 'disparo_pendiente'."""
     handoff = load_stack_module("oms", "handoff_pedidos")
     models = load_stack_module("oms", "models")
 
@@ -302,15 +341,14 @@ def test_handoff_live_queda_pendiente_si_falla_la_escritura_2(monkeypatch):
         def marcar_generada(self, pk, prioridad):
             raise RuntimeError("endpoint caído")
 
-    monkeypatch.setenv("OMS_SOURCE", "mock")  # escritura 1 no toca DB en mock
+    # En mock la escritura 1 no toca DB; el estado pendiente viene de la costura rota.
     pedido = _pedido(models, fecha=datetime(2026, 10, 2, tzinfo=timezone.utc), exp="1001")
     registro = models.RegistroPrioridad(pk=pedido.pk, prioridad=1, score=100.0, cliente_retira=False)
-    estado = handoff.ejecutar(pedido, registro, models.ConfiguracionReglas(pesos={}),
-                              "corrida-1", escritor=EscritorRoto())
+    estado = handoff.liberar_pedido(pedido, registro, escritor=EscritorRoto())
     assert estado == handoff.ESTADO_PENDIENTE
 
 
-def test_handoff_live_falla_si_el_pedido_no_esta_en_orders(monkeypatch):
+def test_liberar_live_falla_si_el_pedido_no_esta_en_orders(monkeypatch):
     handoff = load_stack_module("oms", "handoff_pedidos")
     models = load_stack_module("oms", "models")
     from tms_common import pg
@@ -321,7 +359,42 @@ def test_handoff_live_falla_si_el_pedido_no_esta_en_orders(monkeypatch):
     registro = models.RegistroPrioridad(pk=pedido.pk, prioridad=1, score=100.0, cliente_retira=False)
 
     with pytest.raises(handoff.PedidoNoIngerido):
-        handoff.ejecutar(pedido, registro, models.ConfiguracionReglas(pesos={}), "corrida-1")
+        handoff.liberar_pedido(pedido, registro)
+
+
+# --- (f) Ventana de liberación (predicado puro) — falla si se rompe el predicado ---
+
+def test_en_ventana_borde_dia_de_liberacion_es_true():
+    handoff = load_stack_module("oms", "handoff_pedidos")
+    dispatch = date(2026, 10, 8)
+    # hoy == dispatch_date − dias_prep_picking (1) => día exacto de liberación => True.
+    assert handoff.en_ventana_liberacion(dispatch, date(2026, 10, 7), 1) is True
+
+
+def test_en_ventana_un_dia_antes_es_false():
+    handoff = load_stack_module("oms", "handoff_pedidos")
+    dispatch = date(2026, 10, 8)
+    # Un día antes de la apertura (10-06 < 10-07) => NO libera. Falla si se usa '>' o
+    # se invierte el signo de dias_prep_picking.
+    assert handoff.en_ventana_liberacion(dispatch, date(2026, 10, 6), 1) is False
+
+
+def test_en_ventana_despues_del_dia_sigue_true():
+    handoff = load_stack_module("oms", "handoff_pedidos")
+    dispatch = date(2026, 10, 8)
+    assert handoff.en_ventana_liberacion(dispatch, date(2026, 10, 9), 1) is True
+
+
+def test_en_ventana_dispatch_null_es_false():
+    handoff = load_stack_module("oms", "handoff_pedidos")
+    assert handoff.en_ventana_liberacion(None, date(2026, 10, 9), 1) is False
+
+
+def test_en_ventana_acepta_datetime_como_dispatch():
+    handoff = load_stack_module("oms", "handoff_pedidos")
+    dispatch = datetime(2026, 10, 8, 0, 0, tzinfo=timezone.utc)
+    assert handoff.en_ventana_liberacion(dispatch, date(2026, 10, 7), 1) is True
+    assert handoff.en_ventana_liberacion(dispatch, date(2026, 10, 6), 1) is False
 
 
 # --- MotorReglasOMS (orquestación) + corrida de punta a punta -----------------
@@ -337,14 +410,90 @@ def test_motor_prioriza_cliente_retira_por_encima():
     assert por_pk["1004"].prioridad == 1
 
 
-def test_corrida_end_to_end_en_mock():
+def test_corrida_dos_pasadas_prioriza_todo_libera_solo_ventana():
+    """(e) Barrido ADR-013 en mock: prioriza los 4 y libera solo el que cruza la ventana.
+
+    Con hoy=2026-10-01 y dias_prep_picking=1, solo el pedido 1001 (dispatch 10-02)
+    cae en la ventana; 1002 (10-10) y 1004 (10-08) quedan fuera y 1003 trae
+    dispatch_date NULL. Todos quedan priorizados, uno liberado.
+    """
     app = load_stack_module("oms", "app")
     resumen = app.correr(hoy=date(2026, 10, 1))
     assert resumen["modo"] == "mock"
     assert resumen["total"] == 4
-    assert resumen["completados"] == 4  # en mock las dos escrituras completan
+    assert resumen["priorizados"] == 4
+    assert resumen["liberados"] == 1   # solo el pedido 1001 cruza la ventana
     assert resumen["pendientes"] == 0
-    assert len(resumen["prioridades"]) == 4
+    assert len(resumen["prioridades"]) == 1  # detalle = solo lo liberado
+
+
+def test_corrida_libera_mas_viajes_cuando_avanza_el_dia():
+    """Avanzando `hoy`, más viajes cruzan la ventana (por viaje "gratis")."""
+    app = load_stack_module("oms", "app")
+    # hoy=2026-10-07: abren 1001 (10-02) y 1004 (10-08, apertura 10-07). 1002 (10-10) no.
+    resumen = app.correr(hoy=date(2026, 10, 7))
+    assert resumen["priorizados"] == 4
+    assert resumen["liberados"] == 2
+
+
+def test_procesar_viaje_manual_ignora_la_ventana(monkeypatch):
+    """(d) Acción manual: libera los pedidos de un numero_viaje ignorando la ventana.
+
+    El pedido 1002 (viaje 20261010-002, dispatch 10-10) está MUY fuera de la ventana
+    respecto a hoy, pero la acción manual lo libera igual; otro viaje NO se toca.
+    """
+    app = load_stack_module("oms", "app")
+    libres = []
+    monkeypatch.setattr(app.handoff_pedidos, "liberar_pedido",
+                        lambda pedido, registro, **kw: libres.append(pedido.numero_viaje) or app.handoff_pedidos.ESTADO_COMPLETADO)
+
+    event = http_event("POST /api/v1/oms/viajes/{numero_viaje}/procesar",
+                       path={"numero_viaje": "20261010-002"})
+    resp = app.procesar_viaje(event)
+    data = body_of(resp)["data"]
+    assert data["numero_viaje"] == "20261010-002"
+    assert data["total"] == 1 and data["liberados"] == 1
+    # Solo se liberó el viaje pedido, ningún otro.
+    assert libres == ["20261010-002"]
+
+
+def test_procesar_viaje_manual_filtra_subconjunto_de_pedidos(monkeypatch):
+    """El body opcional id_expediciones restringe a un subconjunto del viaje."""
+    app = load_stack_module("oms", "app")
+    libres = []
+    monkeypatch.setattr(app.handoff_pedidos, "liberar_pedido",
+                        lambda pedido, registro, **kw: libres.append(pedido.id_expedicion) or app.handoff_pedidos.ESTADO_COMPLETADO)
+
+    # Viaje 20261002-001 (pedido 1001); pedir un id que NO está => no libera nada.
+    event = http_event("POST /api/v1/oms/viajes/{numero_viaje}/procesar",
+                       path={"numero_viaje": "20261002-001"},
+                       body={"id_expediciones": ["9999"]})
+    resp = app.procesar_viaje(event)
+    assert body_of(resp)["data"]["liberados"] == 0
+    assert libres == []
+
+
+def test_procesar_viaje_manual_requiere_permiso(monkeypatch, caller_permissions):
+    """La acción manual está gated por rol: sin permiso 'edit' en 'oms' => 403."""
+    from tms_common.errors import HttpError
+
+    app = load_stack_module("oms", "app")
+    caller_permissions.set(make_permissions({"oms": ("view",)}))  # no 'edit'
+    event = http_event("POST /api/v1/oms/viajes/{numero_viaje}/procesar",
+                       path={"numero_viaje": "20261002-001"})
+    with pytest.raises(HttpError) as exc:
+        app.procesar_viaje(event)
+    assert exc.value.status == 403
+
+
+def test_reprioriza_idempotente_sin_duplicar_el_no_liberado():
+    """(f/idempotencia) Un pedido priorizado-no-liberado se re-prioriza en otro barrido
+    sin duplicar: dos corridas con el mismo `hoy` dan el mismo conteo liberado."""
+    app = load_stack_module("oms", "app")
+    r1 = app.correr(hoy=date(2026, 10, 1))
+    r2 = app.correr(hoy=date(2026, 10, 1))
+    assert r1["priorizados"] == r2["priorizados"] == 4
+    assert r1["liberados"] == r2["liberados"] == 1
 
 
 def test_health_route():

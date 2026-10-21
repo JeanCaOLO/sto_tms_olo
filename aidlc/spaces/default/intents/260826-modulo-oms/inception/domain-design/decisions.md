@@ -184,9 +184,10 @@
 - **Contrato de la lambda de activación (ADR-007) — RESUELTO (2026-10-16)** con el
   dueño de Planificación: **pull por columna `oms_processed_at` + lambda como
   señal** (no llaves en el payload). Cola del OMS =
-  `wms_trip_number IS NOT NULL AND oms_processed_at IS NULL`; barrido periódico como
+  `planning_run_id IS NOT NULL AND oms_processed_at IS NULL`; barrido periódico como
   red de seguridad; idempotencia natural por la columna; el OMS procesa por
-  compañía. Ya no es una OQ.
+  compañía. Ya no es una OQ. (ADR-013 precisa: `oms_processed_at` se estampa en la
+  **liberación**, no al priorizar.)
 - **Migración de columnas nuevas** (a cargo del dueño de Planificación, en su PR de
   tablas, no por fuera): `orders.oms_processed_at timestamptz`,
   `orders.lead_time_days` (denormalizada), `plan_trips.lead_time_days`.
@@ -223,8 +224,12 @@
     pedidos en situación `DISP`.
   - El **OMS resuelve su cola por POLLING** sobre `public.orders`:
     **`WHERE planning_run_id IS NOT NULL AND oms_processed_at IS NULL`**. Esa columna
-    es la única fuente de verdad del lote; el OMS estampa `oms_processed_at = now()`
-    al terminar de priorizar cada pedido (lo saca de la cola).
+    es la única fuente de verdad del lote. **Precisión (ADR-013)**:
+    `oms_processed_at` = **liberado a eFlow** (no "priorizado"); el OMS lo estampa en
+    la **pasada de liberación** (cuando escribe `GENE`), **no** al priorizar. La
+    priorización deja `wms_situation = DISP` y **`GENE` se difiere** a
+    `dispatch_date − dias_prep_picking` (ver **ADR-013**). `prioritization_run_id` =
+    corrida de **priorización** del OMS.
   - **EventBridge / señal por evento = MEJORA FUTURA** (requiere infra); **no es
     requisito de v1 y no bloquea**. v1 es polling puro de la columna.
   - **Orden de procesamiento**: el OMS procesa **por compañía**, ordenando él mismo
@@ -265,7 +270,10 @@
   **aún no existe**, la escritura 2 se **simula escribiendo en
   `sim_expedicionescabecera`** (tabla ya creada en Aurora). Se diseña detrás de una
   **costura/interface** cuyo destino hoy es `sim_expedicionescabecera` y mañana se
-  intercambia por el endpoint EPRAC **sin tocar el motor**. **`GENE` lo pone SOLO el
+  intercambia por el endpoint EPRAC **sin tocar el motor**. **Momento de la escritura
+  2 (ADR-013)**: ocurre en la **pasada de LIBERACIÓN**
+  (`now() >= dispatch_date − dias_prep_picking`), **no al priorizar** (la priorización
+  deja el pedido en `DISP`). **`GENE` lo pone SOLO el
   OMS** (Planificación deja los pedidos en `DISP`; el OMS es el único que sube a
   `GENE`; no hay riesgo de pisar un `GENE` porque Planificación nunca lo escribe y
   `oms_processed_at` saca el pedido de la cola). El OMS **no escribe el número de
@@ -360,3 +368,88 @@
 - **Alternativas rechazadas**: meter el backorder dentro de la corrida de
   priorización — rechazada (acopla dos ritmos distintos: la corrida es por lote
   activado, el backorder es continuo/por evento).
+
+
+## ADR-013: Desacople priorización↔liberación; liberación por viaje vía `dispatch_date` (D14)
+
+> **Nuevo (2026-10-19/20)**: cierre de negocio sobre el flujo. **Precisa** ADR-007
+> (semántica de `oms_processed_at` y diferimiento de `GENE`) y ADR-008 (la
+> escritura 2 ocurre en la LIBERACIÓN, no al priorizar). No los supersede: los
+> refina.
+
+- **Contexto**: El negocio (reuniones 2026-10-19/20) pidió **no** mandar los
+  pedidos a eFlow apenas se priorizan, sino **el día antes de la salida del viaje**.
+  La **unidad de liberación es el viaje** (todos sus pedidos se liberan juntos).
+  eFlow real es read-only y el write-back se simula en `sim_expedicionescabecera`
+  por la costura `EscritorSituacion` (ADR-008). Planificación **denormaliza en
+  `public.orders`** (reparto `sql/37`): `numero_viaje`, `lead_time_days`,
+  `dispatch_date` (`date`, = `delivery_date − lead_time_days`, **igual para todos los
+  pedidos del viaje**) y `planning_run_id` (por corrida cliente-día; cambia en cada
+  replan). El **replan** es `UPDATE in place` sobre `orders` y **no toca las columnas
+  del OMS** (`prioritization_run_id`, `oms_processed_at`, `priority`, `wms_situation`,
+  `oms_score`, `handoff_status`). Planificación **limpia**
+  (`planning_run_id`/`numero_viaje`/`dispatch_date = NULL`) los pedidos que se caen
+  del plan.
+
+- **Decisión**:
+  1. Un **único barrido programado** (v1: 5×/día; frecuencia y hora de corte =
+     parámetro a futuro, por compañía) ejecuta **dos pasadas** sobre `orders`, grano
+     pedido:
+     - **Priorizar**: cola = `planning_run_id IS NOT NULL AND oms_processed_at IS NULL`
+       → calcula `priority`/`oms_score`/`prioritization_run_id`; `wms_situation`
+       queda `DISP`; **no escribe `GENE`**. Es **idempotente**: re-prioriza lo no
+       liberado en cada barrido, absorbiendo los cambios de replan (nuevo
+       `dispatch_date`/`lead_time_days`).
+     - **Liberar**: de lo priorizado-no-liberado, los que
+       `now() >= dispatch_date − dias_prep_picking` (`dias_prep_picking = 1` por
+       defecto; **política del OMS**, parametrizable por compañía a futuro) →
+       escribe `GENE`+`PRIORIDAD` por la costura `EscritorSituacion` (→
+       `sim_expedicionescabecera`) y estampa `oms_processed_at = now()`.
+  2. La **liberación es por viaje gratis**: como `dispatch_date` es igual para todos
+     los pedidos de un `numero_viaje`, todos cruzan la ventana juntos. **No se
+     navega `plan_trips`/`routes`/`route_plans`**; se lee **solo `orders`**.
+  3. **Semántica de columnas**: `oms_processed_at` = **liberado a eFlow** (no
+     "priorizado"); `prioritization_run_id` = corrida de **priorización** del OMS.
+     (Precisa la lectura de ADR-007.)
+  4. **Acción manual "Procesar a Eflow"** (nombre temporal, **gated por rol**):
+     misma lógica de **Liberar** filtrada por `numero_viaje` (+ subconjunto opcional
+     de pedidos), para **adelantar** la liberación de un viaje cuando picking/packing
+     está ocioso.
+  5. **Idempotencia de replan**: la re-priorización por barrido mantiene la
+     prioridad alineada al último plan; `oms_processed_at` es del OMS y **no se
+     limpia automáticamente**; Planificación pone
+     `planning_run_id`/`numero_viaje`/`dispatch_date` en NULL cuando un pedido se cae
+     del plan → la cola **lo excluye solo**.
+
+- **Consecuencias**:
+  - (+) Liberación **alineada a la salida del viaje**; el picking no arranca antes
+    de tiempo.
+  - (+) OMS **desacoplado** del modelo interno de Planificación (solo lee `orders`).
+  - (+) Diseño simple: sin columnas nuevas del lado del OMS; re-priorización
+    idempotente.
+  - (+) La acción manual **reusa** la misma pasada de liberación.
+  - (−) Un pedido ya liberado que un replan mueva a otro viaje/fecha queda
+    potencialmente **stale** → **OQ-REL1** (no bloquea v1).
+  - (−) Depende de que Planificación estampe `dispatch_date` y limpie los caídos del
+    plan (dependencias externas, ya implementadas, ver `external-dependency-map`).
+  - (−) Requiere **índices nuevos** en `orders`.
+
+- **Alternativas rechazadas**:
+  - **Liberar por pedido según `delivery_date`** — la regla es por viaje;
+    `delivery_date` puede diferir y rompería el "todo el viaje junto".
+  - **Navegar `plan_trips` → `routes` para la fecha** — acopla al modelo interno de
+    Planif, `plan_trips`→`routes` es 1-a-muchos y no todo viaje tiene `route`; la
+    `dispatch_date` denormalizada lo evita.
+  - **Usar `routes.route_date`** — (por Planif) `routes` se crea después y puede no
+    existir al planificar; la fuente es `delivery_date − lead_time_days`.
+  - **Mantener `GENE` inmediato al priorizar** — el negocio pide diferir a
+    `dispatch_date − 1`.
+  - **Dos lambdas separadas (priorizar / liberar) ya** — para v1, una lambda
+    programada con dos pasadas y costura para dividir luego sin reescribir.
+  - **Push por lambda/EventBridge de Planif para activar** — diferida: el polling de
+    columna alcanza para v1 (ADR-007); EventBridge, mejora futura.
+
+- **Open question**: **OQ-REL1** — un pedido **ya liberado** (`oms_processed_at`
+  estampado) que un **replan** mueva a otro viaje/fecha queda potencialmente stale
+  (el OMS no re-libera ni revierte automáticamente). No bloquea v1; se resuelve con
+  negocio (¿reconciliación por barrido, alerta, o se acepta?).

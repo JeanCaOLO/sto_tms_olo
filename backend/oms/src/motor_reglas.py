@@ -14,6 +14,11 @@ Flujo por pedido:
   3. Calcula el score ponderado (submódulo puro `score`).
   4. Aplica el efecto cliente-retira (prioridad máxima) y convierte a prioridad.
 
+ADR-013: este motor es la PASADA DE PRIORIZACIÓN (deja el pedido en DISP). NO
+libera a eFlow ni usa `dispatch_date` — la LIBERACIÓN (ventana `dispatch_date −
+dias_prep_picking`, escritura 'GENE' + oms_processed_at) vive en el barrido de
+`app.correr()` vía `handoff_pedidos.liberar_pedido`, desacoplada de las reglas.
+
 Multi-compañía por SCOPE (C3-SUPERSEDE): la especificidad por compañía vive en la
 config resuelta por scope, no en una Lambda por compañía.
 """

@@ -5,12 +5,12 @@
   "story_map": [
     { "epic": "E0", "name": "Activación por Planificación", "stories": ["US0"] },
     { "epic": "E1", "name": "Cola de Priorización", "stories": ["US1", "US2", "US3", "US4", "US5", "US6"] },
-    { "epic": "E2", "name": "Motor de priorización (automático)", "stories": ["US7", "US8", "US9", "US10", "US11", "US11b"] },
+    { "epic": "E2", "name": "Motor de priorización (automático)", "stories": ["US7", "US8", "US9", "US9b", "US9c", "US10", "US11", "US11b"] },
     { "epic": "E2b", "name": "EPA (prioridad pre-asignada por EPRAC)", "stories": ["US-EPA"] },
     { "epic": "E3", "name": "Análisis de observaciones con IA (FUTURO, D11)", "stories": ["US12"] },
     { "epic": "E4", "name": "Override manual", "stories": ["US14", "US15", "US15b"] },
     { "epic": "E5", "name": "Motor de Reglas (catálogo)", "stories": ["US16", "US17", "US18"] },
-    { "epic": "E6", "name": "Simulador (configurador)", "stories": ["US19", "US20", "US21", "US22", "US23", "US24", "US24b"] },
+    { "epic": "E6", "name": "Simulador (configurador) — FUERA DE ALCANCE (2026-10-19/20)", "stories": ["US19", "US20", "US21", "US22", "US23", "US24", "US24b"], "out_of_scope": true },
     { "epic": "E7", "name": "Panel y Auditoría", "stories": ["US25", "US26", "US27"] },
     { "epic": "E9", "name": "Multi-compañía (scope) y seguridad", "stories": ["US30", "US31", "US32", "US33"] },
     { "epic": "E10", "name": "Backorder / inventario", "stories": ["US-BO"] }
@@ -32,6 +32,8 @@
     { "id": "US7", "traces_to": ["FR2"], "delivery": "primera-entrega" },
     { "id": "US8", "traces_to": ["FR2"], "delivery": "siguiente" },
     { "id": "US9", "traces_to": ["FR2", "FR8"], "delivery": "primera-entrega" },
+    { "id": "US9b", "traces_to": ["FR8"], "delivery": "primera-entrega" },
+    { "id": "US9c", "traces_to": ["FR8", "FR4"], "delivery": "primera-entrega" },
     { "id": "US10", "traces_to": ["FR3"], "delivery": "primera-entrega" },
     { "id": "US11", "traces_to": ["FR3"], "delivery": "siguiente" },
     { "id": "US11b", "traces_to": ["FR3"], "delivery": "primera-entrega" },
@@ -63,15 +65,17 @@
   "fr_coverage": {
     "FR0": ["US0"],
     "FR1": ["US1"], "FR2": ["US7", "US8", "US9"], "FR3": ["US10", "US11", "US11b"],
-    "FR4": ["US6", "US14", "US15", "US15b"], "FR5": ["US16", "US17", "US18"],
+    "FR4": ["US6", "US9c", "US14", "US15", "US15b"], "FR5": ["US16", "US17", "US18"],
     "FR6": ["US13", "US16"], "FR6b": ["US-EPA"], "FR6c": ["US-BO"],
     "FR7": ["US12"],
-    "FR8": ["US9"], "FR9": ["US19", "US20", "US21", "US22", "US23", "US24", "US24b"],
+    "FR8": ["US9", "US9b", "US9c"], "FR9": ["US19", "US20", "US21", "US22", "US23", "US24", "US24b"],
     "FR10": ["US1", "US2", "US3", "US4", "US5", "US6"], "FR11": ["US25", "US26", "US27"],
     "FR13": ["US3", "US4", "US30", "US31"],
     "FR14": ["US15", "US24b", "US32", "US33"]
   },
   "fr12_status": "RETIRADO por D5 (Calendario de Rutas eliminado; ruteo dinámico). Sin historias activas.",
   "fr7_status": "DIFERIDO a futuro por D11 (cliente-retira = zona, no observaciones IA). US12 marcada delivery=futuro.",
-  "open_questions_as_dependencies": ["OQ-2", "OQ-3", "OQ-4", "OQ-5", "OQ-8", "OQ-lambda-activacion", "OQ-BO1", "OQ-BO2", "OQ-BO3"]
+  "e6_simulador_status": "FUERA DE ALCANCE (2026-10-19/20, D14/§13): desarrollo opcional, solo rol Developer. Supera el DECIDED 'Simulador = configurador' (2026-09-15). US19-US24b conservadas solo como registro; no trazan a construcción de U1.",
+  "v4_1_note": "Refinamiento v4.1 (D14/ADR-013, 2026-10-19/20): desacople priorización↔liberación. US9 = solo priorización (deja DISP, no GENE, no oms_processed_at). US9b (liberación automática por ventana dispatch_date − dias_prep_picking, por viaje) y US9c (acción manual 'Procesar a Eflow', gated por rol) nuevas. oms_processed_at = liberado (no priorizado).",
+  "open_questions_as_dependencies": ["OQ-2", "OQ-3", "OQ-4", "OQ-5", "OQ-8", "OQ-lambda-activacion", "OQ-BO1", "OQ-BO2", "OQ-BO3", "OQ-REL1"]
 }

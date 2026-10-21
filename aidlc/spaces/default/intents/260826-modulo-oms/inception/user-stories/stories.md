@@ -25,6 +25,13 @@
 > - **Cambio sin anular (D12)** y **backorder/inventario (D13)**: US nuevas.
 > - **(histórico v3)**: E8 (Calendario) retirada (D5); multi-compañía por scope
 >   (C3); D6 (dos escrituras a tabla propia) SUPERSEDED por D7/D8.
+> - **Refinamiento v4.1 (D14/ADR-013, 2026-10-19/20)**: **desacople
+>   priorización↔liberación**. US9 ahora cubre solo la **priorización** (deja `DISP`,
+>   no `GENE`, no `oms_processed_at`); la liberación a eFlow se difiere a
+>   `dispatch_date − dias_prep_picking` y se modela en **US9b** (automática por
+>   ventana, por viaje) y **US9c** ("Procesar a Eflow" manual, gated por rol).
+>   `oms_processed_at` = **liberado** (no priorizado). El **Simulador (E6) sale del
+>   alcance** (opcional, solo rol developer; ver "Fuera de alcance").
 
 ## Story map (épicas)
 
@@ -32,7 +39,7 @@
 |---|---|---|
 | **E0 — Activación por Planificación** | **US0** | **FR0** |
 | E1 — Cola de Priorización | US1–US6 | FR1, FR10 |
-| E2 — Motor de priorización (automático) | US7–US11b | FR2, FR3, FR6, FR8 |
+| E2 — Motor de priorización (automático) | US7–US11b (incl. **US9b, US9c**) | FR2, FR3, FR6, FR8 |
 | **E2b — EPA (prioridad pre-asignada)** | **US-EPA** | **FR6b** |
 | E3 — Análisis de observaciones con IA | US12–US13 | FR6.3, FR7 **(futuro, D11)** |
 | E4 — Override manual | US14–US15 | FR4 |
@@ -53,9 +60,10 @@ que el OMS priorice **después** de que asigné los viajes.
 - Given un lote con viaje asignado y `oms_processed_at IS NULL`, When **aviso al
   OMS** por la **lambda/evento asíncrono** (señal; puede llevar IDs +
   `planning_run_id` para correlación), Then el OMS **resuelve de `public.orders`**
-  su conjunto de trabajo por columna (`wms_trip_number IS NOT NULL AND
+  su conjunto de trabajo por columna (`planning_run_id IS NOT NULL AND
   oms_processed_at IS NULL`) y lo prioriza. **La señal no es la fuente de verdad del
-  lote; la columna sí.**
+  lote; la columna sí.** **(ADR-013: v1 es polling programado; el `oms_processed_at`
+  se estampa en la liberación, no al priorizar.)**
 - Given un pedido ya procesado (`oms_processed_at` estampado por el handoff), When
   llega otra señal o corre el barrido, Then **no se re-prioriza** (idempotencia
   natural por la columna).
@@ -72,11 +80,12 @@ que el OMS priorice **después** de que asigné los viajes.
 ### US1 — Ver la cola de pedidos a priorizar `[1ª entrega]` (FR1, FR10)
 Como **Responsable del OMS**, quiero ver los pedidos candidatos a priorizar,
 para gestionar el alistamiento del día.
-- Given pedidos en **`public.orders`** con **`wms_trip_number IS NOT NULL AND
+- Given pedidos en **`public.orders`** con **`planning_run_id IS NOT NULL AND
   oms_processed_at IS NULL`** (lote que Planificación dejó con viaje, aún no
-  procesado por el OMS), When abro la Cola / corre el motor, Then veo/proceso esos
+  liberado por el OMS), When abro la Cola / corre el motor, Then veo/proceso esos
   pedidos. **(D7: el OMS ya no lee de `EXPEDICIONESCABECERA` ni usa el anti-join;
-  pull por columna `oms_processed_at`, contrato resuelto 2026-10-16.)**
+  pull por columna, contrato resuelto 2026-10-16. ADR-013: la priorización deja
+  `wms_situation = DISP`; `oms_processed_at` marca "liberado", no "priorizado".)**
 - Given un pedido sin viaje asignado, When Planificación aún no lo procesó, Then
   **no** aparece en la cola del OMS (lo activa Planificación, no el OMS).
 - Given la Cola recién abierta, When carga, Then el filtro de situación entra
@@ -164,17 +173,22 @@ Planificación** y aplico las horas de corte, para no adelantar ni atrasar.
 ### US9 — Generar el pedido: UPDATE a orders + escritura a EFLOW `[1ª entrega]` (FR8, D7/D8)
 Como **Sistema/Motor OMS**, actualizo el pedido en `public.orders` y escribo de
 vuelta a EFLOW, para dejarlo alistado (el flujo lo activó Planificación, D7).
-- Given un pedido cuya regla se cumple, When el motor lo procesa, Then
-  **(escritura 1)** hace **UPDATE a `public.orders`** por la **llave EFLOW**
-  (`eflow_id_almacen/compania/sucursal/expedicion`) con `priority` (entero),
-  `oms_score`, `wms_situation = GENE`, `handoff_status`, `prioritization_run_id` y
-  **`oms_processed_at = now()`** (saca el pedido de la cola pull), en escritura
-  **atómica** (nunca `GENE` sin prioridad). **No hay tabla `oms.pedidos`.**
-- Given ese mismo pedido, When el motor lo procesa, Then **(escritura 2 — EFLOW
-  real, D8)** escribe en `EXPEDICIONESCABECERA`: **`TPEXSI = 'GENE'`** (el estado
-  `TPEXES` **permanece `DISP`**) **y la `PRIORIDAD`** (flag `escribir_prioridad_al_wms`
-  = TRUE). El OMS **NO escribe el número de viaje** (`wms_trip_number` lo escribe
-  Planificación).
+> **ADR-013 (desacople priorización↔liberación)**: US9 cubre la **priorización**
+> (deja `wms_situation = DISP`, **no** escribe `GENE`, **no** estampa
+> `oms_processed_at`). La escritura `GENE`+`PRIORIDAD` y el estampado de
+> `oms_processed_at` se mueven a la **liberación por ventana** (**US9b**) y a la
+> **acción manual** (**US9c**).
+
+- Given un pedido cuya regla se cumple, When el motor lo **prioriza**, Then
+  **(escritura 1 — priorización)** hace **UPDATE a `public.orders`** por la **llave
+  EFLOW** (`eflow_id_almacen/compania/sucursal/expedicion`) con `priority` (entero),
+  `oms_score`, `prioritization_run_id` y `handoff_status`, **dejando
+  `wms_situation = DISP`** (no `GENE`) y **sin** estampar `oms_processed_at`. **No hay
+  tabla `oms.pedidos`.**
+- Given la priorización, When el motor actúa, Then **NO escribe a EFLOW todavía** (la
+  escritura 2 `GENE`+`PRIORIDAD` es de la **liberación**, US9b) ni el número de viaje
+  (`numero_viaje` lo escribe Planificación). **(ADR-013: `GENE` diferido a
+  `dispatch_date − dias_prep_picking`.)**
 - Given un pedido no ingerido en `orders`, When el motor intenta la escritura 1,
   Then es un **error** (no se priorizan pedidos que no se cargaron desde EFLOW).
 - Given cualquier escritura del motor, When actúa, Then **no escribe fechas**, **no
@@ -186,9 +200,50 @@ vuelta a EFLOW, para dejarlo alistado (el flujo lo activó Planificación, D7).
   idempotente** por la llave EFLOW, sin re-crear el handoff. `ponytail:` dos stores
   (Aurora + SQL Server EFLOW) sin 2PC — techo = orden + reintento; upgrade =
   outbox/reconciliación.
-- **Idempotencia de corrida**: Given un pedido ya generado por una corrida previa,
-  When se reactiva el lote (misma `prioritization_run_id`), Then **no** re-escribe
-  ni re-dispara (idempotencia por corrida + llave EFLOW).
+- **Re-priorización idempotente (ADR-013)**: Given un pedido **priorizado pero no
+  liberado** (`oms_processed_at IS NULL`), When corre otro barrido tras un **replan**
+  (nuevo `dispatch_date`/`lead_time_days`), Then el motor **re-prioriza** (actualiza
+  `priority`/`oms_score`/`prioritization_run_id`) para mantenerlo alineado al último
+  plan, sin duplicar (UPDATE por llave EFLOW). Un pedido ya **liberado**
+  (`oms_processed_at` estampado) no vuelve a la cola.
+
+### US9b — Liberar el viaje por ventana (`dispatch_date − 1`) `[1ª entrega]` (FR8, D14/ADR-013)
+Como **Sistema/Motor OMS**, libero a eFlow los pedidos **priorizados** cuando su
+viaje entra en la ventana de salida, para que el picking no arranque antes de tiempo
+y todos los pedidos del viaje se liberen **juntos**.
+- Given pedidos priorizados-no-liberados (`oms_processed_at IS NULL`,
+  `wms_situation = DISP`), When corre la **pasada de liberación** y
+  `now() >= dispatch_date − dias_prep_picking` (`dias_prep_picking = 1` por defecto,
+  política del OMS), Then el motor **(escritura 2)** escribe
+  **`TPEXSI = 'GENE'` + `PRIORIDAD`** por la costura `EscritorSituacion` (hoy →
+  `sim_expedicionescabecera`; `TPEXES` permanece `DISP`) y **estampa
+  `oms_processed_at = now()`** (los saca de la cola).
+- Given que `dispatch_date` es **igual para todos los pedidos de un `numero_viaje`**,
+  When un viaje cruza la ventana, Then **todos sus pedidos se liberan juntos** sin
+  navegar `plan_trips`/`routes` (se lee **solo `orders`**).
+- Given un pedido cuya ventana **aún no llegó** (`now() < dispatch_date −
+  dias_prep_picking`), When corre la liberación, Then **no se libera** (sigue en
+  `DISP`, espera a la siguiente corrida).
+- Given la escritura `GENE`, When falla la escritura 2 tras marcar, Then queda
+  `handoff_status = disparo_pendiente` y se reintenta idempotente por la llave EFLOW
+  (mismo mecanismo de US9).
+- **Testabilidad**: la ventana se prueba con un `dispatch_date` relativo a `now()`
+  (dentro/fuera de ventana), determinista, sin tocar eFlow real.
+
+### US9c — Procesar a Eflow un viaje manualmente `[1ª entrega]` (FR8, FR4, D14/ADR-013)
+Como **rol autorizado** (gated), quiero **adelantar** la liberación de un viaje
+("Procesar a Eflow", nombre temporal) cuando picking/packing está ocioso, sin esperar
+a la ventana automática.
+- Given un `numero_viaje` priorizado-no-liberado, When ejecuto "Procesar a Eflow",
+  Then el OMS corre la **misma lógica de liberación de US9b filtrada por ese viaje**
+  (+ subconjunto opcional de pedidos) e ignora la ventana temporal para ese viaje.
+- Given un usuario **sin permiso**, When intenta la acción, Then se **deniega**
+  (fail-closed, coherente con US15); la acción se oculta/deshabilita en UI.
+- Given la acción manual, When libera, Then usa la **misma escritura 2** (costura
+  `EscritorSituacion`) y estampa `oms_processed_at = now()` igual que US9b (reusa el
+  camino, no duplica lógica).
+- **Auditoría**: Given una liberación manual, When ocurre, Then queda registrada como
+  acción **manual** con el usuario (coherente con US33).
 
 ### US10 — Asignar prioridad numérica con score `[1ª entrega]` (FR3)
 Como **Sistema/Motor OMS**, asigno una prioridad numérica invertida calculada
@@ -236,9 +291,11 @@ pre-asignada **EPRAC** y yo solo la libero, porque EPA cortocircuita el score.
 - Given ambas expediciones (guion-0 y guion-1) del mismo número, When el motor
   genera, Then pone **ambas en `wms_situation = GENE`** y las **libera juntas**
   con su prioridad.
-- Given el flujo de escritura, When el motor genera un pedido EPA, Then usa la
-  misma mecánica de US9 (UPDATE a `orders` + EFLOW `TPEXSI='GENE'` + `PRIORIDAD`),
-  sin número de viaje.
+- Given el flujo de escritura, When el motor procesa un pedido EPA, Then la
+  **priorización** usa la escritura 1 de US9 (UPDATE a `orders`, `DISP`, sin
+  `oms_processed_at`) y la **liberación** usa US9b/US9c (EFLOW `TPEXSI='GENE'` +
+  `PRIORIDAD` por la costura, estampa `oms_processed_at`), sin número de viaje. Ambas
+  expediciones (guion-0/guion-1) se liberan juntas al cruzar la ventana de su viaje.
 
 ---
 
@@ -328,13 +385,15 @@ cliente retira), sin tocar su lógica.
 
 ---
 
-## E6 — Simulador (configurador de simulaciones)
+## E6 — Simulador (configurador de simulaciones) `[FUERA DE ALCANCE — 2026-10-19/20]`
 
-> **Restricción de acceso (2026-10-01)**: la vista **Simulador** es visible y
-> accesible **solo para el rol `Developer`** (FR9.0, FR14.4). Para cualquier otro
-> rol la vista no aparece en la navegación y su ruta se deniega fail-closed. Antes
-> la operaba el Responsable del OMS; ahora queda como herramienta restringida a
-> `Developer`. Las historias US19–US23 se re-asignan a `Developer`.
+> **FUERA DE ALCANCE (2026-10-19/20, §13)**: el **Simulador** queda **fuera del
+> alcance** del OMS como entrega. Es **desarrollo opcional**, visible **solo para el
+> rol `Developer`**. Esta decisión **supera** el `DECIDED` "Simulador = configurador"
+> (2026-09-15): **no se toma en cuenta en el diseño de U1**. US19–US24/US24b se
+> conservan solo como registro (opcional/futuro, no 1ª entrega); no trazan a trabajo
+> de construcción de U1. La restricción de acceso a `Developer` (FR9.0/FR14.4) sigue
+> vigente **si** alguna vez se construye.
 
 ### US19 — Configurar una corrida en el modal previo `[siguiente]` (FR9.1, FR9.2)
 Como **Developer**, quiero elegir qué reglas activas y qué pedidos
@@ -495,6 +554,10 @@ Estas Open Questions del `requirements.md` condicionan varias historias pero
 - **OQ-BO1/BO2/BO3** (backorder: tabla/estado de acciones omitidas en EFLOW,
   fuente de inventario, disparador del re-chequeo) → afinan US-BO; hechos de
   integración/negocio para la próxima reunión, no se cierran en esta rebanada.
+- **OQ-REL1** (liberación, D14/ADR-013) → un pedido **ya liberado**
+  (`oms_processed_at` estampado) que un **replan** mueva a otro viaje/fecha queda
+  potencialmente stale. Afina US9b; **no bloquea** v1 (se acepta hasta cerrar con
+  negocio si hay reconciliación/alerta).
 
 ---
 
@@ -526,6 +589,10 @@ mano.
 - **Armado de viajes / ruteo dinámico** — es de Planificación (intent
   `260825-route-planning-reqs`), no del OMS. Estas historias no lo modelan; solo
   citan la frontera del handoff (US9: Planificación lee la tabla del OMS).
+- **E6 — Simulador (US19–US24/US24b), FUERA DE ALCANCE (2026-10-19/20, §13).**
+  Desarrollo **opcional**, visible solo para rol `Developer`. Supera el `DECIDED`
+  "Simulador = configurador" (2026-09-15). No entra en el diseño ni la construcción
+  de U1; se conserva solo como registro para un posible futuro.
 
 ### Nota: refined-mockups debe re-correrse alineado al modelo v4
 

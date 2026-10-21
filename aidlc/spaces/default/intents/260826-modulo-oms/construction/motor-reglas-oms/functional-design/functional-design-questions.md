@@ -27,4 +27,4 @@ assumptions abiertas, no bloquean.
 
 ¿El diseño funcional de U1 refleja correctamente lo construido?
 
-[Answer]:
+[Answer]: Looks correct
