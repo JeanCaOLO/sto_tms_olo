@@ -35,9 +35,10 @@ export default function FlotaCamiones({ trucks, selectedId, hiddenId, onSelect }
 
   const visible = useMemo(() => trucks.filter((v) => v.id !== hiddenId), [trucks, hiddenId]);
   const byId = useMemo(() => new Map(visible.map((v) => [v.id, v])), [visible]);
+  // Siempre se agrupa por cercanía en pantalla (también con el mapa muy acercado: camiones en el mismo punto
+  // nunca se separan solos con el zoom). Ya en NO_CLUSTER_ZOOM los grupos no se juntan en burbuja sino que se abren en abanico.
   const clusters = useMemo(() => {
     const free = visible.filter((v) => v.id !== selectedId);
-    if (map.getZoom() >= NO_CLUSTER_ZOOM) return free.map((v) => ({ ids: [v.id] }));
     const points = free.map((v) => {
       const p = map.latLngToContainerPoint([v.position!.lat, v.position!.lng]);
       return { id: v.id, x: p.x, y: p.y };
@@ -46,12 +47,12 @@ export default function FlotaCamiones({ trucks, selectedId, hiddenId, onSelect }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, selectedId, map, view]);
 
-  const single = (v: Viaje) => (
+  const single = (v: Viaje, at?: L.LatLng) => (
     <TruckMarker
       key={v.id}
       id={v.id}
-      lat={v.position!.lat}
-      lng={v.position!.lng}
+      lat={at ? at.lat : v.position!.lat}
+      lng={at ? at.lng : v.position!.lng}
       color={COLOR_HEX[v.color]}
       selected={v.id === selectedId}
       alert={v.alerts.length > 0}
@@ -66,6 +67,15 @@ export default function FlotaCamiones({ trucks, selectedId, hiddenId, onSelect }
       {clusters.map((c) => {
         const members = c.ids.map((id) => byId.get(id)!).filter(Boolean);
         if (members.length === 1) return single(members[0]);
+        if (map.getZoom() >= NO_CLUSTER_ZOOM) {
+          // Abanico: los íconos en círculo alrededor del centro del grupo, a ≥ RADIUS_PX entre sí.
+          const n = members.length;
+          const ring = Math.max(RADIUS_PX, RADIUS_PX / (2 * Math.sin(Math.PI / n)));
+          return members.map((v, i) => {
+            const a = (2 * Math.PI * i) / n - Math.PI / 2;
+            return single(v, map.containerPointToLatLng([c.x + ring * Math.cos(a), c.y + ring * Math.sin(a)]));
+          });
+        }
         const bounds = L.latLngBounds(members.map((v) => [v.position!.lat, v.position!.lng] as [number, number]));
         const alert = members.some((v) => v.alerts.length > 0);
         return (
