@@ -88,6 +88,8 @@ export function corridaDemoOrders(): QueueOrder[] {
     createdDate: fmtFechaHora(w.FECHACREACION),
     status: w.TPEXES, // 'DISP' — el estado NO cambia
     situation: o.TPEXSI_resultante, // 'GENE' — situación generada por el OMS
+    prioritized: true, // el demo es salida del motor: ya priorizado
+    released: o.TPEXSI_resultante === 'GENE', // liberado si el motor lo dejó en GENE
     intakeTime: '',
     appliedRules: o.reglas
       .filter((r) => r.puntos > 0)

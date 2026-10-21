@@ -244,80 +244,86 @@ export const companies: Company[] = [
 // Hoy están activas exactamente 2 reglas (primera entrega, reunión Antonio
 // 2026-09-08), y priorityEngine.ts las aplica IGUAL para Cofersa y EPA (el
 // código no distingue compañía todavía) - por eso ambas compañías las listan.
+// Catálogo alineado al motor REAL del backend (ADR-013). La lógica vive en
+// Python (backend/oms/src/: regla_fecha.py, score.py, handoff_pedidos.py) y es
+// de solo lectura; este catálogo solo documenta y expone parámetros. La
+// prioridad es NUMÉRICA INVERTIDA (menor = más urgente; base 100, mínima 1) vía
+// score ponderado (score.py), NO tiers 1..4. ADR-013 DESACOPLA priorizar (deja
+// DISP) de liberar a eFlow (escribe GENE en la ventana dispatch_date − dias_prep_picking).
 export const engineRules: EngineRule[] = [
   // --- Cofersa ---
   {
-    id: 'MR-CF-1', company: '0109', order: 1, name: 'Regla T-1 (fecha de entrega)', firstDelivery: true, active: true, weight: 600,
-    description: 'Calcula la urgencia según los días que faltan para la fecha de entrega (fecha_planificada; si no hay, cae a fecha_expedicion). Vencida u hoy = más urgente; exactamente 1 día antes (ventana T-1, "listo hoy") = urgente; 2 días = media; 3+ días = decrece. Implementada en priorityEngine.ts::calcularPrioridad. Ajuste por horas de corte y duración de ruta: NO aplicado todavía (ver params).',
+    id: 'MR-CF-1', company: '0109', order: 1, name: 'Regla de fecha de entrega', firstDelivery: true, active: true, weight: 600,
+    description: 'Calcula la urgencia desde la fecha en que el pedido debe estar listo = fecha de entrega (delivery_date) − lead_time_days. lead_time_days lo envía Planificación por pedido (default 1 si viene NULL). Si la fecha planificada es la centinela 1900-01-01 (cliente sin fecha real, p. ej. Cofersa por default) se trata como URGENTE para que un humano lo revise. Implementada en backend/oms/src/regla_fecha.py + score.py.',
     params: [
-      { key: 'prioridad_vencida_o_hoy', label: 'Prioridad si vencida u hoy', value: '2', kind: 'number' },
-      { key: 'prioridad_t1', label: 'Prioridad ventana T-1 (mañana)', value: '3', kind: 'number' },
-      { key: 'prioridad_2dias', label: 'Prioridad a 2 días', value: '10', kind: 'number' },
-      { key: 'prioridad_base_lejana', label: 'Base banda lejana (20 + días, tope 49)', value: '20', kind: 'number' },
+      { key: 'lead_time_default', label: 'lead_time_days por defecto (si viene NULL)', value: '1', kind: 'number' },
+      { key: 'fecha_centinela', label: 'Fecha centinela (fallback urgente)', value: '1900-01-01', kind: 'text', help: 'Si la fecha planificada == centinela, no es fecha real → urgente.' },
     ],
   },
   {
-    id: 'MR-CF-2', company: '0109', order: 2, name: 'Análisis de observaciones (general)', firstDelivery: false, active: false, weight: 200,
-    description: 'Interpretar el texto libre de observaciones más allá de "cliente retira" (dirección distinta, fecha solicitada, urgencia, cita) para ajustar ruteo/prioridad. NO implementada - hoy solo se detecta el patrón de cliente retira (ver regla aparte). Requiere estandarizar observaciones.',
+    id: 'MR-CF-6', company: '0109', order: 2, name: 'Liberación a eFlow por ventana (ADR-013)', firstDelivery: true, active: true, weight: 0,
+    description: 'DESACOPLADA de la priorización: priorizar deja el pedido en DISP; la liberación cambia la situación a GENE (vía la costura a sim_expedicionescabecera) solo cuando hoy ≥ dispatch_date − dias_prep_picking. Es POR VIAJE "gratis" (todos los pedidos de un numero_viaje comparten dispatch_date). El barrido corre 5×/día. La acción manual "Procesar a Eflow" (gated por rol) libera un viaje ignorando la ventana. Implementada en backend/oms/src/handoff_pedidos.py (en_ventana_liberacion / liberar_pedido).',
     params: [
-      { key: 'patrones_urgencia', label: 'Palabras de urgencia (propuesta, sin implementar)', value: 'urgente, hoy, inmediato', kind: 'text' },
+      { key: 'dias_prep_picking', label: 'Días de preparación de picking (ventana)', value: '1', kind: 'number', help: 'Política del OMS: cuántos días antes del despacho se libera a eFlow.' },
+      { key: 'barrido_veces_dia', label: 'Barridos por día (v1)', value: '5', kind: 'number' },
     ],
   },
   {
-    id: 'MR-CF-3', company: '0109', order: 3, name: 'Cliente retira', firstDelivery: true, active: true, weight: 900,
-    description: 'Detecta frases de "cliente retira" en observaciones (heurística de palabras clave, texto libre sin estándar) y asigna la prioridad más alta (1), sin importar la fecha. Implementada en priorityEngine.ts::esClienteRetira. Pendiente (no implementado): agrupar en viaje/cliente dummy.',
+    id: 'MR-CF-3', company: '0109', order: 3, name: 'Cliente retira (por zona)', firstDelivery: true, active: true, weight: 900,
+    description: 'Los pedidos cuya zona de entrega es "cliente retira" reciben la prioridad más alta, sin importar la fecha. Se modela por ZONA (delivery_zone), NO por el texto libre de observaciones. El análisis de observaciones con IA está diferido (ver MR-CF-2).',
     params: [
-      { key: 'palabras_clave', label: 'Palabras clave detectadas', value: 'cliente retira, retira cliente, retiro cliente, recoge cliente, recoge en bodega', kind: 'text', help: 'Coincidencia por substring, sin distinguir mayúsculas/minúsculas.' },
+      { key: 'zona_cliente_retira', label: 'Zona(s) de cliente retira', value: 'cliente_retira', kind: 'text', help: 'Valor de delivery_zone que marca retiro en bodega.' },
       { key: 'prioridad_retira', label: 'Prioridad asignada', value: '1', kind: 'number' },
     ],
   },
   {
-    id: 'MR-CF-4', company: '0109', order: 4, name: 'Asignación de viaje / bajada', firstDelivery: false, active: false, weight: 150,
-    description: 'Consumir el viaje asignado por el TMS y asignar la bajada/muelle de despacho (todo lo del mismo viaje a la misma bajada). NO implementada. El OMS no crea el viaje.',
+    id: 'MR-CF-2', company: '0109', order: 4, name: 'Análisis de observaciones con IA (DIFERIDO)', firstDelivery: false, active: false, weight: 0,
+    description: 'Interpretar el texto libre de observaciones (dirección, fecha solicitada, urgencia, cita) con un modelo de Amazon Bedrock. DIFERIDO (decisión D11): cliente-retira se resuelve hoy por zona (MR-CF-3). Hoy solo existe un stub determinístico de palabras clave en backend/oms/src/analizador_observaciones.py, NO activo en el flujo.',
     params: [
-      { key: 'modo_bajada', label: 'Modo de asignación (propuesta, sin implementar)', value: 'por capacidad', kind: 'text', help: 'por capacidad | fijo (ruta→bajada).' },
+      { key: 'modelo', label: 'Modelo Bedrock (futuro)', value: 'por definir', kind: 'text' },
     ],
   },
   {
-    id: 'MR-CF-5', company: '0109', order: 5, name: 'Inventario / capacidad', firstDelivery: false, active: false, weight: 100,
-    description: 'Validar viabilidad de inventario/capacidad antes de liberar (reservas, pendientes, prioridad de reposición, callbacks al ERP). NO implementada. Etapa futura del roadmap.',
-    params: [
-      { key: 'valida_inventario', label: 'Validar inventario total (propuesta, sin implementar)', value: 'sí', kind: 'text' },
-    ],
-  },
-  // --- EPA: hoy pasa por el MISMO motor que Cofersa (priorityEngine.ts no
-  // distingue compañía) - el cross docking descrito en las reuniones de
-  // negocio (prioridad fija, sin cálculo de fecha) sigue sin codificarse. ---
-  {
-    id: 'MR-EPA-1', company: 'EPA', order: 1, name: 'Regla T-1 (fecha de entrega)', firstDelivery: true, active: true, weight: 600,
-    description: 'Misma lógica y mismos parámetros que en Cofersa (priorityEngine.ts no distingue compañía todavía) - ver MR-CF-1.',
-    params: [
-      { key: 'prioridad_vencida_o_hoy', label: 'Prioridad si vencida u hoy', value: '2', kind: 'number' },
-      { key: 'prioridad_t1', label: 'Prioridad ventana T-1 (mañana)', value: '3', kind: 'number' },
-      { key: 'prioridad_2dias', label: 'Prioridad a 2 días', value: '10', kind: 'number' },
-      { key: 'prioridad_base_lejana', label: 'Base banda lejana (20 + días, tope 49)', value: '20', kind: 'number' },
-    ],
+    id: 'MR-CF-4', company: '0109', order: 5, name: 'Asignación de viaje / bajada', firstDelivery: false, active: false, weight: 0,
+    description: 'El viaje lo asigna PLANIFICACIÓN, no el OMS. El OMS solo lee numero_viaje/dispatch_date ya denormalizados en orders. NO hay lógica de asignación de viaje/bajada en el OMS.',
+    params: [],
   },
   {
-    id: 'MR-EPA-2', company: 'EPA', order: 2, name: 'Cliente retira', firstDelivery: true, active: true, weight: 900,
-    description: 'Misma lógica y mismos parámetros que en Cofersa (priorityEngine.ts no distingue compañía todavía) - ver MR-CF-3.',
+    id: 'MR-CF-5', company: '0109', order: 6, name: 'Inventario / capacidad (backorder) — FUTURO', firstDelivery: false, active: false, weight: 0,
+    description: 'Validar viabilidad de inventario/capacidad antes de liberar (reservas, pendientes, reposición). FUTURO: unidad U2 (backorder-inventario-oms) diferida hasta que el negocio defina OQ-BO1/BO2/BO3.',
+    params: [],
+  },
+  // --- EPA: mismo motor por scope (país→almacén→cliente); el cross docking
+  // (prioridad fija, sin regla de fecha) sigue sin codificarse. ---
+  {
+    id: 'MR-EPA-1', company: 'EPA', order: 1, name: 'Regla de fecha de entrega', firstDelivery: true, active: true, weight: 600,
+    description: 'Misma lógica que Cofersa (el motor no distingue compañía todavía; la especificidad se resolverá por scope) — ver MR-CF-1.',
     params: [
-      { key: 'palabras_clave', label: 'Palabras clave detectadas', value: 'cliente retira, retira cliente, retiro cliente, recoge cliente, recoge en bodega', kind: 'text' },
+      { key: 'lead_time_default', label: 'lead_time_days por defecto (si viene NULL)', value: '1', kind: 'number' },
+      { key: 'fecha_centinela', label: 'Fecha centinela (fallback urgente)', value: '1900-01-01', kind: 'text' },
+    ],
+  },
+  {
+    id: 'MR-EPA-2', company: 'EPA', order: 2, name: 'Cliente retira (por zona)', firstDelivery: true, active: true, weight: 900,
+    description: 'Misma lógica que Cofersa — ver MR-CF-3 (por zona, no por observaciones).',
+    params: [
+      { key: 'zona_cliente_retira', label: 'Zona(s) de cliente retira', value: 'cliente_retira', kind: 'text' },
       { key: 'prioridad_retira', label: 'Prioridad asignada', value: '1', kind: 'number' },
     ],
   },
   {
-    id: 'MR-EPA-3', company: 'EPA', order: 3, name: 'Cross docking (prioridad fija, sin T-1)', firstDelivery: false, active: false, weight: 500,
-    description: 'EPA recibe y alista al mismo tiempo (cross docking): el pedido debería salir con prioridad fija, SIN pasar por la regla T-1. NO implementada todavía - hoy los pedidos de EPA sí pasan por la Regla T-1 (MR-EPA-1) igual que Cofersa. Activar esta regla implica excluir a EPA de MR-EPA-1 en el código.',
+    id: 'MR-EPA-3', company: 'EPA', order: 3, name: 'Cross docking (prioridad fija, sin regla de fecha)', firstDelivery: false, active: false, weight: 500,
+    description: 'EPA recibe y alista al mismo tiempo (cross docking): saldría con prioridad fija, SIN pasar por la regla de fecha. NO implementada — hoy EPA pasa por MR-EPA-1 igual que Cofersa. Activarla implica excluir a EPA de la regla de fecha en código.',
     params: [
-      { key: 'prioridad_default', label: 'Prioridad por default (propuesta, sin implementar)', value: '1', kind: 'number' },
+      { key: 'prioridad_default', label: 'Prioridad por default (propuesta)', value: '1', kind: 'number' },
     ],
   },
   {
-    id: 'MR-EPA-4', company: 'EPA', order: 4, name: 'Asignación de viaje / bajada', firstDelivery: false, active: false, weight: 150,
-    description: 'Consumir el viaje asignado por el TMS y asignar la bajada/muelle de despacho. NO implementada. El OMS no crea el viaje.',
+    id: 'MR-EPA-5', company: 'EPA', order: 4, name: 'Liberación a eFlow por ventana (ADR-013)', firstDelivery: true, active: true, weight: 0,
+    description: 'Igual que Cofersa — ver MR-CF-6 (liberación por dispatch_date − dias_prep_picking, por viaje, barrido 5×/día + acción manual).',
     params: [
-      { key: 'modo_bajada', label: 'Modo de asignación (propuesta, sin implementar)', value: 'fijo', kind: 'text', help: 'por capacidad | fijo (ruta→bajada).' },
+      { key: 'dias_prep_picking', label: 'Días de preparación de picking (ventana)', value: '1', kind: 'number' },
+      { key: 'barrido_veces_dia', label: 'Barridos por día (v1)', value: '5', kind: 'number' },
     ],
   },
 ];

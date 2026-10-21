@@ -33,7 +33,6 @@ const TABLES_BY_MODULE: Record<string, string[]> = {
   clientes: ['customers', 'countries'],
   tiendas: ['stores', 'countries', 'app_users'],
   paises: ['countries', 'stores', 'app_users'],
-  pedidos: ['orders'],
   zonas: ['zones', 'countries'],
   licencias: ['driver_license_types', 'countries'],
   guias: ['dispatch_guides', 'routes', 'drivers', 'vehicles'],
@@ -65,6 +64,7 @@ const BACKEND_WHITELIST = new Set([
   'warehouses', 'final_customers', 'delivery_points', 'addresses', 'contacts',
   'driver_license_types', 'driver_licenses', 'user_scopes',
   'branches', // sucursales EFLOW (sql/40)
+  'oms_logs', // bitácora del OMS (sql/49)
 ]);
 
 // Top-level await (soportado por vitest/ESM): la disponibilidad de Aurora se

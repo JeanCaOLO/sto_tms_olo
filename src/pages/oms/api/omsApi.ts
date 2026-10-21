@@ -23,6 +23,8 @@ import type {
   DispatchRoute,
   EngineRule,
   OmsAlert,
+  OmsLogEntry,
+  OmsLogLevel,
   PriorityTier,
   QueueOrder,
   Simulation,
@@ -38,15 +40,12 @@ function delay<T>(data: T, ms = 350): Promise<T> {
 // (src/pages/oms/demo/) en vez de Supabase/mock + motor TS. Sirve para mostrar en
 // la tabla cómo prioriza el motor nuevo del OMS.
 //
-// POR AHORA está ENCENDIDO POR DEFECTO: abrir el OMS normal (/oms/cola) ya muestra
-// el demo, sin tener que tocar la URL ni configurar nada — así cualquiera que
-// pruebe el PR lo ve directo. Escape por si hace falta volver al flujo normal:
-//   - `?demo=0` en la URL lo APAGA y lo recuerda en la sesión (localStorage).
-//   - `?demo=1` lo vuelve a ENCENDER.
-// TODO: cuando dejemos de usar el demo, cambiar DEMO_POR_DEFECTO a false (o
-// quitar este bloque) para que la Cola vuelva a leer datos reales/Supabase.
+// APAGADO POR DEFECTO: la Cola lee los pedidos REALES de orders (Aurora, vía
+// /api/data). El demo del motor queda disponible solo bajo demanda:
+//   - `?demo=1` en la URL lo ENCIENDE y lo recuerda en la sesión (localStorage).
+//   - `?demo=0` lo APAGA.
 const DEMO_LS_KEY = 'oms.demo';
-const DEMO_POR_DEFECTO = true;
+const DEMO_POR_DEFECTO = false;
 
 function readDemoParam(): string | null {
   if (typeof window === 'undefined') return null;
@@ -159,6 +158,10 @@ function mapOrderToQueueOrder(row: any, country: Country, hoyIso: string): Queue
     createdDate: row.wms_created_at ?? row.created_at ?? '',
     status: row.wms_status ?? row.status ?? '',
     situation: row.wms_situation ?? '',
+    // Estado OMS (ADR-013): priorizado = el OMS ya escribió prioridad/score;
+    // liberado = ya lo mandó a eFlow (oms_processed_at sellado o situación GENE).
+    prioritized: row.priority != null || row.oms_score != null || row.prioritization_run_id != null,
+    released: row.oms_processed_at != null || row.wms_situation === 'GENE',
     intakeTime: row.created_at ?? '',
     appliedRules: prioridad.appliedRules,
     history: [],
@@ -182,17 +185,15 @@ export const omsApi = {
     if (country === 'CR') {
       // Solo pedidos sin cierre en el WMS (EFLOW FECHACIERRE IS NULL).
       const { data, error } = await supabase.from('orders').select(QUEUE_SELECT).is('closed_at', null);
-      if (error) {
-        // eslint-disable-next-line no-console
-        console.warn('[OMS] orders no disponible, usando mock de respaldo:', error.message);
-      } else if (data && data.length > 0) {
+      if (!error && data) {
+        // Datos REALES de orders (aunque vengan vacíos): es lo que pidió negocio,
+        // no mock. Solo un error de red/BD cae al mock de respaldo (abajo).
         const hoyIso = new Date().toISOString().slice(0, 10);
         return data
           .map((row: any) => mapOrderToQueueOrder(row, country, hoyIso))
           .sort((a, b) => b.score - a.score);
       }
-      // Sin datos reales todavía (o error de red) - cae al mock en vez de
-      // mostrar una cola vacía sin explicación.
+      console.warn('[OMS] orders no disponible, usando mock de respaldo:', error?.message);
     }
     const rows = queueOrders
       .filter((o) => o.country === country)
@@ -216,6 +217,34 @@ export const omsApi = {
   },
   getAudit(country: Country): Promise<AuditEntry[]> {
     return delay(auditEntries.filter((a) => a.country === country));
+  },
+  // Bitácora del OMS (sql/49 oms_logs), más recientes primero. Lee datos REALES
+  // de Aurora vía /api/data; si la tabla no existe/aún no hay backend que escriba,
+  // devuelve lista vacía (no mock) para no inventar logs.
+  async getOmsLogs(limit = 200): Promise<OmsLogEntry[]> {
+    const { data, error } = await supabase
+      .from('oms_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error || !data) {
+      console.warn('[OMS] oms_logs no disponible:', error?.message);
+      return [];
+    }
+    return (data as any[]).map((r) => ({
+      id: r.id,
+      createdAt: r.created_at ?? '',
+      level: (r.level ?? 'info') as OmsLogLevel,
+      action: r.action ?? '',
+      corridaId: r.corrida_id ?? null,
+      numeroViaje: r.numero_viaje ?? null,
+      eflowIdExpedicion: r.eflow_id_expedicion ?? null,
+      message: r.message ?? '',
+      detail: r.detail ?? null,
+      actor: r.actor ?? 'system',
+      countryId: r.country_id ?? null,
+      companyCode: r.company_code ?? null,
+    }));
   },
   // FR4 — distribución de pedidos por priority_tier (para el Panel).
   getTierDistribution(country: Country): Promise<{ tier: PriorityTier; count: number }[]> {

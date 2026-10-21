@@ -21597,3 +21597,150 @@
 **Error**: Refusing to complete "code-generation": 9 application-source path(s) changed during this stage run that no reviewed unit's source manifest claims (.agents/CANAL.md, .agents/tasks/oms-adr013-plan.md, .agents/tasks/oms-adr013-review.json, .agents/tasks/oms-adr013-review.md, docs/work/2026-10/2026-10-16-recorrida-v4-inversion-flujo-oms.md, docs/work/2026-10/2026-10-16-u1-reconciliacion-codigo-contrato-v4.md, docs/work/2026-10/2026-10-19-adr013-desacople-priorizacion-liberacion.md, sql/43_orders_expedicionescabecera.sql, sql/46_orders_drop_wms_trip_number.sql). Add each path to the owning unit's source-manifest.json and record that unit's one bounded stale-receipt recovery review (aidlc-log.ts review --stage code-generation --unit <unit> --reviewer aidlc-architecture-reviewer-agent --iteration <next ordinal>, then --verdict <READY|NOT-READY>), or revert the change. Unclaimed source changes fail closed (RFC #662).
 
 ---
+
+## Human Turn
+**Timestamp**: 2026-10-21T12:36:33Z
+**Event**: HUMAN_TURN
+
+---
+
+## Human Turn
+**Timestamp**: 2026-10-21T12:38:49Z
+**Event**: HUMAN_TURN
+
+---
+
+## Error Logged
+**Timestamp**: 2026-10-21T12:38:57Z
+**Event**: ERROR_LOGGED
+**Tool**: aidlc-state
+**Command**: aidlc-state gate-start code-generation --recovered --project-dir <project-dir>
+**Error**: Refusing to complete "code-generation": 9 application-source path(s) changed during this stage run that no reviewed unit's source manifest claims (.agents/CANAL.md, .agents/tasks/oms-adr013-plan.md, .agents/tasks/oms-adr013-review.json, .agents/tasks/oms-adr013-review.md, docs/work/2026-10/2026-10-16-recorrida-v4-inversion-flujo-oms.md, docs/work/2026-10/2026-10-16-u1-reconciliacion-codigo-contrato-v4.md, docs/work/2026-10/2026-10-19-adr013-desacople-priorizacion-liberacion.md, sql/43_orders_expedicionescabecera.sql, sql/46_orders_drop_wms_trip_number.sql). Add each path to the owning unit's source-manifest.json and record that unit's one bounded stale-receipt recovery review (aidlc-log.ts review --stage code-generation --unit <unit> --reviewer aidlc-architecture-reviewer-agent --iteration <next ordinal>, then --verdict <READY|NOT-READY>), or revert the change. Unclaimed source changes fail closed (RFC #662).
+
+---
+
+## Human Turn
+**Timestamp**: 2026-10-21T12:41:50Z
+**Event**: HUMAN_TURN
+
+---
+
+## Stage Jump
+**Timestamp**: 2026-10-21T12:41:57Z
+**Event**: STAGE_JUMPED
+**Direction**: BACKWARD
+**Source**: code-generation
+**Target**: code-generation
+**Scope**: classic
+**Details**: BACKWARD jump from code-generation to code-generation (3.5). Scope: classic.
+**Source Baseline**: sha256:8fdfb17c88e8d597bc4bb7c2a99b13e143930e05f7f3b4e12852b5afc75b3ae7
+
+---
+
+## Stage Start
+**Timestamp**: 2026-10-21T12:41:57Z
+**Event**: STAGE_STARTED
+**Stage**: code-generation
+**Agent**: aidlc-developer-agent
+**Source Baseline**: sha256:8fdfb17c88e8d597bc4bb7c2a99b13e143930e05f7f3b4e12852b5afc75b3ae7
+
+---
+
+## Error Logged
+**Timestamp**: 2026-10-21T12:43:24Z
+**Event**: ERROR_LOGGED
+**Tool**: aidlc-state
+**Command**: aidlc-state unit complete --stage code-generation --unit motor-reglas-oms
+**Error**: Refusing to complete unit "motor-reglas-oms" for "code-generation": it is not the active unit (no unit is active — start it first).
+
+---
+
+## Human Turn
+**Timestamp**: 2026-10-21T12:45:15Z
+**Event**: HUMAN_TURN
+
+---
+
+## Review Requested
+**Timestamp**: 2026-10-21T12:45:23Z
+**Event**: REVIEW_REQUESTED
+**Stage**: code-generation
+**Reviewer**: aidlc-architecture-reviewer-agent
+**Unit**: motor-reglas-oms
+**Iteration**: 1
+**Artifact Fingerprint**: sha256:6133cefb49798dfd7e314cca0bff825d6a3161895b1af64bf63ba0784c780787
+**Source Fingerprint**: 5da215f3c0e6eb9fc3ae3c7c308cfa87affb2f13
+**Unit Source Fingerprint**: sha256:7ab21bb9541b431b5d96dd10d8bc072595238c762d04bc9347e71723f4357386
+
+---
+
+## Review Completed
+**Timestamp**: 2026-10-21T12:45:29Z
+**Event**: REVIEW_COMPLETED
+**Stage**: code-generation
+**Reviewer**: aidlc-architecture-reviewer-agent
+**Unit**: motor-reglas-oms
+**Iteration**: 1
+**Verdict**: READY
+**Artifact Fingerprint**: sha256:6133cefb49798dfd7e314cca0bff825d6a3161895b1af64bf63ba0784c780787
+**Source Fingerprint**: 5da215f3c0e6eb9fc3ae3c7c308cfa87affb2f13
+**Unit Source Fingerprint**: sha256:7ab21bb9541b431b5d96dd10d8bc072595238c762d04bc9347e71723f4357386
+
+---
+
+## Unit Started
+**Timestamp**: 2026-10-21T12:45:35Z
+**Event**: UNIT_STARTED
+**Stage**: code-generation
+**Unit**: motor-reglas-oms
+**Run floor**: STAGE_JUMPED:2026-10-21T12:41:57Z#4
+
+---
+
+## Unit Completed
+**Timestamp**: 2026-10-21T12:45:35Z
+**Event**: UNIT_COMPLETED
+**Stage**: code-generation
+**Unit**: motor-reglas-oms
+**Run floor**: STAGE_JUMPED:2026-10-21T12:41:57Z#4
+
+---
+
+## Human Turn
+**Timestamp**: 2026-10-21T12:47:22Z
+**Event**: HUMAN_TURN
+
+---
+
+## Stage Awaiting Approval
+**Timestamp**: 2026-10-21T12:47:30Z
+**Event**: STAGE_AWAITING_APPROVAL
+**Stage**: code-generation
+**Recovered**: true
+
+---
+
+## Gate Approved
+**Timestamp**: 2026-10-21T12:47:32Z
+**Event**: GATE_APPROVED
+**Stage**: code-generation
+**User Input**: Approve
+
+---
+
+## Stage Completion
+**Timestamp**: 2026-10-21T12:47:32Z
+**Event**: STAGE_COMPLETED
+**Stage**: code-generation
+**Validation Basis**: {"graphContract":"sha256:ac0ef7ae03ae2fcfab9e2a94500d84c4fe00d00384d1f8dcff92c96b2e1f50de","inputs":[{"artifact":"contract-summary","contentHash":"sha256:96b12cc4ef269d87b980f494020852506d27e95c6e01bdf38876bbc80d98d28b","instanceCount":1,"presentCount":1,"producer":"contract-design","required":false,"structureHash":"sha256:7d20713b130ec661868443e08b71ed99cff81d945c05bf455f3fb38571f38071"},{"artifact":"entities","contentHash":"sha256:d1d8bcbd79c0708d0ea5102882271edbd006691207bfa2cec67367f2831268fe","instanceCount":1,"presentCount":1,"producer":"functional-design","required":false,"structureHash":"sha256:e40426cff71a58722ab620b1ddf4a6b45341ce2f99b33dc913618d2f7dac41d1"},{"artifact":"functional-spec","contentHash":"sha256:881b766811305758cd36dc6353b323ffc6280ace5c978a03bf4977551941139f","instanceCount":1,"presentCount":1,"producer":"functional-design","required":false,"structureHash":"sha256:a266b1dd8b2aa88c038575ca1bb62e405e317ee4a6611df23d1a47dda41c04ec"},{"artifact":"requirements","contentHash":"sha256:1b59ffba162e1f20429ad543630bbe7d178b6f403645e5ac11d4c29b926854f5","instanceCount":1,"presentCount":1,"producer":"requirements-analysis","required":true,"structureHash":"sha256:acadc0bd7cd089a8eaa47ed3673f96257e23efbf70afe691b0294ff7b70e4def"},{"artifact":"rules","contentHash":"sha256:36cdf78539aac9e228a4530b8325924ad841fbbec30cc07895d71ae5582590a5","instanceCount":1,"presentCount":1,"producer":"functional-design","required":false,"structureHash":"sha256:548dcfc13c5e2ed3ca9131d33e565cb1b5e3a0c139bc9d0150a6abde7e220f3a"},{"artifact":"unit-of-work","contentHash":"sha256:36b62d1e369d69de2e984c1fd4ae534c2663033cab18c56435ec639f1594b3e6","instanceCount":1,"presentCount":1,"producer":"units-generation","required":true,"structureHash":"sha256:deedc30ae9a79987c9e04d1d538b2412109f1ce82c11dbc8afd5b384ffa4860d"}],"outputs":[{"artifact":"code-generation-plan","contentHash":"sha256:a89d32c57187a98d9368a4e370fd530a3a895639d6eaaf08ea0bcf82d82b7a8b","instanceCount":1,"presentCount":1,"producer":"code-generation","required":true,"structureHash":"sha256:6a843a977625f2dfccc231385d2a7b9874421e9b2ba157da687d4ea381a4663e"},{"artifact":"code-summary","contentHash":"sha256:7e04138616e6b88cf586d5f95f7da32b24a890c414c1a5f57bdd510f6e78c980","instanceCount":1,"presentCount":1,"producer":"code-generation","required":true,"structureHash":"sha256:9bff8acf53e8feeb6b176255a292ab02674ceaecfa9c8308bf07364dda43fff2"},{"artifact":"traceability","contentHash":"sha256:3395c9065ccc6e53c1d82c1ab077e49bd5b41f92dd389c50d384a8b34d2fb21a","instanceCount":1,"presentCount":1,"producer":"code-generation","required":true,"structureHash":"sha256:ed7548ab2a71d215e4dacadeebfc1feb9807232cdb99e9d1909e9d13ba3b36d5"},{"artifact":"unit-test-instructions","contentHash":"sha256:81bd7887005d97cde0aba9530b048447718ff9b90f361798b9b2c7403e9baf12","instanceCount":1,"presentCount":1,"producer":"code-generation","required":true,"structureHash":"sha256:b46081bde716b95d9aa4d78d970d76b759e426f9acf9562131cd7045cc4bc041"}],"projectType":"brownfield","schema":2}
+**Details**: Stage Code Generation approved by gate
+
+---
+
+## Stage Start
+**Timestamp**: 2026-10-21T12:47:34Z
+**Event**: STAGE_STARTED
+**Stage**: build-and-test
+**Agent**: aidlc-quality-agent
+
+---

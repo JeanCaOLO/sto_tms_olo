@@ -40,6 +40,7 @@ from tms_common.responses import json_response
 import cola_candidatos
 import handoff_pedidos
 import motor_reglas
+import oms_log
 from models import PedidoCandidato
 
 # Permiso del módulo OMS para la acción manual "Procesar a Eflow". Usa el vocabulario
@@ -121,13 +122,24 @@ def correr(
     ]
     liberados, pendientes, prioridades = _liberar(en_ventana)
 
-    return {
-        "corrida": corrida_id,
-        "modo": _modo(),
+    resumen = {
         "total": len(pedidos),
         "priorizados": len(pedidos),
         "liberados": liberados,
         "pendientes": pendientes,
+    }
+    oms_log.registrar(
+        "barrido",
+        f"Barrido: {len(pedidos)} priorizados, {liberados} liberados, {pendientes} pendientes",
+        level="warn" if pendientes else "info",
+        corrida_id=corrida_id,
+        detail=resumen,
+    )
+
+    return {
+        "corrida": corrida_id,
+        "modo": _modo(),
+        **resumen,
         "prioridades": prioridades,
     }
 
@@ -158,11 +170,23 @@ def procesar_viaje(event: dict) -> dict:
     _priorizar(pedidos, registros, corrida_id)
     liberados, pendientes, prioridades = _liberar(list(zip(pedidos, registros)))
 
+    oms_log.registrar(
+        "procesar_viaje",
+        f'"Procesar a Eflow" viaje {numero_viaje}: {len(pedidos)} pedidos, {liberados} liberados, {pendientes} pendientes',
+        level="warn" if pendientes else "info",
+        corrida_id=corrida_id,
+        numero_viaje=numero_viaje,
+        actor="manual",
+        detail={"total": len(pedidos), "liberados": liberados, "pendientes": pendientes,
+                "subconjunto": sorted(subconjunto) if subconjunto else None},
+    )
+
     return _ok({
         "corrida": corrida_id,
         "modo": _modo(),
         "numero_viaje": numero_viaje,
         "total": len(pedidos),
+        "priorizados": len(pedidos),
         "liberados": liberados,
         "pendientes": pendientes,
         "prioridades": prioridades,
