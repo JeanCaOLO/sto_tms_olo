@@ -20,6 +20,7 @@ El plan de un día debe armarse de forma determinista a partir de los pedidos pl
 ## Areas to investigate
 
 - (Resuelto) agrupación por zona (`agrupar_por_zona`), bin-packing first-fit-decreasing con márgenes 85% peso / 95% volumen (`ajustar_capacidad`), secuencia 2-opt sobre matriz de distancias OSRM (`optimize-stops` / `route-geometry`).
+- (Resuelto, 2026-10-13) **tope de 16 pedidos por viaje** además de los márgenes de carga: al superarlo, el pedido cae al siguiente viaje aunque quepa por peso/volumen (`MAX_PARADAS = 16` en `plan_builder.py` / `ajustar_capacidad.py`). Reunión Ana/Eduardo: ~16 pedidos y ~80% de capacidad → nuevo viaje.
 
 ## Expected deliverable
 
@@ -35,4 +36,4 @@ El plan de un día debe armarse de forma determinista a partir de los pedidos pl
 
 ## Changes
 
-- (vacío)
+- 2026-10-21: documentado el tope de 16 pedidos por viaje (reunión 2026-10-13).

@@ -17,6 +17,7 @@ Como planificador, quiero poder **regenerar** el plan cuando entran pedidos nuev
 3. Si entran pedidos nuevos para ese día después de generar, aparece una **alerta visible en el botón**: se pone ámbar/pulsante con un **badge que indica cuántos pedidos nuevos** hay.
 4. La alerta se recalcula periódicamente sin recargar la página.
 5. Tras regenerar (que ya incluye los nuevos), la alerta vuelve a cero.
+6. Al regenerar, los pedidos que **dejaron de quedar** en el plan se **limpian** (quedan sin marca de planificación) para que no le sigan apareciendo al OMS — ver [008](008-handoff-al-oms-estampar-pedido.md).
 
 ## Edge cases
 
@@ -41,8 +42,9 @@ Como planificador, quiero poder **regenerar** el plan cuando entran pedidos nuev
 
 ## Changes
 
-- (vacío)
+- 2026-10-21: agregado el criterio 6 (limpieza del sello al re-planificar; detalle en 008).
 
 ## Validation
 
 - Verificado 2026-10-06: el badge aparece tras agregar pedidos al día y desaparece al regenerar.
+- Verificado 2026-10-20: un pedido sacado del plan al regenerar queda sin marca y sale de la cola del OMS.

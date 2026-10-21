@@ -12,3 +12,4 @@ Trabajo técnico que sostiene el módulo de planificación (ver [stories](../../
 | 004 | Regla de piso de capacidad mínima (80%) para que salga el viaje | Draft |
 | 005 | Alerta de pedidos nuevos por WebSocket (hoy polling) | Draft |
 | 006 | Geocodificación de direcciones (coordenadas de clientes) | Draft |
+| 007 | Contrato de handoff Planificación → OMS en `orders` | Delivered |

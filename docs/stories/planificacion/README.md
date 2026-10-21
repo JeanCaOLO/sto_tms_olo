@@ -15,5 +15,6 @@ Contexto de negocio: la **ruta ya no es fija** — el viaje se dispara por los p
 | 005 | Ver pedidos, paradas y mapa de la ruta | Delivered |
 | 006 | Filtrar planificaciones por estado y por contexto | Delivered |
 | 007 | Pedido entregado en varias guías (split por línea) | Draft |
+| 008 | Entregar el plan al OMS (estampar el pedido y limpiar al re-planificar) | Delivered |
 
-Las 001-006 describen comportamiento **ya entregado** (reflejan el estado actual del módulo); 007 es trabajo pendiente surgido de la reunión 2026-10-05.
+Las 001-006 y 008 describen comportamiento **ya entregado** (reflejan el estado actual del módulo); 007 es trabajo pendiente surgido de la reunión 2026-10-05.
