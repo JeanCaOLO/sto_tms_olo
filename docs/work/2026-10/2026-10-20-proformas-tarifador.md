@@ -48,6 +48,13 @@ Un flujo nuevo: se liquidan los viajes → se genera la **proforma** → pasa po
 4. Reiniciar `npm run api:local:base`. En Proformas → Configuración → Forma de envío "Directo" → *Conectar con Google*. El token queda en `GOOGLE_TOKEN_DIR` (carpeta `*.local`, ignorada por git).
 En AWS el cliente va en el secreto `/<env>/tms/google-oauth` (consola) y los tokens en Secrets Manager.
 
+## Ajustes del 2026-10-21
+- **Por aprobar** muestra solo las proformas del turno del rol (`pendingForActor`), sin excepción para administradores. "Todas" muestra todo.
+- **Detalle de línea**: clic en una liquidación de la proforma abre su desglose (`DetalleLiquidacionModal`).
+- **Bitácora**: pestaña con todos los eventos y sección "Historial" por proforma. Los cambios de fases y de correo se registran como `config:<país>`.
+- **Carga liviana**: el barrido corre una vez al abrir; el dashboard lee solo lo vigente; "Todas" (tope 300) y Bitácora (tope 200) se piden al abrirlas.
+- **Correo**: el destinatario sale solo de `carriers.email`. Hoy 9 de 10 transportistas no tienen correo en el catálogo (varios del import EFLOW son personas, con el nombre del conductor): hay que cargarlo en Transportistas.
+
 ## Para poner en marcha (lo hace quien administra la BD / Intelix)
 1. Aplicar `sql/46_proformas.sql` (dry-run primero: `node --env-file=.env.local scripts/run-migration.mjs sql/46_proformas.sql`, luego `--execute`). Da el módulo `tarifas.proformas` solo a administradores: asignarlo a los roles en Configuración → Roles.
 2. Cargar las **fases del país** en Proformas → Configuración (sin fases no se pueden generar proformas).

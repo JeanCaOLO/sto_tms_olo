@@ -30,8 +30,8 @@ describe('pendingForActor', () => {
     expect(pendingForActor([second], actor('Jefe'))).toEqual([]);
   });
 
-  it('el superadministrador supervisa todas las que están en revisión', () => {
-    expect(pendingForActor([first, second, done], actor('SuperAdministrador')).map((r) => r.proforma.id)).toEqual(['a', 'b']);
+  it('el superadministrador tampoco ve las ajenas en Por aprobar (las ve en Todas)', () => {
+    expect(pendingForActor([first, second, done], actor('SuperAdministrador'))).toEqual([]);
   });
 
   it('sin usuario no hay pendientes', () => {
