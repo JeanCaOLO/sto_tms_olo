@@ -27,10 +27,18 @@ beforeEach(() => {
 });
 
 describe('semilla de demostración — cobertura', () => {
+  // Datos que se cargan a mano y la demo no inventa: la colección existe pero puede venir vacía.
+  const PUEDEN_ESTAR_VACIAS = new Set<string>([
+    'tripTenderAwards',
+    // Proformas: las crea la gente al agrupar liquidaciones; la demo no las inventa.
+    'proformas', 'proformaItems', 'proformaPhases', 'proformaFlowPhases', 'proformaEmailConfigs',
+  ]);
+
   it('trae todas las colecciones del almacén, con filas', () => {
     for (const collection of COLLECTIONS) {
       const rows = (demoSeed as Record<string, unknown>)[collection];
       expect(Array.isArray(rows), collection).toBe(true);
+      if (PUEDEN_ESTAR_VACIAS.has(collection)) continue;
       expect((rows as unknown[]).length, `${collection} vacía`).toBeGreaterThan(0);
     }
   });

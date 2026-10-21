@@ -11,6 +11,7 @@ Lee .env.local / .env de la raíz del repo (TMS_DB_*, JWT_SECRET, EFLOW_*).
 Aurora requiere el túnel SSM levantado (docs/guides/tunel-ssm-a-rds.md).
 """
 
+import base64
 import importlib.util
 import json
 import os
@@ -31,13 +32,16 @@ STACKS = {
     "admin": BACKEND / "admin" / "src",
     "planning": BACKEND / "planning" / "src",
     "tarifas": BACKEND / "tarifas" / "src",
+    # Envío de proformas por Gmail: en local usa GOOGLE_CLIENT_ID/SECRET de .env.local y guarda tokens en archivos.
+    "tarifas_mail": BACKEND / "tarifas-mail" / "src",
     "oms": BACKEND / "oms" / "src",
     "tracking": BACKEND / "tracking" / "src",
     "eflow_sim": BACKEND / "eflow-sim" / "src",
 }
 AUTHORIZER = BACKEND / "common-services" / "src" / "authorizer" / "app.py"
 PUBLIC_STACKS = {"eflow", "eflow_sim"}
-PUBLIC_ROUTES = {"POST /api/auth/login"}
+# El callback de Google llega sin sesión del TMS (la identidad va en `state`, firmado), como en API Gateway.
+PUBLIC_ROUTES = {"POST /api/auth/login", "GET /api/tarifas-mail/google/callback"}
 DEFAULT_PORT = 4000
 # Lambda atiende una request por contenedor y tms_common reutiliza UNA conexión
 # por proceso: correr handlers en paralelo intercala lecturas del mismo socket.
@@ -87,7 +91,7 @@ class ApiHandler(BaseHTTPRequestHandler):
             self.send_header(name, value)
         self.end_headers()
         if body:
-            self.wfile.write(body.encode("utf-8"))
+            self.wfile.write(body if isinstance(body, bytes) else body.encode("utf-8"))
 
     def _match(self, path: str):
         for method, pattern, key, handler, is_public in self.routes:
@@ -132,7 +136,10 @@ class ApiHandler(BaseHTTPRequestHandler):
         event = self._event(key, url, params, authorizer)
         with HANDLER_LOCK:
             response = handler(event, None)
-        self._send(response["statusCode"], response.get("body", ""), response.get("headers"))
+        body = response.get("body", "")
+        if response.get("isBase64Encoded"):  # respuesta comprimida (gzip): API Gateway la decodifica igual
+            body = base64.b64decode(body)
+        self._send(response["statusCode"], body, response.get("headers"))
         return None
 
     do_GET = do_POST = do_PATCH = do_DELETE = _dispatch

@@ -32,6 +32,18 @@ async function validateBeforeReliquiudate(currentId: string, input: SettlementIn
     return { error: 'La liquidación a reemplazar es de otro viaje.', errorType: 'failed', actual: null };
   }
 
+  // Una liquidación dentro de una proforma no se reemplaza por debajo: la proforma quedaría apuntando a una anulada.
+  const inProforma = await db().find('proformaItem', {
+    where: [{ column: 'settlement_id', op: 'eq', value: currentId }, { column: 'state', op: 'neq', value: 'excluded' }],
+    limit: 1,
+  });
+  if (inProforma.length > 0) {
+    return {
+      error: 'Esta liquidación está dentro de una proforma. Exclúyela de la proforma (o anula la proforma) y vuelve a re-liquidar.',
+      errorType: 'blocked', actual: null,
+    };
+  }
+
   const trip = await getTrip(input.trip.id);
   if (!trip) {
     return { error: 'El viaje ya no existe.', errorType: 'blocked', actual: null };

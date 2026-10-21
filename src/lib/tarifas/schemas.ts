@@ -174,7 +174,7 @@ export const RuleSchema = z.object({
   { message: 'EXCLUSIVE solo se permite en la fase BASE; en las demás usá SUM, o MAX con un grupo.', path: ['stacking'] },
 ).refine(
   (rule) => rule.baseMethod !== 'TENDERING',
-  { message: 'Tendering todavía no tiene un cálculo definido.', path: ['baseMethod'] },
+  { message: 'Tendering no se declara en una regla: el monto sale de la adjudicación del viaje.', path: ['baseMethod'] },
 );
 
 export const RuleWithScopeSchema = RuleSchema.refine(

@@ -56,11 +56,17 @@ export type EntityName =
   | 'partyVariable'
   | 'settlement'
   | 'tripOrderMark'
+  | 'tripTenderAward'
   | 'costStructure'
   | 'costStructureRow'
   | 'rateTable'
   | 'rateTableRow'
   | 'marginPolicy'
+  | 'proforma'
+  | 'proformaItem'
+  | 'proformaPhase'
+  | 'proformaFlowPhase'
+  | 'proformaEmailConfig'
   | 'auditLog';
 
 export interface ColumnDef {
@@ -188,6 +194,8 @@ export const ENTITIES = {
       name: { type: 'text' },
       tax_id: { type: 'text', nullable: true },
       is_flota_propia: { type: 'boolean' },
+      // Correo del transportista (catálogo): destinatario por defecto de la proforma. Solo lectura.
+      email: { type: 'text', nullable: true },
       status: { type: 'text', nullable: true },
       // Forma de pago/liquidación del transportista (sql/35). La liquidación la
       // hereda de aquí; ya no se elige por viaje. Valores = BaseMethodId.
@@ -386,6 +394,35 @@ export const ENTITIES = {
       mark: { type: 'text' },
       reason: { type: 'text', nullable: true },
       actor: { type: 'text', nullable: true },
+    },
+  },
+
+  // Adjudicación de tendering: el monto que se le adjudicó a un transportista para un viaje concreto.
+  // Con `carriers.rate_type = 'TENDERING'` ese monto ES la base del viaje (se liquida como tarifa fija).
+  // Una por viaje. Quién la registra (hoy a mano; el proceso de licitación es la opción 2 del roadmap)
+  // no es asunto del tarifador: acá solo se lee.
+  tripTenderAward: {
+    table: 'tarifas_trip_tender_awards',
+    collection: 'tripTenderAwards',
+    idPrefix: 'tnd',
+    label: 'Adjudicación de tendering',
+    uniqueIndexes: [
+      {
+        name: 'tarifas_trip_tender_awards_uq',
+        columns: ['trip_id'],
+        message: 'Ese viaje ya tiene una adjudicación de tendering.',
+      },
+    ],
+    columns: {
+      id: idColumn(),
+      country_id: countryRef(),
+      trip_id: { type: 'uuid', references: 'trip', indexed: true },
+      carrier_id: { type: 'uuid', references: 'carrier', indexed: true },
+      /** Monto adjudicado por el viaje (≥ 0). */
+      amount: { type: 'numeric' },
+      awarded_at: { type: 'timestamptz', nullable: true },
+      actor: { type: 'text', nullable: true },
+      notes: { type: 'text', nullable: true },
     },
   },
 
@@ -745,6 +782,136 @@ export const ENTITIES = {
       critical_below: { type: 'numeric' },
       require_reason_below: { type: 'numeric' },
       block_on_loss: { type: 'boolean' },
+    },
+  },
+
+  // ── Proformas: varias liquidaciones de UN transportista, con revisión por fases ──────────────────
+  // El estado reutiliza los de la liquidación ('Borrador' | 'En Revisión' | 'Aprobado' | 'Pagado' | 'Anulado').
+  // Las fases y sus decisiones viven aparte: la plantilla por país (`proformaFlowPhase`) se COPIA a
+  // `proformaPhase` al crear la proforma, así cambiar la plantilla no altera proformas en curso.
+  proforma: {
+    table: 'tarifas_proformas',
+    collection: 'proformas',
+    idPrefix: 'pro',
+    label: 'Proforma',
+    uniqueIndexes: [
+      {
+        name: 'tarifas_proformas_country_number_uq',
+        columns: ['country_id', 'number'],
+        message: 'Otra proforma tomó ese número al mismo tiempo. Genera de nuevo.',
+      },
+    ],
+    columns: {
+      id: idColumn(),
+      country_id: countryRef({ indexed: true }),
+      /** 'PRO-VE-001'. Único por país. */
+      number: { type: 'text' },
+      carrier_id: { type: 'uuid', references: 'carrier', indexed: true },
+      /** Nombre congelado al generar: es el dato con el que la gente busca. */
+      carrier_name: { type: 'text' },
+      status: { type: 'text', indexed: true },
+      currency: { type: 'text' },
+      /** Suma de las liquidaciones incluidas. */
+      total_amount: { type: 'numeric' },
+      created_by: { type: 'text' },
+      /** Cuándo se envió por correo al transportista. Nulo = aún no se envió. */
+      email_sent_at: { type: 'timestamptz', nullable: true },
+      notes: { type: 'text', nullable: true },
+      created_at: { type: 'timestamptz' },
+      updated_at: { type: 'timestamptz' },
+    },
+  },
+
+  proformaItem: {
+    table: 'tarifas_proforma_items',
+    collection: 'proformaItems',
+    idPrefix: 'pri',
+    label: 'Liquidación de proforma',
+    uniqueIndexes: [
+      // Una liquidación está INCLUIDA en una sola proforma a la vez; al excluirla queda libre para otra.
+      {
+        name: 'tarifas_proforma_items_settlement_incluida_uq',
+        columns: ['settlement_id'],
+        where: { column: 'state', op: 'neq', value: 'excluded' },
+        message: 'Esa liquidación ya está en otra proforma.',
+      },
+    ],
+    columns: {
+      id: idColumn(),
+      proforma_id: { type: 'text', references: 'proforma', onDelete: 'cascade', indexed: true },
+      settlement_id: { type: 'text', references: 'settlement', indexed: true },
+      /** 'included' | 'excluded'. */
+      state: { type: 'text' },
+      exclusion_reason: { type: 'text', nullable: true },
+      /** Total de la liquidación al agrupar (congelado). */
+      amount: { type: 'numeric' },
+    },
+  },
+
+  proformaPhase: {
+    table: 'tarifas_proforma_phases',
+    collection: 'proformaPhases',
+    idPrefix: 'prp',
+    label: 'Fase de proforma',
+    columns: {
+      id: idColumn(),
+      proforma_id: { type: 'text', references: 'proforma', onDelete: 'cascade', indexed: true },
+      position: { type: 'int' },
+      name: { type: 'text' },
+      /** 'role' | 'user'. */
+      approver_type: { type: 'text' },
+      role_name: { type: 'text', nullable: true },
+      user_id: { type: 'text', nullable: true },
+      approver_label: { type: 'text' },
+      /** 'pendiente' | 'aprobada' | 'omitida' | 'rechazada'. */
+      state: { type: 'text', indexed: true },
+      decided_by: { type: 'text', nullable: true },
+      decided_at: { type: 'timestamptz', nullable: true },
+      comment: { type: 'text', nullable: true },
+      removed_by: { type: 'text', nullable: true },
+    },
+  },
+
+  // Plantilla global del país: qué fases (y quién aprueba cada una) tendrá toda proforma nueva.
+  proformaFlowPhase: {
+    table: 'tarifas_proforma_flow_phases',
+    collection: 'proformaFlowPhases',
+    idPrefix: 'prf',
+    label: 'Fase del flujo de proformas',
+    columns: {
+      id: idColumn(),
+      country_id: countryRef({ indexed: true }),
+      position: { type: 'int' },
+      name: { type: 'text' },
+      /** 'role' | 'user'. */
+      approver_type: { type: 'text' },
+      role_name: { type: 'text', nullable: true },
+      user_id: { type: 'text', nullable: true },
+      approver_label: { type: 'text' },
+      active: { type: 'boolean' },
+    },
+  },
+
+  // Correo de la proforma, por país: destinatarios fijos, plantilla y modo de envío.
+  proformaEmailConfig: {
+    table: 'tarifas_proforma_email_config',
+    collection: 'proformaEmailConfigs',
+    idPrefix: 'pre',
+    label: 'Correo de proformas',
+    uniqueIndexes: [
+      { name: 'tarifas_proforma_email_config_country_uq', columns: ['country_id'], message: 'Ese país ya tiene su configuración de correo.' },
+    ],
+    columns: {
+      id: idColumn(),
+      country_id: countryRef({ indexed: false }),
+      /** Destinatarios fijos (se suman al correo del transportista). Lista de correos. */
+      recipients: { type: 'jsonb' },
+      /** Incluir el correo del transportista como destinatario. */
+      include_carrier_email: { type: 'boolean' },
+      subject_template: { type: 'text' },
+      body_template: { type: 'text' },
+      /** 'direct' (Gmail con cuenta conectada) | 'manual' (abre Gmail con el correo armado). */
+      mode: { type: 'text' },
     },
   },
 

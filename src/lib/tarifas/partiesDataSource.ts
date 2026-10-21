@@ -3,7 +3,6 @@
 // Misma forma de retorno que el resto del módulo para que las pantallas manejen los fallos igual.
 // Todo por la capa de datos (`./data`): los transportistas se leen como entidad externa.
 
-import { contractOfCarrier, type CarrierContract } from './carrierContract';
 import { db, ForeignKeyError, NotFoundError, onDataWrite, UniqueViolationError, type Condition } from './data';
 import {
   mergeCarriersWithProfiles,
@@ -11,7 +10,6 @@ import {
   type PartyClassification,
   type SettlementPartyRow,
 } from './parties';
-import type { BaseMethodId, BaseOverride } from './types';
 
 export type EnsureProfileResult =
   | { status: 'saved'; partyId: string; created: boolean }
@@ -92,61 +90,10 @@ export async function getProfileForCarrierCached(
   return entry.promise;
 }
 
-// Formas de pago calculables como base (TENDERING aún no tiene cálculo: bloquea con motivo).
-const CALCULABLE_RATE_TYPES = new Set<BaseMethodId>(['PER_KM', 'PER_UNIT', 'FIXED', 'VOLUME']);
-
-/** Base del catálogo para un tercero: la que se aplica o el motivo por el que no hay ninguna. */
-export type CarrierBase = { override: BaseOverride; contract?: CarrierContract } | { issue: string };
-
-/**
- * Convierte el `carriers.rate_type` crudo en la base a aplicar a un TERCERO. No hay default: sin
- * forma de cobro, con TENDERING o con tarifa fija sin monto válido devuelve el motivo (el cálculo
- * se bloquea en vez de caer a km). Puro y testeable sin tocar la BD.
- */
-export function resolveCarrierBase(rateType: unknown, flatRateAmount?: unknown): CarrierBase {
-  const enCatalogo = ' en el catálogo de Transportistas.';
-  const type = typeof rateType === 'string' ? rateType.trim() : '';
-  if (type === '') return { issue: `El transportista no tiene forma de cobro. Definila${enCatalogo}` };
-  if (type === 'TENDERING') return { issue: `La forma de cobro "Tendering" todavía no tiene cálculo. Elegí otra${enCatalogo}` };
-  if (!CALCULABLE_RATE_TYPES.has(type as BaseMethodId)) return { issue: `La forma de cobro "${type}" no es válida. Corregila${enCatalogo}` };
-  const method = type as BaseMethodId;
-  // Tarifa fija: el monto pactado (carriers.flat_rate_amount, sql/36) ES la base. Sin monto, la base
-  // sale de la regla BASE fija del tercero (sql/37). Un monto ilegible o negativo es un error de carga.
-  const raw = method === 'FIXED' && flatRateAmount != null ? String(flatRateAmount).trim() : '';
-  if (raw === '') return { override: { method } };
-  if (!(Number(raw) >= 0)) return { issue: `El monto de tarifa fija no es válido. Corregilo${enCatalogo}` };
-  return { override: { method, amount: raw } };
-}
-
-/** Base de un tercero según el catálogo (`carriers.rate_type`, sql/35). */
-export async function carrierBaseForCarrier(
-  carrierId: string,
-  options: { fresh?: boolean } = {},
-): Promise<CarrierBase> {
-  const carrier = await getCarrierCached(carrierId, options);
-  if (!carrier) return { issue: 'No se encontró el transportista del viaje para leer su forma de cobro.' };
-  const base = resolveCarrierBase(carrier.rate_type, carrier.flat_rate_amount);
-  return 'override' in base ? { ...base, contract: contractOfCarrier(carrier) } : base;
-}
-
-// Caché corta del transportista (como el perfil); se descarta al escribir un carrier.
-const CARRIER_TTL_MS = 5 * 60_000;
-const carrierCache = new Map<string, { at: number; promise: Promise<Record<string, unknown> | null> }>();
-onDataWrite((touched) => { if (touched.has('carrier')) carrierCache.clear(); });
-
-async function getCarrierCached(
-  carrierId: string,
-  options: { fresh?: boolean } = {},
-): Promise<Record<string, unknown> | null> {
-  const read = () => db().findOne('carrier', carrierId) as Promise<Record<string, unknown> | null>;
-  if (db().kind !== 'http') return read();
-  const hit = carrierCache.get(carrierId);
-  if (!options.fresh && hit && Date.now() - hit.at < CARRIER_TTL_MS) return hit.promise;
-  const entry = { at: Date.now(), promise: read() };
-  carrierCache.set(carrierId, entry);
-  entry.promise.catch(() => { if (carrierCache.get(carrierId) === entry) carrierCache.delete(carrierId); });
-  return entry.promise;
-}
+// La base de un tercero (forma de cobro del catálogo + adjudicación de tendering) vive en `carrierBase.ts`.
+export {
+  carrierBaseForCarrier, getTenderAwardForTrip, resolveCarrierBase, type CarrierBase,
+} from './carrierBase';
 
 /**
  * Devuelve el perfil del transportista, creándolo si todavía no existe. Es lo que llama una

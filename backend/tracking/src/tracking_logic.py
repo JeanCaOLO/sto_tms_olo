@@ -4,6 +4,7 @@ import math
 import re
 import uuid
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from tms_common.errors import HttpError
 
@@ -33,10 +34,16 @@ STALE_SECONDS = 1800
 
 MAX_BATCH = 200
 MAX_FUTURE_SKEW = timedelta(minutes=5)
+GRACE_AFTER_CLOSE = timedelta(hours=2)  # el chofer puede vaciar el lote de posiciones después de cerrar la ruta
+ACCURACY_MAX_M = 200                    # precisión peor que esto: se guarda marcada, no mueve la última posición
 MAX_EVIDENCE_BYTES = 5 * 1024 * 1024
-EVIDENCE_KINDS = ("photo_invoice", "signature", "photo_other")
+EVIDENCE_KINDS = ("photo_invoice", "signature")  # solo factura firmada y firma digital
 EVIDENCE_MIME = {"image/jpeg": "jpg", "image/png": "png"}
-URL_TTL_SECONDS = 300
+URL_TTL_SECONDS = 300                   # formulario de subida (POST firmado)
+SIGNED_GET_TTL_SECONDS = 3600           # URL de lectura de evidencias (estable: se reusa desde caché)
+SIGNED_GET_RENEW_SECONDS = 600          # se vuelve a firmar cuando faltan menos de esto
+TRAIL_EPSILON_M = 15                    # tolerancia Douglas-Peucker del recorrido
+TRAIL_MAX_POINTS = 2000
 
 _UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
@@ -113,13 +120,32 @@ DETOUR_FACTOR = 1.35
 SERVICE_MIN = 5
 DEFAULT_WINDOW_END = (19, 0)
 
-LATE_MIN = 15          # alerta "retraso"
-VERY_LATE_MIN = 60     # semáforo rojo
 STOPPED_MIN = 20       # alerta "detenido"
 STOPPED_RADIUS_M = 75  # movimiento menor a esto = sigue en el mismo sitio
+STOPPED_WINDOW_MIN = 60  # ventana de posiciones que se mira hacia atrás: el conteo de "detenido" tope = 60 min
 DEPARTURE_RADIUS_M = 300
 
-ALERT_INCIDENT, ALERT_NO_SIGNAL, ALERT_FAILED = "incident", "no_signal", "failed"
+# SEDES DE PRUEBA (fijas, sin tocar la BD): `stores` CD-CR no tiene coordenadas y las sedes de Venezuela son por
+# empresa (customers), no por bodega. Pendiente de definir con Jean dónde se guardan (docs/tracking/pendientes-tunel.md).
+# Orden: sede de la empresa del plan > coordenadas de la tienda de origen > sede del país.
+CUSTOMER_ORIGINS = {
+    "FEBECA": (10.1897571, -67.9507191),
+    "SILLACA": (10.1897571, -67.9507191),
+    "BEVAL": (10.1789068, -67.9539846),
+}
+COUNTRY_ORIGINS = {"CR": (9.9967249, -84.2607843)}
+
+
+def origin_coords(country: str | None, customer_code: str | None, lat, lng) -> tuple[float, float] | None:
+    """Punto de salida del viaje: sede de la empresa (fija) > coordenadas de la tienda de origen > sede del país."""
+    by_customer = CUSTOMER_ORIGINS.get((customer_code or "").upper())
+    if by_customer:
+        return by_customer
+    if lat is not None and lng is not None:
+        return float(lat), float(lng)
+    return COUNTRY_ORIGINS.get((country or "").upper())
+
+ALERT_NO_SIGNAL, ALERT_FAILED = "no_signal", "failed"
 ALERT_LATE, ALERT_STOPPED = "late", "stopped"
 
 
@@ -229,43 +255,118 @@ def stopped_minutes(positions: list[dict], now: datetime) -> int:
     return max(0, round((_aware(now) - _aware(since)).total_seconds() / 60))
 
 
-def alerts(state: str, signal_value: str, failed: int, incidents: int, delay_min: int | None,
-           stopped_min: int = 0) -> list[dict]:
-    """Alertas de un viaje EN TRÁNSITO: [{"code","count"?}]. Para otros estados no hay alertas."""
+def stop_inputs(guides: list[dict]) -> list[dict]:
+    """Paradas en el formato de `stop_metrics`, desde filas de dispatch_guides (con coordenadas)."""
+    return [{"id": str(g["id"]), "state": guide_state(g["delivery_status"], g["status"]),
+             "sequence": g["sequence_number"], "lat": g["latitude"], "lng": g["longitude"],
+             "planned_arrival": g["planned_arrival_time"]} for g in guides]
+
+
+def stopped_by_route(rows: list[dict], now: datetime) -> dict[str, int]:
+    """Minutos detenidos por ruta. `rows`: route_id, latitude, longitude, recorded_at (cronológicas por ruta)."""
+    grouped: dict[str, list[dict]] = {}
+    for row in rows:
+        grouped.setdefault(str(row["route_id"]), []).append(row)
+    return {route: stopped_minutes(points, now) for route, points in grouped.items()}
+
+
+def stopped_from_since(rows: list[dict], now: datetime) -> dict[str, int]:
+    """Minutos detenidos por ruta desde `since` (la BD ya resolvió desde cuándo está en el mismo sitio)."""
+    return {str(r["route_id"]): max(0, round((_aware(now) - _aware(r["since"])).total_seconds() / 60))
+            for r in rows if r["since"] is not None}
+
+
+def positions_usable(is_mock: bool, accuracy_m) -> bool:
+    """Un punto mock o con precisión > 200 m se guarda pero no cuenta para la posición ni el recorrido."""
+    return not is_mock and (accuracy_m is None or float(accuracy_m) <= ACCURACY_MAX_M)
+
+
+def route_accepts(state: str, ended_at: datetime | None, now: datetime) -> bool:
+    """Viaje activo, o cerrado hace menos de GRACE_AFTER_CLOSE (puntos tardíos del chofer)."""
+    if state == "active":
+        return True
+    return state == "completed" and ended_at is not None and _aware(now) - _aware(ended_at) <= GRACE_AFTER_CLOSE
+
+
+def _to_meters(points: list[dict]) -> list[tuple[float, float]]:
+    """Proyección plana local (equirectangular) en metros: basta para tolerancias de decenas de metros."""
+    lat0 = sum(float(p["lat"]) for p in points) / len(points)
+    kx = 111320 * math.cos(math.radians(lat0))
+    return [(float(p["lng"]) * kx, float(p["lat"]) * 110574) for p in points]
+
+
+def _segment_distance(p, a, b) -> float:
+    ax, ay = a
+    dx, dy = b[0] - ax, b[1] - ay
+    length2 = dx * dx + dy * dy
+    t = 0.0 if length2 == 0 else max(0.0, min(1.0, ((p[0] - ax) * dx + (p[1] - ay) * dy) / length2))
+    return math.hypot(p[0] - (ax + t * dx), p[1] - (ay + t * dy))
+
+
+def _douglas_peucker(xy: list[tuple[float, float]], epsilon: float) -> list[int]:
+    """Índices que conservan la forma con tolerancia `epsilon` (m). Pila explícita: sin límite de recursión."""
+    count = len(xy)
+    keep = [False] * count
+    keep[0] = keep[-1] = True
+    stack = [(0, count - 1)]
+    while stack:
+        first, last = stack.pop()
+        worst, worst_index = -1.0, None
+        for index in range(first + 1, last):
+            distance = _segment_distance(xy[index], xy[first], xy[last])
+            if distance > worst:
+                worst, worst_index = distance, index
+        if worst_index is not None and worst > epsilon:
+            keep[worst_index] = True
+            stack.append((first, worst_index))
+            stack.append((worst_index, last))
+    return [index for index in range(count) if keep[index]]
+
+
+def simplify_trail(points: list[dict], epsilon_m: float = TRAIL_EPSILON_M, cap: int = TRAIL_MAX_POINTS) -> list[dict]:
+    """Recorrido simplificado (Douglas-Peucker). Si aún supera `cap`, sube la tolerancia hasta caber.
+    Los extremos siempre se conservan. `points`: dicts con lat, lng (en orden cronológico)."""
+    if len(points) <= 2:
+        return list(points)
+    xy = _to_meters(points)
+    epsilon = epsilon_m
+    kept = _douglas_peucker(xy, epsilon)
+    while len(kept) > cap:
+        epsilon *= 1.5
+        kept = _douglas_peucker(xy, epsilon)
+    return [points[index] for index in kept]
+
+
+def days_late(due_date, now: datetime, tz: str | None) -> int:
+    """Días que el viaje lleva pasado de su fecha de entrega (día calendario en la zona del país); 0 si está en
+    plazo. El retraso se mide por DÍA de entrega, no por la hora planificada de cada parada."""
+    if due_date is None:
+        return 0
+    try:
+        zone = ZoneInfo(tz) if tz else timezone.utc
+    except (ZoneInfoNotFoundError, ValueError):
+        zone = timezone.utc
+    return max(0, (_aware(now).astimezone(zone).date() - due_date).days)
+
+
+def alerts(state: str, signal_value: str, failed: int, late_days: int = 0, stopped_min: int = 0) -> list[dict]:
+    """Alertas de un viaje EN TRÁNSITO: [{"code","count"?}]. Para otros estados no hay alertas.
+
+    late: `count` = días pasados de la fecha de entrega.
+    no_signal: solo si hubo señal y caducó (signal 'offline'); 'none' (nunca hubo GPS) no alerta.
+    stopped: solo con señal 'online', para no afirmar que está detenido sin datos recientes."""
     if state != "active":
         return []
     out = []
-    if incidents:
-        out.append({"code": ALERT_INCIDENT, "count": incidents})
     if failed:
         out.append({"code": ALERT_FAILED, "count": failed})
-    if signal_value in ("offline", "none"):
+    if signal_value == "offline":
         out.append({"code": ALERT_NO_SIGNAL})
-    if delay_min is not None and delay_min > LATE_MIN:
-        out.append({"code": ALERT_LATE, "count": delay_min})
+    if late_days > 0:
+        out.append({"code": ALERT_LATE, "count": late_days})
     if stopped_min >= STOPPED_MIN and signal_value == "online":
         out.append({"code": ALERT_STOPPED, "count": stopped_min})
     return out
-
-
-def review_summary(metrics: dict) -> dict:
-    """Semáforo de un viaje COMPLETADO.
-
-    metrics: failed, missing_evidence, incidents, pickups, returns, max_delay_min (cualquiera puede faltar).
-    rojo: paradas fallidas, entregas sin factura+firma o retraso > 60 min.
-    ámbar: novedades, recolectas, devoluciones o retraso > 15 min. verde: nada de lo anterior."""
-    def n(key):
-        return int(metrics.get(key) or 0)
-    delay = metrics.get("max_delay_min")
-    delay = 0 if delay is None else round(float(delay))
-    red = [{"code": code, "count": n(code)} for code in ("failed", "missing_evidence") if n(code)]
-    if delay > VERY_LATE_MIN:
-        red.append({"code": "late", "count": delay})
-    amber = [{"code": code, "count": n(code)} for code in ("incidents", "pickups", "returns") if n(code)]
-    if LATE_MIN < delay <= VERY_LATE_MIN:
-        amber.append({"code": "late", "count": delay})
-    color = "red" if red else "amber" if amber else "green"
-    return {"color": color, "reasons": red + amber}
 
 
 def parse_time(raw, label: str = "recorded_at") -> datetime:
@@ -323,6 +424,8 @@ def require_evidence_request(body) -> tuple[str, str]:
     """(kind, mime_type) validados."""
     body = body if isinstance(body, dict) else {}
     kind, mime = body.get("kind"), body.get("mime_type")
+    if kind == "photo_other":  # retirada: el módulo solo guarda factura firmada y firma
+        raise HttpError(422, "Las fotos adicionales ya no se aceptan: solo factura firmada y firma.")
     if kind not in EVIDENCE_KINDS:
         raise HttpError(400, f"kind debe ser uno de: {', '.join(EVIDENCE_KINDS)}")
     if mime not in EVIDENCE_MIME:

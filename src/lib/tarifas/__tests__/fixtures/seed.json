@@ -3779,6 +3779,11 @@
       "block_on_loss": false
     }
   ],
+  "proformas": [],
+  "proformaItems": [],
+  "proformaPhases": [],
+  "proformaFlowPhases": [],
+  "proformaEmailConfigs": [],
   "auditLog": [],
   "tripOrders": [
     {
@@ -3836,5 +3841,6 @@
       "mark_reason": null
     }
   ],
-  "tripOrderMarks": []
+  "tripOrderMarks": [],
+  "tripTenderAwards": []
 }

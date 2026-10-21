@@ -30,7 +30,7 @@ export const BASE_METHODS: Record<BaseMethodId, BaseMethodMeta> = {
   PER_UNIT: { label: 'Por unidad', hint: 'Paradas, peso u horas × valor por unidad' },
   FIXED: { label: 'Tarifa fija', hint: 'Un monto por viaje o por zona' },
   VOLUME: { label: 'Por volumen', hint: 'Volumen del camión × valor' },
-  TENDERING: { label: 'Tendering', hint: 'Se asigna por licitación' },
+  TENDERING: { label: 'Tendering', hint: 'Monto adjudicado al viaje por licitación' },
 };
 
 export const BASE_METHOD_ORDER: readonly BaseMethodId[] = ['PER_KM', 'PER_UNIT', 'FIXED', 'VOLUME', 'TENDERING'];
@@ -38,7 +38,8 @@ export const BASE_METHOD_ORDER: readonly BaseMethodId[] = ['PER_KM', 'PER_UNIT',
 export { classifyExpr, type ExprKind };
 
 export const NO_DATA = 'No hay información para este cálculo.';
-const TENDERING_PENDING = 'Todavía no tiene un cálculo definido.';
+// Tendering no se elige como base de un viaje ni sale de reglas: el monto es el adjudicado a ESE viaje.
+const TENDERING_PENDING = 'Se calcula con el monto adjudicado al viaje (no sale de reglas ni se elige como base).';
 
 export interface BaseMethodOption extends BaseMethodMeta {
   id: BaseMethodId;
@@ -212,6 +213,8 @@ export function sourceSentence(source: BaseSource): string {
       return 'Este cálculo está basado en la estructura de costos de la compañía.';
     case 'RATE_TABLE':
       return `Este cálculo está basado en el tarifario ${source.ref}.`;
+    case 'TENDER':
+      return 'Este cálculo está basado en el monto adjudicado al viaje por tendering.';
     default:
       return `Este cálculo está basado en la ${source.label.charAt(0).toLowerCase()}${source.label.slice(1)}.`;
   }

@@ -1,72 +1,36 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { bindPoller, emptySnapshot, POLL_INTERVAL_MS, REQUEST_TIMEOUT_MS, type Poller, type Snapshot } from './polling-runner';
 
-export const POLL_INTERVAL_MS = 10_000;
+export { MAX_BACKOFF_MS, POLL_INTERVAL_MS, REQUEST_TIMEOUT_MS } from './polling-runner';
 
-export interface PollingState<T> {
-  data: T | null;
-  error: Error | null;
-  loading: boolean;
-  updatedAt: number | null;
-  refresh: () => Promise<void>;
+export interface PollingState<T> extends Snapshot<T> {
+  refresh: () => void;
+}
+
+interface Options {
+  enabled?: boolean;
+  intervalMs?: number;
+  timeoutMs?: number;
 }
 
 /**
- * Consulta `fetcher` al montar, cada `intervalMs` y al volver a la pestaña. Se pausa con la pestaña
- * oculta. Descarta respuestas viejas (si cambian las deps mientras una consulta vuela). Con `enabled`
- * en false no consulta y limpia el dato.
+ * Consulta `fetcher` al montar, cada `intervalMs` y al volver a la pestaña; se pausa con la pestaña oculta.
+ * Una sola consulta en vuelo, timeout con abort, espera creciente ante errores y, al cambiar las deps, limpia
+ * el dato anterior (no se muestra el de otra consulta). La lógica vive en `polling-runner.ts`.
  */
 export function usePolling<T>(
-  fetcher: () => Promise<T>,
+  fetcher: (signal: AbortSignal) => Promise<T>,
   deps: readonly unknown[],
-  { enabled = true, intervalMs = POLL_INTERVAL_MS, clock = Date.now }: { enabled?: boolean; intervalMs?: number; clock?: () => number } = {},
+  { enabled = true, intervalMs = POLL_INTERVAL_MS, timeoutMs = REQUEST_TIMEOUT_MS }: Options = {},
 ): PollingState<T> {
-  const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState<Error | null>(null);
-  const [loading, setLoading] = useState(enabled);
-  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
-  const ticket = useRef(0);
+  const [state, setState] = useState<Snapshot<T>>(() => emptySnapshot<T>(enabled));
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
-  const clockRef = useRef(clock);
-  clockRef.current = clock;
+  const poller = useRef<Poller | null>(null);
 
-  const invalidate = useCallback(() => { ticket.current += 1; }, []);
-  const run = useCallback(async () => {
-    const mine = ++ticket.current;
-    try {
-      const result = await fetcherRef.current();
-      if (mine !== ticket.current) return;
-      setData(result);
-      setError(null);
-      setUpdatedAt(clockRef.current());
-    } catch (err) {
-      if (mine !== ticket.current) return;
-      setError(err instanceof Error ? err : new Error(String(err)));
-    } finally {
-      if (mine === ticket.current) setLoading(false);
-    }
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => bindPoller(poller, { fetcher: fetcherRef, enabled, intervalMs, timeoutMs, setState }), [enabled, intervalMs, timeoutMs, ...deps]);
+  const refresh = useCallback(() => poller.current?.refresh(), []);
 
-  useEffect(() => {
-    if (!enabled) {
-      invalidate();
-      setData(null);
-      setError(null);
-      setLoading(false);
-      return undefined;
-    }
-    setLoading(true);
-    void run();
-    const timer = setInterval(() => { if (!document.hidden) void run(); }, intervalMs);
-    const onVisible = () => { if (!document.hidden) void run(); };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      invalidate();
-      clearInterval(timer);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, intervalMs, run, invalidate, ...deps]);
-
-  return { data, error, loading, updatedAt, refresh: run };
+  return { ...state, refresh };
 }

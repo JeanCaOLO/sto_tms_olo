@@ -94,6 +94,17 @@ Resources:
       Target: !Sub integrations/${TarifasApiIntegration}
 
   # Lecturas por POST: varias consultas en una llamada y consultas largas que no caben en la URL.
+  TarifasProformaDecisionRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/tarifas/proformas/{id}/decision
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${TarifasApiIntegration}
+
   TarifasBatchRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:

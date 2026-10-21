@@ -54,6 +54,7 @@ const TARIFAS_GROUP: MenuGroup = {
   i18nKey: 'menu.tarifas',
   children: [
     { icon: 'ri-money-dollar-circle-line', label: 'Liquidaciones', i18nKey: 'menu.liquidaciones', path: '/liquidaciones', permKey: 'tarifas' },
+    { icon: 'ri-file-list-3-line', label: 'Proformas', i18nKey: 'menu.proformas', path: '/proformas', permKey: 'tarifas.proformas' },
     { icon: 'ri-truck-line', label: 'Costos Flota', i18nKey: 'menu.costosFlota', path: '/tarifas/costos-flota', permKey: 'tarifas.config' },
     { icon: 'ri-price-tag-3-line', label: 'Reglas Tarifa', i18nKey: 'menu.reglasTarifa', path: '/reglas-tarifa', permKey: 'tarifas.config' },
   ],

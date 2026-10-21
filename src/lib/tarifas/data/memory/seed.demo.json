@@ -2436,6 +2436,12 @@
 {"id":"MP_CO","country_id":"22222222-2222-4222-8222-222222222223","warn_below":0.2,"critical_below":0.12,"require_reason_below":0.2,"block_on_loss":true},
 {"id":"MP_CR","country_id":"22222222-2222-4222-8222-222222222221","warn_below":0.18,"critical_below":0.08,"require_reason_below":0.18,"block_on_loss":false}
 ],
+"proformas": [],
+"proformaItems": [],
+"proformaPhases": [],
+"proformaFlowPhases": [],
+"proformaEmailConfigs": [],
+"tripTenderAwards": [],
 "auditLog": [
 {"id":"audit_mv7546m6_fno45b","entity":"settlement","entity_id":"stl_mv7546m6_t12afw","action":"CREATE","user_name":"jaraujo@intelix.biz","role":"Administrador","before":null,"after":{"numero":"LIQ-CR-001","viaje":"R-20260824-01-02","estado":"Borrador","total":"132855","moneda":"CRC","margen":"OK"},"reason":null,"created_at":"2026-10-13T20:35:19.038Z"},
 {"id":"audit_mv7546m6_ld7fev","entity":"settlement","entity_id":"stl_mv7546m6_t12afw","action":"AUTHORIZE","user_name":"jaraujo@intelix.biz","role":"Administrador","before":{"status":"Pagado"},"after":{"status":"Pagado"},"reason":null,"created_at":"2026-10-13T20:35:19.038Z"},

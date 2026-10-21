@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: TMS - TRACKING | Seguimiento en vivo de viajes: posiciones GPS, paradas y evidencias de entrega
+Description: TMS - TRACKING | Monitoreo en vivo de viajes: posiciones GPS, paradas y evidencias de entrega
 
 # Las evidencias de entrega (foto de factura firmada, firma digital) van DIRECTO de la app del chofer a
 # S3 con formularios firmados de vida corta; la Lambda solo firma, valida y guarda la llave en Aurora.
@@ -121,7 +121,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub ${AWS::StackName}-tracking-api
-      Description: TMS - TRACKING API | Viajes en vivo, posiciones GPS, paradas y evidencias
+      Description: TMS - TRACKING API | Monitoreo de viajes, posiciones GPS, paradas y evidencias
       CodeUri: src/
       Handler: app.handler
       Runtime: python3.13
@@ -186,6 +186,17 @@ Resources:
         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
       Target: !Sub integrations/${TrackingApiIntegration}
 
+  TrailRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/v1/tracking/viajes/{id}/recorrido
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${TrackingApiIntegration}
+
   ListPlanificadosRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
@@ -208,27 +219,8 @@ Resources:
         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
       Target: !Sub integrations/${TrackingApiIntegration}
 
-  CompleteViajeRoute:
-    Type: AWS::ApiGatewayV2::Route
-    Properties:
-      ApiId:
-        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
-      RouteKey: POST /api/v1/tracking/viajes/{id}/completar
-      AuthorizationType: CUSTOM
-      AuthorizerId:
-        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
-      Target: !Sub integrations/${TrackingApiIntegration}
-
-  ReviewViajeRoute:
-    Type: AWS::ApiGatewayV2::Route
-    Properties:
-      ApiId:
-        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
-      RouteKey: POST /api/v1/tracking/viajes/{id}/revisar
-      AuthorizationType: CUSTOM
-      AuthorizerId:
-        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
-      Target: !Sub integrations/${TrackingApiIntegration}
+  # Retiradas 2026-10-17: POST /viajes/{id}/completar y /revisar (Tracking solo monitorea; el viaje se cierra
+  # solo al cerrar su última parada). Ver docs/tracking/contrato-api-v2.md "Retirado".
 
   SummaryRoute:
     Type: AWS::ApiGatewayV2::Route
@@ -263,17 +255,6 @@ Resources:
         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
       Target: !Sub integrations/${TrackingApiIntegration}
 
-  StopIncidentRoute:
-    Type: AWS::ApiGatewayV2::Route
-    Properties:
-      ApiId:
-        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
-      RouteKey: POST /api/v1/tracking/paradas/{id}/novedades
-      AuthorizationType: CUSTOM
-      AuthorizerId:
-        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
-      Target: !Sub integrations/${TrackingApiIntegration}
-
   EvidenceUploadRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
@@ -302,17 +283,6 @@ Resources:
       ApiId:
         Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
       RouteKey: GET /api/v1/tracking/mi-viaje
-      AuthorizationType: CUSTOM
-      AuthorizerId:
-        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
-      Target: !Sub integrations/${TrackingApiIntegration}
-
-  StopReturnRoute:
-    Type: AWS::ApiGatewayV2::Route
-    Properties:
-      ApiId:
-        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
-      RouteKey: POST /api/v1/tracking/paradas/{id}/devoluciones
       AuthorizationType: CUSTOM
       AuthorizerId:
         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId

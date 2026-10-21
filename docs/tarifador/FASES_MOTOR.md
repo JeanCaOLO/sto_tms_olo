@@ -2,11 +2,11 @@
 
 Vigente al 2026-10-15. Sustituye al diagrama de `ROADMAP.md` §3 (que ponía el costo después del pipeline).
 
-El tarifador tiene dos motores encadenados, ambos puros (no leen nada del entorno): el **motor de reglas** decide QUÉ reglas aplican a un viaje y el **motor de cálculo** decide CUÁNTO se liquida. Las 5 formas de cobro de la base son: **Por kilómetro, Por unidad, Tarifa fija, Por volumen y Tendering** (Tendering todavía sin cálculo: se muestra deshabilitado y bloquea con motivo).
+El tarifador tiene dos motores encadenados, ambos puros (no leen nada del entorno): el **motor de reglas** decide QUÉ reglas aplican a un viaje y el **motor de cálculo** decide CUÁNTO se liquida. Las 5 formas de cobro de la base son: **Por kilómetro, Por unidad, Tarifa fija, Por volumen y Tendering** (Tendering no es una fórmula: se liquida con el monto adjudicado al viaje, `tarifas_trip_tender_awards`, como tarifa fija; sin adjudicación bloquea con motivo).
 
 ## Antes de calcular (`calculateTrip`, `tripSettlement.ts`)
 1. Perfil del transportista → `partyId`.
-2. Tercero: `carriers.rate_type` (+ `flat_rate_amount`) da la forma de cobro (`resolveCarrierBase`). Sin ella: `BASE_NO_DEFINIDA` (bloquea). Flota propia: siempre su estructura de costos.
+2. Tercero: `carriers.rate_type` (+ `flat_rate_amount`; con `TENDERING`, el monto adjudicado al viaje) da la forma de cobro (`resolveCarrierBase`). Sin ella: `BASE_NO_DEFINIDA` (bloquea). Flota propia: siempre su estructura de costos.
 3. Contrato: `carriers.contract_expiry` contra el día del viaje. Vencido ⇒ aviso `Contrato vencido el …`, **no bloquea**. Se guarda en `TripCalculation.contract` y en el snapshot de la liquidación (`baseChange.contractExpiry`).
 4. Catálogo del país (`catalogLoader.ts`, caché de 5 min): reglas país + globales, tarifarios, estructuras de costos, política de margen.
 5. Armado del input (`settlementInput.ts`): falta una zona ⇒ `BASE_NO_DISPONIBLE`, no corre el motor.
