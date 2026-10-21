@@ -122,6 +122,10 @@ def correr(
                 pedido.dispatch_date, hoy, resolver_config(pedido).dias_prep_picking)
         ]
         liberados, pendientes, prioridades = _liberar(en_ventana)
+
+        # Pasada 3 (reconciliación): re-corre la costura de los 'disparo_pendiente'
+        # que un barrido previo dejó a medias (escritura 1 ok, escritura 2 falló).
+        reconciliados = handoff_pedidos.reconciliar_pendientes(limite=limite)
     except Exception as exc:  # noqa: BLE001 — registra el fallo y re-lanza
         # Best-effort: si la BD está caída, este log también falla (solo CloudWatch).
         oms_log.registrar("barrido", f"Barrido FALLÓ: {exc}", level="error",
@@ -133,10 +137,12 @@ def correr(
         "priorizados": len(pedidos),
         "liberados": liberados,
         "pendientes": pendientes,
+        "reconciliados": reconciliados,
     }
     oms_log.registrar(
         "barrido",
-        f"Barrido: {len(pedidos)} priorizados, {liberados} liberados, {pendientes} pendientes",
+        f"Barrido: {len(pedidos)} priorizados, {liberados} liberados, "
+        f"{pendientes} pendientes, {reconciliados} reconciliados",
         level="warn" if pendientes else "info",
         corrida_id=corrida_id,
         detail=resumen,

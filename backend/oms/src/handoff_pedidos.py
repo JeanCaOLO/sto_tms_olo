@@ -88,14 +88,15 @@ RETURNING id
 
 # Escritura 2 (SIMULADA, temporal): sim_expedicionescabecera en Aurora. TPEXSI='GENE'
 # + PRIORIDAD; TPEXES NO se toca (permanece 'DISP'). Es la costura que mañana se
-# reemplaza por el endpoint EPRAC. UPSERT por la llave EFLOW (idempotente al reintentar).
+# reemplaza por el endpoint EPRAC. UPSERT por la llave EFLOW (pk_sim_expedicionescabecera,
+# idempotente al reintentar). La tabla conserva el esquema eFlow: identificadores en
+# MAYÚSCULA entrecomillada; la marca de escritura es `escrito_en` (default now()).
 SIM_SITUACION_SQL = """
 INSERT INTO sim_expedicionescabecera
-    (eflow_id_almacen, eflow_id_compania, eflow_id_sucursal, eflow_id_expedicion,
-     tpexsi, prioridad, updated_at)
-VALUES (%s, %s, %s, %s, 'GENE', %s, now())
-ON CONFLICT (eflow_id_almacen, eflow_id_compania, eflow_id_sucursal, eflow_id_expedicion)
-DO UPDATE SET tpexsi = excluded.tpexsi, prioridad = excluded.prioridad, updated_at = now()
+    ("IDALMACEN", "IDCOMPANIA", "IDSUCURSAL", "IDEXPEDICION", "TPEXSI", "PRIORIDAD")
+VALUES (%s, %s, %s, %s, 'GENE', %s)
+ON CONFLICT ("IDALMACEN", "IDCOMPANIA", "IDSUCURSAL", "IDEXPEDICION")
+DO UPDATE SET "TPEXSI" = excluded."TPEXSI", "PRIORIDAD" = excluded."PRIORIDAD", escrito_en = now()
 """
 
 # Estado tras la pasada de priorización: ya priorizado, aún NO liberado a eFlow.
@@ -153,6 +154,48 @@ def _escritor_por_defecto() -> EscritorSituacion:
     seleccionado por una variable de entorno de destino, resuelta por el pipeline).
     """
     return SimExpedicionesWriter()
+
+
+# --- Reconciliación: re-ejecuta la escritura 2 de los 'disparo_pendiente' -------
+# Un pedido queda 'disparo_pendiente' cuando la escritura 1 (orders: GENE +
+# oms_processed_at) se hizo pero la escritura 2 (costura) falló. Ya salió de la cola
+# (oms_processed_at sellado), así que el barrido normal NO lo reintenta: esta pasada
+# re-corre la costura por la llave EFLOW y, si pasa, lo deja 'completado'. Idempotente.
+RECONCILIAR_SQL = """
+SELECT eflow_id_almacen, eflow_id_compania, eflow_id_sucursal, eflow_id_expedicion, priority
+FROM orders
+WHERE handoff_status = 'disparo_pendiente'
+ORDER BY oms_processed_at NULLS FIRST
+LIMIT %s
+"""
+
+_COMPLETAR_SQL = """
+UPDATE orders SET handoff_status = 'completado', updated_at = now()
+WHERE eflow_id_almacen = %s AND eflow_id_compania = %s
+  AND eflow_id_sucursal = %s AND eflow_id_expedicion = %s
+"""
+
+
+def reconciliar_pendientes(limite: int = 100, escritor: EscritorSituacion | None = None) -> int:
+    """Re-ejecuta la costura de los pedidos en 'disparo_pendiente'. Devuelve cuántos
+    quedaron 'completado'. En mock es no-op (0). Best-effort por pedido: si la costura
+    de uno vuelve a fallar, se salta (queda pendiente) y sigue con el resto."""
+    if not _modo_live():
+        return 0
+    from tms_common import pg  # import local: el esqueleto corre sin el Layer en tests
+
+    escritor = escritor or _escritor_por_defecto()
+    completados = 0
+    for fila in pg.query(RECONCILIAR_SQL, [limite]):
+        pk = PedidoPK(fila["eflow_id_almacen"], fila["eflow_id_compania"],
+                      fila["eflow_id_sucursal"], fila["eflow_id_expedicion"])
+        try:
+            escritor.marcar_generada(pk, fila["priority"])
+        except Exception:  # noqa: BLE001 — sigue con los demás; este queda pendiente
+            continue
+        pg.query(_COMPLETAR_SQL, [pk.id_almacen, pk.id_compania, pk.id_sucursal, pk.id_expedicion])
+        completados += 1
+    return completados
 
 
 # --- Ventana de liberación (predicado puro, ADR-013) --------------------------
