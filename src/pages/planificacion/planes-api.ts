@@ -53,6 +53,18 @@ export async function generarPlan(planDate: string, ctx: MockContext): Promise<R
   return construirDraft(planDate, ctx);
 }
 
+// Replanifica TODOS los días pendientes (ingesta eFlow + arma cada día). Devuelve
+// qué días se planificaron y cuáles se saltaron por estar ya despachados.
+export async function replanificarTodo(): Promise<{ planificados: string[]; bloqueados: string[] } | null> {
+  try {
+    const { ok, body } = await apiFetch(`${BASE}/replanificar`, { method: 'POST' });
+    if (ok) return (body?.data as { planificados: string[]; bloqueados: string[] }) ?? null;
+  } catch {
+    // sin backend: no hay replan
+  }
+  return null;
+}
+
 export async function listarPlanes(status?: PlanStatus, fecha?: string): Promise<RoutePlan[]> {
   const qs = new URLSearchParams();
   if (status) qs.set('status', status);
