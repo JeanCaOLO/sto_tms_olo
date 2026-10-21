@@ -1,7 +1,6 @@
 // Sección: identificación básica de la regla.
 import Input from '../../../../components/base/Input';
 import Select from '../../../../components/base/Select';
-import type { Stage } from '../../../../lib/tarifas/types';
 import type { CarrierProfile } from '../../../../lib/tarifas/parties';
 
 interface RuleIdentificationSectionProps {
@@ -19,15 +18,6 @@ interface RuleIdentificationSectionProps {
   onCarrierChange: (carrierId: string) => void;
   onPartyIdChange: (partyId: string) => void;
 }
-
-const STAGE_OPTIONS: { value: Stage; label: string }[] = [
-  { value: 'BASE', label: 'Base (precio base de la ruta)' },
-  { value: 'VARIABLE', label: 'Variable (cliente / kg / bulto)' },
-  { value: 'MODIFIER', label: 'Modificador (ajuste por servicio)' },
-  { value: 'SURCHARGE', label: 'Recargo (pernocta, peajes y otros variables propios)' },
-  { value: 'ADJUSTMENT', label: 'Ajuste (descuentos/penalidades)' },
-  { value: 'TAX', label: 'Impuesto' },
-];
 
 export default function RuleIdentificationSection({
   rule,

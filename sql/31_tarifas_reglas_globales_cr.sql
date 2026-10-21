@@ -1,6 +1,7 @@
 -- ============================================================================
 -- 31 — Reglas globales de Costa Rica para el cambio de base al liquidar.
 --
+-- (OBSOLETO como selector: la base ya no se elige al liquidar, ver sql/37.)
 -- 1) Desactiva TODAS las reglas de tarifa existentes (no borra nada: se pueden reactivar).
 -- 2) Crea 4 reglas BASE de alcance COUNTRY (Costa Rica; aplican a todas las compañías), una por
 --    tipo de cobro que el liquidador puede elegir en "Cambiar base": kilómetro, unidad (parada),

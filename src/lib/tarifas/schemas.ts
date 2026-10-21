@@ -3,7 +3,7 @@
 // Puerto literal de vista-tarifas-fase1/src/kernel/schemas.ts.
 
 import { z } from 'zod';
-import { STAGE_ORDER } from './types';
+import { RULE_CATEGORIES, STAGE_ORDER, normalizeStage } from './types';
 
 export const MoneySchema = z
   .string()
@@ -20,9 +20,14 @@ export const DateOnlySchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida: se espera AAAA-MM-DD');
 
-export const StageSchema = z.enum(STAGE_ORDER as [string, ...string[]]) as z.ZodEnum<
-  ['BASE', 'VARIABLE', 'MODIFIER', 'SURCHARGE', 'ADJUSTMENT', 'TAX']
->;
+// Acepta también las etapas viejas (MODIFIER/SURCHARGE) y las pliega a VARIABLE: así se siguen leyendo
+// reglas guardadas antes de la simplificación a 4 fases.
+export const StageSchema = z.preprocess(
+  (raw) => (typeof raw === 'string' ? normalizeStage(raw) : raw),
+  z.enum(STAGE_ORDER as [string, ...string[]]),
+) as unknown as z.ZodType<'BASE' | 'VARIABLE' | 'ADJUSTMENT' | 'TAX'>;
+
+export const RuleCategorySchema = z.enum(RULE_CATEGORIES as [string, ...string[]]);
 
 // Variable personalizada de una compañía. No se puede enumerar en tiempo de compilación (se
 // declaran en caliente), así que se valida por forma; que exista de verdad lo verifica el editor de
@@ -107,10 +112,25 @@ export const ExprSchema: z.ZodType<unknown> = z.lazy(() =>
     z.object({ op: z.literal('MAX'), args: z.array(ExprSchema).min(1) }),
     z.object({ op: z.literal('CLAMP'), value: ExprSchema, min: MoneySchema.optional(), max: MoneySchema.optional() }),
     z.object({ op: z.literal('IF'), cond: PredSchema, then: ExprSchema, else: ExprSchema }),
-  ]),
+  ]).superRefine((expr, ctx) => {
+    const e = expr as { op: string; tiers?: { upTo: number | null }[]; min?: string; max?: string };
+    if (e.op === 'TIERED' && e.tiers) {
+      const abiertos = e.tiers.filter((t) => t.upTo === null).length;
+      if (abiertos > 1) ctx.addIssue({ code: 'custom', message: 'Solo un escalón puede quedar sin límite superior', path: ['tiers'] });
+      const limites = e.tiers.filter((t) => t.upTo !== null).map((t) => t.upTo);
+      if (new Set(limites).size !== limites.length) {
+        ctx.addIssue({ code: 'custom', message: 'Hay escalones con el mismo límite superior', path: ['tiers'] });
+      }
+    }
+    if (e.op === 'CLAMP' && e.min !== undefined && e.max !== undefined && Number(e.min) > Number(e.max)) {
+      ctx.addIssue({ code: 'custom', message: 'El mínimo no puede ser mayor que el máximo', path: ['min'] });
+    }
+  }),
 );
 
 // ── Regla completa ────────────────────────────────────────────────────────────────────────────
+
+const BaseMethodSchema = z.enum(['PER_KM', 'PER_UNIT', 'FIXED', 'VOLUME', 'TENDERING']);
 
 export const RuleSchema = z.object({
   id: z.string().min(1),
@@ -121,9 +141,12 @@ export const RuleSchema = z.object({
   code: z.string().min(1),
   name: z.string().min(1),
   stage: StageSchema,
+  category: RuleCategorySchema.nullable().optional(),
   priority: z.number().int(),
   stacking: z.enum(['SUM', 'MAX', 'EXCLUSIVE']),
   exclusionGroup: z.string().nullable(),
+  appliesToBase: z.array(BaseMethodSchema).nullable().optional(),
+  baseMethod: BaseMethodSchema.nullable().optional(),
   conditions: PredSchema,
   expression: ExprSchema,
   description: z.string().nullable().optional(),
@@ -140,6 +163,18 @@ export const RuleSchema = z.object({
 }).refine(
   (rule) => !rule.effectiveFrom || !rule.effectiveTo || rule.effectiveFrom <= rule.effectiveTo,
   { message: 'La fecha de fin no puede ser anterior a la de inicio.', path: ['effectiveTo'] },
+).refine(
+  // La forma de cobro la define la BASE; un ajuste solo se liga a una (`appliesToBase`).
+  (rule) => rule.stage === 'BASE' ? !(rule.appliesToBase?.length) : !rule.baseMethod,
+  { message: 'La forma de cobro solo se declara en la etapa BASE y el ligado a una base, en los ajustes.', path: ['baseMethod'] },
+).refine(
+  // "Una sola gana" solo tiene sentido en la BASE (una regla de país vs. la de la compañía). En las
+  // demás fases anularía recargos ajenos por accidente: ahí se usa SUM, o MAX con grupo explícito.
+  (rule) => rule.stacking !== 'EXCLUSIVE' || rule.stage === 'BASE',
+  { message: 'EXCLUSIVE solo se permite en la fase BASE; en las demás usá SUM, o MAX con un grupo.', path: ['stacking'] },
+).refine(
+  (rule) => rule.baseMethod !== 'TENDERING',
+  { message: 'Tendering todavía no tiene un cálculo definido.', path: ['baseMethod'] },
 );
 
 export const RuleWithScopeSchema = RuleSchema.refine(

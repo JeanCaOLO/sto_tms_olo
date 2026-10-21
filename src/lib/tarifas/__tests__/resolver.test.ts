@@ -50,7 +50,7 @@ describe('resolveRules — stacking', () => {
 
     const low = makeRule({
       code: 'MAX_LOW',
-      stage: 'SURCHARGE',
+      stage: 'VARIABLE',
       priority: 10,
       stacking: 'MAX',
       exclusionGroup: 'promo',
@@ -58,7 +58,7 @@ describe('resolveRules — stacking', () => {
     });
     const high = makeRule({
       code: 'MAX_HIGH',
-      stage: 'SURCHARGE',
+      stage: 'VARIABLE',
       priority: 20,
       stacking: 'MAX',
       exclusionGroup: 'promo',

@@ -113,6 +113,28 @@ def test_in_vacio_no_trae_nada(api):
     assert "WHERE FALSE" in db.calls[-1][0]
 
 
+def test_ilike_busca_en_varias_columnas_y_escapa_comodines(api):
+    app, db = api
+    q = {"where": [{"column": "guide_number|order_number|customer_name", "op": "ilike", "value": " 50%_a "}],
+         "columns": ["route_id"]}
+    response = call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_v_viaje_pedidos"}, query={"q": json.dumps(q)})
+    assert response["statusCode"] == 200
+    sql, params = db.calls[-1]
+    assert '("guide_number"::text ILIKE %s OR "order_number"::text ILIKE %s OR "customer_name"::text ILIKE %s)' in sql
+    assert params == ["%50\\%\\_a%"] * 3
+
+
+@pytest.mark.parametrize("column,value", [
+    ("guide_number", ""), ("guide_number", "   "), ("guide_number", 5), ("no_existe", "x"),
+    ("guide_number|no_existe", "x"), ("a|b|c|d|e|f|g|h|i", "x"),
+])
+def test_ilike_invalido_es_400(api, column, value):
+    app, db = api
+    q = {"where": [{"column": column, "op": "ilike", "value": value}]}
+    response = call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_v_viaje_pedidos"}, query={"q": json.dumps(q)})
+    assert response["statusCode"] == 400
+
+
 def test_el_limite_tiene_tope(api):
     app, db = api
     call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_settlements"}, query={"q": json.dumps({"limit": 999999})})
@@ -279,11 +301,99 @@ def test_update_no_cambia_el_id_y_404_si_no_existe(api):
          body={"id": "otro", "status": "Anulado"})
     sql, params = db.calls[-1]
     assert sql.startswith('UPDATE "tarifas_settlements" SET "status" = %s::text WHERE "id" = %s::text')
-    assert params == ["Anulado", "s1"]
+    # La transición se valida en el propio UPDATE: último parámetro = estados de origen permitidos.
+    assert params[:2] == ["Anulado", "s1"]
+    assert params[2] == ["Borrador", "En Revisión", "Aprobado", "Pagado"]
 
     db.rows = []
+    # Sin fila afectada: no existe o el estado actual no permite el cambio -> 409 (no 404 a secas).
     assert call(app, "PATCH /api/tarifas/{table}/{id}", path={"table": "tarifas_settlements", "id": "s1"},
-                body={"status": "Anulado"})["statusCode"] == 404
+                body={"status": "Anulado"})["statusCode"] == 409
+    # Una fila de otra tabla sigue dando 404.
+    assert call(app, "PATCH /api/tarifas/{table}/{id}", path={"table": "tarifas_pricing_rules", "id": "r1"},
+                body={"name": "x"})["statusCode"] == 404
+
+
+def test_la_bitacora_toma_el_actor_del_token_no_del_cliente(api):
+    app, db = api
+    falso = {"entity": "settlement", "entity_id": "s1", "action": "CREATE",
+             "user_name": "otro@falso.com", "role": "Administrador", "created_at": "2026-10-15T00:00:00Z"}
+    call(app, "POST /api/tarifas/{table}", path={"table": "tarifas_audit_log"}, body=falso)
+    sql, params = db.calls[-1]
+    cols = [c.strip().strip('"') for c in sql.split("(", 1)[1].split(")", 1)[0].split(",")]
+    sent = dict(zip(cols, params))
+    assert sent["user_name"] == "liquidador@ologistics.com"
+    assert sent["role"] == "Admin"  # el rol del fixture por defecto, no el "Administrador" que mandó el cliente
+
+    # También dentro de una transacción (insert e insert_many).
+    ops = [{"op": "insert", "table": "tarifas_audit_log", "values": falso},
+           {"op": "insert_many", "table": "tarifas_audit_log", "rows": [falso, falso]}]
+    assert call(app, "POST /api/tarifas/tx", body={"ops": ops})["statusCode"] == 200
+    for _, tx_params in db.tx_calls:
+        assert "otro@falso.com" not in tx_params and "Administrador" not in tx_params
+        assert "Admin" in tx_params
+        assert "liquidador@ologistics.com" in tx_params
+
+
+def test_una_lectura_recortada_por_el_tope_lo_avisa(api):
+    app, db = api
+    db.rows = [{"id": str(i)} for i in range(5000)]
+    r = call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_settlements"})
+    assert r["statusCode"] == 200
+    assert r["headers"]["X-Tarifas-Truncated"] == "tarifas_settlements"
+    # Con un limit explícito por debajo del tope no es truncado, aunque devuelva muchas filas.
+    r = call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_settlements"}, query={"q": json.dumps({"limit": 10})})
+    assert "X-Tarifas-Truncated" not in r["headers"]
+    # /batch conserva la forma de lista de resultados.
+    r = call(app, "POST /api/tarifas/batch", body={"queries": [{"table": "tarifas_settlements"}]})
+    assert len(json.loads(r["body"])) == 1 and r["headers"]["X-Tarifas-Truncated"] == "tarifas_settlements"
+
+
+def test_un_rol_acotado_no_crea_ni_vuelve_global_una_fila(api, caller_permissions):
+    app, db = api
+    caller_permissions.set(make_permissions({"tarifas.config": ["view", "create", "edit"]}, countries=(CR,)))
+    table = {"table": "tarifas_pricing_rules"}
+    # Sin país (= regla global) o con country_id null explícito: 403.
+    assert call(app, "POST /api/tarifas/{table}", path=table, body={"name": "x"})["statusCode"] == 403
+    assert call(app, "PATCH /api/tarifas/{table}/{id}", path={**table, "id": "r1"},
+                body={"country_id": None})["statusCode"] == 403
+    # Con su país, bien; y editar otros campos sin tocar country_id también.
+    assert call(app, "POST /api/tarifas/{table}", path=table,
+                body={"name": "x", "country_id": CR})["statusCode"] == 200
+    assert call(app, "PATCH /api/tarifas/{table}/{id}", path={**table, "id": "r1"},
+                body={"name": "y"})["statusCode"] == 200
+
+
+def test_una_liquidacion_emitida_es_inmutable_salvo_su_estado(api):
+    app, db = api
+    before = len(db.calls)
+    for body in ({"total_amount": "1.00"}, {"trace": []}, {"status": "Anulado", "number": "LIQ-X-1"}):
+        r = call(app, "PATCH /api/tarifas/{table}/{id}", path={"table": "tarifas_settlements", "id": "s1"}, body=body)
+        assert r["statusCode"] == 403
+    assert len(db.calls) == before  # ni siquiera llegó a la base
+
+
+def test_la_transicion_se_valida_en_el_update(api):
+    app, db = api
+    call(app, "PATCH /api/tarifas/{table}/{id}", path={"table": "tarifas_settlements", "id": "s1"},
+         body={"status": "Aprobado"})
+    sql, params = db.calls[-1]
+    assert 'AND "status" = ANY(%s::text[]) AND "superseded_by" IS NULL' in sql
+    assert params[2] == ["Borrador", "En Revisión"]
+    # Anular no exige que no haya sido reemplazada.
+    call(app, "PATCH /api/tarifas/{table}/{id}", path={"table": "tarifas_settlements", "id": "s1"},
+         body={"status": "Anulado"})
+    assert '"superseded_by" IS NULL' not in db.calls[-1][0]
+    r = call(app, "PATCH /api/tarifas/{table}/{id}", path={"table": "tarifas_settlements", "id": "s1"},
+             body={"status": "Inventado"})
+    assert r["statusCode"] == 400
+
+
+def test_la_transaccion_tambien_protege_la_liquidacion(api):
+    app, db = api
+    ops = [{"op": "update", "table": "tarifas_settlements", "id": "s1", "values": {"total_amount": "9"}}]
+    assert call(app, "POST /api/tarifas/tx", body={"ops": ops})["statusCode"] == 403
+    assert db.tx_state is None
 
 
 def test_delete_es_204(api):
@@ -427,3 +537,90 @@ def test_pg_conserva_el_sqlstate_de_integridad():
     assert (translated.status, translated.code) == (409, "23503")
     other = pg._database_error(pg8000.dbapi.DatabaseError({"C": "42P01", "M": "no existe"}))
     assert (other.status, other.code) == (500, None)
+
+
+# ── Transacción: insert_many ───────────────────────────────────────────────────────────────────
+
+def _fila(n, **extra):
+    return {"table_id": "t1", "key": [f"Z{n}"], "amount": f"{n}.00", "row_order": n, **extra}
+
+
+def test_insert_many_inserta_cientos_de_filas_en_una_sola_sentencia(api):
+    app, db = api
+    rows = [_fila(n) for n in range(1, 351)]
+    response = call(app, "POST /api/tarifas/tx", body={"ops": [{"op": "insert_many", "table": "tarifas_rate_table_rows", "rows": rows}]})
+    assert response["statusCode"] == 200
+    assert db.tx_state == "commit"
+    assert len(db.tx_calls) == 1
+    sql, params = db.tx_calls[0]
+    assert sql.startswith('INSERT INTO "tarifas_rate_table_rows"') and sql.endswith("RETURNING *")
+    assert sql.count("(%s::") >= 350  # una tupla de placeholders por fila
+    assert len(params) % 350 == 0 and len(params) // 350 == len(rows[0]) + 1  # + el id generado
+
+
+def test_insert_many_conserva_el_orden_y_genera_los_ids(api):
+    app, db = api
+    rows = [_fila(n) for n in (3, 1, 2)]
+    call(app, "POST /api/tarifas/tx", body={"ops": [{"op": "insert_many", "table": "tarifas_rate_table_rows", "rows": rows}]})
+    sql, params = db.tx_calls[0]
+    columns = [c.strip().strip('"') for c in sql.split("(", 1)[1].split(")", 1)[0].split(",")]
+    width = len(columns)
+    per_row = [params[i:i + width] for i in range(0, len(params), width)]
+    order_index = columns.index("row_order")
+    assert [row[order_index] for row in per_row] == [3, 1, 2]
+    id_index = columns.index("id")
+    ids = [row[id_index] for row in per_row]
+    assert all(i.startswith("trow_") or "_" in i for i in ids) and len(set(ids)) == 3
+
+
+def test_insert_many_parte_la_sentencia_si_cambian_las_columnas(api):
+    app, db = api
+    rows = [_fila(1), _fila(2), _fila(3, active=True), _fila(4, active=True), _fila(5)]
+    call(app, "POST /api/tarifas/tx", body={"ops": [{"op": "insert_many", "table": "tarifas_rate_table_rows", "rows": rows}]})
+    assert len(db.tx_calls) == 3
+    assert [sql.count("(%s::") > 0 for sql, _ in db.tx_calls] == [True, True, True]
+
+
+def test_insert_many_parte_por_tope_de_parametros(api, monkeypatch):
+    app, db = api
+    import tarifas_sql
+    monkeypatch.setattr(tarifas_sql, "MAX_PARAMS", 20)
+    rows = [_fila(n) for n in range(1, 11)]
+    call(app, "POST /api/tarifas/tx", body={"ops": [{"op": "insert_many", "table": "tarifas_rate_table_rows", "rows": rows}]})
+    assert len(db.tx_calls) > 1
+    assert all(len(params) <= 20 for _, params in db.tx_calls)
+    assert sum(len(params) for _, params in db.tx_calls) == sum(len(_fila(n)) + 1 for n in range(1, 11))
+
+
+@pytest.mark.parametrize("rows", [[], None, "x", [{}], ["no es objeto"]])
+def test_insert_many_rechaza_filas_invalidas(api, rows):
+    app, db = api
+    response = call(app, "POST /api/tarifas/tx", body={"ops": [{"op": "insert_many", "table": "tarifas_rate_table_rows", "rows": rows}]})
+    assert response["statusCode"] == 400 and db.tx_calls == []
+
+
+def test_insert_many_tiene_tope_de_filas(api):
+    app, db = api
+    rows = [_fila(n) for n in range(1, 5002)]
+    response = call(app, "POST /api/tarifas/tx", body={"ops": [{"op": "insert_many", "table": "tarifas_rate_table_rows", "rows": rows}]})
+    assert response["statusCode"] == 400 and db.tx_calls == []
+
+
+def test_insert_many_valida_columnas_modulo_y_tablas_externas(api, caller_permissions):
+    app, db = api
+    ok_op = {"op": "insert_many", "table": "tarifas_rate_table_rows", "rows": [_fila(1, no_existe=1)]}
+    assert call(app, "POST /api/tarifas/tx", body={"ops": [ok_op]})["statusCode"] == 400
+    externa = {"op": "insert_many", "table": "tarifas_v_viajes", "rows": [{"status": "x"}]}
+    assert call(app, "POST /api/tarifas/tx", body={"ops": [externa]})["statusCode"] == 405
+    caller_permissions.set(make_permissions({"tarifas": ["view", "create"]}))
+    sin_modulo = {"op": "insert_many", "table": "tarifas_rate_table_rows", "rows": [_fila(1)]}
+    assert call(app, "POST /api/tarifas/tx", body={"ops": [sin_modulo]})["statusCode"] == 403
+    assert db.tx_calls == []
+
+
+def test_insert_many_no_escribe_en_un_pais_ajeno(api, caller_permissions):
+    app, db = api
+    caller_permissions.set(make_permissions({"tarifas.config": "*"}, countries=(CR,)))
+    op = {"op": "insert_many", "table": "tarifas_pricing_rules", "rows": [{"code": "A", "country_id": CR}, {"code": "B", "country_id": "otro"}]}
+    response = call(app, "POST /api/tarifas/tx", body={"ops": [op]})
+    assert response["statusCode"] == 403 and db.tx_calls == []

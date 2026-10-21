@@ -33,6 +33,8 @@ yarn-error.log*
 .env.local
 .env.*.local
 *.local
+.env.local.bak
+*.env.bak
 
 # Buffer local de traspaso de mensajes a Kiro (scratch de sesión, no es artefacto del proyecto)
 /mensajes para kiro.md

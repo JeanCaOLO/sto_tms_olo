@@ -1,6 +1,7 @@
 // Filtrado, ordenamiento y stacking de reglas. Decide cuáles reglas aplican y en qué orden.
 
 import { evaluatePred } from '../evaluator';
+import { findRuleConflicts, type RuleConflict } from '../ruleConflicts';
 import type {
   CalculateInput, DiscardedRule, Rule, Stage,
 } from '../types';
@@ -21,6 +22,8 @@ export interface ResolveResult {
   candidates: Rule[];
   discarded: DiscardedRule[];
   warnings: string[];
+  /** Reglas que se pisan o hacen lo mismo entre las que aplican a este viaje (ver `ruleConflicts`). */
+  conflicts: RuleConflict[];
 }
 
 /** Índice de la etapa en el orden oficial. */
@@ -37,7 +40,7 @@ function scopeRank(rule: Rule): number {
  * Orden TOTAL: etapa → prioridad → alcance → código.
  * Garantiza determinismo sin depender del orden de la base de datos.
  */
-function compareRules(a: Rule, b: Rule): number {
+export function compareRules(a: Rule, b: Rule): number {
   const byStage = stageIndex(a.stage) - stageIndex(b.stage);
   if (byStage !== 0) return byStage;
   const byPriority = a.priority - b.priority;
@@ -203,5 +206,6 @@ export function resolveRules(
 
   const applied = winners.sort(compareRules);
 
-  return { applied, candidates: [...matched].sort(compareRules), discarded, warnings };
+  // Solo entre las que SÍ aplican: dos reglas con el mismo código y condiciones excluyentes no se pisan.
+  return { applied, candidates: [...matched].sort(compareRules), discarded, warnings, conflicts: findRuleConflicts(matched) };
 }

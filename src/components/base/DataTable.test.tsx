@@ -1,8 +1,8 @@
-// @vitest-environment jsdom
+﻿// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, it, expect } from 'vitest';
 import { render, screen, fireEvent, within, cleanup } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import DataTable, { type DataTableColumn } from './DataTable';
 
 afterEach(cleanup);
@@ -39,7 +39,7 @@ describe('DataTable filtro por columna', () => {
     const filterIcon = document.querySelector('.ri-filter-3-fill')!.closest('button')!;
     fireEvent.click(filterIcon);
     // En el menú, marcar EPA.
-    const menu = document.querySelector('.absolute.z-20')!;
+    const menu = document.querySelector('.fixed.z-50')!;
     const epaCheckbox = within(menu as HTMLElement).getByLabelText('EPA');
     fireEvent.click(epaCheckbox);
     // La tabla ahora muestra solo EPA, ninguna fila Cofersa en el cuerpo.
@@ -74,7 +74,7 @@ describe('DataTable filtro Cliente con accessor anidado + paginación', () => {
     // Ícono de filtro de la columna Cliente (única filterable).
     const filterIcon = document.querySelector('.ri-filter-3-fill')!.closest('button') as HTMLElement;
     fireEvent.click(filterIcon);
-    const menu = document.querySelector('.absolute.z-20') as HTMLElement;
+    const menu = document.querySelector('.fixed.z-50') as HTMLElement;
     expect(menu).not.toBeNull();
     const epaLabel = within(menu).getByText('EPA').closest('label')!;
     fireEvent.click(within(epaLabel).getByRole('checkbox'));
@@ -221,5 +221,72 @@ describe('DataTable maxVisibleRows (scroll interno)', () => {
     const menu = document.querySelector('.fixed.z-50') as HTMLElement;
     expect(menu).not.toBeNull();
     expect(document.querySelector('table')!.contains(menu)).toBe(false);
+  });
+
+  it('también sin scroll interno: el filtro y el menú de columnas salen de la tabla (no se recortan)', () => {
+    renderWithRouter(<DataTable data={points} columns={pointCols} getRowId={(p) => p.id} columnsKey="t" />);
+    fireEvent.click(document.querySelector('.ri-filter-3-fill')!.closest('button') as HTMLElement);
+    const menu = document.querySelector('.fixed.z-50') as HTMLElement;
+    expect(menu).not.toBeNull();
+    expect(menu.parentElement).toBe(document.body);
+    fireEvent.click(document.querySelector('.ri-layout-column-line')!.closest('button') as HTMLElement);
+    expect(document.querySelectorAll('.fixed.z-50').length).toBe(2);
+  });
+});
+
+describe('DataTable selección de filas', () => {
+  function Harness({ blocked = [] as string[] }: { blocked?: string[] }) {
+    const [selected, setSelected] = useState<Set<string>>(new Set());
+    return (
+      <DataTable
+        data={rows}
+        columns={columns}
+        getRowId={(r) => r.id}
+        selection={{
+          selected,
+          onChange: setSelected,
+          disabledReason: (r) => (blocked.includes(r.id) ? 'Bloqueada' : null),
+          bar: (ids) => <button type="button">Acción sobre {ids.join(',')}</button>,
+        }}
+      />
+    );
+  }
+
+  it('sin la prop no hay casillas', () => {
+    renderTable();
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+  });
+
+  it('la barra aparece solo con filas marcadas y recibe sus ids', () => {
+    renderWithRouter(<Harness />);
+    expect(screen.queryByRole('toolbar')).toBeNull();
+    fireEvent.click(screen.getByLabelText('Marcar fila 1'));
+    fireEvent.click(screen.getByLabelText('Marcar fila 3'));
+    expect(screen.getByText('2 seleccionados')).toBeTruthy();
+    expect(screen.getByText('Acción sobre 1,3')).toBeTruthy();
+    fireEvent.click(screen.getByText('Quitar selección'));
+    expect(screen.queryByRole('toolbar')).toBeNull();
+  });
+
+  it('la casilla del encabezado marca la página y salta las filas deshabilitadas', () => {
+    renderWithRouter(<Harness blocked={['2']} />);
+    const blockedBox = screen.getByLabelText('Marcar fila 2') as HTMLInputElement;
+    expect(blockedBox.disabled).toBe(true);
+    expect(blockedBox.title).toBe('Bloqueada');
+    fireEvent.click(screen.getByLabelText('Marcar las filas de esta página'));
+    expect(screen.getByText('Acción sobre 1,3')).toBeTruthy();
+    fireEvent.click(screen.getByLabelText('Marcar las filas de esta página'));
+    expect(screen.queryByRole('toolbar')).toBeNull();
+  });
+
+  it('una fila marcada que un filtro oculta ya no cuenta para la acción en lote', () => {
+    renderWithRouter(<Harness />);
+    fireEvent.click(screen.getByLabelText('Marcar fila 1')); // Cofersa
+    fireEvent.click(screen.getByLabelText('Marcar fila 3')); // EPA
+    expect(screen.getByText('Acción sobre 1,3')).toBeTruthy();
+    fireEvent.click(document.querySelector('.ri-filter-3-fill')!.closest('button')!);
+    fireEvent.click(within(document.querySelector('.fixed.z-50') as HTMLElement).getByLabelText('EPA')); // solo EPA
+    expect(screen.getByText('1 seleccionado')).toBeTruthy();
+    expect(screen.getByText('Acción sobre 3')).toBeTruthy();
   });
 });

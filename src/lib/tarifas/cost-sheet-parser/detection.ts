@@ -2,7 +2,7 @@
 
 import type { CostDriver } from '../types';
 import type { SheetMatrix } from './types';
-import { isBlank, looksNumeric, text } from './utils';
+import { isBlank, looksLikeNumber, text } from './utils';
 
 /**
  * Busca la fila de encabezado.
@@ -12,11 +12,11 @@ import { isBlank, looksNumeric, text } from './utils';
 export function detectHeaderRow(matrix: SheetMatrix): number {
   for (let i = 0; i < Math.min(matrix.length - 1, 25); i += 1) {
     const row = matrix[i] ?? [];
-    const textCells = row.filter((c) => !isBlank(c) && !looksNumeric(c));
+    const textCells = row.filter((c) => !isBlank(c) && !looksLikeNumber(c));
     if (textCells.length < 2) continue;
 
     const next = matrix[i + 1] ?? [];
-    if (next.some((c) => looksNumeric(c))) return i;
+    if (next.some((c) => looksLikeNumber(c))) return i;
   }
   return -1;
 }

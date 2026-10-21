@@ -51,6 +51,7 @@ export default function MargenPolicyTab({ organizationId, countryId }: MargenPol
   const [policies, setPolicies] = useState<MarginPolicyRow[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -85,6 +86,7 @@ export default function MargenPolicyTab({ organizationId, countryId }: MargenPol
     const invalid = validateThresholds(form.warn_below, form.critical_below);
     if (invalid) { setError(invalid); return; }
     setSaving(true);
+    setSaved(false);
     setError('');
     try {
       const { error: saveError } = await saveMarginPolicy(organizationId, {
@@ -95,7 +97,7 @@ export default function MargenPolicyTab({ organizationId, countryId }: MargenPol
         block_on_loss: current ? !!current.block_on_loss : form.block_on_loss,
       }, current?.id);
       if (saveError) setError(saveError.message);
-      else await load();
+      else { await load(); setSaved(true); }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo guardar la alerta de auditoría.');
     } finally {
@@ -135,9 +137,10 @@ export default function MargenPolicyTab({ organizationId, countryId }: MargenPol
           />
         </div>
         {error && <p role="alert" className="text-xs text-red-600 mt-3">{error}</p>}
+        {saved && !error && <p role="status" className="text-xs text-emerald-700 mt-3">Umbrales guardados.</p>}
         <div className="pt-4 mt-4 border-t border-slate-200">
           <Button onClick={handleSave} disabled={saving || !countryId || !canEdit} title={!canEdit ? 'Tu rol no puede editar la alerta' : undefined}>
-            {saving ? 'Guardando...' : current ? 'Actualizar' : 'Guardar'}
+            {saving ? 'Guardando...' : 'Guardar umbrales'}
           </Button>
         </div>
         {!current && (

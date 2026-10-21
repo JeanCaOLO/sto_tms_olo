@@ -23,7 +23,9 @@ export function useZonasNombre() {
   }, []);
 
   // Nombre de la zona para un código; si no hay match, devuelve el código tal cual.
-  const nombreDe = (codigo: string): string => porCodigo[codigo] ?? codigo;
+  // 'RETIRA' es la zona especial de cliente-retira (sin camión), no un código real.
+  const nombreDe = (codigo: string): string =>
+    codigo === 'RETIRA' ? 'Cliente Retira' : (porCodigo[codigo] ?? codigo);
 
   return { nombreDe };
 }

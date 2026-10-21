@@ -38,4 +38,6 @@ export interface RateTableProblem {
 export interface ParsedRateTable {
   rows: ParsedRateTableRow[];
   skipped: RateTableProblem[];
+  /** Filas que SÍ se importan pero con algo que conviene revisar (p. ej. un importe de miles ambiguo). */
+  warnings?: RateTableProblem[];
 }

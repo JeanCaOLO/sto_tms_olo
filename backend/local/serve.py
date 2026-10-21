@@ -32,9 +32,11 @@ STACKS = {
     "planning": BACKEND / "planning" / "src",
     "tarifas": BACKEND / "tarifas" / "src",
     "oms": BACKEND / "oms" / "src",
+    "tracking": BACKEND / "tracking" / "src",
+    "eflow_sim": BACKEND / "eflow-sim" / "src",
 }
 AUTHORIZER = BACKEND / "common-services" / "src" / "authorizer" / "app.py"
-PUBLIC_STACKS = {"eflow"}
+PUBLIC_STACKS = {"eflow", "eflow_sim"}
 PUBLIC_ROUTES = {"POST /api/auth/login"}
 DEFAULT_PORT = 4000
 # Lambda atiende una request por contenedor y tms_common reutiliza UNA conexión

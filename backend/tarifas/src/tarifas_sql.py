@@ -26,8 +26,28 @@ from tms_common.errors import HttpError
 from tarifas_schema import Table, quote
 
 MAX_ROWS = 5000  # tope por consulta: protege a la Lambda de un find() sin límite
-OPERATORS = {"eq", "neq", "in", "gt", "gte", "lt", "lte", "isNull", "notNull"}
+MAX_INSERT_ROWS = 5000  # filas de una operación `insert_many`
+MAX_PARAMS = 30000  # parámetros por sentencia (el protocolo de Postgres admite 65535)
+OPERATORS = {"eq", "neq", "in", "gt", "gte", "lt", "lte", "isNull", "notNull", "ilike"}
 COMPARISONS = {"gt": ">", "gte": ">=", "lt": "<", "lte": "<="}
+MAX_ILIKE_COLUMNS = 8  # columnas de una búsqueda `a|b|c`
+
+
+def _ilike(table: Table, column: str, value) -> tuple[str, list]:
+    """Contiene el texto (sin distinguir mayúsculas). `column` puede ser `a|b|c`: basta que una coincida.
+
+    Los comodines del cliente (`%`, `_`, `\\`) se escapan: se busca el texto tal cual.
+    """
+    if not isinstance(value, str) or not value.strip():
+        raise HttpError(400, f'"ilike" sobre "{column}" requiere un texto no vacío')
+    names = column.split("|")
+    if len(names) > MAX_ILIKE_COLUMNS:
+        raise HttpError(400, f'"ilike" admite hasta {MAX_ILIKE_COLUMNS} columnas')
+    for name in names:
+        table.cast(name)  # valida la columna
+    escaped = value.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    clauses = [f"{quote(name)}::text ILIKE %s" for name in names]
+    return "(" + " OR ".join(clauses) + ")", [f"%{escaped}%"] * len(names)
 
 
 def param(table: Table, column: str, value):
@@ -51,9 +71,11 @@ def _condition(table: Table, condition: dict) -> tuple[str, list]:
     column, op = condition.get("column"), condition.get("op")
     if op not in OPERATORS:
         raise HttpError(400, f'Operador no soportado: "{op}"')
+    value = condition.get("value")
+    if op == "ilike":
+        return _ilike(table, str(column), value)
     cast = table.cast(str(column))  # valida la columna
     col = quote(column)
-    value = condition.get("value")
 
     if op == "isNull":
         return f"{col} IS NULL", []
@@ -215,6 +237,82 @@ def build_insert(table: Table, values) -> tuple[str, list]:
     return f"INSERT INTO {quote(table.name)} ({column_list}) VALUES ({placeholders}) RETURNING *", params
 
 
+def build_insert_many(table: Table, rows) -> list[tuple[str, list]]:
+    """Inserta muchas filas con pocas sentencias: un `INSERT ... VALUES (...), (...)` por tanda.
+
+    Cada fila pasa por las mismas validaciones y el mismo id que `build_insert`. Las filas con las mismas
+    columnas, seguidas, comparten sentencia (el importador de tarifarios manda cientos iguales); se
+    corta además para no pasar de `MAX_PARAMS` parámetros. El orden de las filas se conserva."""
+    if not isinstance(rows, list) or not rows:
+        raise HttpError(400, '"rows" debe ser una lista no vacía de filas')
+    if len(rows) > MAX_INSERT_ROWS:
+        raise HttpError(400, f'"insert_many" admite hasta {MAX_INSERT_ROWS} filas por operación')
+    pk = table.primary_key
+    prepared = []
+    for values in rows:
+        row = dict(_values(table, values))
+        if row.get(pk) in (None, ""):
+            if table.column_type(pk) != "text":
+                raise HttpError(400, f'"{table.name}" requiere el id')
+            row[pk] = new_id(table.id_prefix)
+        prepared.append(row)
+
+    statements: list[tuple[str, list]] = []
+    start = 0
+    while start < len(prepared):
+        columns = list(prepared[start])
+        per_chunk = max(1, MAX_PARAMS // len(columns))
+        end = start
+        while end < len(prepared) and end - start < per_chunk and list(prepared[end]) == columns:
+            end += 1
+        chunk = prepared[start:end]
+        column_list = ", ".join(quote(c) for c in columns)
+        one = "(" + ", ".join(placeholder(table, c) for c in columns) + ")"
+        params = [param(table, c, row[c]) for row in chunk for c in columns]
+        statements.append((
+            f"INSERT INTO {quote(table.name)} ({column_list}) VALUES {', '.join([one] * len(chunk))} RETURNING *",
+            params,
+        ))
+        start = end
+    return statements
+
+
+# ── Liquidaciones emitidas: inmutables salvo su ciclo de vida ──────────────────────────────────
+# El total, el desglose, el número y el viaje de una liquidación no se editan nunca: lo único que
+# cambia después de emitirla es su estado (y el motivo de margen / la marca de reemplazo que lo
+# acompañan). Antes el servidor aceptaba cualquier columna de cualquier PATCH y confiaba en que el
+# cliente respetara `statusTransitions.ts`; ahora lo hace cumplir, y la transición se valida en el
+# propio UPDATE (WHERE status = ANY(origenes)), de modo que dos usuarios a la vez no pisan la regla.
+SETTLEMENTS_TABLE = "tarifas_settlements"
+SETTLEMENT_MUTABLE_COLUMNS = frozenset({"status", "margin_reason", "superseded_by", "updated_at"})
+# Espejo de ALLOWED_TRANSITIONS en src/lib/tarifas/settlements/statusTransitions.ts.
+SETTLEMENT_TRANSITIONS = {
+    "Borrador": ("En Revisión", "Aprobado", "Pagado", "Anulado"),
+    "En Revisión": ("Borrador", "Aprobado", "Pagado", "Anulado"),
+    "Aprobado": ("Pagado", "Anulado", "En Revisión"),
+    "Pagado": ("Anulado",),
+    "Anulado": (),
+}
+
+
+def _settlement_guard(fields: dict) -> tuple[str, list] | None:
+    """Cláusula extra del UPDATE de una liquidación (o None si el cambio no toca el estado)."""
+    frozen = sorted(set(fields) - SETTLEMENT_MUTABLE_COLUMNS)
+    if frozen:
+        raise HttpError(403, f"Una liquidación emitida es inmutable: no se puede modificar {', '.join(frozen)}.")
+    if "status" not in fields:
+        return None
+    target = fields["status"]
+    if target not in SETTLEMENT_TRANSITIONS:
+        raise HttpError(400, f'Estado de liquidación desconocido: "{target}".')
+    origins = [origin for origin, allowed in SETTLEMENT_TRANSITIONS.items() if target in allowed]
+    clause = f"{quote('status')} = ANY(%s::text[])"
+    if target != "Anulado":
+        # Una liquidación reemplazada al re-liquidar solo puede quedar anulada, nunca reactivarse.
+        clause += f" AND {quote('superseded_by')} IS NULL"
+    return clause, [origins]
+
+
 def build_update(table: Table, row_id: str, values, countries: tuple[str, ...] | None) -> tuple[str, list]:
     pk = table.primary_key
     # El id nunca se reemplaza desde el payload (mismo criterio que el driver JSON).
@@ -223,6 +321,10 @@ def build_update(table: Table, row_id: str, values, countries: tuple[str, ...] |
         raise HttpError(400, "update requiere al menos un campo además del id")
     set_clause = ", ".join(f"{quote(c)} = {placeholder(table, c)}" for c in fields)
     where, where_params = build_where(table, [{"column": pk, "op": "eq", "value": row_id}], countries)
+    extra = _settlement_guard(fields) if table.name == SETTLEMENTS_TABLE else None
+    if extra:
+        where = f"{where} AND {extra[0]}"
+        where_params = where_params + extra[1]
     params = [param(table, c, v) for c, v in fields.items()] + where_params
     return f"UPDATE {quote(table.name)} SET {set_clause} WHERE {where} RETURNING *", params
 

@@ -19,6 +19,7 @@ class Pedido:
     order_number: str | None = None
     customer_id: str | None = None
     customer_name: str | None = None
+    delivery_address: str | None = None
     delivery_zone: str | None = None
     delivery_city: str | None = None
     delivery_latitude: float | None = None
@@ -57,6 +58,7 @@ class Parada:
     stop_order: int
     order_number: str | None = None
     customer_name: str | None = None
+    delivery_address: str | None = None
     delivery_city: str | None = None
     delivery_zone: str | None = None
     delivery_latitude: float | None = None

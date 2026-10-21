@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import pg from 'pg';
 import * as XLSX from 'xlsx';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { db, setDataSource } from '../data';
 import { PgDataSource } from './helpers/pgDataSource';
 import { applyCostTemplate, activeStructure, listRows } from '../costStructureDataSource';
@@ -93,6 +93,12 @@ describe.skipIf(!enabled)('Carga de la estructura de costos de Costa Rica en Aur
     await client.query('BEGIN');
     setDataSource(new PgDataSource(client));
     countryId = (await db().find('country', { where: [{ column: 'name', op: 'eq', value: 'Costa Rica' }] }))[0].id;
+  });
+
+  // El setup global (`src/test/setupTarifas.ts`) vuelve al almacén en memoria antes de cada prueba:
+  // aquí se vuelve a fijar la conexión real.
+  beforeEach(() => {
+    setDataSource(new PgDataSource(client));
   });
 
   afterAll(async () => {

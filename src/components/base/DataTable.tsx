@@ -21,6 +21,16 @@ export interface DataTableColumn<T> {
   cellClassName?: string;
 }
 
+/** Selección de filas (opcional): casilla por fila y una barra de acciones que aparece con filas marcadas. */
+export interface RowSelection<T> {
+  selected: Set<string>;
+  onChange: (next: Set<string>) => void;
+  /** Motivo por el que una fila no se puede marcar (queda deshabilitada y lo muestra); null = se puede. */
+  disabledReason?: (row: T) => string | null;
+  /** Acciones de la barra, solo visibles con filas marcadas. Recibe los ids marcados. */
+  bar: (ids: string[]) => ReactNode;
+}
+
 interface DataTableProps<T> {
   data: T[];
   columns: DataTableColumn<T>[];
@@ -40,6 +50,10 @@ interface DataTableProps<T> {
   // Opcional: se llama tras exportar (para auditar el evento export). Recibe el
   // número de filas exportadas.
   onExport?: (rows: number) => void;
+  // Opcional: reemplaza la descarga por defecto (una hoja plana con las columnas). Recibe las filas ya
+  // filtradas y ordenadas y las columnas que se ven (en su orden, sin las ocultas); quien lo pasa arma y
+  // baja el archivo y avisa sus propios errores. La auditoría del export se mantiene.
+  exportHandler?: (rows: T[], columns: DataTableColumn<T>[]) => void | Promise<void>;
   // Opcional: activa "Columnas" (ocultar y reordenar) y recuerda la elección en este navegador bajo
   // esta clave. Sin ella la tabla se comporta como siempre.
   columnsKey?: string;
@@ -51,6 +65,11 @@ interface DataTableProps<T> {
   // Opcional: oculta el buscador interno (búsqueda en memoria). Úsalo cuando la pantalla hace la
   // búsqueda del lado del servidor y el buscador interno (que solo ve las filas cargadas) confundiría.
   hideSearch?: boolean;
+  // Opcional: avisa el texto buscado (sin demorar el filtro local) para que la pantalla lo amplíe con
+  // datos que la fila no trae, como la búsqueda por pedido o guía en el servidor.
+  onSearchChange?: (term: string) => void;
+  // Opcional: filas que también cuentan como coincidencia (se SUMAN al filtro local por columnas).
+  extraMatch?: (row: T) => boolean;
   // Opcional: filas que se pueden extender. Si devuelve contenido, la fila lleva un botón para
   // desplegarlo debajo (por ejemplo, el detalle de un viaje).
   renderExpanded?: (row: T) => ReactNode;
@@ -61,6 +80,8 @@ interface DataTableProps<T> {
   // Opcional: filtros de columna ya aplicados al abrir la tabla ({ clave: [valores visibles] }). El
   // usuario puede quitarlos desde el encabezado de la columna.
   initialColumnFilters?: Record<string, string[]>;
+  // Opcional: activa la selección de filas (casillas + barra de acciones). Sin ella la tabla no cambia.
+  selection?: RowSelection<T>;
 }
 
 export interface ColumnLayout {
@@ -113,8 +134,9 @@ function ColumnFilterMenu<T>({
   selected: Set<string> | null;
   onChange: (values: Set<string> | null) => void;
   onClose: () => void;
-  /** Si viene, el menú se dibuja flotando en el <body> bajo este punto (tablas con scroll interno). */
-  anchor?: DOMRect | null;
+  /** Botón que lo abre. El menú se dibuja siempre flotando en el <body> bajo este punto, para que ni el
+   *  `overflow` de la tabla ni el de la tarjeta lo recorten (con la tabla angosta quedaba escondido). */
+  anchor: DOMRect;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState('');
@@ -122,10 +144,24 @@ function ColumnFilterMenu<T>({
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+      const target = e.target as Element;
+      // El botón del filtro se encarga de abrir/cerrar; si no, mousedown cierra y el click reabre.
+      if (target.closest?.('[data-filter-trigger]')) return;
+      if (ref.current && !ref.current.contains(target)) onClose();
+    };
+    // El menú está anclado a una posición fija: al desplazar la página o cambiar el tamaño se cierra.
+    const dismiss = (e: Event) => {
+      if (e.target instanceof Node && ref.current?.contains(e.target)) return;
+      onClose();
     };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    window.addEventListener('scroll', dismiss, true);
+    window.addEventListener('resize', dismiss);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      window.removeEventListener('scroll', dismiss, true);
+      window.removeEventListener('resize', dismiss);
+    };
   }, [onClose]);
 
   const uniqueValues = useMemo(() => {
@@ -149,15 +185,18 @@ function ColumnFilterMenu<T>({
     onChange(next.size === 0 ? null : next);
   };
 
-  const floating = anchor
-    ? { top: anchor.bottom + 4, left: Math.max(8, Math.min(anchor.left, window.innerWidth - 232)) }
-    : null;
+  // ~260 px de alto máximo (buscador + lista de 12 rem): si no cabe debajo, se abre hacia arriba.
+  const opensUp = anchor.bottom + 270 > window.innerHeight && anchor.top > 270;
+  const floating = {
+    ...(opensUp ? { bottom: window.innerHeight - anchor.top + 4 } : { top: anchor.bottom + 4 }),
+    left: Math.max(8, Math.min(anchor.left, window.innerWidth - 232)),
+  };
 
-  const menu = (
+  return createPortal(
     <div
       ref={ref}
-      className={`${floating ? 'fixed z-50' : 'absolute z-20'} mt-1 w-56 bg-white border border-slate-200 rounded-lg shadow-lg p-2 text-left`}
-      style={floating ?? undefined}
+      className="fixed z-50 w-56 bg-white border border-slate-200 rounded-lg shadow-lg p-2 text-left"
+      style={floating}
       onClick={(e) => e.stopPropagation()}
     >
       <input
@@ -190,9 +229,9 @@ function ColumnFilterMenu<T>({
           <p className="text-xs text-slate-400 px-0.5 py-1">{t('table.noMatches')}</p>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
-  return floating ? createPortal(menu, document.body) : menu;
 }
 
 export default function DataTable<T>({
@@ -210,14 +249,18 @@ export default function DataTable<T>({
   pageSizeOptions = [10, 25, 50, 100],
   selectedRowId = null,
   onExport,
+  exportHandler,
   columnsKey,
   defaultHidden,
   searchHidden = false,
   hideSearch = false,
+  onSearchChange,
+  extraMatch,
   renderExpanded,
   canExpand,
   maxVisibleRows,
   initialColumnFilters,
+  selection,
 }: DataTableProps<T>) {
   const { t } = useTranslation();
   const location = useLocation();
@@ -263,6 +306,8 @@ export default function DataTable<T>({
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const columnsMenuRef = useRef<HTMLDivElement>(null);
+  const columnsPanelRef = useRef<HTMLDivElement>(null);
+  const [columnsAnchor, setColumnsAnchor] = useState<DOMRect | null>(null);
 
   // Las columnas que se ven: en el orden elegido y sin las ocultas. Siempre queda al menos una.
   const orderedAll = useMemo(() => applyColumnLayout(allColumns, layout), [allColumns, layout]);
@@ -306,10 +351,22 @@ export default function DataTable<T>({
   useEffect(() => {
     if (!columnsMenuOpen) return undefined;
     const handler = (e: MouseEvent) => {
-      if (columnsMenuRef.current && !columnsMenuRef.current.contains(e.target as Node)) setColumnsMenuOpen(false);
+      const target = e.target as Node;
+      if (columnsMenuRef.current?.contains(target) || columnsPanelRef.current?.contains(target)) return;
+      setColumnsMenuOpen(false);
+    };
+    const dismiss = (e: Event) => {
+      if (e.target instanceof Node && columnsPanelRef.current?.contains(e.target)) return;
+      setColumnsMenuOpen(false);
     };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    window.addEventListener('scroll', dismiss, true);
+    window.addEventListener('resize', dismiss);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      window.removeEventListener('scroll', dismiss, true);
+      window.removeEventListener('resize', dismiss);
+    };
   }, [columnsMenuOpen]);
 
   const toggleExpanded = (id: string) => setExpanded((prev) => {
@@ -318,7 +375,7 @@ export default function DataTable<T>({
     return next;
   });
   const expandable = !!renderExpanded;
-  const spanAll = columns.length + (actions ? 1 : 0) + (expandable ? 1 : 0);
+  const spanAll = columns.length + (actions ? 1 : 0) + (expandable ? 1 : 0) + (selection ? 1 : 0);
 
   const filteredByColumns = useMemo(() => {
     return data.filter((row) =>
@@ -336,9 +393,11 @@ export default function DataTable<T>({
     if (!search.trim()) return filteredByColumns;
     const searchable = searchHidden ? orderedAll : columns;
     return filteredByColumns.filter((row) =>
-      searchable.some((col) => matchesSearch(col.accessor(row), search))
+      searchable.some((col) => matchesSearch(col.accessor(row), search)) || (extraMatch?.(row) ?? false)
     );
-  }, [filteredByColumns, search, columns, orderedAll, searchHidden]);
+  }, [filteredByColumns, search, columns, orderedAll, searchHidden, extraMatch]);
+
+  useEffect(() => { onSearchChange?.(search); }, [search, onSearchChange]);
 
   const sorted = useMemo(() => {
     if (!sort) return searched;
@@ -381,7 +440,30 @@ export default function DataTable<T>({
     });
   };
 
-  const handleExport = () => {
+  const [exporting, setExporting] = useState(false);
+
+  const auditExport = (rowCount: number) => {
+    // Auditoría del export: automática por ruta. Si la pantalla pasa onExport,
+    // ese override manda (y se hace cargo de auditar por su cuenta).
+    if (onExport) {
+      onExport(rowCount);
+    } else {
+      const permKey = permKeyForPath(location.pathname);
+      if (permKey) postAuditEvent('export', permKey, { rows: rowCount, format: 'xlsx' });
+    }
+  };
+
+  const handleExport = async () => {
+    if (exportHandler) {
+      setExporting(true);
+      try {
+        await exportHandler(sorted, columns);
+        auditExport(sorted.length);
+      } finally {
+        setExporting(false);
+      }
+      return;
+    }
     const rows = sorted.map((row) => {
       const record: Record<string, string | number> = {};
       columns.forEach((col) => {
@@ -395,14 +477,31 @@ export default function DataTable<T>({
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Datos');
     const stamp = new Date().toISOString().slice(0, 10);
     XLSX.writeFile(workbook, `${exportFileName}-${stamp}.xlsx`);
-    // Auditoría del export: automática por ruta. Si la pantalla pasa onExport,
-    // ese override manda (y se hace cargo de auditar por su cuenta).
-    if (onExport) {
-      onExport(rows.length);
-    } else {
-      const permKey = permKeyForPath(location.pathname);
-      if (permKey) postAuditEvent('export', permKey, { rows: rows.length, format: 'xlsx' });
+    auditExport(rows.length);
+  };
+
+  // Solo cuentan las marcadas que se ven (con los filtros y la búsqueda de ahora): una fila oculta no se
+  // puede revisar, así que ninguna acción en lote debe alcanzarla.
+  const selectedIds = selection ? sorted.map(getRowId).filter((id) => selection.selected.has(id)) : [];
+  const pageSelectable = selection ? visibleRows.filter((r) => !selection.disabledReason?.(r)) : [];
+  const onPage = pageSelectable.filter((r) => selection?.selected.has(getRowId(r)));
+  const allOnPage = pageSelectable.length > 0 && onPage.length === pageSelectable.length;
+  const someOnPage = onPage.length > 0;
+  const toggleRow = (id: string) => {
+    if (!selection) return;
+    const next = new Set(selection.selected);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    selection.onChange(next);
+  };
+  const togglePage = () => {
+    if (!selection) return;
+    const next = new Set(selection.selected);
+    for (const r of pageSelectable) {
+      if (allOnPage) next.delete(getRowId(r));
+      else next.add(getRowId(r));
     }
+    selection.onChange(next);
   };
 
   const activeFilterCount = Object.values(columnFilters).filter((v) => v !== undefined && v !== null).length;
@@ -439,7 +538,10 @@ export default function DataTable<T>({
             <div className="relative" ref={columnsMenuRef}>
               <button
                 type="button"
-                onClick={() => setColumnsMenuOpen((open) => !open)}
+                onClick={(e) => {
+                  setColumnsAnchor(e.currentTarget.getBoundingClientRect());
+                  setColumnsMenuOpen((open) => !open);
+                }}
                 aria-expanded={columnsMenuOpen}
                 className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-slate-50 text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer whitespace-nowrap"
               >
@@ -449,8 +551,12 @@ export default function DataTable<T>({
                   <span className="text-[10px] bg-teal-100 text-teal-700 rounded-full px-1.5">{layout.hidden.length} ocultas</span>
                 )}
               </button>
-              {columnsMenuOpen && (
-                <div className="absolute right-0 z-30 mt-1 w-64 bg-white border border-slate-200 rounded-lg shadow-lg p-2 text-left">
+              {columnsMenuOpen && columnsAnchor && createPortal(
+                <div
+                  ref={columnsPanelRef}
+                  className="fixed z-50 w-64 bg-white border border-slate-200 rounded-lg shadow-lg p-2 text-left"
+                  style={{ top: columnsAnchor.bottom + 4, left: Math.max(8, Math.min(columnsAnchor.right - 256, window.innerWidth - 264)) }}
+                >
                   <div className="flex items-center justify-between px-1 pb-1.5 text-xs text-slate-500">
                     <span>Mostrar y ordenar</span>
                     <button
@@ -500,25 +606,56 @@ export default function DataTable<T>({
                     })}
                   </ul>
                   <p className="text-[11px] text-slate-400 px-1 pt-1.5">También podés arrastrar el título de una columna.</p>
-                </div>
+                </div>,
+                document.body,
               )}
             </div>
           )}
           <button
-            onClick={handleExport}
-            disabled={sorted.length === 0}
+            onClick={() => void handleExport().catch(() => undefined)}
+            disabled={sorted.length === 0 || exporting}
             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
           >
-            <i className="ri-file-excel-2-line"></i>
+            <i className={exporting ? 'ri-loader-4-line animate-spin' : 'ri-file-excel-2-line'}></i>
             {t('table.export')}
           </button>
         </div>
       </div>
 
+      {selection && selectedIds.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 px-4 py-2 border-b border-teal-100 bg-teal-50/70 text-sm" role="toolbar" aria-label="Acciones sobre lo seleccionado">
+          <span className="font-medium text-teal-800">
+            {selectedIds.length === 1 ? '1 seleccionado' : `${selectedIds.length} seleccionados`}
+          </span>
+          <div className="flex flex-wrap items-center gap-2">{selection.bar(selectedIds)}</div>
+          <button
+            type="button"
+            onClick={() => selection.onChange(new Set())}
+            className="ml-auto text-xs text-teal-700 hover:underline cursor-pointer"
+          >
+            Quitar selección
+          </button>
+        </div>
+      )}
+
       <div ref={scrollerRef} className={scrolls ? 'overflow-auto' : 'overflow-x-auto'} style={scrollStyle}>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
+              {selection && (
+                <th className={`w-8 px-2 py-3${stickyTh}`}>
+                  <input
+                    type="checkbox"
+                    ref={(el) => { if (el) el.indeterminate = someOnPage && !allOnPage; }}
+                    checked={allOnPage}
+                    disabled={pageSelectable.length === 0}
+                    onChange={togglePage}
+                    aria-label="Marcar las filas de esta página"
+                    title="Marcar las filas de esta página"
+                    className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                  />
+                </th>
+              )}
               {expandable && <th className={`w-8 px-2 py-3${stickyTh}`} aria-label="Extender"></th>}
               {columns.map((col) => (
                 <th
@@ -550,8 +687,9 @@ export default function DataTable<T>({
                     {col.filterable && (
                       <button
                         type="button"
+                        data-filter-trigger
                         onClick={(e) => {
-                          setFilterAnchor(scrolls ? e.currentTarget.getBoundingClientRect() : null);
+                          setFilterAnchor(e.currentTarget.getBoundingClientRect());
                           setOpenFilterKey(openFilterKey === col.key ? null : col.key);
                         }}
                         className={`cursor-pointer ${columnFilters[col.key] ? 'text-teal-600' : 'text-slate-400 hover:text-slate-600'}`}
@@ -560,14 +698,14 @@ export default function DataTable<T>({
                       </button>
                     )}
                   </div>
-                  {col.filterable && openFilterKey === col.key && (
+                  {col.filterable && openFilterKey === col.key && filterAnchor && (
                     <ColumnFilterMenu
                       column={col}
                       data={data}
                       selected={columnFilters[col.key] ?? null}
                       onChange={(values) => setColumnFilters((prev) => ({ ...prev, [col.key]: values }))}
                       onClose={() => setOpenFilterKey(null)}
-                      anchor={scrolls ? filterAnchor : null}
+                      anchor={filterAnchor}
                     />
                   )}
                 </th>
@@ -601,6 +739,24 @@ export default function DataTable<T>({
                   onClick={() => onRowClick?.(row)}
                   className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${onRowClick ? 'cursor-pointer' : ''} ${selectedRowId && rowId === selectedRowId ? 'bg-teal-50' : ''}`}
                 >
+                  {selection && (
+                    <td className="w-8 px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                      {(() => {
+                        const reason = selection.disabledReason?.(row) ?? null;
+                        return (
+                          <input
+                            type="checkbox"
+                            checked={selection.selected.has(rowId)}
+                            disabled={!!reason}
+                            title={reason ?? undefined}
+                            onChange={() => toggleRow(rowId)}
+                            aria-label={`Marcar fila ${rowId}`}
+                            className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                          />
+                        );
+                      })()}
+                    </td>
+                  )}
                   {expandable && (
                     <td className="w-8 px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                       {rowCanExpand && (
