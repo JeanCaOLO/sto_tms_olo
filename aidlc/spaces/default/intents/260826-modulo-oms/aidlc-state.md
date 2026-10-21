@@ -15,7 +15,7 @@ Los 4 roles del OMS ya están cerrados (ver Adenda del documento de la reunión)
 - **Scope**: classic
 - **Start Date**: 2026-08-26T23:45:55Z
 - **State Version**: 8
-- **Active Agent**: aidlc-developer-agent
+- **Active Agent**: aidlc-quality-agent
 - **Worktree Path**:
 - **Bolt Refs**:
 - **Practices Affirmed Timestamp**:
@@ -35,8 +35,8 @@ Los 4 roles del OMS ya están cerrados (ver Adenda del documento de la reunión)
 
 ## Execution Plan Summary
 - **Total Stages**: 26
-- **Completed**: 9
-- **In Progress**: code-generation
+- **Completed**: 11
+- **In Progress**: build-and-test
 
 ## Runtime State
 - **Revision Count**: 2
@@ -76,7 +76,7 @@ Los 4 roles del OMS ya están cerrados (ver Adenda del documento de la reunión)
 - [S] refined-mockups — EXECUTE
 - [x] domain-design — EXECUTE
 - [x] units-generation — EXECUTE
-- [S] contract-design — EXECUTE
+- [x] contract-design — EXECUTE
 - [x] delivery-planning — EXECUTE
 
 ### CONSTRUCTION PHASE
@@ -85,8 +85,8 @@ Per unit: [TBD]
 - [S] nfr-requirements — EXECUTE
 - [S] nfr-design — EXECUTE
 - [S] infrastructure-design — EXECUTE
-- [-] code-generation — EXECUTE
-- [ ] build-and-test — EXECUTE
+- [x] code-generation — EXECUTE
+- [-] build-and-test — EXECUTE
 - [ ] ci-pipeline — EXECUTE
 
 ### OPERATION PHASE
@@ -100,12 +100,12 @@ Per unit: [TBD]
 
 ## Current Status
 - **Lifecycle Phase**: CONSTRUCTION
-- **Current Stage**: code-generation
-- **Next Stage**: build-and-test
+- **Current Stage**: build-and-test
+- **Next Stage**: ci-pipeline
 - **Status**: Running
-- **Last Updated**: 2026-10-01T18:19:21Z
+- **Last Updated**: 2026-10-21T12:47:34Z
 
 ## Session Resume Point
-- **Last Completed Stage**: delivery-planning
-- **Next Action**: Execute Code Generation
+- **Last Completed Stage**: code-generation
+- **Next Action**: Execute Build and Test
 - **Pending Artifacts**: none

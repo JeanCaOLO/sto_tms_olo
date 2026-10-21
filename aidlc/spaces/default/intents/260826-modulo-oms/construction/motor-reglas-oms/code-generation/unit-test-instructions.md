@@ -1,41 +1,56 @@
 # Instrucciones de prueba — U1 `motor-reglas-oms` (service)
 
-> Intent: `260826-modulo-oms`. Unidad: U1 (kind `service`). 2026-10-01.
-> Reconciliación contable: las pruebas YA EXISTEN y pasan (16/16 + 142/142). Esto
-> documenta la estrategia de prueba de lo construido.
+> Intent: `260826-modulo-oms`. Unidad: U1 (kind `service`). **Reconciliado as-built
+> 2026-10-19 (v4 + ADR-013)**. Las pruebas YA EXISTEN y pasan (**36/36 + 287/287**).
+> Esto documenta la estrategia de prueba de lo construido.
 
-## Cómo correr
+## Cómo correr (comando scoped a ESTA unidad)
 
 ```bash
 # desde backend/ (con venv de dev: pytest + pg8000)
-python -m pytest tests/test_oms.py -v      # 16 tests de la unidad
-python -m pytest -q                        # suite completa del backend (142)
+python -m pytest tests/test_oms.py -q      # 36 tests de la unidad (comando scoped)
 ```
+
+Suite completa del backend (contexto, NO es el comando de la unidad):
+`python -m pytest -q` → 287 (requiere boto3 + tzdata en el venv para
+`test_alerts.py`/`test_realtime.py`, deps de Windows ajenas al OMS).
 
 El stack `oms` está registrado en `backend/tests/conftest.py`
 (`STACK_SOURCES['oms']` + módulos en `STACK_MODULES`). Los tests cargan los módulos
-como lo haría Lambda (`src/` en path + Layer `tms_common`) vía
-`load_stack_module("oms", ...)`. No tocan DB ni red (`OMS_SOURCE=mock`).
+como lo haría Lambda (`src/` en path + Layer `tms_common`). No tocan DB ni red
+(`OMS_SOURCE=mock`); la costura `EscritorSituacion` es inyectable.
 
-## Cobertura por módulo
+## Cobertura por módulo (36 tests)
 
-- **score.py (submódulo puro)** — 5 tests: suma ponderada por peso; ignora regla
-  sin peso; más score ⇒ menor número de prioridad; acote al mínimo (1); cliente
-  retira cortocircuita a prioridad máxima.
-- **regla_fecha.py** — 3 tests: urgente cuando el objetivo T-1 ya llegó; menos
-  puntos con más margen; fallback por centinela (`1900-01-01`), no por NULL.
-- **analizador_observaciones.py** — 3 tests: detecta cliente-retira con el stub;
-  neutro sin texto; degrada sin bloquear si el clasificador lanza.
-- **handoff_pedidos.py** — 2 tests: el flag `escribir_prioridad_al_wms` elige el
-  SQL con/sin PRIORIDAD sin lanzar en mock; `ejecutar()` completa en mock.
-- **motor_reglas.py** — 1 test: prioriza cliente-retira por encima (prioridad 1).
-- **app.py (corrida e2e)** — 2 tests: corrida de punta a punta en mock (4 pedidos,
-  4 completados, 0 pendientes); ruta `/health` 200.
+- **score.py (submódulo puro)** — suma ponderada por peso; ignora regla sin peso;
+  más score ⇒ menor número de prioridad; acote al mínimo; cliente-retira cortocircuita.
+- **regla_fecha.py** — `fecha_listo = delivery_date − lead_time_days`; `lead_time_days`
+  dinámico con default 1; no modifica fechas.
+- **cola_candidatos.py** — polling por `planning_run_id IS NOT NULL AND
+  oms_processed_at IS NULL`; expone `dispatch_date`; mock determinista.
+- **handoff_pedidos.py (ADR-013)** — `priorizar_pedido()` deja `DISP`, sin
+  `oms_processed_at`, sin tocar la costura; `liberar_pedido()` en ventana escribe
+  `GENE` + `oms_processed_at` por la costura; fuera de ventana no libera;
+  `disparo_pendiente` si falla la escritura 2; **borde del predicado**
+  `en_ventana_liberacion` (falla si se rompe `>=` o se invierte el signo);
+  re-priorización idempotente.
+- **motor_reglas.py** — prioriza cliente-retira (por zona) por encima; EPA
+  cortocircuita.
+- **app.py** — corrida e2e de dos pasadas (prioriza todo, libera los en ventana);
+  acción manual `POST /viajes/{numero_viaje}/procesar` (libera por viaje, filtra
+  subconjunto, deniega 403 sin permiso); health 200.
+
+## Expected coverage / mocking
+
+- Objetivo: happy-path + bordes por capa (score, ventana de liberación, gating).
+- Mocking: `OMS_SOURCE=mock` (sin DB/red); `EscritorSituacion` inyectable (los tests
+  verifican que la liberación va por la costura y NO toca eFlow real).
 
 ## Qué queda fuera (diferido)
 
-- Pruebas contra EFLOW/WMS real y Bedrock real: entran al reactivar nfr/infra-design
-  (el esqueleto usa mock/stub).
+- Pruebas contra EFLOW/réplica real y endpoint EPRAC real: entran cuando exista la
+  infra/endpoint (hoy mock/costura).
+- Bedrock (`analizador_observaciones`): diferido (D11), stub.
 
 ## Sources
 

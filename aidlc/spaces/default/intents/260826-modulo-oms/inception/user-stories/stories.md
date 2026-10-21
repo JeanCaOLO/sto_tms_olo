@@ -1,34 +1,77 @@
 # Historias de usuario — Módulo OMS
 
-> Intent: `260826-modulo-oms`. Etapa: User Stories (Inception, **re-corrida por
-> el pivote de reemplazo del WMH**, 2026-09-30). Derivadas del `requirements.md`
-> v3 (14 FR, FR12 retirado) y de las decisiones firmes de `project.md`
-> (`## Decided` D1–D6, C3-SUPERSEDE). Formato Given/When/Then (BDD). Cada historia
-> traza a su(s) FR y lleva una **etiqueta de entrega**: `[1ª entrega]`,
-> `[siguiente]` o `[futuro]`. Actores en `personas.md`.
+> Intent: `260826-modulo-oms`. Etapa: User Stories (Inception, **re-corrida v4 por
+> reuniones de negocio — inversión del flujo OMS↔Planificación**, 2026-10-16).
+> Derivadas del `requirements.md` v4 y de `project.md` (`## Decided`). Formato
+> Given/When/Then (BDD). Cada historia traza a su(s) FR y lleva una **etiqueta de
+> entrega**: `[1ª entrega]`, `[siguiente]` o `[futuro]`. Actores en `personas.md`.
 >
-> **Correcciones de esta re-corrida** (base a corregir, no repetir):
-> - **E8 (US28–US29, Calendario de rutas) RETIRADA** por D5 (ruteo dinámico; las
->   rutas dejan de ser fijas) — movida a "Fuera de alcance".
-> - **Multi-compañía por SCOPE** (C3-SUPERSEDE): US30/US31 pasan de "Lambda por
->   compañía / columnas compañía-país" a **scope CUSTOMER→WAREHOUSE→COUNTRY→
->   GLOBAL** en Lambdas compartidas.
-> - **D6 (dos escrituras)**: US9 refleja la escritura en la **tabla propia del
->   OMS** (handoff) + el cambio de `situación` en el WMS.
+> **Nomenclatura (vigente)**: WMS = **EFLOW**; el módulo que parte EPA por línea =
+> **EPRAC**. (No "IPRAC"/"IFLOW".)
+>
+> **Correcciones de esta re-corrida v4** (base a corregir, no repetir):
+> - **Flujo invertido (D7)**: Planificación procesa, asigna viaje y **activa al
+>   OMS** (lambda asíncrona, **E0/US0**). El OMS **lee de `public.orders`** (no de
+>   `EXPEDICIONESCABECERA`): US1 y US7-US9 corregidas.
+> - **Escritura real a EFLOW (D8)**: US9 = UPDATE a `public.orders` + escritura a
+>   **EFLOW real** (`TPEXSI='GENE'` + `PRIORIDAD`, flag TRUE). El OMS **no escribe
+>   el número de viaje** (lo escribe Planificación).
+> - **EPA sin cálculo (D9)**: nueva **E2b/US-EPA** — EPA cortocircuita el score;
+>   prioridad pre-asignada por **EPRAC** (guion-0=0, guion-1=1).
+> - **Regla fecha generalizada (D10)**: US7/US8 = `fecha_entrega − duración`, con
+>   **duración como insumo de Planificación**.
+> - **cliente retira = ZONA (D11)**: E3 (observaciones IA) pasa a **futuro**;
+>   nueva US de cliente-retira-por-zona en 1ª entrega.
+> - **Cambio sin anular (D12)** y **backorder/inventario (D13)**: US nuevas.
+> - **(histórico v3)**: E8 (Calendario) retirada (D5); multi-compañía por scope
+>   (C3); D6 (dos escrituras a tabla propia) SUPERSEDED por D7/D8.
+> - **Refinamiento v4.1 (D14/ADR-013, 2026-10-19/20)**: **desacople
+>   priorización↔liberación**. US9 ahora cubre solo la **priorización** (deja `DISP`,
+>   no `GENE`, no `oms_processed_at`); la liberación a eFlow se difiere a
+>   `dispatch_date − dias_prep_picking` y se modela en **US9b** (automática por
+>   ventana, por viaje) y **US9c** ("Procesar a Eflow" manual, gated por rol).
+>   `oms_processed_at` = **liberado** (no priorizado). El **Simulador (E6) sale del
+>   alcance** (opcional, solo rol developer; ver "Fuera de alcance").
 
 ## Story map (épicas)
 
 | Épica | Historias | FR cubiertos |
 |---|---|---|
+| **E0 — Activación por Planificación** | **US0** | **FR0** |
 | E1 — Cola de Priorización | US1–US6 | FR1, FR10 |
-| E2 — Motor de priorización (automático) | US7–US11b | FR2, FR3, FR6, FR8 |
-| E3 — Análisis de observaciones con IA | US12–US13 | FR6.2, FR6.3, FR7 |
+| E2 — Motor de priorización (automático) | US7–US11b (incl. **US9b, US9c**) | FR2, FR3, FR6, FR8 |
+| **E2b — EPA (prioridad pre-asignada)** | **US-EPA** | **FR6b** |
+| E3 — Análisis de observaciones con IA | US12–US13 | FR6.3, FR7 **(futuro, D11)** |
 | E4 — Override manual | US14–US15 | FR4 |
 | E5 — Motor de Reglas (catálogo) | US16–US18 | FR5, FR6 |
 | E6 — Simulador (configurador) | US19–US24 | FR9 |
 | E7 — Panel y Auditoría | US25–US27 | FR11 |
 | E8 — Calendario de rutas | ~~US28–US29~~ **RETIRADA (D5)** | ~~FR12~~ |
 | E9 — Multi-compañía (scope) y seguridad | US30–US33 | FR13, FR14 |
+| **E10 — Backorder / inventario** | **US-BO** | **FR6c (D13)** |
+
+---
+
+## E0 — Activación por Planificación
+
+### US0 — Activar el OMS tras asignar el viaje `[1ª entrega]` (FR0)
+Como **Planificación**, quiero avisar al OMS cuando dejo un lote con viaje, para
+que el OMS priorice **después** de que asigné los viajes.
+- Given un lote con viaje asignado y `oms_processed_at IS NULL`, When **aviso al
+  OMS** por la **lambda/evento asíncrono** (señal; puede llevar IDs +
+  `planning_run_id` para correlación), Then el OMS **resuelve de `public.orders`**
+  su conjunto de trabajo por columna (`planning_run_id IS NOT NULL AND
+  oms_processed_at IS NULL`) y lo prioriza. **La señal no es la fuente de verdad del
+  lote; la columna sí.** **(ADR-013: v1 es polling programado; el `oms_processed_at`
+  se estampa en la liberación, no al priorizar.)**
+- Given un pedido ya procesado (`oms_processed_at` estampado por el handoff), When
+  llega otra señal o corre el barrido, Then **no se re-prioriza** (idempotencia
+  natural por la columna).
+- Given que la señal se pierde, When corre el **barrido periódico** sobre
+  `oms_processed_at IS NULL`, Then el trabajo pendiente igual se procesa (red de
+  seguridad). El OMS procesa por compañía (batching propio).
+- **Contrato RESUELTO (2026-10-16)** con el dueño de Planificación: pull por
+  columna `oms_processed_at` + lambda señal (reemplaza "scope + run_id vs. llaves").
 
 ---
 
@@ -37,17 +80,16 @@
 ### US1 — Ver la cola de pedidos a priorizar `[1ª entrega]` (FR1, FR10)
 Como **Responsable del OMS**, quiero ver los pedidos candidatos a priorizar,
 para gestionar el alistamiento del día.
-- Given pedidos en `expedición_cabecera` con `fecha_de_cierre IS NULL` y
-  `situación = DISP` sin `NUMEROVIAJEWMH`, When abro la Cola, Then veo esos
-  pedidos y no los que ya están en `almacén_movimiento_carcam`.
-- Given un pedido ya presente en `almacén_movimiento_carcam` (anti-join por
-  `pedido+almacén+compañía+sucursal`), When se resuelve la cola, Then ese pedido
-  **no** aparece (verifica el anti-join, no solo el filtro de situación).
+- Given pedidos en **`public.orders`** con **`planning_run_id IS NOT NULL AND
+  oms_processed_at IS NULL`** (lote que Planificación dejó con viaje, aún no
+  liberado por el OMS), When abro la Cola / corre el motor, Then veo/proceso esos
+  pedidos. **(D7: el OMS ya no lee de `EXPEDICIONESCABECERA` ni usa el anti-join;
+  pull por columna, contrato resuelto 2026-10-16. ADR-013: la priorización deja
+  `wms_situation = DISP`; `oms_processed_at` marca "liberado", no "priorizado".)**
+- Given un pedido sin viaje asignado, When Planificación aún no lo procesó, Then
+  **no** aparece en la cola del OMS (lo activa Planificación, no el OMS).
 - Given la Cola recién abierta, When carga, Then el filtro de situación entra
   por defecto en `DISP`.
-- Given la lectura de la cola, When el OMS consulta, Then va contra la **réplica
-  de `EFLOW_OLO`**, no contra el transaccional (FR1.4/NFR9; contrato de la query,
-  aunque la réplica se provisione después — ver dependencias).
 - **UX (5 estados)**: Given la vista sin datos / cargando / sin conexión al
   motor, Then muestra el estado vacío / skeleton / error correspondiente, nunca
   una tabla en blanco.
@@ -98,59 +140,110 @@ para que la tabla use todo el ancho.
 
 ## E2 — Motor de priorización (automático)
 
-### US7 — Calcular cuándo preparar por fecha (T-1) `[1ª entrega]` (FR2)
-Como **Sistema/Motor OMS**, calculo si un pedido debe prepararse hoy según su
-fecha de entrega, para alistar en el momento correcto.
-- Given un pedido con `fecha de expedición planificada` = mañana, When el motor
-  corre hoy y hoy es su T-1, Then lo marca para preparar hoy.
+### US7 — Calcular cuándo preparar por fecha (T − duración) `[1ª entrega]` (FR2)
+Como **Sistema/Motor OMS**, calculo si un pedido debe prepararse según
+`fecha_entrega − duración_logística`, para alistar en el momento correcto.
+**Aplica a Cofersa/mayoreo; NO a EPA (ver US-EPA).**
+- Given un pedido con `delivery_date` y una **duración logística** (insumo de
+  Planificación; Cofersa CR = 1 día ⇒ T-1), When el motor corre y hoy es
+  `fecha_entrega − duración`, Then lo marca para preparar.
+- Given un pedido de **mayoreo VE** con duración **dinámica** entregada por
+  Planificación, When el motor corre, Then usa esa duración (no una tabla
+  zonas-días; rutas/duraciones VE pendientes con comercial).
 - Given ese cálculo, When el motor actúa, Then **no escribe ninguna fecha**
-  (invariante): la `fecha de expedición planificada` queda intacta.
-- **Fallback (FR2.5)**: Given un pedido **sin** fecha de expedición planificada
-  (caso Cofersa hoy), When el motor lo evalúa, Then aplica la **regla de ruta**
-  (día de salida por ruta) para decidir el T-1.
+  (invariante): `delivery_date` queda intacta.
+- **Fallback (FR2.6)**: Given un pedido cuya `delivery_date` viene con el **valor
+  por defecto/centinela** (caso Cofersa que la llena por default), When el motor lo
+  evalúa, Then dispara el **fallback** (no por NULL, sino por valor centinela).
 
-### US8 — Respetar horas de corte `[siguiente]` (FR2.3)
-Como **Sistema/Motor OMS**, aplico las horas de corte de la ruta, para no
-adelantar ni atrasar el alistamiento.
+### US8 — Duración logística como insumo de Planificación + horas de corte `[siguiente]` (FR2.3, FR2.4)
+Como **Sistema/Motor OMS**, tomo la **duración logística que entrega
+Planificación** y aplico las horas de corte, para no adelantar ni atrasar.
+- Given la duración logística que entrega Planificación en **`orders.lead_time_days`**
+  (denormalizada de `plan_trips.lead_time_days`), When el motor calcula el
+  `fecha_listo`, Then la **lee por pedido** (no la calcula); default 1 día para
+  Cofersa si no viene.
+- Given que hoy el cálculo dinámico por clúster (VE) aún no existe, When
+  Planificación entrega un **mapa estático zona→días** (ej. Zona 4 = T-2, resto
+  T-1), Then el motor usa ese valor igual (el enganche por columna no cambia; el
+  dinámico es futuro, OQ).
 - Given un pedido que entra después del corte de su ruta, When el motor lo
   evalúa, Then rueda al siguiente evento de esa ruta.
 
-### US9 — Generar el pedido: dos escrituras (tabla propia OMS + situación WMS) `[1ª entrega]` (FR8, D6)
-Como **Sistema/Motor OMS**, persisto el pedido priorizado en mi tabla propia y
-cambio su situación en el WMS, para dejarlo alistado y hacer el handoff a
-Planificación.
-- Given un pedido cuya regla T-1 se cumple, When el motor lo procesa, Then
-  **(escritura 1 — handoff)** persiste el registro en la **tabla de pedidos
-  propia del OMS** (esquema OMS de `logistica_olo`) con prioridad + status +
-  `situación = GENERADA`, en una **escritura atómica** (nunca `GENERADA` sin
-  prioridad).
-- Given ese mismo pedido, When el motor lo procesa, Then **(escritura 2 — disparo
-  de picking)** cambia el campo `situación` del pedido **en el WMS/EFLOW** a
-  `GENERADA` para que el WMS/EFLOW genere el picking.
-- Given un pedido cuya regla no se cumple, When el motor lo procesa, Then no lo
-  persiste como generado ni cambia su situación en el WMS (no lo genera todavía).
-- Given cualquier escritura del motor, When actúa, Then **no escribe fechas** y
-  **no toca el WMH** (invariantes, criterios negativos verificables). La lectura
-  sigue siendo del WMS/EFLOW.
-- Given el handoff, When el pedido queda alistado, Then **Planificación lee de la
-  tabla propia del OMS** (no del WMS) para armar el viaje.
-- **Orden (dev/QA H2)**: Given las dos escrituras, When el motor procesa, Then la
-  escritura 1 (tabla OMS, handoff) ocurre **antes** que la escritura 2 (situación
-  WMS, disparo de picking) — la tabla del OMS es la verdad del handoff.
-- **Fallo parcial (dev/QA H1)**: Given la escritura 1 confirmada, When la
-  escritura 2 (WMS) falla, Then el pedido queda en la tabla del OMS marcado
-  **"disparo pendiente"** (no "generado-completo"), nunca `GENERADA` en OMS sin
-  picking de forma silenciosa; la corrida **reintenta la escritura 2 de forma
-  idempotente** sin re-crear el handoff. `ponytail:` dos stores (Aurora + SQL
-  Server EFLOW) sin 2PC — techo = orden + reintento idempotente; upgrade =
-  reconciliación/outbox.
-- **Idempotencia de corrida**: Given un pedido ya generado por una corrida
-  previa, When el motor vuelve a correr (US11, ≥1/día + cortes), Then **no** crea
-  un segundo registro de handoff ni re-dispara el picking (clave de idempotencia:
-  `pedido+almacén+compañía+sucursal`).
-- Nota (QA/dev): el campo de capacidad del handoff puede ir ausente/`null`
-  (`capacity_known:false`, OQ-8) — el test del handoff no asume su presencia. La
-  escritura 2 corre contra el adaptador EFLOW **mock** hasta que exista `live`.
+### US9 — Generar el pedido: UPDATE a orders + escritura a EFLOW `[1ª entrega]` (FR8, D7/D8)
+Como **Sistema/Motor OMS**, actualizo el pedido en `public.orders` y escribo de
+vuelta a EFLOW, para dejarlo alistado (el flujo lo activó Planificación, D7).
+> **ADR-013 (desacople priorización↔liberación)**: US9 cubre la **priorización**
+> (deja `wms_situation = DISP`, **no** escribe `GENE`, **no** estampa
+> `oms_processed_at`). La escritura `GENE`+`PRIORIDAD` y el estampado de
+> `oms_processed_at` se mueven a la **liberación por ventana** (**US9b**) y a la
+> **acción manual** (**US9c**).
+
+- Given un pedido cuya regla se cumple, When el motor lo **prioriza**, Then
+  **(escritura 1 — priorización)** hace **UPDATE a `public.orders`** por la **llave
+  EFLOW** (`eflow_id_almacen/compania/sucursal/expedicion`) con `priority` (entero),
+  `oms_score`, `prioritization_run_id` y `handoff_status`, **dejando
+  `wms_situation = DISP`** (no `GENE`) y **sin** estampar `oms_processed_at`. **No hay
+  tabla `oms.pedidos`.**
+- Given la priorización, When el motor actúa, Then **NO escribe a EFLOW todavía** (la
+  escritura 2 `GENE`+`PRIORIDAD` es de la **liberación**, US9b) ni el número de viaje
+  (`numero_viaje` lo escribe Planificación). **(ADR-013: `GENE` diferido a
+  `dispatch_date − dias_prep_picking`.)**
+- Given un pedido no ingerido en `orders`, When el motor intenta la escritura 1,
+  Then es un **error** (no se priorizan pedidos que no se cargaron desde EFLOW).
+- Given cualquier escritura del motor, When actúa, Then **no escribe fechas**, **no
+  escribe el número de viaje** y **no toca el picking** (invariantes verificables).
+- **Orden (dev/QA)**: Given las dos escrituras, When el motor procesa, Then la
+  escritura 1 (`orders`, Aurora) ocurre **antes** que la 2 (EFLOW).
+- **Fallo parcial (dev/QA)**: Given la escritura 1 confirmada, When la 2 (EFLOW)
+  falla, Then el pedido queda `handoff_status = disparo_pendiente` y se **reintenta
+  idempotente** por la llave EFLOW, sin re-crear el handoff. `ponytail:` dos stores
+  (Aurora + SQL Server EFLOW) sin 2PC — techo = orden + reintento; upgrade =
+  outbox/reconciliación.
+- **Re-priorización idempotente (ADR-013)**: Given un pedido **priorizado pero no
+  liberado** (`oms_processed_at IS NULL`), When corre otro barrido tras un **replan**
+  (nuevo `dispatch_date`/`lead_time_days`), Then el motor **re-prioriza** (actualiza
+  `priority`/`oms_score`/`prioritization_run_id`) para mantenerlo alineado al último
+  plan, sin duplicar (UPDATE por llave EFLOW). Un pedido ya **liberado**
+  (`oms_processed_at` estampado) no vuelve a la cola.
+
+### US9b — Liberar el viaje por ventana (`dispatch_date − 1`) `[1ª entrega]` (FR8, D14/ADR-013)
+Como **Sistema/Motor OMS**, libero a eFlow los pedidos **priorizados** cuando su
+viaje entra en la ventana de salida, para que el picking no arranque antes de tiempo
+y todos los pedidos del viaje se liberen **juntos**.
+- Given pedidos priorizados-no-liberados (`oms_processed_at IS NULL`,
+  `wms_situation = DISP`), When corre la **pasada de liberación** y
+  `now() >= dispatch_date − dias_prep_picking` (`dias_prep_picking = 1` por defecto,
+  política del OMS), Then el motor **(escritura 2)** escribe
+  **`TPEXSI = 'GENE'` + `PRIORIDAD`** por la costura `EscritorSituacion` (hoy →
+  `sim_expedicionescabecera`; `TPEXES` permanece `DISP`) y **estampa
+  `oms_processed_at = now()`** (los saca de la cola).
+- Given que `dispatch_date` es **igual para todos los pedidos de un `numero_viaje`**,
+  When un viaje cruza la ventana, Then **todos sus pedidos se liberan juntos** sin
+  navegar `plan_trips`/`routes` (se lee **solo `orders`**).
+- Given un pedido cuya ventana **aún no llegó** (`now() < dispatch_date −
+  dias_prep_picking`), When corre la liberación, Then **no se libera** (sigue en
+  `DISP`, espera a la siguiente corrida).
+- Given la escritura `GENE`, When falla la escritura 2 tras marcar, Then queda
+  `handoff_status = disparo_pendiente` y se reintenta idempotente por la llave EFLOW
+  (mismo mecanismo de US9).
+- **Testabilidad**: la ventana se prueba con un `dispatch_date` relativo a `now()`
+  (dentro/fuera de ventana), determinista, sin tocar eFlow real.
+
+### US9c — Procesar a Eflow un viaje manualmente `[1ª entrega]` (FR8, FR4, D14/ADR-013)
+Como **rol autorizado** (gated), quiero **adelantar** la liberación de un viaje
+("Procesar a Eflow", nombre temporal) cuando picking/packing está ocioso, sin esperar
+a la ventana automática.
+- Given un `numero_viaje` priorizado-no-liberado, When ejecuto "Procesar a Eflow",
+  Then el OMS corre la **misma lógica de liberación de US9b filtrada por ese viaje**
+  (+ subconjunto opcional de pedidos) e ignora la ventana temporal para ese viaje.
+- Given un usuario **sin permiso**, When intenta la acción, Then se **deniega**
+  (fail-closed, coherente con US15); la acción se oculta/deshabilita en UI.
+- Given la acción manual, When libera, Then usa la **misma escritura 2** (costura
+  `EscritorSituacion`) y estampa `oms_processed_at = now()` igual que US9b (reusa el
+  camino, no duplica lógica).
+- **Auditoría**: Given una liberación manual, When ocurre, Then queda registrada como
+  acción **manual** con el usuario (coherente con US33).
 
 ### US10 — Asignar prioridad numérica con score `[1ª entrega]` (FR3)
 Como **Sistema/Motor OMS**, asigno una prioridad numérica invertida calculada
@@ -184,33 +277,49 @@ inyectar más de lo que la capacidad soporta (~80 en proceso).
 
 ---
 
-## E3 — Análisis de observaciones con IA
+## E2b — EPA (prioridad pre-asignada por EPRAC)
 
-### US12 — Interpretar observaciones con IA `[1ª entrega]` (FR6.2, FR7)
-Como **Sistema/Motor OMS**, interpreto el texto libre de `observaciones` con un
-modelo de IA (Amazon Bedrock), para no depender de que un humano lea 400–500/día.
-- Given un pedido con observación de texto libre, When el motor la procesa, Then
-  el modelo la clasifica y, si es **"retira"**, marca el pedido como
-  cliente-retira (salida de 1ª entrega; otras salidas quedan como futuras).
-- Given el diseño, When se ejecuta, Then el **prompt vive en la Lambda** y no es
-  editable desde la UI.
-- Given un **fallo o timeout de Bedrock**, When el motor procesa un pedido, Then
-  el pedido se prioriza igual por las demás reglas (degrada sin la clasificación
-  IA) y no se bloquea el motor. `ponytail:` degradación simple (seguir sin la
-  regla IA); upgrade = reintento / cola de reproceso.
-- Given el objetivo de costo (FR7.4), When se integra, Then la invocación se
-  hace **por lote** (una corrida sobre las ~400 observaciones), no una llamada
-  por pedido.
-- **Testabilidad (QA H4)**: la clasificación se prueba con el **clasificador
-  mockeado/stub** (dado "retira"→marca; dado "no-retira"→no marca) en la suite
-  unitaria; la integración real con Bedrock se cubre con un test de contrato
-  aparte, no en unitarios (evita suite frágil/no determinista).
+### US-EPA — Liberar los pedidos de EPA sin recalcular `[1ª entrega]` (FR6b)
+Como **Sistema/Motor OMS**, para EPA **no calculo** la prioridad: la trae
+pre-asignada **EPRAC** y yo solo la libero, porque EPA cortocircuita el score.
+- Given un pedido de EPA (`customer_type = TIENDA`), When el motor lo procesa,
+  Then **NO pasa por T−duración ni por el score ponderado**: es una **rama propia
+  que cortocircuita** el motor de fecha/score.
+- Given que EPRAC partió el pedido de tienda en **guion-0** (falla ⇒ prioridad 0,
+  la más alta) y **guion-1** (regular ⇒ prioridad 1), When el motor los procesa,
+  Then toma **la prioridad que ya traen** (0 / 1) sin recalcular.
+- Given ambas expediciones (guion-0 y guion-1) del mismo número, When el motor
+  genera, Then pone **ambas en `wms_situation = GENE`** y las **libera juntas**
+  con su prioridad.
+- Given el flujo de escritura, When el motor procesa un pedido EPA, Then la
+  **priorización** usa la escritura 1 de US9 (UPDATE a `orders`, `DISP`, sin
+  `oms_processed_at`) y la **liberación** usa US9b/US9c (EFLOW `TPEXSI='GENE'` +
+  `PRIORIDAD` por la costura, estampa `oms_processed_at`), sin número de viaje. Ambas
+  expediciones (guion-0/guion-1) se liberan juntas al cruzar la ventana de su viaje.
 
-### US13 — Detectar "cliente retira" y priorizarlo `[1ª entrega]` (FR6.3, FR7.3)
-Como **Sistema/Motor OMS**, identifico los pedidos "cliente retira" por su
-observación y les asigno la prioridad más alta, para segregarlos.
-- Given una observación que indica "retira", When el motor la clasifica, Then el
-  pedido recibe la prioridad más alta y se marca para el viaje/cliente "dummy".
+---
+
+## E3 — Análisis de observaciones con IA `[FUTURO — D11]`
+
+> **Desprioritizado (D11, 2026-10-16)**: "cliente retira" se modela como **zona**
+> (US13), no interpretando observaciones. El análisis de observaciones por IA
+> (Bedrock) **sale de esta entrega** y queda **futuro**. US12 pasa a `[futuro]`.
+
+### US12 — Interpretar observaciones con IA `[futuro]` (FR7)
+Como **Sistema/Motor OMS**, (a futuro) interpretaría el texto libre de
+`observaciones` con IA (Bedrock) para salidas como cambio de dirección/cita.
+- Diferido: no se construye en esta entrega. "cliente retira" ya **no** depende de
+  esto (pasó a ser zona, US13). Se conserva como requerimiento futuro (FR7).
+
+### US13 — Detectar "cliente retira" por ZONA y priorizarlo `[1ª entrega]` (FR6.2)
+Como **Sistema/Motor OMS**, identifico los pedidos "cliente retira" por su **zona**
+(`delivery_zone`) y les asigno la prioridad más alta, para segregarlos.
+- Given un pedido cuya **zona** (`delivery_zone`) es la de **"cliente retira"**,
+  When el motor lo procesa, Then recibe la **prioridad más alta** y se agrupa en su
+  viaje/cliente correspondiente. **(D11: por zona, NO por el texto de
+  observaciones ni por IA.)**
+- **Testabilidad**: la detección se prueba con un dato de zona (zona = retira ⇒
+  prioridad máxima; zona normal ⇒ no), determinista, sin dependencia de IA.
 
 ---
 
@@ -236,6 +345,17 @@ para proteger el cálculo.
 - **UX**: Given un usuario sin permiso, When ve el detalle, Then las acciones sin
   permiso se **ocultan o deshabilitan con tooltip** (no se ofrecen para luego
   rebotar).
+
+### US15b — Cambiar la prioridad sin anular (reenviar registro) `[1ª entrega]` (FR4.4, D12)
+Como **Sistema/Motor OMS**, cambio la prioridad reenviando el registro mientras el
+pedido esté disponible o disponible/generada, para no tener que anular.
+- Given un pedido en situación **disponible** o **disponible/generada**, When
+  cambia su prioridad, Then se **reenvía el registro** con la nueva prioridad (no
+  se anula ni se revierte el pedido).
+- Given tareas **ya generadas**, When cambia una prioridad, Then el OMS **no las
+  reordena** (el cambio aplica hacia adelante, no reescribe lo ya ejecutado).
+- Given un cambio de **fecha de entrega** (no de prioridad), When ocurre, Then
+  **pasa por Planificación** (replanifica), no por el OMS.
 
 ---
 
@@ -265,10 +385,18 @@ cliente retira), sin tocar su lógica.
 
 ---
 
-## E6 — Simulador (configurador de simulaciones)
+## E6 — Simulador (configurador de simulaciones) `[FUERA DE ALCANCE — 2026-10-19/20]`
+
+> **FUERA DE ALCANCE (2026-10-19/20, §13)**: el **Simulador** queda **fuera del
+> alcance** del OMS como entrega. Es **desarrollo opcional**, visible **solo para el
+> rol `Developer`**. Esta decisión **supera** el `DECIDED` "Simulador = configurador"
+> (2026-09-15): **no se toma en cuenta en el diseño de U1**. US19–US24/US24b se
+> conservan solo como registro (opcional/futuro, no 1ª entrega); no trazan a trabajo
+> de construcción de U1. La restricción de acceso a `Developer` (FR9.0/FR14.4) sigue
+> vigente **si** alguna vez se construye.
 
 ### US19 — Configurar una corrida en el modal previo `[siguiente]` (FR9.1, FR9.2)
-Como **Responsable del OMS**, quiero elegir qué reglas activas y qué pedidos
+Como **Developer**, quiero elegir qué reglas activas y qué pedidos
 entran a una simulación, para acotarla.
 - Given el modal previo, When lo abro, Then vienen por defecto todas las reglas
   activas y puedo desmarcar/elegir un subconjunto.
@@ -277,26 +405,26 @@ entran a una simulación, para acotarla.
   asignadas**.
 
 ### US20 — Ver el resultado como tabla-Cola `[siguiente]` (FR9.3)
-Como **Responsable del OMS**, quiero ver el resultado de la simulación como una
+Como **Developer**, quiero ver el resultado de la simulación como una
 tabla igual que la Cola, para evaluarlo con todas las columnas.
 - Given una simulación ejecutada, When se muestra, Then aparece como tabla con
   todas las columnas (o selección), no como un recuadro de "estado actual".
 
 ### US21 — Persistir la simulación (bitácora) `[siguiente]` (FR9.4)
-Como **Responsable del OMS**, quiero que cada simulación quede registrada, para
+Como **Developer**, quiero que cada simulación quede registrada, para
 tener trazabilidad.
 - Given una simulación, When se ejecuta, Then se persiste con fecha, autor
   (usuario/automático), reglas usadas, filtro, estado (`simulada`/`aplicada`) y
   compañía.
 
 ### US22 — Restringir a una simulación aplicada por compañía `[siguiente]` (FR9.4)
-Como **Responsable del OMS**, quiero que solo haya una simulación aplicada por
+Como **Developer**, quiero que solo haya una simulación aplicada por
 compañía, para evitar priorizaciones en conflicto.
 - Given varias simulaciones `simuladas` de una compañía, When aplico una, Then
   queda como la **única `aplicada` de esa compañía** (la anterior deja de estarlo).
 
 ### US23 — Aplicar manual / automática / mixta `[siguiente]` (FR9.5)
-Como **Responsable del OMS**, quiero elegir el modo de aplicación, para validar
+Como **Developer**, quiero elegir el modo de aplicación, para validar
 manualmente al inicio y automatizar cuando confíe.
 - Given modo manual, When reviso y pulso "Aplicar", Then la simulación se aplica.
 - Given modo automático, When se genera, Then se aplica sola.
@@ -309,12 +437,27 @@ manualmente al inicio y automatizar cuando confíe.
   confirmación explícita ("esto sustituye la priorización vigente de {compañía}").
 
 ### US24 — Configurar simulaciones por compañía `[siguiente]` (FR9.6)
-Como **Administrador de Módulo**, quiero configurar el número de simulaciones al
+Como **Developer**, quiero configurar el número de simulaciones al
 día, su frecuencia/horarios, el filtro de situación y el modo por simulación,
 para adaptarlo a cada compañía.
 - Given la configuración de una compañía, When defino varias simulaciones (p. ej.
   una para `DISP` y otra para `DISP`/`GENERADA`) con sus horarios y modo, Then el
   sistema las programa por compañía.
+- Nota: esta configuración vive **dentro de la vista Simulador**, por lo que solo
+  es alcanzable por `Developer` (US24b). Antes se preveía para el Administrador de
+  Módulo; con la restricción del 2026-10-01 queda bajo `Developer`.
+
+### US24b — Restringir la vista Simulador al rol Developer `[siguiente]` (FR9.0, FR14.4)
+Como **sistema/seguridad**, quiero que la vista Simulador solo sea visible y
+accesible para el rol `Developer`, para que sea una herramienta de
+diagnóstico/pruebas y no una pantalla operativa de usuarios normales.
+- Given un usuario con rol `Developer`, When entra al OMS, Then ve la entrada
+  "Simulador" en la navegación y puede abrir su ruta.
+- Given un usuario con cualquier otro rol (normal, Administrador de Módulo, Jefe
+  de Almacén, Responsable del OMS), When entra al OMS, Then **no** ve la entrada
+  "Simulador" y, si navega directo a su ruta, el acceso se **deniega
+  fail-closed** (no solo oculto en UI; también denegado en el backend/matriz de
+  permisos).
 
 ---
 
@@ -408,6 +551,34 @@ Estas Open Questions del `requirements.md` condicionan varias historias pero
 - OQ-8 (gap peso/volumen del handoff, `capacity_known:false`) → dependencia del
   handoff a Planificación (US9), no del cálculo de prioridad.
 - OQ-1 (BD `logistica_olo`) → contexto general.
+- **OQ-BO1/BO2/BO3** (backorder: tabla/estado de acciones omitidas en EFLOW,
+  fuente de inventario, disparador del re-chequeo) → afinan US-BO; hechos de
+  integración/negocio para la próxima reunión, no se cierran en esta rebanada.
+- **OQ-REL1** (liberación, D14/ADR-013) → un pedido **ya liberado**
+  (`oms_processed_at` estampado) que un **replan** mueva a otro viaje/fecha queda
+  potencialmente stale. Afina US9b; **no bloquea** v1 (se acepta hasta cerrar con
+  negocio si hay reconciliación/alerta).
+
+---
+
+## E10 — Backorder / inventario (nueva responsabilidad del OMS)
+
+### US-BO — Re-generar las acciones omitidas por inventario cuando entra stock `[siguiente]` (FR6c, D13)
+Como **Sistema/Motor OMS**, re-genero automáticamente las líneas que quedaron en
+falta por inventario cuando entra stock, para no depender de que alguien lo haga a
+mano.
+- Given es un **loop/componente propio DESACOPLADO** de la ruta de priorización,
+  When corre, Then **no** forma parte del handoff de la corrida ni de la lambda de
+  activación (FR0): es una **revisión continua / por evento**.
+- Given acciones liberadas que quedaron **omitidas por falta de inventario**, When
+  el loop las lee, Then las identifica como backorder pendiente.
+- Given que **entra stock** para una acción omitida, When el loop lo detecta, Then
+  **re-manda a generar solo esa acción** (situación `GENE` con su prioridad), sin
+  intervención manual.
+- **Alcance de esta rebanada**: basta el **esqueleto del componente + las open
+  questions** (OQ-BO1/BO2/BO3). El diseño fino (tabla/estado de origen, fuente de
+  inventario, disparador) **no se cierra** aquí — son hechos de integración para la
+  próxima reunión.
 
 ## Fuera de alcance (retirado en esta re-corrida)
 
@@ -418,8 +589,12 @@ Estas Open Questions del `requirements.md` condicionan varias historias pero
 - **Armado de viajes / ruteo dinámico** — es de Planificación (intent
   `260825-route-planning-reqs`), no del OMS. Estas historias no lo modelan; solo
   citan la frontera del handoff (US9: Planificación lee la tabla del OMS).
+- **E6 — Simulador (US19–US24/US24b), FUERA DE ALCANCE (2026-10-19/20, §13).**
+  Desarrollo **opcional**, visible solo para rol `Developer`. Supera el `DECIDED`
+  "Simulador = configurador" (2026-09-15). No entra en el diseño ni la construcción
+  de U1; se conserva solo como registro para un posible futuro.
 
-### Nota: refined-mockups debe re-correrse alineado al modelo v3
+### Nota: refined-mockups debe re-correrse alineado al modelo v4
 
 `refined-mockups` (`mockups.md`) quedó desalineado. Al re-correrse debe
 reconciliar: prioridad numérica invertida (no *tiers*); Motor de Reglas como
@@ -440,10 +615,12 @@ Aportes de diseño del mob (a aterrizar en refined-mockups):
   navegable por teclado con `aria-label` de nivel.
 - **(D-5)** Prioridad invertida **no dependiente solo del color** (número +
   etiqueta/ícono) y contraste AA.
-- **(D-6/D-7)** Estados nuevos por la doble escritura (D6): **"handoff pendiente/
-  desincronizado"** (si la escritura 2 al WMS falló tras la 1) y estado de handoff
-  hacia Planificación (solo lectura, honesto si no hay dato). Posible historia de
-  construcción, no de esta etapa.
+- **(D-6/D-7)** Estados nuevos por la doble escritura (D6 quedó **SUPERSEDED por
+  D7/D8**: escritura 1 = UPDATE a `public.orders`, escritura 2 = EFLOW real
+  `TPEXSI='GENE'`+`PRIORIDAD`): **"handoff pendiente/desincronizado"**
+  (`orders.handoff_status='disparo_pendiente'` si la escritura 2 a EFLOW falló tras
+  la 1) y estado de handoff hacia Planificación (solo lectura, honesto si no hay
+  dato). Posible historia de construcción, no de esta etapa.
 
 Aportes de dominio/construcción del mob (a aterrizar en domain-design):
 - **(dev/C2 — RESUELTO 2026-09-30)** La 1ª entrega **requiere construir el motor
@@ -464,21 +641,25 @@ Aportes de dominio/construcción del mob (a aterrizar en domain-design):
 ## Sources
 
 - `aidlc/spaces/default/intents/260826-modulo-oms/inception/requirements-analysis/requirements.md`
-  (v3, FR1–FR14 con FR12 retirado, NFR, Open Questions).
+  (**v4**, FR0–FR14 con FR12 retirado y FR7 diferido; flujo invertido D7–D13).
 - `aidlc/spaces/default/intents/260826-modulo-oms/inception/user-stories/personas.md`.
-- `aidlc/spaces/default/memory/project.md` (`## Decided`: pivote D1–D6,
-  C3-SUPERSEDE — invariantes del motor, Simulador-configurador, multi-compañía por
-  scope, dos escrituras).
+- `aidlc/spaces/default/memory/project.md` (`## Decided`: pivote D1–D5,
+  C3-SUPERSEDE y los cambios de negocio **D7–D13** — inversión del flujo,
+  escritura real a EFLOW, EPA/EPRAC, fecha generalizada, cliente-retira por zona,
+  cambio sin anular, backorder).
 - `aidlc/spaces/default/codekb/sto_tms_olo/business-overview.md`,
   `component-inventory.md` — dominio y componentes reales (backend Python/SAM).
 
 ## Assumptions & Open Questions
 
-Ver **Dependencias y supuestos** y **Fuera de alcance** arriba (mapea a
-OQ-1..OQ-8 del `requirements.md` v3). La épica **E8/US28–US29 (Calendario de
-rutas) queda RETIRADA** por D5. Las historias/reglas etiquetadas `[futuro]`
-(Regla 4 viaje/bajada y Regla 5 inventario, que no generan historias propias) se
-documentan pero no entran a construcción en este ciclo. La secuencia de
-construcción priorizará la **rebanada delgada de las 2 reglas de 1ª entrega**
+Ver **Dependencias y supuestos** y **Fuera de alcance** arriba. La épica
+**E8/US28–US29 (Calendario de rutas) queda RETIRADA** por D5. La **Regla 5
+(inventario) SÍ tiene historia ahora**: con D13 pasó a ser responsabilidad del OMS
+y se modela en **E10/US-BO** (FR6c) — su diseño fino depende de **OQ-BO1/BO2/BO3**
+(tabla/estado de acciones omitidas en EFLOW, fuente de inventario, disparador del
+re-chequeo). La **Regla 4 (viaje/bajada)** sigue siendo `[futuro]` sin historia
+propia (es de Planificación). **US12** (observaciones IA) queda `[futuro]` (D11).
+La secuencia de construcción priorizará la **rebanada delgada de las reglas de 1ª
+entrega**
 (T-1 + cliente retira/observaciones) — decisión de negocio a aplicar en
 domain-design.

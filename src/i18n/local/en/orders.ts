@@ -6,7 +6,8 @@ export default {
   'orders.empty': 'No orders',
   'orders.colOrder': 'Order',
   'orders.colCustomer': 'Customer',
-  'orders.colStore': 'Warehouses',
+  'orders.colFinalCustomer': 'Destination customer',
+  'orders.colBranch': 'Branch',
   'orders.colDeliveryDate': 'Delivery Date',
   'orders.colWeightVolume': 'Weight/Volume',
   'orders.colAmount': 'Amount',
@@ -19,7 +20,5 @@ export default {
   'orders.statusInRoute': 'In Route',
   'orders.statusDelivered': 'Delivered',
   'orders.statusCancelled': 'Cancelled',
-  'orders.priorityHigh': 'High',
-  'orders.priorityNormal': 'Normal',
-  'orders.priorityLow': 'Low',
+  'orders.priorityLevel': 'Priority {{level}}',
 };

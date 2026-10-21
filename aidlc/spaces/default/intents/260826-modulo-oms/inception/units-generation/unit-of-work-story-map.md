@@ -1,52 +1,57 @@
 # Mapa historias → unidades — Módulo OMS (rebanada delgada)
 
-> Intent: `260826-modulo-oms`. Etapa: Units Generation (re-corrida acotada,
-> 2026-10-01). Mapea las historias de la rebanada de 1ª entrega a las 2 unidades.
+> Intent: `260826-modulo-oms`. Etapa: Units Generation (re-corrida v4, 2026-10-16,
+> inversión del flujo). Mapea las historias de la rebanada de 1ª entrega a las 2
+> unidades (U1 motor, U2 backorder). Nomenclatura EFLOW/EPRAC.
 
 ## Mapa de historias de la rebanada
 
 | Historia | Unit | Directory | Nota |
 |---|---|---|---|
-| US1 (ver/leer la cola) | U1 | u1-motor-reglas-oms | ColaCandidatos (lectura EFLOW) |
-| US7 (T-1) | U1 | u1-motor-reglas-oms | ReglaFecha |
-| US8 (horas de corte / fallback ruta) | U1 | u1-motor-reglas-oms | ReglaFecha |
-| US9 (dos escrituras: handoff + situación WMS) | U1 (+ U2) | u1-motor-reglas-oms | HandoffPedidosOMS escribe la tabla de U2 |
+| US0 (activación por Planificación) | U1 | u1-motor-reglas-oms | LambdaActivacion (entrada async) |
+| US1 (ver/leer la cola) | U1 | u1-motor-reglas-oms | ColaCandidatos (lee `public.orders`) |
+| US7 (fecha generalizada T−duración) | U1 | u1-motor-reglas-oms | ReglaFecha |
+| US8 (duración de Planificación / horas de corte) | U1 | u1-motor-reglas-oms | ReglaFecha |
+| US9 (UPDATE orders + escritura EFLOW real) | U1 | u1-motor-reglas-oms | HandoffPedidosOMS (sin número de viaje) |
 | US10 (score / prioridad numérica) | U1 | u1-motor-reglas-oms | MotorReglasOMS (submódulo score) |
 | US11b (umbral de inyección) | U1 | u1-motor-reglas-oms | MotorReglasOMS |
-| US12 (observaciones IA) | U1 | u1-motor-reglas-oms | AnalizadorObservaciones |
-| US13 (cliente retira) | U1 | u1-motor-reglas-oms | AnalizadorObservaciones + efecto en MotorReglasOMS |
+| US-EPA (prioridad pre-asignada por EPRAC) | U1 | u1-motor-reglas-oms | ReglaEPA (cortocircuita score) |
+| US13 (cliente retira por zona) | U1 | u1-motor-reglas-oms | ReglaClienteRetiraZona |
+| US-BO (backorder/inventario) | U2 | u2-backorder-inventario-oms | BackorderInventario (loop desacoplado) |
 
-La tabla propia del OMS (esquema de **U2**) es el destino de la escritura 1 de US9
-y la superficie que lee Planificación.
+`US9` escribe en `public.orders` (ya existe) + EFLOW real; **no** hay unit de
+esquema (la tabla `oms.pedidos` fue descartada).
 
-## Historias transversales / cross-cutting
+## Historias fuera de esta corrida
 
-- **US9** cruza U1 (lógica de las dos escrituras) y U2 (esquema de la tabla
-  destino de la escritura 1). Se implementa en U1 consumiendo el contrato de U2.
+- **US12** (observaciones IA/Bedrock): **DIFERIDA a futuro** (D11) — cliente-retira
+  es zona (US13), no observaciones. No se asigna a ninguna unit en esta rebanada.
+- Historias **diferidas** (US2–US6, US11, US14–US27 incl. US15b/US24b, US30–US33) y
+  **retiradas** (US28–US29, E8/D5) no se asignan aquí — surgirán sus units al
+  ampliar el alcance.
 
 ## Orden dentro de cada unidad
 
-- **U1**: esqueleto del motor primero (orquestación + puntos de extensión de
-  reglas + adaptadores cola/handoff como interfaces), luego ReglaFecha (T-1),
-  luego AnalizadorObservaciones (cliente retira), luego el umbral. US9 (handoff)
-  se cablea cuando U2 existe.
-- **U2**: migración del esquema `PedidosOMS` (una pasada).
+- **U1**: esqueleto del motor primero (LambdaActivacion + orquestación +
+  adaptadores cola/handoff como interfaces), ReglaFecha (T−duración), ReglaEPA
+  (cortocircuito), ReglaClienteRetiraZona, el umbral, y el handoff (US9: UPDATE
+  orders + EFLOW).
+- **U2**: esqueleto del loop de backorder (lectura de acciones omitidas → chequeo
+  inventario → re-generar vía el handoff de U1); diseño fino tras cerrar
+  OQ-BO1/BO2/BO3.
 
 ## Verificación de cobertura
 
-- Toda historia de la rebanada (US1, US7, US8, US9, US10, US11b, US12, US13) está
-  asignada a U1 (US9 además a U2). Ninguna queda sin unidad.
-- Toda unidad tiene historias: U1 (las 8 de la rebanada), U2 (US9 — soporte de
-  datos del handoff).
-- Historias **diferidas** (US2–US6, US11, US14–US27, US30–US33) y **retiradas**
-  (US28–US29, E8/D5) no se asignan en esta corrida acotada — surgirán sus units al
-  ampliar el alcance.
+- Historias de la rebanada en U1: US0, US1, US7, US8, US9, US10, US11b, US-EPA,
+  US13. En U2: US-BO. Ninguna de la rebanada queda sin unidad.
+- Toda unidad tiene historias: U1 (9), U2 (US-BO).
+- US12 fuera (diferida); diferidas/retiradas no se asignan en esta corrida acotada.
 
 ## Sources
 
 - `aidlc/spaces/default/intents/260826-modulo-oms/inception/units-generation/unit-of-work.md`.
-- `aidlc/spaces/default/intents/260826-modulo-oms/inception/user-stories/stories.md` (rebanada).
-- `aidlc/spaces/default/intents/260826-modulo-oms/inception/domain-design/components.md`.
+- `aidlc/spaces/default/intents/260826-modulo-oms/inception/user-stories/stories.md` (v4, rebanada).
+- `aidlc/spaces/default/intents/260826-modulo-oms/inception/domain-design/components.md` (v4).
 
 ## Assumptions & Open Questions
 

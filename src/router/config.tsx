@@ -5,7 +5,6 @@ import TarifadorHints from '../components/tarifas/TarifadorHints';
 const HomePage = lazy(() => import('../pages/home/page'));
 const LoginPage = lazy(() => import('../pages/login/page'));
 const DashboardPage = lazy(() => import('../pages/dashboard/page'));
-const PedidosPage = lazy(() => import('../pages/pedidos/page'));
 const ZonasPage = lazy(() => import('../pages/zonas/page'));
 const LicenciasPage = lazy(() => import('../pages/licencias/page'));
 const PlanificacionPage = lazy(() => import('../pages/planificacion/page'));
@@ -46,10 +45,6 @@ const routes: RouteObject[] = [
   {
     path: '/dashboard',
     element: <DashboardPage />
-  },
-  {
-    path: '/pedidos',
-    element: <PedidosPage />
   },
   {
     path: '/zonas',

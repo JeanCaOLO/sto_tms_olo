@@ -117,15 +117,20 @@ Confirma el `kind` propuesto por unit (service/spec/ui/packaging/library):
 
 ## Consolidated Summary Confirmation
 
-Re-corrida ACOTADA a la rebanada delgada (2026-10-01). Units Generation produjo
-una descomposición mínima de 2 unidades: U1 `motor-reglas-oms` (kind service — los
-5 componentes de la rebanada como módulos internos de una Lambda Python propia del
-OMS) y U2 `esquema-pedidos-oms` (kind spec — la tabla propia del OMS, superficie de
-handoff). DAG: U1 → U2 (acíclico, edge-block YAML válido). Historias de la rebanada
-(US1, US7, US8, US9, US10, US11b, US12, US13) mapeadas a U1 (US9 también a U2);
-diferidas y retiradas no se asignan en esta corrida. Units no aportó decisiones de
-diseño nuevas (solo topología). Sensores: required-sections PASS (edge_block=ok),
-upstream-coverage PASS; traceability = falso positivo advisory conocido. Secuencia:
-code-generation arranca por el esqueleto de U1 (MotorReglasOMS en Lambda).
+Re-corrida **v4 (2026-10-16): inversión del flujo OMS↔Planificación.**
+Nomenclatura EFLOW/EPRAC. Descomposición mínima de **2 unidades (ambas service)**:
+**U1 `motor-reglas-oms`** — los **7 componentes de la corrida** como módulos
+internos de una Lambda Python (LambdaActivacion entrada async, ColaCandidatos lee
+`public.orders`, MotorReglasOMS, ReglaEPA, ReglaFecha generalizada,
+ReglaClienteRetiraZona, HandoffPedidosOMS escribe `orders` + EFLOW real); **U2
+`backorder-inventario-oms`** — loop de backorder (D13) desacoplado, esqueleto + OQ.
+**Se ELIMINA la unit `esquema-pedidos-oms` de v3**: no hay tabla propia
+(`oms.pedidos` descartada); `public.orders` ya existe en BD. **DAG: U2 → U1**
+(U2 reusa el handoff de U1; acíclico, edge-block YAML válido). Historias de la
+rebanada (US0, US1, US7, US8, US9, US10, US11b, US-EPA, US13 → U1; US-BO → U2)
+mapeadas; **US12 (observaciones IA) DIFERIDA** (D11); diferidas/retiradas no se
+asignan. `AnalizadorObservaciones` fuera de las units (diferido). Sensores:
+required-sections, upstream-coverage; traceability = falso positivo advisory
+conocido. Secuencia: code-generation arranca por el esqueleto de U1.
 
 [Answer]: Looks correct

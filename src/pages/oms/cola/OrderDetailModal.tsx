@@ -37,7 +37,6 @@ export default function OrderDetailModal({ order, onOverride, onClose }: OrderDe
           <div className="flex justify-between"><span className="text-slate-500">Artículos</span><span className="text-slate-900">{order.itemCount}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Fecha despacho</span><span className="text-slate-900">{order.dispatchDate}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Fecha creación</span><span className="text-slate-900">{order.createdDate}</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">Fecha Alisto</span><span className="text-slate-900">{order.readyToPrepDate}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Ingreso</span><span className="text-slate-900">{order.intakeTime}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Estado</span><span className="text-slate-900">{order.status}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Situación</span><span className="text-slate-900">{order.situation}</span></div>
