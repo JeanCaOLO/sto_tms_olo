@@ -207,4 +207,21 @@ ROUTES = {
     "POST /api/v1/oms/viajes/{numero_viaje}/procesar": procesar_viaje,
 }
 
-handler = tms_handler(ROUTES)
+_http_handler = tms_handler(ROUTES)
+
+
+def _es_evento_programado(event: object) -> bool:
+    """True si el evento viene de EventBridge Scheduler (W1), no de API Gateway."""
+    return isinstance(event, dict) and (
+        event.get("detail-type") == "Scheduled Event" or event.get("source") == "aws.events"
+    )
+
+
+def handler(event: dict, context: object) -> dict:
+    """Entrypoint Lambda. Dos disparadores sobre la misma función:
+    - EventBridge Scheduler (W1, 5×/día): corre el barrido ADR-013 (`correr()`).
+    - API Gateway HTTP: despacha las rutas (health, corrida manual, procesar viaje).
+    """
+    if _es_evento_programado(event):
+        return correr()
+    return _http_handler(event, context)

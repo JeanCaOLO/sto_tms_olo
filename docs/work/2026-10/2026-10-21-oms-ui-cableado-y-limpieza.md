@@ -74,10 +74,29 @@ Estado final verificado: `orders`=402 (todos con `eflow_id_expedicion`), `store_
 ausente, `dispatch_guides`=0, `order_items`=0, `plan_stops`=393 (paradas reales de
 Planificación sobre los 402, intactas), `oms_logs` existe.
 
-## Pendiente (despliegue AWS)
+## Template AWS cableado (W1/W2/W3) — `backend/oms/template.yaml`
 
-- Los **logs del OMS** solo se poblarán cuando el backend corra con `OMS_SOURCE=live`
-  (hoy mock + no desplegado). Hasta entonces la pestaña de Auditoría sale vacía.
-- Completar `backend/oms/template.yaml` (schedule W1, ruta manual W2, IAM W3) y poner
-  `OMS_SOURCE=live` para que el motor lea los 402 orders reales y escriba prioridad/
-  liberación + logs. Deploy por Intelix.
+Dejado listo como insumo para Intelix:
+- **W1 — barrido programado**: `Events.BarridoProgramado` (Schedule) con expresión
+  parametrizable `BarridoSchedule` (default `cron(0 12,15,18,21,23 * * ? *)` = 5×/día
+  UTC para qa/prod; **dev = `rate(15 minutes)`** vía samconfig para probar sin esperar).
+  `app.handler` detecta el "Scheduled Event" de EventBridge y corre `correr()`; el mismo
+  Lambda sigue sirviendo las rutas HTTP.
+- **W2 — acción manual**: ruta `OmsProcesarViajeRoute` →
+  `POST /api/v1/oms/viajes/{numero_viaje}/procesar` (authorizer JWT; gated por rol en
+  `procesar_viaje`).
+- **W3 — escritura a `sim_expedicionescabecera`**: NO es IAM a nivel de tabla (la Lambda
+  autentica a Aurora con el secreto del Layer + `VpcConfig`); es un GRANT de Postgres, y
+  **ya está**: `tms_app` (sql/18) tiene INSERT/UPDATE sobre `sim_expedicionescabecera` y
+  `oms_logs`. Verificado en el sandbox. Sin acción extra.
+- **`OmsSource`** = parámetro (`mock | live`, default `mock`); **dev = `live`** en samconfig.
+
+Deploy (dev/qa lo hace el equipo): `python scripts/sandbox/deploy_backend.py oms`
+(cuenta 758837481569, us-east-2; lee `backend/oms/samconfig.toml [dev]`).
+
+## Pendiente
+
+- Desplegar `oms` al sandbox con los comandos de arriba y validar (corrida manual /
+  invoke del Lambda con evento programado). Una vez en `live`, la Cola mostrará
+  "Priorizado"/"Liberado" y la Auditoría poblará `oms_logs`.
+- `common-services` debe estar desplegado (el template importa sus exports).
