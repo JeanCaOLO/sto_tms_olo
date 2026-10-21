@@ -1,5 +1,5 @@
 export default {
-  'planning.title': 'Route Planning',
+  'planning.title': 'Stop Planning',
   'planning.subtitle': 'Pick the day, generate the delivery plan, edit the trips and confirm it.',
   'planning.day': 'Plan day',
   'planning.tabGenerate': 'Generate plan',
@@ -33,8 +33,8 @@ export default {
   'planning.ordersWord': 'orders',
   'planning.vehiclesWord': 'vehicles',
   'planning.tripsWord': 'trips',
-  'planning.routeWord': 'Route',
-  'planning.routesWord': 'routes',
+  'planning.routeWord': 'Stop',
+  'planning.routesWord': 'stops',
   'planning.stopWord': 'stop',
   'planning.stopsWord': 'stops',
   'planning.pointWord': 'point',
