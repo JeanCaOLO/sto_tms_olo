@@ -168,7 +168,7 @@ libre" armado a mano. No emite nada.
 
 ## 6. Cómo ponerlo a funcionar
 
-El módulo siempre lee y escribe Aurora a través de `backend/tarifas`: no hay modo demo, ni datos de prueba en la app, ni variable de entorno para cambiar la fuente. Hay dos formas de tener ese backend:
+En un build desplegado el módulo siempre lee y escribe Aurora a través de `backend/tarifas`: no hay variable de entorno para cambiar la fuente. Hay dos formas de tener ese backend (A y B) y, solo para desarrollo, un modo mock sin backend (C):
 
 ### Modo A — Aurora desde tu máquina (Lambda local)
 
@@ -180,7 +180,7 @@ Es el modo para probar con datos reales sin desplegar nada.
 2. **`.env.local`:** `TMS_DB_HOST=localhost`, `TMS_DB_PORT=15432`, `TMS_DB_NAME=tms_olo`, `TMS_DB_USER`,
    `TMS_DB_PASSWORD` y `JWT_SECRET`. (Las credenciales no se
    versionan.)
-3. **API local:** `npm run api:local:base` → Lambdas en `:4000` (incluye `tarifas`).
+3. **API local:** `npm run api:local:base` → Lambdas en `:4000` (incluye `tarifas`). Corre `backend/local/serve.py`, que ejecuta tal cual las Lambdas de `backend/`: es el código que se despliega. `npm run api:local` corre `backend-planif/serve.py`, una copia del backend de Planificación que **no** tiene `tarifas`; no sirve para este módulo.
 4. **Front:** `npm run dev`. El proxy de Vite envía `/api/*` a `:4000`. Iniciar sesión con un usuario
    del TMS (`scripts/create-dev-user.mjs` crea uno).
 5. Si cambió `data/schema.ts`: `npm run tarifas:manifest` (regenera `backend/tarifas/src/schema_manifest.json`).
@@ -188,6 +188,23 @@ Es el modo para probar con datos reales sin desplegar nada.
 > La API local abre una conexión por petición a través del túnel (~0,9 s de conexión y ~0,1 s por
 > consulta), así que las pantallas tardan varios segundos. En Lambda dentro de la VPC la conexión se
 > reutiliza y la latencia es de milisegundos. No es un indicador del rendimiento real.
+
+### Modo C — Mock sin túnel (solo desarrollo)
+
+Para trabajar el frontend y su CRUD cuando no hay túnel a Aurora. Es el mismo frontend de los otros modos; solo cambia de dónde salen los datos. Contexto completo y lista de lo que falta probar con backend: [`cambios_hechos_para_probar_backend/`](cambios_hechos_para_probar_backend/README.md).
+
+1. **`.env.local`:** `VITE_MOCK_AUTH=true`. El mock exige además `import.meta.env.DEV`, así que nunca queda activo en un build desplegado (verificado: ni la semilla demo ni el backend simulado aparecen en el JavaScript de `vite build`).
+2. **Front:** `npm run dev` e iniciar sesión con cualquier credencial (el login real falla sin backend y entra el usuario mock). El mock no conserva la sesión al recargar la página: hay que volver a entrar.
+3. **Cómo funciona.** `src/main.tsx` carga `data/memory/installMock.ts`, que instala el **cliente HTTP real** (`HttpDataSource`) apuntando a un backend simulado (`data/memory/fakeBackend/`) que guarda en memoria. El backend simulado contesta el contrato de `backend/tarifas`: rechaza columnas que la tabla no tiene (400), valida tipos y NOT NULL como Postgres, devuelve 405 para entidades externas y bitácora, 409 con SQLSTATE para FK y unicidad, 403 por rol, y las transacciones son todo-o-nada. Así los errores de contrato aparecen en el mock y no al conectar el túnel. El selector País → Almacén → Cliente del encabezado también responde con datos mock (`mockContextResponse`).
+4. **Rol.** El selector «Ver como» (Liquidador / Desarrollador, abajo a la derecha) es el mismo de la app: en modo mock el backend simulado también lo sigue, así que como Liquidador la configuración queda en solo lectura y un intento de escribirla recibe 403.
+5. **Persistencia.** Lo que se cree, edite o borre se guarda en `localStorage` bajo `tarifas-mock:v2`. Para volver a la semilla: `__tarifasMockReset()` en la consola del navegador. Si cambia la forma de la semilla, subir el número de la clave en `installMock.ts`.
+6. **La semilla demo** (`src/lib/tarifas/data/memory/seed.demo.json`) cubre Costa Rica (CRC), Venezuela (USD) y Colombia (COP), inspirada en `docs/tarifador/demo-data/`, con ids uuid como en Aurora:
+   - **Costa Rica:** 15 rutas del WMS, 8 transportistas (flota propia, terceros, uno sin perfil de cálculo y uno inactivo), 51 viajes con guías, pedidos y devoluciones, tarifarios por zona y camión, por rangos de km y con dos columnas de valor, reglas con vigencias y por compañía, la estructura de costos real de la flota propia y 8 liquidaciones en los cinco estados (una re-liquidación).
+   - **Venezuela:** estructura de la flota propia (con el concepto «a convenir» inactivo), tarifario Beval origen → destino, tarifario Andina por destino, vehículo y servicio, peajes y viáticos, 20 viajes y 5 liquidaciones.
+   - **Colombia:** tarifario Cofersa BOG/MED/BAQ, tarifa pactada de un transportista, escala de km, 12 viajes y 2 liquidaciones.
+   - Casos para cazar errores: viajes sin transportista, **sin zona de destino** (el motor bloquea la emisión y el viaje se queda en «Por liquidar»), incompletos, en curso, cancelados y planificados; reglas vencidas, inactivas y con vigencia futura; transportistas sin perfil e inactivos; pedidos anulados y diferidos.
+7. **Regenerarla:** `npx jiti scripts/build-demo-seed.ts`. Las liquidaciones, marcas y bitácora se emiten con el motor real sobre una copia en memoria. `src/lib/tarifas/__tests__/demoSeed.test.ts` falla si la semilla deja de calcular, pierde una colección o trae un id que no sea uuid en una columna uuid; `demoSeed.http.test.ts` corre los flujos reales (emitir, re-liquidar, anular, estructura de costos) por el cliente HTTP.
+8. **Los tests unitarios usan otra semilla**, `src/lib/tarifas/__tests__/fixtures/seed.json`, con el almacén en memoria directo: sus números están fijados por las pruebas.
 
 ### Modo B — Aurora desplegado (producción / sandbox)
 
@@ -249,7 +266,7 @@ Hay planillas de ejemplo en `docs/tarifador/demo-data/` (estructura de costos de
 
 | Qué | Comando |
 |---|---|
-| Tests del módulo | `npx vitest run src/lib/tarifas` (corren en modo `json` aunque `.env.local` diga `postgres`). Incluye `costStructureCR.test.ts`: reproduce la planilla de Costa Rica (costo fijo diario 57,525.69 y 48.8118 por km para el camión de 3 a 4.5 t). |
+| Tests del módulo | `npx vitest run src/lib/tarifas` (corren contra el almacén en memoria, `data/memory`, con la semilla de `__tests__/fixtures/seed.json`; no necesitan backend). Incluye `costStructureCR.test.ts`: reproduce la planilla de Costa Rica (costo fijo diario 57,525.69 y 48.8118 por km para el camión de 3 a 4.5 t). |
 | Todos los tests | `npx vitest run` |
 | Tipos | `npx tsc --noEmit --project tsconfig.app.json` |
 | Lint | `node node_modules/eslint/bin/eslint.js src/pages/liquidaciones src/pages/companias src/pages/reglas-tarifa` |
@@ -281,7 +298,7 @@ serialización (`40001`).
 | "Elija un país en el selector de la parte superior" | El selector global está en "Todos los países". |
 | Un viaje de flota propia no calcula costo por camión | Revise que `tipo_camion` de la plantilla coincida con el tipo de vehículo del catálogo (aparece como aviso en la vista previa). |
 | "La zona de destino no existe" | La zona del viaje no tiene `code` en el catálogo. |
-| Páginas en blanco o 401 en `/api/tarifas` | Sin sesión, o `api:local` no está arriba. |
+| Páginas en blanco o 401 en `/api/tarifas` | Sin sesión, o `api:local:base` no está arriba. |
 | `ECONNREFUSED 15432` / timeout | El túnel no está abierto, o Aurora está apagado (fuera de L–V 04:45–17:00 CR). |
 | `Failed to execute 'fetch' … Illegal invocation` | Corregido (2026-10-05): el driver HTTP llamaba a `fetch` con otro `this`. |
 | 405 al guardar | Se intentó escribir una entidad externa (catálogo). Se edita en Catálogos. |

@@ -29,14 +29,16 @@ import { useTesterScenario } from './rule-tester/useTesterScenario';
 
 interface RuleTesterProps {
   organizationId: string;
+  /** País del selector global del TMS: con él arranca el Probador (después puede cambiarse acá). */
+  initialCountryId?: string;
 }
 
-export default function RuleTester({ organizationId }: RuleTesterProps) {
+export default function RuleTester({ organizationId, initialCountryId }: RuleTesterProps) {
   const form = useTesterForm();
   const [error, setError] = useState('');
   const { modo, countryId, tripId, viajePartyId, libre, dia, customRaw } = form;
 
-  const base = useTesterBase({ organizationId, countryId, setCountryId: form.setCountryId, setError });
+  const base = useTesterBase({ organizationId, countryId, initialCountryId, setCountryId: form.setCountryId, setError });
 
   const libreCarrier = useMemo(
     () => base.carriers.find((c) => c.carrierId === libre.carrierId) ?? null,

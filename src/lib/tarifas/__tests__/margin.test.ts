@@ -63,7 +63,7 @@ describe('calculate() — flota propia: el total es la acumulación de gastos', 
     const r = calculate({
       ...base,
       trip: makeTrip({ fleetType: 'OWN' }),
-      rules: [makeRule({ code: 'RECOLECTA', stage: 'SURCHARGE', expression: { op: 'FIXED', amount: '30.00' } })],
+      rules: [makeRule({ code: 'RECOLECTA', stage: 'VARIABLE', expression: { op: 'FIXED', amount: '30.00' } })],
     });
     expect(r.cost.total).toBe('265.40');
     expect(r.totalLiquidado).toBe('295.40');
@@ -76,7 +76,7 @@ describe('calculate() — flota propia: el total es la acumulación de gastos', 
       ...base,
       trip: makeTrip({ fleetType: 'OWN' }),
       rules: [makeRule({
-        code: 'PCT', stage: 'SURCHARGE',
+        code: 'PCT', stage: 'VARIABLE',
         expression: { op: 'PERCENT', pct: '0.10', base: { of: 'RUNNING_SUBTOTAL' } },
       })],
     });

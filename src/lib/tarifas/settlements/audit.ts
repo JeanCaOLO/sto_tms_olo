@@ -1,6 +1,6 @@
 // Auditoría de liquidaciones.
 
-import { registrarEvento } from '../../liquidador/auditLog';
+import { eventoToRow, registrarEventoSeguro, type EventoAuditoria } from '../../liquidador/auditLog';
 import { getActorRole } from '../actor';
 
 /** Correo del usuario logueado (sesión del TMS, misma clave que `src/lib/supabase.ts`). */
@@ -14,30 +14,53 @@ export function usuarioActual(): string {
   }
 }
 
+type Accion = 'CREATE' | 'UPDATE' | 'AUTHORIZE';
+
+function evento(
+  accion: Accion,
+  entidadId: string,
+  antes: unknown,
+  despues: unknown,
+  motivo: string | undefined,
+): EventoAuditoria {
+  return {
+    entidad: 'settlement',
+    entidadId,
+    accion,
+    usuario: usuarioActual(),
+    rol: getActorRole(),
+    antes,
+    despues,
+    ...(motivo ? { motivo } : {}),
+  };
+}
+
 /**
- * La bitácora de las liquidaciones se escribe ACÁ, junto a la escritura que registra — no en la
- * pantalla —, para que ningún camino (emitir, re-liquidar, cambiar estado) quede sin rastro.
+ * La fila de bitácora de una liquidación, para insertarla en la MISMA transacción que la escritura
+ * que registra (`tx.insert('auditLog', auditRow(...))`): emitir, re-liquidar y cambiar de estado no
+ * pueden quedar sin rastro ni dejar rastro de algo que no se guardó. El servidor fija el usuario y
+ * el rol con los del token, así que lo que acá se manda como actor es solo un respaldo.
+ */
+export function auditRow(
+  accion: Accion,
+  entidadId: string,
+  antes: unknown,
+  despues: unknown,
+  motivo: string | undefined,
+): Record<string, unknown> {
+  return eventoToRow(evento(accion, entidadId, antes, despues, motivo));
+}
+
+/**
+ * Bitácora FUERA de transacción, para cambios que no son una liquidación (o cuando no hay una
+ * transacción a mano). No debe tumbar lo ya guardado: si falla, la operación sigue valiendo y se avisa.
  */
 export async function auditar(
-  accion: 'CREATE' | 'UPDATE' | 'AUTHORIZE',
+  accion: Accion,
   entidadId: string,
   antes: unknown,
   despues: unknown,
   motivo: string | undefined,
 ): Promise<void> {
-  // La bitácora no debe tumbar una liquidación ya guardada: si falla, la operación sigue valiendo.
-  try {
-    await registrarEvento({
-      entidad: 'settlement',
-      entidadId,
-      accion,
-      usuario: usuarioActual(),
-      rol: getActorRole(),
-      antes,
-      despues,
-      ...(motivo ? { motivo } : {}),
-    });
-  } catch (error) {
-    console.error('[tarifas] No se pudo registrar la bitácora de la liquidación', error);
-  }
+  await registrarEventoSeguro(evento(accion, entidadId, antes, despues, motivo));
 }

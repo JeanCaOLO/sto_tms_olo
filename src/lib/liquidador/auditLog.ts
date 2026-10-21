@@ -18,8 +18,14 @@ export interface EventoAuditoria {
   motivo?: string;
 }
 
-export async function registrarEvento(evento: EventoAuditoria): Promise<void> {
-  await db().insert('auditLog', {
+/**
+ * La fila de bitácora de un evento. Se separa de `registrarEvento` para poder insertarla DENTRO de la
+ * misma transacción que el cambio que registra (si falla uno, no queda el otro).
+ *
+ * `usuario` y `rol` son lo que dice el cliente; el servidor los sobrescribe con los del token.
+ */
+export function eventoToRow(evento: EventoAuditoria): Record<string, unknown> {
+  return {
     entity: evento.entidad,
     entity_id: evento.entidadId,
     action: evento.accion,
@@ -29,7 +35,37 @@ export async function registrarEvento(evento: EventoAuditoria): Promise<void> {
     after: evento.despues ?? null,
     reason: evento.motivo ?? null,
     created_at: new Date().toISOString(),
-  });
+  };
+}
+
+export async function registrarEvento(evento: EventoAuditoria): Promise<void> {
+  await db().insert('auditLog', eventoToRow(evento));
+}
+
+type AuditFailureListener = (error: unknown) => void;
+const failureListeners = new Set<AuditFailureListener>();
+
+/** Quien quiera avisar al usuario cuando la bitácora falle (hoy, `ToastProvider`). Devuelve cómo darse de baja. */
+export function onAuditFailure(listener: AuditFailureListener): () => void {
+  failureListeners.add(listener);
+  return () => failureListeners.delete(listener);
+}
+
+/**
+ * Registra el evento SIN tumbar la operación que ya se guardó. Si la bitácora falla (por ejemplo un rol
+ * que configura pero no tiene el módulo `tarifas`, que es el que escribe la bitácora), el cambio sigue
+ * valiendo y se avisa en pantalla: antes el error solo iba a la consola o, peor, hacía parecer que el
+ * cambio no se había guardado. Devuelve si quedó registrado.
+ */
+export async function registrarEventoSeguro(evento: EventoAuditoria): Promise<boolean> {
+  try {
+    await registrarEvento(evento);
+    return true;
+  } catch (error) {
+    console.error('Error registrando evento de auditoría:', error);
+    failureListeners.forEach((listener) => listener(error));
+    return false;
+  }
 }
 
 export interface FilaAuditoria {

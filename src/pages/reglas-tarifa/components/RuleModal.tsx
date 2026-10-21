@@ -30,7 +30,7 @@ interface RuleModalProps {
 
 const TAB_LABELS = { simple: 'Simple', advanced: 'Avanzado (JSON)' } as const;
 
-export default function RuleModal({
+function RuleModalBody({
   isOpen, onClose, onSuccess, rule, organizationId, country, usuarioActivo, defaults,
 }: RuleModalProps) {
   const { canCreate, canEdit } = useModulePermissions('tarifas.config');
@@ -117,4 +117,13 @@ export default function RuleModal({
       </form>
     </Modal>
   );
+}
+
+/**
+ * El cuerpo solo existe mientras el modal está abierto: cada apertura arranca con el formulario, las
+ * condiciones y el constructor limpios. Si se mantuviera montado, «Nueva regla» reabriría con el código,
+ * el nombre y el importe de la regla anterior.
+ */
+export default function RuleModal(props: RuleModalProps) {
+  return props.isOpen ? <RuleModalBody {...props} /> : null;
 }

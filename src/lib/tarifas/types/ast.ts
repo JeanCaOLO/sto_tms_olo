@@ -1,6 +1,7 @@
 // AST del lenguaje de reglas: predicados, expresiones, condiciones, estadios.
 
 import type { Money } from './variables';
+import type { BaseMethodId } from './trace';
 import type { NumericVarKey, VarKey } from './trip';
 
 export type ComparisonOp = 'EQ' | 'NEQ' | 'GT' | 'GTE' | 'LT' | 'LTE';
@@ -96,8 +97,35 @@ export interface Tier {
   amount: Money;
 }
 
-export type Stage = 'BASE' | 'VARIABLE' | 'MODIFIER' | 'SURCHARGE' | 'ADJUSTMENT' | 'TAX';
-export const STAGE_ORDER: readonly Stage[] = ['BASE', 'VARIABLE', 'MODIFIER', 'SURCHARGE', 'ADJUSTMENT', 'TAX'];
+/**
+ * Las cuatro fases del motor, en orden de evaluación:
+ *   BASE      el cobro principal (reemplazable por la base del tercero);
+ *   VARIABLE  todo lo aditivo que depende del viaje (por km/unidad, peajes, pernocta, recargos, modificadores);
+ *   ADJUSTMENT descuentos y ajustes sobre lo acumulado ("Ajuste" en pantalla);
+ *   TAX       impuesto, solo si corresponde.
+ */
+export type Stage = 'BASE' | 'VARIABLE' | 'ADJUSTMENT' | 'TAX';
+export const STAGE_ORDER: readonly Stage[] = ['BASE', 'VARIABLE', 'ADJUSTMENT', 'TAX'];
+
+/** Etapas anteriores a la simplificación a 4 fases. Siguen en datos guardados (BD, liquidaciones emitidas). */
+export type LegacyStage = 'MODIFIER' | 'SURCHARGE';
+
+/**
+ * Etiqueta de reporte/UI de una regla. NO participa del cálculo (ni del orden ni del stacking): solo
+ * agrupa para que el desglose siga distinguiendo, p. ej., un recargo de un modificador.
+ */
+export type RuleCategory = 'VARIABLE' | 'MODIFIER' | 'SURCHARGE' | 'ADJUSTMENT' | 'TAX';
+export const RULE_CATEGORIES: readonly RuleCategory[] = ['VARIABLE', 'MODIFIER', 'SURCHARGE', 'ADJUSTMENT', 'TAX'];
+
+/** Etapa guardada (posiblemente vieja) → fase vigente. Desconocida = se devuelve tal cual. */
+export function normalizeStage(raw: string): Stage {
+  return (raw === 'MODIFIER' || raw === 'SURCHARGE' ? 'VARIABLE' : raw) as Stage;
+}
+
+/** La categoría que corresponde a una etapa vieja; para una vigente, ninguna (no hay nada que conservar). */
+export function legacyCategory(raw: string): RuleCategory | null {
+  return raw === 'MODIFIER' || raw === 'SURCHARGE' ? raw : null;
+}
 
 export type Stacking = 'SUM' | 'MAX' | 'EXCLUSIVE';
 
@@ -182,9 +210,22 @@ export interface Rule {
   code: string;
   name: string;
   stage: Stage;
+  /** Solo reporte/UI (ver RuleCategory). Nulo = sin etiqueta; el cálculo no la mira. */
+  category?: RuleCategory | null;
   priority: number; // menor = se evalúa antes; dentro de EXCLUSIVE, gana la de menor priority
   stacking: Stacking;
   exclusionGroup: string | null; // reglas MAX mutuamente excluyentes comparten este grupo
+  /**
+   * Formas de cobro de la base a las que está ligado este ajuste (solo etapas que no son BASE).
+   * Null o vacío = transversal: aplica con cualquier base, que es como se comportaban todas las reglas
+   * antes de este campo.
+   */
+  appliesToBase?: BaseMethodId[] | null;
+  /**
+   * Forma de cobro que declara una regla BASE (solo etapa BASE; nulo en las demás). Ausente en filas
+   * anteriores: ahí se deduce de la expresión (`classifyExpr`).
+   */
+  baseMethod?: BaseMethodId | null;
   conditions: Pred;
   expression: Expr;
   /** Explicación en castellano. Autogenerada desde `builder`, editable a mano. */

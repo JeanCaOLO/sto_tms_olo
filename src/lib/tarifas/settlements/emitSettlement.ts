@@ -2,7 +2,7 @@
 
 import { getTrip } from '../tripsDataSource';
 import { failed, isNumberCollision } from './errorHandling';
-import { attemptEmit, validateAndReload } from './emitLogic';
+import { attemptEmit } from './emitLogic';
 import { blockingIssues, validateSettlement } from './validation';
 import type { EmitSettlementResult, SettlementInput } from '../types';
 
@@ -25,9 +25,6 @@ export async function emitSettlement(input: SettlementInput): Promise<EmitSettle
     // Se relee el viaje: entre que se abrió la pantalla y se emite, pudo cambiar o liquidarse.
     const trip = await getTrip(input.trip.id);
     if (!trip) return { status: 'blocked', issues: [{ code: 'BASE_NO_DISPONIBLE', message: 'El viaje ya no existe.' }] };
-
-    const problem = await validateAndReload(input);
-    if (problem) return problem;
 
     return await attemptEmit(input, trip);
   } catch (error) {

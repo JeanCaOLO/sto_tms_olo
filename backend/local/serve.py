@@ -31,6 +31,7 @@ STACKS = {
     "admin": BACKEND / "admin" / "src",
     "planning": BACKEND / "planning" / "src",
     "tarifas": BACKEND / "tarifas" / "src",
+    "tracking": BACKEND / "tracking" / "src",
     "eflow_sim": BACKEND / "eflow-sim" / "src",
 }
 AUTHORIZER = BACKEND / "common-services" / "src" / "authorizer" / "app.py"

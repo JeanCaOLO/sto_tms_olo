@@ -3,19 +3,12 @@
 import Input from '../../../../../components/base/Input';
 import Select from '../../../../../components/base/Select';
 import type { BaseRef, Stage } from '../../../../../lib/tarifas/types';
+import { PHASE_OPTIONS } from '../stageOptions';
 import type { FieldsProps } from './types';
 
-const STAGE_OPTIONS = [
-  { value: 'BASE' as const, label: 'Base (precio base de la ruta)' },
-  { value: 'VARIABLE' as const, label: 'Variable (cliente / kg / bulto)' },
-  { value: 'MODIFIER' as const, label: 'Modificador (ajuste por servicio)' },
-  { value: 'SURCHARGE' as const, label: 'Recargo (pernocta, peajes y otros variables propios)' },
-  { value: 'ADJUSTMENT' as const, label: 'Ajuste (descuentos/penalidades)' },
-  { value: 'TAX' as const, label: 'Impuesto' },
-];
 const BASE_OPTIONS = [
   { value: 'RUNNING_SUBTOTAL', label: 'El subtotal acumulado hasta esta regla' },
-  { value: 'STAGE_SUBTOTAL', label: 'El subtotal de una etapa' },
+  { value: 'STAGE_SUBTOTAL', label: 'El subtotal de una fase' },
   { value: 'RULE', label: 'El monto de otra regla' },
 ];
 
@@ -40,10 +33,10 @@ export function PercentFields({ builder, builderErrors, onChange }: FieldsProps)
       />
       {base?.of === 'STAGE_SUBTOTAL' && (
         <Select
-          label="Etapa base"
+          label="Fase base"
           value={base.stage}
           onChange={(e) => onChange('percentBase', { of: 'STAGE_SUBTOTAL', stage: e.target.value as Stage })}
-          options={STAGE_OPTIONS}
+          options={PHASE_OPTIONS}
         />
       )}
       {base?.of === 'RULE' && (

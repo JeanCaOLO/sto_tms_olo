@@ -6,7 +6,9 @@
 // el backend luego rechazaría.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { apiFetch } from '../lib/supabase';
+import { apiFetch as realApiFetch } from '../lib/supabase';
+import { MOCK_AUTH_ENABLED, mockContextResponse } from '../lib/mock-auth';
+import { MOCK_COUNTRY_IDS } from '../lib/tarifas/data/memory/mockIds';
 import { useAuth } from './useAuth';
 
 export interface Country { id: string; code: string; name: string; timezone: string | null }
@@ -41,14 +43,21 @@ interface OperationalContextValue {
 
 const STORAGE_KEY = 'tms_operational_context';
 
+// En modo mock (VITE_MOCK_AUTH, solo dev) no hay backend: el contexto sale de `mock-auth.ts`.
+const apiFetch: typeof realApiFetch = async (path, init) =>
+  (MOCK_AUTH_ENABLED ? mockContextResponse(path) : null) ?? realApiFetch(path, init);
+
 const OperationalContext = createContext<OperationalContextValue | undefined>(undefined);
+
+// En mock arranca en Costa Rica: el tarifador pide un país activo y "Todos" no sirve para liquidar.
+const emptySelection = () => ({ countryId: MOCK_AUTH_ENABLED ? MOCK_COUNTRY_IDS.CR : null, warehouseId: null, customerId: null });
 
 function readPersisted(): { countryId: string | null; warehouseId: string | null; customerId: string | null } {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : { countryId: null, warehouseId: null, customerId: null };
+    return raw ? JSON.parse(raw) : emptySelection();
   } catch {
-    return { countryId: null, warehouseId: null, customerId: null };
+    return emptySelection();
   }
 }
 
@@ -95,13 +104,9 @@ export function OperationalContextProvider({ children }: { children: ReactNode }
 
   useEffect(() => {
     if (!session) return;
-    apiFetch('/v1/countries')
-      .then(({ ok, body }) => {
-        if (ok && body?.data) setCountries(body.data);
-      })
-      .catch((e) => {
-        console.error('Error al cargar países:', e);
-      });
+    apiFetch('/v1/countries').then(({ ok, body }) => {
+      if (ok && body?.data) setCountries(body.data);
+    });
   }, [session]);
 
   // Limpia selecciones inválidas (prompt de implementación §17: "evitar
@@ -121,20 +126,10 @@ export function OperationalContextProvider({ children }: { children: ReactNode }
       setWarehouses([]);
       return;
     }
-    const currentCountryId = selectedCountryId;
-    apiFetch(`/v1/countries/${selectedCountryId}/warehouses`)
-      .then(({ ok, body }) => {
-        if (currentCountryId === selectedCountryId) {
-          if (ok && body?.data) setWarehouses(body.data);
-          else setWarehouses([]);
-        }
-      })
-      .catch((e) => {
-        if (currentCountryId === selectedCountryId) {
-          console.error('Error al cargar almacenes:', e);
-          setWarehouses([]);
-        }
-      });
+    apiFetch(`/v1/countries/${selectedCountryId}/warehouses`).then(({ ok, body }) => {
+      if (ok && body?.data) setWarehouses(body.data);
+      else setWarehouses([]);
+    });
   }, [session, selectedCountryId]);
 
   useEffect(() => {
@@ -149,20 +144,10 @@ export function OperationalContextProvider({ children }: { children: ReactNode }
       setCustomers([]);
       return;
     }
-    const currentWarehouseId = selectedWarehouseId;
-    apiFetch(`/v1/warehouses/${selectedWarehouseId}/customers`)
-      .then(({ ok, body }) => {
-        if (currentWarehouseId === selectedWarehouseId) {
-          if (ok && body?.data) setCustomers(body.data);
-          else setCustomers([]);
-        }
-      })
-      .catch((e) => {
-        if (currentWarehouseId === selectedWarehouseId) {
-          console.error('Error al cargar clientes:', e);
-          setCustomers([]);
-        }
-      });
+    apiFetch(`/v1/warehouses/${selectedWarehouseId}/customers`).then(({ ok, body }) => {
+      if (ok && body?.data) setCustomers(body.data);
+      else setCustomers([]);
+    });
   }, [session, selectedWarehouseId]);
 
   useEffect(() => {

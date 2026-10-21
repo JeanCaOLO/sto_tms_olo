@@ -1,6 +1,6 @@
 // Extracción de filas de tarifario desde planilla.
 
-import { parseAmount, type NumberFormat, type SheetMatrix } from '../cost-sheet-parser';
+import { isAmbiguousThousands, parseAmount, type NumberFormat, type SheetMatrix } from '../cost-sheet-parser';
 import { RATE_TABLE_WILDCARD } from '../types';
 import type { ParsedRateTable, ParsedRateTableRow, RateTableProblem, RateTableSheetAnalysis } from './types';
 import { text } from './utils';
@@ -44,6 +44,7 @@ export function parseRateTableSheet(
   const { mapping, firstDataRow } = analysis;
   const rows: ParsedRateTableRow[] = [];
   const skipped: RateTableProblem[] = [];
+  const warnings: RateTableProblem[] = [];
 
   if (mapping.amount === null) return { rows, skipped };
 
@@ -68,6 +69,14 @@ export function parseRateTableSheet(
 
     const values = parseCustomValues(row, mapping.values, format);
 
+    if (isAmbiguousThousands(rawAmount, format)) {
+      warnings.push({
+        sourceRow: i,
+        key,
+        reason: `El importe "${rawAmount}" se leyó como decimal (${amount}). Si es un importe de miles, elegí el formato de número es/en.`,
+      });
+    }
+
     rows.push({
       key,
       amount,
@@ -77,7 +86,7 @@ export function parseRateTableSheet(
     });
   }
 
-  return { rows, skipped };
+  return { rows, skipped, ...(warnings.length ? { warnings } : {}) };
 }
 
 /**

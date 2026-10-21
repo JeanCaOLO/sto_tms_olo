@@ -1,5 +1,7 @@
 // Armado puro de lo que se guarda al enviar el modal de reglas: la candidata a validar y el payload.
 
+import { classifyExpr } from '../../../../lib/tarifas/baseMethods';
+import { legacyCategory } from '../../../../lib/tarifas/types';
 import type {
   ConditionBuilderForm, Expr, Pred, RuleBuilderForm,
 } from '../../../../lib/tarifas/types';
@@ -29,9 +31,15 @@ export function buildRuleCandidate(input: CandidateInput) {
     code: formData.code.trim().toUpperCase(),
     name: formData.name,
     stage: formData.stage,
+    category: formData.stage !== 'BASE' && formData.category ? formData.category : null,
     priority: Number(formData.priority),
-    stacking: formData.stacking,
+    // EXCLUSIVE solo vale en BASE: si se cambió de fase con EXCLUSIVE puesto, pasa a SUM.
+    stacking: formData.stage !== 'BASE' && formData.stacking === 'EXCLUSIVE' ? 'SUM' as const : formData.stacking,
     exclusionGroup: formData.stacking === 'MAX' && exclusionGroup ? exclusionGroup : null,
+    // Solo los ajustes se ligan a una forma de cobro: la BASE es la que la define.
+    // La forma de cobro de una BASE se deduce de su fórmula: así declarada y fórmula nunca se contradicen.
+    baseMethod: formData.stage === 'BASE' ? classifyExpr(input.expression)?.method ?? null : null,
+    appliesToBase: formData.stage !== 'BASE' && formData.applies_to_base.length > 0 ? formData.applies_to_base : null,
     conditions: input.conditions,
     expression: input.expression,
     description: input.description || null,
@@ -49,8 +57,18 @@ export function buildRuleCandidate(input: CandidateInput) {
 
 export type RuleCandidate = ReturnType<typeof buildRuleCandidate>;
 
-/** La fila que va a la base (snake_case); una edición sube la versión. */
-export function toRulePayload(candidate: RuleCandidate, countryId: string, isEdit: boolean) {
+/**
+ * La fila que va a la base (snake_case); una edición sube la versión. Solo lleva columnas de
+ * `tarifas_pricing_rules`: el backend rechaza con 400 cualquier campo que la tabla no tenga (por eso no
+ * hay `updated_at`; la fecha del cambio queda en la bitácora).
+ */
+export function toRulePayload(
+  candidate: RuleCandidate, countryId: string, isEdit: boolean, previous?: Record<string, unknown>,
+) {
+  // Columnas de sql/38 y sql/39: solo viajan con valor (o si la regla ya las tenía y ahora se limpian). Así
+  // guardar una regla sigue funcionando contra un backend cuyo manifest todavía no las conoce.
+  const optional = (key: 'applies_to_base' | 'base_method' | 'category', value: unknown) =>
+    value != null || previous?.[key] != null ? { [key]: value ?? null } : {};
   return {
     country_id: countryId || null,
     scope: candidate.scope,
@@ -61,6 +79,12 @@ export function toRulePayload(candidate: RuleCandidate, countryId: string, isEdi
     priority: candidate.priority,
     stacking: candidate.stacking,
     exclusion_group: candidate.exclusionGroup,
+    ...optional('applies_to_base', candidate.appliesToBase),
+    ...optional('base_method', candidate.baseMethod),
+    // La categoría que solo viene de la etapa vieja de la fila no se reenvía: la backfillea sql/39, y
+    // mandarla antes tumbaría el guardado de toda regla vieja contra un backend sin la columna.
+    ...optional('category', candidate.category === legacyCategory(String(previous?.stage ?? '')) && previous?.category == null
+      ? null : candidate.category),
     conditions: candidate.conditions,
     expression: candidate.expression,
     description: candidate.description,
@@ -73,7 +97,6 @@ export function toRulePayload(candidate: RuleCandidate, countryId: string, isEdi
     effective_from: candidate.effectiveFrom,
     effective_to: candidate.effectiveTo,
     version: isEdit ? candidate.version + 1 : 1,
-    updated_at: new Date().toISOString(),
   };
 }
 

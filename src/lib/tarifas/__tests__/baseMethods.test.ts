@@ -1,9 +1,14 @@
 // Cambio de base de cálculo: qué tipos de cobro ofrece un viaje, cómo reemplaza la base y que lo
 // demás (otras fases, flota, totales) no se mueve ni se cobra dos veces.
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { calculate, listBaseMethods } from '../index';
-import { describeCurrentBase, sourceSentence } from '../baseMethods';
+import {
+  BASE_METHOD_ORDER, BASE_METHODS, baseKindOf, baseMethodMismatch, baseRulesOf, describeCurrentBase, sourceSentence,
+} from '../baseMethods';
+import { RuleSchema } from '../schemas';
 import { makeCountryVE, makeGeoVE, makeMarginPolicy, makeOwnCostStructure, makeRule, makeTrip } from './fixtures';
 import type { BaseMethodId, CalculateInput, Rule } from '../types';
 
@@ -79,9 +84,9 @@ describe('cambiar la base reemplaza solo la base', () => {
   });
 
   it('las demás fases siguen igual', () => {
-    const recargo = makeRule({ code: 'RECARGO', stage: 'SURCHARGE', expression: { op: 'FIXED', amount: '10' } });
+    const recargo = makeRule({ code: 'RECARGO', stage: 'VARIABLE', expression: { op: 'FIXED', amount: '10' } });
     const r = calculate(input({ rules: [porKm(), fija(), recargo], baseOverride: { method: 'PER_KM' } }));
-    expect(r.stageSubtotals.SURCHARGE).toBe('10.00');
+    expect(r.stageSubtotals.VARIABLE).toBe('10.00');
     expect(r.totalLiquidado).toBe('460.00');
   });
 
@@ -95,14 +100,14 @@ describe('cambiar la base reemplaza solo la base', () => {
   });
 
   it('un recargo fijo no es duplicado de una base fija', () => {
-    const recargo = makeRule({ code: 'RECARGO', stage: 'SURCHARGE', expression: { op: 'FIXED', amount: '10' } });
+    const recargo = makeRule({ code: 'RECARGO', stage: 'VARIABLE', expression: { op: 'FIXED', amount: '10' } });
     const r = calculate(input({ rules: [fija(), recargo], baseOverride: { method: 'FIXED' } }));
     expect(r.base?.duplicates).toEqual([]);
     expect(r.totalLiquidado).toBe('110.00');
   });
 
   it('tarifa fija con monto del transportista: ese monto es la base y reemplaza las reglas BASE', () => {
-    const recargo = makeRule({ code: 'RECARGO', stage: 'SURCHARGE', expression: { op: 'FIXED', amount: '10' } });
+    const recargo = makeRule({ code: 'RECARGO', stage: 'VARIABLE', expression: { op: 'FIXED', amount: '10' } });
     const r = calculate(input({ rules: [porKm(), fija(), recargo], baseOverride: { method: 'FIXED', amount: '250' } }));
     expect(r.blockingIssues).toEqual([]);
     expect(r.base?.source.kind).toBe('CARRIER');
@@ -125,6 +130,14 @@ describe('cambiar la base reemplaza solo la base', () => {
       expect(r.base?.source.kind).toBe('RULE');
       expect(r.totalLiquidado).toBe('100.00');
     }
+  });
+
+  it('con tarifa fija del transportista, un recargo por km de otra fase SÍ aplica (no es la misma cosa)', () => {
+    const sobreKm = makeRule({ code: 'SOBRE_KM', stage: 'VARIABLE', expression: { op: 'PER_KM', rate: '0.50' } });
+    const r = calculate(input({ rules: [sobreKm], baseOverride: { method: 'FIXED', amount: '1000' } }));
+    expect(r.base?.duplicates).toEqual([]);
+    expect(r.discarded.map((d) => d.ruleCode)).not.toContain('SOBRE_KM');
+    expect(r.totalLiquidado).toBe('1090.00'); // 1000 + 180 km × 0.50
   });
 
   it('por unidad no choca con una regla por km de otra fase', () => {
@@ -177,22 +190,13 @@ describe('flota propia: la base sale de la estructura de costos', () => {
     expect(calculate(propia()).totalLiquidado).toBe('935.00'); // 180 × 5 + 1 día × 35
   });
 
-  it('por km: {km} × {costo} = resultado, y se dice que sale de la estructura', () => {
-    const r = calculate(propia({ baseOverride: { method: 'PER_KM' } }));
-    expect(r.totalLiquidado).toBe('900.00');
-    const linea = r.trace.find((l) => l.stage === 'BASE')!;
-    expect(linea.inputs).toMatchObject({ km: 180, 'costo por km': '5.0000' });
-    expect(r.base?.source.kind).toBe('COST_STRUCTURE');
-    expect(r.base?.replaced).toContain('ESTRUCTURA_COSTOS');
-    // El costo real del viaje (para el margen de auditoría) no se toca.
-    expect(r.cost.total).toBe(calculate(propia()).cost.total);
-  });
-
-  it('una regla por km en otra fase se omite: la estructura ya cobra por km', () => {
-    const variable = makeRule({ code: 'VAR_KM', stage: 'VARIABLE', expression: { op: 'PER_KM', rate: '0.50' } });
-    const r = calculate(propia({ rules: [variable], baseOverride: { method: 'PER_KM' } }));
-    expect(r.totalLiquidado).toBe('900.00');
-    expect(r.base?.duplicates.map((d) => d.ruleCode)).toEqual(['VAR_KM']);
+  it('ignora cualquier forma de cobro: siempre es estructura de costos', () => {
+    for (const method of ['PER_KM', 'PER_UNIT', 'FIXED', 'VOLUME'] as const) {
+      const r = calculate(propia({ baseOverride: { method, amount: '250' } }));
+      expect(r.totalLiquidado).toBe('935.00');
+      expect(r.base).toBeUndefined();
+      expect(r.blockingIssues).toEqual([]);
+    }
   });
 });
 
@@ -227,5 +231,46 @@ describe('textos de procedencia', () => {
     expect(describeCurrentBase(sin)).toEqual({ label: 'Regla Base por km', changed: false });
     const con = calculate(input({ rules: [porKm()], baseOverride: { method: 'PER_KM' } }));
     expect(describeCurrentBase(con)).toEqual({ label: 'Regla Base por km', changed: true });
+  });
+});
+
+describe('forma de cobro declarada en la regla BASE', () => {
+  it('manda la declarada; sin declarar se deduce de la fórmula', () => {
+    const declarada = makeRule({ code: 'D', stage: 'BASE', baseMethod: 'VOLUME', expression: { op: 'FIXED', amount: '5' } });
+    expect(baseRulesOf([declarada], 'VOLUME')).toHaveLength(1);
+    expect(baseRulesOf([declarada], 'FIXED')).toHaveLength(0);
+    expect(baseRulesOf([porKm()], 'PER_KM')).toHaveLength(1);
+  });
+
+  it('una BASE declarada que la fórmula no clasifica (p. ej. porcentaje) igual cuenta en su forma de cobro', () => {
+    const regla = makeRule({
+      code: 'P', stage: 'BASE', baseMethod: 'FIXED',
+      expression: { op: 'PERCENT', base: { of: 'RUNNING_SUBTOTAL' }, pct: '10' } as never,
+    });
+    expect(baseKindOf(regla)).toMatchObject({ method: 'FIXED' });
+  });
+
+  it('baseMethodMismatch avisa cuando declarada y fórmula se contradicen, y no cuando coinciden', () => {
+    expect(baseMethodMismatch(porKm())).toBeNull();
+    expect(baseMethodMismatch(porKm('2', { baseMethod: 'PER_KM' }))).toBeNull();
+    expect(baseMethodMismatch(porKm('2', { baseMethod: 'FIXED' }))).toContain('Declara base "Tarifa fija"');
+  });
+
+  it('exactamente 5 formas de cobro, iguales al CHECK de carriers.rate_type (sql/35)', () => {
+    const sql = readFileSync(new URL('../../../../sql/35_contratos_dimensiones_contacto_forma_pago.sql', import.meta.url), 'utf8');
+    const permitidas = /rate_type in \(([^)]*)\)/.exec(sql)![1]!.split(',').map((x) => x.trim().replace(/'/g, ''));
+    expect([...BASE_METHOD_ORDER]).toEqual(permitidas);
+    expect(Object.keys(BASE_METHODS)).toHaveLength(5);
+  });
+});
+
+describe('RuleSchema: forma de cobro y ligado', () => {
+  const base = { ...porKm(), id: 'r1', countryId: 'VE' };
+  it('baseMethod solo en BASE; appliesToBase solo en ajustes; Tendering no se declara', () => {
+    expect(RuleSchema.safeParse({ ...base, baseMethod: 'PER_KM' }).success).toBe(true);
+    expect(RuleSchema.safeParse({ ...base, stage: 'VARIABLE', baseMethod: 'PER_KM' }).success).toBe(false);
+    expect(RuleSchema.safeParse({ ...base, appliesToBase: ['PER_KM'] }).success).toBe(false);
+    expect(RuleSchema.safeParse({ ...base, stage: 'VARIABLE', appliesToBase: ['PER_KM'] }).success).toBe(true);
+    expect(RuleSchema.safeParse({ ...base, baseMethod: 'TENDERING' }).success).toBe(false);
   });
 });

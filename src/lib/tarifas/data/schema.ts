@@ -194,6 +194,8 @@ export const ENTITIES = {
       rate_type: { type: 'text', nullable: true },
       // Monto pactado de la tarifa fija (sql/36): con rate_type='FIXED' es la base del viaje.
       flat_rate_amount: { type: 'numeric', nullable: true },
+      // Vencimiento del contrato (sql/35): solo se lee; un contrato vencido avisa, no bloquea.
+      contract_expiry: { type: 'date', nullable: true },
     },
   },
 
@@ -438,10 +440,19 @@ export const ENTITIES = {
       party_id: { type: 'text', nullable: true, references: 'settlementParty', onDelete: 'cascade', indexed: true },
       code: { type: 'text' },
       name: { type: 'text' },
+      // Fase del cálculo: 'BASE' | 'VARIABLE' | 'ADJUSTMENT' | 'TAX' (sql/39; antes también MODIFIER y SURCHARGE).
       stage: { type: 'text' },
+      // Etiqueta de reporte (sql/39): 'VARIABLE' | 'MODIFIER' | 'SURCHARGE' | 'ADJUSTMENT' | 'TAX'. No afecta el
+      // cálculo. Nulo en filas anteriores y en las BASE.
+      category: { type: 'text', nullable: true },
       priority: { type: 'int' },
       stacking: { type: 'text' },
       exclusion_group: { type: 'text', nullable: true },
+      // Formas de cobro de la base a las que está ligado un ajuste (array JSON de BaseMethodId; sql/38).
+      // Nulo o vacío = transversal: aplica con cualquier base.
+      applies_to_base: { type: 'jsonb', nullable: true },
+      // Forma de cobro que declara una regla BASE (sql/38). Nulo en las demás etapas y en filas anteriores.
+      base_method: { type: 'text', nullable: true },
       conditions: { type: 'jsonb' },
       expression: { type: 'jsonb' },
       // Texto que explica la regla en castellano. Se genera solo desde `builder`, pero se puede

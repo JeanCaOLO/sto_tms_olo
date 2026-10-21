@@ -13,6 +13,7 @@
 
 import { allocateTotal } from './allocation';
 import { describeBaseMethods, type BaseMethodOption } from './baseMethods';
+import { activeBaseMethod, filterByBaseMethod } from './baseInheritance';
 import { applyBaseOverride } from './baseOverride';
 import { computeCost } from './cost';
 import { runChargePipeline } from './evaluator';
@@ -23,20 +24,32 @@ import { toDecimal } from './money';
 
 export function calculate(input: CalculateInput): CalcResult {
   const derived = deriveContext(input);
-  const { applied, candidates, discarded, warnings: resolverWarnings } = resolveRules(input, derived);
+  const { applied, candidates, discarded, warnings: resolverWarnings, conflicts } = resolveRules(input, derived);
+  // Mismo código y alcance aplicando a la vez = doble cobro: frena la emisión. Misma lógica o mismo nombre
+  // con otro código no cambian el total de por sí: se avisa.
+  const duplicateIssues = conflicts.filter((c) => c.kind === 'MISMO_CODIGO')
+    .map((c) => ({ code: 'REGLA_DUPLICADA' as const, message: c.message, ruleCode: c.codes[0] }));
+  const conflictWarnings = conflicts.filter((c) => c.kind !== 'MISMO_CODIGO').map((c) => c.message);
 
   // Los gastos van primero: son la base del total de la flota propia.
   const costWarnings: string[] = [];
   const cost = computeCost(input, derived.overnightNights, derived.vars, (m) => costWarnings.push(m));
 
-  // Base elegida por el liquidador: reemplaza los gastos sembrados y las reglas BASE, y omite lo que
-  // cobraría lo mismo en otra fase. Sin ella, nada de esto cambia.
-  const chosen = input.baseOverride
+  // Base del tercero según el catálogo (carriers.rate_type): reemplaza los gastos sembrados y las
+  // reglas BASE, y omite lo que cobraría lo mismo en otra fase. La flota propia nunca la usa: su base
+  // es siempre la estructura de costos.
+  const chosen = input.baseOverride && input.trip.fleetType !== 'OWN'
     ? applyBaseOverride(input, input.baseOverride, applied, candidates, cost.breakdown, derived.vars)
     : null;
 
+  // Los ajustes ligados a otra forma de cobro no aplican a este viaje.
+  const inherited = filterByBaseMethod(
+    chosen?.rules ?? applied,
+    activeBaseMethod(input.trip.fleetType, chosen?.base?.method),
+  );
+
   const charge = runChargePipeline(
-    chosen?.rules ?? applied, derived.vars, derived.originZoneId, derived.destZoneId, input,
+    inherited.rules, derived.vars, derived.originZoneId, derived.destZoneId, input,
     { lines: chosen ? chosen.seed : cost.breakdown },
   );
 
@@ -54,23 +67,20 @@ export function calculate(input: CalculateInput): CalcResult {
     trace: charge.trace,
     // Los descartes salen de dos momentos: el resolver (condición, alcance, exclusividad) y el
     // pipeline (perdedores de un grupo MAX, que solo se conocen con los montos reales).
-    discarded: [...discarded, ...(chosen?.discarded ?? []), ...charge.discarded],
+    discarded: [...discarded, ...(chosen?.discarded ?? []), ...inherited.discarded, ...charge.discarded],
     stageSubtotals: charge.stageSubtotals,
     totalLiquidado: charge.totalLiquidado,
     currency: input.country.localCurrency,
     cost,
     margin,
     allocation,
-    warnings: [...resolverWarnings, ...(chosen?.warnings ?? []), ...charge.warnings, ...costWarnings],
-    blockingIssues: [...(chosen?.issues ?? []), ...charge.blockingIssues],
+    warnings: [...resolverWarnings, ...conflictWarnings, ...(chosen?.warnings ?? []), ...charge.warnings, ...costWarnings],
+    blockingIssues: [...duplicateIssues, ...(chosen?.issues ?? []), ...charge.blockingIssues],
     ...(chosen?.base ? { base: chosen.base } : {}),
   };
 }
 
-/**
- * Los tipos de cobro que puede tomar la base de este viaje, con su fuente o el motivo por el que
- * están bloqueados. Es lo que alimenta el selector "Cambiar base de cálculo".
- */
+/** Formas de cobro que el catálogo de reglas puede resolver para este viaje, con su fuente o el motivo del bloqueo. */
 export function listBaseMethods(input: CalculateInput): BaseMethodOption[] {
   const derived = deriveContext(input);
   const { candidates } = resolveRules(input, derived);

@@ -7,11 +7,9 @@
 import { formatMoney } from '../../../lib/tarifas/format';
 import { recheckBeforeEmit } from '../../../lib/tarifas/tripSettlement';
 import type { useCalculationState } from './useCalculationState';
-import type { useBaseOverride } from './useBaseOverride';
 
 interface Props {
   calc: ReturnType<typeof useCalculationState>;
-  base: ReturnType<typeof useBaseOverride>;
   reliquidando: boolean;
   setError: (message: string) => void;
   /** Los números de línea pudieron cambiar: se descartan las líneas destildadas. */
@@ -19,13 +17,12 @@ interface Props {
 }
 
 /** Devuelve una función que dice si se puede emitir (true) o si hay que revisar lo nuevo (false). */
-export function useRecheckBeforeEmit({ calc, base, reliquidando, setError, resetExcluded }: Props) {
+export function useRecheckBeforeEmit({ calc, reliquidando, setError, resetExcluded }: Props) {
   return async (): Promise<boolean> => {
     const shown = calc.calculation;
     if (!shown) return false;
     const check = await recheckBeforeEmit(shown, calc.editsUsed.current, {
       allowSettled: reliquidando,
-      baseOverride: base.baseUsed.current ? { method: base.baseUsed.current } : null,
     });
     if (check.status === 'failed') { setError(check.message); return false; }
     if (check.status === 'same') return true;

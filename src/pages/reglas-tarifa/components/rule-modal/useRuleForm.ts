@@ -1,16 +1,20 @@
 // Datos de identificación, vigencia y apilado de la regla (lo que no es condición ni cálculo).
 
 import { useEffect, useState } from 'react';
-import type { BuilderOperator, NumericVarKey, Stage } from '../../../../lib/tarifas/types';
+import { legacyCategory, normalizeStage } from '../../../../lib/tarifas/types';
+import type { BaseMethodId, BuilderOperator, NumericVarKey, RuleCategory, Stage } from '../../../../lib/tarifas/types';
 
 export interface RuleFormData {
   code: string;
   name: string;
   country_id: string;
   stage: Stage;
+  category: RuleCategory | ''; // solo reporte, no cambia el cálculo
   priority: number;
   stacking: 'SUM' | 'MAX' | 'EXCLUSIVE';
   exclusion_group: string;
+  /** Formas de cobro de la base a las que se liga el ajuste. Vacío = transversal. */
+  applies_to_base: BaseMethodId[];
   scope: 'COUNTRY' | 'PARTY';
   party_id: string;
   reason: string;
@@ -32,10 +36,10 @@ const emptyFormData = (): RuleFormData => ({
   code: '',
   name: '',
   country_id: '',
-  stage: 'SURCHARGE',
-  priority: 10,
+  stage: 'VARIABLE', category: '', priority: 10,
   stacking: 'SUM',
   exclusion_group: '',
+  applies_to_base: [],
   scope: 'COUNTRY',
   party_id: '',
   reason: '',
@@ -48,10 +52,13 @@ const formFromRule = (rule: Record<string, unknown>): RuleFormData => ({
   code: (rule.code as string | undefined) || '',
   name: (rule.name as string | undefined) || '',
   country_id: (rule.country_id as string | undefined) || '',
-  stage: (rule.stage as Stage | undefined) || 'BASE',
+  // Fila vieja (MODIFIER/SURCHARGE): se abre como VARIABLE con esa etapa como categoría.
+  stage: normalizeStage((rule.stage as string | undefined) || 'BASE'),
+  category: (rule.category as RuleCategory | null | undefined) ?? legacyCategory((rule.stage as string | undefined) ?? '') ?? '',
   priority: (rule.priority as number | undefined) ?? 10,
   stacking: (rule.stacking as RuleFormData['stacking'] | undefined) || 'SUM',
   exclusion_group: (rule.exclusion_group as string | undefined) || '',
+  applies_to_base: Array.isArray(rule.applies_to_base) ? (rule.applies_to_base as BaseMethodId[]) : [],
   scope: (rule.scope as RuleFormData['scope'] | undefined) || 'COUNTRY',
   party_id: (rule.party_id as string | undefined) || '',
   reason: (rule.reason as string | undefined) || '',
@@ -71,7 +78,7 @@ export function useRuleForm(
     setFormData(rule ? formFromRule(rule) : {
       ...emptyFormData(),
       country_id: countryId ?? '',
-      stage: defaults?.stage ?? 'SURCHARGE',
+      stage: defaults?.stage ?? 'VARIABLE',
       scope: defaults?.partyId ? 'PARTY' : 'COUNTRY',
       party_id: defaults?.partyId ?? '',
     });

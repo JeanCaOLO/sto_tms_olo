@@ -116,6 +116,7 @@ describe('RuleModal (caracterización)', () => {
   });
 
   it('un código repetido avisa que ya existe', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     const rules = await listRules('ORG');
     const existente = rules.find((r) => r.country_id === 'VE')!;
     open();
@@ -124,6 +125,22 @@ describe('RuleModal (caracterización)', () => {
     type('Importe en VES *', '10');
     submit();
     await waitFor(() => expect(onSuccess.mock.calls.length + (document.body.textContent?.includes('Ya existe') ? 1 : 0)).toBeGreaterThan(0));
+  });
+
+  it('una regla activa repetida pide confirmar y, si se rechaza, no se guarda', async () => {
+    const confirmar = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const rules = await listRules('ORG');
+    const existente = rules.find((r) => r.country_id === 'VE' && r.active === true && !r.party_id && !r.effective_from && !r.effective_to)!;
+    const antes = (await listRules('ORG')).length;
+    open();
+    type('Código *', String(existente.code));
+    type('Nombre *', 'Duplicada sin confirmar');
+    type('Importe en VES *', '10');
+    submit();
+    await waitFor(() => expect(confirmar).toHaveBeenCalled());
+    expect(String(confirmar.mock.calls[0][0])).toContain(String(existente.code));
+    expect((await listRules('ORG')).length).toBe(antes);
+    expect(onSuccess).not.toHaveBeenCalled();
   });
   it.each(['FIXED', 'TIMES', 'PER_BLOCK', 'PERCENT', 'TIERED', 'RATE_TABLE'])('cálculo con operador %s', async (op) => {
     open();
@@ -176,3 +193,26 @@ describe('RuleModal (caracterización)', () => {
     fireEvent.click(document.querySelectorAll('.ri-delete-bin-line')[0]!.closest('button')!);
     expect(screen.getAllByPlaceholderText('20').length).toBe(antes - 1);
   });});
+
+describe('RuleModal reapertura', () => {
+  it('«Nueva regla» reabre con el formulario limpio, no con lo escrito antes', async () => {
+    const element = (isOpen: boolean) => (
+      <MemoryRouter>
+        <RuleModal
+          isOpen={isOpen} onClose={onClose} onSuccess={onSuccess}
+          organizationId="ORG" country={COUNTRY} usuarioActivo="Auditor"
+        />
+      </MemoryRouter>
+    );
+    const { rerender } = render(element(true));
+    await screen.findByText('Nueva regla');
+    type('Código *', 'R_PRUEBA');
+    expect((screen.getByLabelText('Código *') as HTMLInputElement).value).toBe('R_PRUEBA');
+
+    rerender(element(false));
+    expect(screen.queryByText('Nueva regla')).toBeNull();
+    rerender(element(true));
+    await screen.findByText('Nueva regla');
+    expect((screen.getByLabelText('Código *') as HTMLInputElement).value).toBe('');
+  });
+});

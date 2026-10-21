@@ -5,7 +5,7 @@ import type {
   BaseRef, Expr, Money, RateTable, RateTableMatch, RateTableRow, Stage, Tier, TierMode, VarBag,
 } from '../types';
 import { RATE_TABLE_WILDCARD, STAGE_ORDER } from '../types';
-import { roundToMoney, toDecimal, ZERO } from '../money';
+import { roundToMoney, toDecimal, tryDecimal, ZERO } from '../money';
 import { evaluatePred } from './predicates';
 import { RuleShapeError } from './predicates';
 import { lookupRateTable } from './lookup';
@@ -55,9 +55,9 @@ function quantityOf(ctx: EvalContext, unit: string): Decimal {
     return ZERO;
   }
 
-  const value = toDecimal(String(raw));
-  if (value.isNaN()) {
-    ctx.warn(`La variable "${unit}" no tiene un valor numérico ("${raw}"): se tomó como 0.`);
+  const value = tryDecimal(raw);
+  if (value === null) {
+    ctx.warn(`La variable "${unit}" no tiene un valor numérico ("${String(raw)}"): se tomó como 0.`);
     return ZERO;
   }
   return value;
@@ -120,11 +120,12 @@ export function evaluateExpr(expr: Expr, ctx: EvalContext): Decimal {
     }
 
     case 'PER_BLOCK': {
-      if (expr.blockSize <= 0) {
-        throw new Error('PER_BLOCK con blockSize 0 o negativo: no hay bloques que contar.');
+      const blockSize = tryDecimal(expr.blockSize);
+      if (blockSize === null || !blockSize.greaterThan(0)) {
+        throw new RuleShapeError('PER_BLOCK con tamaño de bloque 0, negativo o no numérico: no hay bloques que contar');
       }
       // Solo bloques COMPLETOS: 25 peajes cada 10 son 2 bloques, no 2,5.
-      const blocks = quantityOf(ctx, expr.unit).dividedBy(expr.blockSize).floor();
+      const blocks = quantityOf(ctx, expr.unit).dividedBy(blockSize).floor();
       return blocks.times(toDecimal(expr.amount));
     }
 
