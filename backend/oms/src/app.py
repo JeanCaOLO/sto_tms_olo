@@ -220,8 +220,8 @@ def procesar_viaje(event: dict) -> dict:
         liberados, pendientes, prioridades = _liberar([(p, r) for p, _, r in resueltos])
     except Exception as exc:  # noqa: BLE001 — registra el fallo y re-lanza
         oms_log.registrar("procesar_viaje", f"Procesar viaje {numero_viaje} FALLÓ: {exc}",
-                          level="error", corrida_id=corrida_id, numero_viaje=numero_viaje,
-                          actor="manual", detail={"error": str(exc)})
+                          level="error", corrida_id=corrida_id, actor="manual",
+                          detail={"numero_viaje": numero_viaje, "error": str(exc)})
         raise
 
     oms_log.registrar(
@@ -229,10 +229,9 @@ def procesar_viaje(event: dict) -> dict:
         f'"Procesar a Eflow" viaje {numero_viaje}: {len(pedidos)} pedidos, {liberados} liberados, {pendientes} pendientes',
         level="warn" if pendientes else "info",
         corrida_id=corrida_id,
-        numero_viaje=numero_viaje,
         actor="manual",
-        detail={"total": len(pedidos), "liberados": liberados, "pendientes": pendientes,
-                "subconjunto": sorted(subconjunto) if subconjunto else None},
+        detail={"numero_viaje": numero_viaje, "total": len(pedidos), "liberados": liberados,
+                "pendientes": pendientes, "subconjunto": sorted(subconjunto) if subconjunto else None},
     )
 
     return _ok({

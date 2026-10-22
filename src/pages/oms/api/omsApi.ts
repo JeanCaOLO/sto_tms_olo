@@ -253,14 +253,24 @@ export const omsApi = {
       level: (r.level ?? 'info') as OmsLogLevel,
       action: r.action ?? '',
       corridaId: r.corrida_id ?? null,
-      numeroViaje: r.numero_viaje ?? null,
-      eflowIdExpedicion: r.eflow_id_expedicion ?? null,
       message: r.message ?? '',
       detail: r.detail ?? null,
       actor: r.actor ?? 'system',
-      countryId: r.country_id ?? null,
-      companyCode: r.company_code ?? null,
     }));
+  },
+  // Limpia la bitácora del OMS (oms_logs) en un RANGO de fechas. Solo la dispara
+  // el rol developer desde la consola de Auditoría. `fromIso`/`toIso` son límites
+  // ISO; el backend exige al menos un filtro en el DELETE, así que siempre se pasa
+  // alguno (si faltara el rango, se usa created_at >= época = todo). Devuelve
+  // cuántas filas borró.
+  async clearOmsLogs(range?: { fromIso?: string; toIso?: string }): Promise<number> {
+    let q = supabase.from('oms_logs').delete();
+    if (range?.fromIso) q = q.gte('created_at', range.fromIso);
+    if (range?.toIso) q = q.lt('created_at', range.toIso);
+    if (!range?.fromIso && !range?.toIso) q = q.gte('created_at', '1900-01-01');
+    const { data, error } = await q.select('id');
+    if (error) throw new Error(error.message);
+    return Array.isArray(data) ? data.length : 0;
   },
   // FR4 — distribución de pedidos por priority_tier (para el Panel).
   getTierDistribution(country: Country): Promise<{ tier: PriorityTier; count: number }[]> {
