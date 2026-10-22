@@ -218,7 +218,10 @@ def _list_item(row: dict, batch: dict, now: datetime) -> dict:
 def _viaje(row: dict, counts: dict | None, live: dict, stopped: int, now: datetime) -> dict:
     """Vista de un viaje (contrato v2). `live` viene de `_live`; `stopped` son minutos detenido."""
     state = logic.route_state(row["status"])
-    sig = logic.signal(row["last_position_at"], now) if state == "active" else "none"
+    presence_status, presence_seen = row.get("presence_status"), row.get("presence_seen_at")
+    active = state == "active"
+    position_sig = logic.signal(row["last_position_at"], now) if active else "none"
+    sig = logic.signal(row["last_position_at"], now, presence_status, presence_seen) if active else "none"
     counts = counts or {"total": 0, "delivered": 0, "failed": 0}
     done = int(counts["delivered"]) + int(counts["failed"])
     total = int(counts["total"])
@@ -256,7 +259,10 @@ def _viaje(row: dict, counts: dict | None, live: dict, stopped: int, now: dateti
         "progress": {"total": total, "done": done, "delivered": int(counts["delivered"]),
                      "failed": int(counts["failed"]), "percent": round(done * 100 / total) if total else 0},
         "delay_min": delay,
-        "alerts": logic.alerts(state, sig, int(counts["failed"]), late_days, stopped),
+        # Presencia del chofer en la app (login / latido / logout); None si nunca abrió la app.
+        "presence": None if presence_status is None else {"status": presence_status,
+                                                            "last_seen_at": _iso(presence_seen)},
+        "alerts": logic.alerts(state, sig, int(counts["failed"]), late_days, stopped, position_sig),
     }
 
 
@@ -456,6 +462,30 @@ def summary(event: dict) -> dict:
     """DEPRECADO: usar GET /viajes?include=summary. Se mantiene para clientes que aún lo llaman."""
     caller, org_id = _caller(event, "view")
     return _ok(_summary(caller, org_id, query_params(event), _now()))
+
+
+def list_choferes(event: dict) -> dict:
+    """Choferes con la app abierta en los últimos 30 min, con o sin viaje (`route_id` None = en línea sin viaje).
+    `signal` sale de la presencia (latido / logout); un logout explícito aparece como `offline`."""
+    caller, org_id = _caller(event, "view")
+    params: list = [logic.ACTIVE_STATUS_SQL_VALUES, org_id]
+    country = ""
+    allowed = caller.country_filter
+    if allowed is not None:
+        country = "AND ca.country_id = ANY(%s::uuid[])"
+        params.append(list(allowed))
+    raw = (query_params(event).get("pais") or "").strip().upper()
+    if raw:
+        if not _PAIS.match(raw):
+            raise HttpError(400, "pais inválido")
+        country += " AND co.code = %s"
+        params.append(raw)
+    now = _now()
+    rows = pg.query(sql.DRIVERS_PRESENCE_SQL.format(country=country), params)
+    return _ok([{"driver_id": str(r["id"]), "driver_name": r["full_name"], "country": r["country"],
+                 "signal": logic.signal(None, now, r["status"], r["last_seen_at"]),
+                 "last_seen_at": _iso(r["last_seen_at"]), "battery_pct": r["battery_pct"],
+                 "route_id": None if r["route_id"] is None else str(r["route_id"])} for r in rows])
 
 
 def list_planificados(event: dict) -> dict:
@@ -804,6 +834,7 @@ ROUTES = {
     "GET /api/v1/tracking/viajes/{id}": get_viaje,
     "GET /api/v1/tracking/viajes/{id}/recorrido": get_recorrido,
     "GET /api/v1/tracking/planificados": list_planificados,
+    "GET /api/v1/tracking/choferes": list_choferes,
     "GET /api/v1/tracking/resumen": summary,
     "POST /api/v1/tracking/viajes/{id}/iniciar": start_viaje,
     "POST /api/v1/tracking/posiciones": ingest_positions,

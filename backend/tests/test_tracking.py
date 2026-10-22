@@ -1089,3 +1089,97 @@ def test_trip_past_its_delivery_day_is_late_in_list_detail_and_kpi(tracking):
     assert trip["due_date"] == "2026-10-02" and trip["days_late"] == 14 and trip["assigned_at"].startswith("2026-10-01")
     assert {"code": "late", "count": 14} in trip["alerts"]
     assert item["summary"]["late"] == 1 and item["summary"]["on_time"] == 0
+
+
+# --- presencia del chofer (app móvil: login / latido / logout) ----------------------------------------
+
+def test_signal_uses_presence_heartbeat_and_explicit_logout(logic):
+    old = NOW - timedelta(minutes=45)
+    # Latido reciente: el chofer tiene la app abierta aunque el último punto sea viejo.
+    assert logic.signal(old, NOW, "online", NOW - timedelta(seconds=40)) == "online"
+    assert logic.signal(None, NOW, "online", NOW - timedelta(seconds=40)) == "online"
+    # Logout explícito más reciente que el último punto: offline aunque el punto sea de hace segundos.
+    assert logic.signal(NOW - timedelta(seconds=30), NOW, "offline", NOW - timedelta(seconds=5)) == "offline"
+    assert logic.signal(None, NOW, "offline", NOW - timedelta(seconds=5)) == "offline"
+    # Un punto posterior al logout (volvió a salir) manda: sigue el umbral normal.
+    assert logic.signal(NOW - timedelta(seconds=10), NOW, "offline", NOW - timedelta(minutes=2)) == "online"
+    # Sin presencia, nada cambia.
+    assert logic.signal(old, NOW, None, None) == "offline" and logic.signal(None, NOW) == "none"
+    # Un latido viejo no reanima un punto viejo.
+    assert logic.signal(old, NOW, "online", NOW - timedelta(minutes=40)) == "offline"
+
+
+def test_stopped_alert_needs_a_fresh_position_not_just_a_heartbeat(logic):
+    assert logic.alerts("active", "online", 0, 0, 25, position_signal="stale") == []
+    assert [a["code"] for a in logic.alerts("active", "online", 0, 0, 25, position_signal="online")] == ["stopped"]
+
+
+def test_list_marks_the_trip_offline_after_an_explicit_logout(tracking):
+    app, db = tracking
+    row = _row(driver_id=DRIVER, presence_status="offline", presence_seen_at=NOW - timedelta(seconds=5))
+    db.answer("GROUP BY g.route_id", [_progress(ROUTE)])
+    db.answer("FROM routes r", [row])
+    item = body_of(app.handler(_event("GET /api/v1/tracking/viajes"), None))["data"]["items"][0]
+    assert item["signal"] == "offline" and item["color"] == "gray"
+    assert "no_signal" in [a["code"] for a in item["alerts"]]
+    assert item["presence"]["status"] == "offline"
+
+
+def test_list_keeps_the_trip_online_with_a_fresh_heartbeat(tracking):
+    app, db = tracking
+    row = _row(driver_id=DRIVER, last_position_at=NOW - timedelta(minutes=12),
+               presence_status="online", presence_seen_at=NOW - timedelta(seconds=20))
+    db.answer("GROUP BY g.route_id", [_progress(ROUTE)])
+    db.answer("FROM routes r", [row])
+    item = body_of(app.handler(_event("GET /api/v1/tracking/viajes"), None))["data"]["items"][0]
+    assert item["signal"] == "online" and item["color"] == "green"
+    assert item["position"]["recorded_at"] == (NOW - timedelta(minutes=12)).isoformat()   # la posición sigue siendo la real
+
+
+def test_list_without_presence_is_unchanged(tracking):
+    app, db = tracking
+    db.answer("GROUP BY g.route_id", [_progress(ROUTE)])
+    db.answer("FROM routes r", [_row()])
+    item = body_of(app.handler(_event("GET /api/v1/tracking/viajes"), None))["data"]["items"][0]
+    assert item["presence"] is None and item["signal"] == "online"
+
+
+def test_trip_queries_join_driver_presence(tracking):
+    app, db = tracking
+    db.answer("FROM routes r", [_row()])
+    app.handler(_event("GET /api/v1/tracking/viajes"), None)
+    listing = next(c for c in db.calls if "FROM routes r" in c[0] and "ORDER BY sort_at" in c[0])
+    assert "LEFT JOIN driver_presence dp ON dp.driver_id = r.driver_id" in listing[0]
+
+
+def test_choferes_lists_online_drivers_with_and_without_a_trip(tracking):
+    app, db = tracking
+    db.answer("FROM driver_presence dp", [
+        {"id": DRIVER, "full_name": "Ana", "status": "online", "last_seen_at": NOW - timedelta(seconds=30),
+         "battery_pct": 71, "country": "CR", "route_id": ROUTE},
+        {"id": "99999999-9999-4999-8999-999999999999", "full_name": "Beto", "status": "offline",
+         "last_seen_at": NOW - timedelta(minutes=2), "battery_pct": None, "country": "CR", "route_id": None},
+        {"id": "aaaaaaaa-9999-4999-8999-999999999999", "full_name": "Cata", "status": "online",
+         "last_seen_at": NOW - timedelta(minutes=12), "battery_pct": 40, "country": None, "route_id": None},
+    ])
+    data = body_of(app.handler(_event("GET /api/v1/tracking/choferes"), None))["data"]
+    assert [(d["driver_name"], d["signal"], d["route_id"]) for d in data] == [
+        ("Ana", "online", ROUTE), ("Beto", "offline", None), ("Cata", "stale", None)]
+    assert data[0]["battery_pct"] == 71 and data[0]["last_seen_at"] == (NOW - timedelta(seconds=30)).isoformat()
+
+
+def test_choferes_is_admin_only_and_scoped_by_country(tracking, caller_permissions):
+    app, db = tracking
+    caller_permissions.set(make_permissions({"guias": ["view"]}))
+    assert app.handler(_event("GET /api/v1/tracking/choferes"), None)["statusCode"] == 403
+    caller_permissions.set(make_permissions({"tracking": ["view"]}, countries=("cr-id",)))
+    assert app.handler(_event("GET /api/v1/tracking/choferes", query={"pais": "CR"}), None)["statusCode"] == 200
+    query, params = next(c for c in db.calls if "FROM driver_presence dp" in c[0])
+    assert "ca.country_id = ANY(%s::uuid[])" in query and "co.code = %s" in query
+    assert params[-2:] == [["cr-id"], "CR"]
+    assert app.handler(_event("GET /api/v1/tracking/choferes", query={"pais": "x;drop"}), None)["statusCode"] == 400
+
+
+def test_a_driver_cannot_list_other_drivers(driver):
+    app, _ = driver
+    assert app.handler(_event("GET /api/v1/tracking/choferes"), None)["statusCode"] == 403

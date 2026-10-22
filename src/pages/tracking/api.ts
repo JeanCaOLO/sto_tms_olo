@@ -2,7 +2,7 @@
 // DEV, sin túnel a Aurora) `mock/installTrackingMock.ts` cambia el transporte por un backend simulado que
 // responde ese mismo contrato, igual que el tarifador (ver src/lib/tarifas/data/memory/installMock.ts).
 import { apiFetch } from '../../lib/supabase';
-import type { ListMode, Recorrido, ViajeDetalle, ViajePlanificado, ViajesPage } from './types';
+import type { ChoferEnLinea, ListMode, Recorrido, ViajeDetalle, ViajePlanificado, ViajesPage } from './types';
 
 export class TrackingApiError extends Error {
   status: number;
@@ -15,7 +15,9 @@ export class TrackingApiError extends Error {
 type RequestOptions = NonNullable<Parameters<typeof fetch>[1]>;
 export type TrackingTransport = (path: string, init?: RequestOptions) => Promise<{ ok: boolean; status: number; body: any }>;
 
-const POLL_MS = 15_000;
+// 5 s: el chofer que inicia o cierra sesión, o recupera la señal, se ve casi en tiempo real. El resumen (KPIs) del
+// backend se cachea 5 s, así que varias pantallas abiertas no multiplican ese cálculo.
+const POLL_MS = 5_000;
 const MOCK_POLL_MS = 3_000;
 
 let transport: TrackingTransport = apiFetch;
@@ -33,7 +35,7 @@ export function setTrackingTransport(next: TrackingTransport, mockClock?: () => 
 export const isTrackingMock = () => mock;
 /** "Ahora" para calcular antigüedades ("hace X"): el real, o el simulado en modo mock. */
 export const trackingNow = () => clock();
-/** Cada cuánto se refresca: 15 s contra el backend; 3 s en mock para ver avanzar la simulación. */
+/** Cada cuánto se refresca: 5 s contra el backend; 3 s en mock para ver avanzar la simulación. */
 export const pollIntervalMs = () => (mock ? MOCK_POLL_MS : POLL_MS);
 
 async function call<T>(path: string, init?: RequestOptions): Promise<T> {
@@ -67,6 +69,10 @@ export function listViajes(p: ListParams, signal?: AbortSignal): Promise<ViajesP
 
 export const getViaje = (id: string, signal?: AbortSignal) => call<ViajeDetalle>(`/viajes/${encodeURIComponent(id)}`, { signal });
 export const getRecorrido = (id: string, signal?: AbortSignal) => call<Recorrido>(`/viajes/${encodeURIComponent(id)}/recorrido`, { signal });
+
+/** Choferes con la app abierta (con o sin viaje). Solo administrador; `country` = código ISO o null (todos los del rol). */
+export const listChoferes = (country: string | null = null, signal?: AbortSignal) =>
+  call<ChoferEnLinea[]>(`/choferes${country ? `?pais=${encodeURIComponent(country)}` : ''}`, { signal });
 
 // Solo modo mock: el inicio real del viaje lo reporta la app del chofer / Planificación.
 export const listPlanificados = (country: string | null = null) =>
