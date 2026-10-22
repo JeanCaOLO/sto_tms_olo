@@ -132,7 +132,7 @@ function mapOrderToQueueOrder(row: any, country: Country, hoyIso: string): Queue
     {
       fechaPlanificada: row.delivery_date ?? null,
       fechaExpedicion: row.order_date ?? null,
-      observaciones: row.wms_notes ?? null,
+      observaciones: row.observaciones ?? null,
     },
     hoyIso,
   );
@@ -153,7 +153,7 @@ function mapOrderToQueueOrder(row: any, country: Country, hoyIso: string): Queue
     weight: Number(row.total_weight ?? 0),
     volume: Number(row.total_volume ?? 0),
     itemCount: row.total_items ?? 0,
-    observations: row.wms_notes ?? '',
+    observations: row.observaciones ?? '',
     dispatchDate: row.delivery_date ?? '',
     createdDate: row.wms_created_at ?? row.created_at ?? '',
     status: row.wms_status ?? row.status ?? '',

@@ -106,6 +106,9 @@ export default function OmsColaPage() {
           <div className="sm:w-40">
             <Select label={t('omsQueue.situation')} value={filters.situation} onChange={(e) => setFilter('situation', e.target.value)} options={opt(options.situations, t('omsQueue.allFem'))} />
           </div>
+          <div className="sm:w-44">
+            <Select label="Estado OMS" value={filters.estadoOms} onChange={(e) => setFilter('estadoOms', e.target.value)} options={opt(options.estadosOms, t('omsQueue.allMasc'))} />
+          </div>
           {filtersActive && (
             <div className="col-span-2 sm:w-auto">
               <Button variant="ghost" onClick={resetFilters}>{t('omsQueue.clear')}</Button>

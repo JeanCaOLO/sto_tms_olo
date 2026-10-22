@@ -12,12 +12,18 @@ export interface ColaFilters {
   tier: string;
   status: string;
   situation: string;
+  estadoOms: string;
   query: string;
 }
 
 const EMPTY_FILTERS: ColaFilters = {
-  warehouse: ALL, company: ALL, branch: ALL, route: ALL, tier: ALL, status: ALL, situation: ALL, query: '',
+  warehouse: ALL, company: ALL, branch: ALL, route: ALL, tier: ALL, status: ALL, situation: ALL, estadoOms: ALL, query: '',
 };
+
+// Estado OMS derivado del pedido (ADR-013), mismo criterio que la columna de la tabla.
+export function estadoOmsDe(o: QueueOrder): string {
+  return o.released ? 'Liberado' : o.prioritized ? 'Priorizado' : 'Sin priorizar';
+}
 
 // Controller de la Cola de Priorización (FR2/FR3). Maneja filtros, selección de
 // pedido y el override manual local (única intervención humana; sin backend).
@@ -54,6 +60,7 @@ export function useColaController() {
       tiers: uniq(orders.map((o) => String(o.tier))),
       statuses: uniq(orders.map((o) => o.status)),
       situations: uniq(orders.map((o) => o.situation)),
+      estadosOms: uniq(orders.map(estadoOmsDe)),
     };
   }, [orders]);
 
@@ -68,6 +75,7 @@ export function useColaController() {
       if (filters.tier !== ALL && String(o.tier) !== filters.tier) return false;
       if (filters.status !== ALL && o.status !== filters.status) return false;
       if (filters.situation !== ALL && o.situation !== filters.situation) return false;
+      if (filters.estadoOms !== ALL && estadoOmsDe(o) !== filters.estadoOms) return false;
       if (q && !`${o.id} ${o.ref} ${o.customer} ${o.route} ${o.observations}`.toLowerCase().includes(q)) return false;
       return true;
     });
@@ -79,7 +87,7 @@ export function useColaController() {
   const filtersActive =
     filters.warehouse !== ALL || filters.company !== ALL || filters.branch !== ALL ||
     filters.route !== ALL || filters.tier !== ALL || filters.status !== ALL ||
-    filters.situation !== ALL || filters.query.trim() !== '';
+    filters.situation !== ALL || filters.estadoOms !== ALL || filters.query.trim() !== '';
 
   const selected = orders.find((o) => o.id === selectedId) ?? null;
 
