@@ -50,7 +50,8 @@ SELECT o.eflow_id_almacen,
        o.total_weight,
        o.total_volume,
        o.warehouse_id,
-       o.customer_id
+       o.customer_id,
+       o.priority
 FROM orders o
 LEFT JOIN final_customers fc ON fc.id = o.final_customer_id
 WHERE o.planning_run_id IS NOT NULL
@@ -98,6 +99,7 @@ def _desde_fila(fila: dict) -> PedidoCandidato:
         cubicaje_total=fila.get("total_volume"),
         warehouse_id=fila.get("warehouse_id"),
         customer_id=fila.get("customer_id"),
+        priority=fila.get("priority"),
     )
 
 
@@ -106,13 +108,14 @@ def _mock_candidatos() -> list[PedidoCandidato]:
 
     Todos traen planning_run_id (ya corridos por Planificación) y oms_processed_at
     NULL (aún no liberados): así reflejan la cola v4. Incluye: un pedido urgente
-    (entrega mañana), uno con margen, uno con fecha centinela (fallback), y uno con
+    (entrega mañana), uno con margen, uno sin viaje (dispatch NULL), y uno con
     observación de cliente retira. lead_time_days dinámico (uno NULL → default).
 
-    dispatch_date (ADR-013): respecto al ancla 2026-10-01 con dias_prep_picking=1,
-    SOLO el pedido 1001 (dispatch 2026-10-02) cae dentro de la ventana de liberación
-    (10-01 >= 10-02 − 1d); 1002 (10-10) y 1004 (10-08) quedan fuera, y 1003 trae
-    dispatch_date NULL (sin viaje) → no se libera.
+    Liberación (ADR-013 + política 2026-10-22), ancla 2026-10-01, dias_prep_picking=1:
+    - 1001 (dispatch 2026-10-02) cae dentro de la ventana (10-01 >= 10-02 − 1d) → libera.
+    - 1004 es cliente-retira → libera DE INMEDIATO (ignora la ventana).
+    - 1002 (dispatch 2026-10-10) y 1003 (dispatch NULL → cae a delivery_date 2026-10-15)
+      quedan FUERA de la ventana el 10-01; abren al avanzar el día.
     """
     _ = datetime(2026, 10, 1, 12, 0, tzinfo=timezone.utc)  # ancla temporal de referencia
     return [
@@ -136,7 +139,7 @@ def _mock_candidatos() -> list[PedidoCandidato]:
         ),
         PedidoCandidato(
             id_almacen="0002", id_compania="0109", id_sucursal="0001", id_expedicion="1003",
-            fecha_expedicion_planificada=datetime(1900, 1, 1, 0, 0, tzinfo=timezone.utc),
+            fecha_expedicion_planificada=datetime(2026, 10, 15, 0, 0, tzinfo=timezone.utc),
             lead_time_days=None, numero_viaje=None, planning_run_id="plan-2026-10-01-a",
             observaciones="", delivery_zone="GAM", customer_type="MAYOREO",
             peso_total=None, cubicaje_total=None,

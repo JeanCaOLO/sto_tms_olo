@@ -59,17 +59,20 @@ const MOCK_COUNTRIES = [
   { id: MOCK_COUNTRY_IDS.CO, code: 'CO', name: 'Colombia', timezone: 'America/Bogota' },
 ];
 
+// CR usa los UUID REALES de Aurora (warehouses.id / customers.id) para que, al
+// probar en local con VITE_MOCK_AUTH contra la BD real, el contexto del header
+// (País → Almacén → Cliente) filtre los `orders` reales por scope. VE/CO quedan
+// como mock ilustrativo (sin pedidos reales detrás todavía).
+const CR_WAREHOUSE_OLO = '56ce1ef7-cdc5-4b20-89dc-30362101ab3b';
 const MOCK_WAREHOUSES = [
-  { id: 'WH_CR_HER', country_id: MOCK_COUNTRY_IDS.CR, code: 'HER', name: 'CEDI Heredia' },
-  { id: 'WH_CR_ALA', country_id: MOCK_COUNTRY_IDS.CR, code: 'ALA', name: 'CEDI La Ribera, Alajuela' },
+  { id: CR_WAREHOUSE_OLO, country_id: MOCK_COUNTRY_IDS.CR, code: 'OLO-CR', name: 'OLO Costa Rica' },
   { id: 'WH_VE_VAL', country_id: MOCK_COUNTRY_IDS.VE, code: 'VAL', name: 'CEDI Valencia' },
   { id: 'WH_CO_BOG', country_id: MOCK_COUNTRY_IDS.CO, code: 'BOG', name: 'CEDI Bogotá' },
 ];
 
 const MOCK_CUSTOMERS = [
-  { id: 'CUST_COFERSA', warehouse_id: 'WH_CR_HER', code: 'COFERSA', name: 'Cofersa' },
-  { id: 'CUST_EPA', warehouse_id: 'WH_CR_HER', code: 'EPA', name: 'EPA' },
-  { id: 'CUST_COFERSA_ALA', warehouse_id: 'WH_CR_ALA', code: 'COFERSA', name: 'Cofersa' },
+  { id: 'e59e4979-470e-4331-8ce6-ca8e6eff68bf', warehouse_id: CR_WAREHOUSE_OLO, code: 'COFERSA', name: 'Cofersa' },
+  { id: 'ff5af1a6-7d48-4b82-b7c7-e771d49081a1', warehouse_id: CR_WAREHOUSE_OLO, code: 'EPA', name: 'EPA' },
   { id: 'CUST_BEVAL', warehouse_id: 'WH_VE_VAL', code: 'BEVAL', name: 'Beval' },
   { id: 'CUST_FEBECA', warehouse_id: 'WH_VE_VAL', code: 'FEBECA', name: 'Febeca' },
   { id: 'CUST_CO_1', warehouse_id: 'WH_CO_BOG', code: 'ALMACENES', name: 'Almacenes Éxito' },

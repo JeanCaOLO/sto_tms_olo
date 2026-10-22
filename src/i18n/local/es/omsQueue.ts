@@ -1,6 +1,6 @@
 export default {
-  'omsQueue.title': 'Cola de Priorización',
-  'omsQueue.subtitle': 'Pedidos pendientes ordenados por prioridad calculada',
+  'omsQueue.title': 'Pedidos',
+  'omsQueue.subtitle': 'Pedidos priorizados y liberados',
   'omsQueue.warehouse': 'Almacén',
   'omsQueue.company': 'Compañía',
   'omsQueue.branch': 'Sucursal',

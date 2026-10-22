@@ -104,6 +104,7 @@ TABLES = frozenset({
     "wms_expediciones",
     "zones",  # ex route_types (sql/09)
     "branches",  # sucursales EFLOW (sql/40)
+    "oms_logs",  # bitácora del OMS (sql/49)
 })
 
 

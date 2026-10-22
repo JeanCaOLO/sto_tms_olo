@@ -150,7 +150,10 @@ def main() -> None:
     ApiHandler.routes = build_routes()
     ApiHandler.authorizer = load_module("authorizer_app", AUTHORIZER)
     port = int(os.environ.get("EFLOW_API_PORT") or DEFAULT_PORT)
-    print(f"Lambdas locales en http://localhost:{port} ({len(ApiHandler.routes)} rutas, EFLOW_MODE={os.environ['EFLOW_MODE']})")
+    print(
+        f"Lambdas locales en http://localhost:{port} ({len(ApiHandler.routes)} rutas, "
+        f"EFLOW_MODE={os.environ['EFLOW_MODE']}, OMS_SOURCE={os.environ.get('OMS_SOURCE', 'mock')})"
+    )
     ThreadingHTTPServer(("127.0.0.1", port), ApiHandler).serve_forever()
 
 

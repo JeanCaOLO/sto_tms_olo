@@ -18,7 +18,7 @@ export default {
   'menu.reglasTarifa': 'Reglas Tarifa',
   'menu.oms': 'OMS',
   'menu.omsPanel': 'Panel OMS',
-  'menu.omsCola': 'Cola de Priorización',
+  'menu.omsCola': 'Pedidos',
   'menu.omsReglas': 'Motor de Reglas',
   'menu.omsSimulador': 'Simulador',
   'menu.omsAuditoria': 'Auditoría',

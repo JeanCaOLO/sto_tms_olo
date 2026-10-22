@@ -36,7 +36,7 @@ const OMS_GROUP: MenuGroup = {
   i18nKey: 'menu.oms',
   children: [
     { icon: 'ri-dashboard-2-line', label: 'Panel OMS', i18nKey: 'menu.omsPanel', path: '/oms/panel', permKey: 'oms.panel' },
-    { icon: 'ri-stack-line', label: 'Cola de Priorización', i18nKey: 'menu.omsCola', path: '/oms/cola', permKey: 'oms.cola' },
+    { icon: 'ri-stack-line', label: 'Pedidos', i18nKey: 'menu.omsCola', path: '/oms/cola', permKey: 'oms.cola' },
     { icon: 'ri-settings-3-line', label: 'Motor de Reglas', i18nKey: 'menu.omsReglas', path: '/oms/reglas', permKey: 'oms.reglas' },
     { icon: 'ri-flask-line', label: 'Simulador', i18nKey: 'menu.omsSimulador', path: '/oms/simulador', permKey: 'oms.simulador' },
     { icon: 'ri-history-line', label: 'Auditoría', i18nKey: 'menu.omsAuditoria', path: '/oms/auditoria', permKey: 'oms.auditoria' },
