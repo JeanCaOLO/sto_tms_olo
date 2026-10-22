@@ -40,7 +40,13 @@ export interface TarifasDatabase {
   rateTableRows: Rows;
   tripOrders: Rows;
   tripOrderMarks: Rows;
+  tripTenderAwards: Rows;
   marginPolicies: Rows;
+  proformas: Rows;
+  proformaItems: Rows;
+  proformaPhases: Rows;
+  proformaFlowPhases: Rows;
+  proformaEmailConfigs: Rows;
   auditLog: Rows;
 }
 
@@ -48,9 +54,10 @@ export interface TarifasDatabase {
 // colección faltante acá no rompe nada, simplemente devuelve vacío para siempre.
 export const COLLECTIONS: (keyof TarifasDatabase)[] = [
   'countries', 'zones', 'carriers', 'drivers', 'vehicles', 'trips', 'dispatchGuides', 'tripReturns', 'tripOrders', 'tripOrderMarks',
-  'countrySettings', 'zoneGroups', 'pricingRules', 'pricingTemplates', 'settlementParties',
+  'tripTenderAwards', 'countrySettings', 'zoneGroups', 'pricingRules', 'pricingTemplates', 'settlementParties',
   'partyVariables', 'settlements', 'costStructures', 'costStructureRows', 'rateTables',
-  'rateTableRows', 'marginPolicies', 'auditLog',
+  'rateTableRows', 'marginPolicies', 'proformas', 'proformaItems', 'proformaPhases',
+  'proformaFlowPhases', 'proformaEmailConfigs', 'auditLog',
 ];
 
 let seed: TarifasDatabase | null = null;

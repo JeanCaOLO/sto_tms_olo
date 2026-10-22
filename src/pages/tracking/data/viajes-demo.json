@@ -1,5 +1,5 @@
 {
- "_nota": "Datos de prueba del tracking. Tiempos relativos a 'ahora' (minutos atrás). Ver local-store.ts.",
+ "_nota": "Datos de prueba del tracking (modo mock). Tiempos relativos a 'ahora' (minutos atrás). Ver mock/sim.ts.",
  "trips": [
   {
    "id": "demo-cr-01",
@@ -8,7 +8,6 @@
    "zone": "Gran Área Metropolitana",
    "driver": "Luis Mora Castillo",
    "plate": "CL-190087",
-   "carrier": "Transportes Tica",
    "origin": [
     9.9281,
     -84.0907
@@ -21,8 +20,6 @@
      "lat": 9.9186,
      "lng": -84.14,
      "invoice": "FAC-1001",
-     "items": 4,
-     "weight": 37,
      "state": "delivered",
      "arrivedMinAgo": 12,
      "evidence": "full",
@@ -35,8 +32,6 @@
      "lat": 9.933,
      "lng": -84.183,
      "invoice": "FAC-1002",
-     "items": 5,
-     "weight": 54,
      "state": "pending"
     },
     {
@@ -46,8 +41,6 @@
      "lat": 9.936,
      "lng": -84.126,
      "invoice": "FAC-1003",
-     "items": 6,
-     "weight": 71,
      "state": "pending"
     },
     {
@@ -57,8 +50,6 @@
      "lat": 10.0162,
      "lng": -84.214,
      "invoice": "FAC-1004",
-     "items": 7,
-     "weight": 88,
      "state": "pending"
     }
    ],
@@ -78,7 +69,6 @@
    "zone": "Heredia",
    "driver": "David Vargas Borbón",
    "plate": "CL-132239",
-   "carrier": "Transportes Tica",
    "origin": [
     9.9281,
     -84.0907
@@ -91,8 +81,6 @@
      "lat": 9.956,
      "lng": -84.084,
      "invoice": "FAC-1005",
-     "items": 8,
-     "weight": 105,
      "state": "delivered",
      "arrivedMinAgo": 120,
      "evidence": "full",
@@ -105,8 +93,6 @@
      "lat": 9.9981,
      "lng": -84.1198,
      "invoice": "FAC-1006",
-     "items": 9,
-     "weight": 122,
      "state": "pending"
     },
     {
@@ -116,8 +102,6 @@
      "lat": 9.964,
      "lng": -84.048,
      "invoice": "FAC-1007",
-     "items": 10,
-     "weight": 139,
      "state": "pending"
     },
     {
@@ -127,12 +111,10 @@
      "lat": 9.957,
      "lng": -84.062,
      "invoice": "FAC-1008",
-     "items": 11,
-     "weight": 156,
      "state": "pending"
     }
    ],
-   "delayMin": 40,
+   "daysLate": 2, "delayMin": 40,
    "startedMinAgo": 180,
    "lastSignalMinAgo": 1,
    "at": [
@@ -147,7 +129,6 @@
    "zone": "Cartago",
    "driver": "Merwin Ortega Rangel",
    "plate": "CL-162414",
-   "carrier": "Fletes del Sur",
    "origin": [
     9.9281,
     -84.0907
@@ -160,8 +141,6 @@
      "lat": 9.9144,
      "lng": -84.035,
      "invoice": "FAC-1009",
-     "items": 3,
-     "weight": 173,
      "state": "delivered",
      "arrivedMinAgo": 50,
      "evidence": "full",
@@ -174,8 +153,6 @@
      "lat": 9.8644,
      "lng": -83.9194,
      "invoice": "FAC-1010",
-     "items": 4,
-     "weight": 190,
      "state": "pending"
     },
     {
@@ -185,8 +162,6 @@
      "lat": 9.897,
      "lng": -84.069,
      "invoice": "FAC-1011",
-     "items": 5,
-     "weight": 27,
      "state": "pending"
     }
    ],
@@ -205,7 +180,6 @@
    "zone": "Alajuela",
    "driver": "Carlos Quesada",
    "plate": "CL-145100",
-   "carrier": "Fletes del Sur",
    "origin": [
     9.9281,
     -84.0907
@@ -218,8 +192,6 @@
      "lat": 9.936,
      "lng": -84.126,
      "invoice": "FAC-1012",
-     "items": 6,
-     "weight": 44,
      "state": "pending"
     },
     {
@@ -229,8 +201,6 @@
      "lat": 9.933,
      "lng": -84.183,
      "invoice": "FAC-1013",
-     "items": 7,
-     "weight": 61,
      "state": "pending"
     },
     {
@@ -240,8 +210,6 @@
      "lat": 10.0162,
      "lng": -84.214,
      "invoice": "FAC-1014",
-     "items": 8,
-     "weight": 78,
      "state": "pending"
     }
    ],
@@ -251,13 +219,58 @@
    "at": "origin"
   },
   {
+   "id": "demo-cr-07",
+   "route_number": "VJ-DEMO-CR-07",
+   "country": "CR",
+   "zone": "Alajuela",
+   "driver": "Sofía Araya Solís",
+   "plate": "CL-188301",
+   "origin": [
+    9.9281,
+    -84.0907
+   ],
+   "stops": [
+    {
+     "customer": "Supermercado La Esperanza",
+     "address": "Av. Principal #22, Pavas",
+     "city": "Pavas",
+     "lat": 9.936,
+     "lng": -84.126,
+     "invoice": "FAC-71012",
+     "state": "pending"
+    },
+    {
+     "customer": "Abastos El Progreso",
+     "address": "Av. Principal #23, Santa Ana",
+     "city": "Santa Ana",
+     "lat": 9.933,
+     "lng": -84.183,
+     "invoice": "FAC-71013",
+     "state": "pending"
+    },
+    {
+     "customer": "Ferretería Central",
+     "address": "Av. Principal #24, Alajuela",
+     "city": "Alajuela",
+     "lat": 10.0162,
+     "lng": -84.214,
+     "invoice": "FAC-71014",
+     "state": "pending"
+    }
+   ],
+   "delayMin": 0,
+   "startedMinAgo": 6,
+   "lastSignalMinAgo": 6,
+   "at": "origin",
+   "noGps": true
+  },
+  {
    "id": "demo-cr-05",
    "route_number": "VJ-DEMO-CR-05",
    "country": "CR",
    "zone": "Norte",
    "driver": "Ana Jiménez",
    "plate": "CL-171903",
-   "carrier": "Transportes Tica",
    "origin": [
     9.9281,
     -84.0907
@@ -270,8 +283,6 @@
      "lat": 9.957,
      "lng": -84.062,
      "invoice": "FAC-1015",
-     "items": 9,
-     "weight": 95,
      "state": "delivered",
      "arrivedMinAgo": 30,
      "evidence": "full",
@@ -284,8 +295,6 @@
      "lat": 9.956,
      "lng": -84.084,
      "invoice": "FAC-1016",
-     "items": 10,
-     "weight": 112,
      "state": "pending"
     },
     {
@@ -295,8 +304,6 @@
      "lat": 9.964,
      "lng": -84.048,
      "invoice": "FAC-1017",
-     "items": 11,
-     "weight": 129,
      "state": "pending"
     }
    ],
@@ -316,7 +323,6 @@
    "zone": "Este",
    "driver": "Mario Solano",
    "plate": "CL-120554",
-   "carrier": "Fletes del Sur",
    "origin": [
     9.9281,
     -84.0907
@@ -329,19 +335,10 @@
      "lat": 9.9144,
      "lng": -84.035,
      "invoice": "FAC-1018",
-     "items": 3,
-     "weight": 146,
      "state": "delivered",
      "arrivedMinAgo": 60,
      "evidence": "full",
-     "recipient": "Recibe encargado",
-     "notes": [
-      {
-       "kind": "incident",
-       "text": "Cliente pidió cambiar el horario",
-       "minAgo": 58
-      }
-     ]
+     "recipient": "Recibe encargado"
     },
     {
      "customer": "Mini Market Sol",
@@ -350,17 +347,8 @@
      "lat": 9.964,
      "lng": -84.048,
      "invoice": "FAC-1019",
-     "items": 4,
-     "weight": 163,
      "state": "failed",
-     "arrivedMinAgo": 35,
-     "notes": [
-      {
-       "kind": "incident",
-       "text": "Local cerrado",
-       "minAgo": 35
-      }
-     ]
+     "arrivedMinAgo": 35
     },
     {
      "customer": "Bodega Don Pepe",
@@ -369,8 +357,6 @@
      "lat": 9.8644,
      "lng": -83.9194,
      "invoice": "FAC-1020",
-     "items": 5,
-     "weight": 180,
      "state": "pending"
     }
    ],
@@ -390,7 +376,6 @@
    "zone": "Caracas",
    "driver": "José Rodríguez",
    "plate": "DEMO-VN-01",
-   "carrier": "Demo Transportes VN",
    "origin": [
     10.4806,
     -66.9036
@@ -403,8 +388,6 @@
      "lat": 10.4969,
      "lng": -66.854,
      "invoice": "FAC-1021",
-     "items": 6,
-     "weight": 197,
      "state": "delivered",
      "arrivedMinAgo": 10,
      "evidence": "full",
@@ -417,8 +400,6 @@
      "lat": 10.48,
      "lng": -66.8,
      "invoice": "FAC-1022",
-     "items": 7,
-     "weight": 34,
      "state": "pending"
     },
     {
@@ -428,8 +409,6 @@
      "lat": 10.43,
      "lng": -66.825,
      "invoice": "FAC-1023",
-     "items": 8,
-     "weight": 51,
      "state": "pending"
     },
     {
@@ -439,8 +418,6 @@
      "lat": 10.599,
      "lng": -66.933,
      "invoice": "FAC-1024",
-     "items": 9,
-     "weight": 68,
      "state": "pending"
     }
    ],
@@ -460,7 +437,6 @@
    "zone": "Valencia",
    "driver": "María González",
    "plate": "DEMO-VN-02",
-   "carrier": "Demo Transportes VN",
    "origin": [
     10.162,
     -68.0077
@@ -473,8 +449,6 @@
      "lat": 10.233,
      "lng": -68.012,
      "invoice": "FAC-1025",
-     "items": 10,
-     "weight": 85,
      "state": "delivered",
      "arrivedMinAgo": 200,
      "evidence": "full",
@@ -487,8 +461,6 @@
      "lat": 10.253,
      "lng": -67.95,
      "invoice": "FAC-1026",
-     "items": 11,
-     "weight": 102,
      "state": "pending"
     },
     {
@@ -498,8 +470,6 @@
      "lat": 10.185,
      "lng": -67.94,
      "invoice": "FAC-1027",
-     "items": 3,
-     "weight": 119,
      "state": "pending"
     },
     {
@@ -509,12 +479,10 @@
      "lat": 10.102,
      "lng": -68.058,
      "invoice": "FAC-1028",
-     "items": 4,
-     "weight": 136,
      "state": "pending"
     }
    ],
-   "delayMin": 95,
+   "daysLate": 1, "delayMin": 95,
    "startedMinAgo": 240,
    "lastSignalMinAgo": 3,
    "at": [
@@ -529,7 +497,6 @@
    "zone": "Caracas",
    "driver": "Pedro Salas",
    "plate": "DEMO-VN-03",
-   "carrier": "Demo Transportes VN",
    "origin": [
     10.4806,
     -66.9036
@@ -542,8 +509,6 @@
      "lat": 10.344,
      "lng": -67.043,
      "invoice": "FAC-1029",
-     "items": 5,
-     "weight": 153,
      "state": "pending"
     },
     {
@@ -553,8 +518,6 @@
      "lat": 10.43,
      "lng": -66.825,
      "invoice": "FAC-1030",
-     "items": 6,
-     "weight": 170,
      "state": "pending"
     },
     {
@@ -564,8 +527,6 @@
      "lat": 10.4969,
      "lng": -66.854,
      "invoice": "FAC-1031",
-     "items": 7,
-     "weight": 187,
      "state": "pending"
     }
    ],
@@ -581,7 +542,6 @@
    "zone": "Heredia",
    "driver": "Luis Mora Castillo",
    "plate": "CL-190087",
-   "carrier": "Transportes Tica",
    "origin": [
     9.9281,
     -84.0907
@@ -594,8 +554,6 @@
      "lat": 9.9981,
      "lng": -84.1198,
      "invoice": "FAC-1032",
-     "items": 8,
-     "weight": 24,
      "state": "delivered",
      "arrivedMinAgo": 250,
      "evidence": "full",
@@ -608,8 +566,6 @@
      "lat": 9.956,
      "lng": -84.084,
      "invoice": "FAC-1033",
-     "items": 9,
-     "weight": 41,
      "state": "delivered",
      "arrivedMinAgo": 200,
      "evidence": "full",
@@ -622,8 +578,6 @@
      "lat": 9.964,
      "lng": -84.048,
      "invoice": "FAC-1034",
-     "items": 10,
-     "weight": 58,
      "state": "delivered",
      "arrivedMinAgo": 160,
      "evidence": "full",
@@ -643,7 +597,6 @@
    "zone": "Valencia",
    "driver": "María González",
    "plate": "DEMO-VN-02",
-   "carrier": "Demo Transportes VN",
    "origin": [
     10.162,
     -68.0077
@@ -656,20 +609,10 @@
      "lat": 10.233,
      "lng": -68.012,
      "invoice": "FAC-1035",
-     "items": 11,
-     "weight": 75,
      "state": "delivered",
      "arrivedMinAgo": 300,
      "evidence": "full",
-     "recipient": "Recibe encargado",
-     "returns": [
-      {
-       "type": "partial",
-       "reason": "Producto dañado",
-       "product": "Caja de aceite 12u",
-       "qty": 2
-      }
-     ]
+     "recipient": "Recibe encargado"
     },
     {
      "customer": "Supermercado La Esperanza",
@@ -678,19 +621,10 @@
      "lat": 10.253,
      "lng": -67.95,
      "invoice": "FAC-1036",
-     "items": 3,
-     "weight": 92,
      "state": "delivered",
      "arrivedMinAgo": 250,
      "evidence": "full",
-     "recipient": "Recibe encargado",
-     "notes": [
-      {
-       "kind": "pickup",
-       "text": "Recolecta de envases vacíos",
-       "minAgo": 249
-      }
-     ]
+     "recipient": "Recibe encargado"
     },
     {
      "customer": "Abastos El Progreso",
@@ -699,19 +633,10 @@
      "lat": 10.185,
      "lng": -67.94,
      "invoice": "FAC-1037",
-     "items": 4,
-     "weight": 109,
      "state": "delivered",
      "arrivedMinAgo": 200,
      "evidence": "full",
-     "recipient": "Recibe encargado",
-     "notes": [
-      {
-       "kind": "incident",
-       "text": "Espera de 40 min en el muelle",
-       "minAgo": 205
-      }
-     ]
+     "recipient": "Recibe encargado"
     }
    ],
    "startedMinAgo": 360,
@@ -727,7 +652,6 @@
    "zone": "Cartago",
    "driver": "Mario Solano",
    "plate": "CL-120554",
-   "carrier": "Fletes del Sur",
    "origin": [
     9.9281,
     -84.0907
@@ -740,8 +664,6 @@
      "lat": 9.8644,
      "lng": -83.9194,
      "invoice": "FAC-1038",
-     "items": 5,
-     "weight": 126,
      "state": "delivered",
      "arrivedMinAgo": 280,
      "evidence": "invoice",
@@ -754,17 +676,8 @@
      "lat": 9.897,
      "lng": -84.069,
      "invoice": "FAC-1039",
-     "items": 6,
-     "weight": 143,
      "state": "failed",
-     "arrivedMinAgo": 240,
-     "notes": [
-      {
-       "kind": "incident",
-       "text": "Dirección no encontrada",
-       "minAgo": 240
-      }
-     ]
+     "arrivedMinAgo": 240
     }
    ],
    "startedMinAgo": 340,
@@ -780,7 +693,6 @@
    "zone": "Caracas",
    "driver": "José Rodríguez",
    "plate": "DEMO-VN-03",
-   "carrier": "Demo Transportes VN",
    "origin": [
     10.4806,
     -66.9036
@@ -793,8 +705,6 @@
      "lat": 10.4969,
      "lng": -66.854,
      "invoice": "FAC-1040",
-     "items": 7,
-     "weight": 160,
      "state": "delivered",
      "arrivedMinAgo": 400,
      "evidence": "full",
@@ -807,8 +717,6 @@
      "lat": 10.48,
      "lng": -66.8,
      "invoice": "FAC-1041",
-     "items": 8,
-     "weight": 177,
      "state": "delivered",
      "arrivedMinAgo": 370,
      "evidence": "full",
@@ -819,10 +727,7 @@
    "endedMinAgo": 340,
    "lastSignalMinAgo": 340,
    "at": "stop:1",
-   "lateMinFinal": 0,
-   "reviewedMinAgo": 300,
-   "reviewedBy": "Administrador OLO",
-   "reviewNote": "Sin observaciones"
+   "lateMinFinal": 0
   }
  ],
  "planned": [
@@ -831,7 +736,6 @@
    "zone": "Gran Área Metropolitana",
    "plate": "CL-190087",
    "driver": "Luis Mora Castillo",
-   "carrier": "Transportes Tica",
    "country": "CR",
    "origin": [
     9.9281,
@@ -845,8 +749,6 @@
      "lat": 9.9186,
      "lng": -84.14,
      "invoice": "FAC-1042",
-     "items": 9,
-     "weight": 194,
      "state": "pending"
     },
     {
@@ -856,8 +758,6 @@
      "lat": 9.933,
      "lng": -84.183,
      "invoice": "FAC-1043",
-     "items": 10,
-     "weight": 31,
      "state": "pending"
     },
     {
@@ -867,8 +767,6 @@
      "lat": 9.936,
      "lng": -84.126,
      "invoice": "FAC-1044",
-     "items": 11,
-     "weight": 48,
      "state": "pending"
     }
    ]
@@ -878,7 +776,6 @@
    "zone": "Cartago",
    "plate": "CL-162414",
    "driver": "Merwin Ortega Rangel",
-   "carrier": "Fletes del Sur",
    "country": "CR",
    "origin": [
     9.9281,
@@ -892,8 +789,6 @@
      "lat": 9.9144,
      "lng": -84.035,
      "invoice": "FAC-1045",
-     "items": 3,
-     "weight": 65,
      "state": "pending"
     },
     {
@@ -903,8 +798,6 @@
      "lat": 9.8644,
      "lng": -83.9194,
      "invoice": "FAC-1046",
-     "items": 4,
-     "weight": 82,
      "state": "pending"
     },
     {
@@ -914,8 +807,6 @@
      "lat": 9.897,
      "lng": -84.069,
      "invoice": "FAC-1047",
-     "items": 5,
-     "weight": 99,
      "state": "pending"
     },
     {
@@ -925,8 +816,6 @@
      "lat": 9.957,
      "lng": -84.062,
      "invoice": "FAC-1048",
-     "items": 6,
-     "weight": 116,
      "state": "pending"
     }
    ]
@@ -936,7 +825,6 @@
    "zone": "Maracay",
    "plate": "DEMO-VN-03",
    "driver": "José Rodríguez",
-   "carrier": "Demo Transportes VN",
    "country": "VN",
    "origin": [
     10.4806,
@@ -950,8 +838,6 @@
      "lat": 10.344,
      "lng": -67.043,
      "invoice": "FAC-1049",
-     "items": 7,
-     "weight": 133,
      "state": "pending"
     },
     {
@@ -961,8 +847,6 @@
      "lat": 10.43,
      "lng": -66.825,
      "invoice": "FAC-1050",
-     "items": 8,
-     "weight": 150,
      "state": "pending"
     },
     {
@@ -972,8 +856,6 @@
      "lat": 10.2469,
      "lng": -67.5958,
      "invoice": "FAC-1051",
-     "items": 9,
-     "weight": 167,
      "state": "pending"
     }
    ]

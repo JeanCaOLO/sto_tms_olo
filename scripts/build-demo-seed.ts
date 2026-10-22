@@ -52,7 +52,7 @@ const base = JSON.parse(readFileSync(SEED_IN, 'utf8')) as TarifasDatabase;
 // su configuración y las políticas de margen.
 const work: TarifasDatabase = {
   countries: base.countries,
-  zones: [], carriers: [], drivers: [], vehicles: [], trips: [], dispatchGuides: [], tripReturns: [], tripOrders: [], tripOrderMarks: [],
+  zones: [], carriers: [], drivers: [], vehicles: [], trips: [], dispatchGuides: [], tripReturns: [], tripOrders: [], tripOrderMarks: [], tripTenderAwards: [],
   countrySettings: base.countrySettings.filter((s) => s.country_id !== 'CR'),
   zoneGroups: [], pricingRules: [], pricingTemplates: [], settlementParties: [], partyVariables: [], settlements: [],
   costStructures: [], costStructureRows: [], rateTables: [], rateTableRows: [],

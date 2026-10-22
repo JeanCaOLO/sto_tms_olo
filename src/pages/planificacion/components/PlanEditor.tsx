@@ -130,7 +130,7 @@ export default function PlanEditor({ fecha, pedidosCount, vehiculosCount, ctx, d
           <div>
             <p className="text-sm font-semibold text-amber-800">No hay pedidos para este día</p>
             <p className="text-xs text-amber-700 mt-0.5">
-              No se puede generar un plan sin pedidos. Elegí otro día en el selector de arriba.
+              No se puede generar un plan sin pedidos. Elige otro día en el selector de arriba.
             </p>
           </div>
         </div>

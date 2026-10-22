@@ -17,6 +17,7 @@ const TransportistasPage = lazy(() => import('../pages/transportistas/page'));
 const ReglasTarifaPage = lazy(() => import('../pages/reglas-tarifa/page'));
 const CostosFlotaPage = lazy(() => import('../pages/companias/costos-flota/page'));
 const LiquidacionesPage = lazy(() => import('../pages/liquidaciones/page'));
+const ProformasPage = lazy(() => import('../pages/proformas/page'));
 const ConfiguracionPage = lazy(() => import('../pages/configuracion/page'));
 const AuditoriaPage = lazy(() => import('../pages/auditoria/page'));
 const SeedPage = lazy(() => import('../pages/seed/page'));
@@ -102,6 +103,10 @@ const routes: RouteObject[] = [
   {
     path: '/liquidaciones',
     element: <TarifadorHints><LiquidacionesPage /></TarifadorHints>
+  },
+  {
+    path: '/proformas',
+    element: <TarifadorHints><ProformasPage /></TarifadorHints>
   },
   {
     path: '/configuracion',

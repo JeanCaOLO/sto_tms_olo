@@ -119,11 +119,12 @@ export default function CarrierModal({ isOpen, onClose, carrier, onSave }: Carri
         .eq('id', user.id)
         .single();
 
-      // contract_file_key NO viaja aquí: solo lo escribe el endpoint del contrato. Si viajara, al
-      // "Quitar" el PDF y luego guardar, se volvería a escribir la llave vieja.
-      const { contract_file_key: _contractKey, ...editable } = formData;
+      // Solo las columnas que edita este formulario. `formData` arrastra lo que trae el listado (la
+      // relación `countries`, `driver_count`…), que NO son columnas y la API rechaza; y `contract_file_key`
+      // lo escribe solo el endpoint del contrato (si viajara, "Quitar" el PDF y guardar reescribiría la llave vieja).
+      const { code, name, tax_id, contact_name, email, phone, address, country_id, status, payment_account, softland_code } = formData;
       const carrierData = {
-        ...editable,
+        code, name, tax_id, contact_name, email, phone, address, country_id, status, payment_account, softland_code,
         contract_expiry: formData.contract_expiry || null,
         rate_type: formData.rate_type || null,
         // Solo tiene sentido el monto cuando la forma de pago es tarifa fija.

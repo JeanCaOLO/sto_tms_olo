@@ -20,7 +20,7 @@ ORDER BY plan_date DESC
 
 _TRIPS = """
 SELECT t.id, t.plan_id, t.status, t.vehicle_id, t.driver_id, t.delivery_zone, t.sequence_order,
-       t.total_weight, t.total_volume, t.vehicle_plate, v.brand AS vehicle_label,
+       t.numero_viaje, t.total_weight, t.total_volume, t.vehicle_plate, v.brand AS vehicle_label,
        t.vehicle_capacity_weight, t.vehicle_capacity_volume, t.is_owned
 FROM plan_trips t
 LEFT JOIN vehicles v ON v.id = t.vehicle_id
@@ -71,7 +71,8 @@ def _trip(r: dict, stops: list[dict]) -> dict:
         "vehicle_plate": r["vehicle_plate"], "vehicle_label": r["vehicle_label"] or r["vehicle_plate"],
         "vehicle_capacity_weight": _val(r["vehicle_capacity_weight"]),
         "vehicle_capacity_volume": _val(r["vehicle_capacity_volume"]),
-        "is_flota_propia": bool(r["is_owned"]), "numero_viaje": str(r["sequence_order"]), "stops": stops,
+        "is_flota_propia": bool(r["is_owned"]),
+        "numero_viaje": r["numero_viaje"] or str(r["sequence_order"]), "stops": stops,
     }
 
 

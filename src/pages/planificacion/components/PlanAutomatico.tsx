@@ -79,7 +79,7 @@ export default function PlanAutomatico({ vehiculos, conductores }: Props) {
                 {resultado.sinAsignar.length} pedido(s) sin asignar
               </p>
               <p className="text-xs text-amber-700 mt-1">
-                No alcanzó la capacidad de la flota disponible en su destino. Agregá más vehículos o movelos a otro día.
+                No alcanzó la capacidad de la flota disponible en su destino. Agrega más vehículos o muévelos a otro día.
               </p>
             </div>
           )}

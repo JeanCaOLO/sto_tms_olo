@@ -15,10 +15,16 @@ export function ContractBaseBanner({ calculation }: { calculation: TripCalculati
   const method = result.base?.method;
   const amount = input.baseOverride?.amount;
   const vencido = contract?.expired === true && contract.contractExpiry;
+  // Tendering: el monto no es una tarifa fija del contrato sino lo adjudicado a ESTE viaje.
+  const esTendering = result.base?.source.kind === 'TENDER';
 
   let texto: string;
   if (trip.isOwnFleet) {
     texto = 'Flota propia: se cobra según la estructura de costos de la compañía.';
+  } else if (esTendering) {
+    const monto = amount ? ` (${formatMoney(amount, result.currency ?? '')} por viaje)` : '';
+    const quien = contract?.carrierName ? ` a ${contract.carrierName}` : '';
+    texto = `Este viaje se cobrará por el monto adjudicado por tendering${monto}${quien}.`;
   } else if (method) {
     const label = BASE_METHODS[method].label;
     const monto = method === 'FIXED' && amount ? ` (${formatMoney(amount, result.currency ?? '')} por viaje)` : '';
@@ -33,7 +39,11 @@ export function ContractBaseBanner({ calculation }: { calculation: TripCalculati
     <div className="space-y-2" data-testid="contract-base-banner">
       <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-xs text-slate-600">
         {texto}
-        <span className="ml-1 text-slate-400">La forma de pago se define en el catálogo de Transportistas.</span>
+        <span className="ml-1 text-slate-400">
+          {esTendering
+            ? 'La forma de pago (Tendering) se define en el catálogo de Transportistas; el monto, en la adjudicación del viaje.'
+            : 'La forma de pago se define en el catálogo de Transportistas.'}
+        </span>
       </div>
       {vencido && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800" role="alert">

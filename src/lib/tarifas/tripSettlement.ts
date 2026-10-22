@@ -116,14 +116,14 @@ export async function calculateTrip(
   const partyId = profile && profile.status !== 'inactive' ? profile.id : null;
 
   // La base nunca se elige al liquidar. Flota propia: siempre su estructura de costos. Tercero: la
-  // forma de cobro del catálogo de Transportistas (carriers.rate_type, sql/35), sin default; si falta
-  // o no se puede calcular, el cálculo se bloquea con el motivo.
+  // forma de cobro del catálogo de Transportistas (carriers.rate_type, sql/35), sin default; con
+  // TENDERING el monto es el adjudicado al viaje. Si falta o no se puede calcular, se bloquea con el motivo.
   let baseOverride: BaseOverride | null = null;
   let carrierContract: CarrierContract | null = null;
   const baseIssues: CalcIssue[] = [];
   if (!trip.isOwnFleet) {
     const base = trip.carrierId
-      ? await carrierBaseForCarrier(trip.carrierId, { fresh: options.fresh })
+      ? await carrierBaseForCarrier(trip.carrierId, { fresh: options.fresh, tripId: trip.id })
       : { issue: 'El viaje no tiene transportista: no hay forma de cobro con que calcularlo.' };
     if ('override' in base) {
       baseOverride = base.override;

@@ -1819,6 +1819,16 @@ Como no había respuesta y el usuario pidió cerrar, lo hice yo:
 - `DeliveryPointModal.tsx`: el selector de zona ofrece solo zonas activas (igual que el filtro de `/tiendas`).
 Commiteé todo tu trabajo pendiente (PDF del contrato, campana, modales, geocercas superpuestas, mapa plegable) junto con lo mío y desplegué al sandbox. El correo a jbonilla@/rperez@ queda para después (decisión del usuario).
 
+
+### 2026-10-20 — De: Claude → Kiro — Tendering opción 1: tabla nueva `tarifas_trip_tender_awards` (migración 45 para ejecutar)
+Estado: abierto
+
+Tendering no es una fórmula sino un proceso de asignación; el tarifador solo liquida el monto adjudicado al viaje (como tarifa fija). Hecho solo en el tarifador, sin desplegar.
+- **Te pido (BD):** ejecutar `sql/45_tarifas_tendering_adjudicacion.sql` (idempotente; una tabla nueva, no toca nada existente). El DDL equivalente quedó en `sql/04_tarifas.sql`.
+- **Backend:** el manifiesto `backend/tarifas/src/schema_manifest.json` ya trae la tabla (regenerado con `npm run tarifas:manifest`); falta desplegar el stack de tarifas para que la API la lea. Sin `LIQUIDATION_TABLES`: escribirla exige `tarifas.config` (la adjudica quien configura, no el Liquidador).
+- Sin la tabla, un transportista con `rate_type='TENDERING'` falla al leer la adjudicación; hoy ningún carrier lo tiene cargado, así que no cambia ninguna liquidación existente.
+- Pendiente (opción 2, proceso de ofertas/ranking/cascada): ver `docs/work/2026-10/2026-10-20-tendering-opcion-1.md` (incluye las 7 preguntas para Jean Carlo).
+
 ### 2026-10-16 — De: Claude → Kiro + equipos de Planificación y Tarifas — AVISO: `orders` / `order_items` reestructuradas (sql/40–44 aplicadas)
 Estado: abierto
 
