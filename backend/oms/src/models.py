@@ -79,6 +79,11 @@ class PedidoCandidato:
     country_id: str | None = None
     warehouse_id: str | None = None
     customer_id: str | None = None
+    # Prioridad numérica DE ORIGEN (orders.priority, la que trae el pedido de EFLOW
+    # o la que escribió una corrida previa). La usan las compañías que NO se priorizan
+    # en el OMS (p. ej. EPA: `priorizar=false`): el OMS conserva esta prioridad y solo
+    # hace la liberación por fecha, sin recalcularla. None = aún sin prioridad.
+    priority: int | None = None
 
     @property
     def pk(self) -> "PedidoPK":
@@ -186,6 +191,9 @@ class ConfiguracionReglas:
       ADR-013 resta a `dispatch_date` para abrir la ventana de liberación
       (`now() >= dispatch_date − dias_prep_picking`). Default 1 (política del OMS);
       parametrizable por compañía a futuro.
+    - priorizar: si la compañía se prioriza en el OMS. False = el pedido YA viene
+      priorizado (p. ej. EPA trae su propia prioridad de EFLOW): el barrido NO
+      recalcula ni sobrescribe `orders.priority`, solo hace la liberación por fecha.
 
     NOTA (contrato v4): la duración logística del T-1 ya NO es un parámetro estático
     de config — ahora se lee de `orders.lead_time_days` por pedido (dinámico, lo
@@ -198,3 +206,4 @@ class ConfiguracionReglas:
     pesos: dict[str, float]
     prioridad_cliente_retira: int = 1
     dias_prep_picking: int = 1
+    priorizar: bool = True

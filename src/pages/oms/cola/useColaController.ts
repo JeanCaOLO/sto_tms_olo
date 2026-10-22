@@ -76,6 +76,25 @@ export function useColaController() {
     };
   }, [orders]);
 
+  // Al cambiar el conjunto cargado (p. ej. se cambió el cliente del header),
+  // un filtro cuyo valor ya no existe entre las opciones dejaría la tabla vacía
+  // "pegada" (ej.: Estado OMS=Priorizado al pasar a una compañía sin pendientes).
+  // Se resetea a "Todos" automáticamente para no tener que limpiarlo a mano.
+  useEffect(() => {
+    const available: Record<string, string[]> = {
+      branch: options.branches, route: options.routes, tier: options.tiers,
+      status: options.statuses, situation: options.situations, estadoOms: options.estadosOms,
+    };
+    setFilters((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      (Object.keys(available) as (keyof ColaFilters)[]).forEach((k) => {
+        if (next[k] !== ALL && !available[k].includes(next[k])) { next[k] = ALL; changed = true; }
+      });
+      return changed ? next : prev;
+    });
+  }, [options]);
+
   // Filtrado con lógica AND (FR3.3).
   const filtered = useMemo(() => {
     const q = filters.query.trim().toLowerCase();

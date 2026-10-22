@@ -11,6 +11,9 @@ import OverrideModal from './OverrideModal';
 import { useColaController } from './useColaController';
 
 const money = (n: number) => n.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// Solo la fecha (YYYY-MM-DD), sin la hora: sirve para date ('2026-10-25') y para
+// timestamp ('2026-10-16T13:25:...' o '2026-10-16 13:25:...').
+const soloFecha = (v: string) => (v ? v.slice(0, 10) : '');
 
 // Pantalla Cola de Priorización (FR2/FR3): tabla completa + filtros.
 // El detalle del pedido se muestra en un modal (con el botón de override dentro).
@@ -64,8 +67,8 @@ export default function OmsColaPage() {
       accessor: (o) => o.observations,
       render: (o) => <span className="max-w-[220px] truncate block" title={o.observations}>{o.observations}</span>,
     },
-    { key: 'dispatchDate', header: t('omsQueue.colDispatchDate'), accessor: (o) => o.dispatchDate, sortable: true },
-    { key: 'createdDate', header: t('omsQueue.colCreatedDate'), accessor: (o) => o.createdDate, sortable: true },
+    { key: 'dispatchDate', header: t('omsQueue.colDispatchDate'), accessor: (o) => o.dispatchDate, sortable: true, render: (o) => soloFecha(o.dispatchDate) },
+    { key: 'createdDate', header: t('omsQueue.colCreatedDate'), accessor: (o) => o.createdDate, sortable: true, render: (o) => soloFecha(o.createdDate) },
     { key: 'status', header: t('omsQueue.colStatus'), accessor: (o) => o.status, filterable: true },
     { key: 'situation', header: t('omsQueue.colSituation'), accessor: (o) => o.situation, filterable: true },
     { key: 'score', header: t('omsQueue.colScore'), accessor: (o) => o.score, sortable: true, align: 'right', render: (o) => <span className="font-semibold text-slate-900">{o.score}</span> },

@@ -41,7 +41,8 @@ import cola_candidatos
 import handoff_pedidos
 import motor_reglas
 import oms_log
-from models import PedidoCandidato
+import reglas_config
+from models import PedidoCandidato, RegistroPrioridad
 
 # Permiso del módulo OMS para la acción manual "Procesar a Eflow". Usa el vocabulario
 # de acciones del RBAC (permissions.ACTIONS); "edit" cubre la mutación de liberar.
@@ -61,10 +62,33 @@ def _corrida_id(hoy: date) -> str:
     return f"oms-{hoy.isoformat()}-{datetime.now(timezone.utc).strftime('%H%M%S')}"
 
 
-def _priorizar(pedidos, registros, corrida_id) -> None:
-    """Pasada 1 (ADR-013): prioriza cada pedido (UPDATE orders, deja DISP, no libera)."""
-    for pedido, registro in zip(pedidos, registros):
-        handoff_pedidos.priorizar_pedido(pedido, registro, corrida_id)
+# Prioridad de respaldo para una compañía 'no priorizar' cuyo pedido llega sin
+# prioridad de origen (no debería pasar: EPA la trae). Número alto = baja urgencia,
+# para no colarlo como urgente por error.
+PRIORIDAD_PREEXISTENTE_DEFECTO = 99
+
+
+def _registro_preexistente(pedido: PedidoCandidato) -> RegistroPrioridad:
+    """Registro para una compañía que NO se prioriza (EPA): conserva la prioridad
+    de origen (`orders.priority`) sin pasar por el motor. Se usa solo para la costura
+    de liberación (escribir la PRIORIDAD a eFlow); el barrido no toca `orders.priority`."""
+    prioridad = pedido.priority if pedido.priority is not None else PRIORIDAD_PREEXISTENTE_DEFECTO
+    return RegistroPrioridad(pk=pedido.pk, prioridad=prioridad, score=0.0, cliente_retira=False)
+
+
+def _resolver_registros(pedidos, resolver_config, hoy: date):
+    """Resuelve (pedido, config, registro) por pedido. Las compañías con
+    `priorizar=true` pasan por el motor; las de `priorizar=false` conservan su
+    prioridad de origen (no se recalcula)."""
+    resueltos = []
+    for pedido in pedidos:
+        config = resolver_config(pedido)
+        if config.priorizar:
+            registro = motor_reglas.priorizar_uno(pedido, config, hoy)
+        else:
+            registro = _registro_preexistente(pedido)
+        resueltos.append((pedido, config, registro))
+    return resueltos
 
 
 def _liberar(pares) -> tuple[int, int, list]:
@@ -90,7 +114,7 @@ def correr(
     *,
     hoy: date | None = None,
     limite: int = 100,
-    resolver_config=motor_reglas.config_por_defecto,
+    resolver_config=None,
 ) -> dict:
     """Barrido ADR-013 de punta a punta: lee la cola → PRIORIZA todo → LIBERA ventana.
 
@@ -105,21 +129,26 @@ def correr(
     """
     hoy = hoy or datetime.now(timezone.utc).date()
     corrida_id = _corrida_id(hoy)
+    resolver_config = resolver_config or reglas_config.cargar_resolver()
 
     try:
         pedidos: list[PedidoCandidato] = cola_candidatos.candidatos(limite=limite)
-        registros = motor_reglas.priorizar(pedidos, resolver_config, hoy=hoy)
+        resueltos = _resolver_registros(pedidos, resolver_config, hoy)
 
-        # Pasada 1: priorizar todos (deja DISP, sin oms_processed_at).
-        _priorizar(pedidos, registros, corrida_id)
+        # Pasada 1: priorizar SOLO las compañías con priorizar=true (deja DISP, sin
+        # oms_processed_at). Las de priorizar=false (EPA) conservan su prioridad de
+        # origen: el barrido NO toca orders.priority.
+        for pedido, config, registro in resueltos:
+            if config.priorizar:
+                handoff_pedidos.priorizar_pedido(pedido, registro, corrida_id)
 
-        # Pasada 2: liberar solo los que cruzan la ventana (por viaje "gratis": mismo
-        # dispatch_date en un numero_viaje => cruzan juntos). Se lee SOLO dispatch_date.
+        # Pasada 2: liberar los que cruzan la ventana (apliquen o no priorización; por
+        # viaje "gratis": mismo dispatch_date en un numero_viaje => cruzan juntos).
         en_ventana = [
             (pedido, registro)
-            for pedido, registro in zip(pedidos, registros)
+            for pedido, config, registro in resueltos
             if handoff_pedidos.en_ventana_liberacion(
-                pedido.dispatch_date, hoy, resolver_config(pedido).dias_prep_picking,
+                pedido.dispatch_date, hoy, config.dias_prep_picking,
                 cliente_retira=registro.cliente_retira,
                 delivery_date=pedido.fecha_expedicion_planificada)
         ]
@@ -134,16 +163,17 @@ def correr(
                           corrida_id=corrida_id, detail={"error": str(exc)})
         raise
 
+    priorizados = sum(1 for _, config, _ in resueltos if config.priorizar)
     resumen = {
         "total": len(pedidos),
-        "priorizados": len(pedidos),
+        "priorizados": priorizados,
         "liberados": liberados,
         "pendientes": pendientes,
         "reconciliados": reconciliados,
     }
     oms_log.registrar(
         "barrido",
-        f"Barrido: {len(pedidos)} priorizados, {liberados} liberados, "
+        f"Barrido: {priorizados} priorizados, {liberados} liberados, "
         f"{pendientes} pendientes, {reconciliados} reconciliados",
         level="warn" if pendientes else "info",
         corrida_id=corrida_id,
@@ -175,15 +205,19 @@ def procesar_viaje(event: dict) -> dict:
     hoy = datetime.now(timezone.utc).date()
     corrida_id = _corrida_id(hoy)
 
+    resolver_config = reglas_config.cargar_resolver()
     try:
         pedidos = [
             p for p in cola_candidatos.candidatos()
             if p.numero_viaje == numero_viaje
             and (subconjunto is None or p.id_expedicion in subconjunto)
         ]
-        registros = motor_reglas.priorizar(pedidos, motor_reglas.config_por_defecto, hoy=hoy)
-        _priorizar(pedidos, registros, corrida_id)
-        liberados, pendientes, prioridades = _liberar(list(zip(pedidos, registros)))
+        resueltos = _resolver_registros(pedidos, resolver_config, hoy)
+        # Prioriza (si aplica) y libera; "Procesar a Eflow" ignora la ventana.
+        for pedido, config, registro in resueltos:
+            if config.priorizar:
+                handoff_pedidos.priorizar_pedido(pedido, registro, corrida_id)
+        liberados, pendientes, prioridades = _liberar([(p, r) for p, _, r in resueltos])
     except Exception as exc:  # noqa: BLE001 — registra el fallo y re-lanza
         oms_log.registrar("procesar_viaje", f"Procesar viaje {numero_viaje} FALLÓ: {exc}",
                           level="error", corrida_id=corrida_id, numero_viaje=numero_viaje,

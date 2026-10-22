@@ -156,7 +156,7 @@ function mapOrderToQueueOrder(row: any, country: Country, hoyIso: string): Queue
     branchId: row.eflow_id_sucursal ?? row.branch?.external_code ?? '',
     orderType: row.order_type ?? '',
     customer: row.final_customer?.name ?? '',
-    route: row.delivery_zone || '(sin ruta)',
+    route: row.delivery_zone || '(sin zona)',
     country,
     tier: tierPersistido ?? prioridad.tier,
     score: row.oms_score != null ? Number(row.oms_score) : prioridad.score,

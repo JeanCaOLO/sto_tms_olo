@@ -17,7 +17,7 @@ export default {
   'menu.reglasTarifa': 'Tariff Rules',
   'menu.oms': 'OMS',
   'menu.omsPanel': 'OMS Panel',
-  'menu.omsCola': 'Prioritization Queue',
+  'menu.omsCola': 'Orders',
   'menu.omsReglas': 'Rules Engine',
   'menu.omsSimulador': 'Simulator',
   'menu.omsAuditoria': 'Audit',
