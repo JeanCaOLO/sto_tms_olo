@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: TMS - TRACKING | Monitoreo en vivo de viajes: posiciones GPS, paradas y evidencias de entrega
+Description: "TMS - TRACKING | Monitoreo en vivo de viajes: posiciones GPS, paradas y evidencias de entrega"
 
 # Las evidencias de entrega (foto de factura firmada, firma digital) van DIRECTO de la app del chofer a
 # S3 con formularios firmados de vida corta; la Lambda solo firma, valida y guarda la llave en Aurora.
