@@ -1,30 +1,29 @@
 {
   "stage": "domain-design",
   "intent": "260826-modulo-oms",
-  "note": "Re-corrida por el pivote WMH (2026-09-30), ACOTADA a la rebanada delgada de 1ª entrega. Se mapean las historias de la rebanada a los 5 componentes en alcance; las historias de componentes DIFERIDOS se marcan Deferred (no GAP: su diseño es una corrida posterior de domain-design, no un hueco). CalendarioRutas eliminado (D5) → US28/US29 ya retiradas en user-stories.",
+  "note": "Re-corrida v4 (2026-10-16): inversión del flujo OMS↔Planificación. Nomenclatura EFLOW/EPRAC. Acotada a la rebanada delgada de 1ª entrega. Cambios de componentes: LambdaActivacion (NUEVO, D7, entrada async); ColaCandidatos lee public.orders (no EXPEDICIONESCABECERA, D7); HandoffPedidosOMS escritura 1=UPDATE orders + escritura 2=EFLOW real GENE+PRIORIDAD (D7/D8, sin número de viaje); ReglaEPA (NUEVO, D9, cortocircuita score); ReglaFecha generalizada (D10, duración=insumo de Planificación); ReglaClienteRetiraZona (NUEVO, D11, por delivery_zone); AnalizadorObservaciones DIFERIDO (D11); BackorderInventario (NUEVO, D13, loop desacoplado). Las historias de componentes diferidos (UI, catálogo, simulador, panel, auditoría completa, override) se marcan Deferred. CalendarioRutas ELIMINADO (D5).",
   "nombres_reales_confirmados": {
-    "fuente_DDL": "docs/wms-eflow/EFLOW_OLO-ddl.sql (SQL Server, 2026-10-01).",
-    "pk": "EXPEDICIONESCABECERA PK = (IDALMACEN, IDCOMPANIA, IDSUCURSAL, IDEXPEDICION) — clave de idempotencia del handoff y del anti-join con ALMACENMOVIMIENTOS_CARCAM.",
-    "fuente_fecha_T1": "FECHAEXPEDICIONPLANIFICADA (datetime NOT NULL) en EXPEDICIONESCABECERA — fecha de entrega del cliente, insumo del T-1, el OMS NO la modifica.",
-    "estado_situacion": "estado = TPEXES, situación = TPEXSI (varchar(6), FK TIPOSINTEGRACION). Códigos DISP=disponible, GENE=generada. Cola filtra DISP; handoff escritura 2 pone TPEXSI='GENE' y TPEXES permanece 'DISP'.",
-    "prioridad": "PRIORIDAD int NOT NULL = campo numérico que escribe el OMS (también NOMBREPRIORIDAD varchar(50)).",
-    "observaciones": "OBSERVACIONESEXPEDICION varchar(500) (nivel cabecera) = texto libre que lee AnalizadorObservaciones.",
-    "filtro_cola": "FECHACIERRE datetime NULL (fecha_de_cierre IS NULL) + NUMEROVIAJEWMH bigint NULL (sin viaje).",
-    "peso_volumen_OQ8": "PESOPEDIDO_TOTAL / CUBICAJEPEDIDO_TOTAL (float NULL) existen en cabecera — el handoff puede cargarlos; OQ-8 informada, no cerrada.",
-    "borde_fallback": "FECHAEXPEDICIONPLANIFICADA es NOT NULL → el fallback (US8) se dispara por valor centinela/default (caso Cofersa), NO por NULL.",
-    "resuelve_verificar": "EXPEDICIONESCABECERA es la tabla que en DECIDED 2026-09-14 citábamos como expedición_cabecera; resuelve el [verificar] de ese DECIDED.",
-    "pendiente_catalogos": "TIPOSINTEGRACION (códigos reales) y CLIENTES/ALMACENCOMPANIA (maestro cliente/compañía para nombre + scope) — a pedir, no bloquea."
+    "fuente_pedidos_OMS": "public.orders (Aurora tms_olo, esquema único public) — el OMS lee de aquí (D7), NO de EXPEDICIONESCABECERA. orders=EXPEDICIONESCABECERA (ingerido), con llave EFLOW en texto (eflow_id_almacen/compania/sucursal/expedicion).",
+    "escritura_1": "UPDATE public.orders: priority (int), oms_score, wms_situation='GENE', handoff_status, prioritization_run_id — por la llave EFLOW.",
+    "escritura_2": "EFLOW real EXPEDICIONESCABECERA: TPEXSI='GENE' (situación) + PRIORIDAD; TPEXES permanece 'DISP'; el OMS NO escribe NUMEROVIAJEWMH (lo escribe Planificación).",
+    "fuente_fecha": "delivery_date en orders (desde FECHAEXPEDICIONPLANIFICADA de EFLOW); insumo del T−duración, el OMS NO la modifica.",
+    "cliente_retira": "por delivery_zone (D11), NO por OBSERVACIONESEXPEDICION/IA.",
+    "epa": "customer_type=TIENDA; prioridad pre-asignada por EPRAC (guion-0=0, guion-1=1); el OMS no recalcula.",
+    "mapeo": "docs/reference/mapeo-pedidos-eflow-orders.md (EFLOW → public.orders: wms_status, wms_situation, wms_trip_number, etc.).",
+    "pendiente_catalogos": "TIPOSINTEGRACION (códigos) y CLIENTES/ALMACENCOMPANIA (maestro) — a pedir, no bloquea."
   },
-  "upstream_ids": ["US1", "US7", "US8", "US9", "US10", "US11b", "US12", "US13"],
+  "upstream_ids": ["US0", "US1", "US7", "US8", "US9", "US10", "US11b", "US-EPA", "US13", "US-BO"],
   "coverage": [
-    { "id": "US1",   "status": "OK", "target": "ColaCandidatos" },
-    { "id": "US7",   "status": "OK", "target": "ReglaFecha" },
-    { "id": "US8",   "status": "OK", "target": "ReglaFecha" },
-    { "id": "US9",   "status": "OK", "target": "HandoffPedidosOMS" },
-    { "id": "US10",  "status": "OK", "target": "MotorReglasOMS" },
-    { "id": "US11b", "status": "OK", "target": "MotorReglasOMS" },
-    { "id": "US12",  "status": "OK", "target": "AnalizadorObservaciones" },
-    { "id": "US13",  "status": "OK", "target": "AnalizadorObservaciones" }
+    { "id": "US0",     "status": "OK", "target": "LambdaActivacion" },
+    { "id": "US1",     "status": "OK", "target": "ColaCandidatos" },
+    { "id": "US7",     "status": "OK", "target": "ReglaFecha" },
+    { "id": "US8",     "status": "OK", "target": "ReglaFecha" },
+    { "id": "US9",     "status": "OK", "target": "HandoffPedidosOMS" },
+    { "id": "US10",    "status": "OK", "target": "MotorReglasOMS" },
+    { "id": "US11b",   "status": "OK", "target": "MotorReglasOMS" },
+    { "id": "US-EPA",  "status": "OK", "target": "ReglaEPA" },
+    { "id": "US13",    "status": "OK", "target": "ReglaClienteRetiraZona" },
+    { "id": "US-BO",   "status": "OK", "target": "BackorderInventario" }
   ],
   "deferred": [
     { "id": "US2",  "reason": "UICola — diferido" },
@@ -33,8 +32,10 @@
     { "id": "US5",  "reason": "UICola — diferido" },
     { "id": "US6",  "reason": "UICola (modal) — diferido" },
     { "id": "US11", "reason": "revisita periódica — motor, diferido a corrida posterior" },
+    { "id": "US12", "reason": "AnalizadorObservaciones (IA/Bedrock) DIFERIDO a futuro (D11)" },
     { "id": "US14", "reason": "override manual — diferido" },
     { "id": "US15", "reason": "permisos override — diferido" },
+    { "id": "US15b", "reason": "cambio sin anular — motor, diferido a corrida posterior" },
     { "id": "US16", "reason": "CatalogoReglas — diferido" },
     { "id": "US17", "reason": "CatalogoReglas — diferido" },
     { "id": "US18", "reason": "CatalogoReglas — diferido" },
@@ -44,16 +45,20 @@
     { "id": "US22", "reason": "Simulador — diferido" },
     { "id": "US23", "reason": "Simulador — diferido" },
     { "id": "US24", "reason": "Simulador — diferido" },
+    { "id": "US24b", "reason": "acceso Simulador = Developer — diferido (seguridad UI)" },
     { "id": "US25", "reason": "Panel — diferido" },
     { "id": "US26", "reason": "Panel — diferido" },
     { "id": "US27", "reason": "Auditoría completa — diferido" },
-    { "id": "US30", "reason": "aislamiento por scope — transversal, se apoya en user_scopes del backend; diferido a corrida posterior" },
-    { "id": "US31", "reason": "regla por scope — el MotorReglasOMS ya resuelve reglas por scope; selector de regla más específica se detalla en corrida posterior" },
-    { "id": "US32", "reason": "niveles de acceso — diferido (capa de seguridad transversal)" },
+    { "id": "US30", "reason": "aislamiento por scope — transversal, se apoya en user_scopes; diferido" },
+    { "id": "US31", "reason": "regla por scope — el MotorReglasOMS ya resuelve por scope; detalle posterior" },
+    { "id": "US32", "reason": "niveles de acceso — diferido (seguridad transversal)" },
     { "id": "US33", "reason": "registro de autor — diferido (Auditoría)" }
   ],
   "retired": [
-    { "id": "US28", "reason": "Calendario de rutas — RETIRADA en user-stories por D5" },
-    { "id": "US29", "reason": "Calendario de rutas CRUD — RETIRADA en user-stories por D5" }
-  ]
+    { "id": "US28", "reason": "Calendario de rutas — RETIRADA (D5)" },
+    { "id": "US29", "reason": "Calendario de rutas CRUD — RETIRADA (D5)" }
+  ],
+  "components_en_alcance": ["LambdaActivacion", "MotorReglasOMS", "ColaCandidatos", "ReglaEPA", "ReglaFecha", "ReglaClienteRetiraZona", "HandoffPedidosOMS", "BackorderInventario"],
+  "components_diferidos": ["AnalizadorObservaciones", "CatalogoReglas", "Simulador", "AuditoriaCompleta", "OverrideManual", "PanelOMS", "todas las UI"],
+  "components_eliminados": ["CalendarioRutas (D5)"]
 }

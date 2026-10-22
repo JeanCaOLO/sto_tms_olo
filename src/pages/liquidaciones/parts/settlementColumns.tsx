@@ -27,7 +27,15 @@ const STATUS_CLASSES: Record<string, string> = {
   'Anulado': 'bg-red-100 text-red-700',
 };
 
-const ESTADOS: SettlementStatus[] = ['Borrador', 'En Revisión', 'Aprobado', 'Pagado', 'Anulado'];
+// Desde acá solo se anula o se paga. La revisión y la aprobación las lleva la proforma (sección Proformas):
+// la liquidación pasa a "En Revisión" al agruparla y a "Aprobado" cuando la proforma termina sus fases.
+const ESTADOS_DESDE: Record<SettlementStatus, SettlementStatus[]> = {
+  'Borrador': ['Borrador', 'Anulado'],
+  'En Revisión': ['En Revisión'],
+  'Aprobado': ['Aprobado', 'Pagado'],
+  'Pagado': ['Pagado', 'Anulado'],
+  'Anulado': ['Anulado'],
+};
 
 export function getSettlementColumns(
   numeroDe: Map<string, string>,
@@ -96,13 +104,14 @@ export function getSettlementColumns(
         <select
           value={s.status}
           onChange={(e) => onStatusChange(s, e.target.value as SettlementStatus)}
-          disabled={!canEdit || !!s.supersededBy || s.status === 'Anulado'}
+          disabled={!canEdit || !!s.supersededBy || ESTADOS_DESDE[s.status].length < 2}
           title={s.supersededBy
             ? 'Reemplazada al re-liquidar: no se puede reactivar'
-            : s.status === 'Anulado' ? 'Anulada: el viaje vuelve a Viajes por liquidar para emitir una liquidación nueva' : undefined}
+            : s.status === 'Anulado' ? 'Anulada: el viaje vuelve a Viajes por liquidar para emitir una liquidación nueva'
+              : s.status === 'En Revisión' ? 'En una proforma: su estado lo lleva la proforma (sección Proformas)' : undefined}
           className={`text-xs rounded-full px-2.5 py-1 border-0 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${STATUS_CLASSES[s.status] ?? ''}`}
         >
-          {ESTADOS.map((e) => (
+          {ESTADOS_DESDE[s.status].map((e) => (
             <option key={e} value={e}>
               {e}
             </option>

@@ -58,7 +58,15 @@ export default function GuiasPage() {
       sortable: true,
       render: (g) => <span className="font-mono font-medium text-slate-800">{g.guide_number}</span>,
     },
-    { key: 'zona', header: 'Ruta / Zona', accessor: (g) => g.zona, sortable: true, filterable: true },
+    {
+      key: 'numero_viaje',
+      header: 'Nº de Viaje',
+      accessor: (g) => g.numero_viaje,
+      sortable: true,
+      filterable: true,
+      render: (g) => <span className="font-mono text-slate-700">{g.numero_viaje}</span>,
+    },
+    { key: 'zona', header: 'Zona', accessor: (g) => g.zona, sortable: true, filterable: true },
     { key: 'conductor', header: 'Conductor', accessor: (g) => g.conductor, sortable: true, filterable: true },
     { key: 'vehiculo', header: 'Vehículo', accessor: (g) => g.vehiculo, sortable: true, filterable: true },
     {

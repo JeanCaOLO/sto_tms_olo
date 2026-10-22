@@ -40,6 +40,7 @@ from tms_common.responses import empty_response, json_response
 
 import tarifas_db
 import tarifas_metrics
+import proformas_api
 import tarifas_perms
 from tarifas_schema import Table, table as table_def
 from tarifas_sql import MAX_ROWS, build_delete, build_find, build_get, build_insert, build_insert_many, build_update
@@ -48,19 +49,32 @@ MODULE = "tarifas"
 CONFIG_MODULE = "tarifas.config"
 # Lo único que escribe quien liquida; todo lo demás es configuración.
 LIQUIDATION_TABLES = frozenset({"tarifas_settlements", "tarifas_audit_log", "tarifas_trip_order_marks"})
+PROFORMA_MODULE = "tarifas.proformas"
+# Quien gestiona proformas escribe estas tablas; la plantilla del flujo y el correo son configuración.
+PROFORMA_TABLES = frozenset({"tarifas_proformas", "tarifas_proforma_items", "tarifas_proforma_phases"})
 MAX_BATCH = 25  # lecturas por llamada de /batch: el catálogo de un cálculo usa ~11
 TX_RETRIES = 2  # reintentos ante deadlock (40P01) o fallo de serialización (40001)
 TX_OPERATIONS = {"insert": "create", "insert_many": "create", "update": "edit", "delete": "delete"}
 
 
 def _write_module(table: Table) -> str:
+    if table.name in PROFORMA_TABLES:
+        return PROFORMA_MODULE
     return MODULE if table.name in LIQUIDATION_TABLES else CONFIG_MODULE
 
 
+def _require_write(caller: permissions.Permissions, table: Table, action: str) -> None:
+    """Las proformas se generan solas al liquidar: quien liquida (`tarifas`) también puede crearlas y
+    sumarles liquidaciones. El estado y las fases de una proforma NO se tocan por aquí (ver proformas_api)."""
+    if table.name in PROFORMA_TABLES and caller.can(MODULE, action):
+        return
+    caller.require(_write_module(table), action)
+
+
 def _reader(event: dict) -> permissions.Permissions:
-    """Leer exige poder liquidar o poder configurar: el cálculo y pantallas de config leen lo mismo."""
+    """Leer exige poder liquidar, configurar o gestionar proformas: el cálculo y las pantallas leen lo mismo."""
     caller = tarifas_perms.for_event(event)
-    if not (caller.can(MODULE, "view") or caller.can(CONFIG_MODULE, "view")):
+    if not (caller.can(MODULE, "view") or caller.can(CONFIG_MODULE, "view") or caller.can(PROFORMA_MODULE, "view")):
         caller.require(MODULE, "view")
     return caller
 
@@ -68,7 +82,7 @@ def _reader(event: dict) -> permissions.Permissions:
 def _writer(event: dict, table_name: str, action: str, operation: str) -> tuple[permissions.Permissions, Table]:
     caller = tarifas_perms.for_event(event)
     table = _writable(table_name, operation)
-    caller.require(_write_module(table), action)
+    _require_write(caller, table, action)
     return caller, table
 
 
@@ -205,6 +219,7 @@ def get_row(event: dict) -> dict:
 def insert_row(event: dict) -> dict:
     caller, table = _writer(event, path_param(event, "table"), "create", "insert")
     values = _stamp_actor(caller, event, table, _body(event))
+    proformas_api.check_direct_write(table.name, "insert", values)
     _require_country(caller, table, values, creating=True)
     return json_response(200, tarifas_db.query(*build_insert(table, values))[0])
 
@@ -212,6 +227,7 @@ def insert_row(event: dict) -> dict:
 def update_row(event: dict) -> dict:
     caller, table = _writer(event, path_param(event, "table"), "edit", "update")
     values = _body(event)
+    proformas_api.check_direct_write(table.name, "update", values)
     _require_country(caller, table, values)
     rows = tarifas_db.query(*build_update(table, path_param(event, "id"), values, caller.country_filter))
     if not rows:
@@ -224,6 +240,7 @@ def update_row(event: dict) -> dict:
 
 def delete_row(event: dict) -> dict:
     caller, table = _writer(event, path_param(event, "table"), "delete", "delete")
+    proformas_api.check_direct_write(table.name, "delete", None)
     rows = tarifas_db.query(*build_delete(table, path_param(event, "id"), caller.country_filter))
     if not rows:
         raise HttpError(404, f"{table.label} no encontrado.")
@@ -238,7 +255,8 @@ def _planned(caller: permissions.Permissions, op: object, event: dict) -> list[t
         raise HttpError(400, 'Cada operación debe ser { op: "insert" | "insert_many" | "update" | "delete", table, id?, values?, rows? }')
     kind = op["op"]
     table = _writable(str(op.get("table")), kind)
-    caller.require(_write_module(table), TX_OPERATIONS[kind])
+    _require_write(caller, table, TX_OPERATIONS[kind])
+    proformas_api.check_direct_write(table.name, "insert" if kind == "insert_many" else kind, op.get("values"))
     if kind == "insert_many":
         rows = op.get("rows")
         if isinstance(rows, list):
@@ -294,6 +312,7 @@ READ_POSTS = {
 
 ROUTES = {
     "POST /api/tarifas/tx": run_transaction,
+    "POST /api/tarifas/proformas/{id}/decision": proformas_api.decide,
     **READ_POSTS,
     "GET /api/tarifas/{table}": list_rows,
     "GET /api/tarifas/{table}/{id}": get_row,
@@ -312,6 +331,8 @@ _reads = tms_handler({_as_get(key): fn for key, fn in READ_POSTS.items()})
 
 def handler(event: dict, context: object) -> dict:
     """Despacha la request y deja una línea de métricas (ver `tarifas_metrics`)."""
+    if event.get("action") == "authorize_send":  # invocación directa desde la Lambda de envío (sin HTTP)
+        return proformas_api.authorize_send(event)
     key = route_key(event)
     tarifas_metrics.start()
     status = 500

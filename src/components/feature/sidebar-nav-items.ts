@@ -54,6 +54,7 @@ const TARIFAS_GROUP: MenuGroup = {
   i18nKey: 'menu.tarifas',
   children: [
     { icon: 'ri-money-dollar-circle-line', label: 'Liquidaciones', i18nKey: 'menu.liquidaciones', path: '/liquidaciones', permKey: 'tarifas' },
+    { icon: 'ri-file-list-3-line', label: 'Proformas', i18nKey: 'menu.proformas', path: '/proformas', permKey: 'tarifas.proformas' },
     { icon: 'ri-truck-line', label: 'Costos Flota', i18nKey: 'menu.costosFlota', path: '/tarifas/costos-flota', permKey: 'tarifas.config' },
     { icon: 'ri-price-tag-3-line', label: 'Reglas Tarifa', i18nKey: 'menu.reglasTarifa', path: '/reglas-tarifa', permKey: 'tarifas.config' },
   ],
@@ -83,7 +84,6 @@ export const navItems: NavItem[] = [
 
   { type: 'section', label: 'Gestión de la Demanda', i18nKey: 'menu.sectionDemand' },
   OMS_GROUP,
-  { icon: 'ri-file-list-line', label: 'Pedidos', i18nKey: 'menu.pedidos', path: '/pedidos', permKey: 'pedidos' },
 
   { type: 'section', label: 'Ejecución Operativa', i18nKey: 'menu.sectionExecution' },
   { icon: 'ri-map-pin-add-line', label: 'Planificación', i18nKey: 'menu.planificacion', path: '/planificacion', permKey: 'planificacion' },

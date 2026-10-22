@@ -238,10 +238,138 @@ Como Jefe de Almacén/Planificador, quiero ver la lista de planes filtrada por e
 - **OQ-8 — Capacidad real de flota:** poblar `capacity_weight/volume` reales (Ricardo ofreció ~20-30 vehículos). Hoy sintético.
 - **OQ-9 — Contrato formal OMS → Planificación:** fuente canónica de "pedidos reales" (campo/estado en `orders` vs tabla/endpoint intermedio). Hoy se lee directo de `orders`.
 
+## Requerimientos técnicos (ítems de trabajo)
+
+Desglose por ítem del trabajo técnico que sostiene los FR/NFR de arriba (antes 7 archivos
+sueltos `001`–`007`, consolidados aquí). El comportamiento funcional vive en las
+[historias de usuario](../../stories/planificacion/historias-de-usuario-planificacion.md).
+
+| # | Requerimiento | Estado | Depends on |
+|---|---------------|--------|------------|
+| [R001](#r001--motor-de-planificación-zona--capacidad--secuencia) | Motor de planificación: zona → capacidad → secuencia | Delivered | — |
+| [R002](#r002--snapshot-de-pedidovehículo-al-guardar-el-plan) | Snapshot de pedido/vehículo al guardar el plan | Delivered | R001 |
+| [R003](#r003--contexto-operativo-por-headers-paísalmacéncompañía) | Contexto operativo por headers | Delivered | — |
+| [R004](#r004--regla-de-piso-de-capacidad-mínima-80) | Regla de piso de capacidad mínima (80%) | Draft | R001 |
+| [R005](#r005--alerta-de-pedidos-nuevos-por-websocket-hoy-polling) | Alerta de pedidos nuevos por WebSocket | Draft | R003 |
+| [R006](#r006--geocodificación-de-direcciones) | Geocodificación de direcciones | Draft | R001 |
+| [R007](#r007--contrato-de-handoff-planificación--oms-en-orders) | Contrato de handoff Planificación → OMS en `orders` | Delivered | R001 |
+
+### R001 — Motor de planificación: zona → capacidad → secuencia
+
+- **Status:** Delivered · **Depends on:** None · **Date:** 2026-10-06
+
+Dado un conjunto de pedidos y vehículos, producir un plan `draft` con viajes por zona, cada
+viaje asignado a un vehículo que respeta su capacidad, con las paradas en orden optimizado;
+la flota propia se agota antes de usar terceros; lo que no cabe queda sin asignar (no se
+pierde). Resuelto: agrupación por zona (`agrupar_por_zona`), bin-packing first-fit-decreasing
+con márgenes 85% peso / 95% volumen (`ajustar_capacidad`), secuencia 2-opt sobre matriz OSRM.
+
+**Tope de 16 pedidos por viaje** (reunión 2026-10-13, Ana/Eduardo): además de los márgenes de
+carga, al superar 16 el pedido cae al siguiente viaje aunque quepa por peso/volumen
+(`MAX_PARADAS = 16` en `plan_builder.py` / `ajustar_capacidad.py`).
+
+Deliverable: `src/domain/planificacion/` (`motor.py`, `agrupar_por_zona.py`,
+`ajustar_capacidad.py`) en TMS-Backend; `POST /v1/planificacion/planes` (+ GET/PUT); frontend
+`use-planes`, `planes-api`, `PlanEditor`, `PlanTripCard`, `TripMapa`.
+
+### R002 — Snapshot de pedido/vehículo al guardar el plan
+
+- **Status:** Delivered · **Depends on:** R001 · **Date:** 2026-10-06
+
+Al guardar un plan, persistir en `plan_stops`/`plan_trips` las columnas snapshot (order_number,
+customer_name, delivery_city/zone, lat/long, weight, volume; vehicle_plate, capacity, is_owned)
+para que el plan no mute por cambios aguas arriba en eflow; las lecturas usan el snapshot, no
+re-consultan eflow. Migraciones `003_plan_snapshots.sql`, `004_plan_trip_status.sql`,
+`005_route_plan_customer.sql` aplicadas a Aurora. Fuente: `domain/models.py`,
+`planificacion_service._congelar(...)`, `adapters/outbound/aurora/sql.py`.
+
+### R003 — Contexto operativo por headers (país/almacén/compañía)
+
+- **Status:** Delivered · **Depends on:** None · **Date:** 2026-10-06
+
+El país/almacén/compañía salen del contexto operativo del headbar, no de un selector de la
+página. `apiFetch` adjunta `x-warehouse-id` / `x-customer-id` en cada request; al cambiar el
+contexto, las vistas (lista de planes y pedidos del día) se re-consultan en vivo sin recargar.
+Fuente: `hooks/useOperationalContext.tsx`, `lib/supabase.ts`, `use-planes-list.ts`,
+`use-pedidos-dia.ts`; backend `wiring._warehouse_id()` / `_customer_id()` (headers
+case-insensitive vía `event.header`).
+
+### R004 — Regla de piso de capacidad mínima (80%)
+
+- **Status:** Draft · **Depends on:** R001 · **Date:** 2026-10-06
+
+Un camión no debería salir si no va al menos al ~80% de su capacidad (reunión 2026-10-05); hoy
+el motor solo valida el techo (85/95), falta el piso. El motor debe marcar/separar los viajes
+bajo el umbral mínimo para que el planificador decida (esperar, consolidar o liberar igual); el
+umbral debe ser **parametrizable** y poder diferir por país/compañía; no bloquear a ciegas (la
+fecha de entrega del cliente manda → puede salir subóptimo, pero el cliente paga el costo).
+Abierto: dónde vive el umbral (config vs tabla), cómo se muestra en la UI, el % exacto con
+Ricardo. Deliverable: lógica en `domain/planificacion` + aviso en `PlanTripCard`.
+
+### R005 — Alerta de pedidos nuevos por WebSocket (hoy polling)
+
+- **Status:** Draft · **Depends on:** R003, story 002 · **Date:** 2026-10-06
+
+La historia 002 ya avisa de pedidos nuevos, pero por polling cada 15 s (el backend Lambda/SAM
+no sostiene WebSockets). Reemplazar por una suscripción WS (API Gateway WebSocket API
+connect/disconnect/notify + Lambda que publique al crearse un pedido; o SSE/AppSync) que empuje
+el evento; la UI no cambia (la detección vive aislada en `use-nuevos-pedidos.ts`, solo se
+reemplaza el cuerpo del hook). **Bloqueado por infra AWS + credenciales** que aún no tenemos.
+
+### R006 — Geocodificación de direcciones
+
+- **Status:** Draft · **Depends on:** R001 · **Date:** 2026-10-06
+
+El motor dibuja/optimiza solo con coordenadas; en datos reales de eflow la dirección en texto
+está casi completa pero la coordenada no (CR ~40% de clientes activos de COFERSA; VE ~7% sobre
+~20.000 puntos, marcado bloqueante en el daily 2026-10-06). Un proceso/batch que desde
+`DIRECCIONLARGA` calcule lat/long y las **persista** (`addresses.latitude/longitude` +
+`geocoding_status`/`provider`/`geocoded_at`, ya existe); degradar con gracia (sin coordenada →
+fuera del dibujo, no rompe). Mantener la calidad de la dirección es del negocio/cliente.
+Abierto: proveedor (Nominatim + Bedrock vs API de Google de Dylan/José), costo para ~20k VE,
+acceso a datos VE (Jean con Toño).
+
+### R007 — Contrato de handoff Planificación → OMS en `orders`
+
+- **Status:** Delivered · **Depends on:** R001 · **Date:** 2026-10-21
+
+Planificación y OMS son módulos separados que se comunican por una **superficie de datos
+compartida**: la tabla `orders`. No hay llamada de código; el acoplamiento es un **contrato de
+columnas**. Planificación estampa el resultado del plan; el OMS lee esa cola, calcula prioridad
+y pasa el pedido a `generada`. (Story funcional:
+[008](../../stories/planificacion/historias-de-usuario-planificacion.md#008--entregar-el-plan-al-oms-estampar-el-pedido-y-limpiar-al-re-planificar).)
+
+Reparto de columnas en `orders`:
+
+| Columna | La escribe | Significado |
+|---|---|---|
+| `numero_viaje` | Planificación | viaje (`AAAAMMDD-seq`) |
+| `lead_time_days` | Planificación | días de tránsito |
+| `dispatch_date` | Planificación | `delivery_date − lead_time_days` (NULL si no hay lead) |
+| `planning_run_id` | Planificación | uuid de la corrida (cliente-día) |
+| `delivery_zone` | Planificación | zona de entrega |
+| `priority`, `oms_score`, `wms_situation`, `oms_processed_at` | OMS | Planificación NO las toca |
+
+- **Cola del OMS:** `planning_run_id IS NOT NULL AND oms_processed_at IS NULL`.
+- **`dispatch_date` en SQL:** `delivery_date − make_interval(days => lead_time_days)`; misma
+  fecha para todo el viaje; NULL si no hay lead.
+- **`lead_time_days`:** `1 + floor(km_max / 70)` por haversine de la parada más lejana al
+  depósito CR (9.9281, −84.0907); sin coordenadas → NULL.
+- **Limpieza al re-planificar:** NULL de `numero_viaje`/`lead_time_days`/`planning_run_id`/
+  `dispatch_date` para los pedidos del día (org + almacén + compañía + `delivery_date`) que ya
+  no quedaron en el plan; los que siguen se re-estampan. **No** toca `oms_processed_at`.
+
+Deliverable: estampado en `backend/planning/src/plan_builder.py` (frontend) y en el
+planificador hexagonal de `TMS-Backend` (`STAMP_ORDERS_SQL` / `CLEANUP_ORDERS_SQL` en
+`adapters/outbound/aurora/sql.py`, puerto `OrdersHandoffRepo`). Migraciones:
+`sql/37_planif_oms_contract.sql` + `sql/42_orders_dispatch_date.sql` (TMS-Frontend);
+`sql/008` + `sql/009` (TMS-Backend), aditivas e idempotentes. Aplicadas y verificadas contra
+Aurora `tms_olo` (las 5 columnas existen; 277 pedidos estampados; limpieza al caerse verificada).
+
 ## Sources
 
 - Código del módulo: `src/pages/planificacion/*` (frontend) y repo `TMS-Backend` (`src/domain/planificacion/*`, `src/app/planificacion_service.py`, `src/adapters/**`).
-- Stories y requirements técnicos: [`docs/stories/planificacion/`](../../stories/planificacion/README.md), [`docs/requirements/planificacion/`](README.md).
+- Historias de usuario y requerimientos técnicos: [`docs/stories/planificacion/historias-de-usuario-planificacion.md`](../../stories/planificacion/historias-de-usuario-planificacion.md) y la sección [Requerimientos técnicos](#requerimientos-técnicos-ítems-de-trabajo) de este documento.
 - SQL: `TMS-Backend/sql/003_plan_snapshots.sql`, `004_plan_trip_status.sql`, `005_route_plan_customer.sql` (aplicadas a Aurora).
 - Bitácoras: `docs/work/2026-10/` (regenerar/alerta/contexto, infra/git/mirror, UX de paradas/modales/punto compartido).
 - Reuniones (Notion, espacio INTELIX): 2026-09-28 (modelo de datos EFLOW/WMH), 2026-10-05 4pm (reglas de viaje/liquidación), dailies 2026-10-05/06; doc "Fuentes de datos reales EFLOW/WMH".

@@ -1,3 +1,10 @@
+-- ⚠️ DESCARTADO (2026-10-16): el OMS NO tendrá esquema propio. Todo va en `public`
+-- y la tabla de pedidos del OMS es `public.orders` (DECIDED "esquema único
+-- `public`" en aidlc/spaces/default/memory/project.md). NO aplicar este script.
+-- Se conserva solo como referencia histórica del contrato del handoff. El handoff
+-- ya escribe en `orders` (backend/oms/src/handoff_pedidos.py, 2026-10-16; columnas
+-- en sql/43). Plan: docs/work/2026-10/2026-10-16-plan-modelo-pedidos-clientes-eflow.md
+--
 -- U2 — esquema-pedidos-oms: tabla PROPIA del OMS (superficie de handoff).
 --
 -- Intent AI-DLC: 260826-modulo-oms (rebanada delgada de 1a entrega, 2026-10-01).

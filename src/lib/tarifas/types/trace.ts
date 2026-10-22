@@ -88,12 +88,18 @@ export interface CalcIssue {
 // (terceros). El liquidador puede cambiarla por otro tipo de cobro; solo cambia la base, las demás
 // fases siguen igual.
 
-/** Tipos de cobro que puede tomar la base. TENDERING existe en el catálogo pero no tiene mecánica definida. */
+/**
+ * Tipos de cobro que puede tomar la base. TENDERING no es una fórmula: el monto sale de la
+ * adjudicación del viaje (`tarifas_trip_tender_awards`) y se liquida como tarifa fija (method 'FIXED').
+ */
 export type BaseMethodId = 'PER_KM' | 'PER_UNIT' | 'FIXED' | 'VOLUME' | 'TENDERING';
 
 /** De dónde sale la base elegida. */
-/** CARRIER = monto fijo pactado con el transportista (carriers.flat_rate_amount). */
-export type BaseSourceKind = 'RULE' | 'RATE_TABLE' | 'COST_STRUCTURE' | 'CARRIER';
+/**
+ * CARRIER = monto fijo pactado con el transportista (carriers.flat_rate_amount).
+ * TENDER = monto adjudicado por tendering a ese viaje (tarifas_trip_tender_awards.amount).
+ */
+export type BaseSourceKind = 'RULE' | 'RATE_TABLE' | 'COST_STRUCTURE' | 'CARRIER' | 'TENDER';
 
 export interface BaseSource {
   kind: BaseSourceKind;
@@ -111,6 +117,8 @@ export interface BaseOverride {
    * este monto y no hace falta una regla FIXED en el catálogo.
    */
   amount?: string;
+  /** De dónde sale `amount`. Ausente = monto fijo del transportista; 'TENDER' = adjudicación de tendering del viaje. */
+  origin?: 'TENDER';
 }
 
 /** Cómo se resolvió la base elegida: es lo que se muestra y lo que se guarda al emitir. */

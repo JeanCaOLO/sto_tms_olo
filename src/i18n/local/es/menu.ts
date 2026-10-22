@@ -10,6 +10,7 @@ export default {
   'menu.planificacion': 'Planificación',
   'menu.tracking': 'Tracking',
   'menu.liquidaciones': 'Liquidaciones',
+  'menu.proformas': 'Proformas',
   'menu.flotaPropia': 'Flota Propia',
   'menu.costosFlota': 'Costos Flota',
   'menu.flotaExterna': 'Flota Externa',

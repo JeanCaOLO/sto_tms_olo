@@ -221,3 +221,20 @@ Pedido del usuario: el retraso es **pasarse del día de entrega**, y la interfaz
 - Web: tarjeta («Asignado 1 oct · Entrega 2 oct») y panel de detalle (Asignado / Entrega / Atraso).
 - Observación de datos: algunos viajes de prueba tienen `plan_trips.created_at` posterior a `plan_date` (p. ej. VJ-20260922-A371FA20); no es un bug del módulo.
 - Pendiente: «A tiempo» (`active − late`) sigue contando viajes sin señal.
+
+## Sedes de salida fijas en Tracking (2026-10-19) — A DISCUTIR CON JEAN
+
+Datos dados por el usuario, **fijos en código solo para pruebas** (`backend/tracking/src/tracking_logic.py`: `CUSTOMER_ORIGINS`, `COUNTRY_ORIGINS`, función `origin_coords`). No se escribió nada en la BD.
+
+| Sede | Coordenadas | Aplica a |
+|---|---|---|
+| Costa Rica (bodega OLO) | 9.9967249, -84.2607843 | país CR cuando `stores` CD-CR no tiene coordenadas |
+| Febeca y Sillaca (VN) | 10.1897571, -67.9507191 | planes con `route_plans.customer_id` = FEBECA / SILLACA |
+| Beval (VN) | 10.1789068, -67.9539846 | planes con `customer_id` = BEVAL |
+
+Orden de resolución del punto de salida: sede de la empresa (fija) > lat/lng de la tienda de origen (`stores`) > sede del país (fija). Se usa en lista/detalle (mapa, fase «por salir/en ruta», orden de paradas), en la detección de salida de la ingesta y en las horas planificadas de `iniciar`.
+
+Por decidir con Jean:
+- **Dónde guardar las sedes.** `customers` (empresas que usan el sistema) ya tiene `latitude/longitude/address` vacíos y encaja para las sedes de Febeca/Sillaca/Beval; `stores` para la bodega OLO de CR. Los clientes de esas empresas son los **puntos de entrega** (`delivery_points`/clientes finales), que ya traen sus coordenadas por pedido.
+- **Planes sin empresa:** `route_plans.customer_id` está vacío en el plan de VN y en varios de CR, así que esos viajes usan la bodega del país (VN: CD-VN en Caracas, que no coincide con las sedes de Febeca/Beval). Planificación debería llenar `customer_id`.
+- Al definir el lugar definitivo, quitar las constantes fijas y dejar solo la lectura de BD.

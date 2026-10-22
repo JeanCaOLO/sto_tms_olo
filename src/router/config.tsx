@@ -5,7 +5,6 @@ import TarifadorHints from '../components/tarifas/TarifadorHints';
 const HomePage = lazy(() => import('../pages/home/page'));
 const LoginPage = lazy(() => import('../pages/login/page'));
 const DashboardPage = lazy(() => import('../pages/dashboard/page'));
-const PedidosPage = lazy(() => import('../pages/pedidos/page'));
 const ZonasPage = lazy(() => import('../pages/zonas/page'));
 const LicenciasPage = lazy(() => import('../pages/licencias/page'));
 const PlanificacionPage = lazy(() => import('../pages/planificacion/page'));
@@ -18,6 +17,7 @@ const TransportistasPage = lazy(() => import('../pages/transportistas/page'));
 const ReglasTarifaPage = lazy(() => import('../pages/reglas-tarifa/page'));
 const CostosFlotaPage = lazy(() => import('../pages/companias/costos-flota/page'));
 const LiquidacionesPage = lazy(() => import('../pages/liquidaciones/page'));
+const ProformasPage = lazy(() => import('../pages/proformas/page'));
 const ConfiguracionPage = lazy(() => import('../pages/configuracion/page'));
 const AuditoriaPage = lazy(() => import('../pages/auditoria/page'));
 const SeedPage = lazy(() => import('../pages/seed/page'));
@@ -46,10 +46,6 @@ const routes: RouteObject[] = [
   {
     path: '/dashboard',
     element: <DashboardPage />
-  },
-  {
-    path: '/pedidos',
-    element: <PedidosPage />
   },
   {
     path: '/zonas',
@@ -107,6 +103,10 @@ const routes: RouteObject[] = [
   {
     path: '/liquidaciones',
     element: <TarifadorHints><LiquidacionesPage /></TarifadorHints>
+  },
+  {
+    path: '/proformas',
+    element: <TarifadorHints><ProformasPage /></TarifadorHints>
   },
   {
     path: '/configuracion',

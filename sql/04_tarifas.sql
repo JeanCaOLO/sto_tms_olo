@@ -26,6 +26,25 @@ CREATE INDEX IF NOT EXISTS tarifas_trip_order_marks_country_id_idx ON tarifas_tr
 CREATE INDEX IF NOT EXISTS tarifas_trip_order_marks_trip_id_idx ON tarifas_trip_order_marks (trip_id);
 CREATE UNIQUE INDEX IF NOT EXISTS tarifas_trip_order_marks_uq ON tarifas_trip_order_marks (trip_id, order_id);
 
+-- Adjudicación de tendering
+CREATE TABLE IF NOT EXISTS tarifas_trip_tender_awards (
+  id text PRIMARY KEY,
+  country_id uuid NOT NULL,
+  trip_id uuid NOT NULL,
+  carrier_id uuid NOT NULL,
+  amount numeric NOT NULL,
+  awarded_at timestamptz,
+  actor text,
+  notes text,
+  CONSTRAINT tarifas_trip_tender_awards_country_id_fkey FOREIGN KEY (country_id) REFERENCES countries (id) ON DELETE RESTRICT,
+  CONSTRAINT tarifas_trip_tender_awards_trip_id_fkey FOREIGN KEY (trip_id) REFERENCES routes (id) ON DELETE RESTRICT,
+  CONSTRAINT tarifas_trip_tender_awards_carrier_id_fkey FOREIGN KEY (carrier_id) REFERENCES carriers (id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS tarifas_trip_tender_awards_country_id_idx ON tarifas_trip_tender_awards (country_id);
+CREATE INDEX IF NOT EXISTS tarifas_trip_tender_awards_trip_id_idx ON tarifas_trip_tender_awards (trip_id);
+CREATE INDEX IF NOT EXISTS tarifas_trip_tender_awards_carrier_id_idx ON tarifas_trip_tender_awards (carrier_id);
+CREATE UNIQUE INDEX IF NOT EXISTS tarifas_trip_tender_awards_uq ON tarifas_trip_tender_awards (trip_id);
+
 -- Configuración de cálculo del país
 CREATE TABLE IF NOT EXISTS tarifas_country_settings (
   id text PRIMARY KEY,
@@ -246,6 +265,92 @@ CREATE TABLE IF NOT EXISTS tarifas_margin_policies (
   CONSTRAINT tarifas_margin_policies_country_id_fkey FOREIGN KEY (country_id) REFERENCES countries (id) ON DELETE RESTRICT
 );
 CREATE INDEX IF NOT EXISTS tarifas_margin_policies_country_id_idx ON tarifas_margin_policies (country_id);
+
+-- Proforma
+CREATE TABLE IF NOT EXISTS tarifas_proformas (
+  id text PRIMARY KEY,
+  country_id uuid NOT NULL,
+  number text NOT NULL,
+  carrier_id uuid NOT NULL,
+  carrier_name text NOT NULL,
+  status text NOT NULL,
+  currency text NOT NULL,
+  total_amount numeric NOT NULL,
+  created_by text NOT NULL,
+  email_sent_at timestamptz,
+  notes text,
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL,
+  CONSTRAINT tarifas_proformas_country_id_fkey FOREIGN KEY (country_id) REFERENCES countries (id) ON DELETE RESTRICT,
+  CONSTRAINT tarifas_proformas_carrier_id_fkey FOREIGN KEY (carrier_id) REFERENCES carriers (id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS tarifas_proformas_country_id_idx ON tarifas_proformas (country_id);
+CREATE INDEX IF NOT EXISTS tarifas_proformas_carrier_id_idx ON tarifas_proformas (carrier_id);
+CREATE INDEX IF NOT EXISTS tarifas_proformas_status_idx ON tarifas_proformas (status);
+CREATE UNIQUE INDEX IF NOT EXISTS tarifas_proformas_country_number_uq ON tarifas_proformas (country_id, number);
+
+-- Liquidación de proforma
+CREATE TABLE IF NOT EXISTS tarifas_proforma_items (
+  id text PRIMARY KEY,
+  proforma_id text NOT NULL,
+  settlement_id text NOT NULL,
+  state text NOT NULL,
+  exclusion_reason text,
+  amount numeric NOT NULL,
+  CONSTRAINT tarifas_proforma_items_proforma_id_fkey FOREIGN KEY (proforma_id) REFERENCES tarifas_proformas (id) ON DELETE CASCADE,
+  CONSTRAINT tarifas_proforma_items_settlement_id_fkey FOREIGN KEY (settlement_id) REFERENCES tarifas_settlements (id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS tarifas_proforma_items_proforma_id_idx ON tarifas_proforma_items (proforma_id);
+CREATE INDEX IF NOT EXISTS tarifas_proforma_items_settlement_id_idx ON tarifas_proforma_items (settlement_id);
+CREATE UNIQUE INDEX IF NOT EXISTS tarifas_proforma_items_settlement_incluida_uq ON tarifas_proforma_items (settlement_id) WHERE state <> 'excluded';
+
+-- Fase de proforma
+CREATE TABLE IF NOT EXISTS tarifas_proforma_phases (
+  id text PRIMARY KEY,
+  proforma_id text NOT NULL,
+  position integer NOT NULL,
+  name text NOT NULL,
+  approver_type text NOT NULL,
+  role_name text,
+  user_id text,
+  approver_label text NOT NULL,
+  state text NOT NULL,
+  decided_by text,
+  decided_at timestamptz,
+  comment text,
+  removed_by text,
+  CONSTRAINT tarifas_proforma_phases_proforma_id_fkey FOREIGN KEY (proforma_id) REFERENCES tarifas_proformas (id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS tarifas_proforma_phases_proforma_id_idx ON tarifas_proforma_phases (proforma_id);
+CREATE INDEX IF NOT EXISTS tarifas_proforma_phases_state_idx ON tarifas_proforma_phases (state);
+
+-- Fase del flujo de proformas
+CREATE TABLE IF NOT EXISTS tarifas_proforma_flow_phases (
+  id text PRIMARY KEY,
+  country_id uuid NOT NULL,
+  position integer NOT NULL,
+  name text NOT NULL,
+  approver_type text NOT NULL,
+  role_name text,
+  user_id text,
+  approver_label text NOT NULL,
+  active boolean NOT NULL,
+  CONSTRAINT tarifas_proforma_flow_phases_country_id_fkey FOREIGN KEY (country_id) REFERENCES countries (id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS tarifas_proforma_flow_phases_country_id_idx ON tarifas_proforma_flow_phases (country_id);
+
+-- Correo de proformas
+CREATE TABLE IF NOT EXISTS tarifas_proforma_email_config (
+  id text PRIMARY KEY,
+  country_id uuid NOT NULL,
+  recipients jsonb NOT NULL,
+  include_carrier_email boolean NOT NULL,
+  subject_template text NOT NULL,
+  body_template text NOT NULL,
+  mode text NOT NULL,
+  CONSTRAINT tarifas_proforma_email_config_country_id_fkey FOREIGN KEY (country_id) REFERENCES countries (id) ON DELETE RESTRICT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS tarifas_proforma_email_config_country_uq ON tarifas_proforma_email_config (country_id);
 
 -- Bitácora (append-only: sin UPDATE ni DELETE)
 CREATE TABLE IF NOT EXISTS tarifas_audit_log (

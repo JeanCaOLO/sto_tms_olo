@@ -137,6 +137,26 @@ STOPPED_RADIUS_M = 75  # movimiento menor a esto = sigue en el mismo sitio
 STOPPED_WINDOW_MIN = 60  # ventana de posiciones que se mira hacia atrás: el conteo de "detenido" tope = 60 min
 DEPARTURE_RADIUS_M = 300
 
+# SEDES DE PRUEBA (fijas, sin tocar la BD): `stores` CD-CR no tiene coordenadas y las sedes de Venezuela son por
+# empresa (customers), no por bodega. Pendiente de definir con Jean dónde se guardan (docs/tracking/pendientes-tunel.md).
+# Orden: sede de la empresa del plan > coordenadas de la tienda de origen > sede del país.
+CUSTOMER_ORIGINS = {
+    "FEBECA": (10.1897571, -67.9507191),
+    "SILLACA": (10.1897571, -67.9507191),
+    "BEVAL": (10.1789068, -67.9539846),
+}
+COUNTRY_ORIGINS = {"CR": (9.9967249, -84.2607843)}
+
+
+def origin_coords(country: str | None, customer_code: str | None, lat, lng) -> tuple[float, float] | None:
+    """Punto de salida del viaje: sede de la empresa (fija) > coordenadas de la tienda de origen > sede del país."""
+    by_customer = CUSTOMER_ORIGINS.get((customer_code or "").upper())
+    if by_customer:
+        return by_customer
+    if lat is not None and lng is not None:
+        return float(lat), float(lng)
+    return COUNTRY_ORIGINS.get((country or "").upper())
+
 ALERT_NO_SIGNAL, ALERT_FAILED = "no_signal", "failed"
 ALERT_LATE, ALERT_STOPPED = "late", "stopped"
 

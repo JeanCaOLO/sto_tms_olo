@@ -196,6 +196,11 @@ def _stopped(route_ids: list[str], now: datetime) -> dict[str, int]:
     return logic.stopped_from_since(_rq(query, [route_ids]), now)
 
 
+def _origin(row: dict) -> tuple[float, float] | None:
+    """Sede del viaje (ver logic.origin_coords: sedes fijas de prueba)."""
+    return logic.origin_coords(row.get("country"), row.get("customer_code"), row["origin_lat"], row["origin_lng"])
+
+
 def _batch(rows: list[dict], now: datetime) -> dict:
     """Progreso, paradas y minutos detenidos de una página de viajes: una consulta por dato, nunca por viaje."""
     ids = [str(r["id"]) for r in rows]
@@ -229,7 +234,7 @@ def _viaje(row: dict, counts: dict | None, live: dict, stopped: int, now: dateti
     phase = None
     if state == "active":
         departed = (row["departed_at"] is not None or done > 0
-                    or logic.is_departed(position, _coords(row["origin_lat"], row["origin_lng"])))
+                    or logic.is_departed(position, _origin(row)))
         phase = "en_ruta" if departed else "por_salir"
     delay = live["delay_min"]
     late_days = logic.days_late(row["due_date"], now, row["timezone"]) if state == "active" else 0
@@ -433,7 +438,7 @@ def _detail(route_id: str, *, driver: bool = False) -> dict:
             "url": None if driver else _signed_get(ev["storage_key"])})
     state = logic.route_state(row["status"])
     position = _coords(row["last_lat"], row["last_lng"])
-    origin = _coords(row["origin_lat"], row["origin_lng"])
+    origin = _origin(row)
     live = _live(state, position, guides, now, row["last_position_at"])
     stopped = _stopped([route_id] if state == "active" else [], now).get(route_id, 0)
     data = _viaje(row, counts, live, stopped, now)
@@ -539,7 +544,8 @@ def start_viaje(event: dict) -> dict:
         zone = run(sql.ZONE_SQL, [org_id, trip["delivery_zone"], trip["delivery_zone"]]) if trip["delivery_zone"] else []
         route_number = f"VJ-{trip['plan_date'].strftime('%Y%m%d')}-{str(trip['id'])[:8].upper()}"
         # Horas planificadas (salida = ahora): referencia fija para medir el retraso. Planificación no las guarda.
-        origin = _coords(stores[0]["latitude"], stores[0]["longitude"])
+        origin = logic.origin_coords(trip.get("country"), trip.get("customer_code"),
+                                     stores[0]["latitude"], stores[0]["longitude"])
         plan = logic.plan_schedule(origin, [{"lat": _float(st["lat"]), "lng": _float(st["lng"])} for st in stops],
                                    _now())
         if origin is None:
@@ -630,7 +636,7 @@ def _ingest(run, org_id: str, valid: list[dict], device_id, now: datetime, mine:
     for route_id, points in by_route.items():
         route = routes[route_id]
         points.sort(key=lambda p: p["recorded_at"])
-        departed = logic.first_departure(points, _coords(route["origin_lat"], route["origin_lng"]))
+        departed = logic.first_departure(points, _origin(route))
         if departed is not None:
             run(sql.SET_DEPARTED_SQL, [departed, route_id])
     return {"accepted": len(stored), "duplicates": len(accepted) - len(stored), "rejected": rejected}

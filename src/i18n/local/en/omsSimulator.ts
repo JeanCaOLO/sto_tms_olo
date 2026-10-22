@@ -33,7 +33,6 @@ export default {
   'omsSimulator.colObservations': 'Notes',
   'omsSimulator.colDispatchDate': 'Delivery Date',
   'omsSimulator.colCreatedDate': 'Created Date',
-  'omsSimulator.colReadyDate': 'Ready Date',
   'omsSimulator.colBaseScore': 'Base score',
   'omsSimulator.colSimScore': 'Simulated score',
   'omsSimulator.colSituation': 'Situation',

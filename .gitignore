@@ -113,9 +113,15 @@ backend/.pytest_cache/
 # Enlaces que crea `orca skills install --local` con rutas absolutas de la máquina
 .claude/skills/orca-cli
 .claude/skills/orchestration
+# Skills de Intelix copiadas desde git.intelix.biz/grupomayoreo/template_base (templates/skills/)
+.claude/skills/intelix-*/
 
 # Artefactos de despliegue al sandbox (scripts/sandbox/)
 build/
+
+# Exports de EFLOW con datos personales de clientes (contactos, teléfonos, emails): no versionar.
+/CLIENTES_*.csv
+/SUCURSAL_*.csv
 
 .test
 
