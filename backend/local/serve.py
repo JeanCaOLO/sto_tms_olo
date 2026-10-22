@@ -31,6 +31,7 @@ STACKS = {
     "admin": BACKEND / "admin" / "src",
     "planning": BACKEND / "planning" / "src",
     "tarifas": BACKEND / "tarifas" / "src",
+    "oms": BACKEND / "oms" / "src",
     "tracking": BACKEND / "tracking" / "src",
     "eflow_sim": BACKEND / "eflow-sim" / "src",
 }

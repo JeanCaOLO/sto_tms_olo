@@ -1,136 +1,323 @@
-"""HandoffPedidosOMS — adaptador de ESCRITURA del handoff (esqueleto).
+"""HandoffPedidosOMS — adaptador de ESCRITURA del handoff (esqueleto, ADR-013).
 
-Contrato (US9, D6 — DOS ESCRITURAS, DOS PROPÓSITOS):
-  Escritura 1 (Aurora, tabla PROPIA del OMS `oms.pedidos`): persiste el pedido con
-    prioridad + status + situacion='generada'. Es la superficie de handoff que
-    LEE Planificación (no el WMS).
-  Escritura 2 (WMS EXPEDICIONESCABECERA): TPEXSI='GENE' para que el WMS/EFLOW
-    dispare el picking. TPEXES PERMANECE 'DISP'.
+ADR-013 DESACOPLA priorización y liberación en DOS PASADAS de un único barrido
+sobre `public.orders` (grano pedido). Antes se priorizaba y liberaba en un paso;
+ahora son dos funciones públicas separables:
 
-Orden: escritura 1 ANTES de escritura 2. SIN 2PC (no hay transacción distribuida
-Aurora↔SQL Server). Consistencia por: orden fijo + idempotencia por PK + reintento
-+ un campo `estado_handoff='disparo_pendiente'` tras la escritura 1, que pasa a
-'completado' tras confirmar la escritura 2. Un barrido posterior reconcilia los
-que quedaron en 'disparo_pendiente'.
+  PASADA 1 — priorizar_pedido() (PrioritizadorPass):
+    UPDATE de `public.orders` con priority, oms_score, prioritization_run_id y
+    handoff_status='priorizado'. DEJA `wms_situation = DISP`, NO escribe 'GENE' y
+    NO estampa `oms_processed_at`. Es idempotente por la llave EFLOW: el barrido la
+    re-aplica en cada corrida sobre lo no liberado, absorbiendo los cambios de
+    replan (nuevo dispatch_date/lead_time_days) sin duplicar. NO toca la costura.
+
+  PASADA 2 — liberar_pedido() (LiberadorPass), DOS ESCRITURAS, DOS PROPÓSITOS:
+    Escritura 1 (Aurora, `public.orders`): UPDATE con wms_situation='GENE',
+      handoff_status y `oms_processed_at = now()`. `oms_processed_at` = LIBERADO a
+      eFlow (ADR-013 precisa la lectura de ADR-007: NO es "priorizado"); saca el
+      pedido de la cola de polling (ver cola_candidatos). El pedido ya está en
+      orders (lo ingirió la carga desde EFLOW) y se ubica por su llave EFLOW
+      (uq_order_eflow_key, sql/43). Si no está, es un error: no se liberan pedidos
+      no ingeridos.
+    Escritura 2 (situación del WMS): TPEXSI='GENE' + PRIORIDAD para que el WMS/EFLOW
+      dispare el picking. TPEXES PERMANECE 'DISP'. GENE lo pone SOLO el OMS.
+
+Quién decide liberar (NO vive aquí): la ventana `now() >= dispatch_date −
+dias_prep_picking` (función pura `en_ventana_liberacion`) la evalúa el barrido
+(`app.correr`) con el `dispatch_date` del pedido; se lee SOLO orders, nunca
+plan_trips/routes. Como `dispatch_date` es igual para todos los pedidos de un
+`numero_viaje`, la liberación por viaje sale "gratis": cruzan la ventana juntos.
+La acción manual "Procesar a Eflow" reusa `liberar_pedido` filtrando por
+`numero_viaje`, ignorando la ventana.
+
+eFlow real es READ-ONLY: el OMS NUNCA escribe directo a eFlow. La escritura 2 va
+DETRÁS DE UNA INTERFACE/COSTURA (`EscritorSituacion`): hoy el destino es la tabla
+`sim_expedicionescabecera` (Aurora, temporal, `SimExpedicionesWriter`); mañana se
+intercambia por el endpoint que proveerá EPRAC (`EpracEndpointWriter`) SIN tocar el
+motor. NO se escribe numero_viaje en el handoff.
+
+Orden (dentro de liberar): escritura 1 ANTES de escritura 2. SIN 2PC (no hay
+transacción distribuida). Consistencia por: orden fijo + idempotencia por llave
+EFLOW + reintento + `orders.handoff_status='disparo_pendiente'` tras la escritura 1,
+que pasa a 'completado' tras confirmar la escritura 2. Un barrido posterior
+reconcilia los que quedaron en 'disparo_pendiente'.
   ponytail: sin 2PC + reintento idempotente es una simplificación deliberada con
   techo conocido — bajo fallo entre escritura 1 y 2 queda un 'disparo_pendiente'
   que un barrido reconcilia; no hay garantía transaccional distribuida. Upgrade
   path: patrón outbox/transactional cuando el volumen lo exija.
 
-Idempotencia: la PK compuesta (IDALMACEN, IDCOMPANIA, IDSUCURSAL, IDEXPEDICION) es
-la clave; la escritura 1 hace UPSERT por esa PK (re-correr no duplica).
+Idempotencia: la llave EFLOW compuesta (IDALMACEN, IDCOMPANIA, IDSUCURSAL,
+IDEXPEDICION) es la clave; las escrituras a orders son UPDATE por esa llave
+(re-correr no duplica) y la escritura 2 es un UPSERT por esa misma llave.
 
-FLAG parametrizable `escribir_prioridad_al_wms` (ConfiguracionReglas): si la
-PRIORIDAD se escribe también en el WMS (PRIORIDAD/NOMBREPRIORIDAD de
-EXPEDICIONESCABECERA), solo en la tabla del OMS, o en ambos, está POR CONFIRMAR
-con negocio. Por eso NO está hardcodeado: default False, con TODO visible.
-
-TODO(negocio): confirmar destino de la escritura de PRIORIDAD (tabla OMS / WMS /
-ambos) y fijar el default del flag. Mientras tanto es parametrizable.
-TODO(WMS real): la escritura 2 contra EFLOW/WMS está stubbeada en el esqueleto.
-Reactivar nfr/infra-design antes de escribir al WMS real (external-dependency-map.md).
+TODO(EPRAC): reemplazar SimExpedicionesWriter por EpracEndpointWriter (llamada al
+endpoint real de EPRAC) cuando exista. La costura ya aísla ese cambio del motor.
 """
 
 from __future__ import annotations
 
 import os
+from datetime import date, timedelta
+from typing import Protocol
 
 from models import ConfiguracionReglas, PedidoCandidato, PedidoPK, RegistroPrioridad
 
-# SQL de referencia (escritura 1, Aurora). UPSERT por PK → idempotente.
-UPSERT_PEDIDO_OMS_SQL = """
-INSERT INTO oms.pedidos
-    (id_almacen, id_compania, id_sucursal, id_expedicion,
-     prioridad, status, situacion, estado_handoff, corrida, peso_total, cubicaje_total)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-ON CONFLICT (id_almacen, id_compania, id_sucursal, id_expedicion)
-DO UPDATE SET prioridad = EXCLUDED.prioridad,
-              status = EXCLUDED.status,
-              situacion = EXCLUDED.situacion,
-              estado_handoff = EXCLUDED.estado_handoff,
-              corrida = EXCLUDED.corrida,
-              peso_total = EXCLUDED.peso_total,
-              cubicaje_total = EXCLUDED.cubicaje_total
+# Pasada 1 (priorizar) — UPDATE por la llave EFLOW, idempotente. NO toca
+# wms_situation (queda DISP) NI oms_processed_at: priorizar NO libera (ADR-013).
+# status (del TMS) tampoco se toca. RETURNING para detectar pedidos no ingeridos.
+PRIORIZAR_PEDIDO_SQL = """
+UPDATE orders
+SET priority = %s, oms_score = %s, handoff_status = %s,
+    prioritization_run_id = %s, updated_at = now()
+WHERE eflow_id_almacen = %s AND eflow_id_compania = %s
+  AND eflow_id_sucursal = %s AND eflow_id_expedicion = %s
+RETURNING id
 """
 
-# SQL de referencia (escritura 2, WMS SQL Server). TPEXSI='GENE'; TPEXES NO cambia.
-# Si el flag está activo, también escribe PRIORIDAD/NOMBREPRIORIDAD.
-MARCAR_WMS_SQL = """
-UPDATE EXPEDICIONESCABECERA
-SET TPEXSI = 'GENE'
-WHERE IDALMACEN = %s AND IDCOMPANIA = %s AND IDSUCURSAL = %s AND IDEXPEDICION = %s
-"""
-MARCAR_WMS_CON_PRIORIDAD_SQL = """
-UPDATE EXPEDICIONESCABECERA
-SET TPEXSI = 'GENE', PRIORIDAD = %s
-WHERE IDALMACEN = %s AND IDCOMPANIA = %s AND IDSUCURSAL = %s AND IDEXPEDICION = %s
+# Pasada 2 (liberar), escritura 1 — UPDATE por la llave EFLOW, idempotente.
+# wms_situation='GENE' + oms_processed_at = now() (= LIBERADO, saca de la cola de
+# polling). status NO se toca. RETURNING para detectar pedidos no ingeridos.
+LIBERAR_PEDIDO_SQL = """
+UPDATE orders
+SET wms_situation = %s, handoff_status = %s,
+    oms_processed_at = now(), updated_at = now()
+WHERE eflow_id_almacen = %s AND eflow_id_compania = %s
+  AND eflow_id_sucursal = %s AND eflow_id_expedicion = %s
+RETURNING id
 """
 
+# Escritura 2 (SIMULADA, temporal): sim_expedicionescabecera en Aurora. TPEXSI='GENE'
+# + PRIORIDAD; TPEXES NO se toca (permanece 'DISP'). Es la costura que mañana se
+# reemplaza por el endpoint EPRAC. UPSERT por la llave EFLOW (pk_sim_expedicionescabecera,
+# idempotente al reintentar). La tabla conserva el esquema eFlow: identificadores en
+# MAYÚSCULA entrecomillada; la marca de escritura es `escrito_en` (default now()).
+SIM_SITUACION_SQL = """
+INSERT INTO sim_expedicionescabecera
+    ("IDALMACEN", "IDCOMPANIA", "IDSUCURSAL", "IDEXPEDICION", "TPEXSI", "PRIORIDAD")
+VALUES (%s, %s, %s, %s, 'GENE', %s)
+ON CONFLICT ("IDALMACEN", "IDCOMPANIA", "IDSUCURSAL", "IDEXPEDICION")
+DO UPDATE SET "TPEXSI" = excluded."TPEXSI", "PRIORIDAD" = excluded."PRIORIDAD", escrito_en = now()
+"""
+
+# Estado tras la pasada de priorización: ya priorizado, aún NO liberado a eFlow.
+# Distingue "en cola de liberación" de los estados de la liberación (ADR-013).
+ESTADO_PRIORIZADO = "priorizado"
 ESTADO_PENDIENTE = "disparo_pendiente"
 ESTADO_COMPLETADO = "completado"
-SITUACION_GENERADA = "generada"
-STATUS_PRIORIZADO = "priorizado"
+# Código de situación "generada" en el WMS (EFLOW TPEXSI); es lo que lee Planificación.
+SITUACION_GENERADA = "GENE"
+
+
+class PedidoNoIngerido(Exception):
+    """El pedido no existe en orders (no se cargó desde EFLOW)."""
 
 
 def _modo_live() -> bool:
     return os.environ.get("OMS_SOURCE", "mock") == "live"
 
 
-def ejecutar(
+# --- Costura de la escritura 2 (destino intercambiable) -----------------------
+
+class EscritorSituacion(Protocol):
+    """Interface de la escritura 2: fija la situación del WMS a 'GENE' + PRIORIDAD.
+
+    El OMS NUNCA escribe a eFlow real (read-only). Esta costura aísla el DESTINO:
+    - hoy: `SimExpedicionesWriter` → tabla sim_expedicionescabecera (Aurora, temporal).
+    - mañana: `EpracEndpointWriter` → endpoint que proveerá EPRAC, sin tocar el motor.
+    """
+
+    def marcar_generada(self, pk: PedidoPK, prioridad: int) -> None:
+        """Deja el pedido en TPEXSI='GENE' + PRIORIDAD. Idempotente por la llave EFLOW."""
+        ...
+
+
+class SimExpedicionesWriter:
+    """Destino ACTUAL de la escritura 2 (temporal): sim_expedicionescabecera (Aurora).
+
+    Simula la escritura a eFlow hasta que exista el endpoint EPRAC. En mock no toca
+    DB (no-op observable). NO escribe a eFlow real.
+    """
+
+    def marcar_generada(self, pk: PedidoPK, prioridad: int) -> None:
+        if _modo_live():
+            from tms_common import pg  # import local: el esqueleto corre sin el Layer en tests
+
+            pg.query(SIM_SITUACION_SQL,
+                     [pk.id_almacen, pk.id_compania, pk.id_sucursal, pk.id_expedicion, prioridad])
+        # En mock: no-op (la señal queda cubierta por los tests sobre el writer).
+
+
+def _escritor_por_defecto() -> EscritorSituacion:
+    """Escritor de escritura 2 por defecto. Hoy: sim_expedicionescabecera.
+
+    TODO(EPRAC): devolver EpracEndpointWriter cuando el endpoint exista (p.ej.
+    seleccionado por una variable de entorno de destino, resuelta por el pipeline).
+    """
+    return SimExpedicionesWriter()
+
+
+# --- Reconciliación: re-ejecuta la escritura 2 de los 'disparo_pendiente' -------
+# Un pedido queda 'disparo_pendiente' cuando la escritura 1 (orders: GENE +
+# oms_processed_at) se hizo pero la escritura 2 (costura) falló. Ya salió de la cola
+# (oms_processed_at sellado), así que el barrido normal NO lo reintenta: esta pasada
+# re-corre la costura por la llave EFLOW y, si pasa, lo deja 'completado'. Idempotente.
+RECONCILIAR_SQL = """
+SELECT eflow_id_almacen, eflow_id_compania, eflow_id_sucursal, eflow_id_expedicion, priority
+FROM orders
+WHERE handoff_status = 'disparo_pendiente'
+ORDER BY oms_processed_at NULLS FIRST
+LIMIT %s
+"""
+
+_COMPLETAR_SQL = """
+UPDATE orders SET handoff_status = 'completado', updated_at = now()
+WHERE eflow_id_almacen = %s AND eflow_id_compania = %s
+  AND eflow_id_sucursal = %s AND eflow_id_expedicion = %s
+"""
+
+
+def reconciliar_pendientes(limite: int = 100, escritor: EscritorSituacion | None = None) -> int:
+    """Re-ejecuta la costura de los pedidos en 'disparo_pendiente'. Devuelve cuántos
+    quedaron 'completado'. En mock es no-op (0). Best-effort por pedido: si la costura
+    de uno vuelve a fallar, se salta (queda pendiente) y sigue con el resto."""
+    if not _modo_live():
+        return 0
+    from tms_common import pg  # import local: el esqueleto corre sin el Layer en tests
+
+    escritor = escritor or _escritor_por_defecto()
+    completados = 0
+    for fila in pg.query(RECONCILIAR_SQL, [limite]):
+        pk = PedidoPK(fila["eflow_id_almacen"], fila["eflow_id_compania"],
+                      fila["eflow_id_sucursal"], fila["eflow_id_expedicion"])
+        try:
+            escritor.marcar_generada(pk, fila["priority"])
+        except Exception:  # noqa: BLE001 — sigue con los demás; este queda pendiente
+            continue
+        pg.query(_COMPLETAR_SQL, [pk.id_almacen, pk.id_compania, pk.id_sucursal, pk.id_expedicion])
+        completados += 1
+    return completados
+
+
+# --- Ventana de liberación (predicado puro, ADR-013) --------------------------
+
+def _solo_fecha(valor: date) -> date:
+    """Normaliza a `date` (acepta `date` o `datetime`) para comparar días, no horas."""
+    return valor.date() if hasattr(valor, "date") else valor
+
+
+def en_ventana_liberacion(dispatch_date, hoy: date, dias_prep_picking: int,
+                          *, cliente_retira: bool = False, delivery_date=None) -> bool:
+    """¿El pedido entra en la ventana de liberación? PURA respecto al reloj (`hoy`
+    inyectado), para probarla sin DB. Reglas (política de producto, 2026-10-22):
+
+    - CLIENTE-RETIRA: se libera DE INMEDIATO (el cliente recoge en bodega; no hay
+      viaje que esperar, es alta prioridad). Ignora la ventana.
+    - Con `dispatch_date`: `now() >= dispatch_date − dias_prep_picking`. `dispatch_date`
+      es igual para todos los pedidos de un `numero_viaje` (lo estampa Planificación),
+      así que la liberación por viaje sale "gratis": cruzan la ventana juntos.
+    - `dispatch_date` NULL (p.ej. pedido sin coordenadas): se cae a `delivery_date`
+      como ancla (`now() >= delivery_date − dias_prep_picking`). Si tampoco hay
+      fecha => False (no se libera por barrido; queda para "Procesar a Eflow" manual).
+    """
+    if cliente_retira:
+        return True
+    ancla = dispatch_date if dispatch_date is not None else delivery_date
+    if ancla is None:
+        return False
+    apertura = _solo_fecha(ancla) - timedelta(days=dias_prep_picking)
+    return _solo_fecha(hoy) >= apertura
+
+
+# --- Pasada 1: priorizar (deja DISP, NO libera) -------------------------------
+
+def priorizar_pedido(
     pedido: PedidoCandidato,
     registro: RegistroPrioridad,
-    config: ConfiguracionReglas,
     corrida: str,
-) -> str:
-    """Ejecuta las dos escrituras del handoff para UN pedido. Devuelve el estado final.
+    *,
+    estado: str = ESTADO_PRIORIZADO,
+) -> None:
+    """Pasada de PRIORIZACIÓN (ADR-013): UPDATE de prioridad/score/corrida en orders.
 
-    Entradas:
-      - pedido: el candidato original (para peso/cubicaje).
-      - registro: resultado del motor (prioridad numérica).
-      - config: ConfiguracionReglas (lee el flag escribir_prioridad_al_wms).
-      - corrida: id de la corrida de priorización (trazabilidad).
-    Salida:
-      - 'completado' si ambas escrituras ok; 'disparo_pendiente' si la 1 ok pero la
-        2 falló (reconciliable). La escritura 1 es idempotente por PK.
-    Errores: la escritura 1 propaga HttpError (vía pg) si Aurora falla ANTES de
-      marcar; una vez persistida la fila como pendiente, un fallo en la escritura 2
-      NO lanza: deja 'disparo_pendiente' para reconciliar.
+    DEJA `wms_situation = DISP` (no escribe 'GENE'), NO estampa `oms_processed_at` y
+    NO llama a la costura: priorizar no libera. Idempotente por la llave EFLOW:
+    re-correr el barrido re-prioriza lo no liberado sin duplicar, absorbiendo los
+    cambios de replan (nuevo dispatch_date/lead_time_days).
+
+    Entradas: el candidato (llave EFLOW), el resultado del motor (prioridad/score) y
+    el id de corrida (prioritization_run_id, trazabilidad).
+    Errores: propaga HttpError (vía pg) si Aurora falla y PedidoNoIngerido si el
+      pedido no está en orders. En mock es un no-op observable.
     """
-    # --- Escritura 1: tabla propia del OMS (Aurora). Idempotente por PK. ---
-    _escribir_pedido_oms(pedido, registro, corrida, estado=ESTADO_PENDIENTE)
+    params = [
+        registro.prioridad, registro.score, estado, corrida,
+        pedido.id_almacen, pedido.id_compania, pedido.id_sucursal, pedido.id_expedicion,
+    ]
+    _update_orders(PRIORIZAR_PEDIDO_SQL, params, pedido)
 
-    # --- Escritura 2: marcar el WMS (TPEXSI='GENE'). Sin 2PC. ---
+
+# --- Pasada 2: liberar (GENE + oms_processed_at + costura) ---------------------
+
+def liberar_pedido(
+    pedido: PedidoCandidato,
+    registro: RegistroPrioridad,
+    *,
+    escritor: EscritorSituacion | None = None,
+) -> str:
+    """Pasada de LIBERACIÓN (ADR-013): las dos escrituras del handoff a eFlow.
+
+    Escritura 1 (orders): wms_situation='GENE' + `oms_processed_at = now()` (=
+    LIBERADO, saca el pedido de la cola). Escritura 2: fija la situación del WMS por
+    la costura `EscritorSituacion` (hoy sim_expedicionescabecera). Orden fijo 1→2,
+    sin 2PC; si la 2 falla, deja 'disparo_pendiente' para reconciliar (no lanza).
+
+    ponytail: OQ-REL1 (abierta, no bloquea v1, sin reconciliación aquí) — un pedido
+    ya liberado (oms_processed_at sellado) que un replan mueva a otro viaje/fecha
+    queda potencialmente stale; `oms_processed_at` NO se limpia automáticamente.
+    Upgrade path: reconciliación cuando el negocio lo pida.
+
+    Entradas: el candidato (llave EFLOW), el resultado del motor (prioridad para la
+    costura) y la costura de la escritura 2 (inyectable para tests; default
+    SimExpedicionesWriter → sim_expedicionescabecera; mañana EpracEndpointWriter).
+    Salida: 'completado' si ambas ok; 'disparo_pendiente' si la 1 ok pero la 2 falló.
+    Errores: la escritura 1 propaga HttpError (vía pg) y PedidoNoIngerido si el
+      pedido no está en orders; un fallo en la escritura 2 NO lanza.
+    """
+    escritor = escritor or _escritor_por_defecto()
+
+    # --- Escritura 1: public.orders (Aurora). Idempotente por la llave EFLOW. ---
+    _liberar_orders(pedido, ESTADO_PENDIENTE)
+
+    # --- Escritura 2: fijar la situación del WMS vía la costura. Sin 2PC. ---
     try:
-        _marcar_wms(pedido.pk, registro.prioridad, config)
+        escritor.marcar_generada(pedido.pk, registro.prioridad)
     except Exception:  # noqa: BLE001 — no romper: queda pendiente para reconciliar
         return ESTADO_PENDIENTE
 
-    # Confirmar: la fila del OMS pasa a 'completado'.
-    _escribir_pedido_oms(pedido, registro, corrida, estado=ESTADO_COMPLETADO)
+    # Confirmar: el pedido pasa a handoff_status='completado'.
+    _liberar_orders(pedido, ESTADO_COMPLETADO)
     return ESTADO_COMPLETADO
 
 
-def _escribir_pedido_oms(pedido: PedidoCandidato, registro: RegistroPrioridad, corrida: str, *, estado: str) -> None:
+def _liberar_orders(pedido: PedidoCandidato, estado: str) -> None:
     params = [
+        SITUACION_GENERADA, estado,
         pedido.id_almacen, pedido.id_compania, pedido.id_sucursal, pedido.id_expedicion,
-        registro.prioridad, STATUS_PRIORIZADO, SITUACION_GENERADA, estado, corrida,
-        pedido.peso_total, pedido.cubicaje_total,
     ]
+    _update_orders(LIBERAR_PEDIDO_SQL, params, pedido)
+
+
+def _update_orders(sql: str, params: list, pedido: PedidoCandidato) -> None:
+    """UPDATE de orders por la llave EFLOW. En live exige RETURNING no vacío.
+
+    En mock no hay DB: la escritura es un no-op observable (el estado se infiere del
+    valor devuelto por la función llamadora). Centraliza el chequeo PedidoNoIngerido
+    de las dos pasadas.
+    """
     if _modo_live():
         from tms_common import pg  # import local: el esqueleto corre sin el Layer en tests
-        pg.query(UPSERT_PEDIDO_OMS_SQL, params)
-    # En mock no hay DB: la escritura es un no-op observable vía el estado devuelto.
-
-
-def _marcar_wms(pk: PedidoPK, prioridad: int, config: ConfiguracionReglas) -> None:
-    if config.escribir_prioridad_al_wms:
-        # TODO(negocio): confirmar que la PRIORIDAD va al WMS (hoy flag, default off).
-        sql, params = MARCAR_WMS_CON_PRIORIDAD_SQL, [prioridad, pk.id_almacen, pk.id_compania, pk.id_sucursal, pk.id_expedicion]
-    else:
-        sql, params = MARCAR_WMS_SQL, [pk.id_almacen, pk.id_compania, pk.id_sucursal, pk.id_expedicion]
-
-    if _modo_live():
-        # TODO(WMS real): ejecutar contra EFLOW/WMS (SQL Server). Stub en el esqueleto.
-        raise NotImplementedError("Escritura al WMS real no implementada en el esqueleto (OMS_SOURCE=live).")
-    # En mock: no-op (la señal del flag queda cubierta por los tests sobre _marcar_wms).
-    _ = (sql, params)
+        if not pg.query(sql, params):
+            raise PedidoNoIngerido(
+                f"Pedido {pedido.id_almacen}/{pedido.id_compania}/{pedido.id_sucursal}/{pedido.id_expedicion} "
+                "no está en orders: hay que cargarlo desde EFLOW antes de procesarlo."
+            )

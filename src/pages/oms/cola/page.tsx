@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import Card from '../../../components/base/Card';
 import Button from '../../../components/base/Button';
+import Badge from '../../../components/base/Badge';
 import Select from '../../../components/base/Select';
 import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
 import PriorityBadge from '../components/PriorityBadge';
@@ -34,6 +35,18 @@ export default function OmsColaPage() {
 
   const columns: DataTableColumn<QueueOrder>[] = [
     { key: 'tier', header: t('omsQueue.colPriority'), accessor: (o) => o.tier, sortable: true, render: (o) => <PriorityBadge tier={o.tier} /> },
+    {
+      key: 'estadoOms',
+      header: 'Estado OMS',
+      // Priorizado/Liberado vs Sin priorizar (ADR-013). Mientras el backend no
+      // corra en vivo, todos salen "Sin priorizar" (nadie escribe esas columnas).
+      accessor: (o) => (o.released ? 'Liberado' : o.prioritized ? 'Priorizado' : 'Sin priorizar'),
+      filterable: true,
+      render: (o) =>
+        o.released ? <Badge variant="info" size="sm">Liberado</Badge>
+        : o.prioritized ? <Badge variant="success" size="sm">Priorizado</Badge>
+        : <Badge variant="default" size="sm">Sin priorizar</Badge>,
+    },
     { key: 'ref', header: t('omsQueue.colOrder'), accessor: (o) => o.ref, sortable: true, render: (o) => <span className="font-medium text-slate-900">{o.ref}</span> },
     { key: 'warehouseId', header: t('omsQueue.colWarehouseId'), accessor: (o) => o.warehouseId, sortable: true, filterable: true },
     { key: 'companyId', header: t('omsQueue.colCompanyId'), accessor: (o) => o.companyId, sortable: true, filterable: true },
@@ -53,7 +66,6 @@ export default function OmsColaPage() {
     },
     { key: 'dispatchDate', header: t('omsQueue.colDispatchDate'), accessor: (o) => o.dispatchDate, sortable: true },
     { key: 'createdDate', header: t('omsQueue.colCreatedDate'), accessor: (o) => o.createdDate, sortable: true },
-    { key: 'readyToPrepDate', header: t('omsQueue.colReadyDate'), accessor: (o) => o.readyToPrepDate, sortable: true },
     { key: 'score', header: t('omsQueue.colScore'), accessor: (o) => o.score, sortable: true, align: 'right', render: (o) => <span className="font-semibold text-slate-900">{o.score}</span> },
     { key: 'status', header: t('omsQueue.colStatus'), accessor: (o) => o.status, filterable: true },
     { key: 'situation', header: t('omsQueue.colSituation'), accessor: (o) => o.situation, filterable: true },

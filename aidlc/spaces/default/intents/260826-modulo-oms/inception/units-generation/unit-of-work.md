@@ -1,92 +1,113 @@
 # Unidades de trabajo — Módulo OMS (rebanada delgada de 1ª entrega)
 
-> Intent: `260826-modulo-oms`. Etapa: Units Generation (Inception, re-corrida
-> acotada, 2026-10-01). Deriva del `components.md` acotado (5 componentes de la
-> rebanada, aterrizados al DDL real) y `decisions.md` (ADR-001..006). Pasada
-> corta: descompone en unidades desplegables, NO re-abre diseño.
+> Intent: `260826-modulo-oms`. Etapa: Units Generation (Inception, **re-corrida v4
+> por la inversión del flujo OMS↔Planificación, 2026-10-16**). Deriva del
+> `components.md` v4 (8 componentes en alcance) y `decisions.md` (ADR-007..012).
+> Pasada corta: descompone en unidades desplegables, NO re-abre diseño.
+>
+> **Nomenclatura (vigente)**: WMS = **EFLOW**; módulo que parte EPA por línea =
+> **EPRAC**.
 
 ## Resumen
 
-Los 5 componentes de la rebanada son todos **backend Python/Lambda** y forman
-**un flujo cohesionado**: el motor y sus 2 reglas corren juntos en la corrida de
-priorización; `ColaCandidatos` y `HandoffPedidosOMS` son los adaptadores de
-entrada/salida del mismo servicio. Por eso NO se descomponen en una unit por
-componente (serían submódulos de un mismo servicio Lambda que se despliega
-junto). La descomposición mínima es **2 unidades**:
+Con la inversión del flujo (D7) y la escritura real a EFLOW/`public.orders`
+(D7/D8), la descomposición de la rebanada cambia respecto a v3:
 
-- **U1 — `motor-reglas-oms`** (`kind: service`): el servicio Lambda del motor de
-  reglas propio del OMS, que contiene los 5 componentes de dominio como módulos
-  internos.
-- **U2 — `esquema-pedidos-oms`** (`kind: spec`): el esquema de la **tabla propia
-  del OMS** (`PedidosOMS`, esquema OMS de `logistica_olo`), superficie de handoff
-  que lee Planificación. Es un contrato de datos consumido en su lugar.
+- **Se ELIMINA la unit `esquema-pedidos-oms`** (era U2 en v3): ya **no hay tabla
+  propia del OMS** (`oms.pedidos` descartada; esquema único `public`). La tabla es
+  **`public.orders`**, que **ya existe en BD** (aplicada 2026-10-16) y no es trabajo
+  del OMS crearla. El OMS la lee y la actualiza, no la define.
+- **U1 `motor-reglas-oms`** absorbe los 7 componentes de la corrida de priorización
+  (incluida la nueva `LambdaActivacion` de entrada) como módulos internos de una
+  Lambda Python.
+- **U2 `backorder-inventario-oms`** (NUEVA) es el loop de backorder (D13),
+  **desacoplado** de la corrida (disparador y ciclo de vida propios) → unidad
+  aparte, no un módulo de la corrida. En esta rebanada es esqueleto + open questions.
+
+Descomposición mínima: **2 unidades** (ambas service).
 
 ## Tabla de unidades
 
 | Unit ID | Directory | Nombre | Kind | Complejidad |
 |---|---|---|---|---|
 | U1 | `u1-motor-reglas-oms` | Motor de reglas del OMS (Lambda) | service | L |
-| U2 | `u2-esquema-pedidos-oms` | Esquema de la tabla de pedidos del OMS | spec | S |
+| U2 | `u2-backorder-inventario-oms` | Loop de backorder/inventario del OMS | service | M |
 
 ## U1 — motor-reglas-oms (service)
 
 - **Qué es**: servicio AWS Lambda (Python 3.13) nuevo y propio del OMS
-  (C2-RESUELTO: no porta AST de `src/lib/tarifas/`, no comparte motor con el TMS,
-  no toca Liquidaciones). Es el **esqueleto demostrable** que se construye primero.
-- **Contiene** (módulos internos, del `components.md`):
-  - `MotorReglasOMS` — orquesta la corrida (resuelve reglas por scope → invoca
-    reglas → score ponderado submódulo puro → umbral de inyección → orden) y aplica
-    el efecto cliente-retira.
-  - `ReglaFecha` — T-1 sobre `FECHAEXPEDICIONPLANIFICADA` (insumo, no la modifica);
-    duración de ruta ESTIMADA por scope; fallback por valor centinela/default (US8).
-  - `AnalizadorObservaciones` — clasifica `OBSERVACIONESEXPEDICION` con Bedrock
-    (cliente retira), por lote, degrada sin bloquear; clasificador stub en unitarios.
-  - `ColaCandidatos` — adaptador de LECTURA de EFLOW/WMS (TPEXES/TPEXSI='DISP',
-    FECHACIERRE IS NULL, NUMEROVIAJEWMH IS NULL; anti-join con ALMACENMOVIMIENTOS_CARCAM).
-  - `HandoffPedidosOMS` — adaptador de ESCRITURA (D6, dos escrituras): (1) tabla
-    propia del OMS (U2); (2) `TPEXSI='GENE'` en EXPEDICIONESCABECERA (TPEXES
-    permanece 'DISP'). Orden, reintento idempotente, idempotencia por PK.
-- **Entidades que posee**: `RegistroPrioridad`, `PedidoOMS` (persistida en U2),
-  y `PedidoCandidato` (proyección de lectura de EFLOW).
-- **Deployment**: una Lambda del backend (estándar Intelix SAM), dentro del
-  monorepo backend; se integra al API/scheduler como los demás módulos
-  (EventBridge para la corrida ≥1/día + cortes, NFR1). La partición por compañía
-  se resuelve por **scope** (C3), no por Lambda por compañía.
-- **Notas**: EFLOW en modo mock hasta que exista la réplica/live (OQ-2); Bedrock a
-  construir (hoy no integrado). Catálogos TIPOSINTEGRACION y CLIENTES/
-  ALMACENCOMPANIA pendientes de pedir antes del code-generation en vivo.
+  (C2-RESUELTO). Es la **corrida de priorización**, que **activa Planificación**
+  (D7). Esqueleto demostrable que se construye primero.
+- **Contiene** (módulos internos, del `components.md` v4):
+  - `LambdaActivacion` — entrada ASÍNCRONA (D7/FR0): Planificación **avisa** (señal,
+    no fuente de verdad); arranca la corrida. Contrato RESUELTO 2026-10-16.
+  - `ColaCandidatos` — adaptador de LECTURA de **`public.orders`** (D7): **pull por
+    columna** `wms_trip_number IS NOT NULL AND oms_processed_at IS NULL` (misma
+    consulta para la señal y para el barrido periódico). **Ya no** lee de
+    `EXPEDICIONESCABECERA` ni usa el anti-join.
+  - `MotorReglasOMS` — orquesta: deriva EPA a `ReglaEPA`; para el resto invoca
+    `ReglaFecha` + `ReglaClienteRetiraZona`, calcula el **score ponderado**
+    (submódulo puro testeable), aplica umbral y ordena el handoff.
+  - `ReglaEPA` — cortocircuito EPA (D9): prioridad pre-asignada por **EPRAC**
+    (guion-0=0, guion-1=1); no recalcula; libera ambas juntas.
+  - `ReglaFecha` — fecha generalizada (D10): `fecha_entrega − duración`, con la
+    **duración como insumo de Planificación** (Cofersa=1, VE dinámica); fallback por
+    centinela.
+  - `ReglaClienteRetiraZona` — cliente-retira por `delivery_zone` (D11), prioridad
+    máxima.
+  - `HandoffPedidosOMS` — adaptador de ESCRITURA (D7/D8): escritura 1 = UPDATE a
+    `public.orders` (prioridad, score, `wms_situation='GENE'`, handoff_status,
+    prioritization_run_id, **`oms_processed_at=now()`** → saca el pedido de la cola
+    pull); escritura 2 = **EFLOW real** (`TPEXSI='GENE'` + `PRIORIDAD`; `TPEXES`
+    permanece `DISP`; sin número de viaje). Orden 1→2, sin 2PC, reintento idempotente
+    por llave EFLOW.
+- **NO contiene**: `AnalizadorObservaciones` (DIFERIDO, D11).
+- **Entidades**: `RegistroPrioridad` (resultado del motor); `PedidoCandidato` /
+  `PedidoOMS` se materializan sobre `public.orders` (no hay tabla propia).
+- **Deployment**: una Lambda del backend (estándar Intelix SAM); la activa
+  Planificación (no EventBridge). La partición por compañía se resuelve por scope
+  (C3), no por Lambda por compañía.
+- **Notas**: EFLOW real = escritura 2 (hoy mock/stub en el esqueleto; flag
+  `escribir_prioridad_al_wms`=TRUE). Catálogos TIPOSINTEGRACION y CLIENTES/
+  ALMACENCOMPANIA pendientes antes de code-generation en vivo.
 
-## U2 — esquema-pedidos-oms (spec)
+## U2 — backorder-inventario-oms (service)
 
-- **Qué es**: el **contrato de esquema** de la tabla de pedidos propia del OMS
-  (`PedidosOMS`, esquema OMS de `logistica_olo`, Aurora PostgreSQL). Superficie de
-  handoff que **lee Planificación** (no el WMS).
-- **Forma** (del `components.md`, entidad `PedidoOMS`): PK (IDALMACEN, IDCOMPANIA,
-  IDSUCURSAL, IDEXPEDICION) + prioridad + status + situacion + estadoHandoff
-  ("disparo pendiente" para el caso de fallo parcial de la escritura 2) + pesoTotal
-  / cubicajeTotal (nullable, OQ-8) + corrida.
-- **Kind spec**: es un contrato de datos consumido en su lugar por U1 (escritura 1)
-  y por Planificación (lectura); no es un ejecutable desplegable propio. No lleva
-  doc de escalabilidad ni lógica de negocio.
-- **Deployment**: migración de esquema en Aurora (esquema OMS de `logistica_olo`).
+- **Qué es**: el **loop de backorder** (D13), servicio/componente **desacoplado**
+  de la corrida de priorización (no se dispara con la lambda de activación ni vive
+  en el handoff de un lote): revisión continua / por evento.
+- **Contiene**: `BackorderInventario` — (1) lee las acciones liberadas omitidas por
+  falta de inventario; (2) chequea inventario; (3) re-manda a generar solo esas
+  acciones (situación `GENE` con su prioridad) cuando entra stock. Reutiliza el
+  borde de escritura del handoff (de U1) para re-generar.
+- **Alcance en esta rebanada**: **esqueleto del componente + open questions**; el
+  diseño fino NO se cierra.
+- **Open questions (no cerradas, hechos de integración/negocio)**: OQ-BO1 (tabla/
+  estado de acciones omitidas en EFLOW), OQ-BO2 (fuente de inventario), OQ-BO3
+  (disparador: evento de entrada de inventario vs. barrido periódico).
+- **Deployment**: servicio del backend con su propio disparador (evento o
+  schedule, a definir en OQ-BO3); separado de la Lambda de la corrida.
 
 ## Implementación / orden
 
-> Esta etapa describe la TOPOLOGÍA, no decide el orden económico de construcción
-> (eso es de Delivery Planning). No obstante, la decisión de negocio ya tomada
-> (secuencia del usuario) es: **el esqueleto de U1 (`motor-reglas-oms`) es el
-> primer entregable**; U2 es su dependencia de datos (el handoff escribe ahí).
+> Topología, no orden económico (eso es Delivery Planning). La secuencia de negocio
+> ya tomada: el **esqueleto de U1 (`motor-reglas-oms`) es el primer entregable**;
+> U2 (backorder) es posterior (esqueleto + OQ, depende de integraciones abiertas).
 
 ## Sources
 
-- `aidlc/spaces/default/intents/260826-modulo-oms/inception/domain-design/components.md` (acotado, 5 componentes).
-- `aidlc/spaces/default/intents/260826-modulo-oms/inception/domain-design/decisions.md` (ADR-001..006).
-- `aidlc/spaces/default/intents/260826-modulo-oms/inception/requirements-analysis/requirements.md` (v3).
-- `aidlc/spaces/default/intents/260826-modulo-oms/inception/user-stories/stories.md` (rebanada: US1, US7–US13).
+- `aidlc/spaces/default/intents/260826-modulo-oms/inception/domain-design/components.md` (v4, 8 componentes).
+- `aidlc/spaces/default/intents/260826-modulo-oms/inception/domain-design/decisions.md` (ADR-007..012).
+- `aidlc/spaces/default/intents/260826-modulo-oms/inception/requirements-analysis/requirements.md` (v4).
+- `aidlc/spaces/default/intents/260826-modulo-oms/inception/user-stories/stories.md` (v4).
 
 ## Assumptions & Open Questions
 
-- Descomposición mínima (2 units) por ser la rebanada un flujo cohesionado de un
-  solo servicio. Al ampliar el alcance (componentes diferidos: CatalogoReglas,
-  Simulador, Auditoría, Panel, UI) surgirán nuevas units en corridas posteriores.
-- U1 depende de U2 (el handoff escribe en la tabla del OMS). Sin ciclos.
+- La unit `esquema-pedidos-oms` de v3 se **elimina**: `public.orders` ya existe en
+  BD; el OMS no la crea. No es una unidad de trabajo.
+- U1 depende de `public.orders` (lectura y escritura) y de EFLOW (escritura 2),
+  ambas existentes/externas; no de una unidad de esquema.
+- U2 (backorder) depende de las integraciones abiertas (OQ-BO1/BO2/BO3); por eso es
+  esqueleto en esta rebanada.
+- Contrato de la lambda de activación (U1): scope + `planning_run_id` vs. llaves
+  explícitas — a confirmar con el dueño de Planificación (no bloquea).

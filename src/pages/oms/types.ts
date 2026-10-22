@@ -76,9 +76,13 @@ export interface QueueOrder {
   observations: string;    // Observaciones (texto libre del vendedor)
   dispatchDate: string;    // Fecha de Entrega (ISO date)
   createdDate: string;     // Fecha de creación (ISO date)
-  readyToPrepDate: string; // fecha de alisto calculada (ISO date)
   status: string;          // estado del pedido
   situation: string;       // situación del pedido (p. ej. DISP = disponible)
+  // Estado OMS (ADR-013): priorizado = el OMS ya calculó prioridad/score (deja DISP);
+  // liberado = el OMS ya lo mandó a eFlow (oms_processed_at sellado, situación GENE).
+  // Opcionales: el mock de respaldo no los trae → se tratan como "sin priorizar".
+  prioritized?: boolean;
+  released?: boolean;
   intakeTime: string;
   appliedRules: { name: string; weight: number }[];
   history: { at: string; from: PriorityTier | 'sin asignar'; to: PriorityTier; type: 'automatico' | 'manual'; reason?: string }[];
@@ -139,6 +143,25 @@ export interface AuditEntry {
   scoreTo: number;
   actor: string;
   detail: string; // regla causante (auto) o motivo (manual)
+}
+
+// Bitácora del OMS (sql/49 oms_logs). Cada acción importante del motor deja una
+// fila; la pestaña "Logs OMS" (solo developer) la muestra para monitorear errores.
+export type OmsLogLevel = 'info' | 'warn' | 'error';
+
+export interface OmsLogEntry {
+  id: string;
+  createdAt: string;      // created_at (ISO)
+  level: OmsLogLevel;
+  action: string;         // barrido | priorizar | liberar | procesar_viaje | error…
+  corridaId: string | null;
+  numeroViaje: string | null;
+  eflowIdExpedicion: string | null;
+  message: string;
+  detail: unknown | null; // jsonb
+  actor: string;
+  countryId: string | null;
+  companyCode: string | null;
 }
 
 // --- Simulador como CONFIGURADOR de simulaciones (DECIDED 2026-09-15) ---

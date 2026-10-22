@@ -83,7 +83,6 @@ export const navItems: NavItem[] = [
 
   { type: 'section', label: 'Gestión de la Demanda', i18nKey: 'menu.sectionDemand' },
   OMS_GROUP,
-  { icon: 'ri-file-list-line', label: 'Pedidos', i18nKey: 'menu.pedidos', path: '/pedidos', permKey: 'pedidos' },
 
   { type: 'section', label: 'Ejecución Operativa', i18nKey: 'menu.sectionExecution' },
   { icon: 'ri-map-pin-add-line', label: 'Planificación', i18nKey: 'menu.planificacion', path: '/planificacion', permKey: 'planificacion' },

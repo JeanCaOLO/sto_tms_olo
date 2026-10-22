@@ -157,15 +157,18 @@ Con un solo Bolt planeado para esta rebanada, no aplica paralelismo entre Bolts.
 
 ## Consolidated Summary Confirmation
 
-Delivery Planning de la rebanada delgada (2026-10-01): un único Bolt
-(walking skeleton) que agrupa U1 (`motor-reglas-oms`, service) + U2
-(`esquema-pedidos-oms`, spec). Secuencia walking-skeleton-first por decisión
-explícita del usuario (sin WSJF). Dependencias externas gated, no bloqueantes,
-resueltas con mock/stub y documentadas como deuda explícita con `TODO` visible:
-réplica de `EFLOW_OLO` → mock de lectura; Amazon Bedrock → clasificador stub. El
-contrato de escritura del `HandoffPedidosOMS` (dos escrituras sin 2PC,
-idempotencia por PK, flag `PRIORIDAD`-al-WMS parametrizable) se resuelve dentro de
-code-generation (Contract Design saltada). Mob: `aidlc-developer-agent` (scope
-classic, team-formation SKIP). Siguiente: code-generation del esqueleto.
+**Re-corrida v4 (2026-10-16) — flujo invertido.** Nomenclatura EFLOW/EPRAC.
+Plan de Bolts reconciliado: **Bolt 1 = U1 `motor-reglas-oms`** (walking skeleton),
+informado por los contratos ya formalizados en Contract Design — C1 activación
+(señal async + pull por columna `oms_processed_at`, barrido como red de seguridad,
+batching por compañía, `lead_time_days` como insumo) y C2 handoff (UPDATE a
+`public.orders` + escritura a EFLOW `TPEXSI='GENE'`+`PRIORIDAD`, `TPEXES` permanece
+`DISP`, sin número de viaje). **Bolt 2 = U2 `backorder-inventario-oms`
+BLOQUEADO** por OQ-BO1/BO2/BO3 — no entra a construcción hasta resolver esas
+integraciones en la próxima reunión. Sin WSJF (una unidad construible, otra
+bloqueada). Iteración `unit-major`. Mob: `aidlc-developer-agent` (scope classic,
+team-formation SKIP). Dependencias de Bolt 1 (columnas nuevas en el PR de
+Planificación, señal, EFLOW real, catálogos) se cubren con mock/stub en el
+esqueleto. Sensores: required-sections, upstream-coverage.
 
 [Answer]: Looks correct

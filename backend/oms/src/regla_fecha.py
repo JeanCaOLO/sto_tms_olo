@@ -1,19 +1,22 @@
 """ReglaFecha — regla T-1 de urgencia por fecha de entrega (esqueleto).
 
 Contrato de la regla (US7/US8):
-- Entrada: un PedidoCandidato (con fecha_expedicion_planificada) + ConfiguracionReglas
-  (duracion_ruta_dias por scope) + la fecha de "hoy" (inyectada, para que la regla
-  sea pura y testeable — no llama al reloj).
+- Entrada: un PedidoCandidato (con fecha_expedicion_planificada y lead_time_days) +
+  ConfiguracionReglas + la fecha de "hoy" (inyectada, para que la regla sea pura y
+  testeable — no llama al reloj).
 - Salida: ResultadoRegla con `puntos` proporcionales a la urgencia. Un pedido cuya
-  fecha de alistado objetivo (entrega − duración de ruta) ya pasó o es hoy es el más
+  fecha de alistado objetivo (entrega − lead_time_days) ya pasó o es hoy es el más
   urgente; cuanto más lejos la fecha, menos puntos.
 - Errores: no lanza; usa fallback por valor centinela/default.
 
-Decisiones ancladas:
-- T-1: listo = entrega − 1 día, AJUSTADA por duración de ruta por scope (DECIDED).
-- `FECHAEXPEDICIONPLANIFICADA` es datetime NOT NULL (DDL real) → el fallback (US8)
-  NO se dispara por NULL sino por VALOR CENTINELA/DEFAULT (caso Cofersa, que llena
-  la fecha por default porque el cliente no la manda).
+Decisiones ancladas (contrato v4, confirmado con negocio):
+- T-1: listo = entrega − lead_time_days. La duración logística es DINÁMICA y viene
+  por pedido en `orders.lead_time_days` (la calcula Planificación por distancia
+  haversine: GAM T-1, La Fortuna T-2, Guanacaste T-3). Ya NO es un parámetro
+  estático de config. Si viene NULL, se aplica LEAD_TIME_DEFAULT_DIAS (1 día, Cofersa).
+- `delivery_date` (FECHAEXPEDICIONPLANIFICADA) es la fecha de entrega → el fallback
+  (US8) se dispara por VALOR CENTINELA/DEFAULT (caso Cofersa, que llena la fecha por
+  default porque el cliente no la manda), no por NULL.
 - El OMS NO modifica la fecha: solo la LEE como criterio.
 """
 
@@ -21,7 +24,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 
-from models import ConfiguracionReglas, PedidoCandidato, ResultadoRegla
+from models import LEAD_TIME_DEFAULT_DIAS, ConfiguracionReglas, PedidoCandidato, ResultadoRegla
 
 REGLA = "fecha_t1"
 
@@ -49,8 +52,10 @@ def evaluar(pedido: PedidoCandidato, config: ConfiguracionReglas, hoy: date) -> 
             detalle=f"Fecha centinela/default ({FECHA_CENTINELA.isoformat()}): fallback, se trata como urgente.",
         )
 
-    # Fecha objetivo de alistado = entrega − duración de ruta (T-1 ajustado por scope).
-    objetivo = planificada - timedelta(days=max(1, config.duracion_ruta_dias))
+    # Fecha objetivo de alistado = entrega − lead_time_days (T-1 dinámico por pedido).
+    # lead_time_days viene de orders (lo calcula Planificación); NULL → default (Cofersa).
+    lead_time = pedido.lead_time_days if pedido.lead_time_days is not None else LEAD_TIME_DEFAULT_DIAS
+    objetivo = planificada - timedelta(days=max(1, lead_time))
     dias_margen = (objetivo - hoy).days
 
     if dias_margen <= 0:
