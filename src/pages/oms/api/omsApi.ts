@@ -36,6 +36,17 @@ function delay<T>(data: T, ms = 350): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(data), ms));
 }
 
+// Scope del contexto operativo del header (País → Almacén → Cliente). La Cola
+// filtra orders por estos ids (orders.warehouse_id / orders.customer_id son FK
+// directas a los mismos UUIDs del contexto). `warehouseIds` = almacenes del país
+// seleccionado, para filtrar por país cuando aún no se eligió un almacén (orders
+// no tiene country_id; el país va por el almacén).
+export interface QueueScope {
+  warehouseId?: string | null;
+  customerId?: string | null;
+  warehouseIds?: string[];
+}
+
 // Modo DEMO: alimenta la Cola con el JSON generado por el MOTOR REAL del backend
 // (src/pages/oms/demo/) en vez de Supabase/mock + motor TS. Sirve para mostrar en
 // la tabla cómo prioriza el motor nuevo del OMS.
@@ -172,7 +183,7 @@ export const omsApi = {
   getRoutes(country: Country): Promise<DispatchRoute[]> {
     return delay(cofersaRoutes.filter((r) => r.country === country));
   },
-  async getQueue(country: Country): Promise<QueueOrder[]> {
+  async getQueue(country: Country, scope: QueueScope = {}): Promise<QueueOrder[]> {
     // Modo DEMO: pedidos priorizados por el motor real del backend (JSON export).
     if (isOmsDemo()) {
       const { corridaDemoOrders } = await import('../demo/corridaDemo');
@@ -183,8 +194,13 @@ export const omsApi = {
       return delay(rows);
     }
     if (country === 'CR') {
-      // Solo pedidos sin cierre en el WMS (EFLOW FECHACIERRE IS NULL).
-      const { data, error } = await supabase.from('orders').select(QUEUE_SELECT).is('closed_at', null);
+      // Solo pedidos sin cierre en el WMS (EFLOW FECHACIERRE IS NULL), filtrados
+      // por el contexto operativo del header (almacén / compañía / país).
+      let query = supabase.from('orders').select(QUEUE_SELECT).is('closed_at', null);
+      if (scope.warehouseId) query = query.eq('warehouse_id', scope.warehouseId);
+      else if (scope.warehouseIds && scope.warehouseIds.length > 0) query = query.in('warehouse_id', scope.warehouseIds);
+      if (scope.customerId) query = query.eq('customer_id', scope.customerId);
+      const { data, error } = await query;
       if (!error && data) {
         // Datos REALES de orders (aunque vengan vacíos): es lo que pidió negocio,
         // no mock. Solo un error de red/BD cae al mock de respaldo (abajo).

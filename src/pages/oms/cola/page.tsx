@@ -66,9 +66,9 @@ export default function OmsColaPage() {
     },
     { key: 'dispatchDate', header: t('omsQueue.colDispatchDate'), accessor: (o) => o.dispatchDate, sortable: true },
     { key: 'createdDate', header: t('omsQueue.colCreatedDate'), accessor: (o) => o.createdDate, sortable: true },
-    { key: 'score', header: t('omsQueue.colScore'), accessor: (o) => o.score, sortable: true, align: 'right', render: (o) => <span className="font-semibold text-slate-900">{o.score}</span> },
     { key: 'status', header: t('omsQueue.colStatus'), accessor: (o) => o.status, filterable: true },
     { key: 'situation', header: t('omsQueue.colSituation'), accessor: (o) => o.situation, filterable: true },
+    { key: 'score', header: t('omsQueue.colScore'), accessor: (o) => o.score, sortable: true, align: 'right', render: (o) => <span className="font-semibold text-slate-900">{o.score}</span> },
   ];
 
   return (
@@ -80,12 +80,6 @@ export default function OmsColaPage() {
 
       <Card>
         <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end">
-          <div className="sm:w-40">
-            <Select label={t('omsQueue.warehouse')} value={filters.warehouse} onChange={(e) => setFilter('warehouse', e.target.value)} options={opt(options.warehouses, t('omsQueue.allMasc'))} />
-          </div>
-          <div className="sm:w-40">
-            <Select label={t('omsQueue.company')} value={filters.company} onChange={(e) => setFilter('company', e.target.value)} options={opt(options.companies, t('omsQueue.allFem'))} />
-          </div>
           <div className="sm:w-40">
             <Select label={t('omsQueue.branch')} value={filters.branch} onChange={(e) => setFilter('branch', e.target.value)} options={opt(options.branches, t('omsQueue.allFem'))} />
           </div>

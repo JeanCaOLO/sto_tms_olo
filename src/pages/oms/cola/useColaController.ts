@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { omsApi } from '../api/omsApi';
+import { useOperationalContext } from '../../../hooks/useOperationalContext';
 import type { PriorityTier, QueueOrder } from '../types';
 
 const ALL = 'todos';
 
+// Almacén y Compañía NO van acá: los maneja el contexto operativo del header
+// (País → Almacén → Cliente), que filtra los pedidos en el servidor por scope.
 export interface ColaFilters {
-  warehouse: string;
-  company: string;
   branch: string;
   route: string;
   tier: string;
@@ -17,7 +18,7 @@ export interface ColaFilters {
 }
 
 const EMPTY_FILTERS: ColaFilters = {
-  warehouse: ALL, company: ALL, branch: ALL, route: ALL, tier: ALL, status: ALL, situation: ALL, estadoOms: ALL, query: '',
+  branch: ALL, route: ALL, tier: ALL, status: ALL, situation: ALL, estadoOms: ALL, query: '',
 };
 
 // Estado OMS derivado del pedido (ADR-013), mismo criterio que la columna de la tabla.
@@ -29,6 +30,7 @@ export function estadoOmsDe(o: QueueOrder): string {
 // pedido y el override manual local (única intervención humana; sin backend).
 export function useColaController() {
   const country = 'CR' as const;
+  const { selectedCountryId, selectedWarehouseId, selectedCustomerId, warehouses } = useOperationalContext();
   const [orders, setOrders] = useState<QueueOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,24 +39,34 @@ export function useColaController() {
   const [overrideOpen, setOverrideOpen] = useState(false);
   const [filters, setFilters] = useState<ColaFilters>(EMPTY_FILTERS);
 
+  // País seleccionado sin almacén concreto → filtrar por los almacenes de ese
+  // país (orders no tiene country_id; el país va por el almacén). Si hay almacén
+  // concreto, manda ese; si no hay país, no se filtra por almacén.
+  const countryWarehouseIds = useMemo(
+    () => (selectedCountryId && !selectedWarehouseId ? warehouses.map((w) => w.id) : []),
+    [selectedCountryId, selectedWarehouseId, warehouses],
+  );
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
     setSelectedId(null);
-    omsApi.getQueue(country)
+    omsApi.getQueue(country, {
+      warehouseId: selectedWarehouseId,
+      customerId: selectedCustomerId,
+      warehouseIds: countryWarehouseIds,
+    })
       .then((rows) => { if (!cancelled) setOrders(rows); })
       .catch(() => { if (!cancelled) setError('No se pudo cargar la cola.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, []);
+  }, [selectedWarehouseId, selectedCustomerId, countryWarehouseIds]);
 
   // Opciones de filtro derivadas de los pedidos cargados.
   const options = useMemo(() => {
     const uniq = (vals: string[]) => Array.from(new Set(vals)).sort();
     return {
-      warehouses: uniq(orders.map((o) => o.warehouseId)),
-      companies: uniq(orders.map((o) => o.companyId)),
       branches: uniq(orders.map((o) => o.branchId)),
       routes: uniq(orders.map((o) => o.route)),
       tiers: uniq(orders.map((o) => String(o.tier))),
@@ -68,8 +80,6 @@ export function useColaController() {
   const filtered = useMemo(() => {
     const q = filters.query.trim().toLowerCase();
     return orders.filter((o) => {
-      if (filters.warehouse !== ALL && o.warehouseId !== filters.warehouse) return false;
-      if (filters.company !== ALL && o.companyId !== filters.company) return false;
       if (filters.branch !== ALL && o.branchId !== filters.branch) return false;
       if (filters.route !== ALL && o.route !== filters.route) return false;
       if (filters.tier !== ALL && String(o.tier) !== filters.tier) return false;
@@ -85,9 +95,9 @@ export function useColaController() {
     setFilters((prev) => ({ ...prev, [key]: value }));
   const resetFilters = () => setFilters(EMPTY_FILTERS);
   const filtersActive =
-    filters.warehouse !== ALL || filters.company !== ALL || filters.branch !== ALL ||
-    filters.route !== ALL || filters.tier !== ALL || filters.status !== ALL ||
-    filters.situation !== ALL || filters.estadoOms !== ALL || filters.query.trim() !== '';
+    filters.branch !== ALL || filters.route !== ALL || filters.tier !== ALL ||
+    filters.status !== ALL || filters.situation !== ALL || filters.estadoOms !== ALL ||
+    filters.query.trim() !== '';
 
   const selected = orders.find((o) => o.id === selectedId) ?? null;
 
