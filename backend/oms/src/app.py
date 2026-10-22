@@ -119,7 +119,9 @@ def correr(
             (pedido, registro)
             for pedido, registro in zip(pedidos, registros)
             if handoff_pedidos.en_ventana_liberacion(
-                pedido.dispatch_date, hoy, resolver_config(pedido).dias_prep_picking)
+                pedido.dispatch_date, hoy, resolver_config(pedido).dias_prep_picking,
+                cliente_retira=registro.cliente_retira,
+                delivery_date=pedido.fecha_expedicion_planificada)
         ]
         liberados, pendientes, prioridades = _liberar(en_ventana)
 

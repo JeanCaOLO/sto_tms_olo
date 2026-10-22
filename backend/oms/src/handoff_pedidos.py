@@ -205,17 +205,26 @@ def _solo_fecha(valor: date) -> date:
     return valor.date() if hasattr(valor, "date") else valor
 
 
-def en_ventana_liberacion(dispatch_date, hoy: date, dias_prep_picking: int) -> bool:
-    """¿El pedido entra en la ventana de liberación? `now() >= dispatch_date − dias_prep`.
+def en_ventana_liberacion(dispatch_date, hoy: date, dias_prep_picking: int,
+                          *, cliente_retira: bool = False, delivery_date=None) -> bool:
+    """¿El pedido entra en la ventana de liberación? PURA respecto al reloj (`hoy`
+    inyectado), para probarla sin DB. Reglas (política de producto, 2026-10-22):
 
-    PURA respecto al reloj (`hoy` inyectado), para probarla sin DB. `dispatch_date`
-    es igual para todos los pedidos de un `numero_viaje` (lo estampa Planificación),
-    así que la liberación por viaje sale "gratis": cruzan la ventana juntos.
-    `dispatch_date` NULL (pedido sin plan) => False: no se libera.
+    - CLIENTE-RETIRA: se libera DE INMEDIATO (el cliente recoge en bodega; no hay
+      viaje que esperar, es alta prioridad). Ignora la ventana.
+    - Con `dispatch_date`: `now() >= dispatch_date − dias_prep_picking`. `dispatch_date`
+      es igual para todos los pedidos de un `numero_viaje` (lo estampa Planificación),
+      así que la liberación por viaje sale "gratis": cruzan la ventana juntos.
+    - `dispatch_date` NULL (p.ej. pedido sin coordenadas): se cae a `delivery_date`
+      como ancla (`now() >= delivery_date − dias_prep_picking`). Si tampoco hay
+      fecha => False (no se libera por barrido; queda para "Procesar a Eflow" manual).
     """
-    if dispatch_date is None:
+    if cliente_retira:
+        return True
+    ancla = dispatch_date if dispatch_date is not None else delivery_date
+    if ancla is None:
         return False
-    apertura = _solo_fecha(dispatch_date) - timedelta(days=dias_prep_picking)
+    apertura = _solo_fecha(ancla) - timedelta(days=dias_prep_picking)
     return _solo_fecha(hoy) >= apertura
 
 

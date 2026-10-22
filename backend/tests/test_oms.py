@@ -390,6 +390,34 @@ def test_en_ventana_dispatch_null_es_false():
     assert handoff.en_ventana_liberacion(None, date(2026, 10, 9), 1) is False
 
 
+# --- Política dispatch_date NULL (2026-10-22): cliente-retira inmediato + fallback delivery_date ---
+
+def test_en_ventana_cliente_retira_libera_de_inmediato():
+    handoff = load_stack_module("oms", "handoff_pedidos")
+    # Sin dispatch_date ni delivery_date, pero cliente-retira => libera igual.
+    assert handoff.en_ventana_liberacion(None, date(2026, 10, 9), 1, cliente_retira=True) is True
+
+
+def test_en_ventana_cliente_retira_ignora_dispatch_futuro():
+    handoff = load_stack_module("oms", "handoff_pedidos")
+    # dispatch_date lejano NO frena a cliente-retira (ignora la ventana).
+    assert handoff.en_ventana_liberacion(date(2026, 12, 1), date(2026, 10, 9), 1, cliente_retira=True) is True
+
+
+def test_en_ventana_dispatch_null_cae_a_delivery_date_en_ventana():
+    handoff = load_stack_module("oms", "handoff_pedidos")
+    # Sin dispatch_date: ancla = delivery_date. 10-08 − 1 = 10-07 <= hoy 10-07 => True.
+    assert handoff.en_ventana_liberacion(
+        None, date(2026, 10, 7), 1, delivery_date=date(2026, 10, 8)) is True
+
+
+def test_en_ventana_dispatch_null_delivery_lejano_es_false():
+    handoff = load_stack_module("oms", "handoff_pedidos")
+    # Sin dispatch_date y delivery_date lejano => NO libera todavía.
+    assert handoff.en_ventana_liberacion(
+        None, date(2026, 10, 6), 1, delivery_date=date(2026, 10, 8)) is False
+
+
 def test_en_ventana_acepta_datetime_como_dispatch():
     handoff = load_stack_module("oms", "handoff_pedidos")
     dispatch = datetime(2026, 10, 8, 0, 0, tzinfo=timezone.utc)
