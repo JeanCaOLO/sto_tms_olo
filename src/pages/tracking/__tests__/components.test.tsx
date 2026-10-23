@@ -84,6 +84,39 @@ describe('ViajesSidebar', () => {
     fireEvent.click(screen.getByText('Cargar más'));
     expect(props.onLoadMore).toHaveBeenCalled();
   });
+
+  it('con la app abierta cuenta el latido como última señal aunque el GPS vaya lento', () => {
+    const slowGps = viaje({ position: { lat: 9.9, lng: -84, speed_mps: 0, recorded_at: '2026-10-16T14:48:00Z' },
+      presence: { status: 'online', last_seen_at: '2026-10-16T14:59:40Z' } });
+    render(<ViajesSidebar {...sidebarProps({ viajes: [slowGps] })} />);
+    expect(screen.getByText('Última señal hace 20 s')).toBeTruthy();
+  });
+
+  it('tras un logout explícito dice que el chofer cerró sesión, en vez de una antigüedad', () => {
+    const loggedOut = viaje({ signal: 'offline', color: 'gray', presence: { status: 'offline', last_seen_at: '2026-10-16T14:59:55Z' } });
+    render(<ViajesSidebar {...sidebarProps({ viajes: [loggedOut] })} />);
+    expect(screen.getByText('El chofer cerró sesión')).toBeTruthy();
+    expect(screen.queryByText(/Última señal/)).toBeNull();
+  });
+
+  it('lista los choferes en línea sin viaje y omite a los que ya tienen viaje o cerraron sesión', () => {
+    const driver = (over = {}) => ({ driver_id: 'd1', driver_name: 'Beto Rojas', country: 'CR', signal: 'online' as const,
+      last_seen_at: '2026-10-16T14:59:30Z', battery_pct: 71, route_id: null, ...over });
+    const choferes = [driver(), driver({ driver_id: 'd2', driver_name: 'Con Viaje', route_id: 'v1' }),
+      driver({ driver_id: 'd3', driver_name: 'Ya Salió', signal: 'offline' }), driver({ driver_id: 'd4', driver_name: 'Cata Vega', signal: 'stale', battery_pct: null })];
+    render(<ViajesSidebar {...sidebarProps({ choferes })} />);
+    expect(screen.getByLabelText('Choferes en línea sin viaje').textContent).toContain('(2)');
+    expect(screen.getByText('Beto Rojas')).toBeTruthy();
+    expect(screen.getByText('Cata Vega')).toBeTruthy();
+    expect(screen.getByText(/Sin viaje · 30 s · 71%/)).toBeTruthy();
+    expect(screen.queryByText('Con Viaje')).toBeNull();
+    expect(screen.queryByText('Ya Salió')).toBeNull();
+  });
+
+  it('sin choferes en línea sin viaje no muestra la sección', () => {
+    render(<ViajesSidebar {...sidebarProps({ choferes: [] })} />);
+    expect(screen.queryByLabelText('Choferes en línea sin viaje')).toBeNull();
+  });
 });
 
 describe('ViajeDetallePanel (solo lectura)', () => {

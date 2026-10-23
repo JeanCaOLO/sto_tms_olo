@@ -125,11 +125,11 @@ describe('excluir liquidaciones', () => {
 describe('correo de proformas', () => {
   it('devuelve valores por defecto, valida y guarda por país', async () => {
     const initial = await getEmailConfig(COUNTRY);
-    expect(initial).toMatchObject({ id: null, mode: 'manual', includeCarrierEmail: true });
+    expect(initial).toMatchObject({ id: null, includeCarrierEmail: true });
     expect((await saveEmailConfig({ ...initial, recipients: ['malo'] })).error).toMatch(/no válido/);
-    expect((await saveEmailConfig({ ...initial, recipients: ['a@x.com', 'b@y.com'], mode: 'direct' })).error).toBeNull();
+    expect((await saveEmailConfig({ ...initial, recipients: ['a@x.com', 'b@y.com'] })).error).toBeNull();
     const saved = await getEmailConfig(COUNTRY);
-    expect(saved).toMatchObject({ recipients: ['a@x.com', 'b@y.com'], mode: 'direct' });
+    expect(saved).toMatchObject({ recipients: ['a@x.com', 'b@y.com'] });
     await saveEmailConfig({ ...saved, includeCarrierEmail: false });
     expect((await getEmailConfig(COUNTRY)).includeCarrierEmail).toBe(false);
   });
