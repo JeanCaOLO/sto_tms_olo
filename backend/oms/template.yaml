@@ -1,15 +1,15 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: TMS - OMS | Motor de reglas de priorización (esqueleto 1a entrega, /api/v1/oms/*)
+Description: TMS - OMS | Motor de reglas de priorizacion (esqueleto 1a entrega, /api/v1/oms/*)
 
 # NOTA (W1/W2/W3 del external-dependency-map ya cableados, 2026-10-21):
-# Lambda + Layer tms_common + rutas HTTP API, MÁS:
-#   W1 — EventBridge Schedule que invoca el barrido (correr()) 5×/día.
-#   W2 — ruta HTTP de la acción manual "Procesar a Eflow".
-#   W3 — escritura a sim_expedicionescabecera: NO es IAM a nivel de tabla (la
+# Lambda + Layer tms_common + rutas HTTP API, MAS:
+#   W1 - EventBridge Schedule que invoca el barrido (correr()) 5x/dia.
+#   W2 - ruta HTTP de la accion manual "Procesar a Eflow".
+#   W3 - escritura a sim_expedicionescabecera: NO es IAM a nivel de tabla (la
 #        Lambda autentica a Aurora con el secreto del Layer); es un GRANT de
 #        Postgres sobre la tabla al usuario de la app (ver abajo y sql).
-# OMS_SOURCE es un parámetro (mock | live): el sandbox se despliega con live para
+# OMS_SOURCE es un parametro (mock | live): el sandbox se despliega con live para
 # leer public.orders y escribir a sim_expedicionescabecera. eFlow real = read-only.
 # Despliegue: SOLO Intelix.
 
@@ -22,7 +22,7 @@ Parameters:
     Description: Stack de common-services del mismo ambiente (ej. dev-tms-common-services)
   CommonLayerArn:
     Type: AWS::SSM::Parameter::Value<String>
-    Description: Parámetro SSM con el ARN de la versión vigente de la Layer tms_common.
+    Description: Parametro SSM con el ARN de la version vigente de la Layer tms_common.
   OmsSource:
     Type: String
     AllowedValues: [mock, live]
@@ -35,8 +35,8 @@ Parameters:
     Type: String
     Default: cron(0 12,15,18,21,23 * * ? *)
     Description: >
-      Expresión de EventBridge para el barrido (W1). Default = 5×/día (UTC) para
-      qa/prod. En dev se usa algo frecuente (p. ej. rate(15 minutes)) vía samconfig
+      Expresion de EventBridge para el barrido (W1). Default = 5x/dia (UTC) para
+      qa/prod. En dev se usa algo frecuente (p. ej. rate(15 minutes)) via samconfig
       para no esperar horas al probar.
   SubnetIds:
     Type: AWS::SSM::Parameter::Value<List<String>>
@@ -57,7 +57,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub ${AWS::StackName}-oms-api
-      Description: TMS - OMS API | Motor de reglas de priorización (corrida manual + handoff)
+      Description: TMS - OMS API | Motor de reglas de priorizacion (corrida manual + handoff)
       CodeUri: src/
       Handler: app.handler
       Runtime: python3.13
@@ -80,11 +80,11 @@ Resources:
           OMS_SOURCE: !Ref OmsSource
           TMS_DB_SECRET_NAME:
             Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName
-      # W1 — Trigger programado del barrido (ADR-013, BARRIDO_VECES_POR_DIA=5).
-      # EventBridge invoca la función con un "Scheduled Event"; app.handler lo
+      # W1 - Trigger programado del barrido (ADR-013, BARRIDO_VECES_POR_DIA=5).
+      # EventBridge invoca la funcion con un "Scheduled Event"; app.handler lo
       # detecta y corre correr() (priorizar + liberar). Horas en UTC (CR = UTC-6):
-      # 12,15,18,21,23 UTC ≈ 06,09,12,15,17 CR. Frecuencia/hora de corte por
-      # compañía = futuro. Ajustable sin tocar código.
+      # 12,15,18,21,23 UTC ~ 06,09,12,15,17 CR. Frecuencia/hora de corte por
+      # compania = futuro. Ajustable sin tocar codigo.
       Events:
         BarridoProgramado:
           Type: Schedule
@@ -135,9 +135,9 @@ Resources:
         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
       Target: !Sub integrations/${OmsApiIntegration}
 
-  # W2 — Acción manual "Procesar a Eflow" (US9c). Gated por rol en el código
+  # W2 - Accion manual "Procesar a Eflow" (US9c). Gated por rol en el codigo
   # (permissions.require("oms","edit") en procesar_viaje); el authorizer JWT
-  # propaga el scope del usuario. {numero_viaje} es parámetro de ruta.
+  # propaga el scope del usuario. {numero_viaje} es parametro de ruta.
   OmsProcesarViajeRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
@@ -149,13 +149,13 @@ Resources:
         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
       Target: !Sub integrations/${OmsApiIntegration}
 
-  # W3 — Escritura a sim_expedicionescabecera (destino de la costura EscritorSituacion
+  # W3 - Escritura a sim_expedicionescabecera (destino de la costura EscritorSituacion
   # mientras no exista el endpoint EPRAC; eFlow real = read-only). NO es un permiso IAM
   # a nivel de tabla: la Lambda autentica a Aurora con el secreto del Layer
   # (TMS_DB_SECRET_NAME) y tiene red por VpcConfig. El permiso de ESCRITURA es un GRANT
-  # de Postgres, y YA ESTÁ: el rol de la app (tms_app, sql/18) tiene INSERT/UPDATE sobre
+  # de Postgres, y YA ESTA: el rol de la app (tms_app, sql/18) tiene INSERT/UPDATE sobre
   # sim_expedicionescabecera y oms_logs (grant general en public + trigger de auto-grant
-  # en tablas nuevas). Verificado en el sandbox 2026-10-21. No requiere acción extra.
+  # en tablas nuevas). Verificado en el sandbox 2026-10-21. No requiere accion extra.
 
 Outputs:
   OmsApiFunctionArn:
