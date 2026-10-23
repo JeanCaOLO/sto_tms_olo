@@ -31,6 +31,8 @@ function route(method: string, path: string, query: URLSearchParams): Result {
   if (method === 'GET' && parts.length === 2 && parts[0] === 'viajes') return ok(simDetail(parts[1]));
   if (method === 'GET' && parts.length === 3 && parts[0] === 'viajes' && parts[2] === 'recorrido') return ok(simRecorrido(parts[1]));
   if (method === 'GET' && parts.length === 1 && parts[0] === 'planificados') return ok(simPlanned(pais));
+  // Presencia de choferes: la simulación solo mueve camiones de viajes, así que no hay choferes en línea sin viaje.
+  if (method === 'GET' && parts.length === 1 && parts[0] === 'choferes') return ok([]);
   if (method === 'POST' && parts.length === 3 && parts[0] === 'viajes' && parts[2] === 'iniciar') {
     const result = simStart(parts[1]);
     return ok(result, result.created ? 201 : 200);

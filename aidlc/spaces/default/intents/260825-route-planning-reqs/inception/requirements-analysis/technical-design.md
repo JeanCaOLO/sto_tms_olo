@@ -2,7 +2,9 @@
 
 ## Stack
 
-React 19 + TypeScript + Vite 7 + Tailwind CSS 3 + Supabase (Postgres/Auth/RLS) + OSRM auto-hospedado + Leaflet/OSM.
+**Frontend / prototipo:** React 19 + TypeScript + Vite 7 + Tailwind CSS 3 + Supabase (Postgres/Auth/RLS) + OSRM auto-hospedado + Leaflet/OSM.
+
+**Backend real (producción, estándar Intelix):** el planificador que corre contra datos reales vive en `backend/planning/` (Python + AWS Lambda/SAM), lee pedidos de **Aurora PostgreSQL** (`orders`, ingestados desde el WMS/eFlow) y persiste el plan en `route_plans`→`plan_trips`→`plan_stops`, estampando el pedido para el OMS (ver "Handoff a OMS"). El camino Supabase descrito abajo es del prototipo React; la lógica de negocio vigente (tope 16, dispatch_date, handoff, limpieza) está en ese backend. El algoritmo (FFD + nearest-neighbor) es el mismo en ambos.
 
 ## Arquitectura en Capas
 
@@ -33,7 +35,7 @@ React 19 + TypeScript + Vite 7 + Tailwind CSS 3 + Supabase (Postgres/Auth/RLS) +
 |----------|-----|---------|
 | Viaje como agrupador | Los pedidos llegan pre-agrupados del WMS Iflow; el TMS NO reasigna ruta↔pedido | Decisión de negocio (Jean Carlo). El TMS solo optimiza secuencia dentro de cada grupo. |
 | Matriz OSRM N×N | Una sola llamada HTTP a `/table/v1/driving` precalcula todas las distancias | Evita N² llamadas individuales. Timeout 5s + fallback haversine×1.35. |
-| Bin-packing greedy (FFD) | First-Fit-Decreasing sobre peso+volumen con márgenes 85%/95% | Legislación CR (peso) + best practices (volumen). Greedy suficiente para ≤50 pedidos. |
+| Bin-packing greedy (FFD) | First-Fit-Decreasing sobre peso+volumen con márgenes 85%/95% **y tope de 16 pedidos/viaje** | Legislación CR (peso) + best practices (volumen) + tope operativo (reunión 2026-10-13 Ana/Eduardo: ~16 pedidos y ~80% capacidad → nuevo viaje). Greedy suficiente a esta escala. |
 | Nearest-neighbor TSP | O(n²) sobre la matriz precalculada | Suficiente para escala actual. Techo: ~25% más largo que óptimo. Upgrade path → VRPTW. |
 | Fleet-split largest-first | Llena vehículos de mayor a menor capacidad, reutiliza bin-packing por slot | Simplificación deliberada; no optimiza asignación global entre vehículos. |
 | Graceful degradation | Cada integración externa tiene fallback automático sin intervención del usuario | OSRM→haversine, Supabase 0 filas→mock sintéticos, geometría→línea recta. |
@@ -77,11 +79,41 @@ Viaje + N slots configurados
   [use-generar-flota] ── genera N rutas en batch
 ```
 
+## Handoff a OMS, fechas de despacho y re-planificación (backend real)
+
+Al persistir un plan, el planificador de backend estampa cada pedido que quedó en él
+(tabla `orders` de Aurora) con las columnas que el OMS consume — es la superficie de
+comunicación entre Planificación y OMS, un contrato de columnas, no acoplamiento de código:
+
+```
+Planificación ESCRIBE en orders:   numero_viaje, lead_time_days, dispatch_date,
+                                    planning_run_id, delivery_zone
+OMS ESCRIBE (Planificación NO toca): priority, oms_score, wms_status/situation,
+                                    oms_processed_at, prioritization_run_id
+Cola del OMS:                       planning_run_id IS NOT NULL AND oms_processed_at IS NULL
+```
+
+- `dispatch_date = delivery_date − lead_time_days` (misma para todo el viaje, en SQL con
+  `make_interval`; NULL si no hay lead). Es el insumo de la regla T-1 del OMS, no una fecha
+  de alisto que Planificación fije.
+- `lead_time_days = 1 + floor(km_max / 70)` por haversine de la parada más lejana al
+  depósito CR (9.9281, −84.0907).
+- `planning_run_id`: uuid por corrida (cliente-día), cambia en cada re-planificación.
+- **Re-planificación**: los pedidos que se caen del plan del día quedan con
+  `planning_run_id`/`numero_viaje`/`dispatch_date` en NULL, para que la cola del OMS los
+  excluya sola; los que siguen se re-estampan.
+- `numero_viaje` también se escribe de vuelta al WMS/eFlow de forma **simulada** (tabla
+  espejo en Aurora); el eFlow real es de solo lectura.
+
+Fuente: `backend/planning/src/plan_builder.py`; contrato en `sql/37`+`sql/42` (TMS-Frontend)
+y `sql/008`+`sql/009` (planificador hexagonal de TMS-Backend).
+
 ## Entidades del Dominio
 
 ```
 Viaje (1) ──────► (N) Pedido
-                        │
+                        │   └── handoff al OMS: numero_viaje, lead_time_days,
+                        │       dispatch_date, planning_run_id, delivery_zone
                         ▼
               Ruta Generada (1) ──► (N) Parada (secuencia)
                    │
@@ -102,7 +134,7 @@ Viaje (1) ──────► (N) Pedido
 
 ## Escala Operativa
 
-- 12–36 rutas/día, ≤50 paradas por viaje
+- 12–36 rutas/día; **tope de 16 pedidos por viaje** (reunión 2026-10-13), antes se suponía ≤50
 - Cobertura activa: GAM Costa Rica (almacenes Cliro)
 - Pendiente: Venezuela (San Diego/Micheleana) — requiere despliegue OSRM regional
 

@@ -29,7 +29,11 @@ SELECT TOP (%(limite)s)
   e.IDCOMPANIA, e.IDALMACEN, e.IDSUCURSAL, e.IDEXPEDICION, e.IDCLIENTE,
   e.RUTA, e.PRIORIDAD, e.TPEXES, e.TPEXSI,
   CONVERT(varchar(10), e.FECHAEXPEDICIONPLANIFICADA, 23) AS FECHA,
-  e.PESOPEDIDO_TOTAL, e.CUBICAJEPEDIDO_TOTAL, e.OBSERVACIONESEXPEDICION AS OBSERVACIONES,
+  e.PESOPEDIDO_TOTAL, e.CUBICAJEPEDIDO_TOTAL, e.COSTO_TOTAL,
+  e.OBSERVACIONESEXPEDICION AS OBSERVACIONES,
+  (SELECT COUNT(*) FROM {sap}.dbo.EXPEDICIONESDETALLE d
+   WHERE d.IDEXPEDICION = e.IDEXPEDICION AND d.IDCOMPANIA = e.IDCOMPANIA
+     AND d.IDALMACEN = e.IDALMACEN AND d.IDSUCURSAL = e.IDSUCURSAL) AS CANT_LINEAS,
   cl.DIRECCIONLARGA, cl.LATITUD, cl.LONGITUD
 FROM {sap}.dbo.EXPEDICIONESCABECERA e
 LEFT JOIN {sap}.dbo.CLIENTES cl
@@ -67,15 +71,16 @@ _UPSERT = """
 INSERT INTO orders (
   organization_id, customer_id, final_customer_id, branch_id, warehouse_id,
   order_number, order_date, delivery_date, planned_dispatch_at,
-  total_weight, total_volume, delivery_address, delivery_latitude, delivery_longitude,
+  total_weight, total_volume, total_items, total_amount, delivery_address, delivery_latitude, delivery_longitude,
   delivery_zone, priority, status, wms_status, wms_situation,
   observaciones, es_cliente_retira,
   eflow_id_compania, eflow_id_almacen, eflow_id_sucursal, eflow_id_expedicion, eflow_id_cliente)
-VALUES (%s,%s,%s,%s,%s, %s,%s,%s,%s, %s,%s,%s,%s,%s, %s,%s,'pending',%s,%s, %s,%s, %s,%s,%s,%s,%s)
+VALUES (%s,%s,%s,%s,%s, %s,%s,%s,%s, %s,%s,%s,%s,%s,%s,%s, %s,%s,'pending',%s,%s, %s,%s, %s,%s,%s,%s,%s)
 ON CONFLICT (eflow_id_almacen, eflow_id_compania, eflow_id_sucursal, eflow_id_expedicion)
 DO UPDATE SET
   delivery_date = EXCLUDED.delivery_date, planned_dispatch_at = EXCLUDED.planned_dispatch_at,
   total_weight = EXCLUDED.total_weight, total_volume = EXCLUDED.total_volume,
+  total_items = EXCLUDED.total_items, total_amount = EXCLUDED.total_amount,
   delivery_address = EXCLUDED.delivery_address,
   delivery_latitude = EXCLUDED.delivery_latitude, delivery_longitude = EXCLUDED.delivery_longitude,
   delivery_zone = EXCLUDED.delivery_zone, priority = EXCLUDED.priority,
@@ -118,7 +123,7 @@ def ingest_cr(limite: int = 500, dry_run: bool = False) -> dict:
             pg.query(_UPSERT, [
                 ORG_CR, customer_id, final_id, branch_id, WAREHOUSE_CR,
                 r["IDEXPEDICION"], r["FECHA"], r["FECHA"], r["FECHA"],
-                r["PESOPEDIDO_TOTAL"], r["CUBICAJEPEDIDO_TOTAL"], r["DIRECCIONLARGA"],
+                r["PESOPEDIDO_TOTAL"], r["CUBICAJEPEDIDO_TOTAL"], r["CANT_LINEAS"], r["COSTO_TOTAL"], r["DIRECCIONLARGA"],
                 _coord(r["LATITUD"]), _coord(r["LONGITUD"]),
                 r["RUTA"], _prioridad(r["PRIORIDAD"]), r["TPEXES"], r["TPEXSI"],
                 r["OBSERVACIONES"], cliente_retira.es_cliente_retira(r["OBSERVACIONES"]),

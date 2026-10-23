@@ -16,9 +16,9 @@ from tms_common import pg
 # límite legal, el volumen solo geometría de carga.
 MARGEN_PESO = 0.85
 MARGEN_VOLUMEN = 0.95
-# Tope operativo de paradas por viaje (una jornada no hace infinitas entregas);
-# knob de calibración, sobre todo para zonas de pedidos sin peso (EPA).
-MAX_PARADAS = 25
+# Tope de pedidos por viaje: ~16/camión (reunión 2026-10-13 Ana/Eduardo: "~16
+# pedidos y ~80% capacidad; al superar → nuevo viaje"). Antes 25 → salían de 24.
+MAX_PARADAS = 16
 # Depósito de origen CR + alcance de una jornada (línea recta): knob del T-n.
 DEPOT_CR = (9.9281, -84.0907)
 KM_POR_DIA = 70
@@ -107,6 +107,7 @@ def _borrar_plan_del_dia(run, org: str, warehouse: str, customer: str, fecha: st
              SELECT t.id FROM plan_trips t JOIN route_plans pl ON pl.id = t.plan_id WHERE pl.{sel})""", p)
     run(f"DELETE FROM plan_trips WHERE plan_id IN (SELECT id FROM route_plans WHERE {sel})", p)
     run(f"DELETE FROM route_plans WHERE {sel}", p)
+    run("UPDATE orders SET planning_run_id=NULL, numero_viaje=NULL, dispatch_date=NULL, lead_time_days=NULL, updated_at=now() WHERE organization_id=%s AND warehouse_id=%s AND customer_id=%s AND (delivery_date=%s::date OR numero_viaje LIKE %s) AND planning_run_id IS NOT NULL", p + [f"{fecha.replace('-', '')}-%"])  # OMS: pedidos caidos del plan vuelven a NULL -- por delivery_date O por nº de viaje del dia (asi alcanza a los que cambiaron de fecha); si siguen, _persistir_viaje los re-estampa
 
 
 def _agrupar_por_zona(pedidos: list[dict]) -> dict:
@@ -116,10 +117,10 @@ def _agrupar_por_zona(pedidos: list[dict]) -> dict:
     return zonas
 
 
-_UPD_ORDER = "UPDATE orders SET numero_viaje=%s, lead_time_days=%s, planning_run_id=%s, updated_at=now() WHERE id=%s"
-# Write-back del nº de viaje a la tabla espejo de eFlow (mismos nombres que el
-# origen). UPDATE (no insert): solo escribe sobre la fila ya espejada desde eFlow,
-# para no crear filas parciales. NUMEROVIAJEWMH es bigint (nº de viaje sin guion).
+# dispatch_date = salida = delivery_date (ya en la fila) - lead_time_days; sin lead (NULL) queda NULL y el OMS usa su default.
+_UPD_ORDER = "UPDATE orders SET numero_viaje=%s, lead_time_days=%s, dispatch_date=(delivery_date - make_interval(days => %s))::date, planning_run_id=%s, updated_at=now() WHERE id=%s"
+# Write-back del nº de viaje a la tabla espejo de eFlow. UPDATE (no insert): solo sobre
+# la fila ya espejada (no crea parciales). NUMEROVIAJEWMH es bigint (nº de viaje sin guion).
 _UPD_SIM = """
 UPDATE sim_expedicionescabecera SET "NUMEROVIAJEWMH"=%s, planning_run_id=%s, escrito_en=now()
 WHERE "IDALMACEN"=%s AND "IDCOMPANIA"=%s AND "IDSUCURSAL"=%s AND "IDEXPEDICION"=%s"""
@@ -146,7 +147,7 @@ def _persistir_viaje(run, plan_id: str, zona: str, seq: int, viaje: dict, run_id
     for i, o in enumerate(_ordenar_por_ruta(viaje["pedidos"]), start=1):
         run(_INS_STOP, [trip_id, o["id"], i, o["order_number"], o["customer_name"], o["delivery_city"],
                         o["delivery_zone"], o["lat"], o["lng"], o["weight"], o["volume"], o["es_cliente_retira"]])
-        run(_UPD_ORDER, [numero, lead, run_id, o["id"]])  # denormaliza al pedido para el OMS
+        run(_UPD_ORDER, [numero, lead, lead, run_id, o["id"]])  # denormaliza al pedido para el OMS (lead dos veces: col + intervalo)
         if o["eflow_id_expedicion"]:  # write-back simulado del nº de viaje a eFlow
             run(_UPD_SIM, [wmh, run_id, o["eflow_id_almacen"], o["eflow_id_compania"],
                            o["eflow_id_sucursal"], o["eflow_id_expedicion"]])
