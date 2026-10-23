@@ -1,6 +1,6 @@
 // Enviar la proforma al transportista. Nada se envía solo: el usuario revisa y edita destinatarios,
-// asunto y mensaje antes. "Abrir en Gmail" (auxiliar, siempre disponible): arma el correo y lo envía la persona.
-// "Enviar ahora" (modo directo): sale por Gmail desde la cuenta de Google conectada, con un solo botón.
+// asunto y mensaje antes. "Enviar" sale por Gmail desde la cuenta de Google conectada; mientras no haya cuenta
+// conectada, "Abrir en Gmail" arma el correo y lo envía la persona.
 
 import { useState } from 'react';
 import Modal from '../../../components/base/Modal';
@@ -21,7 +21,6 @@ export default function EnviarProformaModal({ detail, onClose, onSent }: Props) 
   const m = useEnviarProforma(detail, onSent);
   const [google, setGoogle] = useState<GoogleStatus | null>(null);
   const noEmail = m.config?.includeCarrierEmail && !m.carrierEmail;
-  const direct = m.config?.mode === 'direct';
   const ready = !m.busy && m.recipients.length > 0 && !!m.subject.trim();
 
   return (
@@ -53,52 +52,31 @@ export default function EnviarProformaModal({ detail, onClose, onSent }: Props) 
           <textarea className={FIELD} rows={7} value={m.body} onChange={(e) => m.setBody(e.target.value)} />
         </label>
 
-        {m.config?.mode === 'direct' && m.step === 'edit' && <GoogleConnection onStatus={setGoogle} />}
+        {m.step === 'edit' && <GoogleConnection onStatus={setGoogle} />}
 
         {m.step === 'opened' ? (
           <div className="space-y-3 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-900">
-            {m.via === 'eml' ? (
-              <p>
-                Se descargó <strong>Proforma-{detail.proforma.number}.eml</strong>. Ábrelo (doble clic): se abre en tu programa de
-                correo (Outlook, Mail) con destinatarios, asunto, mensaje y el <strong>PDF ya adjunto</strong>. Revisa y envía.
-              </p>
-            ) : (
-              <p>Se abrió Gmail y se descargó <strong>{m.fileName}</strong>. Gmail no permite adjuntar por enlace: adjunta el PDF, revisa y envía.</p>
-            )}
+            <p>Se abrió Gmail y se descargó <strong>{m.fileName}</strong>. Gmail no permite adjuntar por enlace: adjunta el PDF, revisa y envía.</p>
             <div className="flex justify-end gap-2">
               <Button variant="secondary" onClick={onClose}>Aún no lo envié</Button>
               <Button variant="success" disabled={m.busy} onClick={() => void m.confirmSent()}>Ya lo envié</Button>
             </div>
           </div>
         ) : (
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
-            <Button variant="secondary" disabled={m.busy} icon={<i className="ri-download-line" />} onClick={() => void m.downloadPdf()}>
-              Descargar PDF
+          <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-3">
+            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+            <Button
+              variant="secondary" disabled={!ready} icon={<i className="ri-mail-line" />}
+              title="Abre Gmail con el correo armado y descarga el PDF para que lo adjuntes"
+              onClick={() => void m.openInGmail()}
+            >
+              Abrir en Gmail
             </Button>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-              <Button
-                variant="secondary" disabled={!ready} icon={<i className="ri-attachment-2" />}
-                title="Descarga un borrador (.eml) con el PDF ya adjunto; se abre en Outlook/Mail"
-                onClick={() => void m.downloadEml()}
-              >
-                Borrador con PDF adjunto
-              </Button>
-              <Button
-                variant={direct ? 'secondary' : 'primary'} disabled={!ready} icon={<i className="ri-mail-send-line" />}
-                title="Abre Gmail con el correo armado; el PDF se descarga aparte y lo adjuntas tú (Gmail no admite adjuntos por enlace)"
-                onClick={() => void m.openInGmail()}
-              >
-                {m.busy ? 'Preparando…' : 'Abrir en Gmail'}
-              </Button>
-              {m.config?.mode === 'direct' && (
-                <Button disabled={!ready || !google?.connected} icon={<i className="ri-send-plane-fill" />}
-                  title={google?.connected ? undefined : 'Conecta tu cuenta de Google para enviar directo'}
-                  onClick={() => void m.sendDirect()}>
-                  {m.busy ? 'Enviando…' : 'Enviar ahora'}
-                </Button>
-              )}
-            </div>
+            <Button disabled={!ready || !google?.connected} icon={<i className="ri-send-plane-fill" />}
+              title={google?.connected ? undefined : 'Conecta tu cuenta de Google para enviar directo'}
+              onClick={() => void m.sendDirect()}>
+              {m.busy ? 'Enviando…' : 'Enviar'}
+            </Button>
           </div>
         )}
       </div>
