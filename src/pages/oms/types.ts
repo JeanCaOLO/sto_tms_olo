@@ -74,7 +74,8 @@ export interface QueueOrder {
   volume: number;          // Volumen (m³)
   itemCount: number;       // número de artículos del pedido
   observations: string;    // Observaciones (texto libre del vendedor)
-  dispatchDate: string;    // Fecha de Entrega (ISO date)
+  dispatchDate: string;    // Fecha de Entrega (ISO date) — delivery_date
+  salidaDate?: string;     // Fecha de SALIDA del viaje (ISO date) — dispatch_date; la que decide la liberación (salida − 1). Opcional: el mock no la trae.
   createdDate: string;     // Fecha de creación (ISO date)
   status: string;          // estado del pedido
   situation: string;       // situación del pedido (p. ej. DISP = disponible)

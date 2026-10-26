@@ -55,6 +55,7 @@ export default function OmsColaPage() {
       render: (o) => <span className="max-w-[220px] truncate block" title={o.observations}>{o.observations}</span>,
     },
     { key: 'dispatchDate', header: t('omsQueue.colDispatchDate'), accessor: (o) => o.dispatchDate, sortable: true, render: (o) => soloFecha(o.dispatchDate) },
+    { key: 'salidaDate', header: t('omsQueue.colSalidaDate'), accessor: (o) => o.salidaDate ?? '', sortable: true, render: (o) => soloFecha(o.salidaDate ?? '') || '—' },
     { key: 'createdDate', header: t('omsQueue.colCreatedDate'), accessor: (o) => o.createdDate, sortable: true, render: (o) => soloFecha(o.createdDate) },
     { key: 'status', header: t('omsQueue.colStatus'), accessor: (o) => o.status, filterable: true },
     { key: 'situation', header: t('omsQueue.colSituation'), accessor: (o) => o.situation, filterable: true },

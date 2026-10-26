@@ -194,6 +194,10 @@ class ConfiguracionReglas:
     - priorizar: si la compañía se prioriza en el OMS. False = el pedido YA viene
       priorizado (p. ej. EPA trae su propia prioridad de EFLOW): el barrido NO
       recalcula ni sobrescribe `orders.priority`, solo hace la liberación por fecha.
+    - escala_prioridad: tope de la escala de prioridad numérica de la compañía
+      (menor = más urgente). Cofersa = 5 → prioridades 1..5. El submódulo `score`
+      mapea el score ponderado a [1, escala_prioridad]. Default 100 (escala amplia,
+      retrocompatible con el esqueleto). Parámetro editable por compañía (scope).
 
     NOTA (contrato v4): la duración logística del T-1 ya NO es un parámetro estático
     de config — ahora se lee de `orders.lead_time_days` por pedido (dinámico, lo
@@ -207,3 +211,4 @@ class ConfiguracionReglas:
     prioridad_cliente_retira: int = 1
     dias_prep_picking: int = 1
     priorizar: bool = True
+    escala_prioridad: int = 100

@@ -28,6 +28,7 @@ export default {
   'omsQueue.colItemCount': 'No. of items',
   'omsQueue.colObservations': 'Notes',
   'omsQueue.colDispatchDate': 'Delivery Date',
+  'omsQueue.colSalidaDate': 'Dispatch Date',
   'omsQueue.colCreatedDate': 'Created Date',
   'omsQueue.colScore': 'Score',
   'omsQueue.colStatus': 'Status',

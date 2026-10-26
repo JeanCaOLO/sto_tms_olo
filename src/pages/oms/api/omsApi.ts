@@ -199,6 +199,7 @@ function mapOrderToQueueOrder(row: any, country: Country, hoyIso: string): Queue
     itemCount: row.total_items ?? 0,
     observations: row.observaciones ?? '',
     dispatchDate: row.delivery_date ?? '',
+    salidaDate: row.dispatch_date ?? '',
     createdDate: row.wms_created_at ?? row.created_at ?? '',
     status: row.wms_status ?? row.status ?? '',
     situation: row.wms_situation ?? '',

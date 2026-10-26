@@ -30,7 +30,7 @@ from models import ConfiguracionReglas, PedidoCandidato
 from motor_reglas import ResolverConfig
 
 SELECT_ACTIVAS = """
-SELECT scope_type, customer_id, warehouse_id, country_id, priorizar, reglas, dias_prep_picking
+SELECT scope_type, customer_id, warehouse_id, country_id, priorizar, reglas, dias_prep_picking, escala_prioridad
 FROM oms_rule_configs
 WHERE activo = true
 """
@@ -60,6 +60,7 @@ def config_desde_fila(fila: dict) -> ConfiguracionReglas:
         prioridad_cliente_retira=int(cliente_retira.get("prioridad", 1)),
         dias_prep_picking=int(fila.get("dias_prep_picking", 1)),
         priorizar=bool(fila.get("priorizar", True)),
+        escala_prioridad=int(fila.get("escala_prioridad", 100)),
     )
 
 

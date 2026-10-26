@@ -50,18 +50,28 @@ def score_ponderado(resultados: Iterable[ResultadoRegla], config: ConfiguracionR
 def score_a_prioridad(score: float, *, cliente_retira: bool, config: ConfiguracionReglas) -> int:
     """Convierte un score ponderado en prioridad numérica invertida (menor = más urgente).
 
+    La escala es POR COMPAÑÍA (`config.escala_prioridad`): Cofersa = 5 → prioridades
+    en 1..5; otra compañía puede tener otra escala. El score (0..PRIORIDAD_BASE, con
+    PRIORIDAD_BASE como urgencia máxima de referencia) se mapea linealmente e invertido
+    a [1, escala]: score alto (urgente) → 1; score 0 → `escala`.
+
     Entradas:
       - score: puntaje ponderado (>= 0). Mayor score → menor número de prioridad.
       - cliente_retira: si True, cortocircuita a la prioridad máxima configurada
-        (caso cliente-retira: prioridad más alta, US12/US13).
-      - config: ConfiguracionReglas (usa prioridad_cliente_retira).
+        (caso cliente-retira: prioridad más alta, US12/US13), acotada a la escala.
+      - config: ConfiguracionReglas (usa prioridad_cliente_retira y escala_prioridad).
     Salida:
-      - int en [PRIORIDAD_MINIMA, PRIORIDAD_BASE]. Nunca < 1.
+      - int en [PRIORIDAD_MINIMA, escala]. Nunca < 1.
     Errores: ninguno; se acota (clamp) para no salir del rango válido.
+
+    Nota: con `escala_prioridad == PRIORIDAD_BASE` (default del esqueleto) se reduce
+    al clásico ~(PRIORIDAD_BASE − score), por lo que el contrato previo se preserva.
     """
+    escala = max(PRIORIDAD_MINIMA, config.escala_prioridad)
     if cliente_retira:
-        return max(PRIORIDAD_MINIMA, config.prioridad_cliente_retira)
-    # Score 0 → PRIORIDAD_BASE; score alto → acercándose a 1. Redondeo hacia abajo
-    # para que más score siempre dé prioridad <= (más urgente).
-    prioridad = PRIORIDAD_BASE - int(score)
-    return max(PRIORIDAD_MINIMA, min(PRIORIDAD_BASE, prioridad))
+        return max(PRIORIDAD_MINIMA, min(escala, config.prioridad_cliente_retira))
+    # Mapa lineal invertido [0, PRIORIDAD_BASE] → [escala, 1]. int() trunca hacia
+    # abajo para que más score nunca dé un número de prioridad mayor (menos urgente).
+    paso = (escala - 1) / PRIORIDAD_BASE
+    prioridad = escala - int(score * paso)
+    return max(PRIORIDAD_MINIMA, min(escala, prioridad))

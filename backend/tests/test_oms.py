@@ -63,6 +63,22 @@ def test_score_a_prioridad_cliente_retira_cortocircuita_a_maxima():
     assert score.score_a_prioridad(0.0, cliente_retira=True, config=config) == 1
 
 
+def test_score_a_prioridad_respeta_escala_por_compania():
+    # Escala de Cofersa = 5: la prioridad nunca sale de 1..5 y sigue invertida
+    # (más score → menor número). Score máximo → 1; score 0 → tope de la escala (5).
+    score = load_stack_module("oms", "score")
+    models = load_stack_module("oms", "models")
+    config = models.ConfiguracionReglas(pesos={}, escala_prioridad=5)
+    p_urgente = score.score_a_prioridad(score.PRIORIDAD_BASE, cliente_retira=False, config=config)
+    p_sin_urgencia = score.score_a_prioridad(0.0, cliente_retira=False, config=config)
+    assert p_urgente == 1
+    assert p_sin_urgencia == 5
+    # Cualquier score intermedio cae dentro de la escala y es monótono.
+    valores = [score.score_a_prioridad(s, cliente_retira=False, config=config) for s in (0, 25, 50, 75, 100)]
+    assert all(1 <= v <= 5 for v in valores)
+    assert valores == sorted(valores, reverse=True)
+
+
 # --- ReglaFecha (T-1, fallback por centinela) ---------------------------------
 
 def _pedido(models, *, fecha, obs=None, exp="1", lead_time_days=None,
