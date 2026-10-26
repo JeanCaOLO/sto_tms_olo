@@ -51,7 +51,7 @@ CONFIG_MODULE = "tarifas.config"
 LIQUIDATION_TABLES = frozenset({"tarifas_settlements", "tarifas_audit_log", "tarifas_trip_order_marks"})
 PROFORMA_MODULE = "tarifas.proformas"
 # Quien gestiona proformas escribe estas tablas; la plantilla del flujo y el correo son configuración.
-PROFORMA_TABLES = frozenset({"tarifas_proformas", "tarifas_proforma_items", "tarifas_proforma_phases"})
+PROFORMA_TABLES = frozenset({"tarifas_proformas", "tarifas_proforma_items", "tarifas_proforma_phases", "tarifas_proforma_claims"})
 MAX_BATCH = 25  # lecturas por llamada de /batch: el catálogo de un cálculo usa ~11
 TX_RETRIES = 2  # reintentos ante deadlock (40P01) o fallo de serialización (40001)
 TX_OPERATIONS = {"insert": "create", "insert_many": "create", "update": "edit", "delete": "delete"}

@@ -14,7 +14,9 @@ export const tripColumns: DataTableColumn<TripRecord>[] = [
     render: (t) => (
       <span className="inline-flex items-center gap-1.5">
         <span className="font-mono text-xs text-teal-700">{t.routeNumber}</span>
-        {t.hadAnnulledSettlement && (
+        {t.claimVoidReason ? (
+          <span title={`Reclamo: ${t.claimVoidReason}`}><Badge variant="danger" size="sm">Anulada por reclamo</Badge></span>
+        ) : t.hadAnnulledSettlement && (
           <span title="Este viaje ya tuvo una liquidación y se anuló"><Badge variant="warning" size="sm">Anulada antes</Badge></span>
         )}
       </span>

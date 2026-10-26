@@ -65,6 +65,7 @@ export type EntityName =
   | 'proforma'
   | 'proformaItem'
   | 'proformaPhase'
+  | 'proformaClaim'
   | 'proformaFlowPhase'
   | 'proformaEmailConfig'
   | 'auditLog';
@@ -663,6 +664,14 @@ export const ENTITIES = {
       excluded_seqs: { type: 'jsonb' },
       /** Base de cálculo cambiada por el liquidador (tipo de cobro, fuente, quién y cuándo). Nulo = base por defecto. */
       base_change: { type: 'jsonb', nullable: true },
+      /** 'reclamo' = se anuló porque una fase de la proforma la rechazó y el liquidador reinició la liquidación. */
+      void_kind: { type: 'text', nullable: true },
+      /** Motivo escrito del reclamo: es la indicación para re-liquidar el viaje. */
+      void_reason: { type: 'text', nullable: true },
+      /** Reclamo (`tarifas_proforma_claims`) que anuló esta liquidación. */
+      claim_id: { type: 'text', nullable: true },
+      /** Reclamo del que viene esta liquidación (la que re-liquida el viaje devuelto). Marca "viene de un reclamo". */
+      from_claim_id: { type: 'text', nullable: true },
       /** Devoluciones informadas. No afectan el pago; se registran para la auditoría. */
       returns: { type: 'jsonb' },
       /** Liquidación que reemplazó a esta al re-liquidar. Nulo = no fue reemplazada. */
@@ -869,6 +878,34 @@ export const ENTITIES = {
       decided_at: { type: 'timestamptz', nullable: true },
       comment: { type: 'text', nullable: true },
       removed_by: { type: 'text', nullable: true },
+    },
+  },
+
+  // Reclamo: una fase rechazó la proforma. El liquidador decide: reiniciar la liquidación o apelar.
+  // El motivo vive aquí (al reenviar, la fase borra su comentario).
+  proformaClaim: {
+    table: 'tarifas_proforma_claims',
+    collection: 'proformaClaims',
+    idPrefix: 'prc',
+    label: 'Reclamo de proforma',
+    columns: {
+      id: idColumn(),
+      country_id: countryRef({ indexed: true }),
+      proforma_id: { type: 'text', references: 'proforma', onDelete: 'cascade', indexed: true },
+      phase_id: { type: 'text' },
+      phase_name: { type: 'text' },
+      raised_by: { type: 'text' },
+      raised_role: { type: 'text', nullable: true },
+      /** Motivo del rechazo (es el reclamo). */
+      reason: { type: 'text' },
+      /** 'abierto' | 'apelado' | 'aceptado' | 'rechazado' | 'reiniciado'. */
+      status: { type: 'text', indexed: true },
+      appeal_reason: { type: 'text', nullable: true },
+      appealed_by: { type: 'text', nullable: true },
+      appealed_at: { type: 'timestamptz', nullable: true },
+      resolved_by: { type: 'text', nullable: true },
+      resolved_at: { type: 'timestamptz', nullable: true },
+      created_at: { type: 'timestamptz', indexed: true },
     },
   },
 
