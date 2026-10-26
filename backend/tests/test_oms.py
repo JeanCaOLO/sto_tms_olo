@@ -439,29 +439,33 @@ def test_motor_prioriza_cliente_retira_por_encima():
 
 
 def test_corrida_dos_pasadas_prioriza_todo_libera_solo_ventana():
-    """(e) Barrido ADR-013 en mock: prioriza los 4 y libera solo el que cruza la ventana.
+    """(e) Barrido ADR-013 en mock: prioriza los 4 y libera los que califican.
 
-    Con hoy=2026-10-01 y dias_prep_picking=1, solo el pedido 1001 (dispatch 10-02)
-    cae en la ventana; 1002 (10-10) y 1004 (10-08) quedan fuera y 1003 trae
-    dispatch_date NULL. Todos quedan priorizados, uno liberado.
+    Con hoy=2026-10-01 y dias_prep_picking=1 liberan DOS: 1001 (dispatch 10-02, cruza
+    la ventana) y 1004 (cliente-retira → libera de inmediato). 1002 (10-10) y 1003
+    (dispatch NULL → delivery 10-15) quedan fuera. Todos quedan priorizados.
     """
     app = load_stack_module("oms", "app")
     resumen = app.correr(hoy=date(2026, 10, 1))
     assert resumen["modo"] == "mock"
     assert resumen["total"] == 4
     assert resumen["priorizados"] == 4
-    assert resumen["liberados"] == 1   # solo el pedido 1001 cruza la ventana
+    assert resumen["liberados"] == 2   # 1001 (ventana) + 1004 (cliente-retira)
     assert resumen["pendientes"] == 0
-    assert len(resumen["prioridades"]) == 1  # detalle = solo lo liberado
+    assert len(resumen["prioridades"]) == 2  # detalle = solo lo liberado
 
 
 def test_corrida_libera_mas_viajes_cuando_avanza_el_dia():
     """Avanzando `hoy`, más viajes cruzan la ventana (por viaje "gratis")."""
     app = load_stack_module("oms", "app")
-    # hoy=2026-10-07: abren 1001 (10-02) y 1004 (10-08, apertura 10-07). 1002 (10-10) no.
-    resumen = app.correr(hoy=date(2026, 10, 7))
-    assert resumen["priorizados"] == 4
-    assert resumen["liberados"] == 2
+    # 10-01: 1001 (ventana) + 1004 (cliente-retira) = 2.
+    temprano = app.correr(hoy=date(2026, 10, 1))
+    # 10-09: además abre 1002 (dispatch 10-10, apertura 10-09) = 3.
+    tarde = app.correr(hoy=date(2026, 10, 9))
+    assert temprano["priorizados"] == tarde["priorizados"] == 4
+    assert temprano["liberados"] == 2
+    assert tarde["liberados"] == 3
+    assert tarde["liberados"] > temprano["liberados"]
 
 
 def test_procesar_viaje_manual_ignora_la_ventana(monkeypatch):
@@ -521,7 +525,7 @@ def test_reprioriza_idempotente_sin_duplicar_el_no_liberado():
     r1 = app.correr(hoy=date(2026, 10, 1))
     r2 = app.correr(hoy=date(2026, 10, 1))
     assert r1["priorizados"] == r2["priorizados"] == 4
-    assert r1["liberados"] == r2["liberados"] == 1
+    assert r1["liberados"] == r2["liberados"] == 2
 
 
 def test_health_route():
@@ -529,3 +533,45 @@ def test_health_route():
     resp = app.handler(http_event("GET /api/v1/oms/health"), None)
     assert resp["statusCode"] == 200
     assert body_of(resp)["data"]["ok"] is True
+
+
+# --- Config por scope (reglas_config): mapeo del jsonb por regla ---------------
+
+def test_config_desde_fila_mapea_reglas_aplica_peso_prioridad():
+    """El jsonb `reglas` (por regla) se traduce a ConfiguracionReglas: solo entran
+    al score las reglas con aplica=true; prioridad de cliente-retira sale de su regla."""
+    rc = load_stack_module("oms", "reglas_config")
+    fila = {
+        "scope_type": "global", "customer_id": None, "warehouse_id": None, "country_id": None,
+        "priorizar": True, "dias_prep_picking": 2,
+        "reglas": {
+            "fecha_t1": {"aplica": True, "peso": 1.5},
+            "observaciones": {"aplica": False, "peso": 9.0},  # desactivada: no pesa
+            "cliente_retira": {"aplica": True, "peso": 0.0, "prioridad": 2},
+        },
+    }
+    cfg = rc.config_desde_fila(fila)
+    assert cfg.pesos == {"fecha_t1": 1.5, "cliente_retira": 0.0}
+    assert cfg.prioridad_cliente_retira == 2
+    assert cfg.dias_prep_picking == 2
+    assert cfg.priorizar is True
+
+
+def test_config_desde_fila_acepta_jsonb_como_string():
+    """Si el driver devuelve el jsonb como str (en vez de dict), se parsea igual."""
+    rc = load_stack_module("oms", "reglas_config")
+    fila = {"priorizar": False, "dias_prep_picking": 1,
+            "reglas": '{"fecha_t1": {"aplica": true, "peso": 1.0}}'}
+    cfg = rc.config_desde_fila(fila)
+    assert cfg.pesos == {"fecha_t1": 1.0}
+    assert cfg.priorizar is False
+
+
+def test_barrido_salta_priorizacion_si_priorizar_false():
+    """Compañía con priorizar=false (como EPA): el barrido NO la prioriza
+    (priorizados=0); conserva su prioridad de origen y solo libera por fecha."""
+    app = load_stack_module("oms", "app")
+    models = load_stack_module("oms", "models")
+    cfg = models.ConfiguracionReglas(pesos={}, priorizar=False)
+    resumen = app.correr(hoy=date(2026, 10, 1), resolver_config=lambda _p: cfg)
+    assert resumen["priorizados"] == 0

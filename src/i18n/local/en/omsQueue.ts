@@ -1,6 +1,6 @@
 export default {
-  'omsQueue.title': 'Prioritization Queue',
-  'omsQueue.subtitle': 'Pending orders sorted by calculated priority',
+  'omsQueue.title': 'Orders',
+  'omsQueue.subtitle': 'Prioritized and released orders',
   'omsQueue.warehouse': 'Warehouse',
   'omsQueue.company': 'Company',
   'omsQueue.branch': 'Branch',

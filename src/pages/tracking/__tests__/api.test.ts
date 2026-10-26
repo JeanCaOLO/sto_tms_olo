@@ -1,68 +1,61 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const apiFetch = vi.fn();
-vi.mock('../../../lib/supabase', () => ({ apiFetch: (...args: unknown[]) => apiFetch(...args) }));
+vi.mock('../../../lib/supabase', () => ({ apiFetch: vi.fn() }));
 
-import { completarViaje, getResumen, getViaje, iniciarViaje, listViajes, revisarViaje, TrackingApiError } from '../api-remote';
+import {
+  errorKey, getRecorrido, getViaje, iniciarViaje, isTrackingMock, listViajes, pollIntervalMs, setTrackingTransport, TrackingApiError,
+  trackingNow,
+} from '../api';
+import { apiFetch } from '../../../lib/supabase';
 
 const ok = (data: unknown) => ({ ok: true, status: 200, body: { data, error: null } });
 
-beforeEach(() => apiFetch.mockReset());
+afterEach(() => setTrackingTransport(apiFetch));
 
-describe('api de tracking', () => {
-  it('arma la consulta de la lista con filtro de activos y búsqueda', async () => {
-    apiFetch.mockResolvedValue(ok({ items: [], next_cursor: null }));
-    await listViajes({ mode: 'active', q: ' ABC ', limit: 30 });
-    expect(apiFetch).toHaveBeenCalledWith('/v1/tracking/viajes?limit=30&activos=1&q=ABC', undefined);
-    await listViajes({ mode: 'all', q: '', limit: 60 });
-    expect(apiFetch).toHaveBeenLastCalledWith('/v1/tracking/viajes?limit=60', undefined);
+describe('cliente de tracking', () => {
+  it('arma la lista con activos, búsqueda, país, cursor y resumen', async () => {
+    const transport = vi.fn().mockResolvedValue(ok({ items: [], next_cursor: null }));
+    setTrackingTransport(transport);
+    await listViajes({ mode: 'active', q: ' ABC ', limit: 30, country: 'CR', summary: true });
+    expect(transport).toHaveBeenCalledWith('/v1/tracking/viajes?limit=30&activos=1&q=ABC&pais=CR&include=summary', { signal: undefined });
+    await listViajes({ mode: 'all', q: '', limit: 60, cursor: 'c1' });
+    expect(transport).toHaveBeenLastCalledWith('/v1/tracking/viajes?limit=60&cursor=c1', { signal: undefined });
   });
 
-  it('devuelve data y apunta al viaje correcto', async () => {
-    apiFetch.mockResolvedValue(ok({ id: 'x' }));
-    expect(await getViaje('x')).toEqual({ id: 'x' });
-    expect(apiFetch).toHaveBeenCalledWith('/v1/tracking/viajes/x', undefined);
+  it('pide detalle y recorrido del viaje, pasando la señal de cancelación', async () => {
+    const transport = vi.fn().mockResolvedValue(ok({ id: 'x' }));
+    setTrackingTransport(transport);
+    const signal = new AbortController().signal;
+    expect(await getViaje('x', signal)).toEqual({ id: 'x' });
+    expect(transport).toHaveBeenCalledWith('/v1/tracking/viajes/x', { signal });
+    await getRecorrido('x');
+    expect(transport).toHaveBeenLastCalledWith('/v1/tracking/viajes/x/recorrido', { signal: undefined });
   });
 
-  it('inicia y completa con POST', async () => {
-    apiFetch.mockResolvedValue(ok({ route_id: 'r1', created: true }));
+  it('inicia con POST (solo se usa en modo mock)', async () => {
+    const transport = vi.fn().mockResolvedValue(ok({ route_id: 'r1', created: true }));
+    setTrackingTransport(transport);
     await iniciarViaje('t1');
-    expect(apiFetch).toHaveBeenCalledWith('/v1/tracking/viajes/t1/iniciar', { method: 'POST', body: '{}' });
-    await completarViaje('r1', true);
-    expect(apiFetch).toHaveBeenLastCalledWith('/v1/tracking/viajes/r1/completar', { method: 'POST', body: '{"force":true}' });
+    expect(transport).toHaveBeenCalledWith('/v1/tracking/viajes/t1/iniciar', { method: 'POST', body: '{}' });
   });
 
-  it('lanza TrackingApiError con el mensaje y el status del backend', async () => {
-    apiFetch.mockResolvedValue({ ok: false, status: 409, body: { data: null, error: { message: 'Quedan 2 parada(s) sin cerrar.' } } });
-    const error = await completarViaje('r1').catch((e) => e);
+  it('lanza TrackingApiError con mensaje y status, y lo traduce a una clave i18n', async () => {
+    setTrackingTransport(vi.fn().mockResolvedValue({ ok: false, status: 404, body: { error: { message: 'Viaje no encontrado' } } }));
+    const error = await getViaje('r1').catch((e) => e);
     expect(error).toBeInstanceOf(TrackingApiError);
-    expect(error.message).toBe('Quedan 2 parada(s) sin cerrar.');
-    expect(error.status).toBe(409);
+    expect(error.message).toBe('Viaje no encontrado');
+    expect(error.status).toBe(404);
+    expect(errorKey(error)).toBe('tracking.errorNotFound');
+    expect(errorKey(new TrackingApiError('x', 409))).toBe('tracking.errorConflict');
+    expect(errorKey(new Error('red'))).toBe('tracking.errorGeneric');
   });
 
-  it('usa el status HTTP si el cuerpo no trae mensaje', async () => {
-    apiFetch.mockResolvedValue({ ok: false, status: 502, body: null });
-    await expect(getViaje('x')).rejects.toThrow('HTTP 502');
-  });
-});
-
-
-describe('api de tracking: monitor', () => {
-  beforeEach(() => apiFetch.mockReset());
-
-  it('pide solo los viajes completados sin revisar', async () => {
-    apiFetch.mockResolvedValue(ok({ items: [], next_cursor: null }));
-    await listViajes({ mode: 'review', q: '', limit: 30 });
-    expect(apiFetch).toHaveBeenCalledWith('/v1/tracking/viajes?limit=30&por_revisar=1', undefined);
-  });
-
-  it('consulta el resumen y marca un viaje como revisado', async () => {
-    apiFetch.mockResolvedValue(ok({ active: 2 }));
-    expect(await getResumen()).toEqual({ active: 2 });
-    expect(apiFetch).toHaveBeenCalledWith('/v1/tracking/resumen', undefined);
-    await revisarViaje('r1');
-    expect(apiFetch).toHaveBeenLastCalledWith('/v1/tracking/viajes/r1/revisar', { method: 'POST', body: '{}' });
-    await revisarViaje('r1', 'ok');
-    expect(apiFetch).toHaveBeenLastCalledWith('/v1/tracking/viajes/r1/revisar', { method: 'POST', body: '{"note":"ok"}' });
+  it('el modo mock cambia reloj e intervalo; el normal usa el reloj real y 15 s', () => {
+    expect(isTrackingMock()).toBe(false);
+    expect(pollIntervalMs()).toBe(15_000);
+    setTrackingTransport(vi.fn(), () => 42);
+    expect(isTrackingMock()).toBe(true);
+    expect(trackingNow()).toBe(42);
+    expect(pollIntervalMs()).toBe(3_000);
   });
 });

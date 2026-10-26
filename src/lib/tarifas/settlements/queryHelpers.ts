@@ -102,6 +102,16 @@ export async function listSettlements(
   return rows.map(mapToDomain);
 }
 
+/** Liquidaciones por id, sin las columnas pesadas (para listas, p. ej. las de una proforma). */
+export async function listSettlementSummariesByIds(ids: string[]): Promise<SettlementRecord[]> {
+  if (ids.length === 0) return [];
+  const rows = await db().find('settlement', {
+    where: [{ column: 'id', op: 'in', value: ids }],
+    columns: summaryColumns(),
+  });
+  return rows.map(mapToDomain);
+}
+
 export async function getSettlement(id: string): Promise<SettlementRecord | null> {
   const row = await db().findOne('settlement', id);
   return row ? mapToDomain(row) : null;

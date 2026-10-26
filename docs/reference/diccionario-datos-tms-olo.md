@@ -667,7 +667,6 @@ erDiagram
 | `drop_code` | `character varying(3)` | sí |  | EFLOW BAJADA. |
 | `emergency` | `boolean` | sí |  | EFLOW EMERGENCIA (varchar(1) en EFLOW). |
 | `erp_document` | `character varying(50)` | sí |  | EFLOW DOCUMENTOERP. |
-| `wms_notes` | `text` | sí |  | EFLOW OBSERVACIONESEXPEDICION (texto del cliente/vendedor; lo analiza la regla de observaciones). notes es para notas del TMS. |
 | `generated_at` | `timestamp with time zone` | sí |  | EFLOW FECHAGENERACION (cuándo el pedido quedó generado). |
 | `closed_at` | `timestamp with time zone` | sí |  | EFLOW FECHACIERRE. La cola del OMS solo toma pedidos sin cierre. |
 | `planned_dispatch_at` | `timestamp with time zone` | sí |  | EFLOW FECHAPLANIFICADADESPACHO. |
@@ -758,7 +757,7 @@ erDiagram
 | `fecha_planificada` | `date` | sí |  |  |
 | `prioridad` | `integer` | sí |  |  |
 | `numero_viaje_wmh` | `text` | sí |  |  |
-| `observaciones` | `text` | sí |  |  |
+| `observaciones` | `text` | sí |  | EFLOW OBSERVACIONESEXPEDICION (texto libre del cliente/vendedor; lo analiza la regla de observaciones para cliente-retira). Única fuente de observaciones; reemplazó a wms_notes (sql/51). |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |
 

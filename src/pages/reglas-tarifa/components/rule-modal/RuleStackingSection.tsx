@@ -94,7 +94,7 @@ export default function RuleStackingSection({
                 <label
                   key={id}
                   className={`flex items-center gap-1.5 text-sm ${id === 'TENDERING' ? 'text-slate-400' : 'text-slate-700 cursor-pointer'}`}
-                  title={id === 'TENDERING' ? 'Todavía no tiene un cálculo definido' : undefined}
+                  title={id === 'TENDERING' ? 'No se liga a reglas: el monto sale de la adjudicación del viaje' : undefined}
                 >
                   <input
                     type="checkbox"

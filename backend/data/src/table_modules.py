@@ -26,6 +26,9 @@ TABLE_MODULES: dict[str, str] = {
     "stores": "puntos_entrega",
     "contracts": "contratos", "contract_documents": "contratos",
     "organizations": "configuracion", "warehouses": "configuracion",
+    # Bitácora del OMS (sql/49): la lee/limpia la vista de Auditoría del OMS.
+    # Dueña = oms.auditoria → leer exige `view`; limpiar (DELETE) exige `delete`.
+    "oms_logs": "oms.auditoria",
 }
 
 

@@ -124,6 +124,22 @@ describe('cambiar la base reemplaza solo la base', () => {
     expect(r.totalLiquidado).toBe('80.00');
   });
 
+  it('monto adjudicado por tendering: es la base como tarifa fija, con su propia fuente y traza', () => {
+    const recargo = makeRule({ code: 'RECARGO', stage: 'VARIABLE', expression: { op: 'FIXED', amount: '10' } });
+    const r = calculate(input({ rules: [porKm(), recargo], baseOverride: { method: 'FIXED', amount: '300', origin: 'TENDER' } }));
+    expect(r.blockingIssues).toEqual([]);
+    expect(r.base).toMatchObject({ method: 'FIXED', source: { kind: 'TENDER' } });
+    expect(r.trace.filter((l) => l.stage === 'BASE').map((l) => [l.ruleCode, l.final]))
+      .toEqual([['BASE_FIJA_TENDERING', '300.00']]);
+    expect(r.totalLiquidado).toBe('310.00');
+    expect(sourceSentence(r.base!.source)).toBe('Este cálculo está basado en el monto adjudicado al viaje por tendering.');
+  });
+
+  it('un monto de tendering ilegible no inventa base: sin regla FIXED bloquea', () => {
+    const r = calculate(input({ rules: [porKm()], baseOverride: { method: 'FIXED', amount: 'abc', origin: 'TENDER' } }));
+    expect(r.blockingIssues).toContainEqual(expect.objectContaining({ code: 'BASE_NO_DISPONIBLE' }));
+  });
+
   it('un monto ilegible o negativo cae a la regla FIXED del catálogo', () => {
     for (const amount of ['-5', 'abc']) {
       const r = calculate(input({ rules: [fija()], baseOverride: { method: 'FIXED', amount } }));

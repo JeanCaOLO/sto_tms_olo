@@ -9,6 +9,7 @@ import {
   listCarrierProfiles, reactivateParty, resolveCarrierBase,
 } from '../partiesDataSource';
 import { db, ReadOnlyEntityError } from '../data';
+import { loadDatabase } from '../data/memory/store';
 
 beforeEach(() => { localStorage.clear(); });
 
@@ -134,5 +135,50 @@ describe('carrierBaseForCarrier (base de un tercero según el catálogo)', () =>
     expect(resolveCarrierBase('FIXED', '')).toEqual({ override: { method: 'FIXED' } });
     expect(resolveCarrierBase('FIXED', '-5')).toEqual({ issue: expect.any(String) });
     expect(resolveCarrierBase('PER_KM', '150000')).toEqual({ override: { method: 'PER_KM' } });
+  });
+
+  it('tendering con monto adjudicado se liquida como tarifa fija con origen TENDER', () => {
+    expect(resolveCarrierBase('TENDERING', null, '98000')).toEqual({ override: { method: 'FIXED', amount: '98000', origin: 'TENDER' } });
+    expect(resolveCarrierBase('TENDERING', '5', 0)).toEqual({ override: { method: 'FIXED', amount: '0', origin: 'TENDER' } });
+  });
+
+  it('tendering sin adjudicación o con monto inválido bloquea con motivo', () => {
+    expect(resolveCarrierBase('TENDERING')).toEqual({ issue: expect.stringContaining('adjudicado') });
+    expect(resolveCarrierBase('TENDERING', null, '')).toEqual({ issue: expect.stringContaining('adjudicado') });
+    expect(resolveCarrierBase('TENDERING', null, '-1')).toEqual({ issue: expect.stringContaining('no es válido') });
+    expect(resolveCarrierBase('TENDERING', null, 'abc')).toEqual({ issue: expect.stringContaining('no es válido') });
+  });
+});
+
+describe('carrierBaseForCarrier con TENDERING (adjudicación por viaje)', () => {
+  function tenderingCarrier(): void {
+    const carrier = loadDatabase().carriers.find((c) => c.id === 'CARRIER_VE_1');
+    if (!carrier) throw new Error('la semilla no trae CARRIER_VE_1');
+    carrier.rate_type = 'TENDERING';
+  }
+  function award(carrierId: string, amount: string): void {
+    loadDatabase().tripTenderAwards.push({
+      id: 'tnd_test', country_id: 'VE', trip_id: 'TRIP_X', carrier_id: carrierId, amount,
+      awarded_at: null, actor: null, notes: null,
+    });
+  }
+
+  it('con adjudicación del mismo transportista usa el monto adjudicado', async () => {
+    tenderingCarrier();
+    award('CARRIER_VE_1', '98000');
+    expect(await carrierBaseForCarrier('CARRIER_VE_1', { tripId: 'TRIP_X' }))
+      .toMatchObject({ override: { method: 'FIXED', amount: '98000', origin: 'TENDER' } });
+  });
+
+  it('sin adjudicación del viaje bloquea con motivo', async () => {
+    tenderingCarrier();
+    expect(await carrierBaseForCarrier('CARRIER_VE_1', { tripId: 'TRIP_X' })).toEqual({ issue: expect.stringContaining('adjudicado') });
+    expect(await carrierBaseForCarrier('CARRIER_VE_1')).toEqual({ issue: expect.stringContaining('adjudicado') });
+  });
+
+  it('una adjudicación de otro transportista no vale', async () => {
+    tenderingCarrier();
+    award('CARRIER_VE_2', '98000');
+    expect(await carrierBaseForCarrier('CARRIER_VE_1', { tripId: 'TRIP_X' })).toEqual({ issue: expect.stringContaining('otro transportista') });
   });
 });

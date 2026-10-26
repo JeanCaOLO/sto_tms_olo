@@ -75,7 +75,7 @@ export function corridaDemoOrders(): QueueOrder[] {
     branchId: w.IDSUCURSAL,
     orderType: w.TPEXPE,
     customer: w.NOMBRECLIENTE || w.IDCLIENTE,
-    route: w.RUTA || '(sin ruta)',
+    route: w.RUTA || '(sin zona)',
     country: (w.PAIS === 'VE' ? 'VE' : 'CR') as Country,
     tier: tierFromPrioridad(o.prioridad),
     score: o.score,

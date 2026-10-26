@@ -1,4 +1,4 @@
-"""SQL del tracking en vivo. Placeholders `%s` (pg8000)."""
+"""SQL del tracking en vivo (monitoreo). Placeholders `%s` (pg8000)."""
 
 ORG_SQL = "SELECT organization_id FROM app_users WHERE id = %s"
 
@@ -7,24 +7,40 @@ _GUIDE_STATE = "lower(coalesce(g.delivery_status, g.status, ''))"
 DELIVERED_SQL = "('delivered', 'entregado', 'completada')"
 FAILED_SQL = "('failed', 'fallido')"
 
-VIAJE_COLUMNS = """
-  r.id, r.route_number, r.route_date, r.status, r.actual_start_time, r.actual_end_time,
-  r.planned_start_time, r.planned_end_time, r.total_distance, r.capacity_percentage, r.created_at, r.plan_trip_id,
-  s.country_id, s.latitude AS origin_lat, s.longitude AS origin_lng,
-  d.full_name AS driver_name, v.plate, c.name AS carrier_name, z.name AS zone_name,
-  lp.latitude AS last_lat, lp.longitude AS last_lng, lp.speed_mps, lp.heading_deg,
-  lp.battery_pct, lp.recorded_at AS last_position_at,
+# Evidencias que el módulo acepta (factura firmada y firma). Las filas antiguas de otros tipos no se leen.
+EVIDENCE_KINDS_SQL = "('photo_invoice', 'signature')"
+
+# El viaje lo TERMINA Planificación (completar / cancelar en plan_trips). Tracking no escribe en Planificación:
+# solo LEE ese estado y muestra el viaje cerrado aunque `routes` siga "En tránsito" (la hora de cierre es la
+# del cambio en Planificación). Rutas sin plan (legado) usan solo routes.status.
+PLAN_TRIP_JOIN = "LEFT JOIN plan_trips pt ON pt.id = r.plan_trip_id"
+STATUS_EXPR = "CASE pt.status WHEN 'completed' THEN 'Completada' WHEN 'cancelled' THEN 'Anulada' ELSE r.status END"
+END_EXPR = "COALESCE(r.actual_end_time, CASE WHEN pt.status IN ('completed', 'cancelled') THEN pt.updated_at END)"
+OPEN_IN_PLAN = "(pt.status IS NULL OR pt.status NOT IN ('completed', 'cancelled'))"
+
+VIAJE_COLUMNS = f"""
+  r.id, r.route_number, r.route_date, {STATUS_EXPR} AS status, r.actual_start_time, {END_EXPR} AS actual_end_time,
+  r.planned_end_time, r.created_at, r.departed_at,
+  COALESCE(rp.plan_date, r.route_date) AS due_date, COALESCE(pt.created_at, r.created_at) AS assigned_at,
+  s.country_id, s.name AS origin_name, s.latitude AS origin_lat, s.longitude AS origin_lng,
+  co.code AS country, co.timezone AS timezone, cu.code AS customer_code,
+  d.full_name AS driver_name, v.plate, z.name AS zone_name,
+  lp.latitude AS last_lat, lp.longitude AS last_lng, lp.speed_mps,
+  lp.recorded_at AS last_position_at,
   COALESCE(r.actual_start_time, r.created_at) AS sort_at
 """
 
-VIAJE_JOINS = """
+VIAJE_JOINS = f"""
 FROM routes r
 JOIN stores s ON s.id = r.store_id
+JOIN countries co ON co.id = s.country_id
 LEFT JOIN drivers d ON d.id = r.driver_id
 LEFT JOIN vehicles v ON v.id = r.vehicle_id
-LEFT JOIN carriers c ON c.id = r.carrier_id
 LEFT JOIN zones z ON z.id = r.route_type_id
 LEFT JOIN tracking_last_positions lp ON lp.route_id = r.id
+{PLAN_TRIP_JOIN}
+LEFT JOIN route_plans rp ON rp.id = pt.plan_id
+LEFT JOIN customers cu ON cu.id = rp.customer_id
 """
 
 # Progreso por ruta, calculado de las guías (no del contador denormalizado completed_stops).
@@ -32,68 +48,66 @@ PROGRESS_SQL = f"""
 SELECT g.route_id,
        count(*) AS total,
        count(*) FILTER (WHERE {_GUIDE_STATE} IN {DELIVERED_SQL}) AS delivered,
-       count(*) FILTER (WHERE {_GUIDE_STATE} IN {FAILED_SQL}) AS failed,
-       min(g.planned_arrival_time) FILTER (
-         WHERE NOT ({_GUIDE_STATE} IN {DELIVERED_SQL} OR {_GUIDE_STATE} IN {FAILED_SQL})) AS next_planned
+       count(*) FILTER (WHERE {_GUIDE_STATE} IN {FAILED_SQL}) AS failed
 FROM dispatch_guides g
 WHERE g.route_id = ANY(%s::uuid[])
 GROUP BY g.route_id
 """
 
-# Novedades y recolectas por ruta (eventos de tracking).
-EVENT_COUNTS_SQL = """
-SELECT route_id,
-       count(*) FILTER (WHERE event_type = 'incident') AS incidents,
-       count(*) FILTER (WHERE event_type = 'pickup') AS pickups
-FROM tracking_events
-WHERE route_id = ANY(%s::uuid[])
-GROUP BY route_id
-"""
-
-RETURN_COUNTS_SQL = """
-SELECT g.route_id, count(*) AS returns
-FROM returns r JOIN dispatch_guides g ON g.id = r.dispatch_guide_id
-WHERE g.route_id = ANY(%s::uuid[])
-GROUP BY g.route_id
-"""
-
-# Métricas del semáforo: fallidas, entregas sin factura firmada + firma y mayor retraso de llegada.
-REVIEW_METRICS_SQL = f"""
-SELECT g.route_id,
-       count(*) FILTER (WHERE {_GUIDE_STATE} IN {FAILED_SQL}) AS failed,
-       count(*) FILTER (
-         WHERE {_GUIDE_STATE} IN {DELIVERED_SQL}
-           AND NOT (EXISTS (SELECT 1 FROM tracking_evidences e WHERE e.dispatch_guide_id = g.id AND e.kind = 'photo_invoice')
-                AND EXISTS (SELECT 1 FROM tracking_evidences e WHERE e.dispatch_guide_id = g.id AND e.kind = 'signature'))
-       ) AS missing_evidence,
-       max(extract(epoch FROM (g.actual_arrival_time - g.planned_arrival_time)) / 60) AS max_delay_min
+# Paradas con coordenadas para el ETA de la PRÓXIMA parada pendiente (lote: todas las rutas de la página).
+STOPS_BATCH_SQL = """
+SELECT g.route_id, g.id, g.sequence_number, g.delivery_status, g.status, g.planned_arrival_time,
+       COALESCE(o.delivery_latitude, ps.latitude) AS latitude,
+       COALESCE(o.delivery_longitude, ps.longitude) AS longitude
 FROM dispatch_guides g
+JOIN routes r ON r.id = g.route_id
+LEFT JOIN orders o ON o.id = g.order_id
+LEFT JOIN plan_stops ps ON ps.trip_id = r.plan_trip_id AND ps.order_id = g.order_id
 WHERE g.route_id = ANY(%s::uuid[])
-GROUP BY g.route_id
 """
 
-REVIEWS_SQL = """
-SELECT t.route_id, t.reviewed_at, t.note, u.full_name AS reviewed_by_name
-FROM tracking_reviews t LEFT JOIN app_users u ON u.id = t.reviewed_by
-WHERE t.route_id = ANY(%s::uuid[])
+# Desde cuándo está detenido cada camión, calculado EN LA BD (una fila por ruta, no miles de posiciones):
+# `far.t` = último punto de la ventana a más de {radius} m de la última posición; el camión lleva quieto desde
+# la primera posición posterior a `far.t` (o desde el inicio de la ventana si nunca se alejó). Misma regla que
+# logic.stopped_minutes. Ventana con `now()` de la BD: así el único parámetro son los ids y va en 1 round-trip.
+STOPPED_SINCE_SQL = """
+WITH w AS (
+  SELECT p.route_id, p.recorded_at,
+         6371000 * 2 * asin(sqrt(
+           power(sin(radians(p.latitude - lp.latitude) / 2), 2)
+           + cos(radians(lp.latitude)) * cos(radians(p.latitude)) * power(sin(radians(p.longitude - lp.longitude) / 2), 2)
+         )) AS dist_m
+  FROM tracking_positions p
+  JOIN tracking_last_positions lp ON lp.route_id = p.route_id
+  WHERE p.route_id = ANY(%s::uuid[]) AND p.recorded_at >= now() - interval '{window} minutes'
+    AND NOT p.is_mock AND (p.accuracy_m IS NULL OR p.accuracy_m <= 200)
+), far AS (
+  SELECT route_id, max(recorded_at) AS t FROM w WHERE dist_m > {radius} GROUP BY route_id
+)
+SELECT w.route_id, min(w.recorded_at) AS since
+FROM w LEFT JOIN far ON far.route_id = w.route_id
+WHERE far.t IS NULL OR w.recorded_at > far.t
+GROUP BY w.route_id
 """
 
-UPSERT_REVIEW_SQL = """
-INSERT INTO tracking_reviews (route_id, organization_id, reviewed_by, note)
-VALUES (%s, %s, %s, %s)
-ON CONFLICT (route_id) DO UPDATE SET reviewed_by = EXCLUDED.reviewed_by, reviewed_at = now(), note = EXCLUDED.note
+# Viajes completados hoy (día local del país). `where` lo arma app.py con el alcance (org, país, día).
+COMPLETED_TODAY_SQL = f"""
+SELECT count(*) AS n
+FROM routes r
+JOIN stores s ON s.id = r.store_id
+JOIN countries co ON co.id = s.country_id
+{PLAN_TRIP_JOIN}
+WHERE {{where}}
 """
 
-FIRST_POSITIONS_SQL = """
-SELECT latitude, longitude, recorded_at FROM tracking_positions
-WHERE route_id = %s ORDER BY recorded_at LIMIT 200
-"""
+
+SET_DEPARTED_SQL = "UPDATE routes SET departed_at = %s WHERE id = %s AND departed_at IS NULL"
 
 ROUTE_ONE_SQL = f"SELECT {VIAJE_COLUMNS} {VIAJE_JOINS} WHERE r.id = %s"
 
 GUIDES_SQL = """
 SELECT g.id, g.guide_number, g.sequence_number, g.status, g.delivery_status,
-       g.actual_arrival_time, g.planned_arrival_time, g.recipient_name, g.notes,
+       g.actual_arrival_time, g.planned_arrival_time, g.recipient_name,
        o.id AS order_id, o.order_number, o.invoice_number, o.total_items, o.total_weight,
        o.delivery_address, o.delivery_city,
        COALESCE(o.delivery_latitude, ps.latitude) AS latitude,
@@ -108,24 +122,16 @@ WHERE g.route_id = %s
 ORDER BY g.sequence_number
 """
 
-EVENTS_SQL = """
-SELECT id, dispatch_guide_id, event_type, event_status, event_time, notes
-FROM tracking_events WHERE route_id = %s ORDER BY event_time DESC LIMIT 200
-"""
-
-EVIDENCES_SQL = """
+EVIDENCES_SQL = f"""
 SELECT id, dispatch_guide_id, kind, storage_key, mime_type, captured_at
-FROM tracking_evidences WHERE route_id = %s ORDER BY created_at
+FROM tracking_evidences WHERE route_id = %s AND kind IN {EVIDENCE_KINDS_SQL} ORDER BY created_at
 """
 
-RETURNS_SQL = """
-SELECT id, dispatch_guide_id, return_number, return_type, reason, product_name, quantity, status, notes
-FROM returns WHERE dispatch_guide_id = ANY(%s::uuid[]) ORDER BY return_date
-"""
-
-TRAIL_SQL = """
+# Recorrido completo para el replay: solo puntos que cuentan (sin mock ni precisión mala), cronológicos.
+TRAIL_REPLAY_SQL = """
 SELECT latitude, longitude, recorded_at FROM tracking_positions
-WHERE route_id = %s ORDER BY recorded_at DESC LIMIT 100
+WHERE route_id = %s AND NOT is_mock AND (accuracy_m IS NULL OR accuracy_m <= 200)
+ORDER BY recorded_at
 """
 
 PLANNED_SQL = """
@@ -146,9 +152,11 @@ PLAN_TRIP_SQL = """
 SELECT pt.id, pt.status, pt.delivery_zone, pt.vehicle_id, pt.driver_id, pt.total_weight, pt.total_volume,
        pt.vehicle_capacity_weight,
        rp.organization_id, rp.country_id, rp.plan_date, rp.status AS plan_status,
-       COALESCE(d.carrier_id, v.carrier_id) AS carrier_id
+       COALESCE(d.carrier_id, v.carrier_id) AS carrier_id, co.code AS country, cu.code AS customer_code
 FROM plan_trips pt
 JOIN route_plans rp ON rp.id = pt.plan_id
+LEFT JOIN countries co ON co.id = rp.country_id
+LEFT JOIN customers cu ON cu.id = rp.customer_id
 LEFT JOIN drivers d ON d.id = pt.driver_id
 LEFT JOIN vehicles v ON v.id = pt.vehicle_id
 WHERE pt.id = %s
@@ -192,9 +200,16 @@ SELECT r.id, r.organization_id, r.status, r.vehicle_id, r.driver_id, s.country_i
 FROM routes r JOIN stores s ON s.id = r.store_id WHERE r.id = %s
 """
 
+# Insumos de la ingesta: estado, cierre (para la gracia de 2 h), sede (para detectar la salida) y salida previa.
 ROUTES_FOR_POSITIONS_SQL = """
-SELECT id, status, vehicle_id, driver_id FROM routes
-WHERE organization_id = %s AND id = ANY(%s::uuid[])
+SELECT r.id, r.status, r.vehicle_id, r.driver_id, r.departed_at, r.actual_end_time,
+       s.latitude AS origin_lat, s.longitude AS origin_lng, co.code AS country, cu.code AS customer_code
+FROM routes r JOIN stores s ON s.id = r.store_id
+JOIN countries co ON co.id = s.country_id
+LEFT JOIN plan_trips pt ON pt.id = r.plan_trip_id
+LEFT JOIN route_plans rp ON rp.id = pt.plan_id
+LEFT JOIN customers cu ON cu.id = rp.customer_id
+WHERE r.organization_id = %s AND r.id = ANY(%s::uuid[])
 """
 
 GUIDE_ROW_SQL = """
@@ -214,7 +229,7 @@ DRIVER_BY_USER_SQL = "SELECT id FROM drivers WHERE app_user_id = %s"
 
 MY_ROUTES_SQL = f"""
 SELECT {VIAJE_COLUMNS} {VIAJE_JOINS}
-WHERE r.organization_id = %s AND r.driver_id = %s AND lower(r.status) = ANY(%s)
+WHERE r.organization_id = %s AND r.driver_id = %s AND lower(r.status) = ANY(%s) AND {OPEN_IN_PLAN}
 ORDER BY sort_at DESC LIMIT 10
 """
 
@@ -252,14 +267,6 @@ RETURNING consented_at
 """
 CONSENT_SQL = "SELECT consented_at FROM tracking_consents WHERE app_user_id = %s AND version = %s"
 
-INSERT_RETURN_SQL = """
-INSERT INTO returns (organization_id, dispatch_guide_id, order_id, return_number, return_type, reason,
-                     product_code, product_name, quantity, photo_url, notes)
-VALUES (%s, %s, %s, %s, 'devolucion', %s, %s, %s, %s, %s, %s)
-ON CONFLICT (organization_id, return_number) DO NOTHING
-RETURNING id
-"""
-
 UPDATE_GUIDE_SQL = """
 UPDATE dispatch_guides
 SET delivery_status = %s, status = %s, actual_arrival_time = %s, recipient_name = COALESCE(%s, recipient_name),
@@ -274,10 +281,6 @@ FROM dispatch_guides g WHERE g.route_id = %s
 """
 
 SET_COMPLETED_STOPS_SQL = "UPDATE routes SET completed_stops = %s, updated_at = now() WHERE id = %s"
-COMPLETE_ROUTE_SQL = """
-UPDATE routes SET status = 'Completada', actual_end_time = now(), completed_stops = %s, updated_at = now()
-WHERE id = %s
-"""
 
 INSERT_EVIDENCE_SQL = """
 INSERT INTO tracking_evidences (organization_id, route_id, dispatch_guide_id, kind, storage_key, mime_type,
@@ -289,10 +292,12 @@ RETURNING id
 SET_GUIDE_PHOTO_SQL = "UPDATE dispatch_guides SET photo_url = %s, updated_at = now() WHERE id = %s"
 SET_GUIDE_SIGNATURE_SQL = "UPDATE dispatch_guides SET signature_url = %s, updated_at = now() WHERE id = %s"
 
-UPSERT_LAST_POSITION_SQL = """
+# Última posición de VARIOS viajes en una sentencia. `values` = una tupla "(...)" por viaje (LAST_POSITION_ROW).
+LAST_POSITION_ROW = "(" + ", ".join(["%s"] * 8) + ")"
+UPSERT_LAST_POSITIONS_SQL = """
 INSERT INTO tracking_last_positions (route_id, organization_id, latitude, longitude, speed_mps, heading_deg,
                                      battery_pct, recorded_at)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+VALUES {values}
 ON CONFLICT (route_id) DO UPDATE
 SET latitude = EXCLUDED.latitude, longitude = EXCLUDED.longitude, speed_mps = EXCLUDED.speed_mps,
     heading_deg = EXCLUDED.heading_deg, battery_pct = EXCLUDED.battery_pct,
@@ -303,11 +308,3 @@ WHERE tracking_last_positions.recorded_at <= EXCLUDED.recorded_at
 POSITION_COLUMNS = ("organization_id, route_id, vehicle_id, driver_id, device_id, client_id, latitude, longitude, "
                     "accuracy_m, speed_mps, heading_deg, battery_pct, is_mock, recorded_at")
 POSITION_PLACEHOLDERS = "(" + ", ".join(["%s"] * 14) + ")"
-
-PENDING_REVIEW_COUNT_SQL = """
-SELECT count(*) AS n
-FROM routes r JOIN stores s ON s.id = r.store_id
-WHERE r.organization_id = %s AND lower(r.status) = ANY(%s)
-  AND NOT EXISTS (SELECT 1 FROM tracking_reviews tr WHERE tr.route_id = r.id)
-  {country}
-"""

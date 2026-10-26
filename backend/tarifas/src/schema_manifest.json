@@ -93,6 +93,10 @@
           "type": "boolean",
           "nullable": false
         },
+        "email": {
+          "type": "text",
+          "nullable": true
+        },
         "status": {
           "type": "text",
           "nullable": true
@@ -524,6 +528,48 @@
           "nullable": true
         },
         "actor": {
+          "type": "text",
+          "nullable": true
+        }
+      }
+    },
+    "tarifas_trip_tender_awards": {
+      "entity": "tripTenderAward",
+      "label": "Adjudicación de tendering",
+      "readOnly": false,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "tnd",
+      "columns": {
+        "id": {
+          "type": "text",
+          "nullable": true
+        },
+        "country_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "trip_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "carrier_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "amount": {
+          "type": "numeric",
+          "nullable": false
+        },
+        "awarded_at": {
+          "type": "timestamptz",
+          "nullable": true
+        },
+        "actor": {
+          "type": "text",
+          "nullable": true
+        },
+        "notes": {
           "type": "text",
           "nullable": true
         }
@@ -1189,6 +1235,248 @@
         },
         "block_on_loss": {
           "type": "boolean",
+          "nullable": false
+        }
+      }
+    },
+    "tarifas_proformas": {
+      "entity": "proforma",
+      "label": "Proforma",
+      "readOnly": false,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "pro",
+      "columns": {
+        "id": {
+          "type": "text",
+          "nullable": true
+        },
+        "country_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "number": {
+          "type": "text",
+          "nullable": false
+        },
+        "carrier_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "carrier_name": {
+          "type": "text",
+          "nullable": false
+        },
+        "status": {
+          "type": "text",
+          "nullable": false
+        },
+        "currency": {
+          "type": "text",
+          "nullable": false
+        },
+        "total_amount": {
+          "type": "numeric",
+          "nullable": false
+        },
+        "created_by": {
+          "type": "text",
+          "nullable": false
+        },
+        "email_sent_at": {
+          "type": "timestamptz",
+          "nullable": true
+        },
+        "notes": {
+          "type": "text",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "timestamptz",
+          "nullable": false
+        },
+        "updated_at": {
+          "type": "timestamptz",
+          "nullable": false
+        }
+      }
+    },
+    "tarifas_proforma_items": {
+      "entity": "proformaItem",
+      "label": "Liquidación de proforma",
+      "readOnly": false,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "pri",
+      "columns": {
+        "id": {
+          "type": "text",
+          "nullable": true
+        },
+        "proforma_id": {
+          "type": "text",
+          "nullable": false
+        },
+        "settlement_id": {
+          "type": "text",
+          "nullable": false
+        },
+        "state": {
+          "type": "text",
+          "nullable": false
+        },
+        "exclusion_reason": {
+          "type": "text",
+          "nullable": true
+        },
+        "amount": {
+          "type": "numeric",
+          "nullable": false
+        }
+      }
+    },
+    "tarifas_proforma_phases": {
+      "entity": "proformaPhase",
+      "label": "Fase de proforma",
+      "readOnly": false,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "prp",
+      "columns": {
+        "id": {
+          "type": "text",
+          "nullable": true
+        },
+        "proforma_id": {
+          "type": "text",
+          "nullable": false
+        },
+        "position": {
+          "type": "int",
+          "nullable": false
+        },
+        "name": {
+          "type": "text",
+          "nullable": false
+        },
+        "approver_type": {
+          "type": "text",
+          "nullable": false
+        },
+        "role_name": {
+          "type": "text",
+          "nullable": true
+        },
+        "user_id": {
+          "type": "text",
+          "nullable": true
+        },
+        "approver_label": {
+          "type": "text",
+          "nullable": false
+        },
+        "state": {
+          "type": "text",
+          "nullable": false
+        },
+        "decided_by": {
+          "type": "text",
+          "nullable": true
+        },
+        "decided_at": {
+          "type": "timestamptz",
+          "nullable": true
+        },
+        "comment": {
+          "type": "text",
+          "nullable": true
+        },
+        "removed_by": {
+          "type": "text",
+          "nullable": true
+        }
+      }
+    },
+    "tarifas_proforma_flow_phases": {
+      "entity": "proformaFlowPhase",
+      "label": "Fase del flujo de proformas",
+      "readOnly": false,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "prf",
+      "columns": {
+        "id": {
+          "type": "text",
+          "nullable": true
+        },
+        "country_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "position": {
+          "type": "int",
+          "nullable": false
+        },
+        "name": {
+          "type": "text",
+          "nullable": false
+        },
+        "approver_type": {
+          "type": "text",
+          "nullable": false
+        },
+        "role_name": {
+          "type": "text",
+          "nullable": true
+        },
+        "user_id": {
+          "type": "text",
+          "nullable": true
+        },
+        "approver_label": {
+          "type": "text",
+          "nullable": false
+        },
+        "active": {
+          "type": "boolean",
+          "nullable": false
+        }
+      }
+    },
+    "tarifas_proforma_email_config": {
+      "entity": "proformaEmailConfig",
+      "label": "Correo de proformas",
+      "readOnly": false,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "pre",
+      "columns": {
+        "id": {
+          "type": "text",
+          "nullable": true
+        },
+        "country_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "recipients": {
+          "type": "jsonb",
+          "nullable": false
+        },
+        "include_carrier_email": {
+          "type": "boolean",
+          "nullable": false
+        },
+        "subject_template": {
+          "type": "text",
+          "nullable": false
+        },
+        "body_template": {
+          "type": "text",
+          "nullable": false
+        },
+        "mode": {
+          "type": "text",
           "nullable": false
         }
       }

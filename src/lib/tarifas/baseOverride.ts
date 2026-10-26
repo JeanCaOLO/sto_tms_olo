@@ -24,6 +24,7 @@ function pickBaseRules(candidates: Rule[], method: BaseMethodId): { rule: Rule; 
 }
 
 const CARRIER_SOURCE: BaseSource = { kind: 'CARRIER', ref: 'carriers.flat_rate_amount', label: 'Tarifa fija del transportista' };
+const TENDER_SOURCE: BaseSource = { kind: 'TENDER', ref: 'tarifas_trip_tender_awards.amount', label: 'Monto adjudicado por tendering' };
 
 /** Monto fijo del transportista válido (número ≥ 0), o null si no viene o no se puede leer. */
 function parseCarrierAmount(raw: string | undefined): Decimal | null {
@@ -72,8 +73,9 @@ export function applyBaseOverride(
   vars?: VarBag,
 ): AppliedBase {
   const carrierAmount = override.method === 'FIXED' ? parseCarrierAmount(override.amount) : null;
+  const isTender = override.origin === 'TENDER';
   const option: BaseMethodOption | undefined = carrierAmount
-    ? { id: 'FIXED', ...BASE_METHODS.FIXED, available: true, source: CARRIER_SOURCE }
+    ? { id: 'FIXED', ...BASE_METHODS.FIXED, available: true, source: isTender ? TENDER_SOURCE : CARRIER_SOURCE }
     : describeBaseMethods(input, candidates, vars).find((o) => o.id === override.method);
   if (!option?.available || !option.source) {
     const label = BASE_METHODS[override.method]?.label ?? override.method;
@@ -91,13 +93,13 @@ export function applyBaseOverride(
   }
 
   const source = option.source;
-  const chosen = source.kind === 'COST_STRUCTURE' || source.kind === 'CARRIER'
+  const chosen = source.kind === 'COST_STRUCTURE' || source.kind === 'CARRIER' || source.kind === 'TENDER'
     ? []
     : pickBaseRules(candidates, override.method);
   const chosenIds = new Set(chosen.map((c) => c.rule.id));
   // Concepto que la base ya cobra: el de su regla; con monto del transportista es 'fixed' (no hay nada
   // "por km" cobrado, así un recargo por km transversal sigue aplicando) y con la estructura es 'km'.
-  const concept = source.kind === 'CARRIER' ? 'fixed' : (chosen[0]?.kind.concept ?? 'km');
+  const concept = source.kind === 'CARRIER' || source.kind === 'TENDER' ? 'fixed' : (chosen[0]?.kind.concept ?? 'km');
 
   const discarded: DiscardedRule[] = [];
   const replaced: string[] = [];
@@ -161,9 +163,11 @@ export function applyBaseOverride(
       seq: 1,
       stage: 'BASE',
       ruleId: null,
-      ruleCode: 'BASE_FIJA_TRANSPORTISTA',
-      label: 'Tarifa fija del transportista',
-      inputs: { 'monto pactado': carrierAmount.toFixed() },
+      ruleCode: isTender ? 'BASE_FIJA_TENDERING' : 'BASE_FIJA_TRANSPORTISTA',
+      label: isTender ? 'Monto adjudicado por tendering' : 'Tarifa fija del transportista',
+      inputs: isTender
+        ? { 'monto adjudicado': carrierAmount.toFixed() }
+        : { 'monto pactado': carrierAmount.toFixed() },
       source: 'COST_ROW',
       computed: amount,
       final: amount,
