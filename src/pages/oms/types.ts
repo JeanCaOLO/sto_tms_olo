@@ -162,6 +162,51 @@ export interface OmsLogEntry {
   actor: string;
 }
 
+// --- Panel del OMS: dashboard del MOTOR (datos reales de orders + oms_logs) ---
+// Reemplaza el panel mock previo (alertas/distribución/overdue). Refleja el flujo
+// real de ADR-013: el barrido PRIORIZA la cola y LIBERA a eFlow al abrir la ventana.
+
+// Embudo del día, derivado de public.orders (pedidos abiertos, closed_at IS NULL).
+export interface OmsPipeline {
+  abiertos: number;      // total de pedidos abiertos en el scope actual
+  enCola: number;        // con plan, aún sin procesar por el motor (planning_run_id, sin oms_processed_at ni prioritization_run_id)
+  priorizados: number;   // ya con prioridad, esperando la ventana de salida (prioritization_run_id, sin oms_processed_at)
+  liberadosHoy: number;  // enviados a eFlow hoy (oms_processed_at = hoy)
+}
+
+// Una fila de "por liberar pronto": pedidos priorizados-no-liberados agrupados por
+// fecha de salida del viaje (dispatch_date). La ventana abre dispatch_date − 1.
+export interface ProximaLiberacion {
+  dispatchDate: string;  // fecha de salida del viaje (YYYY-MM-DD)
+  ventanaAbre: string;   // día en que el barrido lo libera (dispatch_date − dias_prep_picking)
+  abreHoy: boolean;      // la ventana ya abrió (hoy o antes)
+  pedidos: number;
+  viajes: number;        // numero_viaje distintos en esa fecha
+}
+
+// Una corrida del motor (fila 'barrido' de oms_logs con sus totales de detail).
+export interface OmsCorrida {
+  id: string;
+  createdAt: string;
+  corridaId: string | null;
+  actor: string;
+  level: OmsLogLevel;
+  action: string;
+  total: number | null;
+  priorizados: number | null;
+  liberados: number | null;
+  pendientes: number | null;
+  reconciliados: number | null;
+  message: string;
+}
+
+// Latido del motor: última corrida, historial corto y errores recientes.
+export interface OmsMotorActividad {
+  ultima: OmsCorrida | null;
+  corridas: OmsCorrida[];
+  erroresRecientes: number; // filas level='error' en las últimas 24 h
+}
+
 // --- Simulador como CONFIGURADOR de simulaciones (DECIDED 2026-09-15) ---
 // PROTOTIPO: entidades mock persistidas en localStorage; sin backend.
 // Una SIMULACIÓN es una CONFIGURACIÓN CON NOMBRE que se guarda (reglas + filtro

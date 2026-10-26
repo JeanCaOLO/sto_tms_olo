@@ -6,7 +6,9 @@ import DataTable, { type DataTableColumn } from '../../../components/base/DataTa
 import { confirmAction } from '../../../lib/confirm';
 import { notify } from '../../../lib/notify';
 import { usePermissions } from '../../../hooks/usePermissions';
+import { useOperationalContext } from '../../../hooks/useOperationalContext';
 import { omsApi } from '../api/omsApi';
+import { formatFechaHora } from '../fecha';
 import LogDetailModal from './LogDetailModal';
 import { actionLabel, displayMessage } from './logLabels';
 import type { OmsLogEntry, OmsLogLevel } from '../types';
@@ -38,6 +40,9 @@ type Tab = 'acciones' | 'detalle';
 export default function OmsAuditoriaPage() {
   const { t } = useTranslation();
   const { can } = usePermissions();
+  const { countries, selectedCountryId } = useOperationalContext();
+  // Zona horaria del país del contexto (IANA); si no hay país/zona, el helper cae a CR.
+  const timeZone = countries.find((c) => c.id === selectedCountryId)?.timezone ?? null;
   // "developer" se señaliza con el mismo permiso que gatea el Simulador.
   const isDeveloper = can('oms.simulador', 'view');
 
@@ -112,7 +117,7 @@ export default function OmsAuditoriaPage() {
   }, [logs, query]);
 
   const accionesColumns: DataTableColumn<OmsLogEntry>[] = [
-    { key: 'createdAt', header: 'Fecha', accessor: (l) => l.createdAt, sortable: true, render: (l) => <span className="text-slate-500">{l.createdAt}</span> },
+    { key: 'createdAt', header: 'Fecha', accessor: (l) => l.createdAt, sortable: true, render: (l) => <span className="text-slate-500">{formatFechaHora(l.createdAt, timeZone)}</span> },
     {
       key: 'tipo',
       header: 'Tipo',
@@ -130,7 +135,7 @@ export default function OmsAuditoriaPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">{t('omsAudit.title')}</h1>
         <p className="text-sm text-slate-600 mt-1">
-          Acciones del OMS: corridas automáticas y acciones manuales (override, Procesar a Eflow).
+          Acciones del OMS: ejecuciones automáticas y acciones manuales (override, Procesar a Eflow).
         </p>
       </div>
 
@@ -178,7 +183,7 @@ export default function OmsAuditoriaPage() {
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar en logs (mensaje, acción, viaje, pedido, corrida…)"
+                placeholder="Buscar en logs (mensaje, acción, viaje, pedido, ejecución…)"
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
               />
             </div>
@@ -240,7 +245,7 @@ export default function OmsAuditoriaPage() {
                     onClick={() => setSelected(l)}
                   >
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                      <span className="text-slate-500 shrink-0">{l.createdAt}</span>
+                      <span className="text-slate-500 shrink-0">{formatFechaHora(l.createdAt, timeZone)}</span>
                       <span className={`shrink-0 uppercase ${LEVEL_CONSOLE[l.level]}`}>[{l.level}]</span>
                       <span className="text-teal-300 shrink-0">{actionLabel(l.action)}</span>
                       {l.corridaId && <span className="text-slate-500 shrink-0">({l.corridaId})</span>}
@@ -260,7 +265,7 @@ export default function OmsAuditoriaPage() {
         </div>
       )}
 
-      {selected && <LogDetailModal log={selected} onClose={() => setSelected(null)} />}
+      {selected && <LogDetailModal log={selected} timeZone={timeZone} onClose={() => setSelected(null)} />}
     </div>
   );
 }
