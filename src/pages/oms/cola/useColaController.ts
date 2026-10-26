@@ -11,19 +11,20 @@ export interface ColaFilters {
   branch: string;
   route: string;
   tier: string;
-  status: string;
-  situation: string;
-  estadoOms: string;
   query: string;
 }
 
 const EMPTY_FILTERS: ColaFilters = {
-  branch: ALL, route: ALL, tier: ALL, status: ALL, situation: ALL, estadoOms: ALL, query: '',
+  branch: ALL, route: ALL, tier: ALL, query: '',
 };
 
-// Estado OMS derivado del pedido (ADR-013), mismo criterio que la columna de la tabla.
-export function estadoOmsDe(o: QueueOrder): string {
-  return o.released ? 'Liberado' : o.prioritized ? 'Priorizado' : 'Sin priorizar';
+// La Cola solo muestra los pedidos PRIORIZADOS pero AÚN NO LIBERADOS a eFlow
+// (ADR-013): priorización hecha (`prioritization_run_id`) y sin liberar
+// (`oms_processed_at` / situación != GENE). Por eso siempre son DISP/DISP; los
+// liberados (DISP/GENE) salen de la cola. El "estado OMS" sigue siendo relevante
+// para esta lógica, solo que ya no se filtra ni se muestra como columna.
+export function esCola(o: QueueOrder): boolean {
+  return o.prioritized && !o.released;
 }
 
 // Controller de la Cola de Priorización (FR2/FR3). Maneja filtros, selección de
@@ -57,7 +58,7 @@ export function useColaController() {
       customerId: selectedCustomerId,
       warehouseIds: countryWarehouseIds,
     })
-      .then((rows) => { if (!cancelled) setOrders(rows); })
+      .then((rows) => { if (!cancelled) setOrders(rows.filter(esCola)); })
       .catch(() => { if (!cancelled) setError('No se pudo cargar la cola.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -70,9 +71,6 @@ export function useColaController() {
       branches: uniq(orders.map((o) => o.branchId)),
       routes: uniq(orders.map((o) => o.route)),
       tiers: uniq(orders.map((o) => String(o.tier))),
-      statuses: uniq(orders.map((o) => o.status)),
-      situations: uniq(orders.map((o) => o.situation)),
-      estadosOms: uniq(orders.map(estadoOmsDe)),
     };
   }, [orders]);
 
@@ -83,7 +81,6 @@ export function useColaController() {
   useEffect(() => {
     const available: Record<string, string[]> = {
       branch: options.branches, route: options.routes, tier: options.tiers,
-      status: options.statuses, situation: options.situations, estadoOms: options.estadosOms,
     };
     setFilters((prev) => {
       let changed = false;
@@ -102,9 +99,6 @@ export function useColaController() {
       if (filters.branch !== ALL && o.branchId !== filters.branch) return false;
       if (filters.route !== ALL && o.route !== filters.route) return false;
       if (filters.tier !== ALL && String(o.tier) !== filters.tier) return false;
-      if (filters.status !== ALL && o.status !== filters.status) return false;
-      if (filters.situation !== ALL && o.situation !== filters.situation) return false;
-      if (filters.estadoOms !== ALL && estadoOmsDe(o) !== filters.estadoOms) return false;
       if (q && !`${o.id} ${o.ref} ${o.customer} ${o.route} ${o.observations}`.toLowerCase().includes(q)) return false;
       return true;
     });
@@ -115,7 +109,6 @@ export function useColaController() {
   const resetFilters = () => setFilters(EMPTY_FILTERS);
   const filtersActive =
     filters.branch !== ALL || filters.route !== ALL || filters.tier !== ALL ||
-    filters.status !== ALL || filters.situation !== ALL || filters.estadoOms !== ALL ||
     filters.query.trim() !== '';
 
   const selected = orders.find((o) => o.id === selectedId) ?? null;

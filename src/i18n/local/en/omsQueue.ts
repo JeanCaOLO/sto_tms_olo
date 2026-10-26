@@ -1,6 +1,6 @@
 export default {
-  'omsQueue.title': 'Orders',
-  'omsQueue.subtitle': 'Prioritized and released orders',
+  'omsQueue.title': 'Prioritization Queue',
+  'omsQueue.subtitle': 'Prioritized orders pending release to eFlow',
   'omsQueue.warehouse': 'Warehouse',
   'omsQueue.company': 'Company',
   'omsQueue.branch': 'Branch',

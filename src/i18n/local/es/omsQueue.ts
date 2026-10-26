@@ -1,6 +1,6 @@
 export default {
-  'omsQueue.title': 'Pedidos',
-  'omsQueue.subtitle': 'Pedidos priorizados y liberados',
+  'omsQueue.title': 'Cola de Priorización',
+  'omsQueue.subtitle': 'Pedidos priorizados pendientes de liberar a eFlow',
   'omsQueue.warehouse': 'Almacén',
   'omsQueue.company': 'Compañía',
   'omsQueue.branch': 'Sucursal',
