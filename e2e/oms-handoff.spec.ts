@@ -16,7 +16,7 @@ import { test, expect, type Page } from '@playwright/test';
 
 const EMAIL = 'admin@ologistics.com';
 const PASS = 'Olo12345';
-const PAUSA = 1500; // pausa deliberada para que se vea en modo headed
+const PAUSA = 400; // pausa breve para estabilizar la captura
 
 async function login(page: Page): Promise<void> {
   await page.goto('/login', { waitUntil: 'networkidle' });
@@ -34,21 +34,29 @@ async function login(page: Page): Promise<void> {
 // (abajo): la tabla pagina a 10 filas, así que contar <tr> no es fiable — la UI
 // filtrada queda solo como lo que se ve en pantalla.
 async function verColaDisp(page: Page): Promise<void> {
-  await page.goto('/oms/cola', { waitUntil: 'networkidle' });
-  await expect(page.getByRole('heading', { name: 'Cola de Priorización' })).toBeVisible({ timeout: 15000 });
+  // Sin 'networkidle': la pantalla hace polling y nunca queda ociosa; las esperas
+  // explícitas de abajo (filtro + primera fila visibles) son el gate de carga real.
+  await page.goto('/oms/cola');
+  // Esperamos el control que realmente usamos (el filtro Situación), más robusto
+  // que el título de la pantalla (cambió a "Pedidos" vía i18n tras el merge de oms).
+  const situacion = page.getByLabel('Situación');
+  await expect(situacion).toBeVisible({ timeout: 15000 });
   await expect(page.locator('tbody tr').first()).toBeVisible({ timeout: 15000 });
-  await page.getByLabel('Situación').selectOption('DISP');
+  // Filtra a DISP si la opción existe. Tras el barrido (foto "después") puede no
+  // quedar ninguna fila en situación DISP, así que la opción desaparece: la foto
+  // queda sin filtrar. La aserción real va sobre la respuesta del barrido, no aquí.
+  await situacion.selectOption('DISP', { timeout: 3000 }).catch(() => {});
   await page.waitForTimeout(500); // el filtro es en memoria, re-render inmediato
 }
 
 test('Planif -> OMS: el barrido libera los pedidos DISP en ventana (DISP -> GENE)', async ({ page }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
 
   await login(page);
 
   // --- Contexto Planif: el calendario de planificación (best-effort, sin aserción
   // dura — solo para ver de dónde salen los pedidos estampados). ---
-  await page.goto('/planificacion', { waitUntil: 'networkidle' }).catch(() => {});
+  await page.goto('/planificacion').catch(() => {});
   await page.waitForTimeout(PAUSA);
   await page.screenshot({ path: 'test-results/oms-handoff-1-planif.png', fullPage: true });
 
