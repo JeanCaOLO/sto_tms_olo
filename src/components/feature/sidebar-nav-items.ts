@@ -36,7 +36,9 @@ const OMS_GROUP: MenuGroup = {
   i18nKey: 'menu.oms',
   children: [
     { icon: 'ri-dashboard-2-line', label: 'Panel OMS', i18nKey: 'menu.omsPanel', path: '/oms/panel', permKey: 'oms.panel' },
-    { icon: 'ri-stack-line', label: 'Pedidos', i18nKey: 'menu.omsCola', path: '/oms/cola', permKey: 'oms.cola' },
+    { icon: 'ri-inbox-line', label: 'Pedidos en Bandeja', i18nKey: 'menu.omsBandeja', path: '/oms/bandeja', permKey: 'oms.cola' },
+    { icon: 'ri-stack-line', label: 'Cola de Priorización', i18nKey: 'menu.omsCola', path: '/oms/cola', permKey: 'oms.cola' },
+    { icon: 'ri-map-pin-add-line', label: 'Planificación', i18nKey: 'menu.planificacion', path: '/oms/planificacion', permKey: 'planificacion' },
     { icon: 'ri-settings-3-line', label: 'Motor de Reglas', i18nKey: 'menu.omsReglas', path: '/oms/reglas', permKey: 'oms.reglas' },
     { icon: 'ri-flask-line', label: 'Simulador', i18nKey: 'menu.omsSimulador', path: '/oms/simulador', permKey: 'oms.simulador' },
     { icon: 'ri-history-line', label: 'Auditoría', i18nKey: 'menu.omsAuditoria', path: '/oms/auditoria', permKey: 'oms.auditoria' },
@@ -86,7 +88,6 @@ export const navItems: NavItem[] = [
   OMS_GROUP,
 
   { type: 'section', label: 'Ejecución Operativa', i18nKey: 'menu.sectionExecution' },
-  { icon: 'ri-map-pin-add-line', label: 'Planificación', i18nKey: 'menu.planificacion', path: '/planificacion', permKey: 'planificacion' },
   { icon: 'ri-file-text-line', label: 'Guías de Despacho', i18nKey: 'menu.guias', path: '/guias', permKey: 'guias' },
   { icon: 'ri-map-pin-line', label: 'Tracking', i18nKey: 'menu.tracking', path: '/tracking', permKey: 'tracking' },
   { icon: 'ri-arrow-go-back-line', label: 'Devoluciones', i18nKey: 'menu.devoluciones', path: '/devoluciones', permKey: 'devoluciones' },
