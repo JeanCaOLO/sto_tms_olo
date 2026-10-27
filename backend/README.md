@@ -20,6 +20,7 @@ backend/
   eflow/            /api/health, /api/viajes..., /api/catalogos/...   Lectura de EFLOW por país (modo mock por defecto)
   admin/            /api/v1/admin/users|roles|permissions, /api/v1/me/permissions   Usuarios, roles y matriz de permisos
   planning/         /api/v1/planificacion/pedidos   Pedidos alistados por fecha de entrega (insumo de Planificación)
+  mobile/           /api/mobile/v1/...   API de la app del chofer (HTTP API y JWT PROPIOS, sin Layer); ver mobile/README.md
   local/            serve.py (Lambdas locales en :4000) y create_admin.py (primer administrador)
   tests/            pytest (sin AWS ni BD: todo con dobles)
 ```

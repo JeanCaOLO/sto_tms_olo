@@ -38,7 +38,7 @@ ACCOUNT = "758837481569"
 ENV = "dev"
 ARTIFACTS_BUCKET = f"tms-sandbox-artifacts-{ACCOUNT}"
 STACKS = ["common-services", "auth", "data", "context", "eflow", "admin", "planning", "oms", "tarifas", "realtime",
-          "documents", "tracking", "alerts", "horarios"]
+          "documents", "tracking", "alerts", "horarios", "mobile"]
 # Stacks de infraestructura sin código (template en infra/<nombre>/, sin samconfig).
 INFRA_STACKS = {"horarios": ROOT / "infra" / "horarios"}
 # El secreto de BD del sandbox es el del rol de la app (sql/18), no el del dueño.
@@ -53,6 +53,8 @@ SSM_LAMBDA_SG = f"/{ENV}/tms/network/lambda-sg"
 AWS_CLI = shutil.which("aws") or "aws"
 PIP_PLATFORM = ["--platform", "manylinux2014_x86_64", "--python-version", "3.13",
                 "--implementation", "cp", "--only-binary=:all:", "--no-compile"]
+# Las Lambdas con `Architectures: [arm64]` (mobile) llevan las dependencias compiladas para Graviton.
+PIP_PLATFORM_ARM64 = ["--platform", "manylinux2014_aarch64", *PIP_PLATFORM[2:]]
 SSM_LAYER_ARN = f"/{ENV}/tms/common-layer-arn"
 FIXED_MTIME = 946684800  # 2000-01-01 (zip no admite < 1980 en hora local): zips deterministas, la Layer solo cambia si cambia su código
 
@@ -95,6 +97,11 @@ def ensure_secrets() -> None:
         jwt = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(64))
         _create_secret(f"/{ENV}/tms/jwt", {"jwt_secret": jwt}, "TMS - clave de firma de sesiones (sandbox)")
         print("    /dev/tms/jwt creado")
+    if not _secret_exists(f"/{ENV}/tms/mobile-jwt"):
+        # Clave PROPIA de la app del chofer (backend/mobile): un token del TMS web no sirve en la app ni al revés.
+        jwt = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(64))
+        _create_secret(f"/{ENV}/tms/mobile-jwt", {"jwt_secret": jwt}, "TMS - clave de sesiones de la app del chofer (sandbox)")
+        print("    /dev/tms/mobile-jwt creado")
     if not _secret_exists(f"/{ENV}/tms/eflow"):
         # EflowMode=mock en el sandbox: el valor no se usa hasta que haya red hacia EFLOW.
         _create_secret(f"/{ENV}/tms/eflow", {"cr": {}, "ve": {}}, "TMS - EFLOW por país (sandbox en modo mock)")
@@ -134,10 +141,10 @@ def ensure_bucket() -> None:
 
 # --- 2. build ------------------------------------------------------------------------
 
-def pip_install(requirements: Path, target: Path) -> None:
+def pip_install(requirements: Path, target: Path, platform: list[str] = PIP_PLATFORM) -> None:
     if requirements.exists() and requirements.read_text(encoding="utf-8").strip():
         subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-r", str(requirements), "--target",
-                        str(target), *PIP_PLATFORM, "--upgrade"], check=True)
+                        str(target), *platform, "--upgrade"], check=True)
 
 
 def _normalize(target: Path) -> None:
@@ -148,9 +155,9 @@ def _normalize(target: Path) -> None:
         os.utime(path, (FIXED_MTIME, FIXED_MTIME))
 
 
-def build_dir(source: Path, target: Path) -> Path:
+def build_dir(source: Path, target: Path, platform: list[str] = PIP_PLATFORM) -> Path:
     shutil.copytree(source, target, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "tests"))
-    pip_install(source / "requirements.txt", target)
+    pip_install(source / "requirements.txt", target, platform)
     _normalize(target)
     return target
 
@@ -161,6 +168,7 @@ def build_stack(stack: str) -> Path:
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
     text = (stack_dir / "template.yaml").read_text(encoding="utf-8")
+    platform = PIP_PLATFORM_ARM64 if re.search(r"Architectures:\s*\[\s*arm64\s*\]", text) else PIP_PLATFORM
 
     def replace_uri(match: re.Match) -> str:
         key, rel = match.group(1), match.group(2).strip().rstrip("/")
@@ -174,7 +182,7 @@ def build_stack(stack: str) -> Path:
         else:
             target = out / name
             if not target.exists():
-                build_dir(stack_dir / rel, target)
+                build_dir(stack_dir / rel, target, platform)
         return f"{key}: {target.as_posix()}"
 
     text = re.sub(r"(CodeUri|ContentUri): (\S+)", replace_uri, text)
@@ -238,6 +246,12 @@ def api_url() -> str:
                "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue", "--output", "text").stdout.strip()
 
 
+def mobile_api_url() -> str:
+    """La app del chofer tiene su propio HTTP API (stack mobile), no cuelga del de common-services."""
+    return aws("cloudformation", "describe-stacks", "--stack-name", f"{ENV}-tms-mobile", "--query",
+               "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue", "--output", "text").stdout.strip()
+
+
 def main() -> None:
     selected = sys.argv[1:] or STACKS
     unknown = [s for s in selected if s not in STACKS]
@@ -251,6 +265,8 @@ def main() -> None:
             sync_layer_parameter()
         deploy_stack(stack)
     print(f"\nBackend del sandbox listo. API: {api_url()}")
+    if "mobile" in selected:
+        print(f"API de la app del chofer (EXPO_PUBLIC_API_BASE): {mobile_api_url()}")
     print("Registrá lo creado o cambiado en docs/reference/aws-inventario-tms.md (bitácora de cambios).")
 
 
