@@ -49,6 +49,20 @@ def priorizar(
     return [_priorizar_uno(p, resolver_config(p), hoy, clasificador) for p in pedidos]
 
 
+def priorizar_uno(
+    pedido: PedidoCandidato,
+    config: ConfiguracionReglas,
+    hoy: date,
+    clasificador: Clasificador = clasificador_stub,
+) -> RegistroPrioridad:
+    """Prioriza UN pedido (envoltura pública de `_priorizar_uno`).
+
+    La usa el barrido (`app.correr`) para priorizar pedido a pedido con la config
+    resuelta por scope, saltándose los de compañías con `priorizar=false` (EPA).
+    """
+    return _priorizar_uno(pedido, config, hoy, clasificador)
+
+
 def _priorizar_uno(
     pedido: PedidoCandidato,
     config: ConfiguracionReglas,

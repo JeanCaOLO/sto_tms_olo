@@ -18,6 +18,7 @@ export default {
   'menu.reglasTarifa': 'Reglas Tarifa',
   'menu.oms': 'OMS',
   'menu.omsPanel': 'Panel OMS',
+  'menu.omsBandeja': 'Pedidos en Bandeja',
   'menu.omsCola': 'Cola de Priorización',
   'menu.omsReglas': 'Motor de Reglas',
   'menu.omsSimulador': 'Simulador',
