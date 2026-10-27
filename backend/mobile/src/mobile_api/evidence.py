@@ -1,5 +1,9 @@
-"""Evidencias de entrega: la app sube DIRECTO a S3 con un formulario firmado de 5 min; aquí solo se firma,
-se valida y se guarda la llave. El bucket es el mismo que lee la web del TMS (parámetro EVIDENCE_BUCKET)."""
+"""Evidencias de entrega (foto de factura firmada, firma): la app sube DIRECTO a S3 con un formulario firmado de
+5 min; aquí solo se firma, se valida y se guarda la fila en `tracking_evidences`.
+
+El bucket es el PROPIO de la app (EVIDENCE_BUCKET, lo crea el stack mobile) y cada archivo queda en la carpeta de su
+pedido: `pedidos/<número>/<id del pedido>/<kind>-<uuid>.<ext>`, con el pedido y la parada también como metadatos del
+objeto. La fila guarda pedido, número y bucket, así la web del TMS firma la lectura en el bucket correcto."""
 
 import os
 from datetime import datetime, timezone
@@ -39,6 +43,13 @@ def _head(key: str) -> dict | None:
         raise
 
 
+def object_metadata(guide: dict, kind: str) -> dict:
+    """Metadatos del objeto en S3 (la app los reenvía tal cual con el formulario): de qué pedido y parada es."""
+    return {"x-amz-meta-pedido": logic.key_segment(guide.get("order_number")),
+            "x-amz-meta-pedido-id": str(guide.get("order_id") or ""),
+            "x-amz-meta-parada-id": str(guide["id"]), "x-amz-meta-tipo": kind}
+
+
 def upload_url(event: dict, driver: Driver) -> dict:
     guide_id = path_param(event, "id")
     body = body_dict(event)
@@ -47,10 +58,12 @@ def upload_url(event: dict, driver: Driver) -> dict:
     if client_id is not None and not logic.is_uuid(client_id):
         raise HttpError(400, "client_id inválido")
     guide = guide_access(driver, guide_id)
-    key = logic.new_evidence_key(str(guide["route_id"]), guide_id, mime, client_id)
+    key = logic.new_evidence_key(guide, kind, mime, client_id)
+    fields = {"Content-Type": mime, **object_metadata(guide, kind)}
     form = s3().generate_presigned_post(
-        config.evidence_bucket(), key, Fields={"Content-Type": mime},
-        Conditions=[{"Content-Type": mime}, ["content-length-range", 1, logic.MAX_EVIDENCE_BYTES]],
+        config.evidence_bucket(), key, Fields=fields,
+        Conditions=[*({name: value} for name, value in fields.items()),
+                    ["content-length-range", 1, logic.MAX_EVIDENCE_BYTES]],
         ExpiresIn=logic.URL_TTL_SECONDS)
     return ok({"url": form["url"], "fields": form["fields"], "key": key, "kind": kind,
                "max_bytes": logic.MAX_EVIDENCE_BYTES})
@@ -63,7 +76,7 @@ def confirm(event: dict, driver: Driver) -> dict:
     lat, lng = logic.coords(body)
     guide = guide_access(driver, guide_id)
     route_id = str(guide["route_id"])
-    key = logic.require_evidence_key(route_id, guide_id, body.get("key"))
+    key = logic.require_evidence_key(guide, body.get("key"), kind)
     head = logic.require_uploaded_image(_head(key))
     client_id = body.get("client_id") if logic.is_uuid(body.get("client_id")) else None
     try:
@@ -74,7 +87,8 @@ def confirm(event: dict, driver: Driver) -> dict:
     def work(run):
         created = run(sql.INSERT_EVIDENCE_SQL, [driver.organization_id, route_id, guide_id, kind, key,
                                                 head["ContentType"], int(head["ContentLength"]), captured, lat, lng,
-                                                client_id, driver.app_user_id])
+                                                client_id, driver.app_user_id, guide.get("order_id"),
+                                                guide.get("order_number"), config.evidence_bucket_or_none()])
         if kind == "signature":
             run(sql.SET_GUIDE_SIGNATURE_SQL, [key, guide_id])
         elif kind == "photo_invoice":

@@ -141,7 +141,7 @@ ORDER BY g.sequence_number
 """
 
 EVIDENCES_SQL = f"""
-SELECT id, dispatch_guide_id, kind, storage_key, mime_type, captured_at
+SELECT id, dispatch_guide_id, kind, storage_key, mime_type, captured_at, order_number, storage_bucket
 FROM tracking_evidences WHERE route_id = %s AND kind IN {EVIDENCE_KINDS_SQL} ORDER BY created_at
 """
 

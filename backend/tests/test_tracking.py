@@ -1200,3 +1200,12 @@ def test_detail_origin_uses_the_fixed_company_site(tracking):
     db.answer("cu.phone AS customer_phone", [_full_stop(1)])
     data = body_of(app.handler(_event("GET /api/v1/tracking/viajes/{id}", path={"id": ROUTE}), None))["data"]
     assert data["origin"]["lat"] == 10.1897571 and data["origin"]["lng"] == -67.9507191
+
+
+def test_evidence_from_the_driver_app_is_signed_in_its_own_bucket(tracking, monkeypatch):
+    """La app del chofer sube a su bucket (sql/54 lo anota en la fila); un bucket desconocido cae al de tracking."""
+    app, _ = tracking
+    monkeypatch.setenv("MOBILE_EVIDENCE_BUCKET", "dev-tms-mobile-evidencias-1")
+    assert app.evidence_bucket("dev-tms-mobile-evidencias-1") == "dev-tms-mobile-evidencias-1"
+    assert app.evidence_bucket(None) == "dev-tms-tracking-1"
+    assert app.evidence_bucket("bucket-ajeno") == "dev-tms-tracking-1"

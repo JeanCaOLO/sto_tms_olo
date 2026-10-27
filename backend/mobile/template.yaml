@@ -2,8 +2,8 @@ AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: TMS - MOBILE | API de la app del chofer (login propio, mi-viaje, posiciones GPS, paradas y evidencias)
 
-# Stack PROPIO de la app móvil: su API, su Lambda y su rol. No modifica la infraestructura central del TMS.
-# Comparte la BD (Aurora tms_olo) y el bucket de evidencias del TMS, que llegan como parámetros.
+# Stack PROPIO de la app móvil: su API, su Lambda, su rol y su bucket de evidencias. No modifica la infraestructura
+# central del TMS. Comparte la BD (Aurora tms_olo), que llega como parámetro.
 # El despliegue lo hace Intelix: sam build --use-container && sam deploy --config-env <dev|qa|prod>
 
 Parameters:
@@ -16,9 +16,10 @@ Parameters:
   JwtSecretName:
     Type: String
     Description: 'Secreto con { "jwt_secret": "..." } PROPIO de la app móvil (distinto al del TMS).'
-  EvidenceBucketName:
-    Type: String
-    Description: Bucket privado de evidencias del TMS (el que crea el stack tracking); la web lo lee con las mismas llaves.
+  EvidenceCorsOrigins:
+    Type: CommaDelimitedList
+    Default: "http://localhost:8081,http://localhost:3000"
+    Description: Orígenes web que pueden subir evidencias (Expo web en desarrollo). La app nativa no lo necesita.
   SubnetIds:
     Type: AWS::SSM::Parameter::Value<List<String>>
     Description: Subredes privadas con ruta a Aurora (mismo parámetro SSM que usan los stacks del TMS).
@@ -40,6 +41,58 @@ Conditions:
   IsProduction: !Equals [!Ref Environment, prod]
 
 Resources:
+  # Fotos de factura firmada y firmas que toma la app. Bucket pequeño y privado: cada archivo queda en la carpeta de
+  # su pedido (pedidos/<número>/<id del pedido>/<tipo>-<uuid>.<ext>) y la fila de tracking_evidences guarda pedido,
+  # número y este bucket. Sin versionado (reintentar con el mismo client_id sobrescribe a propósito); a los 90 días
+  # pasa a Standard-IA (se consulta poco); NO expira: es la prueba de entrega.
+  EvidenceBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-evidencias-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules: [{ ObjectOwnership: BucketOwnerEnforced }]
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      LifecycleConfiguration:
+        Rules:
+          - Id: subidas-incompletas-y-archivo-frio
+            Status: Enabled
+            AbortIncompleteMultipartUpload: { DaysAfterInitiation: 1 }
+            Transitions:
+              - { StorageClass: STANDARD_IA, TransitionInDays: 90 }
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins: !Ref EvidenceCorsOrigins
+            AllowedMethods: [POST]
+            AllowedHeaders: ["*"]
+            MaxAge: 3000
+      Tags:
+        - { Key: Project, Value: TMS-MOBILE }
+
+  EvidenceBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref EvidenceBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: SoloHttps
+            Effect: Deny
+            Principal: "*"
+            Action: s3:*
+            Resource:
+              - !GetAtt EvidenceBucket.Arn
+              - !Sub ${EvidenceBucket.Arn}/*
+            Condition: { Bool: { aws:SecureTransport: "false" } }
+
   MobileApiRole:
     Type: AWS::IAM::Role
     Properties:
@@ -63,10 +116,10 @@ Resources:
                   - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${JwtSecretName}-*
               - Effect: Allow
                 Action: [s3:GetObject, s3:PutObject]
-                Resource: !Sub arn:${AWS::Partition}:s3:::${EvidenceBucketName}/tracking/*
+                Resource: !Sub ${EvidenceBucket.Arn}/pedidos/*
               - Effect: Allow
                 Action: s3:ListBucket
-                Resource: !Sub arn:${AWS::Partition}:s3:::${EvidenceBucketName}
+                Resource: !GetAtt EvidenceBucket.Arn
       Tags:
         - { Key: Project, Value: TMS-MOBILE }
 
@@ -102,7 +155,7 @@ Resources:
           ENVIRONMENT: !Ref Environment
           DB_SECRET_NAME: !Ref DbSecretName
           JWT_SECRET_NAME: !Ref JwtSecretName
-          EVIDENCE_BUCKET: !Ref EvidenceBucketName
+          EVIDENCE_BUCKET: !Ref EvidenceBucket
           DRIVER_ROLE_NAME: !Ref DriverRoleName
           # Certificados de RDS (empaquetados en src/certs): la conexión a Aurora verifica el servidor.
           DB_SSL_CA: /var/task/certs/rds-global-bundle.pem
@@ -126,6 +179,9 @@ Resources:
         Project: TMS-MOBILE
 
 Outputs:
+  EvidenceBucketName:
+    Description: Bucket de evidencias de la app (fotos y firmas por pedido)
+    Value: !Ref EvidenceBucket
   ApiUrl:
     Description: URL base para EXPO_PUBLIC_API_BASE en la app
     Value: !Sub https://${MobileHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}

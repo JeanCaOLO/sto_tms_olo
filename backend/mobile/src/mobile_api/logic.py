@@ -250,11 +250,29 @@ def validate_position(raw, now: datetime) -> dict:
     }
 
 
-def new_evidence_key(route_id: str, guide_id: str, mime_type: str, client_id: str | None = None) -> str:
-    """Llave en S3. Con el `client_id` del teléfono la llave es SIEMPRE la misma: reintentar una subida (timeout,
-    URL vencida) sobrescribe el mismo objeto en vez de dejar uno huérfano con otra llave."""
+EVIDENCE_ROOT = "pedidos"
+
+
+def key_segment(value) -> str:
+    """Texto apto para una llave de S3 (y para metadatos ASCII): el número de pedido de EFLOW ya lo es casi siempre."""
+    text = re.sub(r"[^A-Za-z0-9_.-]+", "-", str(value or "")).strip("-.")
+    return text[:80] or "sin-numero"
+
+
+def evidence_prefix(guide: dict) -> str:
+    """Carpeta del PEDIDO en el bucket de evidencias: `pedidos/<número>/<id del pedido>/`. Una parada sin pedido
+    (no debería pasar) va a `pedidos/sin-pedido/<id de la parada>/`."""
+    if guide.get("order_id"):
+        return f"{EVIDENCE_ROOT}/{key_segment(guide.get('order_number'))}/{str(guide['order_id']).lower()}/"
+    return f"{EVIDENCE_ROOT}/sin-pedido/{str(guide['id']).lower()}/"
+
+
+def new_evidence_key(guide: dict, kind: str, mime_type: str, client_id: str | None = None) -> str:
+    """Llave en S3: `pedidos/<número>/<id del pedido>/<kind>-<uuid>.<ext>`. Con el `client_id` del teléfono la llave
+    es SIEMPRE la misma: reintentar una subida (timeout, URL vencida) sobrescribe el mismo objeto en vez de dejar uno
+    huérfano con otra llave."""
     object_id = client_id.lower() if client_id else uuid.uuid4()
-    return f"tracking/{route_id}/{guide_id}/{object_id}.{EVIDENCE_MIME[mime_type]}"
+    return f"{evidence_prefix(guide)}{kind}-{object_id}.{EVIDENCE_MIME[mime_type]}"
 
 
 def require_evidence_request(body) -> tuple[str, str]:
@@ -268,9 +286,11 @@ def require_evidence_request(body) -> tuple[str, str]:
     return kind, mime
 
 
-def require_evidence_key(route_id: str, guide_id: str, key) -> str:
-    """Solo acepta llaves con la forma que genera `new_evidence_key` para ESTA parada."""
-    pattern = rf"^tracking/{re.escape(route_id)}/{re.escape(guide_id)}/[0-9a-f-]{{36}}\.(jpg|png)$"
+def require_evidence_key(guide: dict, key, kind: str | None = None) -> str:
+    """Solo acepta llaves con la forma que genera `new_evidence_key` para el pedido de ESTA parada (y del `kind`
+    indicado, si se pide uno)."""
+    kinds = re.escape(kind) if kind else "|".join(EVIDENCE_KINDS)
+    pattern = rf"^{re.escape(evidence_prefix(guide))}({kinds})-[0-9a-f-]{{36}}\.(jpg|png)$"
     if not isinstance(key, str) or not re.match(pattern, key):
         raise HttpError(400, "Llave de archivo inválida")
     return key

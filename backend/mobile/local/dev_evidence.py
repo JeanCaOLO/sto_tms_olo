@@ -24,7 +24,7 @@ from mobile_api.stops import guide_access
 UPLOAD_PATH = f"{routes.PREFIX}/_dev/evidencias"
 DEFAULT_DIR = Path(__file__).resolve().parent / "_evidencias"
 UPLOAD_URL_KEY = f"POST {routes.PREFIX}/paradas/{{id}}/evidencias/upload-url"
-_KEY_RE = re.compile(r"^tracking/[0-9a-f-]{36}/[0-9a-f-]{36}/[0-9a-f-]{36}\.(jpg|png)$")
+_KEY_RE = re.compile(r"^pedidos/[A-Za-z0-9_.-]+/[0-9a-f-]{36}/(photo_invoice|signature)-[0-9a-f-]{36}\.(jpg|png)$")
 _MIME_BY_EXT = {ext: mime for mime, ext in logic.EVIDENCE_MIME.items()}
 
 _directory = DEFAULT_DIR
@@ -53,7 +53,7 @@ def upload_url(event: dict, driver) -> dict:
     if client_id is not None and not logic.is_uuid(client_id):
         raise HttpError(400, "client_id inválido")
     guide = guide_access(driver, guide_id)
-    key = logic.new_evidence_key(str(guide["route_id"]), guide_id, mime, client_id)
+    key = logic.new_evidence_key(guide, kind, mime, client_id)
     expires = int(time.time()) + logic.URL_TTL_SECONDS
     fields = {"key": key, "Content-Type": mime, "expires": str(expires), "signature": _sign(key, mime, expires)}
     return ok({"url": _origin(event) + UPLOAD_PATH, "fields": fields, "key": key, "kind": kind,

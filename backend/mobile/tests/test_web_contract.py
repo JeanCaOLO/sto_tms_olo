@@ -81,13 +81,16 @@ def test_event_insert_columns_match_web():
 
 # --- no dependen de la referencia ------------------------------------------------------------------------------------
 
-def test_evidence_key_has_the_format_the_web_requires():
-    route, guide = "11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"
-    key = logic.new_evidence_key(route, guide, "image/jpeg")
-    assert re.fullmatch(rf"tracking/{route}/{guide}/[0-9a-f-]{{36}}\.jpg", key)
-    assert logic.require_evidence_key(route, guide, key) == key
+def test_evidence_key_lives_in_the_folder_of_its_order():
+    order, guide = "11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"
+    stop = {"id": guide, "order_id": order, "order_number": "CR 0001/A"}
+    key = logic.new_evidence_key(stop, "photo_invoice", "image/jpeg")
+    assert re.fullmatch(rf"pedidos/CR-0001-A/{order}/photo_invoice-[0-9a-f-]{{36}}\.jpg", key)
+    assert logic.require_evidence_key(stop, key) == key
     with pytest.raises(Exception):
-        logic.require_evidence_key(route, "99999999-9999-4999-8999-999999999999", key)
+        logic.require_evidence_key({**stop, "order_id": "99999999-9999-4999-8999-999999999999"}, key)
+    without_order = logic.new_evidence_key({"id": guide, "order_id": None}, "signature", "image/png")
+    assert without_order.startswith(f"pedidos/sin-pedido/{guide}/signature-")
 
 
 def test_guide_strings_are_read_back_as_the_web_reads_them():

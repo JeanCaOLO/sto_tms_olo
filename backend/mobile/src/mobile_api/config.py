@@ -47,5 +47,10 @@ def evidence_bucket() -> str:
     return os.environ["EVIDENCE_BUCKET"]
 
 
+def evidence_bucket_or_none() -> str | None:
+    """Bucket que se anota en la fila; en desarrollo local sin S3 (local/dev_evidence.py) no hay."""
+    return os.environ.get("EVIDENCE_BUCKET") or None
+
+
 def driver_role_name() -> str:
     return os.environ.get("DRIVER_ROLE_NAME", "Chofer")

@@ -11,6 +11,7 @@ parameter_overrides = [
   "Environment=dev",
   "CommonStackName=dev-tms-common-services",
   "CommonLayerArn=/dev/tms/common-layer-arn",
+  "MobileEvidenceBucket=dev-tms-mobile-evidencias-758837481569",
   "SubnetIds=/dev/tms/network/subnets",
   "SecurityGroupId=/dev/tms/network/lambda-sg"
 ]

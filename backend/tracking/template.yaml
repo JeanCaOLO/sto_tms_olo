@@ -25,7 +25,13 @@ Parameters:
     Default: "https://sandbox.d1q6tzcx0ew3rk.amplifyapp.com,http://localhost:3000"
     Description: Orígenes que pueden subir/bajar evidencias del bucket (CORS). La app nativa no lo necesita.
 
+  MobileEvidenceBucket:
+    Type: String
+    Default: ""
+    Description: Bucket de evidencias de la app del chofer (output EvidenceBucketName del stack mobile). Vacío = sin lectura.
+
 Conditions:
+  HasMobileEvidenceBucket: !Not [!Equals [!Ref MobileEvidenceBucket, ""]]
   IsProduction: !Equals [!Ref Environment, prod]
 
 Resources:
@@ -108,6 +114,13 @@ Resources:
               - Effect: Allow
                 Action: s3:ListBucket
                 Resource: !GetAtt TrackingBucket.Arn
+              # Leer (solo leer) las fotos y firmas que sube la app del chofer a su bucket (stack mobile).
+              - !If
+                - HasMobileEvidenceBucket
+                - Effect: Allow
+                  Action: s3:GetObject
+                  Resource: !Sub arn:${AWS::Partition}:s3:::${MobileEvidenceBucket}/pedidos/*
+                - !Ref AWS::NoValue
       Tags:
         - { Key: Project, Value: TMS }
 
@@ -143,6 +156,7 @@ Resources:
           TMS_DB_SECRET_NAME:
             Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName
           TRACKING_BUCKET: !Ref TrackingBucket
+          MOBILE_EVIDENCE_BUCKET: !Ref MobileEvidenceBucket
 
   TrackingApiIntegration:
     Type: AWS::ApiGatewayV2::Integration

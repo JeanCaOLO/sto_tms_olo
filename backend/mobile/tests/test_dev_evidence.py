@@ -44,7 +44,8 @@ def local_store(monkeypatch, tmp_path):
 def own_stop(fake_db):
     """La parada pertenece al chofer del token (guide_access real, BD falsa)."""
     fake_db.answer("FROM dispatch_guides g JOIN routes r", [{
-        "id": GUIDE, "route_id": ROUTE, "organization_id": ORG, "order_id": ORDER, "delivery_status": "pending",
+        "id": GUIDE, "route_id": ROUTE, "organization_id": ORG, "order_id": ORDER, "order_number": "PED-001",
+        "delivery_status": "pending",
         "notes": None, "route_status": "En tránsito", "driver_id": DRIVER, "stop_lat": None, "stop_lng": None}])
 
 
@@ -57,7 +58,7 @@ def ask_form(call, headers=None, kind="photo_invoice", mime="image/jpeg"):
 def test_form_points_at_the_origin_metro_forwarded(call, local_store):
     form = ask_form(call, headers={"Host": "127.0.0.1:4100", "X-Forwarded-Host": "172.16.11.43:8081"})
     assert form["url"] == "http://172.16.11.43:8081/api/mobile/v1/_dev/evidencias"
-    assert form["key"].startswith(f"tracking/{ROUTE}/{GUIDE}/") and form["key"].endswith(".jpg")
+    assert form["key"].startswith(f"pedidos/PED-001/{ORDER}/photo_invoice-") and form["key"].endswith(".jpg")
 
 
 def test_upload_then_confirm_stores_the_file_and_the_row(call, fake_db, local_store):
@@ -83,7 +84,7 @@ def test_confirm_without_upload_is_rejected(call, fake_db, local_store):
 def test_upload_rejects_bad_signature_expired_form_and_big_or_missing_file(call, local_store):
     fields = ask_form(call)["fields"]
     assert dev_evidence.save_upload(CONTENT_TYPE, multipart({**fields, "signature": "0" * 64}, JPEG))[0] == 403
-    assert dev_evidence.save_upload(CONTENT_TYPE, multipart({**fields, "key": fields["key"].replace("tracking", "x")}, JPEG))[0] == 403
+    assert dev_evidence.save_upload(CONTENT_TYPE, multipart({**fields, "key": fields["key"].replace("pedidos", "x")}, JPEG))[0] == 403
     expired = int(time.time()) - 1
     old = {**fields, "expires": str(expired), "signature": dev_evidence._sign(fields["key"], "image/jpeg", expired)}
     assert dev_evidence.save_upload(CONTENT_TYPE, multipart(old, JPEG))[0] == 403

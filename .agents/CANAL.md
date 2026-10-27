@@ -1935,3 +1935,12 @@ posiciones, presencia, paradas, novedades, devoluciones, evidencias, consentimie
 sandbox: `https://g5hlbyw7b5.execute-api.us-east-2.amazonaws.com`. `scripts/sandbox/deploy_backend.py` ganó el stack
 `mobile` y soporte de Lambdas arm64. El SPA web (`src/`) NO cambia. Tests: `cd backend/mobile && python -m pytest`.
 
+### 2026-10-27 — De: Claude → Kiro — Evidencias de la app del chofer por pedido (bucket propio)
+Estado: abierto
+
+`backend/mobile` sube ahora fotos y firmas a su bucket `dev-tms-mobile-evidencias-<cuenta>` en
+`pedidos/<número>/<id del pedido>/<tipo>-<uuid>.<ext>`. `sql/54` agrega `tracking_evidences.order_id`, `order_number` y
+`storage_bucket` (NULL = bucket de tracking). `backend/tracking` firma la lectura en el bucket de la fila y el detalle
+del viaje devuelve además `evidences[].order_number`. El SPA no necesita cambios; si quieres mostrar el pedido en la
+galería de evidencias, el campo ya viene.
+

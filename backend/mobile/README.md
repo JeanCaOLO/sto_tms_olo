@@ -25,7 +25,7 @@ python scripts/migrate.py sql/m01_mobile_base.sql --execute  # aplica (BD compar
 | `POST posiciones` | chofer | lote ≤ 200, idempotente por `client_id` |
 | `POST paradas/{id}/transicion` | chofer | entregado / fallido / pendiente; geocerca de 150 m |
 | `POST paradas/{id}/novedades` · `devoluciones` | chofer | novedad (`incident`/`pickup`) y devolución |
-| `POST paradas/{id}/evidencias/upload-url` · `evidencias` | chofer | subida directa a S3 con formulario firmado y confirmación |
+| `POST paradas/{id}/evidencias/upload-url` · `evidencias` | chofer | foto de factura y firma: subida directa al bucket PROPIO de la app (`<stack>-evidencias-<cuenta>`), en `pedidos/<número>/<id del pedido>/<tipo>-<uuid>.<ext>`; la fila de `tracking_evidences` guarda pedido, número y bucket (sql/54) |
 | `POST consentimiento-gps` | chofer | consentimiento por versión del aviso |
 
 Respuesta: `{ "data": ..., "error": null }` o `{ "data": null, "error": { "message", "code" } }`.

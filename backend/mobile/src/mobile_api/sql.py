@@ -182,7 +182,8 @@ WHERE tracking_last_positions.recorded_at <= EXCLUDED.recorded_at
 # --- paradas ----------------------------------------------------------------------------------------------------
 
 GUIDE_ROW_SQL = """
-SELECT g.id, g.route_id, g.organization_id, g.order_id, g.delivery_status, g.notes, r.status AS route_status,
+SELECT g.id, g.route_id, g.organization_id, g.order_id, o.order_number, g.delivery_status, g.notes,
+       r.status AS route_status,
        r.driver_id,
        COALESCE(o.delivery_latitude, ps.latitude) AS stop_lat, COALESCE(o.delivery_longitude, ps.longitude) AS stop_lng,
        COALESCE((SELECT array_agg(DISTINCT e.kind) FROM tracking_evidences e WHERE e.dispatch_guide_id = g.id),
@@ -273,8 +274,9 @@ RETURNING id
 
 INSERT_EVIDENCE_SQL = """
 INSERT INTO tracking_evidences (organization_id, route_id, dispatch_guide_id, kind, storage_key, mime_type,
-                                size_bytes, captured_at, latitude, longitude, client_id, created_by)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                size_bytes, captured_at, latitude, longitude, client_id, created_by,
+                                order_id, order_number, storage_bucket)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 ON CONFLICT (storage_key) DO NOTHING
 RETURNING id
 """

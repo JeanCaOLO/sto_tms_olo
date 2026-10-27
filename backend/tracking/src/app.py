@@ -42,7 +42,7 @@ GZIP_MIN_BYTES = 1024        # por debajo, comprimir no compensa el base64
 _s3 = None
 SUMMARY_TTL_SECONDS = 5  # KPIs: todas las pantallas del mismo alcance comparten el cálculo durante unos segundos
 _SUMMARY_CACHE: dict[tuple, tuple[datetime, dict]] = {}
-_URL_CACHE: dict[str, tuple[str, float]] = {}  # storage_key -> (url firmada, vence en epoch s)
+_URL_CACHE: dict[tuple[str, str], tuple[str, float]] = {}  # (bucket, storage_key) -> (url firmada, vence en epoch s)
 
 
 def s3():
@@ -60,25 +60,34 @@ def bucket() -> str:
     return os.environ["TRACKING_BUCKET"]
 
 
+def evidence_bucket(stored: str | None) -> str:
+    """Bucket de lectura de una evidencia. NULL = este stack (las viejas y las que sube la web); la app del chofer
+    (backend/mobile) sube a su bucket propio y lo anota en la fila (sql/54). Solo se firma en buckets conocidos."""
+    if stored and stored == os.environ.get("MOBILE_EVIDENCE_BUCKET"):
+        return stored
+    return bucket()
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _signed_get(key: str) -> str:
+def _signed_get(key: str, bucket_name: str | None = None) -> str:
     """URL firmada de lectura. Estable: se reusa desde la caché del Lambda mientras le queden más de
     SIGNED_GET_RENEW_SECONDS; si no, se vuelve a firmar."""
     nowts = time.time()
-    cached = _URL_CACHE.get(key)
+    bucket_name = bucket_name or bucket()
+    cached = _URL_CACHE.get((bucket_name, key))
     if cached and cached[1] - nowts > logic.SIGNED_GET_RENEW_SECONDS:
         return cached[0]
-    url = s3().generate_presigned_url("get_object", Params={"Bucket": bucket(), "Key": key},
+    url = s3().generate_presigned_url("get_object", Params={"Bucket": bucket_name, "Key": key},
                                       ExpiresIn=logic.SIGNED_GET_TTL_SECONDS)
     if len(_URL_CACHE) >= 5000:  # tope de memoria: primero se van las vencidas
         for stale in [k for k, (_, expires) in _URL_CACHE.items() if expires <= nowts]:
             del _URL_CACHE[stale]
         if len(_URL_CACHE) >= 5000:
             _URL_CACHE.clear()
-    _URL_CACHE[key] = (url, nowts + logic.SIGNED_GET_TTL_SECONDS)
+    _URL_CACHE[(bucket_name, key)] = (url, nowts + logic.SIGNED_GET_TTL_SECONDS)
     return url
 
 
@@ -434,8 +443,8 @@ def _detail(route_id: str, *, driver: bool = False) -> dict:
     for ev in _rq(sql.EVIDENCES_SQL, [route_id]):
         evidences.setdefault(str(ev["dispatch_guide_id"]), []).append({
             "id": str(ev["id"]), "kind": ev["kind"], "mime_type": ev["mime_type"],
-            "captured_at": _iso(ev["captured_at"]),
-            "url": None if driver else _signed_get(ev["storage_key"])})
+            "captured_at": _iso(ev["captured_at"]), "order_number": ev.get("order_number"),
+            "url": None if driver else _signed_get(ev["storage_key"], evidence_bucket(ev.get("storage_bucket")))})
     state = logic.route_state(row["status"])
     position = _coords(row["last_lat"], row["last_lng"])
     origin = _origin(row)

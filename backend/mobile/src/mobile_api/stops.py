@@ -146,7 +146,7 @@ def add_return(event: dict, driver: Driver) -> dict:
         raise HttpError(409, "El viaje no está en tránsito.")
     photo = body.get("photo_key")
     if photo is not None:
-        photo = logic.require_evidence_key(str(guide["route_id"]), guide_id, photo)
+        photo = logic.require_evidence_key(guide, photo)
     code = (body.get("product_code") or "").strip() or None if isinstance(body.get("product_code"), str) else None
     notes = (body.get("notes") or "").strip() or None if isinstance(body.get("notes"), str) else None
     number = f"DV-{client_id or uuid.uuid4()}"   # reenviar la misma devolución no la duplica

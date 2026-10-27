@@ -7,6 +7,7 @@ from mobile_api import consent, db as db_module, evidence, logic, positions, rou
 
 STOP_LAT, STOP_LNG = 9.9300, -84.0800
 UUID1 = "44444444-4444-4444-8444-444444444444"
+FOLDER = f"pedidos/PED-001/{ORDER}/"   # carpeta del pedido de guide_row() en el bucket de evidencias
 
 
 @pytest.fixture(autouse=True)
@@ -37,7 +38,8 @@ def guide_item(sequence=1, **over):
 
 
 def guide_row(**over):
-    base = {"id": GUIDE, "route_id": ROUTE, "organization_id": ORG, "order_id": ORDER, "delivery_status": "pending",
+    base = {"id": GUIDE, "route_id": ROUTE, "organization_id": ORG, "order_id": ORDER, "order_number": "PED-001",
+            "delivery_status": "pending",
             "notes": None, "route_status": "En tránsito", "driver_id": DRIVER, "stop_lat": None, "stop_lng": None,
             "evidence_kinds": ["photo_invoice", "signature"]}
     base.update(over)
@@ -405,9 +407,12 @@ def test_upload_url_signs_only_small_images_for_own_stop(call, fake_db, s3):
     fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row()])
     route = "POST /api/mobile/v1/paradas/{id}/evidencias/upload-url"
     data = body_of(call(route, path={"id": GUIDE}, body={"kind": "photo_invoice", "mime_type": "image/jpeg"}))["data"]
-    assert data["key"].startswith(f"tracking/{ROUTE}/{GUIDE}/") and data["key"].endswith(".jpg")
+    assert data["key"].startswith(f"{FOLDER}photo_invoice-") and data["key"].endswith(".jpg")
     bucket, key, kw = s3.posts[0]
     assert bucket == "bucket-de-prueba" and ["content-length-range", 1, logic.MAX_EVIDENCE_BYTES] in kw["Conditions"]
+    # El objeto lleva de qué pedido y parada es, y la política firmada lo exige tal cual.
+    assert kw["Fields"]["x-amz-meta-pedido"] == "PED-001" and kw["Fields"]["x-amz-meta-pedido-id"] == ORDER
+    assert {"x-amz-meta-parada-id": GUIDE} in kw["Conditions"]
     assert call(route, path={"id": GUIDE}, body={"kind": "video", "mime_type": "image/png"})["statusCode"] == 400
     assert call(route, path={"id": GUIDE}, body={"kind": "signature", "mime_type": "application/pdf"})["statusCode"] == 400
 
@@ -419,8 +424,8 @@ def test_upload_url_with_client_id_gives_the_same_key_on_every_retry(call, fake_
     body = {"kind": "signature", "mime_type": "image/png", "client_id": UUID1.upper()}
     first = body_of(call(route, path={"id": GUIDE}, body=body))["data"]["key"]
     again = body_of(call(route, path={"id": GUIDE}, body=body))["data"]["key"]
-    assert first == again == f"tracking/{ROUTE}/{GUIDE}/{UUID1}.png"
-    assert logic.require_evidence_key(ROUTE, GUIDE, first) == first        # y el servidor la reconoce al confirmar
+    assert first == again == f"{FOLDER}signature-{UUID1}.png"
+    assert logic.require_evidence_key(guide_row(), first, "signature") == first  # y el servidor la reconoce al confirmar
     other = body_of(call(route, path={"id": GUIDE}, body={**body, "client_id": "55555555-5555-4555-8555-555555555555"}))
     assert other["data"]["key"] != first
     anonymous = body_of(call(route, path={"id": GUIDE}, body={"kind": "signature", "mime_type": "image/png"}))
@@ -431,22 +436,30 @@ def test_upload_url_with_client_id_gives_the_same_key_on_every_retry(call, fake_
 def test_confirm_stores_key_and_links_the_guide(call, fake_db, s3):
     fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row()])
     fake_db.answer("INSERT INTO tracking_evidences", [{"id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc"}])
-    key = f"tracking/{ROUTE}/{GUIDE}/{'a' * 8}-aaaa-4aaa-8aaa-{'a' * 12}.jpg"
+    key = f"{FOLDER}signature-{'a' * 8}-aaaa-4aaa-8aaa-{'a' * 12}.jpg"
     route = "POST /api/mobile/v1/paradas/{id}/evidencias"
     response = call(route, path={"id": GUIDE}, body={"kind": "signature", "key": key, "client_id": UUID1})
     assert response["statusCode"] == 201 and body_of(response)["data"]["duplicate"] is False
     assert fake_db.wrote("UPDATE dispatch_guides SET signature_url")[0][1] == [key, GUIDE]
     assert not fake_db.wrote("UPDATE dispatch_guides SET photo_url")
-    call(route, path={"id": GUIDE}, body={"kind": "photo_invoice", "key": key})
-    assert fake_db.wrote("UPDATE dispatch_guides SET photo_url")
+    # La fila identifica el pedido (id y número) y el bucket donde quedó el archivo.
+    inserted = fake_db.wrote("INSERT INTO tracking_evidences")[0][1]
+    assert inserted[-3:] == [ORDER, "PED-001", "bucket-de-prueba"]
+    photo = key.replace("signature-", "photo_invoice-")
+    call(route, path={"id": GUIDE}, body={"kind": "photo_invoice", "key": photo})
+    assert fake_db.wrote("UPDATE dispatch_guides SET photo_url")[0][1] == [photo, GUIDE]
+    # Una firma no se puede confirmar como foto de factura (ni al revés).
+    assert call(route, path={"id": GUIDE}, body={"kind": "photo_invoice", "key": key})["statusCode"] == 400
 
 
 def test_confirm_rejects_foreign_key_missing_upload_and_big_files(call, fake_db, s3):
     fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row()])
     route = "POST /api/mobile/v1/paradas/{id}/evidencias"
-    foreign = f"tracking/{ROUTE}/otra-parada/{'a' * 36}.jpg"
+    foreign = f"pedidos/OTRO-002/99999999-9999-4999-8999-999999999999/signature-{'a' * 36}.jpg"
     assert call(route, path={"id": GUIDE}, body={"kind": "signature", "key": foreign})["statusCode"] == 400
-    key = f"tracking/{ROUTE}/{GUIDE}/{'a' * 36}.jpg"
+    old_format = f"tracking/{ROUTE}/{GUIDE}/{'a' * 36}.jpg"
+    assert call(route, path={"id": GUIDE}, body={"kind": "signature", "key": old_format})["statusCode"] == 400
+    key = f"{FOLDER}signature-{'a' * 36}.jpg"
     s3.head = None
     assert call(route, path={"id": GUIDE}, body={"kind": "signature", "key": key})["statusCode"] == 400
     s3.head = {"ContentType": "image/jpeg", "ContentLength": 6 * 1024 * 1024}

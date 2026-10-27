@@ -30,3 +30,11 @@ def test_template_points_the_db_ssl_ca_to_a_bundled_certificate():
     env = template["Resources"]["MobileApiFunction"]["Properties"]["Environment"]["Variables"]
     assert env["DB_SSL_CA"] == "/var/task/certs/rds-global-bundle.pem"
     assert (TEMPLATE.parent / "src" / "certs" / "rds-global-bundle.pem").exists()   # CodeUri: src/ lo empaqueta
+
+
+def test_template_creates_a_private_evidence_bucket_per_order_folder():
+    template = yaml.load(TEMPLATE.read_text(encoding="utf-8"), Loader=_CfnLoader)
+    bucket = template["Resources"]["EvidenceBucket"]
+    assert bucket["DeletionPolicy"] == "Retain"                      # la prueba de entrega no se borra con el stack
+    assert all(bucket["Properties"]["PublicAccessBlockConfiguration"].values())
+    assert "EvidenceBucketName" not in template["Parameters"]         # ya no depende del bucket del stack tracking
