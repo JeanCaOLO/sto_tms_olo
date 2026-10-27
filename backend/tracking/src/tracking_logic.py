@@ -81,11 +81,23 @@ def _aware(value: datetime) -> datetime:
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
-def signal(last_position_at: datetime | None, now: datetime) -> str:
-    """online | stale | offline | none (nunca reportó posición)."""
-    if last_position_at is None:
+def signal(last_position_at: datetime | None, now: datetime, presence_status: str | None = None,
+           presence_seen_at: datetime | None = None) -> str:
+    """online | stale | offline | none (nunca reportó posición ni presencia).
+
+    Presencia = lo que informa la app del chofer (`driver_presence`: login, latido, logout). Un `offline` explícito
+    (logout) más reciente que el último punto manda sobre la antigüedad; un latido `online` más reciente que el
+    último punto también cuenta como señal de vida. Sin presencia, solo cuenta la última posición."""
+    if (presence_status == "offline" and presence_seen_at is not None
+            and (last_position_at is None or _aware(presence_seen_at) >= _aware(last_position_at))):
+        return "offline"
+    latest = last_position_at
+    if presence_status == "online" and presence_seen_at is not None and (
+            latest is None or _aware(presence_seen_at) > _aware(latest)):
+        latest = presence_seen_at
+    if latest is None:
         return "none"
-    age = (_aware(now) - _aware(last_position_at)).total_seconds()
+    age = (_aware(now) - _aware(latest)).total_seconds()
     if age <= ONLINE_SECONDS:
         return "online"
     if age <= STALE_SECONDS:
@@ -349,14 +361,17 @@ def days_late(due_date, now: datetime, tz: str | None) -> int:
     return max(0, (_aware(now).astimezone(zone).date() - due_date).days)
 
 
-def alerts(state: str, signal_value: str, failed: int, late_days: int = 0, stopped_min: int = 0) -> list[dict]:
+def alerts(state: str, signal_value: str, failed: int, late_days: int = 0, stopped_min: int = 0,
+           position_signal: str | None = None) -> list[dict]:
     """Alertas de un viaje EN TRÁNSITO: [{"code","count"?}]. Para otros estados no hay alertas.
 
     late: `count` = días pasados de la fecha de entrega.
     no_signal: solo si hubo señal y caducó (signal 'offline'); 'none' (nunca hubo GPS) no alerta.
-    stopped: solo con señal 'online', para no afirmar que está detenido sin datos recientes."""
+    stopped: solo con la POSICIÓN reciente (`position_signal`, por defecto `signal_value`): un latido de la app
+    no basta para afirmar que el camión está detenido."""
     if state != "active":
         return []
+    position_signal = signal_value if position_signal is None else position_signal
     out = []
     if failed:
         out.append({"code": ALERT_FAILED, "count": failed})
@@ -364,7 +379,7 @@ def alerts(state: str, signal_value: str, failed: int, late_days: int = 0, stopp
         out.append({"code": ALERT_NO_SIGNAL})
     if late_days > 0:
         out.append({"code": ALERT_LATE, "count": late_days})
-    if stopped_min >= STOPPED_MIN and signal_value == "online":
+    if stopped_min >= STOPPED_MIN and position_signal == "online":
         out.append({"code": ALERT_STOPPED, "count": stopped_min})
     return out
 

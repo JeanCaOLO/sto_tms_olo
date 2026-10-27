@@ -31,6 +31,23 @@ export interface Progress {
   percent: number;
 }
 
+/** Presencia del chofer en la app móvil (login / latido / logout). `null`: nunca abrió la app. */
+export interface Presencia {
+  status: 'online' | 'offline';
+  last_seen_at: string | null;
+}
+
+/** Chofer con la app abierta en los últimos 30 min (GET /tracking/choferes). `route_id` null = en línea sin viaje. */
+export interface ChoferEnLinea {
+  driver_id: string;
+  driver_name: string | null;
+  country: string | null;
+  signal: Signal;
+  last_seen_at: string | null;
+  battery_pct: number | null;
+  route_id: string | null;
+}
+
 export interface Viaje {
   id: string;
   route_number: string;
@@ -59,6 +76,8 @@ export interface Viaje {
   progress: Progress;
   delay_min: number | null;
   alerts: TripAlert[];
+  /** Presencia del chofer en la app; opcional por compatibilidad con respuestas anteriores. */
+  presence?: Presencia | null;
 }
 
 export interface Evidence {

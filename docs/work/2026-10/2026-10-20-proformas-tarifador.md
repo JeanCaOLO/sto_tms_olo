@@ -31,8 +31,9 @@ Un flujo nuevo: se liquidan los viajes → se genera la **proforma** → pasa po
 | Frontend | `src/pages/proformas/` (dashboard, detalle, nueva proforma, configuración), ruta `/proformas`, menú y i18n |
 
 ## Correo
-- **Auxiliar (siempre):** descarga el PDF y abre Gmail con destinatarios, asunto y mensaje ya armados; la persona adjunta y envía. Después marca "Ya lo envié".
-- **Directo (modo configurable):** cada usuario conecta su cuenta de Google una vez (scope `gmail.send`, no lee el buzón); el refresh token se guarda y "Enviar ahora" manda el correo con el PDF adjunto.
+- **Enviar:** cada usuario conecta su cuenta de Google una vez (scope `gmail.send`, no lee el buzón; el botón "Conectar con Google" está siempre visible en Configuración y en el modal de envío). El refresh token se guarda y "Enviar" manda el correo con el PDF adjunto.
+- **Mientras no haya cuenta conectada:** "Abrir en Gmail" descarga el PDF y abre Gmail con todo armado; la persona adjunta y envía, y luego marca "Ya lo envié".
+- (2026-10-23) Se quitó el selector "Forma de envío" (escondía el botón de Google) y el borrador `.eml`. La columna `mode` queda como heredada.
 - Destinatarios: los fijos del país + (opcional) el correo del transportista del catálogo (`carriers.email`).
 - El PDF se genera en el navegador (`jspdf` + `html2canvas`, cargados bajo demanda). Es una imagen: el texto no es seleccionable.
 

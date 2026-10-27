@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import Badge from '../../../components/base/Badge';
 import type { Viaje } from '../types';
-import { COLOR_HEX, STATE_KEY, formatAge, formatDay, stateVariant } from '../tracking-logic';
+import { COLOR_HEX, STATE_KEY, driverLoggedOut, formatAge, formatDay, lastSignalAt, stateVariant } from '../tracking-logic';
 import AlertDots from './AlertDots';
 import ProgressBar from './ProgressBar';
 
@@ -15,7 +15,9 @@ interface Props {
 /** Tarjeta de la lista lateral: viaje, conductor · placa, avance y última señal. Al elegirla se abre el detalle. */
 export default function ViajeCard({ viaje, selected, now, onSelect }: Props) {
   const { t } = useTranslation();
-  const age = viaje.state === 'active' ? formatAge(viaje.position?.recorded_at, now, t) : null;
+  const loggedOut = driverLoggedOut(viaje);
+  // La última señal incluye el latido de la app: un chofer con la app abierta no figura "sin señal" por un GPS lento.
+  const age = viaje.state === 'active' && !loggedOut ? formatAge(lastSignalAt(viaje), now, t) : null;
   const due = formatDay(viaje.due_date);
   const assigned = formatDay(viaje.assigned_at, viaje.timezone);
   return (
@@ -47,6 +49,7 @@ export default function ViajeCard({ viaje, selected, now, onSelect }: Props) {
         <ProgressBar percent={viaje.progress.percent} failed={viaje.progress.failed} total={viaje.progress.total} />
         <p className="mt-1 text-xs text-slate-500 flex justify-between gap-2">
           <span>{viaje.progress.total ? t('tracking.progress', { done: viaje.progress.done, total: viaje.progress.total }) : t('tracking.noStops')}</span>
+          {loggedOut && <span>{t('tracking.loggedOut')}</span>}
           {age && <span>{t('tracking.lastSeen', { age })}</span>}
         </p>
       </div>

@@ -64,14 +64,7 @@ export default function EmailConfigForm({ countryId }: { countryId: string }) {
           Mensaje
           <textarea className={FIELD} rows={6} value={config.bodyTemplate} onChange={(e) => patch({ bodyTemplate: e.target.value })} />
         </label>
-        <label className="block text-sm font-medium text-slate-700">
-          Forma de envío
-          <select className={FIELD} value={config.mode} onChange={(e) => patch({ mode: e.target.value as EmailConfig['mode'] })}>
-            <option value="manual">Manual: abre Gmail con el correo armado y lo envías tú</option>
-            <option value="direct">Directo: un botón envía desde la cuenta de Google conectada</option>
-          </select>
-        </label>
-        {config.mode === 'direct' && <GoogleConnection />}
+        <GoogleConnection />
         <div className="flex justify-end">
           <Button disabled={saving} onClick={() => void save()}>{saving ? 'Guardando…' : 'Guardar correo'}</Button>
         </div>

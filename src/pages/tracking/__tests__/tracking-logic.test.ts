@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Viaje } from '../types';
 import {
-  ageSeconds, formatAge, formatClock, formatDay, formatDistance, matchesKpi, positioned, stateVariant, stopVariant,
+  ageSeconds, driverLoggedOut, formatAge, formatClock, formatDay, formatDistance, lastSignalAt, matchesKpi, positioned, stateVariant,
+  stopVariant,
 } from '../tracking-logic';
 
 const NOW = Date.parse('2026-10-16T15:00:00Z');
@@ -12,6 +13,34 @@ const viaje = (over: Partial<Viaje> = {}): Viaje => ({
   zone_name: null, country: 'CR', timezone: 'America/Costa_Rica', started_at: null, ended_at: null, planned_end_at: null,
   route_date: null, due_date: null, assigned_at: null, days_late: 0, position: null, progress: { total: 4, done: 2, delivered: 2, failed: 0, percent: 50 }, delay_min: null, alerts: [],
   ...over,
+});
+
+describe('presencia del chofer', () => {
+  const at = (iso: string) => ({ lat: 1, lng: 1, speed_mps: null, recorded_at: iso });
+
+  it('la última señal es la más reciente entre el punto GPS y el latido en línea', () => {
+    expect(lastSignalAt({ position: at('2026-10-16T14:48:00Z'), presence: { status: 'online', last_seen_at: '2026-10-16T14:59:00Z' } }))
+      .toBe('2026-10-16T14:59:00Z');
+    expect(lastSignalAt({ position: at('2026-10-16T14:59:30Z'), presence: { status: 'online', last_seen_at: '2026-10-16T14:50:00Z' } }))
+      .toBe('2026-10-16T14:59:30Z');
+    expect(lastSignalAt({ position: null, presence: { status: 'online', last_seen_at: '2026-10-16T14:59:00Z' } })).toBe('2026-10-16T14:59:00Z');
+  });
+
+  it('un latido de una sesión ya cerrada no cuenta, y sin datos no hay señal', () => {
+    expect(lastSignalAt({ position: at('2026-10-16T14:48:00Z'), presence: { status: 'offline', last_seen_at: '2026-10-16T14:59:00Z' } }))
+      .toBe('2026-10-16T14:48:00Z');
+    expect(lastSignalAt({ position: null, presence: null })).toBeNull();
+    expect(lastSignalAt({ position: null })).toBeNull();
+    expect(lastSignalAt({ position: null, presence: { status: 'online', last_seen_at: 'no-fecha' } })).toBeNull();
+  });
+
+  it('detecta el cierre de sesión solo en viajes activos sin señal por ese motivo', () => {
+    const out = { status: 'offline' as const, last_seen_at: '2026-10-16T14:59:00Z' };
+    expect(driverLoggedOut(viaje({ signal: 'offline', presence: out }))).toBe(true);
+    expect(driverLoggedOut(viaje({ signal: 'online', presence: out }))).toBe(false); // salió de nuevo: la señal manda
+    expect(driverLoggedOut(viaje({ signal: 'offline', presence: null }))).toBe(false);
+    expect(driverLoggedOut(viaje({ state: 'completed', signal: 'offline', presence: out }))).toBe(false);
+  });
 });
 
 describe('tracking-logic', () => {

@@ -4,7 +4,7 @@ import Badge from '../../../components/base/Badge';
 import Button from '../../../components/base/Button';
 import { ordenarPorCercania } from '../stop-order';
 import type { Viaje, ViajeDetalle } from '../types';
-import { STATE_KEY, formatAge, formatClock, formatDay, formatDistance, stateVariant } from '../tracking-logic';
+import { STATE_KEY, driverLoggedOut, formatAge, formatClock, formatDay, formatDistance, lastSignalAt, stateVariant } from '../tracking-logic';
 import AlertDots from './AlertDots';
 import ParadaItem from './ParadaItem';
 import ProgressBar from './ProgressBar';
@@ -25,7 +25,8 @@ interface Props {
 export default function ViajeDetallePanel({ viaje, detail, error, now, onReplay, onClose, children }: Props) {
   const { t } = useTranslation();
   const view = detail ?? viaje;
-  const age = formatAge(viaje.position?.recorded_at, now, t);
+  const loggedOut = driverLoggedOut(viaje);
+  const age = loggedOut ? null : formatAge(lastSignalAt(viaje), now, t);
   const next = detail?.stops.find((s) => s.id === detail.next_stop_id);
   const eta = formatClock(next?.eta_at, viaje.timezone);
 
@@ -80,6 +81,7 @@ export default function ViajeDetallePanel({ viaje, detail, error, now, onReplay,
             )}
           </p>
         )}
+        {loggedOut && <p className="text-xs text-slate-500">{t('tracking.loggedOut')}</p>}
         {age && viaje.state === 'active' && <p className="text-xs text-slate-500">{t('tracking.lastSeen', { age })}</p>}
         <Button size="sm" variant="secondary" onClick={onReplay} icon={<i className="ri-route-line" />}>
           {t('tracking.replay')}

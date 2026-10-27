@@ -35,6 +35,20 @@ export function ageSeconds(iso: string | null | undefined, now: number): number 
   return Number.isNaN(then) ? null : Math.max(0, Math.round((now - then) / 1000));
 }
 
+/**
+ * Última vez que se supo del chofer: la más reciente entre el último punto GPS y el último latido de la app (solo si
+ * está en línea; un latido anterior al cierre de sesión no cuenta). null si nunca hubo ninguno.
+ */
+export function lastSignalAt(viaje: Pick<Viaje, 'position' | 'presence'>): string | null {
+  const heartbeat = viaje.presence?.status === 'online' ? viaje.presence.last_seen_at : null;
+  const times = [viaje.position?.recorded_at, heartbeat].filter((value): value is string => Boolean(value) && !Number.isNaN(Date.parse(value as string)));
+  return times.length ? times.reduce((latest, value) => (Date.parse(value) > Date.parse(latest) ? value : latest)) : null;
+}
+
+/** El chofer cerró sesión en la app (logout explícito) y el viaje quedó sin señal por eso. */
+export const driverLoggedOut = (viaje: Pick<Viaje, 'presence' | 'signal' | 'state'>): boolean =>
+  viaje.state === 'active' && viaje.signal === 'offline' && viaje.presence?.status === 'offline';
+
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 /** Antigüedad corta y traducida: "30 s", "5 min", "2 h", "3 d"; null sin fecha. */
