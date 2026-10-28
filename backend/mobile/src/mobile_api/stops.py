@@ -50,6 +50,14 @@ def transition_stop(event: dict, driver: Driver) -> dict:
     if target not in logic.GUIDE_STATUS_TEXT:
         raise HttpError(400, "to debe ser pending, delivered o failed")
     reason = (body.get("reason") or "").strip() or None
+    reason_code = body.get("reason_code")
+    if reason_code is not None and reason_code not in logic.FAR_REASON_CODES:
+        raise HttpError(400, "reason_code no válido")
+    if reason_code == "otro" and not reason:
+        raise HttpError(400, "El motivo \"Otro\" requiere un texto")
+    if reason_code and target == logic.GUIDE_DELIVERED:
+        preset = logic.FAR_REASON_CODES[reason_code]
+        reason = preset if not reason or reason == preset else f"{preset}: {reason}"
     if target == logic.GUIDE_FAILED and not reason:
         raise HttpError(400, "Una entrega fallida requiere un motivo")
     try:

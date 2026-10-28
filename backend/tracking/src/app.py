@@ -323,6 +323,8 @@ def _compute_summary(caller, org_id: str, query: dict, now: datetime) -> dict:
     viajes = [_list_item(row, batch, now) for row in rows]
     late = sum(any(a["code"] == logic.ALERT_LATE for a in v["alerts"]) for v in viajes)
     no_signal = sum(any(a["code"] == logic.ALERT_NO_SIGNAL for a in v["alerts"]) for v in viajes)
+    deliveries_total = sum(v["progress"]["total"] for v in viajes)
+    deliveries_done = sum(v["progress"]["done"] for v in viajes)
     # Completados hoy en el día local del país (timezone de countries).
     where, params = _scope(caller, org_id, query, only_active=False)
     # Acotado a viajes creados en los últimos 30 días: sin esto la consulta escanea todo el histórico de la org.
@@ -337,6 +339,9 @@ def _compute_summary(caller, org_id: str, query: dict, now: datetime) -> dict:
         "late": late,
         "no_signal": no_signal,
         "completed_today": int(today[0]["n"]) if today else 0,
+        "deliveries_total": deliveries_total,          # paradas de los viajes en curso (se mueve con cada entrega)
+        "deliveries_done": deliveries_done,
+        "deliveries_remaining": deliveries_total - deliveries_done,
     }
 
 

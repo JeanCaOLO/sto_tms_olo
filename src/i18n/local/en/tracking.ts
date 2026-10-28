@@ -82,6 +82,7 @@ export default {
   'tracking.kpiLate': 'Late',
   'tracking.kpiNoSignal': 'No signal',
   'tracking.kpiCompletedToday': 'Completed today',
+  'tracking.deliveriesProgress': 'Deliveries in progress: {{done}} of {{total}} · {{remaining}} left',
   'tracking.close': 'Close',
   'tracking.errorNotFound': 'The trip no longer exists.',
   'tracking.errorForbidden': 'You do not have permission for this action.',

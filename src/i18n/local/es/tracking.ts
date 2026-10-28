@@ -82,6 +82,7 @@ export default {
   'tracking.kpiLate': 'Retrasados',
   'tracking.kpiNoSignal': 'Sin señal',
   'tracking.kpiCompletedToday': 'Completados hoy',
+  'tracking.deliveriesProgress': 'Entregas en curso: {{done}} de {{total}} · faltan {{remaining}}',
   'tracking.close': 'Cerrar',
   'tracking.errorNotFound': 'El viaje ya no existe.',
   'tracking.errorForbidden': 'No tienes permiso para esta acción.',

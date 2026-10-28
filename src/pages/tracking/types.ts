@@ -142,6 +142,10 @@ export interface Resumen {
   late: number;
   no_signal: number;
   completed_today: number;
+  /** Paradas de los viajes en curso: entregadas/fallidas y faltantes (se actualiza con el polling). */
+  deliveries_total?: number;
+  deliveries_done?: number;
+  deliveries_remaining?: number;
 }
 
 export interface ViajesPage {

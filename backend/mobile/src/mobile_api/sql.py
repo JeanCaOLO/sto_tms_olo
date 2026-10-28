@@ -100,7 +100,8 @@ LEFT JOIN vehicles v ON v.id = r.vehicle_id
 LEFT JOIN zones z ON z.id = r.route_type_id
 LEFT JOIN tracking_last_positions lp ON lp.route_id = r.id
 WHERE r.organization_id = %s AND r.driver_id = %s AND lower(r.status) = ANY(%s)
-ORDER BY COALESCE(r.actual_start_time, r.created_at) DESC, r.id DESC
+  AND r.route_date = (now() AT TIME ZONE coalesce(co.timezone, 'America/Costa_Rica'))::date   -- solo el viaje de HOY en el país de la sede
+ORDER BY COALESCE(r.actual_start_time, r.created_at), r.id
 LIMIT 10
 """
 
@@ -128,8 +129,9 @@ FROM plan_trips pt
 JOIN route_plans rp ON rp.id = pt.plan_id
 LEFT JOIN vehicles v ON v.id = pt.vehicle_id
 LEFT JOIN drivers d ON d.id = pt.driver_id
+LEFT JOIN countries co ON co.id = rp.country_id
 WHERE rp.organization_id = %s AND pt.driver_id = %s AND rp.status = 'confirmed' AND pt.status = 'pending'
-  AND rp.plan_date >= %s
+  AND rp.plan_date = (now() AT TIME ZONE coalesce(co.timezone, 'America/Costa_Rica'))::date
   AND NOT EXISTS (SELECT 1 FROM routes r WHERE r.plan_trip_id = pt.id)
 ORDER BY rp.plan_date, pt.sequence_order
 LIMIT 10
@@ -225,6 +227,14 @@ LEFT JOIN vehicles v ON v.id = pt.vehicle_id
 WHERE pt.id = %s
 """
 ROUTE_BY_PLAN_TRIP_SQL = "SELECT id FROM routes WHERE plan_trip_id = %s"
+# Otro viaje del chofer, en tránsito y con paradas por entregar: mientras exista no se puede iniciar uno nuevo.
+UNFINISHED_ROUTE_SQL = f"""
+SELECT r.id FROM routes r
+WHERE r.organization_id = %s AND r.driver_id = %s AND lower(r.status) = ANY(%s)
+  AND EXISTS (SELECT 1 FROM dispatch_guides g WHERE g.route_id = r.id
+              AND NOT ({_GUIDE_STATE} IN {DELIVERED_SQL} OR {_GUIDE_STATE} IN {FAILED_SQL}))
+LIMIT 1
+"""
 ORIGIN_STORE_SQL = """
 SELECT id, latitude, longitude FROM stores WHERE organization_id = %s AND country_id = %s AND is_origin = true
 ORDER BY code LIMIT 1

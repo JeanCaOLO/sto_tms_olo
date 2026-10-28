@@ -25,7 +25,14 @@ GEOFENCE_M = 150            # "Entregado" sin motivo solo a ≤ 150 m del punto 
 DEPARTURE_RADIUS_M = 300    # el camión "salió" al alejarse más de esto de la sede
 ACCURACY_MAX_M = 200        # precisión peor que esto no mueve la última posición ni entra al recorrido
 GRACE_AFTER_CLOSE = timedelta(hours=2)   # la web acepta puntos tardíos hasta 2 h después de cerrar el viaje
-PLANNED_LOOKBACK_DAYS = 7   # el chofer inicia sus viajes desde la app: un plan no iniciado sigue visible una semana
+FAR_REASON_CODES = {        # motivos predeterminados de una entrega lejos del punto (geocerca)
+    "cliente_pidio_otro_punto": "El cliente pidió recibir en otro punto",
+    "acceso_bloqueado": "Acceso bloqueado o restringido",
+    "sin_estacionamiento": "No hay dónde estacionar cerca",
+    "zona_insegura": "Zona insegura",
+    "gps_impreciso": "GPS impreciso o sin señal",
+    "otro": "Otro",
+}
 MAX_BATCH = 200
 MAX_FUTURE_SKEW = timedelta(days=1)   # un reloj adelantado se acota a "ahora"; solo lo absurdo se rechaza
 PRESENCE_ONLINE_SECONDS = 300         # mismos umbrales que la señal de la web (tracking_logic.py)
