@@ -1,0 +1,103 @@
+{
+    "categoria":  "seguridad",
+    "peso":  35,
+    "fuente":  "docs/estandares/seguridad-baseline.md + .kiro/steering/seguridad-baseline.md",
+    "estandares":  [
+                       {
+                           "id":  "R1",
+                           "nombre":  "Gestion de secretos (sin secretos embebidos)",
+                           "criticidad":  "Critico",
+                           "hard_stop":  true,
+                           "regla":  "sin-secretos-embebidos",
+                           "descripcion":  "Sin secretos en codigo, config, variables planas ni bundle; referencias a Secrets Manager/parametro seguro. Si el frontend usa AWS Amplify, sus variables de entorno se configuran en la consola de Amplify: se audita el repositorio igual, y se agrega una nota para verificar tambien las variables de Amplify."
+                       },
+                       {
+                           "id":  "R2",
+                           "nombre":  "Validacion de entradas y consultas parametrizadas",
+                           "criticidad":  "Alto",
+                           "hard_stop":  false,
+                           "regla":  "sql-parametrizado",
+                           "descripcion":  "Validacion de entradas y consultas parametrizadas; nunca concatenacion de SQL."
+                       },
+                       {
+                           "id":  "R3",
+                           "nombre":  "Autenticacion y autorizacion de endpoints",
+                           "criticidad":  "Critico",
+                           "hard_stop":  true,
+                           "regla":  "auth-endpoints",
+                           "descripcion":  "Endpoints protegidos con autenticacion; prohibido AuthorizationType: NONE en endpoints protegidos."
+                       },
+                       {
+                           "id":  "R4",
+                           "nombre":  "IAM de minimo privilegio",
+                           "criticidad":  "Alto",
+                           "hard_stop":  false,
+                           "regla":  "iam-sin-comodines",
+                           "descripcion":  "Politicas IAM con acciones y ARNs concretos; sin comodines."
+                       },
+                       {
+                           "id":  "R5",
+                           "nombre":  "SAST y escaneo de dependencias / CVE",
+                           "criticidad":  "Alto",
+                           "hard_stop":  true,
+                           "regla":  "sast-dependencias-ci",
+                           "descripcion":  "Pipeline con SAST y escaneo de dependencias; versiones pinneadas; CVE/typosquatting remediado. Si el frontend usa AWS Amplify, su build/deploy vive en la consola de Amplify: la ausencia de pipeline en el repositorio no se trata como incumplimiento ni bloquea el dictamen, se difiere a verificacion en los build settings de Amplify."
+                       },
+                       {
+                           "id":  "R6",
+                           "nombre":  "Perimetro: CORS estricto y headers de seguridad",
+                           "criticidad":  "Alto",
+                           "hard_stop":  false,
+                           "regla":  "cors-estricto-headers",
+                           "descripcion":  "CORS por lista de dominios (jamas reflejar cualquiera con credenciales); headers de seguridad (CSP, HSTS)."
+                       },
+                       {
+                           "id":  "R7",
+                           "nombre":  "Evidencia y logs sin datos sensibles",
+                           "criticidad":  "Medio",
+                           "hard_stop":  false,
+                           "regla":  "logs-sin-pii",
+                           "descripcion":  "Logs y evidencia sin secretos, tokens ni PII (costos/salarios/personal se tratan como PII)."
+                       }
+                   ],
+    "diferidos_piloto":  [
+                             "R3-tenant-idor",
+                             "R6-waf",
+                             "R6-cors-runtime",
+                             "cognito-mfa",
+                             "s3-politicas",
+                             "bedrock-guardrails",
+                             "dast-pentest",
+                             "monitoreo-post-deploy"
+                         ],
+    "perimetro_publico":  [
+                              {
+                                  "id":  "P1",
+                                  "nombre":  "WAF activo (OWASP Managed Rules + rate limiting)",
+                                  "criticidad":  "Alto",
+                                  "regla":  "waf-perimetro",
+                                  "descripcion":  "App publica: WAF sobre el borde con reglas OWASP y rate limiting. Si el frontend usa AWS Amplify, el WAF se integra desde la consola de Amplify (no en IaC del repositorio): su ausencia en IaC no se trata como amenaza ni bloqueo, se difiere a verificacion en consola."
+                              },
+                              {
+                                  "id":  "P2",
+                                  "nombre":  "HTTPS/TLS forzado y cookies secure",
+                                  "criticidad":  "Critico",
+                                  "regla":  "https-forzado",
+                                  "descripcion":  "App publica: TLS obligatorio (ALB+ACM u equivalente) y cookies con secure=true. Si el frontend usa AWS Amplify, el hosting, el certificado SSL/TLS y el dominio los gestiona Amplify Hosting desde la consola: su ausencia en IaC no se trata como amenaza ni bloqueo, se difiere a verificacion en consola (una cookie insegura detectada en codigo si se mantiene como hallazgo)."
+                              },
+                              {
+                                  "id":  "P3",
+                                  "nombre":  "CORS estricto por lista de dominios",
+                                  "criticidad":  "Critico",
+                                  "regla":  "cors-lista-dominios",
+                                  "descripcion":  "App publica: CORS jamas refleja cualquier origen; lista blanca explicita."
+                              },
+                              {
+                                  "id":  "P4",
+                                  "nombre":  "Identidad gestionada (Cognito/MFA) para acceso publico",
+                                  "criticidad":  "Alto",
+                                  "regla":  "idp-mfa",
+                                  "descripcion":  "App publica: proveedor de identidad gestionado con MFA para el acceso externo. Si el frontend usa AWS Amplify, Amplify Auth (Cognito) puede gestionar la identidad desde la consola sin dejar rastro en el codigo: su ausencia en codigo/IaC no se trata como amenaza ni bloqueo, se difiere a verificacion en consola."
+                              }
+                          ]
+}

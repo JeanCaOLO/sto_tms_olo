@@ -1,0 +1,478 @@
+/* 
+style.css - Estilos adicionales para Roadmap Generator HTML
+Cumple con estándares INTELIX y directivas de seguridad
+*/
+
+/* ============================================================================
+   MEJORAS VISUALES Y ACCESIBILIDAD
+   ============================================================================ */
+
+/* Focus states para accesibilidad */
+.milestone-card:focus,
+button:focus,
+input:focus {
+    outline: 3px solid #3b82f6;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .milestone-card {
+        border: 2px solid #000;
+    }
+    
+    .timeline-base {
+        border: 1px solid #000;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .milestone-card,
+    .metric-card,
+    .legend-section,
+    .risks-section {
+        animation: none;
+        transition: none;
+    }
+    
+    .milestone-card:hover {
+        transform: none;
+    }
+}
+
+/* ============================================================================
+   ESTILOS PARA ESTADOS ESPECIALES
+   ============================================================================ */
+
+/* Estados de riesgo con colores semánticos */
+.risk-highlight {
+    background: linear-gradient(90deg, transparent, rgba(220, 53, 69, 0.1), transparent);
+    border: 1px solid rgba(220, 53, 69, 0.3);
+    animation: pulse-risk 2s infinite;
+}
+
+@keyframes pulse-risk {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.8; }
+}
+
+.risk-resolved {
+    opacity: 0.7;
+    border-color: #28a745 !important;
+}
+
+/* Estados de prioridad */
+.priority-critical {
+    background: linear-gradient(45deg, #fff5f5, #fee);
+    border-left: 4px solid #dc3545 !important;
+}
+
+.priority-high {
+    background: linear-gradient(45deg, #fffcf0, #fef9e7);
+    border-left: 4px solid #ffc107 !important;
+}
+
+.priority-normal {
+    background: linear-gradient(45deg, #f8f9fa, #e9ecef);
+    border-left: 4px solid #6c757d !important;
+}
+
+/* ============================================================================
+   COMPONENTES INTERACTIVOS
+   ============================================================================ */
+
+/* Tooltips mejorados */
+.tooltip-container {
+    position: relative;
+    display: inline-block;
+}
+
+.tooltip {
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s, visibility 0.3s;
+}
+
+.tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: #333;
+}
+
+.tooltip-container:hover .tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Filtros interactivos */
+.filter-controls {
+    display: flex;
+    gap: 12px;
+    margin: 16px 0;
+    flex-wrap: wrap;
+}
+
+.filter-btn {
+    padding: 6px 16px;
+    border: 1px solid #dee2e6;
+    background: white;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.filter-btn.active {
+    background: #3b82f6;
+    color: white;
+    border-color: #3b82f6;
+}
+
+.filter-btn:hover:not(.active) {
+    background: #f8f9fa;
+}
+
+/* ============================================================================
+   MODALES Y OVERLAYS
+   ============================================================================ */
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    position: relative;
+}
+
+.modal-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #6c757d;
+}
+
+.modal-close:hover {
+    color: #333;
+}
+
+/* ============================================================================
+   GRID AVANZADO Y LAYOUT
+   ============================================================================ */
+
+.responsive-grid {
+    display: grid;
+    gap: 16px;
+}
+
+@media (min-width: 768px) {
+    .responsive-grid {
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    }
+}
+
+@media (min-width: 1024px) {
+    .responsive-grid {
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    }
+}
+
+/* Layout de dos columnas para pantallas grandes */
+@media (min-width: 1200px) {
+    .two-column-layout {
+        display: grid;
+        grid-template-columns: 1fr 300px;
+        gap: 32px;
+    }
+    
+    .sidebar {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+    }
+}
+
+/* ============================================================================
+   ANIMACIONES Y TRANSICIONES
+   ============================================================================ */
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.slide-in {
+    animation: slideIn 0.5s ease forwards;
+}
+
+@keyframes timelineProgress {
+    from { width: 0; }
+}
+
+.animate-progress {
+    animation: timelineProgress 1.5s ease-out forwards;
+}
+
+/* Efecto de carga skeleton */
+.skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: loading 1.5s infinite;
+    border-radius: 4px;
+}
+
+@keyframes loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* ============================================================================
+   UTILIDADES ESPECIALES
+   ============================================================================ */
+
+/* Text truncation con tooltip */
+.truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.truncate:hover {
+    overflow: visible;
+    white-space: normal;
+    background: white;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    padding: 4px;
+    border-radius: 4px;
+    position: absolute;
+    z-index: 100;
+    max-width: 300px;
+}
+
+/* Badges de estado */
+.status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-badge.completed {
+    background: #d4edda;
+    color: #155724;
+}
+
+.status-badge.in-progress {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+.status-badge.not-started {
+    background: #f8f9fa;
+    color: #6c757d;
+}
+
+/* Progress circles */
+.progress-circle {
+    width: 80px;
+    height: 80px;
+    position: relative;
+}
+
+.progress-circle svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.progress-circle-bg {
+    fill: none;
+    stroke: #e9ecef;
+    stroke-width: 8;
+}
+
+.progress-circle-fg {
+    fill: none;
+    stroke: #3b82f6;
+    stroke-width: 8;
+    stroke-linecap: round;
+    stroke-dasharray: 251;
+    stroke-dashoffset: calc(251 - (251 * var(--progress, 0)) / 100);
+    transition: stroke-dashoffset 1s ease;
+}
+
+.progress-circle-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 16px;
+    font-weight: bold;
+    color: #333;
+}
+
+/* ============================================================================
+   PRINT OPTIMIZATIONS
+   ============================================================================ */
+
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    
+    .break-before {
+        break-before: always;
+    }
+    
+    .break-after {
+        break-after: always;
+    }
+    
+    .avoid-break {
+        break-inside: avoid;
+    }
+    
+    /* Asegurar que los colores se impriman bien */
+    .milestone-card {
+        border: 1px solid #000 !important;
+        box-shadow: none !important;
+    }
+    
+    /* Mostrar URLs en enlaces */
+    a[href]::after {
+        content: " (" attr(href) ")";
+        font-size: 10px;
+        color: #666;
+    }
+}
+
+/* ============================================================================
+   DARK MODE SUPPORT
+   ============================================================================ */
+
+@media (prefers-color-scheme: dark) {
+    body {
+        background-color: #1a1a1a;
+        color: #e0e0e0;
+    }
+    
+    .milestone-card,
+    .metric-card,
+    .legend-section,
+    .risks-section {
+        background-color: #2d2d2d;
+        border-color: #404040;
+        color: #e0e0e0;
+    }
+    
+    .project-title {
+        color: #60a5fa;
+    }
+    
+    .timeline-base {
+        background-color: #374151;
+    }
+    
+    .timeline-progress {
+        background-color: #60a5fa;
+    }
+}
+
+/* ============================================================================
+   CUSTOM SCROLLBAR (opcional)
+   ============================================================================ */
+
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* ============================================================================
+   ICONOS PERSONALIZADOS
+   ============================================================================ */
+
+.icon-check::before {
+    content: "✓";
+    font-weight: bold;
+    color: #28a745;
+}
+
+.icon-warning::before {
+    content: "⚠️";
+}
+
+.icon-info::before {
+    content: "ℹ️";
+}
+
+.icon-calendar::before {
+    content: "📅";
+}
+
+.icon-person::before {
+    content: "👤";
+}
+
+.icon-percent::before {
+    content: "%";
+    font-weight: bold;
+    color: #3b82f6;
+}

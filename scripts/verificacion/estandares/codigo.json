@@ -1,0 +1,36 @@
+{
+    "categoria":  "codigo",
+    "peso":  25,
+    "fuente":  "docs/estandares/estandares-desarrollo-intelix.md",
+    "estandares":  [
+                       {
+                           "id":  "COD1",
+                           "nombre":  "Backend Python con arquitectura hexagonal",
+                           "criticidad":  "Alto",
+                           "regla":  "backend-hexagonal",
+                           "descripcion":  "Backend Python con Ports \u0026 Adapters; el dominio no depende de boto3 ni de detalles de AWS."
+                       },
+                       {
+                           "id":  "COD2",
+                           "nombre":  "Frontend React (framework oficial)",
+                           "criticidad":  "Critico",
+                           "regla":  "frontend-react",
+                           "descripcion":  "React es el framework oficial. Prohibido Vue, Angular o Svelte sin aprobacion de Arquitectura."
+                       },
+                       {
+                           "id":  "COD3",
+                           "nombre":  "Reuso del Design System",
+                           "criticidad":  "Alto",
+                           "regla":  "design-system",
+                           "descripcion":  "Respetar la jerarquia de reuso del Design System: reusar antes de extender, extender antes de crear."
+                       },
+                       {
+                           "id":  "COD6",
+                           "nombre":  "Pruebas unitarias con cobertura \u003e= 80%",
+                           "criticidad":  "Alto",
+                           "regla":  "pruebas-cobertura",
+                           "descripcion":  "Existen pruebas unitarias y la cobertura declarada alcanza el 80%.",
+                           "alcance":  "completo"
+                       }
+                   ]
+}

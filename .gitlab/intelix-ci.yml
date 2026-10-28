@@ -1,0 +1,202 @@
+# ============================================================================
+# .gitlab/intelix-ci.yml - Jobs aditivos IA-DLC INTELIX
+#
+# Objetivo: regenerar el dashboard de avance (MD + HTML) desde el Indice de
+# Progreso AI-DLC y dejarlo como ARTEFACTO descargable del pipeline.
+# Compatible con GitLab CE 15.11.
+#
+# Fuente de verdad: tracking del layout AI-DLC v1 o del intent activo v2.
+# El avance se administra en el tracker, no en los mensajes de commit.
+#
+# RUNNER TIPO SHELL:
+# Escrito para un runner GitLab de tipo "shell" (ejecuta en el servidor, sin
+# Docker). No usa "image:" ni "apk"/"apt": usa lo que el servidor ya tenga
+# (git, node, curl, jq). Si falta una herramienta, el job avisa y termina sin
+# romper el pipeline (allow_failure + verificacion previa).
+#
+# GitLab Pages: en esta instancia Pages esta DESHABILITADO a nivel de servidor,
+# por lo que NO se publica el dashboard por URL. El dashboard se entrega como
+# artefacto descargable del job build_dashboard (Job > Browse/Download). Si el
+# administrador habilita Pages en el futuro, se puede reintroducir un job pages.
+#
+# Los jobs del dashboard solo corren cuando cambia el avance o el generador,
+# NO en cada commit de documentacion.
+# ============================================================================
+
+# ---------------------------------------------------------------------------
+# Gate 0 — contrato Product-Definition (with-discovery estricto; no-discovery manual).
+# Runner shell: usa python3/python del servidor. No rompe si Python no existe.
+# ---------------------------------------------------------------------------
+gate0_discovery:
+  stage: .pre
+  allow_failure: true
+  script:
+    - |
+      PY=""
+      if command -v python3 >/dev/null 2>&1; then PY=python3; fi
+      if [ -z "$PY" ] && command -v python >/dev/null 2>&1; then PY=python; fi
+      if [ -z "$PY" ]; then
+        echo "[AVISO] Python no esta en el runner. Gate 0 se omite en CI."
+        echo "Correr en local: python .intelix/scripts/validate_discovery_gate.py"
+        exit 0
+      fi
+      MODE="${AIDLC_ENTRY_MODE:-with-discovery}"
+      echo "Gate 0 mode=$MODE"
+      if [ "$MODE" = "no-discovery" ]; then
+        echo "Modo no-discovery: validacion estricta es manual antes de Inception."
+        "$PY" .intelix/scripts/validate_discovery_gate.py --mode no-discovery || true
+        exit 0
+      fi
+      "$PY" .intelix/scripts/validate_discovery_gate.py --mode with-discovery --ci
+  artifacts:
+    when: always
+    paths:
+      - .aidlc/audit/gate0-latest.md
+    expire_in: 30 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - Product-Definition/**/*
+        - .aidlc/**/*
+
+# ---------------------------------------------------------------------------
+# Certificacion de estandares (motor determinista). Manual: no bloquea por
+# defecto. Preferir --exposicion y --alcance en variables CI del proyecto.
+# ---------------------------------------------------------------------------
+certificacion_estandares:
+  stage: .pre
+  allow_failure: true
+  when: manual
+  script:
+    - |
+      if ! command -v node >/dev/null 2>&1; then
+        echo "[AVISO] Node.js no esta en el runner. Certificacion omitida."
+        exit 0
+      fi
+      if [ ! -f scripts/verificacion/analizador.js ]; then
+        echo "[AVISO] Falta scripts/verificacion/. Corre intelix-cli sync."
+        exit 0
+      fi
+      EXP="${CERT_EXPOSICION:-corporativa}"
+      ALC="${CERT_ALCANCE:-estandares}"
+      echo "Certificacion exposicion=$EXP alcance=$ALC"
+      node scripts/verificacion/analizador.js --proyecto . --exposicion "$EXP" --alcance "$ALC" || true
+  artifacts:
+    when: always
+    paths:
+      - docs/certificaciones/
+    expire_in: 30 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+      allow_failure: true
+
+# ---------------------------------------------------------------------------
+# Regenera el dashboard (MD + HTML) desde el Indice de Progreso AI-DLC y lo deja
+# como artefacto descargable. Runner shell: usa el node del servidor si existe;
+# si no, avisa y no rompe el pipeline. Si el proyecto aun no tiene indice
+# el indice de progreso, la CLI no hace nada y el job termina.
+# ---------------------------------------------------------------------------
+build_dashboard:
+  stage: .post
+  allow_failure: true
+  variables:
+    GIT_DEPTH: 0
+  script:
+    - |
+      if ! command -v node >/dev/null 2>&1; then
+        echo "[AVISO] Node.js no esta instalado en el runner (shell executor)."
+        echo "El dashboard no se regenera automaticamente. Puede generarse localmente"
+        echo "con: node .intelix/cli/reporte-avance/bin/generar-reporte.js"
+        exit 0
+      fi
+      INDEX=$(node -e "const {resolveProgressIndex}=require('./.intelix/cli/reporte-avance/lib/tracking-paths'); console.log(resolveProgressIndex(process.cwd()))")
+      if [ ! -f "$INDEX" ]; then
+        echo "[AVISO] No existe el indice de progreso esperado: $INDEX"
+        echo "El reporte de avance se genera desde ese indice (tracker AI-DLC)."
+        echo "Se omite la regeneracion en este pipeline."
+        exit 0
+      fi
+      echo "Regenerando el dashboard de avance desde el Indice de Progreso AI-DLC..."
+      node .intelix/cli/reporte-avance/bin/generar-reporte.js
+      echo "Dashboard listo. Descargable como artefacto de este job."
+  artifacts:
+    paths:
+      - .intelix/outputs/reporte_avance/
+    expire_in: 30 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      changes:
+        - aidlc-docs/tracking/INDICE-PROGRESO.md
+        - aidlc/spaces/**/intents/**/tracking/INDICE-PROGRESO.md
+        - .intelix/cli/reporte-avance/**/*
+
+# ---------------------------------------------------------------------------
+# daily_sync_check - Recordatorio diario de sincronizacion (Fase 3).
+#
+# Solo corre en pipelines PROGRAMADOS (schedule). Revisa los issues abiertos
+# del proyecto y, para los que esten activos (sin label de excepcion) y sin
+# actividad en los ultimos 4 dias, publica un comentario recordando sincronizar.
+#
+# Runner shell: usa curl y jq del servidor si existen; si falta alguno, avisa
+# y no rompe. Requiere la variable SYNC_CHECK_TOKEN (token de proyecto, api).
+# ---------------------------------------------------------------------------
+daily_sync_check:
+  stage: .post
+  allow_failure: true
+  script:
+    - |
+      set -e
+      if [ "$PROJECT_PAUSED" = "true" ]; then
+        echo "El proyecto esta pausado (PROJECT_PAUSED=true). Se omite el control."
+        exit 0
+      fi
+      if ! command -v curl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
+        echo "[AVISO] Falta curl o jq en el runner. Se omite el control de sincronizacion."
+        exit 0
+      fi
+      if [ -z "$SYNC_CHECK_TOKEN" ]; then
+        echo "[AVISO] Falta la variable SYNC_CHECK_TOKEN (token de proyecto con scope api)."
+        echo "Configurala en Settings > CI/CD > Variables. Se omite el control por ahora."
+        exit 0
+      fi
+      LIMITE_DIAS=4
+      CORTE=$(date -u -d "-${LIMITE_DIAS} days" +%Y-%m-%dT%H:%M:%SZ)
+      echo "Buscando issues activos sin actividad desde $CORTE ..."
+      PAGE=1
+      while : ; do
+        RESP=$(curl -s --header "PRIVATE-TOKEN: $SYNC_CHECK_TOKEN" \
+          "$CI_API_V4_URL/projects/$CI_PROJECT_ID/issues?state=opened&per_page=50&page=$PAGE")
+        COUNT=$(echo "$RESP" | jq "length")
+        if [ "$COUNT" = "0" ] || [ -z "$COUNT" ]; then break; fi
+        echo "$RESP" | jq -c ".[]" | while read -r issue; do
+          IID=$(echo "$issue" | jq -r ".iid")
+          TITLE=$(echo "$issue" | jq -r ".title")
+          UPDATED=$(echo "$issue" | jq -r ".updated_at")
+          ASSIGNEE=$(echo "$issue" | jq -r ".assignee.username // \"\"")
+          LABELS=$(echo "$issue" | jq -r ".labels[]?")
+          if echo "$LABELS" | grep -E -q "Certificaci|Vacaciones|Pausa"; then
+            echo "SKIP #$IID ($TITLE): label de excepcion."
+            continue
+          fi
+          if [ "$UPDATED" \> "$CORTE" ]; then
+            echo "OK #$IID ($TITLE): con actividad reciente."
+            continue
+          fi
+          if [ -n "$ASSIGNEE" ]; then MENTION="@$ASSIGNEE "; else MENTION=""; fi
+          NOTE="${MENTION}Recordatorio: este issue lleva mas de ${LIMITE_DIAS} dias sin actividad. Por favor commitea y sincroniza (push) tu avance, o marca el issue con una label de excepcion (Certificacion, Vacaciones o Pausa) si corresponde. La sincronizacion es prioritaria para medir el avance real."
+          curl -s --request POST --header "PRIVATE-TOKEN: $SYNC_CHECK_TOKEN" \
+            --data-urlencode "body=$NOTE" \
+            "$CI_API_V4_URL/projects/$CI_PROJECT_ID/issues/$IID/notes" > /dev/null
+          echo "AVISO #$IID ($TITLE): comentario de recordatorio publicado."
+        done
+        PAGE=$((PAGE+1))
+      done
+      echo "Control de sincronizacion diario completado."
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"

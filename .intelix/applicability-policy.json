@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "derivedFrom": {
+    "profilePresent": true,
+    "profileSchemaVersion": 1,
+    "solutionType": "web-app",
+    "lifecycle": "existing",
+    "infrastructure": [
+      "serverless",
+      "rds"
+    ],
+    "profileComplete": true
+  },
+  "technicalProfiles": {
+    "coreMethodology": "applicable",
+    "transversalSecurity": "applicable",
+    "awsWebSamReact": "applicable",
+    "mobileKmp": "not-applicable",
+    "dataIntegration": "applicable",
+    "genericBrownfield": "applicable"
+  },
+  "certification": {
+    "status": "supported",
+    "enabledDomains": [
+      "aws-web-sam-react",
+      "transversal-security",
+      "devops"
+    ],
+    "unavailableDomains": [],
+    "reason": "El perfil declara infraestructura AWS cubierta por el motor vigente."
+  },
+  "updates": {
+    "projectProfile": "governed",
+    "profileHistory": "append-only",
+    "intelixSkills": "managed-copy",
+    "intelixDocumentation": "managed-copy",
+    "intelixCiFragment": "managed-copy",
+    "agentOverlays": "managed-overlay",
+    "aidlcRuntime": "pinned-runtime",
+    "projectCode": "preserve",
+    "productDefinition": "preserve",
+    "ciPipeline": "preserve",
+    "environment": "preserve",
+    "rootGitignore": "shared-merge"
+  }
+}
