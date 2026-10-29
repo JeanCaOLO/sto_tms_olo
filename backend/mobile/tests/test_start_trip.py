@@ -93,3 +93,10 @@ def test_cannot_start_another_trip_while_current_has_pending_stops(call, fake_db
 def test_can_start_when_previous_trip_is_fully_done(call, fake_db):
     prepare(fake_db)                       # sin ruta inconclusa: la consulta no devuelve filas
     assert call(START, path={"id": TRIP})["statusCode"] == 201
+
+
+def test_cannot_start_a_trip_without_a_carrier(call, fake_db):
+    prepare(fake_db, trip=plan_trip(carrier_id=None))
+    response = call(START, path={"id": TRIP})
+    assert response["statusCode"] == 409 and body_of(response)["error"]["code"] == "no_carrier"
+    assert not fake_db.wrote("INSERT INTO routes")

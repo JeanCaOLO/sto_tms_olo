@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createFakeTrackingBackend } from '../mock/fakeTrackingBackend';
 import { driveMinutes, getSimulation, haversineM, resetSimulation, setRoadProvider, setSimulation, simNow, simPlanClose } from '../mock/sim';
-import type { Recorrido, ViajeDetalle, ViajesPage } from '../types';
+import type { ViajeDetalle, ViajesPage } from '../types';
 
 const backend = createFakeTrackingBackend({ latencyMs: 0 });
 const get = async <T>(path: string) => {
@@ -11,14 +11,6 @@ const get = async <T>(path: string) => {
 };
 
 beforeEach(() => { setRoadProvider(null); resetSimulation(); });
-
-/** Deja correr la simulación `ms` de tiempo simulado (a 60x) y fuerza un paso del camión. */
-async function runSim(ms: number) {
-  setSimulation({ speed: 60 });
-  const start = simNow();
-  while (simNow() - start < ms) await new Promise((r) => setTimeout(r, 5));
-  await get('/viajes?limit=1');
-}
 
 describe('backend simulado del tracking (contrato v2)', () => {
   it('calcula distancias y tiempos con la regla del backend', () => {
@@ -74,13 +66,6 @@ describe('backend simulado del tracking (contrato v2)', () => {
     await expect(get('/viajes/no-existe')).rejects.toMatchObject({ status: 404 });
   });
 
-  it('el recorrido se pide aparte y crece mientras el camión avanza', async () => {
-    const before = await get<Recorrido>('/viajes/demo-cr-01/recorrido');
-    await runSim(120_000);
-    const after = await get<Recorrido>('/viajes/demo-cr-01/recorrido');
-    expect(after.points.length).toBeGreaterThan(before.points.length);
-  });
-
   it('inicia un plan (idempotente) y deja de ofrecerlo', async () => {
     const [plan] = await get<{ plan_trip_id: string }[]>('/planificados');
     const first = await backend(`/v1/tracking/viajes/${plan.plan_trip_id}/iniciar`, { method: 'POST', body: '{}' });
@@ -108,36 +93,12 @@ describe('backend simulado del tracking (contrato v2)', () => {
     expect(second.summary).toBeUndefined();
   });
 
-  it('un viaje sin GPS todavía: sin posición, señal none, sin alerta ni ETA ni recorrido', async () => {
+  it('un viaje sin GPS todavía: sin posición, señal none, sin alerta ni ETA', async () => {
     const { items } = await get<ViajesPage>('/viajes?activos=1&limit=50');
     const v = items.find((x) => x.route_number === 'VJ-DEMO-CR-07')!;
     expect(v).toMatchObject({ position: null, signal: 'none', color: 'gray', alerts: [], delay_min: null, phase: 'por_salir' });
     const d = await get<ViajeDetalle>(`/viajes/${v.id}`);
     expect(d.stops.every((s) => s.eta_at === null)).toBe(true);
-    expect((await get<Recorrido>(`/viajes/${v.id}/recorrido`)).points).toEqual([]);
-  });
-
-  it('con proveedor de calles el camión pasa por los vértices de la ruta (no en línea recta)', async () => {
-    const detour: [number, number] = [9.927, -84.15]; // vértice fuera de la recta posición → parada 2 (a ~600 m)
-    setRoadProvider(async (points) => points.slice(1).map((p, i) => (i === 0 ? [points[0], detour, p] : [points[i], p])));
-    resetSimulation();
-    await get('/viajes?limit=1'); // pide las calles
-    await new Promise((r) => setTimeout(r, 10));
-    await runSim(3 * 60_000);
-    const { points } = await get<Recorrido>('/viajes/demo-cr-01/recorrido');
-    expect(points.some((p) => haversineM([p.lat, p.lng], detour) < 1)).toBe(true);
-  });
-
-  it('con proveedor de calles el rastro inicial del escenario sigue la ruta', async () => {
-    const via: [number, number] = [9.92, -84.12];
-    setRoadProvider(async (points) => points.slice(1).map((p, i) => [points[i], via, p]));
-    resetSimulation();
-    await get('/viajes?limit=1');
-    await new Promise((r) => setTimeout(r, 10));
-    const { points } = await get<Recorrido>('/viajes/demo-cr-c1/recorrido');
-    expect(points.some((p) => haversineM([p.lat, p.lng], via) < 1)).toBe(true);
-    const times = points.map((p) => Date.parse(p.at));
-    expect(times.every((t, i) => i === 0 || t >= times[i - 1])).toBe(true);
   });
 
   it('Planificación termina o cancela un viaje: Tracking lo muestra cerrado y fuera de Activos', async () => {

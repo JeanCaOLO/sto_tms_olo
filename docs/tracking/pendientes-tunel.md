@@ -97,7 +97,7 @@ Contraparte real de `__tests__/mock-backend.test.ts`.
 1. T0 + T2 hechos.
 2. Obtener un JWT: iniciar sesión en la web (modo API) y copiar el token de la sesión en localStorage, o `POST /api/auth/login`.
 3. `TMS_TOKEN=<jwt> node scripts/tracking-contract-check.mjs --api http://localhost:4000 --pais CR`
-4. Debe terminar en **"Contrato v2 OK."**. Comprueba: forma de lista/detalle/parada, KPIs, país y 400 por país inválido, KPIs solo en la 1.ª página, evidencias solo factura + firma, `next_stop_id` por secuencia, URLs firmadas estables, recorrido ordenado ≤ 2000, y mide tiempos/tamaños.
+4. Debe terminar en **"Contrato v2 OK."**. Comprueba: forma de lista/detalle/parada, KPIs, país y 400 por país inválido, KPIs solo en la 1.ª página, evidencias solo factura + firma, `next_stop_id` por secuencia, URLs firmadas estables, y mide tiempos/tamaños.
 5. Si algo falla: corregir **backend o mock** para que digan lo mismo (el contrato es [contrato-api-v2.md](./contrato-api-v2.md)).
 
 ## T4 — Pasar la web de mock a API
@@ -105,7 +105,7 @@ Contraparte real de `__tests__/mock-backend.test.ts`.
 No hay código que cambiar: el cliente ya es el real.
 1. `.env.local`: `VITE_MOCK_AUTH=false` (o quitarlo). Sin el mock, `api.ts` usa `apiFetch` → `/api/v1/tracking/*` → proxy de Vite → `localhost:4000`.
 2. T0 levantado, iniciar sesión real (usuario con `tracking:view`).
-3. Comprobar: no aparecen los controles de simulación ni "Iniciar viaje (pruebas)", los KPIs y el selector de país funcionan, el panel muestra evidencias de S3 (si hay) y el replay carga `/recorrido`.
+3. Comprobar: no aparecen los controles de simulación ni "Iniciar viaje (pruebas)", los KPIs y el selector de país funcionan, el panel muestra evidencias de S3 (si hay) .
 4. Para iniciar viajes de prueba sin la app, ver T5 (el botón de pruebas solo existe en mock).
 
 ## T5 — Probar la ingesta real
@@ -141,7 +141,7 @@ Esperado: `Index Scan` / `Bitmap Index Scan` sobre `ix_routes_org_sort`, `ix_rou
 
 ## T7 — Costo y latencia antes/después
 
-- **Local:** `scripts/tracking-contract-check.mjs --veces 10` da p50, máximo y bytes por endpoint (lista + KPIs, detalle, recorrido).
+- **Local:** `scripts/tracking-contract-check.mjs --veces 10` da p50, máximo y bytes por endpoint (lista + KPIs, detalle).
 - **AWS (tras T9):** CloudWatch del Lambda `tracking`: `Invocations`, `Duration` p50/p95, `Errors`; comparar una semana antes/después. Esperado por pestaña abierta: de 3 invocaciones cada 10 s a 1 cada 15 s (+1 si el panel está abierto), es decir ~70 % menos.
 - Ajustar `MemorySize` del Lambda midiendo `Duration` (estándar Intelix: medir, no dejar por defecto).
 
@@ -155,7 +155,7 @@ Requiere el bucket del stack `tracking` (T9) o uno de pruebas.
 ## T9 — Desplegar el stack `tracking` (lo despliega Intelix)
 
 1. Antes: T2 aplicada en el ambiente destino, T3 en verde contra local.
-2. `cd backend/tracking && sam build && sam deploy --config-env <dev|qa|prod>` (o `npm run deploy:sandbox:backend` para el sandbox). Crea el Lambda, las rutas en el API Gateway compartido (incluida la nueva `GET /viajes/{id}/recorrido`; se retiran `novedades` y `devoluciones`) y el bucket privado de evidencias (`DeletionPolicy: Retain`).
+2. `cd backend/tracking && sam build && sam deploy --config-env <dev|qa|prod>` (o `npm run deploy:sandbox:backend` para el sandbox). Crea el Lambda, las rutas en el API Gateway compartido (se retiran `novedades` y `devoluciones`) y el bucket privado de evidencias (`DeletionPolicy: Retain`).
 3. Confirmar la Layer `tms_common` y los parámetros SSM de red del ambiente.
 4. **Gzip:** verificar con `curl -H 'Accept-Encoding: gzip' -I .../viajes?limit=30` → `content-encoding: gzip` (API Gateway HTTP API pasa el cuerpo base64 del Lambda).
 5. Dar permisos del módulo `tracking` a los roles operativos (`view` para monitorear; el rol Chofer ya tiene `create`/`edit` con `sql/43`).

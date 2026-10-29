@@ -587,7 +587,7 @@ def test_alerts_only_for_active_trips(logic):
     assert _codes(logic, sig="stale", stopped=25) == []   # sin señal confiable no se afirma que esté detenido
 
 
-# --- monitoreo v2: alertas unificadas, lista, detalle, recorrido, ingesta, gzip ------------------------
+# --- monitoreo v2: alertas unificadas, lista, detalle, ingesta, gzip ------------------------
 
 def _progress(route_id, total=2, delivered=0, failed=0):
     return {"route_id": route_id, "total": total, "delivered": delivered, "failed": failed}
@@ -694,7 +694,8 @@ def test_include_summary_counts_all_active_trips_with_one_query_set(tracking):
     body = body_of(app.handler(_event("GET /api/v1/tracking/viajes", query={"activos": "1", "limit": "1",
                                                                              "include": "summary"}), None))["data"]
     assert len(body["items"]) == 1 and body["next_cursor"]
-    assert body["summary"] == {"active": 3, "on_time": 2, "late": 1, "no_signal": 1, "completed_today": 4}
+    assert body["summary"] == {"active": 3, "on_time": 2, "late": 1, "no_signal": 1, "completed_today": 4,
+                                 "deliveries_total": 0, "deliveries_done": 0, "deliveries_remaining": 0}
     completed = db.wrote("SELECT count(*) AS n")[0][0]
     assert "AT TIME ZONE coalesce(co.timezone" in completed and "LIMIT" not in completed
 
@@ -760,44 +761,6 @@ def test_driver_detail_never_signs_evidence_urls(driver, monkeypatch):
     db.answer("cu.phone AS customer_phone", [_full_stop(1)])
     data = body_of(app.handler(_event("GET /api/v1/tracking/viajes/{id}", path={"id": ROUTE}), None))["data"]
     assert s3.signed == [] and data["stops"][0]["evidences"][0]["url"] is None
-
-
-def test_recorrido_is_chronological_simplified_and_filters_bad_points(tracking):
-    app, db = tracking
-    db.answer("FROM routes r JOIN stores s", [_row()])
-    line = [{"latitude": 9.9, "longitude": -84.05 + i * 0.0001, "recorded_at": NOW + timedelta(seconds=i * 30)}
-            for i in range(10)]
-    db.answer("NOT is_mock AND (accuracy_m IS NULL OR accuracy_m <= 200) ORDER BY recorded_at", line)
-    data = body_of(app.handler(_event("GET /api/v1/tracking/viajes/{id}/recorrido", path={"id": ROUTE}), None))["data"]
-    assert [p["lat"] for p in data["points"]] == [9.9, 9.9]          # recta: solo extremos
-    assert data["points"][0]["at"] == line[0]["recorded_at"].isoformat()
-    sql, _ = db.wrote("SELECT latitude, longitude, recorded_at FROM tracking_positions WHERE route_id")[0]
-    assert "accuracy_m <= 200" in sql
-
-
-def test_recorrido_access_follows_get_viaje(driver):
-    app, db = driver
-    db.answer("FROM routes r JOIN stores s", [{"id": ROUTE, "organization_id": ORG, "status": "En tránsito",
-                                                "driver_id": OTHER_DRIVER, "country_id": "cr-id"}])
-    response = app.handler(_event("GET /api/v1/tracking/viajes/{id}/recorrido", path={"id": ROUTE}), None)
-    assert response["statusCode"] == 404 and not [sql for sql, _ in db.calls if "NOT is_mock" in sql]
-
-
-def test_douglas_peucker_keeps_corners_and_drops_noise(logic):
-    base = [(9.9, -84.0 + i * 0.0005) for i in range(5)]
-    noise = [{"lat": lat, "lng": lng} for lat, lng in base[:2] + [(9.9 + 0.00004, base[2][1])] + base[3:]]
-    assert len(logic.simplify_trail(noise)) == 2                    # 4.4 m de desvío < 15 m
-    corner = [{"lat": 9.9, "lng": -84.0}, {"lat": 9.9, "lng": -83.999}, {"lat": 9.9009, "lng": -83.999}]
-    kept = logic.simplify_trail(corner)
-    assert kept == corner                                           # el giro de ~100 m se conserva
-
-
-def test_trail_simplification_respects_the_2000_point_cap(logic):
-    zigzag = [{"lat": 9.9 + (0.00045 if i % 2 else 0), "lng": -84.0 + i * 0.0001} for i in range(3000)]
-    kept = logic.simplify_trail(zigzag)
-    assert len(kept) <= logic.TRAIL_MAX_POINTS
-    assert kept[0] == zigzag[0] and kept[-1] == zigzag[-1]
-    assert logic.simplify_trail(zigzag[:2]) == zigzag[:2]
 
 
 def test_stopped_by_route_groups_per_route(logic):
@@ -994,7 +957,6 @@ def test_upload_url_rejects_photo_other_with_422(tracking, monkeypatch):
 def test_removed_endpoints_are_gone():
     app = load_stack_module("tracking")
     assert not [k for k in app.ROUTES if "novedades" in k or "devoluciones" in k]
-    assert "GET /api/v1/tracking/viajes/{id}/recorrido" in app.ROUTES
     assert "GET /api/v1/tracking/resumen" in app.ROUTES        # deprecado, sigue vivo
 
 

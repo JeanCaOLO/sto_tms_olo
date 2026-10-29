@@ -1,4 +1,5 @@
-"""GET /mi-viaje: el viaje actual del chofer autenticado (en tránsito, o el plan confirmado de hoy por iniciar)."""
+"""GET /mi-viaje: el viaje asignado al chofer: el que tiene abierto (en tránsito, sin importar la fecha en que se le
+asignó) o, si no tiene ninguno, el plan confirmado de hoy por iniciar. No ve otro hasta terminar el actual."""
 
 from datetime import datetime, timezone
 
@@ -63,6 +64,7 @@ def _route_item(row: dict, guides: list[dict], at: datetime, driver_name: str | 
         "kind": "route", "id": str(row["id"]), "route_id": str(row["id"]), "route_number": row["route_number"],
         "state": "active", "phase": "en_ruta" if departed else "por_salir", "plate": row["plate"],
         "zone_name": row["zone_name"], "route_date": row["route_date"].isoformat() if row["route_date"] else None,
+        "assigned_at": _iso(row["assigned_at"]),
         "started_at": _iso(row["actual_start_time"]), "planned_end_at": _iso(row["planned_end_time"]),
         "driver_name": driver_name, "origin": None if origin is None else {"lat": origin[0], "lng": origin[1]},
         "progress": _progress(total, delivered, failed),
@@ -97,6 +99,7 @@ def my_trips(event: dict, driver: Driver) -> dict:
         items.append({
             "kind": "planned", "id": str(trip["plan_trip_id"]), "route_id": None, "route_number": None,
             "state": "planned", "phase": "por_salir", "plan_date": trip["plan_date"].isoformat(),
+            "assigned_at": _iso(trip["assigned_at"]),
             "zone_name": trip["delivery_zone"], "plate": trip["plate"],
             "driver_name": driver.full_name, "origin": None, "progress": _progress(len(stops), 0, 0),
             "stops": stops})

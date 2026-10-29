@@ -120,7 +120,7 @@ describe('ViajesSidebar', () => {
 });
 
 describe('ViajeDetallePanel (solo lectura)', () => {
-  const base = { viaje: viaje(), error: false, now: NOW, onReplay: vi.fn(), onClose: vi.fn() };
+  const base = { viaje: viaje(), error: false, now: NOW, onClose: vi.fn() };
 
   it('lista los pedidos y al abrir uno muestra solo factura firmada y firma', () => {
     const evidences = [{ id: 'e1', kind: 'photo_invoice' as const, mime_type: 'image/jpeg', captured_at: null, url: 'https://s3/f.jpg' }];
@@ -149,13 +149,11 @@ describe('ViajeDetallePanel (solo lectura)', () => {
     expect(screen.getByText('Siguiente')).toBeTruthy();
   });
 
-  it('muestra carga o error del detalle, y reproduce o cierra', () => {
+  it('muestra carga o error del detalle, y cierra', () => {
     const { rerender } = render(<ViajeDetallePanel {...base} detail={null} />);
     expect(screen.getByText('Cargando...')).toBeTruthy();
     rerender(<ViajeDetallePanel {...base} detail={null} error />);
     expect(screen.getByText('No se pudo cargar el detalle del viaje')).toBeTruthy();
-    fireEvent.click(screen.getByText('Reproducir recorrido'));
-    expect(base.onReplay).toHaveBeenCalled();
     fireEvent.click(screen.getByLabelText('Cerrar'));
     expect(base.onClose).toHaveBeenCalled();
   });

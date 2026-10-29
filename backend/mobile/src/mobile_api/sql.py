@@ -86,7 +86,7 @@ WHERE driver_presence.last_seen_at <= EXCLUDED.last_seen_at
 # --- agenda (mi-viaje) -------------------------------------------------------------------------------------
 
 MY_ROUTES_SQL = """
-SELECT r.id, r.route_number, r.route_date, r.status, r.actual_start_time, r.planned_end_time,
+SELECT r.id, r.route_number, r.route_date, r.status, COALESCE(pt.created_at, r.created_at) AS assigned_at, r.actual_start_time, r.planned_end_time,
        s.latitude AS origin_lat, s.longitude AS origin_lng, co.code AS country, cu.code AS customer_code,
        v.plate, z.name AS zone_name,
        lp.latitude AS last_lat, lp.longitude AS last_lng, lp.recorded_at AS last_position_at
@@ -100,7 +100,6 @@ LEFT JOIN vehicles v ON v.id = r.vehicle_id
 LEFT JOIN zones z ON z.id = r.route_type_id
 LEFT JOIN tracking_last_positions lp ON lp.route_id = r.id
 WHERE r.organization_id = %s AND r.driver_id = %s AND lower(r.status) = ANY(%s)
-  AND r.route_date = (now() AT TIME ZONE coalesce(co.timezone, 'America/Costa_Rica'))::date   -- solo el viaje de HOY en el país de la sede
 ORDER BY COALESCE(r.actual_start_time, r.created_at), r.id
 LIMIT 10
 """
@@ -124,7 +123,7 @@ ORDER BY g.route_id, g.sequence_number
 """
 
 MY_PLANNED_SQL = """
-SELECT pt.id AS plan_trip_id, rp.plan_date, pt.delivery_zone, v.plate, d.full_name AS driver_name
+SELECT pt.id AS plan_trip_id, rp.plan_date, pt.created_at AS assigned_at, pt.delivery_zone, v.plate, d.full_name AS driver_name
 FROM plan_trips pt
 JOIN route_plans rp ON rp.id = pt.plan_id
 LEFT JOIN vehicles v ON v.id = pt.vehicle_id
@@ -185,7 +184,8 @@ WHERE tracking_last_positions.recorded_at <= EXCLUDED.recorded_at
 
 GUIDE_ROW_SQL = """
 SELECT g.id, g.route_id, g.organization_id, g.order_id, o.order_number, g.delivery_status, g.notes,
-       r.status AS route_status,
+       r.status AS route_status, r.actual_end_time AS route_ended_at,
+       (SELECT count(*) FROM tarifas_settlements st WHERE st.trip_id = r.id AND st.status <> 'Anulado') AS settlements,
        r.driver_id,
        COALESCE(o.delivery_latitude, ps.latitude) AS stop_lat, COALESCE(o.delivery_longitude, ps.longitude) AS stop_lng,
        COALESCE((SELECT array_agg(DISTINCT e.kind) FROM tracking_evidences e WHERE e.dispatch_guide_id = g.id),
@@ -211,6 +211,28 @@ FROM dispatch_guides g WHERE g.route_id = %s
 """
 
 SET_COMPLETED_STOPS_SQL = "UPDATE routes SET completed_stops = %s, updated_at = now() WHERE id = %s"
+
+# Cierre automático al registrar la última parada: el viaje pasa a "Completada" (lo que lee Liquidaciones, vía
+# tarifas_v_viajes) y su viaje planificado a 'completed' (lo que lee Planificación y el tracking).
+CLOSE_ROUTE_SQL = """
+UPDATE routes SET status = 'Completada', actual_end_time = %s, completed_stops = %s, updated_at = now()
+WHERE id = %s AND lower(status) = ANY(%s)
+RETURNING id
+"""
+# Deshacer el cierre (ventana corta): el viaje vuelve a "En tránsito" y su viaje planificado a 'pending'.
+REOPEN_ROUTE_SQL = """
+UPDATE routes SET status = 'En tránsito', actual_end_time = NULL, updated_at = now()
+WHERE id = %s AND lower(status) = ANY(%s)
+RETURNING id
+"""
+REOPEN_PLAN_TRIP_SQL = """
+UPDATE plan_trips SET status = 'pending', updated_at = now()
+WHERE id = (SELECT plan_trip_id FROM routes WHERE id = %s) AND status = 'completed'
+"""
+CLOSE_PLAN_TRIP_SQL = """
+UPDATE plan_trips SET status = 'completed', updated_at = now()
+WHERE id = (SELECT plan_trip_id FROM routes WHERE id = %s) AND status = 'pending'
+"""
 
 # --- iniciar viaje (el chofer crea la ruta desde su viaje planificado; mismas sentencias que la web) ------------------
 PLAN_TRIP_SQL = """

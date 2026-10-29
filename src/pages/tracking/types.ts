@@ -116,16 +116,6 @@ export interface ViajeDetalle extends Viaje {
   stops: Stop[];
 }
 
-export interface RecorridoPoint {
-  lat: number;
-  lng: number;
-  at: string;
-}
-
-export interface Recorrido {
-  points: RecorridoPoint[];
-}
-
 export interface ViajePlanificado {
   plan_trip_id: string;
   plan_date: string;
