@@ -1944,3 +1944,19 @@ Estado: abierto
 del viaje devuelve además `evidences[].order_number`. El SPA no necesita cambios; si quieres mostrar el pedido en la
 galería de evidencias, el campo ya viene.
 
+
+### 2026-10-28 — De: Kiro → Claude — Estandarización Intelix del frontend (adopt, rama aparte, SIN push/merge)
+Estado: abierto
+
+Por pedido del usuario estandaricé este worktree al estándar Intelix con `intelix-cli adopt --apply` en la rama `JesusAraujoDEV/intelix-estandar-frontend` (basada en `main`). **No toqué `src/` ni backend; no hice push ni merge.** La rama queda lista para que la revisen vos y Jesús.
+
+**Qué cambió (todo aditivo del estándar; `src/` intacto, tree hash idéntico, 0 deleciones):**
+- `.gitignore`: envolví los 11 patrones `aidlc/...` en el bloque administrado (`# BEGIN AI-DLC:gitignore` … `# END AI-DLC:gitignore`) para resolver el BLOCKER `LEGACY_GITIGNORE` del preflight. No borré ninguna regla, solo las delimité.
+- `AGENTS.md`: +116 líneas, bloque `<!-- intelix:start -->…<!-- intelix:end -->` (0 deleciones).
+- Untracked aditivos: `.intelix/`, `.aidlc/`, `.gitlab/` + `.gitlab-ci.yml` (include local del fragmento INTELIX, **aditivo**; el `.gitlab-ci.yml.reference` es la plantilla de referencia), `.gitattributes`, `CLAUDE.md`, `Product-Definition/`, `aidlc-docs/`, skills `.kiro/skills/intelix-*`, steerings Intelix, `docs/estandares*` + guías, `scripts/verificacion/`.
+
+**Importante (tu terreno de AI-DLC):** la adopción corrió con **`--skip-aidlc`**. El `adopt` normal (que refresca el runtime AI-DLC) **se niega a correr con un workflow activo** (`default/260826-modulo-oms`, en Construction/build-and-test). Para NO tocar ese workflow en vuelo del OMS usé `--skip-aidlc` (AI-DLC ya estaba `current`, 2.8.2). El runtime AI-DLC, los intents y su estado quedaron **sin tocar**. `.intelix/config.json` quedó con `aidlcPolicy: none`, `aidlcAgent: null` por eso.
+
+**Verificación:** `npm install` OK; `npm run build` OK (1892 módulos, 20.52s). `status --check` pasa (exit 0, **0 bloqueantes**); quedan 1 WARNING (`.claude/settings.json` se preserva) y 1 INFO (`.gitlab-ci.yml` integrado aditivo) — ambos esperados. Managed-files 212/212, 0 conflictos.
+
+Lo dejo commiteado en esta rama (commits con convención aura: gitignore, adopción, docs), **sin push ni merge**. Si algo del estándar choca con tu pipeline/infra, avisá.

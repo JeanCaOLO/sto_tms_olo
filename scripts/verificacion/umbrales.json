@@ -1,0 +1,13 @@
+{
+  "pesos": { "infraestructura": 30, "codigo": 25, "seguridad": 35, "devops": 10, "movil": 100 },
+  "umbrales": {
+    "apto": 85,
+    "con_observaciones": 70
+  },
+  "reglas_dictamen": {
+    "critico_no_cumplido_fija_categoria_en_cero": true,
+    "critico_no_cumplido_fuerza_no_apto": true,
+    "max_altos_por_categoria_con_observaciones": 1
+  },
+  "estados_no_penalizan": ["na-justificado", "diferido-piloto", "no-verificable"]
+}

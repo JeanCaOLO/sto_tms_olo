@@ -1,0 +1,14 @@
+# Reglas de Intelix para .aidlc/audit/ (ancladas a ESTA carpeta).
+#
+# Viven en un .gitignore anidado y NO en el .gitignore raiz a proposito: AI-DLC
+# aborta el sync si ve patrones `.aidlc/...` sueltos en la raiz ("legacy root
+# integration ambiguous"). Aqui git las aplica igual (por jerarquia) y AI-DLC no
+# las inspecciona. Las rutas son relativas a .aidlc/audit/.
+
+# Iteraciones Inception: ledger y reportes son por-proyecto (no ejemplos falsos).
+# El comando `simulate` escribe bajo examples/ solo para demos locales.
+examples/
+inception-report.md
+inception-report.html
+# El ledger vivo SI se versiona cuando el equipo registra vueltas reales:
+# inception-iterations.jsonl

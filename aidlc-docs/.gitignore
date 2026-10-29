@@ -1,0 +1,20 @@
+# Reglas de Intelix para aidlc-docs/ (ancladas a ESTA carpeta).
+#
+# Viven en un .gitignore anidado y NO en el .gitignore raiz a proposito: AI-DLC
+# aborta el sync si ve patrones `aidlc-docs/...` sueltos en la raiz ("legacy root
+# integration ambiguous"). Aqui git las aplica igual (por jerarquia) y AI-DLC no
+# las inspecciona. Las rutas son relativas a aidlc-docs/.
+
+# Tracking del avance (por-proyecto). En la PLANTILLA el indice es un EJEMPLO/guia
+# local y por eso NO se versiona aqui (asi ningun proyecto derivado arranca con
+# datos de avance falsos). Esto es lo correcto para la plantilla.
+#
+# EN UN PROYECTO REAL, versionar el indice es REQUISITO para consolidar el avance
+# de varias ramas/colaboradores (skill intelix-consolidado-avance): el indice
+# debe viajar por git para que cada rama lleve el suyo. Al derivar el proyecto:
+#   1) elimina la linea 'tracking/' de ESTE archivo (aidlc-docs/.gitignore),
+#   2) reemplaza el indice de ejemplo por las unidades reales,
+#   3) commitea el indice en develop y mantenlo actualizado en cada feature/bugfix.
+# Mientras esta linea siga activa, la consolidacion multi-rama no es posible
+# (la skill lo detecta y avisa como "Escenario B").
+tracking/
