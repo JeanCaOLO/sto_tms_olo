@@ -80,3 +80,23 @@ def test_start_without_origin_coordinates_has_no_planned_times(call, fake_db):
     fake_db.answer("FROM stores WHERE organization_id", [{"id": "s", "latitude": None, "longitude": None}])
     call(START, path={"id": TRIP})
     assert all(g[1][-1] is None for g in fake_db.wrote("INSERT INTO dispatch_guides"))
+
+
+def test_cannot_start_another_trip_while_current_has_pending_stops(call, fake_db):
+    prepare(fake_db)
+    fake_db.answer("FROM routes r WHERE r.organization_id", [{"id": "otra-ruta"}])
+    response = call(START, path={"id": TRIP})
+    assert response["statusCode"] == 409 and body_of(response)["error"]["code"] == "trip_in_progress"
+    assert not fake_db.wrote("INSERT INTO routes")
+
+
+def test_can_start_when_previous_trip_is_fully_done(call, fake_db):
+    prepare(fake_db)                       # sin ruta inconclusa: la consulta no devuelve filas
+    assert call(START, path={"id": TRIP})["statusCode"] == 201
+
+
+def test_cannot_start_a_trip_without_a_carrier(call, fake_db):
+    prepare(fake_db, trip=plan_trip(carrier_id=None))
+    response = call(START, path={"id": TRIP})
+    assert response["statusCode"] == 409 and body_of(response)["error"]["code"] == "no_carrier"
+    assert not fake_db.wrote("INSERT INTO routes")

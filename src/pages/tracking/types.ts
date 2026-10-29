@@ -116,16 +116,6 @@ export interface ViajeDetalle extends Viaje {
   stops: Stop[];
 }
 
-export interface RecorridoPoint {
-  lat: number;
-  lng: number;
-  at: string;
-}
-
-export interface Recorrido {
-  points: RecorridoPoint[];
-}
-
 export interface ViajePlanificado {
   plan_trip_id: string;
   plan_date: string;
@@ -142,6 +132,10 @@ export interface Resumen {
   late: number;
   no_signal: number;
   completed_today: number;
+  /** Paradas de los viajes en curso: entregadas/fallidas y faltantes (se actualiza con el polling). */
+  deliveries_total?: number;
+  deliveries_done?: number;
+  deliveries_remaining?: number;
 }
 
 export interface ViajesPage {

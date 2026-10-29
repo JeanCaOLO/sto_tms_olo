@@ -38,6 +38,14 @@ def start_trip(event: dict, driver: Driver) -> dict:
         existing = run(sql.ROUTE_BY_PLAN_TRIP_SQL, [trip_id])
         if existing:
             return {"route_id": str(existing[0]["id"]), "created": False}
+        # Sin transportista el viaje no se podría liquidar al cerrarse: se exige antes de salir.
+        if not trip["carrier_id"]:
+            raise HttpError(409, "El viaje no tiene transportista asignado (ni en el chofer ni en el camión): "
+                                 "pídele a Planificación que lo asigne antes de iniciar.", code="no_carrier")
+        # Un viaje a la vez: hasta entregar todo el actual no se inicia otro (la app tampoco muestra los siguientes).
+        if run(sql.UNFINISHED_ROUTE_SQL, [driver.organization_id, driver.driver_id, logic.ACTIVE_STATUS_SQL_VALUES]):
+            raise HttpError(409, "Termina las entregas de tu viaje actual antes de iniciar otro.",
+                            code="trip_in_progress")
         if trip["plan_status"] != "confirmed":
             raise HttpError(409, "El plan debe estar confirmado para iniciar el viaje.")
         if trip["status"] != "pending":

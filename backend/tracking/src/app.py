@@ -2,7 +2,7 @@
 cancelar viajes es de Planificación.
 
 Lectura (web): lista de viajes con progreso, alertas y última posición (`include=summary` agrega los KPIs),
-detalle con paradas y evidencias de entrega, recorrido simplificado para el replay y los viajes planificados
+detalle con paradas y evidencias de entrega, y los viajes planificados
 listos para iniciar.
 Escritura (app del chofer; iniciar solo en pruebas): iniciar viaje desde Planificación, ingesta de posiciones
 por lotes, transición de parada y evidencias de entrega (factura firmada y firma; subida directa a S3). Tracking
@@ -13,7 +13,7 @@ Permisos: módulo `tracking` (view para leer; create para iniciar e ingestar; ed
 evidencias) + país de la tienda de origen de la ruta.
 
 App del chofer (rol `Chofer`): solo opera los viajes donde `routes.driver_id` es el conductor enlazado a su
-usuario (`drivers.app_user_id`). Ve `mi-viaje`, el detalle y el recorrido de SUS viajes y escribe posiciones,
+usuario (`drivers.app_user_id`). Ve `mi-viaje` y el detalle de SUS viajes y escribe posiciones,
 paradas, evidencias y consentimiento; lo demás (lista general, KPIs, iniciar) es del
 administrador y le responde 403. Un viaje ajeno responde 404 (no revela que existe).
 """
@@ -323,6 +323,8 @@ def _compute_summary(caller, org_id: str, query: dict, now: datetime) -> dict:
     viajes = [_list_item(row, batch, now) for row in rows]
     late = sum(any(a["code"] == logic.ALERT_LATE for a in v["alerts"]) for v in viajes)
     no_signal = sum(any(a["code"] == logic.ALERT_NO_SIGNAL for a in v["alerts"]) for v in viajes)
+    deliveries_total = sum(v["progress"]["total"] for v in viajes)
+    deliveries_done = sum(v["progress"]["done"] for v in viajes)
     # Completados hoy en el día local del país (timezone de countries).
     where, params = _scope(caller, org_id, query, only_active=False)
     # Acotado a viajes creados en los últimos 30 días: sin esto la consulta escanea todo el histórico de la org.
@@ -337,6 +339,9 @@ def _compute_summary(caller, org_id: str, query: dict, now: datetime) -> dict:
         "late": late,
         "no_signal": no_signal,
         "completed_today": int(today[0]["n"]) if today else 0,
+        "deliveries_total": deliveries_total,          # paradas de los viajes en curso (se mueve con cada entrega)
+        "deliveries_done": deliveries_done,
+        "deliveries_remaining": deliveries_total - deliveries_done,
     }
 
 
@@ -458,18 +463,6 @@ def _detail(route_id: str, *, driver: bool = False) -> dict:
         "stops": [_stop_view(g, live, evidences, driver) for g in guides],
     })
     return data
-
-
-def get_recorrido(event: dict) -> dict:
-    """Replay: rastro completo del viaje (sin mock ni precisión mala), simplificado a ~15 m, máx. 2000 puntos."""
-    caller, org_id = _caller(event, "view", driver_ok=True)
-    route_id = path_param(event, "id")
-    if not logic.is_uuid(route_id):
-        raise HttpError(404, "Viaje no encontrado")
-    _route_access(caller, org_id, route_id)
-    trail = [{"lat": _float(p["latitude"]), "lng": _float(p["longitude"]), "at": _iso(p["recorded_at"])}
-             for p in _rq(sql.TRAIL_REPLAY_SQL, [route_id])]
-    return _ok({"points": logic.simplify_trail(trail)})
 
 
 def summary(event: dict) -> dict:
@@ -847,7 +840,6 @@ ROUTES = {
     "POST /api/v1/tracking/consentimiento-gps": record_consent,
     "GET /api/v1/tracking/viajes": list_viajes,
     "GET /api/v1/tracking/viajes/{id}": get_viaje,
-    "GET /api/v1/tracking/viajes/{id}/recorrido": get_recorrido,
     "GET /api/v1/tracking/planificados": list_planificados,
     "GET /api/v1/tracking/choferes": list_choferes,
     "GET /api/v1/tracking/resumen": summary,

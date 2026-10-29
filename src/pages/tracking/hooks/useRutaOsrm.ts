@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { rutaPorCalles, type Tramo } from '../route-osrm';
-import { ordenarPorCercania } from '../stop-order';
+import { ordenarPorSecuencia } from '../stop-order';
 import type { ViajeDetalle } from '../types';
 
-/** Puntos de la ruta: sede (si tiene coordenadas) y paradas con coordenadas, por cercanía (ver stop-order.ts). */
+/** Puntos de la ruta: sede (si tiene coordenadas) y paradas con coordenadas, en el orden de la secuencia (ver stop-order.ts). */
 export function puntosRuta(detail: Pick<ViajeDetalle, 'origin' | 'stops'>): { puntos: [number, number][]; stopIds: (string | null)[] } {
   const puntos: [number, number][] = [];
   const stopIds: (string | null)[] = [];
   if (detail.origin) { puntos.push([detail.origin.lat, detail.origin.lng]); stopIds.push(null); }
-  ordenarPorCercania(detail.origin, detail.stops).forEach((s) => {
+  ordenarPorSecuencia(detail.stops).forEach((s) => {
     if (s.lat != null && s.lng != null) { puntos.push([s.lat, s.lng]); stopIds.push(s.id); }
   });
   return { puntos, stopIds };

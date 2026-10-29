@@ -86,7 +86,7 @@ if (second) check(second.status === 200 && second.body?.data?.summary === undefi
 const bad = await get('/viajes?pais=C1');
 check(bad.status === 400, 'pais inválido → 400', `HTTP ${bad.status}`);
 
-// --- detalle y recorrido -----------------------------------------------------------------------------------
+// --- detalle -----------------------------------------------------------------------------------
 const sample = items.find((v) => v.position) ?? items[0];
 if (sample) {
   const detail = await get(`/viajes/${sample.id}`);
@@ -106,16 +106,11 @@ if (sample) {
   const again = await get(`/viajes/${sample.id}`);
   const urls = (x) => (x.body?.data?.stops ?? []).flatMap((s) => s.evidences.map((e) => e.url));
   if (urls(detail).length) check(JSON.stringify(urls(detail)) === JSON.stringify(urls(again)), 'URLs firmadas estables entre dos lecturas');
-  const recorrido = await get(`/viajes/${sample.id}/recorrido`);
-  const points = recorrido.body?.data?.points;
-  check(recorrido.status === 200 && Array.isArray(points) && points.length <= 2000, 'GET /recorrido (≤ 2000 puntos)', `${points?.length ?? '?'} puntos`);
-  if (points?.length > 1) check(points.every((p, i) => i === 0 || p.at >= points[i - 1].at), 'recorrido en orden cronológico');
   console.log('\nTiempos y tamaños:');
   await measure('lista + KPIs', `/viajes?activos=1&limit=30&include=summary${q}`);
   await measure('detalle', `/viajes/${sample.id}`);
-  await measure('recorrido', `/viajes/${sample.id}/recorrido`);
 } else {
-  console.log('Sin viajes activos: no se verifican detalle ni recorrido (inicia uno o usa el seed).');
+  console.log('Sin viajes activos: no se verifica el detalle (inicia uno o usa el seed).');
 }
 
 const planned = await get(`/planificados${pais ? `?pais=${pais}` : ''}`);

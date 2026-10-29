@@ -145,13 +145,6 @@ SELECT id, dispatch_guide_id, kind, storage_key, mime_type, captured_at, order_n
 FROM tracking_evidences WHERE route_id = %s AND kind IN {EVIDENCE_KINDS_SQL} ORDER BY created_at
 """
 
-# Recorrido completo para el replay: solo puntos que cuentan (sin mock ni precisión mala), cronológicos.
-TRAIL_REPLAY_SQL = """
-SELECT latitude, longitude, recorded_at FROM tracking_positions
-WHERE route_id = %s AND NOT is_mock AND (accuracy_m IS NULL OR accuracy_m <= 200)
-ORDER BY recorded_at
-"""
-
 PLANNED_SQL = """
 SELECT pt.id AS plan_trip_id, rp.plan_date, pt.delivery_zone, v.plate, d.full_name AS driver_name,
        (SELECT count(*) FROM plan_stops ps WHERE ps.trip_id = pt.id) AS stops

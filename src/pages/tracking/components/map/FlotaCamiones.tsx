@@ -14,8 +14,6 @@ const NO_CLUSTER_ZOOM = 16; // de cerca siempre se ven los camiones sueltos
 interface Props {
   trucks: Viaje[];
   selectedId: string | null;
-  /** Viaje en replay: su camión en vivo no se dibuja. */
-  hiddenId: string | null;
   onSelect: (id: string) => void;
 }
 
@@ -23,7 +21,7 @@ interface Props {
  * Camiones de la flota. Los que en pantalla se encimarían se agrupan en una burbuja con el número (roja si
  * alguno tiene alerta); clic en la burbuja acerca el mapa hasta separarlos. El elegido nunca se agrupa.
  */
-export default function FlotaCamiones({ trucks, selectedId, hiddenId, onSelect }: Props) {
+export default function FlotaCamiones({ trucks, selectedId, onSelect }: Props) {
   const { t } = useTranslation();
   const map = useMap();
   const [view, setView] = useState(0); // cambia al mover o hacer zoom: recalcular grupos
@@ -33,19 +31,18 @@ export default function FlotaCamiones({ trucks, selectedId, hiddenId, onSelect }
     return () => { map.off('zoomend moveend', bump); };
   }, [map]);
 
-  const visible = useMemo(() => trucks.filter((v) => v.id !== hiddenId), [trucks, hiddenId]);
-  const byId = useMemo(() => new Map(visible.map((v) => [v.id, v])), [visible]);
+  const byId = useMemo(() => new Map(trucks.map((v) => [v.id, v])), [trucks]);
   // Siempre se agrupa por cercanía en pantalla (también con el mapa muy acercado: camiones en el mismo punto
   // nunca se separan solos con el zoom). Ya en NO_CLUSTER_ZOOM los grupos no se juntan en burbuja sino que se abren en abanico.
   const clusters = useMemo(() => {
-    const free = visible.filter((v) => v.id !== selectedId);
+    const free = trucks.filter((v) => v.id !== selectedId);
     const points = free.map((v) => {
       const p = map.latLngToContainerPoint([v.position!.lat, v.position!.lng]);
       return { id: v.id, x: p.x, y: p.y };
     });
     return clusterPoints(points, RADIUS_PX);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, selectedId, map, view]);
+  }, [trucks, selectedId, map, view]);
 
   const single = (v: Viaje, at?: L.LatLng) => (
     <TruckMarker

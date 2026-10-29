@@ -48,9 +48,6 @@ Viaje + `{ origin: { lat, lng, name } | null, next_stop_id, departed_at, stops: 
 - `departed_at`: primera salida de la sede (> 300 m), leída de `routes.departed_at` (columna de `sql/44`).
 - La app del chofer (rol Chofer) recibe además `customer_phone`, `items`, `weight` y no recibe URLs de evidencias.
 
-### `GET /viajes/{id}/recorrido` (bajo demanda, para el replay)
-`{ points: { lat, lng, at }[] }`: rastro completo, cronológico, sin puntos simulados (`is_mock`) ni imprecisos (`accuracy_m > 200`), simplificado (Douglas-Peucker ~15 m, tope 2000 puntos).
-
 ## Reglas (una sola fuente: `backend/tracking/src/tracking_logic.py`)
 
 | Regla | Valor |

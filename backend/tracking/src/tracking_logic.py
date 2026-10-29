@@ -42,8 +42,6 @@ EVIDENCE_MIME = {"image/jpeg": "jpg", "image/png": "png"}
 URL_TTL_SECONDS = 300                   # formulario de subida (POST firmado)
 SIGNED_GET_TTL_SECONDS = 3600           # URL de lectura de evidencias (estable: se reusa desde caché)
 SIGNED_GET_RENEW_SECONDS = 600          # se vuelve a firmar cuando faltan menos de esto
-TRAIL_EPSILON_M = 15                    # tolerancia Douglas-Peucker del recorrido
-TRAIL_MAX_POINTS = 2000
 
 _UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
@@ -298,55 +296,6 @@ def route_accepts(state: str, ended_at: datetime | None, now: datetime) -> bool:
     if state == "active":
         return True
     return state == "completed" and ended_at is not None and _aware(now) - _aware(ended_at) <= GRACE_AFTER_CLOSE
-
-
-def _to_meters(points: list[dict]) -> list[tuple[float, float]]:
-    """Proyección plana local (equirectangular) en metros: basta para tolerancias de decenas de metros."""
-    lat0 = sum(float(p["lat"]) for p in points) / len(points)
-    kx = 111320 * math.cos(math.radians(lat0))
-    return [(float(p["lng"]) * kx, float(p["lat"]) * 110574) for p in points]
-
-
-def _segment_distance(p, a, b) -> float:
-    ax, ay = a
-    dx, dy = b[0] - ax, b[1] - ay
-    length2 = dx * dx + dy * dy
-    t = 0.0 if length2 == 0 else max(0.0, min(1.0, ((p[0] - ax) * dx + (p[1] - ay) * dy) / length2))
-    return math.hypot(p[0] - (ax + t * dx), p[1] - (ay + t * dy))
-
-
-def _douglas_peucker(xy: list[tuple[float, float]], epsilon: float) -> list[int]:
-    """Índices que conservan la forma con tolerancia `epsilon` (m). Pila explícita: sin límite de recursión."""
-    count = len(xy)
-    keep = [False] * count
-    keep[0] = keep[-1] = True
-    stack = [(0, count - 1)]
-    while stack:
-        first, last = stack.pop()
-        worst, worst_index = -1.0, None
-        for index in range(first + 1, last):
-            distance = _segment_distance(xy[index], xy[first], xy[last])
-            if distance > worst:
-                worst, worst_index = distance, index
-        if worst_index is not None and worst > epsilon:
-            keep[worst_index] = True
-            stack.append((first, worst_index))
-            stack.append((worst_index, last))
-    return [index for index in range(count) if keep[index]]
-
-
-def simplify_trail(points: list[dict], epsilon_m: float = TRAIL_EPSILON_M, cap: int = TRAIL_MAX_POINTS) -> list[dict]:
-    """Recorrido simplificado (Douglas-Peucker). Si aún supera `cap`, sube la tolerancia hasta caber.
-    Los extremos siempre se conservan. `points`: dicts con lat, lng (en orden cronológico)."""
-    if len(points) <= 2:
-        return list(points)
-    xy = _to_meters(points)
-    epsilon = epsilon_m
-    kept = _douglas_peucker(xy, epsilon)
-    while len(kept) > cap:
-        epsilon *= 1.5
-        kept = _douglas_peucker(xy, epsilon)
-    return [points[index] for index in kept]
 
 
 def days_late(due_date, now: datetime, tz: str | None) -> int:

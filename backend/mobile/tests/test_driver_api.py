@@ -18,7 +18,7 @@ def frozen_clock(monkeypatch):
 
 def route_row(**over):
     base = {"id": ROUTE, "route_number": "VJ-1", "route_date": date(2026, 10, 16), "status": "En tránsito",
-            "actual_start_time": NOW - timedelta(hours=1), "planned_end_time": None, "origin_lat": None,
+            "assigned_at": NOW - timedelta(days=2), "actual_start_time": NOW - timedelta(hours=1), "planned_end_time": None, "origin_lat": None,
             "origin_lng": None, "plate": "ABC123", "zone_name": "GAM", "last_lat": STOP_LAT, "last_lng": STOP_LNG,
             "last_position_at": NOW - timedelta(seconds=30)}
     base.update(over)
@@ -58,20 +58,21 @@ def pos(**over):
 def test_mi_viaje_lists_active_and_planned_trips_of_the_driver(call, fake_db):
     fake_db.answer("FROM routes r JOIN stores s", [route_row()])
     fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_item(1), guide_item(2, delivery_status="delivered")])
-    fake_db.answer("FROM plan_trips pt", [{"plan_trip_id": TRIP, "plan_date": date(2026, 10, 16), "delivery_zone": "GAM",
+    fake_db.answer("FROM plan_trips pt", [{"plan_trip_id": TRIP, "plan_date": date(2026, 10, 16), "assigned_at": NOW, "delivery_zone": "GAM",
                                            "plate": "XYZ789", "driver_name": "Ana"}])
     fake_db.answer("FROM plan_stops ps JOIN orders o", [{
         "trip_id": TRIP, "stop_order": 1, "order_id": ORDER, "order_number": "P-9", "invoice_number": "F-9",
         "total_items": 3, "total_weight": 5, "delivery_address": "Calle 9", "delivery_city": "Heredia",
         "latitude": STOP_LAT, "longitude": STOP_LNG, "customer_name": "Cliente 9", "customer_phone": "2222-9999"}])
     result = body_of(call("GET /api/mobile/v1/mi-viaje"))["data"]["items"]
-    assert [item["kind"] for item in result] == ["route", "planned"]
-    route, planned = result
+    assert [item["kind"] for item in result] == ["route"]      # solo el viaje actual
+    route = result[0]
     assert route["route_id"] == ROUTE and route["phase"] == "en_ruta"
-    assert route["progress"] == {"total": 2, "done": 1, "delivered": 1, "failed": 0, "percent": 50}
+    assert route["progress"] == {"total": 2, "done": 1, "delivered": 1, "failed": 0, "remaining": 1, "percent": 50}
+    assert route["driver_name"] and "origin" in route
+    assert route["assigned_at"] is not None                  # fecha en que se le asignó el viaje
     assert route["next_stop_id"] == route["stops"][0]["id"] and route["stops"][0]["distance_m"] is not None
     assert route["stops"][0]["delay_min"] is not None and route["stops"][1]["state"] == "delivered"
-    assert planned["route_id"] is None and planned["stops"][0]["customer_phone"] == "2222-9999"
     mine = [c for c in fake_db.calls if "r.driver_id = %s" in c[0]][0][1]
     assert mine[:2] == [ORG, DRIVER]                       # siempre por el conductor del token
     assert [c for c in fake_db.calls if "pt.driver_id = %s" in c[0]][0][1][:2] == [ORG, DRIVER]
@@ -231,7 +232,8 @@ def test_transition_updates_guide_counter_and_event_atomically(call, fake_db):
     fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row()])
     fake_db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 3, "pending": 1}])
     result = body_of(delivered(call))["data"]
-    assert result == {"stop_id": GUIDE, "state": "delivered", "done": 3, "pending": 1, "distance_m": None}
+    assert result == {"stop_id": GUIDE, "state": "delivered", "done": 3, "pending": 1, "distance_m": None,
+                      "route_closed": False, "route_reopened": False}
     assert fake_db.wrote("UPDATE dispatch_guides")[0][1][:2] == ["delivered", "Entregado"]
     assert fake_db.wrote("UPDATE routes SET completed_stops")[0][1] == [3, ROUTE]
     event_params = fake_db.wrote("INSERT INTO tracking_events")[0][1]
@@ -525,3 +527,127 @@ def test_incident_on_a_closed_route_is_409(call, fake_db):
     response = call("POST /api/mobile/v1/paradas/{id}/novedades", path={"id": GUIDE}, body={"description": "tarde"})
     assert response["statusCode"] == 409
     assert not fake_db.wrote("INSERT INTO route_events")
+
+
+def test_mi_viaje_returns_only_todays_plan_and_planned_filter_is_today(call, fake_db):
+    fake_db.answer("FROM plan_trips pt", [
+        {"plan_trip_id": TRIP, "plan_date": date(2026, 10, 16), "assigned_at": NOW, "delivery_zone": "GAM", "plate": "A", "driver_name": "Ana"},
+        {"plan_trip_id": "other", "plan_date": date(2026, 10, 16), "assigned_at": NOW, "delivery_zone": "GAM", "plate": "B", "driver_name": "Ana"}])
+    fake_db.answer("FROM plan_stops ps JOIN orders o", [
+        {"trip_id": tid, "stop_order": 1, "order_id": ORDER, "order_number": "P", "invoice_number": "F", "total_items": 1,
+         "total_weight": 1, "delivery_address": "x", "delivery_city": "y", "latitude": STOP_LAT, "longitude": STOP_LNG,
+         "customer_name": "c", "customer_phone": None} for tid in (TRIP, "other")])
+    items = body_of(call("GET /api/mobile/v1/mi-viaje"))["data"]["items"]
+    assert [i["id"] for i in items] == [TRIP] and items[0]["progress"]["remaining"] == 1
+    planned_query = [c for c in fake_db.calls if "pt.driver_id = %s" in c[0]][0]
+    assert "rp.plan_date = (now() AT TIME ZONE coalesce(co.timezone" in planned_query[0]   # "hoy" según el país
+    routes_query = [c for c in fake_db.calls if "r.driver_id = %s" in c[0]][0]
+    assert "route_date" not in routes_query[0].split("WHERE")[1]    # el viaje abierto se ve hasta cerrarlo, sea cual sea su fecha
+
+
+def test_far_delivery_accepts_preset_reason_code(call, fake_db):
+    stop_with_coords(fake_db)
+    response = delivered(call, lat=STOP_LAT + 0.01, lng=STOP_LNG, reason_code="acceso_bloqueado")
+    assert response["statusCode"] == 200
+    assert any("Acceso bloqueado" in str(c[1]) for c in fake_db.calls)      # el texto del motivo queda en el evento
+
+
+def test_reason_code_otro_needs_text_and_unknown_code_rejected(call):
+    assert delivered(call, reason_code="otro")["statusCode"] == 400
+    assert delivered(call, reason_code="inventado")["statusCode"] == 400
+
+
+def test_mi_viaje_hides_next_trips_until_current_is_fully_done(call, fake_db):
+    first = route_row(id="r-a", route_number="VJ-A")
+    second = route_row(id="r-b", route_number="VJ-B")
+    fake_db.answer("FROM routes r JOIN stores s", [first, second])
+    fake_db.answer("FROM dispatch_guides g JOIN routes r", [
+        {**guide_item(1), "route_id": "r-a"}, {**guide_item(2, delivery_status="delivered"), "route_id": "r-a"},
+        {**guide_item(3), "route_id": "r-b"}])
+    items = body_of(call("GET /api/mobile/v1/mi-viaje"))["data"]["items"]
+    assert [i["route_number"] for i in items] == ["VJ-A"]            # VJ-B oculto: a VJ-A le falta una parada
+
+
+def test_mi_viaje_shows_next_trip_once_current_is_done(call, fake_db):
+    fake_db.answer("FROM routes r JOIN stores s", [route_row(id="r-a", route_number="VJ-A"), route_row(id="r-b", route_number="VJ-B")])
+    fake_db.answer("FROM dispatch_guides g JOIN routes r", [
+        {**guide_item(1, delivery_status="delivered"), "route_id": "r-a"},
+        {**guide_item(2, delivery_status="failed"), "route_id": "r-a"}, {**guide_item(3), "route_id": "r-b"}])
+    items = body_of(call("GET /api/mobile/v1/mi-viaje"))["data"]["items"]
+    assert [i["route_number"] for i in items] == ["VJ-B"]
+
+
+def test_mi_viaje_all_done_keeps_last_trip_summary(call, fake_db):
+    fake_db.answer("FROM routes r JOIN stores s", [route_row(id="r-a", route_number="VJ-A")])
+    fake_db.answer("FROM dispatch_guides g JOIN routes r", [{**guide_item(1, delivery_status="delivered"), "route_id": "r-a"}])
+    items = body_of(call("GET /api/mobile/v1/mi-viaje"))["data"]["items"]
+    assert [i["route_number"] for i in items] == ["VJ-A"] and items[0]["progress"]["remaining"] == 0
+
+
+# --- cierre automático del viaje ------------------------------------------------------------------------------
+
+def test_last_stop_closes_the_trip_and_sends_it_to_liquidaciones(call, fake_db):
+    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row()])
+    fake_db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 5, "pending": 0}])
+    fake_db.answer("UPDATE routes SET status = 'Completada'", [{"id": ROUTE}])
+    result = body_of(delivered(call))["data"]
+    assert result["route_closed"] is True and result["pending"] == 0
+    close = fake_db.wrote("UPDATE routes SET status = 'Completada'")
+    assert close and close[0][1][1] == 5 and close[0][1][2] == ROUTE           # estado Completada, 5 paradas hechas
+    assert fake_db.wrote("UPDATE plan_trips SET status = 'completed'")          # y su viaje planificado
+    assert [c for c in fake_db.wrote("INSERT INTO tracking_events") if c[1][3] == "route_completed"]
+
+
+def test_a_failed_last_stop_also_closes_the_trip(call, fake_db):
+    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row()])
+    fake_db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 2, "pending": 0}])
+    fake_db.answer("UPDATE routes SET status = 'Completada'", [{"id": ROUTE}])
+    result = body_of(call(TRANSITION, path={"id": GUIDE}, body={"to": "failed", "reason": "Cliente ausente"}))["data"]
+    assert result["route_closed"] is True
+
+
+def test_trip_stays_open_while_stops_are_pending(call, fake_db):
+    stop_with_coords(fake_db)
+    result = body_of(delivered(call, lat=STOP_LAT, lng=STOP_LNG))["data"]
+    assert result["route_closed"] is False and not fake_db.wrote("UPDATE routes SET status = 'Completada'")
+
+
+def test_resending_the_last_stop_after_the_trip_closed_is_not_an_error(call, fake_db):
+    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row(route_status="Completada", delivery_status="delivered")])
+    fake_db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 5, "pending": 0}])
+    response = delivered(call)
+    assert response["statusCode"] == 200 and body_of(response)["data"]["route_closed"] is True
+
+
+def test_a_closed_trip_still_rejects_a_different_change(call, fake_db):
+    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row(route_status="Completada", delivery_status="delivered")])
+    assert call(TRANSITION, path={"id": GUIDE}, body={"to": "pending"})["statusCode"] == 409
+
+
+# --- deshacer el cierre (ventana corta) -----------------------------------------------------------------------
+
+def closed_guide(minutes_ago=3, **over):
+    return guide_row(route_status="Completada", delivery_status="delivered", route_ended_at=NOW - timedelta(minutes=minutes_ago), **over)
+
+
+def test_driver_can_undo_the_last_stop_inside_the_window_and_the_trip_reopens(call, fake_db):
+    fake_db.answer("FROM dispatch_guides g JOIN routes r", [closed_guide()])
+    fake_db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 4, "pending": 1}])
+    fake_db.answer("UPDATE routes SET status = 'En tránsito'", [{"id": ROUTE}])
+    response = call(TRANSITION, path={"id": GUIDE}, body={"to": "pending"})
+    assert response["statusCode"] == 200 and body_of(response)["data"]["route_reopened"] is True
+    assert fake_db.wrote("UPDATE plan_trips SET status = 'pending'")
+    assert [c for c in fake_db.wrote("INSERT INTO tracking_events") if c[1][3] == "route_reopened"]
+
+
+def test_undo_after_the_window_is_rejected(call, fake_db):
+    fake_db.answer("FROM dispatch_guides g JOIN routes r", [closed_guide(minutes_ago=11)])
+    response = call(TRANSITION, path={"id": GUIDE}, body={"to": "pending"})
+    assert response["statusCode"] == 409 and body_of(response)["error"]["code"] == "reopen_expired"
+    assert not fake_db.wrote("UPDATE routes SET status = 'En tránsito'")
+
+
+def test_a_settled_trip_cannot_be_reopened(call, fake_db):
+    fake_db.answer("FROM dispatch_guides g JOIN routes r", [closed_guide(settlements=1)])
+    response = call(TRANSITION, path={"id": GUIDE}, body={"to": "pending"})
+    assert response["statusCode"] == 409 and body_of(response)["error"]["code"] == "already_settled"

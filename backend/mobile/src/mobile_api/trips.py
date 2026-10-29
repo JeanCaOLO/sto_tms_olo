@@ -1,6 +1,7 @@
-"""GET /mi-viaje: agenda del chofer autenticado (viajes en tránsito + planes confirmados por iniciar)."""
+"""GET /mi-viaje: el viaje asignado al chofer: el que tiene abierto (en tránsito, sin importar la fecha en que se le
+asignó) o, si no tiene ninguno, el plan confirmado de hoy por iniciar. No ve otro hasta terminar el actual."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from . import db, logic, sql
 from .auth import Driver
@@ -25,7 +26,13 @@ def _coords(lat, lng) -> tuple[float, float] | None:
     return None if lat is None or lng is None else (float(lat), float(lng))
 
 
-def _route_item(row: dict, guides: list[dict], at: datetime) -> dict:
+def _progress(total: int, delivered: int, failed: int) -> dict:
+    done = delivered + failed
+    return {"total": total, "done": done, "delivered": delivered, "failed": failed, "remaining": total - done,
+            "percent": round(done * 100 / total) if total else 0}
+
+
+def _route_item(row: dict, guides: list[dict], at: datetime, driver_name: str | None) -> dict:
     stop_inputs = [{"id": str(g["id"]), "state": logic.guide_state(g["delivery_status"], g["status"]),
                     "sequence": g["sequence_number"], "lat": _float(g["latitude"]), "lng": _float(g["longitude"]),
                     "planned_arrival": g["planned_arrival_time"]} for g in guides]
@@ -57,9 +64,10 @@ def _route_item(row: dict, guides: list[dict], at: datetime) -> dict:
         "kind": "route", "id": str(row["id"]), "route_id": str(row["id"]), "route_number": row["route_number"],
         "state": "active", "phase": "en_ruta" if departed else "por_salir", "plate": row["plate"],
         "zone_name": row["zone_name"], "route_date": row["route_date"].isoformat() if row["route_date"] else None,
+        "assigned_at": _iso(row["assigned_at"]),
         "started_at": _iso(row["actual_start_time"]), "planned_end_at": _iso(row["planned_end_time"]),
-        "progress": {"total": total, "done": done, "delivered": delivered, "failed": failed,
-                     "percent": round(done * 100 / total) if total else 0},
+        "driver_name": driver_name, "origin": None if origin is None else {"lat": origin[0], "lng": origin[1]},
+        "progress": _progress(total, delivered, failed),
         "next_stop_id": live["next_stop_id"], "delay_min": live["delay_min"],
         "position": None if position is None else {"lat": position[0], "lng": position[1],
                                                    "recorded_at": _iso(row["last_position_at"])},
@@ -74,10 +82,9 @@ def my_trips(event: dict, driver: Driver) -> dict:
     if routes:
         for guide in db.query(sql.GUIDES_BY_ROUTES_SQL, [[str(r["id"]) for r in routes]]):
             guides_by_route.setdefault(str(guide["route_id"]), []).append(guide)
-    items = [_route_item(row, guides_by_route.get(str(row["id"]), []), at) for row in routes]
+    items = [_route_item(row, guides_by_route.get(str(row["id"]), []), at, driver.full_name) for row in routes]
 
-    planned = db.query(sql.MY_PLANNED_SQL, [driver.organization_id, driver.driver_id,
-                                            at.date() - timedelta(days=logic.PLANNED_LOOKBACK_DAYS)])
+    planned = db.query(sql.MY_PLANNED_SQL, [driver.organization_id, driver.driver_id])
     stops_by_trip: dict[str, list] = {}
     if planned:
         for st in db.query(sql.MY_PLANNED_STOPS_SQL, [[str(p["plan_trip_id"]) for p in planned]]):
@@ -92,7 +99,18 @@ def my_trips(event: dict, driver: Driver) -> dict:
         items.append({
             "kind": "planned", "id": str(trip["plan_trip_id"]), "route_id": None, "route_number": None,
             "state": "planned", "phase": "por_salir", "plan_date": trip["plan_date"].isoformat(),
+            "assigned_at": _iso(trip["assigned_at"]),
             "zone_name": trip["delivery_zone"], "plate": trip["plate"],
-            "progress": {"total": len(stops), "done": 0, "delivered": 0, "failed": 0, "percent": 0},
+            "driver_name": driver.full_name, "origin": None, "progress": _progress(len(stops), 0, 0),
             "stops": stops})
-    return ok({"items": items})
+    return ok({"items": _current(items)})
+
+
+def _current(items: list[dict]) -> list[dict]:
+    """El chofer ve UN viaje: el primero del día con paradas por entregar. Los siguientes quedan ocultos hasta
+    entregar (o marcar como no entregadas) todas las paradas del actual. Con todo hecho queda a la vista el último
+    viaje terminado (su resumen). Orden: viajes ya iniciados por hora de salida y luego los planes por orden."""
+    for item in items:
+        if item["progress"]["remaining"] > 0:
+            return [item]
+    return items[-1:]
