@@ -65,13 +65,12 @@
   (el OMS no lo escribe). **Fuera del alcance del OMS**; actor externo en las
   historias de frontera (US0).
 
-## P7 — EPRAC (actor externo, módulo que parte EPA por línea)
+## P7 — EPRAC (actor externo, módulo que pre-asigna la prioridad de EPA)
 
-- **Quién es**: módulo que **parte los pedidos de EPA por línea** en dos
-  expediciones (mismo número + guion-0 / guion-1) y les **pre-asigna la
-  prioridad** (guion-0 = falla = 0; guion-1 = regular = 1).
+- **Quién es**: módulo que entrega los pedidos de EPA y les **pre-asigna la
+  prioridad** (**1 o 2**; nunca 0; esos valores no cambian).
 - **Objetivo**: entregar al OMS los pedidos de EPA ya con su prioridad. El OMS
-  **no recalcula** para EPA (US-EPA); solo los libera juntos. **Fuera del alcance
+  **no recalcula** para EPA (US-EPA); solo los libera con esa prioridad. **Fuera del alcance
   del OMS**; actor externo.
 
 ## Sources

@@ -5,7 +5,7 @@
 > components.md v4, unit-of-work.md (U1/U2), unit-of-work-dependency.md (DAG U2→U1),
 > contract-summary.md (C1 activación, C2 handoff).
 >
-> Nomenclatura: WMS = **EFLOW**; módulo que parte EPA por línea = **EPRAC**.
+> Nomenclatura: WMS = **EFLOW**; módulo que asigna la prioridad de EPA (1 o 2) = **EPRAC**.
 >
 > Un **Bolt** es una unidad desplegable de trabajo dentro de Construcción: una
 > pasada completa de diseño + construcción + tests sobre una o varias Unidades de

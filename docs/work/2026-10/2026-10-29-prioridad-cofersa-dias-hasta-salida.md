@@ -23,8 +23,18 @@ reuniones de aclaración quedó definido el modelo concreto (abajo). EPA no camb
 - **Escala chica**, no `0..100`. Los números grandes del WMS (p. ej. "700") son cómo el
   WMS pinta todo el universo (incluidos los pedidos parqueados a semanas, que viven en la
   **Bandeja**, > 3 días, y que el OMS todavía no numera). No es nuestra escala.
-- **EPA sin cambio:** `priorizar=false`, trae su prioridad (1 y 2) de EFLOW; el OMS no la
-  recalcula, solo libera por fecha.
+- **EPA sin cambio:** `priorizar=false`, trae su prioridad de EFLOW/EPRAC; el OMS no la
+  recalcula, solo libera por fecha. **Valores = 1 y 2** (un pedido sale con 1 o con 2; nunca
+  cambian). Confirmado por Eduardo (2026-10-30, OQ-EPA-VAL CERRADA) y por la fuente 2026-09-01
+  ("EPA y Cofersa manejan 2 prioridades (1 y 2)"). **EPA nunca usa 0.**
+- **OJO — error en ADR-009 a corregir:** ADR-009 afirma "EPRAC parte en guion-0 (falla ⇒
+  prioridad 0) y guion-1 (regular ⇒ prioridad 1)". Eso es **incorrecto**: el concepto
+  "guion-0/guion-1" no aparece en ninguna transcripción indexada y contradice los valores
+  reales (1 y 2). Corregir ADR-009 y cualquier FR/historia/traceability que haya quedado
+  afirmando EPA = 0/1 → EPA = **1 y 2**.
+- **Nota aparte (sí válida):** "0 = liberado" es convención de la estrategia `dias_hasta_salida`
+  de Cofersa (piso de cola = 1), **NO un invariante global** de `orders.priority`. Como EPA usa
+  1/2 (nunca 0), no hay roce entre el "0 = liberado" de Cofersa y los valores de EPA.
 
 ## Pendientes (NO resueltos; no bloquean la primera salida)
 
