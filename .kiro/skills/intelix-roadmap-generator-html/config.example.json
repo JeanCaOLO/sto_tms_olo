@@ -1,0 +1,102 @@
+{
+  "_comment": "Configuración de ejemplo para Roadmap Generator HTML - Skill INTELIX",
+  "_security_note": "Este archivo sigue las directivas de seguridad-baseline.md y estándares Intelix",
+  
+  "project_title": "RoadMap / Integraciones eFlow/Next (MC26006)",
+  "company_name": "Beconsult INTELIX",
+  "project_code": "MC26006",
+  
+  "timeline_settings": {
+    "timeline_start": "2024-01-01",
+    "timeline_end": "2024-12-31",
+    "show_quarters": true,
+    "show_months": true,
+    "quarter_labels": ["Q1", "Q2", "Q3", "Q4"]
+  },
+  
+  "colors": {
+    "_note": "Paleta corporativa INTELIX - Colores accesibles (contraste WCAG AA)",
+    "timeline_base": "#00bdcf",
+    "progress_bar": "#2b6cb0",
+    "completed": "#28a745",
+    "in_progress": "#17a2b8",
+    "not_started": "#000000",
+    "risk_high": "#dc3545",
+    "risk_medium": "#ffc107",
+    "risk_low": "#28a745",
+    "text_primary": "#1e3a8a",
+    "text_secondary": "#6c757d",
+    "background": "#f8f9fa"
+  },
+  
+  "milestone_settings": {
+    "alternate_position": true,
+    "max_name_length": 30,
+    "show_progress_bar": true,
+    "show_responsible": true,
+    "tooltip_enabled": true,
+    "click_action": "tooltip"
+  },
+  
+  "sections": {
+    "show_metrics": true,
+    "show_legend": true,
+    "show_risk_section": true,
+    "show_responsibles": false,
+    "show_timeline_header": true
+  },
+  
+  "responsive_settings": {
+    "breakpoints": [320, 768, 1024, 1440],
+    "mobile_optimized": true,
+    "print_styles": true,
+    "dark_mode_support": true
+  },
+  
+  "security_settings": {
+    "_note": "Configuración de seguridad conforme a directiva seguridad-baseline.md",
+    "xss_protection": true,
+    "input_validation": true,
+    "path_traversal_check": true,
+    "max_file_size_mb": 10,
+    "allowed_extensions": [".xlsx", ".xls"],
+    "sanitize_html": true
+  },
+  
+  "export_settings": {
+    "output_format": "html",
+    "include_css": true,
+    "include_js": true,
+    "minify_output": false,
+    "add_timestamp": true,
+    "version_files": true
+  },
+  
+  "excel_mapping": {
+    "_note": "Mapeo de columnas Excel a campos internos",
+    "milestone_name": "Entregable",
+    "start_date": "Fecha Inicio",
+    "end_date": "Fecha Fin",
+    "progress": "% Avance",
+    "status": "Estado",
+    "responsible": "Responsable",
+    "description": "Descripción",
+    "risks": "Riesgos",
+    "priority": "Prioridad"
+  },
+  
+  "validation_rules": {
+    "date_format": "ISO8601",
+    "progress_range": [0, 100],
+    "allowed_statuses": ["Finalizada", "En Progreso", "Sin Iniciar"],
+    "required_columns": ["Entregable", "Fecha Fin", "Estado"],
+    "max_milestones": 50
+  },
+  
+  "logging": {
+    "level": "INFO",
+    "log_to_file": true,
+    "log_file": "roadmap_generator.log",
+    "audit_trail": true
+  }
+}

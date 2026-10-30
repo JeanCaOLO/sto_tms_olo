@@ -326,6 +326,14 @@
         "settlement_id": {
           "type": "text",
           "nullable": true
+        },
+        "novedad_count": {
+          "type": "int",
+          "nullable": true
+        },
+        "pickup_count": {
+          "type": "int",
+          "nullable": true
         }
       }
     },

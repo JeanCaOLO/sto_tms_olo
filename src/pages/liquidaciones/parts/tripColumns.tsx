@@ -2,8 +2,10 @@
 
 import Badge from '../../../components/base/Badge';
 import { type DataTableColumn } from '../../../components/base/DataTable';
+import { tripAlerts } from '../../../lib/tarifas/tripAlerts';
 import { tripProgress } from '../../../lib/tarifas/tripOrders';
 import type { TripRecord } from '../../../lib/tarifas/types';
+import IrregularBadge from '../../proformas/components/IrregularBadge';
 
 export const tripColumns: DataTableColumn<TripRecord>[] = [
   {
@@ -19,6 +21,7 @@ export const tripColumns: DataTableColumn<TripRecord>[] = [
         ) : t.hadAnnulledSettlement && (
           <span title="Este viaje ya tuvo una liquidación y se anuló"><Badge variant="warning" size="sm">Anulada antes</Badge></span>
         )}
+        <IrregularBadge flags={tripAlerts(t)} summary="Este viaje trae:" />
       </span>
     ),
   },

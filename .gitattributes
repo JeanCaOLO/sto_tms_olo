@@ -1,0 +1,27 @@
+# Normalizacion de fin de linea (INTELIX / template_base)
+#
+# Los lanzadores de Windows (.bat/.cmd) DEBEN usar CRLF: con saltos LF, cmd.exe
+# rompe `@echo off` y `set /p` (los .bat "no funcionan"). Los scripts de shell
+# (.sh) DEBEN usar LF para ejecutarse en Linux/macOS. Este archivo lo garantiza
+# en cualquier clon, sin depender del core.autocrlf de cada maquina.
+
+# Por defecto: normaliza texto a LF en el repo, con checkout segun plataforma.
+* text=auto
+
+# Scripts de Windows -> siempre CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Scripts de shell -> siempre LF
+*.sh text eol=lf
+
+# Binarios que git NO debe tocar
+*.xlsx binary
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary

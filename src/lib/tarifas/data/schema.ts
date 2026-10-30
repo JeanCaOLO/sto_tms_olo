@@ -297,6 +297,9 @@ export const ENTITIES = {
       delivered_guides: { type: 'int' },
       return_count: { type: 'int' },
       settlement_id: { type: 'text', nullable: true, indexed: true },
+      /** Incidentes y recolectas registrados en la app del chofer (`tracking_events`). */
+      novedad_count: { type: 'int', nullable: true },
+      pickup_count: { type: 'int', nullable: true },
     },
   },
 
