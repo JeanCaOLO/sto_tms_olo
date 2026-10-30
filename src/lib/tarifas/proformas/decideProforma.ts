@@ -3,7 +3,7 @@
 
 import { apiFetch } from '../../supabase';
 
-export type DecisionAction = 'approve' | 'reject' | 'skip' | 'resubmit' | 'annul';
+export type DecisionAction = 'approve' | 'reject' | 'skip' | 'resubmit' | 'annul' | 'appeal' | 'restart';
 
 export interface DecisionInput {
   action: DecisionAction;

@@ -61,6 +61,8 @@ export interface TripRecord {
   settlementId: string | null;
   /** El viaje ya tuvo una liquidación y se anuló: vuelve a la bandeja para liquidarse de nuevo. */
   hadAnnulledSettlement?: boolean;
+  /** La liquidación se anuló por un reclamo de proforma: el motivo es la indicación para re-liquidar. */
+  claimVoidReason?: string;
 }
 
 /**
@@ -141,6 +143,11 @@ export interface SettlementRecord {
   excludedSeqs: number[];
   /** Base de cálculo cambiada por el liquidador. Nulo = se usó la base por defecto. */
   baseChange?: SettlementBaseChange | null;
+  /** 'reclamo' = anulada porque una fase de la proforma la rechazó y se reinició la liquidación. */
+  voidKind?: string | null;
+  voidReason?: string | null;
+  /** Reclamo del que viene esta liquidación (re-liquida un viaje devuelto por reclamo). */
+  fromClaimId?: string | null;
   returns: SettlementReturn[];
   createdAt: string;
   updatedAt: string;

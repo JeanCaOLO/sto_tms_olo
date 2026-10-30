@@ -763,6 +763,28 @@ def test_driver_detail_never_signs_evidence_urls(driver, monkeypatch):
     assert s3.signed == [] and data["stops"][0]["evidences"][0]["url"] is None
 
 
+def test_detail_still_returns_stops_when_signing_an_evidence_fails(tracking, monkeypatch):
+    app, db = tracking
+
+    class BrokenS3:
+        def generate_presigned_url(self, *a, **k):
+            raise RuntimeError("s3 caído")
+
+    monkeypatch.setattr(app, "s3", lambda: BrokenS3())
+    db.answer("FROM routes r JOIN stores s", [_row()])
+    db.answer("FROM tracking_evidences WHERE route_id", [
+        {"id": "ev-1", "dispatch_guide_id": "00000000-0000-4000-8000-000000000001", "kind": "signature", "storage_key": "k-broken",
+         "mime_type": "image/png", "captured_at": NOW}])
+    db.answer("cu.phone AS customer_phone", [_full_stop(1)])
+    data = body_of(app.handler(_event("GET /api/v1/tracking/viajes/{id}", path={"id": ROUTE}), None))["data"]
+    assert len(data["stops"]) == 1 and data["stops"][0]["evidences"][0]["url"] is None
+
+
+def test_detail_stops_query_keeps_guides_without_order():
+    import tracking_sql
+    assert "LEFT JOIN orders o ON o.id = g.order_id" in tracking_sql.GUIDES_SQL
+
+
 def test_stopped_by_route_groups_per_route(logic):
     rows = [{"route_id": "r1", "latitude": 9.9, "longitude": -84.05, "recorded_at": NOW - timedelta(minutes=22)},
             {"route_id": "r1", "latitude": 9.9, "longitude": -84.05, "recorded_at": NOW},

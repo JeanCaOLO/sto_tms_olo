@@ -24,25 +24,28 @@ export function whereOf(filter: TripFilter): Condition[] {
   return where;
 }
 
-interface SettlementFlags { vigente: Map<string, string>; conAnulada: Set<string> }
+interface SettlementFlags { vigente: Map<string, string>; conAnulada: Set<string>; porReclamo: Map<string, string> }
 
 /** La consulta de las liquidaciones de esos viajes (vigentes y anuladas), solo con los campos que hacen falta. */
 function flagsRequest(tripIds: string[]): FindRequest {
   return {
     entity: 'settlement',
     // Solo se necesitan estos campos: sin esto traía cada liquidación entera con sus JSONB.
-    options: { where: [{ column: 'trip_id', op: 'in', value: tripIds }], columns: ['id', 'trip_id', 'status'] },
+    options: { where: [{ column: 'trip_id', op: 'in', value: tripIds }], columns: ['id', 'trip_id', 'status', 'void_kind', 'void_reason'] },
   };
 }
 
 function toFlags(rows: Row[]): SettlementFlags {
   const vigente = new Map<string, string>();
   const conAnulada = new Set<string>();
+  const porReclamo = new Map<string, string>();
   for (const s of rows) {
-    if (s.status === 'Anulado') conAnulada.add(String(s.trip_id));
-    else vigente.set(String(s.trip_id), String(s.id));
+    if (s.status === 'Anulado') {
+      conAnulada.add(String(s.trip_id));
+      if (s.void_kind === 'reclamo' && s.void_reason) porReclamo.set(String(s.trip_id), String(s.void_reason));
+    } else vigente.set(String(s.trip_id), String(s.id));
   }
-  return { vigente, conAnulada };
+  return { vigente, conAnulada, porReclamo };
 }
 
 /** Una sola consulta con las liquidaciones de esos viajes (vigentes y anuladas). */
@@ -57,6 +60,7 @@ function applyFlags(trips: TripRecord[], flags: SettlementFlags): TripRecord[] {
     ...t,
     settlementId: flags.vigente.get(t.id) ?? null,
     ...(flags.conAnulada.has(t.id) ? { hadAnnulledSettlement: true } : {}),
+    ...(flags.porReclamo.has(t.id) ? { claimVoidReason: flags.porReclamo.get(t.id) } : {}),
   }));
 }
 

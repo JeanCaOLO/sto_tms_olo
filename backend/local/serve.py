@@ -58,6 +58,7 @@ def load_env_files() -> None:
             if sep and not key.strip().startswith("#"):
                 os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
     os.environ.setdefault("EFLOW_MODE", "mock")
+    os.environ.setdefault("TRACKING_BUCKET", "local-dev")  # sin esto el detalle de tracking fallaba al firmar evidencias
 
 
 def load_module(name: str, path: Path):

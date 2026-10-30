@@ -30,6 +30,13 @@ Un flujo nuevo: se liquidan los viajes → se genera la **proforma** → pasa po
 | Backend envío | `backend/tarifas-mail/` (Lambda **fuera de la VPC**: OAuth de Google, token por usuario en Secrets Manager, envío por Gmail) |
 | Frontend | `src/pages/proformas/` (dashboard, detalle, nueva proforma, configuración), ruta `/proformas`, menú y i18n |
 
+## Aprobación agrupada por transportista (2026-10-26)
+- "Por aprobar" muestra **una fila por transportista** (y moneda) con sus proformas desplegables, no una fila por proforma: la proforma abierta se cierra con la primera decisión, así que un transportista puede tener varias en el mismo turno.
+- Marcar uno o varios transportistas y **Aprobar seleccionados / Rechazar** decide la fase actual de todas sus proformas (`decideProformas`, una llamada de decisión por proforma; el servidor valida cada una y el resultado lista las que no pasaron). "Todas" sigue plano.
+- Sin cambios de backend ni de modelo de datos. Archivos: `src/lib/tarifas/proformas/groupProformasByCarrier.ts`, `decideProformas.ts`, `src/pages/proformas/parts/CarrierGroupsTable.tsx`.
+
+- **(2026-10-26)** Secciones por rol, indicador de irregularidad y reclamos (rechazar abre un reclamo; el Liquidador reinicia o apela): ver `2026-10-26-proformas-secciones-reclamos.md`. Reemplaza a "Todas" y al botón "Reenviar a revisión".
+
 ## Correo
 - **Enviar:** cada usuario conecta su cuenta de Google una vez (scope `gmail.send`, no lee el buzón; el botón "Conectar con Google" está siempre visible en Configuración y en el modal de envío). El refresh token se guarda y "Enviar" manda el correo con el PDF adjunto.
 - **Mientras no haya cuenta conectada:** "Abrir en Gmail" descarga el PDF y abre Gmail con todo armado; la persona adjunta y envía, y luego marca "Ya lo envié".

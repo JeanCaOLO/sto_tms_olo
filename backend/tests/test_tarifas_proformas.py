@@ -13,16 +13,16 @@ PROFORMA = {"id": "pro_1", "country_id": "22222222-2222-2222-2222-222222222221",
 
 
 def phase(pid, position, state="pendiente", role="Jefe", user=None):
-    return {"id": pid, "position": position, "state": state,
+    return {"id": pid, "position": position, "name": f"Fase {position}", "state": state,
             "approver_type": "user" if user else "role", "role_name": None if user else role, "user_id": user}
 
 
 class Script(FakeDb):
     """Responde el SELECT de la proforma y el de sus fases; el resto devuelve una fila."""
 
-    def __init__(self, proforma, phases):
+    def __init__(self, proforma, phases, claim=None):
         super().__init__()
-        self.proforma, self.phases = proforma, phases
+        self.proforma, self.phases, self.claim = proforma, phases, claim
 
     def query(self, sql, params=()):
         self.calls.append((sql, list(params)))
@@ -30,13 +30,15 @@ class Script(FakeDb):
             return [self.proforma] if self.proforma else []
         if "FROM tarifas_proforma_phases" in sql:
             return self.phases
+        if "FROM tarifas_proforma_claims" in sql:
+            return [self.claim] if self.claim else []
         return self.rows
 
 
 @pytest.fixture
 def api(monkeypatch):
-    def build(proforma=PROFORMA, phases=None):
-        db = Script(proforma, phases if phases is not None else [phase("f1", 1), phase("f2", 2, role="Gerente")])
+    def build(proforma=PROFORMA, phases=None, claim=None):
+        db = Script(proforma, phases if phases is not None else [phase("f1", 1), phase("f2", 2, role="Gerente")], claim)
         monkeypatch.setattr(pg, "query", db.query)
         monkeypatch.setattr(pg, "transaction", db.transaction)
         return load_stack_module("tarifas"), db
@@ -226,3 +228,74 @@ def test_la_api_generica_si_permite_crear_y_editar_datos(api):
         {"op": "update", "table": "tarifas_proforma_phases", "id": "f1", "values": {"state": "aprobada"}}]}, user=USER), None)
     assert tx["statusCode"] == 405
     assert json.loads(tx["body"])
+
+
+CLAIM = {"id": "prc_1", "phase_id": "f1", "status": "abierto", "reason": "montos mal"}
+REJECTED = {**PROFORMA, "status": "Borrador"}
+
+
+def tx_sql(db):
+    return " ".join(s for s, _ in db.tx_calls)
+
+
+def test_rechazar_abre_un_reclamo_con_el_motivo(api, caller_permissions):
+    app, db = api()
+    as_role(caller_permissions, "Jefe")
+    assert decide(app, {"action": "reject", "phaseId": "f1", "comment": "montos mal"})["statusCode"] == 200
+    insert = next(p for s, p in db.tx_calls if s.startswith("INSERT INTO tarifas_proforma_claims"))
+    assert "montos mal" in insert and "f1" in insert and "Fase 1" in insert
+
+
+def test_apelar_solo_liquidador_o_admin_y_devuelve_la_fase(api, caller_permissions):
+    phases = [phase("f1", 1, "rechazada"), phase("f2", 2, role="Gerente")]
+    app, db = api(proforma=REJECTED, phases=phases, claim=CLAIM)
+    as_role(caller_permissions, "Jefe")
+    assert decide(app, {"action": "appeal", "comment": "sí procede"})["statusCode"] == 403
+    as_role(caller_permissions, "Liquidador")
+    assert decide(app, {"action": "appeal"})["statusCode"] == 400  # exige explicación
+    response = decide(app, {"action": "appeal", "comment": "el monto es correcto"})
+    assert body_of(response)["status"] == "En Revisión"
+    assert "SET status = 'apelado'" in tx_sql(db)
+
+
+def test_apelar_sin_reclamo_abierto_es_409(api, caller_permissions):
+    app, db = api(proforma=REJECTED, phases=[phase("f1", 1, "rechazada")], claim=None)
+    as_role(caller_permissions, "Liquidador")
+    assert decide(app, {"action": "appeal", "comment": "x"})["statusCode"] == 409
+
+
+def test_aprobar_tras_apelar_acepta_el_reclamo(api, caller_permissions):
+    app, db = api(phases=[phase("f1", 1), phase("f2", 2, role="Gerente")], claim={**CLAIM, "status": "apelado"})
+    as_role(caller_permissions, "Jefe")
+    assert decide(app, {"action": "approve", "phaseId": "f1"})["statusCode"] == 200
+    close = next(p for s, p in db.tx_calls if s.startswith("UPDATE tarifas_proforma_claims"))
+    assert close[0] == "aceptado"
+
+
+def test_rechazar_de_nuevo_tras_apelar_cierra_y_abre_otro_reclamo(api, caller_permissions):
+    app, db = api(claim={**CLAIM, "status": "apelado"})
+    as_role(caller_permissions, "Jefe")
+    assert decide(app, {"action": "reject", "phaseId": "f1", "comment": "sigue mal"})["statusCode"] == 200
+    close = next(p for s, p in db.tx_calls if s.startswith("UPDATE tarifas_proforma_claims"))
+    assert close[0] == "rechazado"
+    assert "INSERT INTO tarifas_proforma_claims" in tx_sql(db)
+
+
+def test_reiniciar_anula_proforma_y_liquidaciones_por_reclamo(api, caller_permissions):
+    app, db = api(proforma=REJECTED, phases=[phase("f1", 1, "rechazada")], claim=CLAIM)
+    as_role(caller_permissions, "Jefe")
+    assert decide(app, {"action": "restart"})["statusCode"] == 403
+    as_role(caller_permissions, "Liquidador")
+    response = decide(app, {"action": "restart"})
+    assert body_of(response)["status"] == "Anulado"
+    void = next(p for s, p in db.tx_calls if "void_kind = 'reclamo'" in s)
+    assert void == ["montos mal", "prc_1", "pro_1"]
+    assert "tarifas_proforma_items SET state = 'excluded'" in tx_sql(db)
+    assert next(p for s, p in db.tx_calls if s.startswith("UPDATE tarifas_proforma_claims"))[0] == "reiniciado"
+
+
+def test_los_reclamos_no_se_escriben_por_la_api_generica(api, caller_permissions):
+    from proformas_api import check_direct_write  # noqa: PLC0415 — módulo del stack, ver load_stack_module
+    for kind in ("insert", "update", "delete"):
+        with pytest.raises(Exception):
+            check_direct_write("tarifas_proforma_claims", kind, {})
