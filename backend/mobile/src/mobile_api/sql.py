@@ -91,7 +91,7 @@ SELECT r.id, r.route_number, r.route_date, r.status, COALESCE(pt.created_at, r.c
        v.plate, z.name AS zone_name,
        lp.latitude AS last_lat, lp.longitude AS last_lng, lp.recorded_at AS last_position_at
 FROM routes r
-JOIN stores s ON s.id = r.store_id
+LEFT JOIN stores s ON s.id = r.store_id
 LEFT JOIN countries co ON co.id = s.country_id
 LEFT JOIN plan_trips pt ON pt.id = r.plan_trip_id
 LEFT JOIN route_plans rp ON rp.id = pt.plan_id
@@ -115,7 +115,7 @@ SELECT g.id, g.route_id, g.guide_number, g.sequence_number, g.status, g.delivery
                 ARRAY[]::text[]) AS evidence_kinds
 FROM dispatch_guides g
 JOIN routes r ON r.id = g.route_id
-JOIN orders o ON o.id = g.order_id
+LEFT JOIN orders o ON o.id = g.order_id
 LEFT JOIN customers cu ON cu.id = o.customer_id
 LEFT JOIN plan_stops ps ON ps.trip_id = r.plan_trip_id AND ps.order_id = g.order_id
 WHERE g.route_id = ANY(%s::uuid[])

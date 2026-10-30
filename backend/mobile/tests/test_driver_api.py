@@ -56,7 +56,7 @@ def pos(**over):
 # --- mi-viaje ------------------------------------------------------------------------------------------------
 
 def test_mi_viaje_lists_active_and_planned_trips_of_the_driver(call, fake_db):
-    fake_db.answer("FROM routes r JOIN stores s", [route_row()])
+    fake_db.answer("FROM routes r LEFT JOIN stores s", [route_row()])
     fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_item(1), guide_item(2, delivery_status="delivered")])
     fake_db.answer("FROM plan_trips pt", [{"plan_trip_id": TRIP, "plan_date": date(2026, 10, 16), "assigned_at": NOW, "delivery_zone": "GAM",
                                            "plate": "XYZ789", "driver_name": "Ana"}])
@@ -83,10 +83,21 @@ def test_mi_viaje_empty_agenda(call):
 
 
 def test_trip_without_position_is_still_por_salir(call, fake_db):
-    fake_db.answer("FROM routes r JOIN stores s", [route_row(last_lat=None, last_lng=None, last_position_at=None)])
+    fake_db.answer("FROM routes r LEFT JOIN stores s", [route_row(last_lat=None, last_lng=None, last_position_at=None)])
     fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_item(1)])
     item = body_of(call("GET /api/mobile/v1/mi-viaje"))["data"]["items"][0]
     assert item["phase"] == "por_salir" and item["position"] is None and item["stops"][0]["distance_m"] is None
+
+
+def test_mi_viaje_keeps_guides_and_trips_whose_order_or_store_is_missing(call, fake_db):
+    """Un pedido o tienda faltante no debe ocultarle paradas ni el viaje al chofer: el TMS sí las cuenta."""
+    fake_db.answer("FROM routes r LEFT JOIN stores s", [route_row(origin_lat=None, origin_lng=None)])
+    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_item(1, order_number=None, invoice_number=None, customer_name=None)])
+    item = body_of(call("GET /api/mobile/v1/mi-viaje"))["data"]["items"][0]
+    assert item["progress"]["total"] == 1 and item["stops"][0]["order_number"] is None
+    sql = {c[0] for c in fake_db.calls}
+    assert any("LEFT JOIN orders o ON o.id = g.order_id" in q for q in sql)
+    assert any("LEFT JOIN stores s ON s.id = r.store_id" in q for q in sql)
 
 
 # --- aislamiento entre conductores ------------------------------------------------------------------------------
@@ -560,7 +571,7 @@ def test_reason_code_otro_needs_text_and_unknown_code_rejected(call):
 def test_mi_viaje_hides_next_trips_until_current_is_fully_done(call, fake_db):
     first = route_row(id="r-a", route_number="VJ-A")
     second = route_row(id="r-b", route_number="VJ-B")
-    fake_db.answer("FROM routes r JOIN stores s", [first, second])
+    fake_db.answer("FROM routes r LEFT JOIN stores s", [first, second])
     fake_db.answer("FROM dispatch_guides g JOIN routes r", [
         {**guide_item(1), "route_id": "r-a"}, {**guide_item(2, delivery_status="delivered"), "route_id": "r-a"},
         {**guide_item(3), "route_id": "r-b"}])
@@ -569,7 +580,7 @@ def test_mi_viaje_hides_next_trips_until_current_is_fully_done(call, fake_db):
 
 
 def test_mi_viaje_shows_next_trip_once_current_is_done(call, fake_db):
-    fake_db.answer("FROM routes r JOIN stores s", [route_row(id="r-a", route_number="VJ-A"), route_row(id="r-b", route_number="VJ-B")])
+    fake_db.answer("FROM routes r LEFT JOIN stores s", [route_row(id="r-a", route_number="VJ-A"), route_row(id="r-b", route_number="VJ-B")])
     fake_db.answer("FROM dispatch_guides g JOIN routes r", [
         {**guide_item(1, delivery_status="delivered"), "route_id": "r-a"},
         {**guide_item(2, delivery_status="failed"), "route_id": "r-a"}, {**guide_item(3), "route_id": "r-b"}])
@@ -578,7 +589,7 @@ def test_mi_viaje_shows_next_trip_once_current_is_done(call, fake_db):
 
 
 def test_mi_viaje_all_done_keeps_last_trip_summary(call, fake_db):
-    fake_db.answer("FROM routes r JOIN stores s", [route_row(id="r-a", route_number="VJ-A")])
+    fake_db.answer("FROM routes r LEFT JOIN stores s", [route_row(id="r-a", route_number="VJ-A")])
     fake_db.answer("FROM dispatch_guides g JOIN routes r", [{**guide_item(1, delivery_status="delivered"), "route_id": "r-a"}])
     items = body_of(call("GET /api/mobile/v1/mi-viaje"))["data"]["items"]
     assert [i["route_number"] for i in items] == ["VJ-A"] and items[0]["progress"]["remaining"] == 0
