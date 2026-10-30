@@ -47,6 +47,8 @@ export default function CarrierGroupsTable({ rows, mode, loading, onOpen, onChan
   const groups = useMemo(() => groupProformasByCarrier(rows), [rows]);
   const { alerts } = useIrregularities(useMemo(() => (mode === 'approve' ? rows.map((r) => r.proforma.id) : []), [rows, mode]));
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Check por proforma, de a una: marcar otra desmarca la anterior. Solo selección visual.
+  const [checkedId, setCheckedId] = useState<string | null>(null);
   const [ask, setAsk] = useState<{ action: 'approve' | 'reject'; ids: string[] } | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
@@ -111,6 +113,11 @@ export default function CarrierGroupsTable({ rows, mode, loading, onOpen, onChan
               const flags = alerts.get(r.proforma.id);
               return (
                 <div key={r.proforma.id} className="py-2">
+                  <div className="flex items-center gap-3">
+                  <input type="checkbox" aria-label={`Seleccionar proforma ${r.proforma.number}`}
+                    checked={checkedId === r.proforma.id}
+                    onChange={() => setCheckedId((cur) => (cur === r.proforma.id ? null : r.proforma.id))}
+                    className="h-4 w-4 shrink-0 cursor-pointer accent-teal-600" />
                   <button type="button" onClick={() => onOpen(r.proforma.id)}
                     className="flex w-full cursor-pointer items-center justify-between gap-3 text-left text-sm hover:text-teal-700">
                     <span className="flex items-center gap-2">
@@ -129,6 +136,7 @@ export default function CarrierGroupsTable({ rows, mode, loading, onOpen, onChan
                     </span>
                     <span className="font-medium">{formatMoney(String(r.proforma.totalAmount), r.proforma.currency)}</span>
                   </button>
+                  </div>
                   {mode === 'process' && <div className="mt-2"><PhaseTimeline phases={r.phases} /></div>}
                 </div>
               );

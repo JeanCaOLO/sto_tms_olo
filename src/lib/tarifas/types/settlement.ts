@@ -57,6 +57,9 @@ export interface TripRecord {
   /** Guías (una por pedido) ya entregadas. */
   deliveredGuides: number;
   returnCount: number;
+  /** Novedades (incidentes) y recolectas del chofer; 0 si la vista aún no las trae. */
+  novedadCount: number;
+  pickupCount: number;
   /** Liquidación vigente del viaje, o nulo si todavía no se liquidó. */
   settlementId: string | null;
   /** El viaje ya tuvo una liquidación y se anuló: vuelve a la bandeja para liquidarse de nuevo. */
