@@ -29,3 +29,12 @@ Flujo: la app captura (foto JPEG 1600 px q0.75; firma PNG) → copia local + col
 ## Verificación
 - Backend mobile: `pytest` 135 pasan, 24 omitidas (los tests de template se omiten sin `pyyaml`; compilan).
 - App: **no ejecutado** — `TRACKING_TMS/frontend` no tiene `node_modules`. Correr `npm ci && npm test && npm run typecheck && npm run lint`.
+
+## Prueba real contra S3 dev (API, 2026-10-30)
+Backend móvil local (4100) + bucket `dev-tms-mobile-evidencias-758837481569` con credenciales SSO. Script de diagnóstico en `.test/evidencias_s3_30-10-26/audit_s3.py` (no versionado). Chofer demo `drv-eflow-14`, parada 3 del viaje `VJ-20261029-91FD7E11`.
+- `upload-url` 200 → preflight desde `http://localhost:8081` 200 con `Access-Control-Allow-Origin` correcto → POST a S3 204 → confirmar 201. El bucket, la política de subida y el CORS de dev funcionan.
+- **Error 1 (500 en `upload-url`):** `ModuleNotFoundError: boto3` en el servidor local; en Lambda viene en el runtime, por eso no está en `src/requirements.txt`. Se añadió `boto3` a `requirements-dev.txt`.
+- **Error 2:** `TRACKING_TMS/frontend/.env` apuntaba `EXPO_PUBLIC_API_BASE` al puerto 4000 (servidor del TMS, que no tiene rutas `/api/mobile`) en vez de 4100. `.env` no se versiona; `.env.example` ya decía 4100.
+- **Error 3:** `backend/local/serve.py` no definía `MOBILE_EVIDENCE_BUCKET`; el detalle de Tracking firmaba la lectura en `TRACKING_BUCKET=local-dev` y el enlace de la foto no abría. Ahora lo toma de `EVIDENCE_BUCKET` en `backend/mobile/.env`.
+- Pendiente: prueba visual en el navegador (la extensión de Chrome no estaba conectada).
+- Datos de prueba creados en dev: 1 objeto `photo_invoice` en `pedidos/DEMO-CR-20261023-EFLOW14-3/…` y su fila en `tracking_evidences` (parada 3 sigue `pending`).
