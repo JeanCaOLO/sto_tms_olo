@@ -38,3 +38,20 @@ Backend móvil local (4100) + bucket `dev-tms-mobile-evidencias-758837481569` co
 - **Error 3:** `backend/local/serve.py` no definía `MOBILE_EVIDENCE_BUCKET`; el detalle de Tracking firmaba la lectura en `TRACKING_BUCKET=local-dev` y el enlace de la foto no abría. Ahora lo toma de `EVIDENCE_BUCKET` en `backend/mobile/.env`.
 - Pendiente: prueba visual en el navegador (la extensión de Chrome no estaba conectada).
 - Datos de prueba creados en dev: 1 objeto `photo_invoice` en `pedidos/DEMO-CR-20261023-EFLOW14-3/…` y su fila en `tracking_evidences` (parada 3 sigue `pending`).
+
+## Prueba en navegador (app web del chofer, Expo SDK 58, 2026-10-30)
+- Login con el chofer demo OK contra el backend móvil (4100) y la lista de paradas carga bien (viaje `VJ-20261029-91FD7E11`).
+- **Hallazgo 1:** el Metro que corría en 8081 tenía `EXPO_PUBLIC_API_BASE=http://localhost:4000` (el servidor del TMS, sin rutas `/api/mobile`): `OPTIONS` 501 y `POST login` 503, "Sin conexión" en pantalla. El `.env` local volvió a 4000 tras mi corrección; `.env.example` dice 4100. Se probó reiniciando Metro con la variable en 4100.
+- **Hallazgo 2:** en web la sesión no sobrevive a una recarga dura (vuelve a `/login`). En el teléfono sí persiste (secure-store); solo afecta a la versión web.
+- **No concluyente:** la captura de foto en web (`expo-image-picker` abre un `<input type=file capture>` dinámico y le hace `dispatchEvent(click)`) no se pudo automatizar: el selector nativo no es manejable desde la extensión y, al inyectar el archivo, `expo-image-picker` lanza `removeChild ... not a child of this node` (ExponentImagePicker.web.ts:139). Es del arnés de prueba con inyección; no se confirmó como bug de la app. La foto y la firma se probaron de punta a punta por API (sección anterior). Pendiente: probar la captura real con una persona en el navegador o en el teléfono.
+
+### Segunda prueba en navegador: flujo completo OK (2026-10-30, 4:15-4:20 p.m.)
+Parada 4 del viaje `VJ-20261029-91FD7E11` (pedido `DEMO-CR-20261023-EFLOW14-4`), app web SDK 58 + backend móvil local + bucket dev real.
+- Foto de factura: la imagen se inyectó desde la página (el selector nativo no es manejable por la extensión). Subió a S3, el objeto quedó en `pedidos/DEMO-CR-20261023-EFLOW14-4/<id>/photo_invoice-*.jpg` (39 KB).
+- Firma dibujada en el canvas web: `signature-*.png` (26 KB, 1502x552 px). `trimWhitespace` no aplica en web (la web usa `signature-pad.web.tsx`, un canvas propio): el PNG sale del tamaño del recuadro. Pesa poco, así que no se tocó.
+- Entregar: `transicion` 200, la app muestra "4 entregadas · falta 1".
+- Tracking del TMS (localhost:3000): "4 de 5 paradas 80%", la parada 4 muestra "Recibió: Receptor Prueba" y las dos miniaturas cargan desde el bucket dev (URL firmada; `naturalWidth` > 0).
+- La herramienta de red del navegador mostró el `POST` a S3 con estado 503, pero el objeto existe en S3 y la confirmación respondió 201; es un artefacto de la herramienta (respuesta opaca), no un fallo real.
+- Primer intento fallido: `createSyncAccessHandle ... another open Access Handle` (expo-sqlite web/OPFS permite una sola conexión; ocurre si hay otra pestaña o worker viejo con la app abierta). Se resolvió recargando. En web, abrir la app en dos pestañas impide guardar en el outbox.
+- Datos de prueba en dev: parada 4 entregada (receptor "Receptor Prueba", motivo "GPS impreciso" por no haber ubicación en el navegador), 2 objetos en S3 y 2 filas en `tracking_evidences`. La parada 3 conserva su objeto de la prueba por API.
+- **Ver la evidencia en Tracking (TMS):** en el panel del viaje, la parada 4 expandida muestra los enlaces "Factura firmada" y "Firma digital" (`target=_blank`, URL firmada de S3 con `X-Amz-Expires=3600`). Al abrir "Factura firmada" se ve la imagen completa (1200x900) desde el bucket dev.
