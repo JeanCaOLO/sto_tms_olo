@@ -30,6 +30,7 @@ const TrackingPage = lazy(() => import('../pages/tracking/page'));
 const ComingSoonPage = lazy(() => import('../pages/ComingSoon'));
 const OmsPanelPage = lazy(() => import('../pages/oms/panel/page'));
 const OmsColaPage = lazy(() => import('../pages/oms/cola/page'));
+const OmsBandejaPage = lazy(() => import('../pages/oms/bandeja/page'));
 const OmsReglasPage = lazy(() => import('../pages/oms/reglas/page'));
 const OmsSimuladorPage = lazy(() => import('../pages/oms/simulador/page'));
 const OmsAuditoriaPage = lazy(() => import('../pages/oms/auditoria/page'));
@@ -56,8 +57,13 @@ const routes: RouteObject[] = [
     element: <LicenciasPage />
   },
   {
-    path: '/planificacion',
+    path: '/oms/planificacion',
     element: <PlanificacionPage />
+  },
+  // Ruta anterior: se conserva como redirección para no romper enlaces guardados.
+  {
+    path: '/planificacion',
+    element: <Navigate to="/oms/planificacion" replace />
   },
   {
     path: '/vehiculos',
@@ -151,6 +157,10 @@ const routes: RouteObject[] = [
   {
     path: '/oms/cola',
     element: <OmsColaPage />,
+  },
+  {
+    path: '/oms/bandeja',
+    element: <OmsBandejaPage />,
   },
   {
     path: '/oms/reglas',

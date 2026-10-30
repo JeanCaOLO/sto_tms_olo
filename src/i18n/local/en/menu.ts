@@ -18,6 +18,7 @@ export default {
   'menu.reglasTarifa': 'Tariff Rules',
   'menu.oms': 'OMS',
   'menu.omsPanel': 'OMS Panel',
+  'menu.omsBandeja': 'Inbox Orders',
   'menu.omsCola': 'Prioritization Queue',
   'menu.omsReglas': 'Rules Engine',
   'menu.omsSimulador': 'Simulator',

@@ -155,13 +155,11 @@ export interface OmsLogEntry {
   level: OmsLogLevel;
   action: string;         // barrido | priorizar | liberar | procesar_viaje | error…
   corridaId: string | null;
-  numeroViaje: string | null;
-  eflowIdExpedicion: string | null;
   message: string;
+  // Contexto variable (viaje, pedido, país, compañía, totales…) va aquí; la tabla
+  // ya no tiene columnas fijas para eso (sql/53). Extensible sin migrar esquema.
   detail: unknown | null; // jsonb
   actor: string;
-  countryId: string | null;
-  companyCode: string | null;
 }
 
 // --- Simulador como CONFIGURADOR de simulaciones (DECIDED 2026-09-15) ---

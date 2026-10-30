@@ -32,7 +32,7 @@ Todo lo que necesita el túnel a Aurora está en **[pendientes-tunel.md](./pendi
 - **KPIs por viaje** (clic = filtra lista y mapa): En ruta · A tiempo · Retrasados · Sin señal · Completados hoy.
 - **Lista**: Activos / Todos, búsqueda (viaje, conductor, placa), tarjeta con avance, alertas y "última señal hace X".
 - **Mapa**: un camión por viaje (verde con señal, ámbar señal antigua, gris sin señal, azul completado); los que se enciman se agrupan en una burbuja con el número (clic = acercar). Del viaje elegido: ruta por calles (OSRM; tramos hechos sólidos, pendientes punteados), sede y paradas destacadas (la ruta y la lista de pedidos se ordenan por cercanía a la sede: cerradas primero y pendientes por vecino más cercano; solo visual, la secuencia de Planificación, "siguiente parada" y ETA no cambian) (✓ entregada, ✕ fallida, número pendiente, anillo en la siguiente).
-- **Panel** (solo lectura): conductor · placa, avance, "rumbo a la parada N" con ETA en la hora del país, pedidos con sus 2 evidencias y **Reproducir recorrido** (replay del GPS real).
+- **Panel** (solo lectura): conductor · placa, avance, "rumbo a la parada N" con ETA en la hora del país, pedidos con sus 2 evidencias.
 - **Solo en mock**: controles de simulación (velocidad, pausa, reinicio) e "Iniciar viaje (pruebas)".
 
 ## Archivos clave

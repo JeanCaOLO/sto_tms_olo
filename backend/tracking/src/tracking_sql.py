@@ -141,15 +141,8 @@ ORDER BY g.sequence_number
 """
 
 EVIDENCES_SQL = f"""
-SELECT id, dispatch_guide_id, kind, storage_key, mime_type, captured_at
+SELECT id, dispatch_guide_id, kind, storage_key, mime_type, captured_at, order_number, storage_bucket
 FROM tracking_evidences WHERE route_id = %s AND kind IN {EVIDENCE_KINDS_SQL} ORDER BY created_at
-"""
-
-# Recorrido completo para el replay: solo puntos que cuentan (sin mock ni precisión mala), cronológicos.
-TRAIL_REPLAY_SQL = """
-SELECT latitude, longitude, recorded_at FROM tracking_positions
-WHERE route_id = %s AND NOT is_mock AND (accuracy_m IS NULL OR accuracy_m <= 200)
-ORDER BY recorded_at
 """
 
 PLANNED_SQL = """

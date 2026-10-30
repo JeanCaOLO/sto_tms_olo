@@ -2,7 +2,7 @@
 cancelar viajes es de Planificación.
 
 Lectura (web): lista de viajes con progreso, alertas y última posición (`include=summary` agrega los KPIs),
-detalle con paradas y evidencias de entrega, recorrido simplificado para el replay y los viajes planificados
+detalle con paradas y evidencias de entrega, y los viajes planificados
 listos para iniciar.
 Escritura (app del chofer; iniciar solo en pruebas): iniciar viaje desde Planificación, ingesta de posiciones
 por lotes, transición de parada y evidencias de entrega (factura firmada y firma; subida directa a S3). Tracking
@@ -13,7 +13,7 @@ Permisos: módulo `tracking` (view para leer; create para iniciar e ingestar; ed
 evidencias) + país de la tienda de origen de la ruta.
 
 App del chofer (rol `Chofer`): solo opera los viajes donde `routes.driver_id` es el conductor enlazado a su
-usuario (`drivers.app_user_id`). Ve `mi-viaje`, el detalle y el recorrido de SUS viajes y escribe posiciones,
+usuario (`drivers.app_user_id`). Ve `mi-viaje` y el detalle de SUS viajes y escribe posiciones,
 paradas, evidencias y consentimiento; lo demás (lista general, KPIs, iniciar) es del
 administrador y le responde 403. Un viaje ajeno responde 404 (no revela que existe).
 """
@@ -44,7 +44,7 @@ GZIP_MIN_BYTES = 1024        # por debajo, comprimir no compensa el base64
 _s3 = None
 SUMMARY_TTL_SECONDS = 5  # KPIs: todas las pantallas del mismo alcance comparten el cálculo durante unos segundos
 _SUMMARY_CACHE: dict[tuple, tuple[datetime, dict]] = {}
-_URL_CACHE: dict[str, tuple[str, float]] = {}  # storage_key -> (url firmada, vence en epoch s)
+_URL_CACHE: dict[tuple[str, str], tuple[str, float]] = {}  # (bucket, storage_key) -> (url firmada, vence en epoch s)
 
 
 def s3():
@@ -62,34 +62,43 @@ def bucket() -> str:
     return os.environ["TRACKING_BUCKET"]
 
 
+def evidence_bucket(stored: str | None) -> str:
+    """Bucket de lectura de una evidencia. NULL = este stack (las viejas y las que sube la web); la app del chofer
+    (backend/mobile) sube a su bucket propio y lo anota en la fila (sql/54). Solo se firma en buckets conocidos."""
+    if stored and stored == os.environ.get("MOBILE_EVIDENCE_BUCKET"):
+        return stored
+    return bucket()
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _evidence_url(key: str) -> str | None:
+def _evidence_url(ev: dict) -> str | None:
     """La URL de una evidencia es accesoria: si S3 o el bucket fallan, el detalle (paradas) debe seguir cargando."""
     try:
-        return _signed_get(key)
+        return _signed_get(ev["storage_key"], evidence_bucket(ev.get("storage_bucket")))
     except Exception:  # noqa: BLE001 - KeyError (sin bucket), botocore, red
-        log.warning("No se pudo firmar la evidencia %s", key, exc_info=True)
+        log.warning("No se pudo firmar la evidencia %s", ev.get("storage_key"), exc_info=True)
         return None
 
 
-def _signed_get(key: str) -> str:
+def _signed_get(key: str, bucket_name: str | None = None) -> str:
     """URL firmada de lectura. Estable: se reusa desde la caché del Lambda mientras le queden más de
     SIGNED_GET_RENEW_SECONDS; si no, se vuelve a firmar."""
     nowts = time.time()
-    cached = _URL_CACHE.get(key)
+    bucket_name = bucket_name or bucket()
+    cached = _URL_CACHE.get((bucket_name, key))
     if cached and cached[1] - nowts > logic.SIGNED_GET_RENEW_SECONDS:
         return cached[0]
-    url = s3().generate_presigned_url("get_object", Params={"Bucket": bucket(), "Key": key},
+    url = s3().generate_presigned_url("get_object", Params={"Bucket": bucket_name, "Key": key},
                                       ExpiresIn=logic.SIGNED_GET_TTL_SECONDS)
     if len(_URL_CACHE) >= 5000:  # tope de memoria: primero se van las vencidas
         for stale in [k for k, (_, expires) in _URL_CACHE.items() if expires <= nowts]:
             del _URL_CACHE[stale]
         if len(_URL_CACHE) >= 5000:
             _URL_CACHE.clear()
-    _URL_CACHE[key] = (url, nowts + logic.SIGNED_GET_TTL_SECONDS)
+    _URL_CACHE[(bucket_name, key)] = (url, nowts + logic.SIGNED_GET_TTL_SECONDS)
     return url
 
 
@@ -329,6 +338,8 @@ def _kpis(viajes: list[dict], caller, org_id: str, query: dict, now: datetime) -
     """KPIs a partir de TODOS los viajes activos del alcance ya armados (la lista los reusa si caben en la página)."""
     late = sum(any(a["code"] == logic.ALERT_LATE for a in v["alerts"]) for v in viajes)
     no_signal = sum(any(a["code"] == logic.ALERT_NO_SIGNAL for a in v["alerts"]) for v in viajes)
+    deliveries_total = sum(v["progress"]["total"] for v in viajes)
+    deliveries_done = sum(v["progress"]["done"] for v in viajes)
     # Completados hoy en el día local del país (timezone de countries).
     where, params = _scope(caller, org_id, query, only_active=False)
     # Acotado a viajes creados en los últimos 30 días: sin esto la consulta escanea todo el histórico de la org.
@@ -343,6 +354,9 @@ def _kpis(viajes: list[dict], caller, org_id: str, query: dict, now: datetime) -
         "late": late,
         "no_signal": no_signal,
         "completed_today": int(today[0]["n"]) if today else 0,
+        "deliveries_total": deliveries_total,          # paradas de los viajes en curso (se mueve con cada entrega)
+        "deliveries_done": deliveries_done,
+        "deliveries_remaining": deliveries_total - deliveries_done,
     }
 
 
@@ -454,8 +468,8 @@ def _detail(route_id: str, *, driver: bool = False) -> dict:
     for ev in _rq(sql.EVIDENCES_SQL, [route_id]):
         evidences.setdefault(str(ev["dispatch_guide_id"]), []).append({
             "id": str(ev["id"]), "kind": ev["kind"], "mime_type": ev["mime_type"],
-            "captured_at": _iso(ev["captured_at"]),
-            "url": None if driver else _evidence_url(ev["storage_key"])})
+            "captured_at": _iso(ev["captured_at"]), "order_number": ev.get("order_number"),
+            "url": None if driver else _evidence_url(ev)})
     state = logic.route_state(row["status"])
     position = _coords(row["last_lat"], row["last_lng"])
     origin = _origin(row)
@@ -469,18 +483,6 @@ def _detail(route_id: str, *, driver: bool = False) -> dict:
         "stops": [_stop_view(g, live, evidences, driver) for g in guides],
     })
     return data
-
-
-def get_recorrido(event: dict) -> dict:
-    """Replay: rastro completo del viaje (sin mock ni precisión mala), simplificado a ~15 m, máx. 2000 puntos."""
-    caller, org_id = _caller(event, "view", driver_ok=True)
-    route_id = path_param(event, "id")
-    if not logic.is_uuid(route_id):
-        raise HttpError(404, "Viaje no encontrado")
-    _route_access(caller, org_id, route_id)
-    trail = [{"lat": _float(p["latitude"]), "lng": _float(p["longitude"]), "at": _iso(p["recorded_at"])}
-             for p in _rq(sql.TRAIL_REPLAY_SQL, [route_id])]
-    return _ok({"points": logic.simplify_trail(trail)})
 
 
 def summary(event: dict) -> dict:
@@ -858,7 +860,6 @@ ROUTES = {
     "POST /api/v1/tracking/consentimiento-gps": record_consent,
     "GET /api/v1/tracking/viajes": list_viajes,
     "GET /api/v1/tracking/viajes/{id}": get_viaje,
-    "GET /api/v1/tracking/viajes/{id}/recorrido": get_recorrido,
     "GET /api/v1/tracking/planificados": list_planificados,
     "GET /api/v1/tracking/choferes": list_choferes,
     "GET /api/v1/tracking/resumen": summary,

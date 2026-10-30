@@ -36,6 +36,17 @@ function delay<T>(data: T, ms = 350): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(data), ms));
 }
 
+// Scope del contexto operativo del header (País → Almacén → Cliente). La Cola
+// filtra orders por estos ids (orders.warehouse_id / orders.customer_id son FK
+// directas a los mismos UUIDs del contexto). `warehouseIds` = almacenes del país
+// seleccionado, para filtrar por país cuando aún no se eligió un almacén (orders
+// no tiene country_id; el país va por el almacén).
+export interface QueueScope {
+  warehouseId?: string | null;
+  customerId?: string | null;
+  warehouseIds?: string[];
+}
+
 // Modo DEMO: alimenta la Cola con el JSON generado por el MOTOR REAL del backend
 // (src/pages/oms/demo/) en vez de Supabase/mock + motor TS. Sirve para mostrar en
 // la tabla cómo prioriza el motor nuevo del OMS.
@@ -132,7 +143,7 @@ function mapOrderToQueueOrder(row: any, country: Country, hoyIso: string): Queue
     {
       fechaPlanificada: row.delivery_date ?? null,
       fechaExpedicion: row.order_date ?? null,
-      observaciones: row.wms_notes ?? null,
+      observaciones: row.observaciones ?? null,
     },
     hoyIso,
   );
@@ -145,7 +156,7 @@ function mapOrderToQueueOrder(row: any, country: Country, hoyIso: string): Queue
     branchId: row.eflow_id_sucursal ?? row.branch?.external_code ?? '',
     orderType: row.order_type ?? '',
     customer: row.final_customer?.name ?? '',
-    route: row.delivery_zone || '(sin ruta)',
+    route: row.delivery_zone || '(sin zona)',
     country,
     tier: tierPersistido ?? prioridad.tier,
     score: row.oms_score != null ? Number(row.oms_score) : prioridad.score,
@@ -153,7 +164,7 @@ function mapOrderToQueueOrder(row: any, country: Country, hoyIso: string): Queue
     weight: Number(row.total_weight ?? 0),
     volume: Number(row.total_volume ?? 0),
     itemCount: row.total_items ?? 0,
-    observations: row.wms_notes ?? '',
+    observations: row.observaciones ?? '',
     dispatchDate: row.delivery_date ?? '',
     createdDate: row.wms_created_at ?? row.created_at ?? '',
     status: row.wms_status ?? row.status ?? '',
@@ -172,7 +183,7 @@ export const omsApi = {
   getRoutes(country: Country): Promise<DispatchRoute[]> {
     return delay(cofersaRoutes.filter((r) => r.country === country));
   },
-  async getQueue(country: Country): Promise<QueueOrder[]> {
+  async getQueue(country: Country, scope: QueueScope = {}): Promise<QueueOrder[]> {
     // Modo DEMO: pedidos priorizados por el motor real del backend (JSON export).
     if (isOmsDemo()) {
       const { corridaDemoOrders } = await import('../demo/corridaDemo');
@@ -183,8 +194,13 @@ export const omsApi = {
       return delay(rows);
     }
     if (country === 'CR') {
-      // Solo pedidos sin cierre en el WMS (EFLOW FECHACIERRE IS NULL).
-      const { data, error } = await supabase.from('orders').select(QUEUE_SELECT).is('closed_at', null);
+      // Solo pedidos sin cierre en el WMS (EFLOW FECHACIERRE IS NULL), filtrados
+      // por el contexto operativo del header (almacén / compañía / país).
+      let query = supabase.from('orders').select(QUEUE_SELECT).is('closed_at', null);
+      if (scope.warehouseId) query = query.eq('warehouse_id', scope.warehouseId);
+      else if (scope.warehouseIds && scope.warehouseIds.length > 0) query = query.in('warehouse_id', scope.warehouseIds);
+      if (scope.customerId) query = query.eq('customer_id', scope.customerId);
+      const { data, error } = await query;
       if (!error && data) {
         // Datos REALES de orders (aunque vengan vacíos): es lo que pidió negocio,
         // no mock. Solo un error de red/BD cae al mock de respaldo (abajo).
@@ -237,14 +253,24 @@ export const omsApi = {
       level: (r.level ?? 'info') as OmsLogLevel,
       action: r.action ?? '',
       corridaId: r.corrida_id ?? null,
-      numeroViaje: r.numero_viaje ?? null,
-      eflowIdExpedicion: r.eflow_id_expedicion ?? null,
       message: r.message ?? '',
       detail: r.detail ?? null,
       actor: r.actor ?? 'system',
-      countryId: r.country_id ?? null,
-      companyCode: r.company_code ?? null,
     }));
+  },
+  // Limpia la bitácora del OMS (oms_logs) en un RANGO de fechas. Solo la dispara
+  // el rol developer desde la consola de Auditoría. `fromIso`/`toIso` son límites
+  // ISO; el backend exige al menos un filtro en el DELETE, así que siempre se pasa
+  // alguno (si faltara el rango, se usa created_at >= época = todo). Devuelve
+  // cuántas filas borró.
+  async clearOmsLogs(range?: { fromIso?: string; toIso?: string }): Promise<number> {
+    let q = supabase.from('oms_logs').delete();
+    if (range?.fromIso) q = q.gte('created_at', range.fromIso);
+    if (range?.toIso) q = q.lt('created_at', range.toIso);
+    if (!range?.fromIso && !range?.toIso) q = q.gte('created_at', '1900-01-01');
+    const { data, error } = await q.select('id');
+    if (error) throw new Error(error.message);
+    return Array.isArray(data) ? data.length : 0;
   },
   // FR4 — distribución de pedidos por priority_tier (para el Panel).
   getTierDistribution(country: Country): Promise<{ tier: PriorityTier; count: number }[]> {

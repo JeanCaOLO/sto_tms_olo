@@ -1,0 +1,18 @@
+version = 0.1
+# Deploy (solo Intelix): sam build --use-container && sam deploy --config-env <dev|qa|prod>
+# dev = sandbox (cuenta 758837481569): lo despliega scripts/sandbox/deploy_backend.py mobile. El bucket de evidencias lo crea el stack.
+
+[dev.deploy.parameters]
+stack_name = "dev-tms-mobile"
+region = "us-east-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+resolve_s3 = true
+parameter_overrides = [
+  "Environment=dev",
+  "DbSecretName=/dev/tms/db",
+  "JwtSecretName=/dev/tms/mobile-jwt",
+  "SubnetIds=/dev/tms/network/subnets",
+  "SecurityGroupId=/dev/tms/network/lambda-sg"
+]
+tags = ["Project=TMS-MOBILE", "Environment=DEV", "Name=dev-tms-mobile"]

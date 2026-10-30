@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../../lib/supabase', () => ({ apiFetch: vi.fn() }));
 
 import {
-  errorKey, getRecorrido, getViaje, iniciarViaje, isTrackingMock, listChoferes, listViajes, pollIntervalMs, setTrackingTransport, TrackingApiError,
+  errorKey, getViaje, iniciarViaje, isTrackingMock, listChoferes, listViajes, pollIntervalMs, setTrackingTransport, TrackingApiError,
   trackingNow,
 } from '../api';
 import { apiFetch } from '../../../lib/supabase';
@@ -22,14 +22,12 @@ describe('cliente de tracking', () => {
     expect(transport).toHaveBeenLastCalledWith('/v1/tracking/viajes?limit=60&cursor=c1', { signal: undefined });
   });
 
-  it('pide detalle y recorrido del viaje, pasando la señal de cancelación', async () => {
+  it('pide el detalle del viaje, pasando la señal de cancelación', async () => {
     const transport = vi.fn().mockResolvedValue(ok({ id: 'x' }));
     setTrackingTransport(transport);
     const signal = new AbortController().signal;
     expect(await getViaje('x', signal)).toEqual({ id: 'x' });
     expect(transport).toHaveBeenCalledWith('/v1/tracking/viajes/x', { signal });
-    await getRecorrido('x');
-    expect(transport).toHaveBeenLastCalledWith('/v1/tracking/viajes/x/recorrido', { signal: undefined });
   });
 
   it('inicia con POST (solo se usa en modo mock)', async () => {

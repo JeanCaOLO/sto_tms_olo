@@ -35,12 +35,10 @@ export default function TrackingPage() {
   const [query, setQuery] = useState('');
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [replaying, setReplaying] = useState(false);
   const [starting, setStarting] = useState(false);
 
   // Al cambiar de país se cierra el viaje abierto: puede ser de otro país.
   useEffect(() => { setSelectedId(null); }, [country]);
-  useEffect(() => { setReplaying(false); }, [selectedId]);
   useEffect(() => {
     const timer = setTimeout(() => setQuery(search), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
@@ -126,9 +124,7 @@ export default function TrackingPage() {
             viajes={visibles}
             selectedId={selectedId}
             detail={detailData}
-            replaying={replaying}
             onSelect={select}
-            onReplayClose={() => setReplaying(false)}
           />
         </Suspense>
         {selected && (
@@ -138,7 +134,6 @@ export default function TrackingPage() {
             detail={detailData}
             error={detail.error !== null}
             now={now}
-            onReplay={() => setReplaying(true)}
             onClose={() => setSelectedId(null)}
           >
             {mock && selected.state === 'active' && (
