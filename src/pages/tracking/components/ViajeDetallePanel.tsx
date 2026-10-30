@@ -93,6 +93,9 @@ export default function ViajeDetallePanel({ viaje, detail, error, now, onReplay,
         <h3 className="text-sm font-semibold text-slate-800 mb-2">{t('tracking.orders')}</h3>
         {!detail && !error && <p className="text-sm text-slate-500">{t('tracking.loading')}</p>}
         {!detail && error && <p className="text-sm text-red-600">{t('tracking.detailError')}</p>}
+        {detail && detail.stops.length === 0 && detail.progress.total > 0 && (
+          <p className="text-sm text-slate-500">{t('tracking.stopsUnavailable')}</p>
+        )}
         <ul className="space-y-2">
           {detail && ordenarPorCercania(detail.origin, detail.stops).map((stop) => (
             <ParadaItem key={stop.id} stop={stop} isNext={stop.id === detail.next_stop_id} timezone={viaje.timezone} />

@@ -20,6 +20,7 @@ administrador y le responde 403. Un viaje ajeno responde 404 (no revela que exis
 
 import base64
 import gzip
+import logging
 import os
 import re
 import time
@@ -34,6 +35,7 @@ from tms_common.responses import json_response
 import tracking_logic as logic
 import tracking_sql as sql
 
+log = logging.getLogger(__name__)
 MODULE = "tracking"
 DEFAULT_LIMIT, MAX_LIMIT = 30, 100
 UNIQUE_VIOLATION = "23505"   # SQLSTATE de unicidad (lo traduce tms_common.pg a HttpError 409 con code)
@@ -62,6 +64,15 @@ def bucket() -> str:
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _evidence_url(key: str) -> str | None:
+    """La URL de una evidencia es accesoria: si S3 o el bucket fallan, el detalle (paradas) debe seguir cargando."""
+    try:
+        return _signed_get(key)
+    except Exception:  # noqa: BLE001 - KeyError (sin bucket), botocore, red
+        log.warning("No se pudo firmar la evidencia %s", key, exc_info=True)
+        return None
 
 
 def _signed_get(key: str) -> str:
@@ -435,7 +446,7 @@ def _detail(route_id: str, *, driver: bool = False) -> dict:
         evidences.setdefault(str(ev["dispatch_guide_id"]), []).append({
             "id": str(ev["id"]), "kind": ev["kind"], "mime_type": ev["mime_type"],
             "captured_at": _iso(ev["captured_at"]),
-            "url": None if driver else _signed_get(ev["storage_key"])})
+            "url": None if driver else _evidence_url(ev["storage_key"])})
     state = logic.route_state(row["status"])
     position = _coords(row["last_lat"], row["last_lng"])
     origin = _origin(row)
