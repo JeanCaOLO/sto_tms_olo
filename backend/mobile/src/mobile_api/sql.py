@@ -100,6 +100,7 @@ LEFT JOIN vehicles v ON v.id = r.vehicle_id
 LEFT JOIN zones z ON z.id = r.route_type_id
 LEFT JOIN tracking_last_positions lp ON lp.route_id = r.id
 WHERE r.organization_id = %s AND r.driver_id = %s AND lower(r.status) = ANY(%s)
+  AND (pt.status IS NULL OR pt.status NOT IN ('completed', 'cancelled'))
 ORDER BY COALESCE(r.actual_start_time, r.created_at), r.id
 LIMIT 10
 """
@@ -250,9 +251,12 @@ WHERE pt.id = %s
 """
 ROUTE_BY_PLAN_TRIP_SQL = "SELECT id FROM routes WHERE plan_trip_id = %s"
 # Otro viaje del chofer, en tránsito y con paradas por entregar: mientras exista no se puede iniciar uno nuevo.
+# Si Planificación ya lo completó/canceló (plan_trips), no cuenta: igual que en Tracking (OPEN_IN_PLAN).
 UNFINISHED_ROUTE_SQL = f"""
 SELECT r.id FROM routes r
+LEFT JOIN plan_trips pt ON pt.id = r.plan_trip_id
 WHERE r.organization_id = %s AND r.driver_id = %s AND lower(r.status) = ANY(%s)
+  AND (pt.status IS NULL OR pt.status NOT IN ('completed', 'cancelled'))
   AND EXISTS (SELECT 1 FROM dispatch_guides g WHERE g.route_id = r.id
               AND NOT ({_GUIDE_STATE} IN {DELIVERED_SQL} OR {_GUIDE_STATE} IN {FAILED_SQL}))
 LIMIT 1

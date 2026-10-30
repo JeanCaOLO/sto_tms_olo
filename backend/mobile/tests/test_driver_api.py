@@ -100,6 +100,16 @@ def test_mi_viaje_keeps_guides_and_trips_whose_order_or_store_is_missing(call, f
     assert any("LEFT JOIN stores s ON s.id = r.store_id" in q for q in sql)
 
 
+def test_mi_viaje_and_unfinished_check_ignore_trips_closed_by_planning(call, fake_db):
+    """Si Planificación completó/canceló el viaje, el chofer no lo ve activo ni queda bloqueado para iniciar otro."""
+    call("GET /api/mobile/v1/mi-viaje")
+    mine = [c[0] for c in fake_db.calls if "r.driver_id = %s" in c[0]][0]
+    assert "pt.status NOT IN ('completed', 'cancelled')" in mine
+    from mobile_api import sql
+    assert "LEFT JOIN plan_trips pt" in sql.UNFINISHED_ROUTE_SQL
+    assert "pt.status NOT IN ('completed', 'cancelled')" in sql.UNFINISHED_ROUTE_SQL
+
+
 # --- aislamiento entre conductores ------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("route,body", [
