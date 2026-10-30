@@ -591,3 +591,192 @@ def test_barrido_salta_priorizacion_si_priorizar_false():
     cfg = models.ConfiguracionReglas(pesos={}, priorizar=False)
     resumen = app.correr(hoy=date(2026, 10, 1), resolver_config=lambda _p: cfg)
     assert resumen["priorizados"] == 0
+
+
+def test_config_desde_fila_lee_estrategia_y_default():
+    """La fila puede traer el esquema de numeración (`estrategia`); sin ella, default."""
+    rc = load_stack_module("oms", "reglas_config")
+    con = rc.config_desde_fila({"priorizar": True, "dias_prep_picking": 1,
+                                "reglas": {}, "estrategia": "dias_hasta_salida"})
+    sin = rc.config_desde_fila({"priorizar": True, "dias_prep_picking": 1, "reglas": {}})
+    assert con.estrategia == "dias_hasta_salida"
+    assert sin.estrategia == "escala_lineal"
+
+
+# --- regla_fecha: la fecha de alistado objetivo como fuente única ------------------
+
+def test_fecha_alistado_objetivo_resta_lead_time():
+    """objetivo = entrega − lead_time_days; None cuando la fecha es el centinela/default."""
+    regla_fecha = load_stack_module("oms", "regla_fecha")
+    models = load_stack_module("oms", "models")
+    entrega = datetime(2026, 10, 6, tzinfo=timezone.utc)
+    assert regla_fecha.fecha_alistado_objetivo(_pedido(models, fecha=entrega, lead_time_days=3)) == date(2026, 10, 3)
+    centinela = datetime(1900, 1, 1, tzinfo=timezone.utc)
+    assert regla_fecha.fecha_alistado_objetivo(_pedido(models, fecha=centinela, lead_time_days=1)) is None
+
+
+# --- EstrategiasPrioridad: el esquema de numeración por compañía ------------------
+
+def _ctx(estrategias, models, *, pedido, hoy, score=0.0, cliente_retira=False, config=None):
+    return estrategias.ContextoPrioridad(
+        pedido=pedido, hoy=hoy, score=score, cliente_retira=cliente_retira,
+        config=config if config is not None else models.ConfiguracionReglas(pesos={}),
+    )
+
+
+def test_estrategia_dias_hasta_salida_numera_por_dias():
+    """Cofersa: el número = días hasta la salida/alistado. Mañana=1, pasado=2, etc."""
+    estrategias = load_stack_module("oms", "estrategias_prioridad")
+    models = load_stack_module("oms", "models")
+    hoy = date(2026, 10, 1)
+    # lead_time 1 => objetivo = entrega − 1. entrega 10-03 → objetivo 10-02 → 1 día.
+    casos = {date(2026, 10, 3): 1, date(2026, 10, 4): 2, date(2026, 10, 5): 3}
+    for entrega, esperado in casos.items():
+        pedido = _pedido(models, fecha=datetime(entrega.year, entrega.month, entrega.day, tzinfo=timezone.utc),
+                         lead_time_days=1)
+        assert estrategias.dias_hasta_salida(_ctx(estrategias, models, pedido=pedido, hoy=hoy)) == esperado
+
+
+def test_estrategia_dias_hasta_salida_nunca_baja_de_1_en_la_cola():
+    """El 0 se reserva para el liberado: aunque la fecha ya llegó o pasó, la cola es >= 1."""
+    estrategias = load_stack_module("oms", "estrategias_prioridad")
+    models = load_stack_module("oms", "models")
+    hoy = date(2026, 10, 1)
+    hoy_mismo = _pedido(models, fecha=datetime(2026, 10, 2, tzinfo=timezone.utc), lead_time_days=1)  # objetivo 10-01
+    pasado = _pedido(models, fecha=datetime(2026, 9, 29, tzinfo=timezone.utc), lead_time_days=1)     # objetivo 09-28
+    assert estrategias.dias_hasta_salida(_ctx(estrategias, models, pedido=hoy_mismo, hoy=hoy)) == 1
+    assert estrategias.dias_hasta_salida(_ctx(estrategias, models, pedido=pasado, hoy=hoy)) == 1
+
+
+def test_estrategia_dias_hasta_salida_cliente_retira_es_maxima_de_la_cola():
+    estrategias = load_stack_module("oms", "estrategias_prioridad")
+    models = load_stack_module("oms", "models")
+    pedido = _pedido(models, fecha=datetime(2026, 10, 20, tzinfo=timezone.utc), lead_time_days=1)  # lejos
+    ctx = _ctx(estrategias, models, pedido=pedido, hoy=date(2026, 10, 1), cliente_retira=True)
+    assert estrategias.dias_hasta_salida(ctx) == estrategias.PRIORIDAD_MINIMA_COLA == 1
+
+
+def test_estrategia_dias_hasta_salida_centinela_es_urgente():
+    """Fecha centinela/default (el cliente no mandó fecha, caso Cofersa) → piso (urgente)."""
+    estrategias = load_stack_module("oms", "estrategias_prioridad")
+    models = load_stack_module("oms", "models")
+    pedido = _pedido(models, fecha=datetime(1900, 1, 1, tzinfo=timezone.utc), lead_time_days=1)
+    assert estrategias.dias_hasta_salida(_ctx(estrategias, models, pedido=pedido, hoy=date(2026, 10, 1))) == 1
+
+
+def test_estrategia_escala_lineal_preserva_el_calculo_de_score():
+    """La estrategia default delega en score.score_a_prioridad (comportamiento intacto)."""
+    estrategias = load_stack_module("oms", "estrategias_prioridad")
+    score = load_stack_module("oms", "score")
+    models = load_stack_module("oms", "models")
+    config = models.ConfiguracionReglas(pesos={}, escala_prioridad=5)
+    pedido = _pedido(models, fecha=datetime(2026, 10, 5, tzinfo=timezone.utc))
+    ctx = _ctx(estrategias, models, pedido=pedido, hoy=date(2026, 10, 1), score=42.0, config=config)
+    assert estrategias.escala_lineal(ctx) == score.score_a_prioridad(42.0, cliente_retira=False, config=config)
+
+
+def test_resolver_estrategia_cae_a_default_si_nombre_desconocido():
+    estrategias = load_stack_module("oms", "estrategias_prioridad")
+    assert estrategias.resolver("dias_hasta_salida") is estrategias.dias_hasta_salida
+    assert estrategias.resolver(None) is estrategias.escala_lineal
+    assert estrategias.resolver("no_existe") is estrategias.escala_lineal
+
+
+def test_motor_usa_la_estrategia_de_la_config():
+    """El motor numera según la estrategia de la config resuelta por scope: con
+    'dias_hasta_salida', la prioridad del pedido = días hasta su salida (no el score)."""
+    motor = load_stack_module("oms", "motor_reglas")
+    models = load_stack_module("oms", "models")
+    config = models.ConfiguracionReglas(pesos={"fecha_t1": 1.0}, estrategia="dias_hasta_salida")
+    pedido = _pedido(models, fecha=datetime(2026, 10, 4, tzinfo=timezone.utc), lead_time_days=1)  # objetivo 10-03 → 2
+    registros = motor.priorizar([pedido], lambda _p: config, hoy=date(2026, 10, 1))
+    assert registros[0].prioridad == 2
+
+
+def test_resolver_live_lee_estrategia_y_el_motor_numera_por_dias(monkeypatch):
+    """Integración (BD→config→motor, Aurora espiada): en live, cargar_resolver lee la
+    columna `estrategia` de oms_rule_configs; un pedido de Cofersa (estrategia
+    dias_hasta_salida) se numera por días hasta la salida, no por el score."""
+    rc = load_stack_module("oms", "reglas_config")
+    motor = load_stack_module("oms", "motor_reglas")
+    models = load_stack_module("oms", "models")
+    from tms_common import pg
+
+    def fake_query(sql, params=()):
+        assert "estrategia" in sql  # la lectura de config incluye la columna nueva
+        return [
+            {"scope_type": "global", "customer_id": None, "warehouse_id": None, "country_id": None,
+             "priorizar": True, "reglas": {"fecha_t1": {"aplica": True, "peso": 1.0}},
+             "dias_prep_picking": 1, "escala_prioridad": 100, "estrategia": "escala_lineal"},
+            {"scope_type": "customer", "customer_id": "cofersa", "warehouse_id": None, "country_id": None,
+             "priorizar": True, "reglas": {"fecha_t1": {"aplica": True, "peso": 1.0}},
+             "dias_prep_picking": 1, "escala_prioridad": 5, "estrategia": "dias_hasta_salida"},
+        ]
+
+    monkeypatch.setenv("OMS_SOURCE", "live")
+    monkeypatch.setattr(pg, "query", fake_query)
+
+    resolver = rc.cargar_resolver()
+    pedido = models.PedidoCandidato(
+        id_almacen="0001", id_compania="0109", id_sucursal="0001", id_expedicion="1",
+        fecha_expedicion_planificada=datetime(2026, 10, 4, tzinfo=timezone.utc),  # objetivo 10-03 → 2 días
+        lead_time_days=1, planning_run_id="plan-1", customer_id="cofersa")
+    registros = motor.priorizar([pedido], resolver, hoy=date(2026, 10, 1))
+    assert registros[0].prioridad == 2
+
+
+# --- EstrategiasPrioridad: parámetros por config (ancla + piso) --------------------
+
+def test_fecha_entrega_helper_devuelve_fecha_o_none_por_centinela():
+    regla_fecha = load_stack_module("oms", "regla_fecha")
+    models = load_stack_module("oms", "models")
+    assert regla_fecha.fecha_entrega(
+        _pedido(models, fecha=datetime(2026, 10, 6, tzinfo=timezone.utc))) == date(2026, 10, 6)
+    assert regla_fecha.fecha_entrega(
+        _pedido(models, fecha=datetime(1900, 1, 1, tzinfo=timezone.utc))) is None
+
+
+def test_dias_hasta_salida_ancla_entrega_vs_alistado():
+    """El ancla es parámetro: 'alistado' resta lead_time; 'entrega' usa la fecha cruda.
+    Misma entrega (10-05, lead 3) → alistado objetivo 10-02 (1 día) vs entrega (4 días)."""
+    estrategias = load_stack_module("oms", "estrategias_prioridad")
+    models = load_stack_module("oms", "models")
+    hoy = date(2026, 10, 1)
+    pedido = _pedido(models, fecha=datetime(2026, 10, 5, tzinfo=timezone.utc), lead_time_days=3)
+    alistado = models.ConfiguracionReglas(pesos={}, estrategia="dias_hasta_salida", ancla_fecha="alistado")
+    entrega = models.ConfiguracionReglas(pesos={}, estrategia="dias_hasta_salida", ancla_fecha="entrega")
+    assert estrategias.dias_hasta_salida(_ctx(estrategias, models, pedido=pedido, hoy=hoy, config=alistado)) == 1
+    assert estrategias.dias_hasta_salida(_ctx(estrategias, models, pedido=pedido, hoy=hoy, config=entrega)) == 4
+
+
+def test_dias_hasta_salida_piso_configurable_permite_cero():
+    """prioridad_piso define el mínimo de la cola: default 1 nunca da 0; piso 0 sí."""
+    estrategias = load_stack_module("oms", "estrategias_prioridad")
+    models = load_stack_module("oms", "models")
+    hoy = date(2026, 10, 1)
+    pedido = _pedido(models, fecha=datetime(2026, 10, 2, tzinfo=timezone.utc), lead_time_days=1)  # objetivo 10-01 → 0 días
+    piso1 = models.ConfiguracionReglas(pesos={}, estrategia="dias_hasta_salida", prioridad_piso=1)
+    piso0 = models.ConfiguracionReglas(pesos={}, estrategia="dias_hasta_salida", prioridad_piso=0)
+    assert estrategias.dias_hasta_salida(_ctx(estrategias, models, pedido=pedido, hoy=hoy, config=piso1)) == 1
+    assert estrategias.dias_hasta_salida(_ctx(estrategias, models, pedido=pedido, hoy=hoy, config=piso0)) == 0
+    # cliente-retira también respeta el piso configurado.
+    assert estrategias.dias_hasta_salida(
+        _ctx(estrategias, models, pedido=pedido, hoy=hoy, cliente_retira=True, config=piso0)) == 0
+
+
+def test_config_desde_fila_lee_ancla_y_piso_sin_coaccionar_cero():
+    rc = load_stack_module("oms", "reglas_config")
+    con = rc.config_desde_fila({"priorizar": True, "dias_prep_picking": 1, "reglas": {},
+                                "estrategia": "dias_hasta_salida", "ancla_fecha": "entrega",
+                                "prioridad_piso": 0})
+    sin = rc.config_desde_fila({"priorizar": True, "dias_prep_picking": 1, "reglas": {}})
+    assert con.ancla_fecha == "entrega" and con.prioridad_piso == 0  # 0 NO se coacciona a 1
+    assert sin.ancla_fecha == "alistado" and sin.prioridad_piso == 1  # defaults
+
+
+def test_nombres_de_estrategia_son_fuente_unica_en_models():
+    """El registro usa las constantes de models (no literales sueltos)."""
+    estrategias = load_stack_module("oms", "estrategias_prioridad")
+    models = load_stack_module("oms", "models")
+    assert estrategias.resolver(models.ESTRATEGIA_DIAS_HASTA_SALIDA) is estrategias.dias_hasta_salida
+    assert estrategias.resolver(models.ESTRATEGIA_ESCALA_LINEAL) is estrategias.escala_lineal

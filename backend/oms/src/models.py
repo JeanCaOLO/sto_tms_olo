@@ -177,6 +177,24 @@ LEAD_TIME_DEFAULT_DIAS = 1
 # infrastructure-design (DIFERIDA); aquí NO hay scheduler.
 BARRIDO_VECES_POR_DIA = 5
 
+# Nombres de las ESTRATEGIAS de numeración de prioridad (ver estrategias_prioridad).
+# FUENTE ÚNICA de estos literales: models los define y el registro, la config y el
+# default los importan de aquí; el CHECK de la migración es el único espejo inevitable
+# del lado SQL. Agregar una estrategia nueva = agregar su constante aquí + registrarla.
+ESTRATEGIA_ESCALA_LINEAL = "escala_lineal"
+ESTRATEGIA_DIAS_HASTA_SALIDA = "dias_hasta_salida"
+ESTRATEGIAS_VALIDAS = (ESTRATEGIA_ESCALA_LINEAL, ESTRATEGIA_DIAS_HASTA_SALIDA)
+
+# Anclas de fecha de la estrategia dias_hasta_salida (parámetro por compañía): contra
+# qué fecha se cuentan los "días hasta la salida".
+ANCLA_ALISTADO = "alistado"   # entrega − lead_time_days (default, regla T-1)
+ANCLA_ENTREGA = "entrega"     # la fecha de entrega cruda, sin restar lead time
+ANCLAS_VALIDAS = (ANCLA_ALISTADO, ANCLA_ENTREGA)
+
+# Piso por defecto de la prioridad DENTRO de la cola. 0 se reserva para el pedido ya
+# LIBERADO, por eso el default de la cola es 1; una compañía puede bajarlo por config.
+PRIORIDAD_PISO_DEFECTO = 1
+
 
 @dataclass(frozen=True)
 class ConfiguracionReglas:
@@ -195,9 +213,21 @@ class ConfiguracionReglas:
       priorizado (p. ej. EPA trae su propia prioridad de EFLOW): el barrido NO
       recalcula ni sobrescribe `orders.priority`, solo hace la liberación por fecha.
     - escala_prioridad: tope de la escala de prioridad numérica de la compañía
-      (menor = más urgente). Cofersa = 5 → prioridades 1..5. El submódulo `score`
-      mapea el score ponderado a [1, escala_prioridad]. Default 100 (escala amplia,
-      retrocompatible con el esqueleto). Parámetro editable por compañía (scope).
+      (menor = más urgente). Default 100 (escala amplia, retrocompatible con el
+      esqueleto). SOLO la usa la estrategia `escala_lineal`. Parámetro editable por
+      compañía (scope).
+    - estrategia: nombre del ESQUEMA de numeración de prioridad de la compañía
+      (ver estrategias_prioridad). 'escala_lineal' (default) = mapea el score a
+      [1, escala_prioridad]; 'dias_hasta_salida' = el número es cuántos días faltan
+      para la salida (Cofersa, DECIDED 2026-10-29). Una estrategia NUEVA solo hace
+      falta para una FÓRMULA distinta; si otra compañía numera igual con otros
+      números, basta ajustar los parámetros de abajo en su fila de config.
+    - ancla_fecha ('alistado' | 'entrega'): SOLO para 'dias_hasta_salida'. Contra qué
+      fecha se cuentan los días: 'alistado' (default) = entrega − lead_time (T-1);
+      'entrega' = la fecha de entrega cruda.
+    - prioridad_piso: SOLO para 'dias_hasta_salida'. Mínimo que la cola puede mostrar
+      (default 1; 0 se reserva para el pedido ya liberado). Bajarlo a 0 permite que la
+      cola muestre 0.
 
     NOTA (contrato v4): la duración logística del T-1 ya NO es un parámetro estático
     de config — ahora se lee de `orders.lead_time_days` por pedido (dinámico, lo
@@ -212,3 +242,6 @@ class ConfiguracionReglas:
     dias_prep_picking: int = 1
     priorizar: bool = True
     escala_prioridad: int = 100
+    estrategia: str = ESTRATEGIA_ESCALA_LINEAL
+    ancla_fecha: str = ANCLA_ALISTADO
+    prioridad_piso: int = PRIORIDAD_PISO_DEFECTO

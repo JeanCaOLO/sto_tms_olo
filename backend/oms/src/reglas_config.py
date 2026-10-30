@@ -26,11 +26,18 @@ import json
 import os
 
 import motor_reglas
-from models import ConfiguracionReglas, PedidoCandidato
+from models import (
+    ANCLA_ALISTADO,
+    ESTRATEGIA_ESCALA_LINEAL,
+    PRIORIDAD_PISO_DEFECTO,
+    ConfiguracionReglas,
+    PedidoCandidato,
+)
 from motor_reglas import ResolverConfig
 
 SELECT_ACTIVAS = """
-SELECT scope_type, customer_id, warehouse_id, country_id, priorizar, reglas, dias_prep_picking, escala_prioridad
+SELECT scope_type, customer_id, warehouse_id, country_id, priorizar, reglas, dias_prep_picking,
+       escala_prioridad, estrategia, ancla_fecha, prioridad_piso
 FROM oms_rule_configs
 WHERE activo = true
 """
@@ -55,12 +62,17 @@ def config_desde_fila(fila: dict) -> ConfiguracionReglas:
         if isinstance(cfg, dict) and cfg.get("aplica", True)
     }
     cliente_retira = reglas.get("cliente_retira") or {}
+    # prioridad_piso puede ser 0 (válido): distinguir None (ausente) de 0 para no coaccionarlo.
+    piso = fila.get("prioridad_piso")
     return ConfiguracionReglas(
         pesos=pesos,
         prioridad_cliente_retira=int(cliente_retira.get("prioridad", 1)),
         dias_prep_picking=int(fila.get("dias_prep_picking", 1)),
         priorizar=bool(fila.get("priorizar", True)),
         escala_prioridad=int(fila.get("escala_prioridad", 100)),
+        estrategia=str(fila.get("estrategia") or ESTRATEGIA_ESCALA_LINEAL),
+        ancla_fecha=str(fila.get("ancla_fecha") or ANCLA_ALISTADO),
+        prioridad_piso=int(piso) if piso is not None else PRIORIDAD_PISO_DEFECTO,
     )
 
 

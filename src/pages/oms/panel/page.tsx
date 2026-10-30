@@ -93,7 +93,7 @@ export default function OmsPanelPage() {
             <StatCard title="Liberados a eFlow (hoy)" value={pipeline.liberadosHoy} icon="ri-send-plane-line" color="emerald" />
           </div>
           <p className="-mt-2 text-xs text-slate-500">
-            {pipeline.abiertos} pedidos abiertos en total · En cola = esperan la próxima ejecución ·
+            {pipeline.abiertos} pedidos abiertos en total · En cola = pedidos en la Bandeja, aún sin priorizar ·
             Priorizados = con prioridad, esperando su ventana de salida · Liberados = enviados a eFlow hoy.
           </p>
 

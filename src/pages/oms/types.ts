@@ -170,7 +170,7 @@ export interface OmsLogEntry {
 // Embudo del día, derivado de public.orders (pedidos abiertos, closed_at IS NULL).
 export interface OmsPipeline {
   abiertos: number;      // total de pedidos abiertos en el scope actual
-  enCola: number;        // con plan, aún sin procesar por el motor (planning_run_id, sin oms_processed_at ni prioritization_run_id)
+  enCola: number;        // pedidos en la BANDEJA: crudos DISP/DISP aún sin priorizar (los que salen a más de 3 días). Se cuenta desde el endpoint de la bandeja para coincidir 1:1 con esa vista
   priorizados: number;   // ya con prioridad, esperando la ventana de salida (prioritization_run_id, sin oms_processed_at)
   liberadosHoy: number;  // enviados a eFlow hoy (oms_processed_at = hoy)
 }
