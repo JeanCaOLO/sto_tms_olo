@@ -38,3 +38,24 @@ def test_template_creates_a_private_evidence_bucket_per_order_folder():
     assert bucket["DeletionPolicy"] == "Retain"                      # la prueba de entrega no se borra con el stack
     assert all(bucket["Properties"]["PublicAccessBlockConfiguration"].values())
     assert "EvidenceBucketName" not in template["Parameters"]         # ya no depende del bucket del stack tracking
+
+
+def test_evidence_bucket_is_encrypted_post_only_cors_and_never_expires():
+    template = yaml.load(TEMPLATE.read_text(encoding="utf-8"), Loader=_CfnLoader)
+    props = template["Resources"]["EvidenceBucket"]["Properties"]
+    sse = props["BucketEncryption"]["ServerSideEncryptionConfiguration"][0]["ServerSideEncryptionByDefault"]
+    assert sse["SSEAlgorithm"] == "AES256"
+    # La app sube con POST firmado: el bucket no admite ningún otro método desde la web.
+    assert [rule["AllowedMethods"] for rule in props["CorsConfiguration"]["CorsRules"]] == [["POST"]]
+    lifecycle = props["LifecycleConfiguration"]["Rules"][0]
+    assert lifecycle["AbortIncompleteMultipartUpload"]["DaysAfterInitiation"] == 1
+    assert "ExpirationInDays" not in lifecycle                        # es la prueba de entrega: no se borra sola
+
+
+def test_mobile_role_only_touches_the_order_folders_of_the_evidence_bucket():
+    template = yaml.load(TEMPLATE.read_text(encoding="utf-8"), Loader=_CfnLoader)
+    policy = template["Resources"]["MobileApiRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
+    s3_actions = [s["Action"] for s in policy if "s3:ListBucket" not in str(s["Action"]) and "s3:" in str(s["Action"])]
+    assert s3_actions == [["s3:GetObject", "s3:PutObject"]]            # sin Delete ni s3:*
+    env = template["Resources"]["MobileApiFunction"]["Properties"]["Environment"]["Variables"]
+    assert "EVIDENCE_BUCKET" in env
