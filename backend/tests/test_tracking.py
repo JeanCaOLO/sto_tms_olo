@@ -700,6 +700,25 @@ def test_include_summary_counts_all_active_trips_with_one_query_set(tracking):
     assert "AT TIME ZONE coalesce(co.timezone" in completed and "LIMIT" not in completed
 
 
+def test_summary_reuses_the_list_when_the_page_holds_every_active_trip(tracking):
+    app, db = tracking
+    rows = [
+        _row(id=ROUTE, last_position_at=NOW - timedelta(seconds=30), due_date=date(2026, 10, 15)),  # pasó su día
+        _row(id="00000000-0000-4000-8000-000000000021", last_position_at=NOW - timedelta(hours=2)),  # sin señal
+    ]
+    db.answer("count(*) AS n", [{"n": 4}])
+    db.answer("GROUP BY g.route_id", [])
+    db.answer("SELECT g.route_id, g.id, g.sequence_number", [_full_stop(1, planned=LATE_STOP)])
+    db.answer("FROM routes r", rows)
+    body = body_of(app.handler(_event("GET /api/v1/tracking/viajes", query={"activos": "1", "include": "summary"}),
+                               None))["data"]
+    assert body["next_cursor"] is None
+    assert body["summary"] == {"active": 2, "on_time": 1, "late": 1, "no_signal": 1, "completed_today": 4,
+                               "deliveries_total": 0, "deliveries_done": 0, "deliveries_remaining": 0}
+    assert len(db.wrote("SELECT r.id")) == 1                       # la lista no se vuelve a consultar para el resumen
+    assert len(db.wrote("SELECT g.route_id, count(*) AS total")) == 1  # ni el lote de progreso
+
+
 def test_include_summary_only_on_the_first_page(tracking):
     app, db = tracking
     db.answer("FROM routes r", [])
@@ -761,6 +780,28 @@ def test_driver_detail_never_signs_evidence_urls(driver, monkeypatch):
     db.answer("cu.phone AS customer_phone", [_full_stop(1)])
     data = body_of(app.handler(_event("GET /api/v1/tracking/viajes/{id}", path={"id": ROUTE}), None))["data"]
     assert s3.signed == [] and data["stops"][0]["evidences"][0]["url"] is None
+
+
+def test_detail_still_returns_stops_when_signing_an_evidence_fails(tracking, monkeypatch):
+    app, db = tracking
+
+    class BrokenS3:
+        def generate_presigned_url(self, *a, **k):
+            raise RuntimeError("s3 caído")
+
+    monkeypatch.setattr(app, "s3", lambda: BrokenS3())
+    db.answer("FROM routes r JOIN stores s", [_row()])
+    db.answer("FROM tracking_evidences WHERE route_id", [
+        {"id": "ev-1", "dispatch_guide_id": "00000000-0000-4000-8000-000000000001", "kind": "signature", "storage_key": "k-broken",
+         "mime_type": "image/png", "captured_at": NOW}])
+    db.answer("cu.phone AS customer_phone", [_full_stop(1)])
+    data = body_of(app.handler(_event("GET /api/v1/tracking/viajes/{id}", path={"id": ROUTE}), None))["data"]
+    assert len(data["stops"]) == 1 and data["stops"][0]["evidences"][0]["url"] is None
+
+
+def test_detail_stops_query_keeps_guides_without_order():
+    import tracking_sql
+    assert "LEFT JOIN orders o ON o.id = g.order_id" in tracking_sql.GUIDES_SQL
 
 
 def test_stopped_by_route_groups_per_route(logic):

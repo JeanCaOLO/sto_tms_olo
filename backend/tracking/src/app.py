@@ -20,6 +20,7 @@ administrador y le responde 403. Un viaje ajeno responde 404 (no revela que exis
 
 import base64
 import gzip
+import logging
 import os
 import re
 import time
@@ -34,6 +35,7 @@ from tms_common.responses import json_response
 import tracking_logic as logic
 import tracking_sql as sql
 
+log = logging.getLogger(__name__)
 MODULE = "tracking"
 DEFAULT_LIMIT, MAX_LIMIT = 30, 100
 UNIQUE_VIOLATION = "23505"   # SQLSTATE de unicidad (lo traduce tms_common.pg a HttpError 409 con code)
@@ -70,6 +72,15 @@ def evidence_bucket(stored: str | None) -> str:
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _evidence_url(ev: dict) -> str | None:
+    """La URL de una evidencia es accesoria: si S3 o el bucket fallan, el detalle (paradas) debe seguir cargando."""
+    try:
+        return _signed_get(ev["storage_key"], evidence_bucket(ev.get("storage_bucket")))
+    except Exception:  # noqa: BLE001 - KeyError (sin bucket), botocore, red
+        log.warning("No se pudo firmar la evidencia %s", ev.get("storage_key"), exc_info=True)
+        return None
 
 
 def _signed_get(key: str, bucket_name: str | None = None) -> str:
@@ -320,7 +331,11 @@ def _compute_summary(caller, org_id: str, query: dict, now: datetime) -> dict:
     rows = _rq(f"SELECT {sql.VIAJE_COLUMNS} {sql.VIAJE_JOINS} WHERE {' AND '.join(where)} ORDER BY sort_at DESC",
                params)
     batch = _batch(rows, now)
-    viajes = [_list_item(row, batch, now) for row in rows]
+    return _kpis([_list_item(row, batch, now) for row in rows], caller, org_id, query, now)
+
+
+def _kpis(viajes: list[dict], caller, org_id: str, query: dict, now: datetime) -> dict:
+    """KPIs a partir de TODOS los viajes activos del alcance ya armados (la lista los reusa si caben en la página)."""
     late = sum(any(a["code"] == logic.ALERT_LATE for a in v["alerts"]) for v in viajes)
     no_signal = sum(any(a["code"] == logic.ALERT_NO_SIGNAL for a in v["alerts"]) for v in viajes)
     deliveries_total = sum(v["progress"]["total"] for v in viajes)
@@ -392,11 +407,16 @@ def list_viajes(event: dict) -> dict:
     page, has_more = rows[:limit], len(rows) > limit
     now = _now()
     batch = _batch(page, now)
-    data = {"items": [_list_item(row, batch, now) for row in page],
+    items = [_list_item(row, batch, now) for row in page]
+    data = {"items": items,
             "next_cursor": f"{_iso(page[-1]['sort_at'])}|{page[-1]['id']}" if has_more else None}
     # El resumen solo viaja en la primera página (sin cursor).
     if not cursor and "summary" in (query.get("include") or "").split(","):
-        data["summary"] = _summary(caller, org_id, query, now)
+        if only_active and not search and not has_more:
+            # La página ya ES el conjunto de viajes activos del alcance: se evita repetir lista y lote (~5 consultas).
+            data["summary"] = _kpis(items, caller, org_id, query, now)
+        else:
+            data["summary"] = _summary(caller, org_id, query, now)
     return _ok(data)
 
 
@@ -449,7 +469,7 @@ def _detail(route_id: str, *, driver: bool = False) -> dict:
         evidences.setdefault(str(ev["dispatch_guide_id"]), []).append({
             "id": str(ev["id"]), "kind": ev["kind"], "mime_type": ev["mime_type"],
             "captured_at": _iso(ev["captured_at"]), "order_number": ev.get("order_number"),
-            "url": None if driver else _signed_get(ev["storage_key"], evidence_bucket(ev.get("storage_bucket")))})
+            "url": None if driver else _evidence_url(ev)})
     state = logic.route_state(row["status"])
     position = _coords(row["last_lat"], row["last_lng"])
     origin = _origin(row)

@@ -326,6 +326,14 @@
         "settlement_id": {
           "type": "text",
           "nullable": true
+        },
+        "novedad_count": {
+          "type": "int",
+          "nullable": true
+        },
+        "pickup_count": {
+          "type": "int",
+          "nullable": true
         }
       }
     },
@@ -983,6 +991,22 @@
           "type": "jsonb",
           "nullable": true
         },
+        "void_kind": {
+          "type": "text",
+          "nullable": true
+        },
+        "void_reason": {
+          "type": "text",
+          "nullable": true
+        },
+        "claim_id": {
+          "type": "text",
+          "nullable": true
+        },
+        "from_claim_id": {
+          "type": "text",
+          "nullable": true
+        },
         "returns": {
           "type": "jsonb",
           "nullable": false
@@ -1394,6 +1418,76 @@
         "removed_by": {
           "type": "text",
           "nullable": true
+        }
+      }
+    },
+    "tarifas_proforma_claims": {
+      "entity": "proformaClaim",
+      "label": "Reclamo de proforma",
+      "readOnly": false,
+      "appendOnly": false,
+      "primaryKey": "id",
+      "idPrefix": "prc",
+      "columns": {
+        "id": {
+          "type": "text",
+          "nullable": true
+        },
+        "country_id": {
+          "type": "uuid",
+          "nullable": false
+        },
+        "proforma_id": {
+          "type": "text",
+          "nullable": false
+        },
+        "phase_id": {
+          "type": "text",
+          "nullable": false
+        },
+        "phase_name": {
+          "type": "text",
+          "nullable": false
+        },
+        "raised_by": {
+          "type": "text",
+          "nullable": false
+        },
+        "raised_role": {
+          "type": "text",
+          "nullable": true
+        },
+        "reason": {
+          "type": "text",
+          "nullable": false
+        },
+        "status": {
+          "type": "text",
+          "nullable": false
+        },
+        "appeal_reason": {
+          "type": "text",
+          "nullable": true
+        },
+        "appealed_by": {
+          "type": "text",
+          "nullable": true
+        },
+        "appealed_at": {
+          "type": "timestamptz",
+          "nullable": true
+        },
+        "resolved_by": {
+          "type": "text",
+          "nullable": true
+        },
+        "resolved_at": {
+          "type": "timestamptz",
+          "nullable": true
+        },
+        "created_at": {
+          "type": "timestamptz",
+          "nullable": false
         }
       }
     },

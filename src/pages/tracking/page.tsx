@@ -48,7 +48,8 @@ export default function TrackingPage() {
   const detail = useViajeDetalle(selectedId);
   // Si falla (p. ej. rol sin acceso) la lista de choferes simplemente no aparece; no afecta al monitoreo de viajes.
   const drivers = useChoferesEnLinea(country);
-  const now = useNow(trackingNow, list.updatedAt);
+  // Se re-calcula al cambiar los datos (no en cada refresco idéntico) y cada 30 s: así las tarjetas no se re-pintan en vano.
+  const now = useNow(trackingNow, list.data);
 
   const viajes = useMemo(() => list.data?.items ?? [], [list.data]);
   const visibles = useMemo(() => (kpi ? viajes.filter((v) => matchesKpi(v, kpi, now)) : viajes), [viajes, kpi, now]);

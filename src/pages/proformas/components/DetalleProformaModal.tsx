@@ -1,12 +1,13 @@
 // Detalle de una proforma: liquidaciones, fases y decisión. Todo cambio pasa por useProformaDetail.
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Modal from '../../../components/base/Modal';
 import Badge from '../../../components/base/Badge';
 import Button from '../../../components/base/Button';
 import { formatMoney } from '../../../lib/tarifas/format';
 import { canEditItems, currentPhase, isSuperAdmin, phaseLabel, type PhaseActor, type ProformaDetail, type ProformaPhase } from '../../../lib/tarifas/proformas';
 import DetalleLiquidacionModal from '../../liquidaciones/components/DetalleLiquidacionModal';
+import { useIrregularities } from '../hooks/useIrregularities';
 import { useProformaDetail } from '../hooks/useProformaDetail';
 import { useSettlementDetail } from '../hooks/useSettlementDetail';
 import DecisionPanel, { type Ask } from './DecisionPanel';
@@ -47,6 +48,11 @@ export default function DetalleProformaModal({ proformaId, actor, canEdit, onClo
   const [sending, setSending] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const line = useSettlementDetail();
+  const { alerts } = useIrregularities(useMemo(() => [proformaId], [proformaId]));
+  const flags = useMemo(
+    () => new Map((alerts.get(proformaId)?.settlements ?? []).map((a) => [a.settlement.id, a.flags])),
+    [alerts, proformaId],
+  );
 
   async function confirm(text: string) {
     if (!pending) return;
@@ -92,7 +98,7 @@ export default function DetalleProformaModal({ proformaId, actor, canEdit, onClo
             <section>
               <h3 className="mb-2 text-sm font-semibold text-slate-700">Liquidaciones</h3>
               <ProformaItemsTable
-                detail={detail} canToggle={editable} busy={busy}
+                detail={detail} canToggle={editable} busy={busy} flags={flags}
                 onInclude={(id) => void toggleItem(id, true, null)}
                 onExclude={(id) => setPending({ kind: 'exclude', settlementId: id })}
                 onOpen={(id) => void line.open(id)}

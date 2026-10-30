@@ -113,7 +113,7 @@ export const LoteViajeItem = forwardRef<LoteItemHandle, Props>(function LoteViaj
             <div className="text-center py-10 text-slate-400"><i className="ri-loader-4-line animate-spin text-2xl" /></div>
           ) : (
             <>
-              <LiquidarViajeNotices calculation={calculation} error={ctrl.error} loadError={ctrl.loadError} noLogic={ctrl.noLogic} />
+              <LiquidarViajeNotices calculation={calculation} error={ctrl.error} loadError={ctrl.loadError} noLogic={ctrl.noLogic} claimReason={trip.claimVoidReason} />
               <LiquidarViajeBody ctrl={ctrl} simple={simple} blocking={blocking} currency={currency} />
             </>
           )}
