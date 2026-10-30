@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Badge from '../../../components/base/Badge';
 import type { EvidenceKind, Stop } from '../types';
@@ -13,7 +13,7 @@ interface Props {
 }
 
 /** Un pedido del viaje. Al abrirlo: quién recibió y las 2 evidencias de entrega (factura firmada y firma). */
-export default function ParadaItem({ stop, isNext, timezone }: Props) {
+function ParadaItem({ stop, isNext, timezone }: Props) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const eta = stop.state === 'pending' ? formatClock(stop.eta_at, timezone) : null;
@@ -59,3 +59,5 @@ export default function ParadaItem({ stop, isNext, timezone }: Props) {
     </li>
   );
 }
+
+export default memo(ParadaItem);

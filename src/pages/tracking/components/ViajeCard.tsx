@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import Badge from '../../../components/base/Badge';
 import type { Viaje } from '../types';
@@ -13,7 +14,7 @@ interface Props {
 }
 
 /** Tarjeta de la lista lateral: viaje, conductor · placa, avance y última señal. Al elegirla se abre el detalle. */
-export default function ViajeCard({ viaje, selected, now, onSelect }: Props) {
+function ViajeCard({ viaje, selected, now, onSelect }: Props) {
   const { t } = useTranslation();
   const loggedOut = driverLoggedOut(viaje);
   // La última señal incluye el latido de la app: un chofer con la app abierta no figura "sin señal" por un GPS lento.
@@ -56,3 +57,5 @@ export default function ViajeCard({ viaje, selected, now, onSelect }: Props) {
     </button>
   );
 }
+
+export default memo(ViajeCard);
