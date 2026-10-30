@@ -322,7 +322,11 @@ def _compute_summary(caller, org_id: str, query: dict, now: datetime) -> dict:
     rows = _rq(f"SELECT {sql.VIAJE_COLUMNS} {sql.VIAJE_JOINS} WHERE {' AND '.join(where)} ORDER BY sort_at DESC",
                params)
     batch = _batch(rows, now)
-    viajes = [_list_item(row, batch, now) for row in rows]
+    return _kpis([_list_item(row, batch, now) for row in rows], caller, org_id, query, now)
+
+
+def _kpis(viajes: list[dict], caller, org_id: str, query: dict, now: datetime) -> dict:
+    """KPIs a partir de TODOS los viajes activos del alcance ya armados (la lista los reusa si caben en la página)."""
     late = sum(any(a["code"] == logic.ALERT_LATE for a in v["alerts"]) for v in viajes)
     no_signal = sum(any(a["code"] == logic.ALERT_NO_SIGNAL for a in v["alerts"]) for v in viajes)
     # Completados hoy en el día local del país (timezone de countries).
@@ -389,11 +393,16 @@ def list_viajes(event: dict) -> dict:
     page, has_more = rows[:limit], len(rows) > limit
     now = _now()
     batch = _batch(page, now)
-    data = {"items": [_list_item(row, batch, now) for row in page],
+    items = [_list_item(row, batch, now) for row in page]
+    data = {"items": items,
             "next_cursor": f"{_iso(page[-1]['sort_at'])}|{page[-1]['id']}" if has_more else None}
     # El resumen solo viaja en la primera página (sin cursor).
     if not cursor and "summary" in (query.get("include") or "").split(","):
-        data["summary"] = _summary(caller, org_id, query, now)
+        if only_active and not search and not has_more:
+            # La página ya ES el conjunto de viajes activos del alcance: se evita repetir lista y lote (~5 consultas).
+            data["summary"] = _kpis(items, caller, org_id, query, now)
+        else:
+            data["summary"] = _summary(caller, org_id, query, now)
     return _ok(data)
 
 

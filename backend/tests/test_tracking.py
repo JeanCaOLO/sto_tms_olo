@@ -699,6 +699,24 @@ def test_include_summary_counts_all_active_trips_with_one_query_set(tracking):
     assert "AT TIME ZONE coalesce(co.timezone" in completed and "LIMIT" not in completed
 
 
+def test_summary_reuses_the_list_when_the_page_holds_every_active_trip(tracking):
+    app, db = tracking
+    rows = [
+        _row(id=ROUTE, last_position_at=NOW - timedelta(seconds=30), due_date=date(2026, 10, 15)),  # pasó su día
+        _row(id="00000000-0000-4000-8000-000000000021", last_position_at=NOW - timedelta(hours=2)),  # sin señal
+    ]
+    db.answer("count(*) AS n", [{"n": 4}])
+    db.answer("GROUP BY g.route_id", [])
+    db.answer("SELECT g.route_id, g.id, g.sequence_number", [_full_stop(1, planned=LATE_STOP)])
+    db.answer("FROM routes r", rows)
+    body = body_of(app.handler(_event("GET /api/v1/tracking/viajes", query={"activos": "1", "include": "summary"}),
+                               None))["data"]
+    assert body["next_cursor"] is None
+    assert body["summary"] == {"active": 2, "on_time": 1, "late": 1, "no_signal": 1, "completed_today": 4}
+    assert len(db.wrote("SELECT r.id")) == 1                       # la lista no se vuelve a consultar para el resumen
+    assert len(db.wrote("SELECT g.route_id, count(*) AS total")) == 1  # ni el lote de progreso
+
+
 def test_include_summary_only_on_the_first_page(tracking):
     app, db = tracking
     db.answer("FROM routes r", [])
