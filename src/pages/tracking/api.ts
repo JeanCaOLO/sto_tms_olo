@@ -17,7 +17,7 @@ export type TrackingTransport = (path: string, init?: RequestOptions) => Promise
 
 // 5 s: el chofer que inicia o cierra sesión, o recupera la señal, se ve casi en tiempo real. El resumen (KPIs) del
 // backend se cachea 5 s, así que varias pantallas abiertas no multiplican ese cálculo.
-const POLL_MS = 5_000;
+const POLL_MS = 10_000; // el chofer reporta cada ~30 s: refrescar más seguido solo gasta Lambda/Aurora
 const MOCK_POLL_MS = 3_000;
 
 let transport: TrackingTransport = apiFetch;
