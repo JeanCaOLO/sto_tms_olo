@@ -1,10 +1,9 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import Badge from '../../../components/base/Badge';
-import Button from '../../../components/base/Button';
-import { ordenarPorCercania } from '../stop-order';
+import { ordenarPorSecuencia } from '../stop-order';
 import type { Viaje, ViajeDetalle } from '../types';
-import { STATE_KEY, formatAge, formatClock, formatDay, formatDistance, stateVariant } from '../tracking-logic';
+import { STATE_KEY, driverLoggedOut, formatAge, formatClock, formatDay, formatDistance, lastSignalAt, stateVariant } from '../tracking-logic';
 import AlertDots from './AlertDots';
 import ParadaItem from './ParadaItem';
 import ProgressBar from './ProgressBar';
@@ -15,17 +14,17 @@ interface Props {
   detail: ViajeDetalle | null;
   error: boolean;
   now: number;
-  onReplay: () => void;
   onClose: () => void;
   /** Hueco para controles de pruebas (solo modo mock); el panel normal no tiene acciones. */
   children?: ReactNode;
 }
 
 /** Panel derecho, solo lectura: avance, hacia dónde va y los pedidos con sus evidencias de entrega. */
-export default function ViajeDetallePanel({ viaje, detail, error, now, onReplay, onClose, children }: Props) {
+export default function ViajeDetallePanel({ viaje, detail, error, now, onClose, children }: Props) {
   const { t } = useTranslation();
   const view = detail ?? viaje;
-  const age = formatAge(viaje.position?.recorded_at, now, t);
+  const loggedOut = driverLoggedOut(viaje);
+  const age = loggedOut ? null : formatAge(lastSignalAt(viaje), now, t);
   const next = detail?.stops.find((s) => s.id === detail.next_stop_id);
   const eta = formatClock(next?.eta_at, viaje.timezone);
 
@@ -80,10 +79,8 @@ export default function ViajeDetallePanel({ viaje, detail, error, now, onReplay,
             )}
           </p>
         )}
+        {loggedOut && <p className="text-xs text-slate-500">{t('tracking.loggedOut')}</p>}
         {age && viaje.state === 'active' && <p className="text-xs text-slate-500">{t('tracking.lastSeen', { age })}</p>}
-        <Button size="sm" variant="secondary" onClick={onReplay} icon={<i className="ri-route-line" />}>
-          {t('tracking.replay')}
-        </Button>
         {children}
       </div>
 
@@ -92,7 +89,7 @@ export default function ViajeDetallePanel({ viaje, detail, error, now, onReplay,
         {!detail && !error && <p className="text-sm text-slate-500">{t('tracking.loading')}</p>}
         {!detail && error && <p className="text-sm text-red-600">{t('tracking.detailError')}</p>}
         <ul className="space-y-2">
-          {detail && ordenarPorCercania(detail.origin, detail.stops).map((stop) => (
+          {detail && ordenarPorSecuencia(detail.stops).map((stop) => (
             <ParadaItem key={stop.id} stop={stop} isNext={stop.id === detail.next_stop_id} timezone={viaje.timezone} />
           ))}
         </ul>

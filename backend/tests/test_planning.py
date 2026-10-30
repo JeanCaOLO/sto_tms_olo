@@ -13,7 +13,7 @@ def planning(monkeypatch):
     def fake_query(sql, params=()):
         calls.append((sql, list(params)))
         if "FROM app_users" in sql:
-            return [{"organization_id": "org-1"}]
+            return [{"id": "user-1", "organization_id": "org-1"}]
         return [{"order_number": "E1", "total_weight": None, "capacity_known": False}]
 
     monkeypatch.setattr(pg, "query", fake_query)

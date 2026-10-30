@@ -61,15 +61,6 @@ test.describe('Tracking — monitoreo (mock)', () => {
     await expect(tarjeta(page, 'VJ-DEMO-CR-01')).toBeVisible();
   });
 
-  test('reproducir el recorrido muestra la barra de reproducción y se puede salir', async ({ page }) => {
-    await abrirTracking(page);
-    await tarjeta(page, 'VJ-DEMO-CR-01').click();
-    await panel(page, 'VJ-DEMO-CR-01').getByRole('button', { name: 'Reproducir recorrido' }).click();
-    await expect(page.getByLabel('Línea de tiempo del recorrido')).toBeVisible({ timeout: 10000 });
-    await page.getByRole('button', { name: 'Salir de la reproducción' }).click();
-    await expect(page.getByLabel('Línea de tiempo del recorrido')).toHaveCount(0);
-  });
-
   test('al alejar el mapa los camiones encimados se agrupan y un clic los separa', async ({ page }) => {
     await abrirTracking(page);
     // Esperar a que el mapa encuadre la flota (lo hace al llegar los camiones); si no, ese encuadre deshace el zoom.

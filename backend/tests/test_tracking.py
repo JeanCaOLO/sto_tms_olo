@@ -587,7 +587,7 @@ def test_alerts_only_for_active_trips(logic):
     assert _codes(logic, sig="stale", stopped=25) == []   # sin señal confiable no se afirma que esté detenido
 
 
-# --- monitoreo v2: alertas unificadas, lista, detalle, recorrido, ingesta, gzip ------------------------
+# --- monitoreo v2: alertas unificadas, lista, detalle, ingesta, gzip ------------------------
 
 def _progress(route_id, total=2, delivered=0, failed=0):
     return {"route_id": route_id, "total": total, "delivered": delivered, "failed": failed}
@@ -694,7 +694,8 @@ def test_include_summary_counts_all_active_trips_with_one_query_set(tracking):
     body = body_of(app.handler(_event("GET /api/v1/tracking/viajes", query={"activos": "1", "limit": "1",
                                                                              "include": "summary"}), None))["data"]
     assert len(body["items"]) == 1 and body["next_cursor"]
-    assert body["summary"] == {"active": 3, "on_time": 2, "late": 1, "no_signal": 1, "completed_today": 4}
+    assert body["summary"] == {"active": 3, "on_time": 2, "late": 1, "no_signal": 1, "completed_today": 4,
+                                 "deliveries_total": 0, "deliveries_done": 0, "deliveries_remaining": 0}
     completed = db.wrote("SELECT count(*) AS n")[0][0]
     assert "AT TIME ZONE coalesce(co.timezone" in completed and "LIMIT" not in completed
 
@@ -760,44 +761,6 @@ def test_driver_detail_never_signs_evidence_urls(driver, monkeypatch):
     db.answer("cu.phone AS customer_phone", [_full_stop(1)])
     data = body_of(app.handler(_event("GET /api/v1/tracking/viajes/{id}", path={"id": ROUTE}), None))["data"]
     assert s3.signed == [] and data["stops"][0]["evidences"][0]["url"] is None
-
-
-def test_recorrido_is_chronological_simplified_and_filters_bad_points(tracking):
-    app, db = tracking
-    db.answer("FROM routes r JOIN stores s", [_row()])
-    line = [{"latitude": 9.9, "longitude": -84.05 + i * 0.0001, "recorded_at": NOW + timedelta(seconds=i * 30)}
-            for i in range(10)]
-    db.answer("NOT is_mock AND (accuracy_m IS NULL OR accuracy_m <= 200) ORDER BY recorded_at", line)
-    data = body_of(app.handler(_event("GET /api/v1/tracking/viajes/{id}/recorrido", path={"id": ROUTE}), None))["data"]
-    assert [p["lat"] for p in data["points"]] == [9.9, 9.9]          # recta: solo extremos
-    assert data["points"][0]["at"] == line[0]["recorded_at"].isoformat()
-    sql, _ = db.wrote("SELECT latitude, longitude, recorded_at FROM tracking_positions WHERE route_id")[0]
-    assert "accuracy_m <= 200" in sql
-
-
-def test_recorrido_access_follows_get_viaje(driver):
-    app, db = driver
-    db.answer("FROM routes r JOIN stores s", [{"id": ROUTE, "organization_id": ORG, "status": "En tránsito",
-                                                "driver_id": OTHER_DRIVER, "country_id": "cr-id"}])
-    response = app.handler(_event("GET /api/v1/tracking/viajes/{id}/recorrido", path={"id": ROUTE}), None)
-    assert response["statusCode"] == 404 and not [sql for sql, _ in db.calls if "NOT is_mock" in sql]
-
-
-def test_douglas_peucker_keeps_corners_and_drops_noise(logic):
-    base = [(9.9, -84.0 + i * 0.0005) for i in range(5)]
-    noise = [{"lat": lat, "lng": lng} for lat, lng in base[:2] + [(9.9 + 0.00004, base[2][1])] + base[3:]]
-    assert len(logic.simplify_trail(noise)) == 2                    # 4.4 m de desvío < 15 m
-    corner = [{"lat": 9.9, "lng": -84.0}, {"lat": 9.9, "lng": -83.999}, {"lat": 9.9009, "lng": -83.999}]
-    kept = logic.simplify_trail(corner)
-    assert kept == corner                                           # el giro de ~100 m se conserva
-
-
-def test_trail_simplification_respects_the_2000_point_cap(logic):
-    zigzag = [{"lat": 9.9 + (0.00045 if i % 2 else 0), "lng": -84.0 + i * 0.0001} for i in range(3000)]
-    kept = logic.simplify_trail(zigzag)
-    assert len(kept) <= logic.TRAIL_MAX_POINTS
-    assert kept[0] == zigzag[0] and kept[-1] == zigzag[-1]
-    assert logic.simplify_trail(zigzag[:2]) == zigzag[:2]
 
 
 def test_stopped_by_route_groups_per_route(logic):
@@ -994,7 +957,6 @@ def test_upload_url_rejects_photo_other_with_422(tracking, monkeypatch):
 def test_removed_endpoints_are_gone():
     app = load_stack_module("tracking")
     assert not [k for k in app.ROUTES if "novedades" in k or "devoluciones" in k]
-    assert "GET /api/v1/tracking/viajes/{id}/recorrido" in app.ROUTES
     assert "GET /api/v1/tracking/resumen" in app.ROUTES        # deprecado, sigue vivo
 
 
@@ -1091,6 +1053,100 @@ def test_trip_past_its_delivery_day_is_late_in_list_detail_and_kpi(tracking):
     assert item["summary"]["late"] == 1 and item["summary"]["on_time"] == 0
 
 
+# --- presencia del chofer (app móvil: login / latido / logout) ----------------------------------------
+
+def test_signal_uses_presence_heartbeat_and_explicit_logout(logic):
+    old = NOW - timedelta(minutes=45)
+    # Latido reciente: el chofer tiene la app abierta aunque el último punto sea viejo.
+    assert logic.signal(old, NOW, "online", NOW - timedelta(seconds=40)) == "online"
+    assert logic.signal(None, NOW, "online", NOW - timedelta(seconds=40)) == "online"
+    # Logout explícito más reciente que el último punto: offline aunque el punto sea de hace segundos.
+    assert logic.signal(NOW - timedelta(seconds=30), NOW, "offline", NOW - timedelta(seconds=5)) == "offline"
+    assert logic.signal(None, NOW, "offline", NOW - timedelta(seconds=5)) == "offline"
+    # Un punto posterior al logout (volvió a salir) manda: sigue el umbral normal.
+    assert logic.signal(NOW - timedelta(seconds=10), NOW, "offline", NOW - timedelta(minutes=2)) == "online"
+    # Sin presencia, nada cambia.
+    assert logic.signal(old, NOW, None, None) == "offline" and logic.signal(None, NOW) == "none"
+    # Un latido viejo no reanima un punto viejo.
+    assert logic.signal(old, NOW, "online", NOW - timedelta(minutes=40)) == "offline"
+
+
+def test_stopped_alert_needs_a_fresh_position_not_just_a_heartbeat(logic):
+    assert logic.alerts("active", "online", 0, 0, 25, position_signal="stale") == []
+    assert [a["code"] for a in logic.alerts("active", "online", 0, 0, 25, position_signal="online")] == ["stopped"]
+
+
+def test_list_marks_the_trip_offline_after_an_explicit_logout(tracking):
+    app, db = tracking
+    row = _row(driver_id=DRIVER, presence_status="offline", presence_seen_at=NOW - timedelta(seconds=5))
+    db.answer("GROUP BY g.route_id", [_progress(ROUTE)])
+    db.answer("FROM routes r", [row])
+    item = body_of(app.handler(_event("GET /api/v1/tracking/viajes"), None))["data"]["items"][0]
+    assert item["signal"] == "offline" and item["color"] == "gray"
+    assert "no_signal" in [a["code"] for a in item["alerts"]]
+    assert item["presence"]["status"] == "offline"
+
+
+def test_list_keeps_the_trip_online_with_a_fresh_heartbeat(tracking):
+    app, db = tracking
+    row = _row(driver_id=DRIVER, last_position_at=NOW - timedelta(minutes=12),
+               presence_status="online", presence_seen_at=NOW - timedelta(seconds=20))
+    db.answer("GROUP BY g.route_id", [_progress(ROUTE)])
+    db.answer("FROM routes r", [row])
+    item = body_of(app.handler(_event("GET /api/v1/tracking/viajes"), None))["data"]["items"][0]
+    assert item["signal"] == "online" and item["color"] == "green"
+    assert item["position"]["recorded_at"] == (NOW - timedelta(minutes=12)).isoformat()   # la posición sigue siendo la real
+
+
+def test_list_without_presence_is_unchanged(tracking):
+    app, db = tracking
+    db.answer("GROUP BY g.route_id", [_progress(ROUTE)])
+    db.answer("FROM routes r", [_row()])
+    item = body_of(app.handler(_event("GET /api/v1/tracking/viajes"), None))["data"]["items"][0]
+    assert item["presence"] is None and item["signal"] == "online"
+
+
+def test_trip_queries_join_driver_presence(tracking):
+    app, db = tracking
+    db.answer("FROM routes r", [_row()])
+    app.handler(_event("GET /api/v1/tracking/viajes"), None)
+    listing = next(c for c in db.calls if "FROM routes r" in c[0] and "ORDER BY sort_at" in c[0])
+    assert "LEFT JOIN driver_presence dp ON dp.driver_id = r.driver_id" in listing[0]
+
+
+def test_choferes_lists_online_drivers_with_and_without_a_trip(tracking):
+    app, db = tracking
+    db.answer("FROM driver_presence dp", [
+        {"id": DRIVER, "full_name": "Ana", "status": "online", "last_seen_at": NOW - timedelta(seconds=30),
+         "battery_pct": 71, "country": "CR", "route_id": ROUTE},
+        {"id": "99999999-9999-4999-8999-999999999999", "full_name": "Beto", "status": "offline",
+         "last_seen_at": NOW - timedelta(minutes=2), "battery_pct": None, "country": "CR", "route_id": None},
+        {"id": "aaaaaaaa-9999-4999-8999-999999999999", "full_name": "Cata", "status": "online",
+         "last_seen_at": NOW - timedelta(minutes=12), "battery_pct": 40, "country": None, "route_id": None},
+    ])
+    data = body_of(app.handler(_event("GET /api/v1/tracking/choferes"), None))["data"]
+    assert [(d["driver_name"], d["signal"], d["route_id"]) for d in data] == [
+        ("Ana", "online", ROUTE), ("Beto", "offline", None), ("Cata", "stale", None)]
+    assert data[0]["battery_pct"] == 71 and data[0]["last_seen_at"] == (NOW - timedelta(seconds=30)).isoformat()
+
+
+def test_choferes_is_admin_only_and_scoped_by_country(tracking, caller_permissions):
+    app, db = tracking
+    caller_permissions.set(make_permissions({"guias": ["view"]}))
+    assert app.handler(_event("GET /api/v1/tracking/choferes"), None)["statusCode"] == 403
+    caller_permissions.set(make_permissions({"tracking": ["view"]}, countries=("cr-id",)))
+    assert app.handler(_event("GET /api/v1/tracking/choferes", query={"pais": "CR"}), None)["statusCode"] == 200
+    query, params = next(c for c in db.calls if "FROM driver_presence dp" in c[0])
+    assert "ca.country_id = ANY(%s::uuid[])" in query and "co.code = %s" in query
+    assert params[-2:] == [["cr-id"], "CR"]
+    assert app.handler(_event("GET /api/v1/tracking/choferes", query={"pais": "x;drop"}), None)["statusCode"] == 400
+
+
+def test_a_driver_cannot_list_other_drivers(driver):
+    app, _ = driver
+    assert app.handler(_event("GET /api/v1/tracking/choferes"), None)["statusCode"] == 403
+
+
 def test_origin_coords_prefers_company_then_store_then_country(logic):
     assert logic.origin_coords("VN", "febeca", None, None) == (10.1897571, -67.9507191)
     assert logic.origin_coords("VN", "BEVAL", 10.4575, -66.9419) == (10.1789068, -67.9539846)   # la sede de la empresa gana
@@ -1106,3 +1162,12 @@ def test_detail_origin_uses_the_fixed_company_site(tracking):
     db.answer("cu.phone AS customer_phone", [_full_stop(1)])
     data = body_of(app.handler(_event("GET /api/v1/tracking/viajes/{id}", path={"id": ROUTE}), None))["data"]
     assert data["origin"]["lat"] == 10.1897571 and data["origin"]["lng"] == -67.9507191
+
+
+def test_evidence_from_the_driver_app_is_signed_in_its_own_bucket(tracking, monkeypatch):
+    """La app del chofer sube a su bucket (sql/54 lo anota en la fila); un bucket desconocido cae al de tracking."""
+    app, _ = tracking
+    monkeypatch.setenv("MOBILE_EVIDENCE_BUCKET", "dev-tms-mobile-evidencias-1")
+    assert app.evidence_bucket("dev-tms-mobile-evidencias-1") == "dev-tms-mobile-evidencias-1"
+    assert app.evidence_bucket(None) == "dev-tms-tracking-1"
+    assert app.evidence_bucket("bucket-ajeno") == "dev-tms-tracking-1"

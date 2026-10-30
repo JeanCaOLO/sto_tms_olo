@@ -9,7 +9,7 @@ import ViajeDetallePanel from './components/ViajeDetallePanel';
 import ViajesSidebar from './components/ViajesSidebar';
 import { useNow } from './hooks/useNow';
 import { useTrackingCountry } from './hooks/useTrackingCountry';
-import { useViajeDetalle, useViajesEnVivo } from './hooks/useViajesEnVivo';
+import { useChoferesEnLinea, useViajeDetalle, useViajesEnVivo } from './hooks/useViajesEnVivo';
 import { formatAge, matchesKpi, type KpiFilter } from './tracking-logic';
 import type { ListMode } from './types';
 
@@ -35,12 +35,10 @@ export default function TrackingPage() {
   const [query, setQuery] = useState('');
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [replaying, setReplaying] = useState(false);
   const [starting, setStarting] = useState(false);
 
   // Al cambiar de país se cierra el viaje abierto: puede ser de otro país.
   useEffect(() => { setSelectedId(null); }, [country]);
-  useEffect(() => { setReplaying(false); }, [selectedId]);
   useEffect(() => {
     const timer = setTimeout(() => setQuery(search), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
@@ -48,6 +46,8 @@ export default function TrackingPage() {
 
   const list = useViajesEnVivo(useMemo(() => ({ mode, q: query, limit, country }), [mode, query, limit, country]));
   const detail = useViajeDetalle(selectedId);
+  // Si falla (p. ej. rol sin acceso) la lista de choferes simplemente no aparece; no afecta al monitoreo de viajes.
+  const drivers = useChoferesEnLinea(country);
   const now = useNow(trackingNow, list.updatedAt);
 
   const viajes = useMemo(() => list.data?.items ?? [], [list.data]);
@@ -62,7 +62,7 @@ export default function TrackingPage() {
   if (list.data?.summary) keptSummary.current = { country, summary: list.data.summary };
   const summary = list.data?.summary ?? (keptSummary.current?.country === country ? keptSummary.current.summary : null);
   const select = useCallback((id: string) => setSelectedId((current) => (current === id ? null : id)), []);
-  const refresh = () => { list.refresh(); detail.refresh(); };
+  const refresh = () => { list.refresh(); detail.refresh(); drivers.refresh(); };
   const pickKpi = (value: KpiFilter | null) => {
     setKpi(value);
     setSelectedId(null); // el viaje abierto puede no entrar en el indicador
@@ -102,6 +102,7 @@ export default function TrackingPage() {
       <div className={`grid grid-cols-1 gap-4 h-[calc(100vh-16rem)] min-h-[520px] ${layout}`}>
         <ViajesSidebar
           viajes={visibles}
+          choferes={kpi ? [] : drivers.data ?? []}
           loading={list.loading}
           error={list.error !== null}
           mode={mode}
@@ -122,9 +123,7 @@ export default function TrackingPage() {
             viajes={visibles}
             selectedId={selectedId}
             detail={detailData}
-            replaying={replaying}
             onSelect={select}
-            onReplayClose={() => setReplaying(false)}
           />
         </Suspense>
         {selected && (
@@ -134,7 +133,6 @@ export default function TrackingPage() {
             detail={detailData}
             error={detail.error !== null}
             now={now}
-            onReplay={() => setReplaying(true)}
             onClose={() => setSelectedId(null)}
           >
             {mock && selected.state === 'active' && (

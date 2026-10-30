@@ -27,6 +27,7 @@ VIAJE_COLUMNS = f"""
   d.full_name AS driver_name, v.plate, z.name AS zone_name,
   lp.latitude AS last_lat, lp.longitude AS last_lng, lp.speed_mps,
   lp.recorded_at AS last_position_at,
+  dp.status AS presence_status, dp.last_seen_at AS presence_seen_at,
   COALESCE(r.actual_start_time, r.created_at) AS sort_at
 """
 
@@ -38,6 +39,7 @@ LEFT JOIN drivers d ON d.id = r.driver_id
 LEFT JOIN vehicles v ON v.id = r.vehicle_id
 LEFT JOIN zones z ON z.id = r.route_type_id
 LEFT JOIN tracking_last_positions lp ON lp.route_id = r.id
+LEFT JOIN driver_presence dp ON dp.driver_id = r.driver_id
 {PLAN_TRIP_JOIN}
 LEFT JOIN route_plans rp ON rp.id = pt.plan_id
 LEFT JOIN customers cu ON cu.id = rp.customer_id
@@ -101,6 +103,22 @@ WHERE {{where}}
 """
 
 
+# Choferes con presencia reciente (app abierta, con o sin viaje). `{country}`: filtro de país del rol; el país del
+# chofer es el de su transportista. `route_id` = su viaje en tránsito (NULL = en línea sin viaje).
+DRIVERS_PRESENCE_SQL = f"""
+SELECT d.id, d.full_name, dp.status, dp.last_seen_at, dp.battery_pct, co.code AS country,
+       (SELECT r.id FROM routes r {PLAN_TRIP_JOIN}
+        WHERE r.driver_id = d.id AND lower(r.status) = ANY(%s) AND {OPEN_IN_PLAN}
+        ORDER BY COALESCE(r.actual_start_time, r.created_at) DESC LIMIT 1) AS route_id
+FROM driver_presence dp
+JOIN drivers d ON d.id = dp.driver_id
+LEFT JOIN carriers ca ON ca.id = d.carrier_id
+LEFT JOIN countries co ON co.id = ca.country_id
+WHERE dp.organization_id = %s AND dp.last_seen_at >= now() - interval '30 minutes' {{country}}
+ORDER BY dp.last_seen_at DESC
+LIMIT 200
+"""
+
 SET_DEPARTED_SQL = "UPDATE routes SET departed_at = %s WHERE id = %s AND departed_at IS NULL"
 
 ROUTE_ONE_SQL = f"SELECT {VIAJE_COLUMNS} {VIAJE_JOINS} WHERE r.id = %s"
@@ -123,15 +141,8 @@ ORDER BY g.sequence_number
 """
 
 EVIDENCES_SQL = f"""
-SELECT id, dispatch_guide_id, kind, storage_key, mime_type, captured_at
+SELECT id, dispatch_guide_id, kind, storage_key, mime_type, captured_at, order_number, storage_bucket
 FROM tracking_evidences WHERE route_id = %s AND kind IN {EVIDENCE_KINDS_SQL} ORDER BY created_at
-"""
-
-# Recorrido completo para el replay: solo puntos que cuentan (sin mock ni precisión mala), cronológicos.
-TRAIL_REPLAY_SQL = """
-SELECT latitude, longitude, recorded_at FROM tracking_positions
-WHERE route_id = %s AND NOT is_mock AND (accuracy_m IS NULL OR accuracy_m <= 200)
-ORDER BY recorded_at
 """
 
 PLANNED_SQL = """

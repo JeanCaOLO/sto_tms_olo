@@ -5,7 +5,6 @@ import 'leaflet/dist/leaflet.css';
 import { useTranslation } from 'react-i18next';
 import type { Viaje, ViajeDetalle } from '../types';
 import { COLOR_HEX, positioned } from '../tracking-logic';
-import ReplayLayer from './map/ReplayLayer';
 import RutaViaje from './map/RutaViaje';
 import FlotaCamiones from './map/FlotaCamiones';
 
@@ -16,9 +15,7 @@ interface Props {
   selectedId: string | null;
   /** Detalle del viaje elegido (mismo id) o null. */
   detail: ViajeDetalle | null;
-  replaying: boolean;
   onSelect: (id: string) => void;
-  onReplayClose: () => void;
 }
 
 // Costa Rica: vista inicial cuando todavía no hay ningún camión con posición.
@@ -68,36 +65,32 @@ function Vista({ viajes, selectedId, detail, fitKey }: Pick<Props, 'viajes' | 's
 }
 
 /** Mapa de la flota: un camión por viaje (color = señal; los encimados se agrupan) y, del elegido, su ruta y paradas. */
-export default function FlotaMapa({ fitKey, viajes, selectedId, detail, replaying, onSelect, onReplayClose }: Props) {
+export default function FlotaMapa({ fitKey, viajes, selectedId, detail, onSelect }: Props) {
   const { t } = useTranslation();
   const trucks = useMemo(() => positioned(viajes), [viajes]);
-  const replayOf = replaying && detail ? detail : null;
 
   return (
     <div className="relative isolate h-full min-h-[320px] rounded-lg overflow-hidden border border-slate-200">
       <MapContainer center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} className="w-full h-full" scrollWheelZoom>
         <TileLayer url={TILES_URL} attribution="&copy; OpenStreetMap" />
-        {detail && !replayOf && <RutaViaje detail={detail} />}
-        <FlotaCamiones trucks={trucks} selectedId={selectedId} hiddenId={replayOf?.id ?? null} onSelect={onSelect} />
-        {replayOf && <ReplayLayer key={replayOf.id} tripId={replayOf.id} color={COLOR_HEX[replayOf.color]} timezone={replayOf.timezone} onClose={onReplayClose} />}
+        {detail && <RutaViaje detail={detail} />}
+        <FlotaCamiones trucks={trucks} selectedId={selectedId} onSelect={onSelect} />
         <Vista viajes={viajes} selectedId={selectedId} detail={detail} fitKey={fitKey} />
       </MapContainer>
 
-      {!replayOf && (
-        <ul className="absolute bottom-3 left-3 z-[1000] bg-white/95 rounded-lg shadow px-3 py-2 text-xs text-slate-700 space-y-1">
-          {([
-            ['green', 'tracking.legendOnline'],
-            ['amber', 'tracking.legendStale'],
-            ['gray', 'tracking.legendOffline'],
-            ['blue', 'tracking.legendCompleted'],
-          ] as const).map(([color, key]) => (
-            <li key={color} className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: COLOR_HEX[color] }} />
-              {t(key)}
-            </li>
-          ))}
-        </ul>
-      )}
+      <ul className="absolute bottom-3 left-3 z-[1000] bg-white/95 rounded-lg shadow px-3 py-2 text-xs text-slate-700 space-y-1">
+        {([
+          ['green', 'tracking.legendOnline'],
+          ['amber', 'tracking.legendStale'],
+          ['gray', 'tracking.legendOffline'],
+          ['blue', 'tracking.legendCompleted'],
+        ] as const).map(([color, key]) => (
+          <li key={color} className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ background: COLOR_HEX[color] }} />
+            {t(key)}
+          </li>
+        ))}
+      </ul>
       {!trucks.length && (
         <p className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] bg-white/95 rounded-lg shadow px-3 py-1.5 text-xs text-slate-600">
           {t('tracking.noPosition')}

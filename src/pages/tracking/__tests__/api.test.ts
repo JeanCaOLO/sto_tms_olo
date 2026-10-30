@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../../lib/supabase', () => ({ apiFetch: vi.fn() }));
 
 import {
-  errorKey, getRecorrido, getViaje, iniciarViaje, isTrackingMock, listViajes, pollIntervalMs, setTrackingTransport, TrackingApiError,
+  errorKey, getViaje, iniciarViaje, isTrackingMock, listChoferes, listViajes, pollIntervalMs, setTrackingTransport, TrackingApiError,
   trackingNow,
 } from '../api';
 import { apiFetch } from '../../../lib/supabase';
@@ -22,14 +22,12 @@ describe('cliente de tracking', () => {
     expect(transport).toHaveBeenLastCalledWith('/v1/tracking/viajes?limit=60&cursor=c1', { signal: undefined });
   });
 
-  it('pide detalle y recorrido del viaje, pasando la señal de cancelación', async () => {
+  it('pide el detalle del viaje, pasando la señal de cancelación', async () => {
     const transport = vi.fn().mockResolvedValue(ok({ id: 'x' }));
     setTrackingTransport(transport);
     const signal = new AbortController().signal;
     expect(await getViaje('x', signal)).toEqual({ id: 'x' });
     expect(transport).toHaveBeenCalledWith('/v1/tracking/viajes/x', { signal });
-    await getRecorrido('x');
-    expect(transport).toHaveBeenLastCalledWith('/v1/tracking/viajes/x/recorrido', { signal: undefined });
   });
 
   it('inicia con POST (solo se usa en modo mock)', async () => {
@@ -50,9 +48,19 @@ describe('cliente de tracking', () => {
     expect(errorKey(new Error('red'))).toBe('tracking.errorGeneric');
   });
 
-  it('el modo mock cambia reloj e intervalo; el normal usa el reloj real y 15 s', () => {
+  it('pide los choferes en línea, con el país si hay, y pasa la señal de cancelación', async () => {
+    const transport = vi.fn().mockResolvedValue(ok([]));
+    setTrackingTransport(transport);
+    const signal = new AbortController().signal;
+    await listChoferes(null, signal);
+    expect(transport).toHaveBeenCalledWith('/v1/tracking/choferes', { signal });
+    await listChoferes('CR');
+    expect(transport).toHaveBeenLastCalledWith('/v1/tracking/choferes?pais=CR', { signal: undefined });
+  });
+
+  it('el modo mock cambia reloj e intervalo; el normal usa el reloj real y 5 s', () => {
     expect(isTrackingMock()).toBe(false);
-    expect(pollIntervalMs()).toBe(15_000);
+    expect(pollIntervalMs()).toBe(5_000);
     setTrackingTransport(vi.fn(), () => 42);
     expect(isTrackingMock()).toBe(true);
     expect(trackingNow()).toBe(42);

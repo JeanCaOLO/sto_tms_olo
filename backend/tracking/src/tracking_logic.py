@@ -42,8 +42,6 @@ EVIDENCE_MIME = {"image/jpeg": "jpg", "image/png": "png"}
 URL_TTL_SECONDS = 300                   # formulario de subida (POST firmado)
 SIGNED_GET_TTL_SECONDS = 3600           # URL de lectura de evidencias (estable: se reusa desde caché)
 SIGNED_GET_RENEW_SECONDS = 600          # se vuelve a firmar cuando faltan menos de esto
-TRAIL_EPSILON_M = 15                    # tolerancia Douglas-Peucker del recorrido
-TRAIL_MAX_POINTS = 2000
 
 _UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
@@ -81,11 +79,23 @@ def _aware(value: datetime) -> datetime:
     return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
-def signal(last_position_at: datetime | None, now: datetime) -> str:
-    """online | stale | offline | none (nunca reportó posición)."""
-    if last_position_at is None:
+def signal(last_position_at: datetime | None, now: datetime, presence_status: str | None = None,
+           presence_seen_at: datetime | None = None) -> str:
+    """online | stale | offline | none (nunca reportó posición ni presencia).
+
+    Presencia = lo que informa la app del chofer (`driver_presence`: login, latido, logout). Un `offline` explícito
+    (logout) más reciente que el último punto manda sobre la antigüedad; un latido `online` más reciente que el
+    último punto también cuenta como señal de vida. Sin presencia, solo cuenta la última posición."""
+    if (presence_status == "offline" and presence_seen_at is not None
+            and (last_position_at is None or _aware(presence_seen_at) >= _aware(last_position_at))):
+        return "offline"
+    latest = last_position_at
+    if presence_status == "online" and presence_seen_at is not None and (
+            latest is None or _aware(presence_seen_at) > _aware(latest)):
+        latest = presence_seen_at
+    if latest is None:
         return "none"
-    age = (_aware(now) - _aware(last_position_at)).total_seconds()
+    age = (_aware(now) - _aware(latest)).total_seconds()
     if age <= ONLINE_SECONDS:
         return "online"
     if age <= STALE_SECONDS:
@@ -288,55 +298,6 @@ def route_accepts(state: str, ended_at: datetime | None, now: datetime) -> bool:
     return state == "completed" and ended_at is not None and _aware(now) - _aware(ended_at) <= GRACE_AFTER_CLOSE
 
 
-def _to_meters(points: list[dict]) -> list[tuple[float, float]]:
-    """Proyección plana local (equirectangular) en metros: basta para tolerancias de decenas de metros."""
-    lat0 = sum(float(p["lat"]) for p in points) / len(points)
-    kx = 111320 * math.cos(math.radians(lat0))
-    return [(float(p["lng"]) * kx, float(p["lat"]) * 110574) for p in points]
-
-
-def _segment_distance(p, a, b) -> float:
-    ax, ay = a
-    dx, dy = b[0] - ax, b[1] - ay
-    length2 = dx * dx + dy * dy
-    t = 0.0 if length2 == 0 else max(0.0, min(1.0, ((p[0] - ax) * dx + (p[1] - ay) * dy) / length2))
-    return math.hypot(p[0] - (ax + t * dx), p[1] - (ay + t * dy))
-
-
-def _douglas_peucker(xy: list[tuple[float, float]], epsilon: float) -> list[int]:
-    """Índices que conservan la forma con tolerancia `epsilon` (m). Pila explícita: sin límite de recursión."""
-    count = len(xy)
-    keep = [False] * count
-    keep[0] = keep[-1] = True
-    stack = [(0, count - 1)]
-    while stack:
-        first, last = stack.pop()
-        worst, worst_index = -1.0, None
-        for index in range(first + 1, last):
-            distance = _segment_distance(xy[index], xy[first], xy[last])
-            if distance > worst:
-                worst, worst_index = distance, index
-        if worst_index is not None and worst > epsilon:
-            keep[worst_index] = True
-            stack.append((first, worst_index))
-            stack.append((worst_index, last))
-    return [index for index in range(count) if keep[index]]
-
-
-def simplify_trail(points: list[dict], epsilon_m: float = TRAIL_EPSILON_M, cap: int = TRAIL_MAX_POINTS) -> list[dict]:
-    """Recorrido simplificado (Douglas-Peucker). Si aún supera `cap`, sube la tolerancia hasta caber.
-    Los extremos siempre se conservan. `points`: dicts con lat, lng (en orden cronológico)."""
-    if len(points) <= 2:
-        return list(points)
-    xy = _to_meters(points)
-    epsilon = epsilon_m
-    kept = _douglas_peucker(xy, epsilon)
-    while len(kept) > cap:
-        epsilon *= 1.5
-        kept = _douglas_peucker(xy, epsilon)
-    return [points[index] for index in kept]
-
-
 def days_late(due_date, now: datetime, tz: str | None) -> int:
     """Días que el viaje lleva pasado de su fecha de entrega (día calendario en la zona del país); 0 si está en
     plazo. El retraso se mide por DÍA de entrega, no por la hora planificada de cada parada."""
@@ -349,14 +310,17 @@ def days_late(due_date, now: datetime, tz: str | None) -> int:
     return max(0, (_aware(now).astimezone(zone).date() - due_date).days)
 
 
-def alerts(state: str, signal_value: str, failed: int, late_days: int = 0, stopped_min: int = 0) -> list[dict]:
+def alerts(state: str, signal_value: str, failed: int, late_days: int = 0, stopped_min: int = 0,
+           position_signal: str | None = None) -> list[dict]:
     """Alertas de un viaje EN TRÁNSITO: [{"code","count"?}]. Para otros estados no hay alertas.
 
     late: `count` = días pasados de la fecha de entrega.
     no_signal: solo si hubo señal y caducó (signal 'offline'); 'none' (nunca hubo GPS) no alerta.
-    stopped: solo con señal 'online', para no afirmar que está detenido sin datos recientes."""
+    stopped: solo con la POSICIÓN reciente (`position_signal`, por defecto `signal_value`): un latido de la app
+    no basta para afirmar que el camión está detenido."""
     if state != "active":
         return []
+    position_signal = signal_value if position_signal is None else position_signal
     out = []
     if failed:
         out.append({"code": ALERT_FAILED, "count": failed})
@@ -364,7 +328,7 @@ def alerts(state: str, signal_value: str, failed: int, late_days: int = 0, stopp
         out.append({"code": ALERT_NO_SIGNAL})
     if late_days > 0:
         out.append({"code": ALERT_LATE, "count": late_days})
-    if stopped_min >= STOPPED_MIN and signal_value == "online":
+    if stopped_min >= STOPPED_MIN and position_signal == "online":
         out.append({"code": ALERT_STOPPED, "count": stopped_min})
     return out
 

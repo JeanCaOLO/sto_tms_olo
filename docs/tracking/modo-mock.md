@@ -13,7 +13,7 @@ Solo funciona en desarrollo: `MOCK_AUTH_ENABLED` exige `import.meta.env.DEV`, as
 | Pieza | Archivo |
 |---|---|
 | Activación | `src/main.tsx` importa `mock/installTrackingMock.ts` si `MOCK_AUTH_ENABLED` |
-| Transporte simulado | `mock/fakeTrackingBackend.ts`: rutas `GET /viajes`, `/viajes/{id}`, `/viajes/{id}/recorrido`, `/planificados`, `POST /viajes/{id}/iniciar`; sobre `{data}/{error}` y códigos como el backend |
+| Transporte simulado | `mock/fakeTrackingBackend.ts`: rutas `GET /viajes`, `/viajes/{id}`, `/planificados`, `POST /viajes/{id}/iniciar`; sobre `{data}/{error}` y códigos como el backend |
 | Simulación | `mock/sim.ts`: viajes en memoria, reloj acelerado, reglas iguales a `tracking_logic.py` |
 | Escenarios | `data/viajes-demo.json` (tiempos relativos a "ahora", en minutos) |
 
@@ -51,7 +51,7 @@ Campos de un escenario (`TripDef` en `sim.ts`): `startedMinAgo`, `lastSignalMinA
 - `__tests__/mock-backend.test.ts`: el backend simulado cumple el contrato (forma, KPIs, país, cursor, 404/400, sin GPS, calles).
 - `__tests__/api.test.ts`: el cliente arma bien las URLs y traduce errores.
 - `__tests__/page.test.tsx`: la página entera sobre el backend simulado (cambiar de viaje sin ver el detalle anterior, una sola llamada lista + KPIs, nunca `/viajes/null`, filtro por KPI, cierre simulado de Planificación).
-- **E2E** `e2e/tracking.spec.ts` (Playwright, navegador real): KPIs y lista, panel de solo lectura con factura + firma, filtro por KPI, replay, agrupación de camiones y cierre simulado. Requiere la app en `http://localhost:3000` en modo mock (`VITE_MOCK_AUTH=true npm run dev`) y país Costa Rica en el selector; correr con `npx playwright test e2e/tracking.spec.ts`. No depende de OSRM.
+- **E2E** `e2e/tracking.spec.ts` (Playwright, navegador real): KPIs y lista, panel de solo lectura con factura + firma, filtro por KPI, agrupación de camiones y cierre simulado. Requiere la app en `http://localhost:3000` en modo mock (`VITE_MOCK_AUTH=true npm run dev`) y país Costa Rica en el selector; correr con `npx playwright test e2e/tracking.spec.ts`. No depende de OSRM.
 - El equivalente contra el backend real es `scripts/tracking-contract-check.mjs` (necesita túnel; ver [pendientes-tunel.md](./pendientes-tunel.md#t3--verificar-el-contrato-v2-contra-el-backend-real)).
 
 ## Límites del mock (lo que solo se valida con túnel)
@@ -59,5 +59,4 @@ Campos de un escenario (`TripDef` en `sim.ts`): `startedMinAgo`, `lastSignalMinA
 - No hay permisos por rol ni países del rol (el mock ve todo).
 - Las URLs de evidencias son imágenes SVG en línea, no S3 firmado.
 - No hay gzip ni latencia real de Lambda/Aurora.
-- El recorrido no se simplifica con Douglas-Peucker (máx. 2000 puntos).
 - No se ejercita la ingesta (`POST /posiciones`, transiciones, evidencias): eso lo hace la app o `scripts/simular-posiciones.mjs` contra el backend real.

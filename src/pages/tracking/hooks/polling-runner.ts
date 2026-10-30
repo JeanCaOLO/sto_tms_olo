@@ -2,7 +2,7 @@
 // errores y pausa con la pestaña oculta. `usePolling` solo lo conecta al ciclo de vida del componente.
 import type { MutableRefObject } from 'react';
 
-export const POLL_INTERVAL_MS = 15_000;
+export const POLL_INTERVAL_MS = 5_000;
 export const REQUEST_TIMEOUT_MS = 15_000;
 export const MAX_BACKOFF_MS = 60_000;
 

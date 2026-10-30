@@ -14,7 +14,6 @@ export interface EmailConfig {
   includeCarrierEmail: boolean;
   subjectTemplate: string;
   bodyTemplate: string;
-  mode: 'direct' | 'manual';
 }
 
 export const DEFAULT_SUBJECT = 'Proforma {number} – {carrier}';
@@ -66,7 +65,7 @@ export async function saveFlowPhases(countryId: string, drafts: FlowPhaseDraft[]
 export async function getEmailConfig(countryId: string): Promise<EmailConfig> {
   const [row] = await db().find('proformaEmailConfig', { where: [{ column: 'country_id', op: 'eq', value: countryId }], limit: 1 });
   if (!row) {
-    return { id: null, countryId, recipients: [], includeCarrierEmail: true, subjectTemplate: DEFAULT_SUBJECT, bodyTemplate: DEFAULT_BODY, mode: 'manual' };
+    return { id: null, countryId, recipients: [], includeCarrierEmail: true, subjectTemplate: DEFAULT_SUBJECT, bodyTemplate: DEFAULT_BODY };
   }
   return {
     id: String(row.id),
@@ -75,7 +74,6 @@ export async function getEmailConfig(countryId: string): Promise<EmailConfig> {
     includeCarrierEmail: row.include_carrier_email === true,
     subjectTemplate: String(row.subject_template),
     bodyTemplate: String(row.body_template),
-    mode: row.mode === 'direct' ? 'direct' : 'manual',
   };
 }
 
@@ -95,14 +93,14 @@ export async function saveEmailConfig(config: EmailConfig): Promise<{ error: str
     include_carrier_email: config.includeCarrierEmail,
     subject_template: config.subjectTemplate,
     body_template: config.bodyTemplate,
-    mode: config.mode,
+    mode: 'direct', // columna heredada (NOT NULL): ya no hay forma de envío configurable
   };
   try {
     await db().transaction(async (tx) => {
       if (config.id) await tx.update('proformaEmailConfig', config.id, values);
       else await tx.insert('proformaEmailConfig', { id: newId('pre'), ...values });
       await tx.insert('auditLog', proformaConfigAuditRow(
-        config.countryId, null, { modo: values.mode, destinatarios: values.recipients, correoTransportista: values.include_carrier_email }, 'Correo de proformas',
+        config.countryId, null, { destinatarios: values.recipients, correoTransportista: values.include_carrier_email }, 'Correo de proformas',
       ));
     });
     return { error: null };

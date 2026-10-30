@@ -1,10 +1,13 @@
 import { useTranslation } from 'react-i18next';
 import Input from '../../../components/base/Input';
-import type { ListMode, Viaje } from '../types';
+import type { ChoferEnLinea, ListMode, Viaje } from '../types';
+import ChoferesEnLinea from './ChoferesEnLinea';
 import ViajeCard from './ViajeCard';
 
 interface Props {
   viajes: Viaje[];
+  /** Choferes con la app abierta; se muestran los que no tienen viaje en tránsito. */
+  choferes?: ChoferEnLinea[];
   loading: boolean;
   error: boolean;
   mode: ListMode;
@@ -71,6 +74,7 @@ export default function ViajesSidebar(props: Props) {
             {t('tracking.loadMore')}
           </button>
         )}
+        <ChoferesEnLinea choferes={props.choferes ?? []} now={props.now} />
       </div>
     </aside>
   );
