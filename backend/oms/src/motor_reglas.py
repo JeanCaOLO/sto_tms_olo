@@ -29,6 +29,7 @@ from collections.abc import Callable
 from datetime import date
 
 import analizador_observaciones as obs
+import estrategias_prioridad
 import regla_fecha
 import score as score_mod
 from analizador_observaciones import Clasificador, clasificador_stub
@@ -75,7 +76,11 @@ def _priorizar_uno(
     )
     cliente_retira = any(r.cliente_retira for r in resultados)
     score = score_mod.score_ponderado(resultados, config)
-    prioridad = score_mod.score_a_prioridad(score, cliente_retira=cliente_retira, config=config)
+    # El NÚMERO de prioridad lo decide la estrategia de la compañía (por scope/config):
+    # 'escala_lineal' (score→[1,escala]) o 'dias_hasta_salida' (Cofersa). Ver estrategias_prioridad.
+    ctx = estrategias_prioridad.ContextoPrioridad(
+        pedido=pedido, hoy=hoy, score=score, cliente_retira=cliente_retira, config=config)
+    prioridad = estrategias_prioridad.resolver(config.estrategia)(ctx)
     return RegistroPrioridad(
         pk=pedido.pk,
         prioridad=prioridad,

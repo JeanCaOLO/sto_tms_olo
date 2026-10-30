@@ -3,7 +3,7 @@
 // almacenado (la búsqueda/exportación usan esta etiqueta; el backend sigue
 // escribiendo 'barrido', 'procesar_viaje', etc.).
 const ACTION_LABELS: Record<string, string> = {
-  barrido: 'Corrida automática',
+  barrido: 'Ejecución automática',
   procesar_viaje: 'Procesar a Eflow',
   override_manual: 'Override manual',
 };

@@ -1,4 +1,5 @@
 import Badge from '../../../components/base/Badge';
+import { formatFechaHora } from '../fecha';
 import { actionLabel, displayMessage } from './logLabels';
 import type { OmsLogEntry, OmsLogLevel } from '../types';
 
@@ -12,12 +13,13 @@ const esManual = (action: string) => action !== 'barrido';
 
 interface LogDetailModalProps {
   log: OmsLogEntry;
+  timeZone?: string | null;
   onClose: () => void;
 }
 
 // Detalle completo de una entrada de la bitácora del OMS. Se abre al dar clic en
 // una fila de "Acciones del OMS", donde el mensaje va truncado por ancho.
-export default function LogDetailModal({ log, onClose }: LogDetailModalProps) {
+export default function LogDetailModal({ log, timeZone, onClose }: LogDetailModalProps) {
   const detalle = log.detail == null
     ? null
     : typeof log.detail === 'string'
@@ -47,9 +49,9 @@ export default function LogDetailModal({ log, onClose }: LogDetailModalProps) {
         </div>
 
         <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm mb-5">
-          <div className="flex justify-between"><span className="text-slate-500">Fecha</span><span className="text-slate-900">{log.createdAt}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Fecha</span><span className="text-slate-900">{formatFechaHora(log.createdAt, timeZone)}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Actor</span><span className="text-slate-900">{log.actor}</span></div>
-          <div className="flex justify-between col-span-2"><span className="text-slate-500">Corrida</span><span className="text-slate-900 break-all">{log.corridaId ?? '—'}</span></div>
+          <div className="flex justify-between col-span-2"><span className="text-slate-500">Ejecución</span><span className="text-slate-900 break-all">{log.corridaId ?? '—'}</span></div>
         </div>
 
         <div className="mb-4">

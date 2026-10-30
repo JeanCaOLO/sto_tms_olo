@@ -1,6 +1,6 @@
 export default {
-  'omsQueue.title': 'Pedidos',
-  'omsQueue.subtitle': 'Pedidos priorizados y liberados',
+  'omsQueue.title': 'Cola de Priorización',
+  'omsQueue.subtitle': 'Pedidos priorizados pendientes de liberar a eFlow',
   'omsQueue.warehouse': 'Almacén',
   'omsQueue.company': 'Compañía',
   'omsQueue.branch': 'Sucursal',
@@ -28,6 +28,7 @@ export default {
   'omsQueue.colItemCount': 'N.º artículos',
   'omsQueue.colObservations': 'Observaciones',
   'omsQueue.colDispatchDate': 'Fecha Entrega',
+  'omsQueue.colSalidaDate': 'Fecha Salida',
   'omsQueue.colCreatedDate': 'Fecha creación',
   'omsQueue.colScore': 'Score',
   'omsQueue.colStatus': 'Estado',

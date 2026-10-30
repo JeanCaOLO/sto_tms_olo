@@ -41,21 +41,46 @@ PUNTOS_FALLBACK = 90.0   # fecha es centinela/default: tratar como casi-urgente
 PUNTOS_POR_DIA = 10.0    # cada día de margen resta urgencia
 
 
+def fecha_entrega(pedido: PedidoCandidato) -> date | None:
+    """Fecha de entrega planificada del pedido como `date`.
+
+    Devuelve None cuando es el centinela/default (el cliente no mandó fecha real, caso
+    Cofersa): el llamador decide el fallback (tratarlo como urgente). Es el ancla cruda
+    de la estrategia `dias_hasta_salida` con ancla_fecha='entrega'. Pura.
+    """
+    planificada = _solo_fecha(pedido.fecha_expedicion_planificada)
+    return None if planificada == FECHA_CENTINELA else planificada
+
+
+def fecha_alistado_objetivo(pedido: PedidoCandidato) -> date | None:
+    """Fecha de alistado objetivo del pedido = entrega − lead_time_days (T-1 dinámico).
+
+    FUENTE ÚNICA de la aritmética de fecha del OMS: la usan tanto `evaluar` (score)
+    como la estrategia `dias_hasta_salida` con ancla_fecha='alistado' (el default),
+    para que ambas midan la urgencia contra la MISMA fecha.
+
+    - lead_time_days viene de orders (lo calcula Planificación); NULL → default (Cofersa).
+    - Devuelve None cuando la entrega es el centinela/default (ver fecha_entrega).
+    Pura: no llama al reloj.
+    """
+    entrega = fecha_entrega(pedido)
+    if entrega is None:
+        return None
+    lead_time = pedido.lead_time_days if pedido.lead_time_days is not None else LEAD_TIME_DEFAULT_DIAS
+    return entrega - timedelta(days=max(1, lead_time))
+
+
 def evaluar(pedido: PedidoCandidato, config: ConfiguracionReglas, hoy: date) -> ResultadoRegla:
     """Evalúa la urgencia por fecha de un pedido. Pura: `hoy` se inyecta."""
-    planificada = _solo_fecha(pedido.fecha_expedicion_planificada)
+    objetivo = fecha_alistado_objetivo(pedido)
 
-    if planificada == FECHA_CENTINELA:
+    if objetivo is None:
         return ResultadoRegla(
             regla=REGLA,
             puntos=PUNTOS_FALLBACK,
             detalle=f"Fecha centinela/default ({FECHA_CENTINELA.isoformat()}): fallback, se trata como urgente.",
         )
 
-    # Fecha objetivo de alistado = entrega − lead_time_days (T-1 dinámico por pedido).
-    # lead_time_days viene de orders (lo calcula Planificación); NULL → default (Cofersa).
-    lead_time = pedido.lead_time_days if pedido.lead_time_days is not None else LEAD_TIME_DEFAULT_DIAS
-    objetivo = planificada - timedelta(days=max(1, lead_time))
     dias_margen = (objetivo - hoy).days
 
     if dias_margen <= 0:

@@ -74,7 +74,8 @@ export interface QueueOrder {
   volume: number;          // Volumen (m³)
   itemCount: number;       // número de artículos del pedido
   observations: string;    // Observaciones (texto libre del vendedor)
-  dispatchDate: string;    // Fecha de Entrega (ISO date)
+  dispatchDate: string;    // Fecha de Entrega (ISO date) — delivery_date
+  salidaDate?: string;     // Fecha de SALIDA del viaje (ISO date) — dispatch_date; la que decide la liberación (salida − 1). Opcional: el mock no la trae.
   createdDate: string;     // Fecha de creación (ISO date)
   status: string;          // estado del pedido
   situation: string;       // situación del pedido (p. ej. DISP = disponible)
@@ -160,6 +161,51 @@ export interface OmsLogEntry {
   // ya no tiene columnas fijas para eso (sql/53). Extensible sin migrar esquema.
   detail: unknown | null; // jsonb
   actor: string;
+}
+
+// --- Panel del OMS: dashboard del MOTOR (datos reales de orders + oms_logs) ---
+// Reemplaza el panel mock previo (alertas/distribución/overdue). Refleja el flujo
+// real de ADR-013: el barrido PRIORIZA la cola y LIBERA a eFlow al abrir la ventana.
+
+// Embudo del día, derivado de public.orders (pedidos abiertos, closed_at IS NULL).
+export interface OmsPipeline {
+  abiertos: number;      // total de pedidos abiertos en el scope actual
+  enCola: number;        // pedidos en la BANDEJA: crudos DISP/DISP aún sin priorizar (los que salen a más de 3 días). Se cuenta desde el endpoint de la bandeja para coincidir 1:1 con esa vista
+  priorizados: number;   // ya con prioridad, esperando la ventana de salida (prioritization_run_id, sin oms_processed_at)
+  liberadosHoy: number;  // enviados a eFlow hoy (oms_processed_at = hoy)
+}
+
+// Una fila de "por liberar pronto": pedidos priorizados-no-liberados agrupados por
+// fecha de salida del viaje (dispatch_date). La ventana abre dispatch_date − 1.
+export interface ProximaLiberacion {
+  dispatchDate: string;  // fecha de salida del viaje (YYYY-MM-DD)
+  ventanaAbre: string;   // día en que el barrido lo libera (dispatch_date − dias_prep_picking)
+  abreHoy: boolean;      // la ventana ya abrió (hoy o antes)
+  pedidos: number;
+  viajes: number;        // numero_viaje distintos en esa fecha
+}
+
+// Una corrida del motor (fila 'barrido' de oms_logs con sus totales de detail).
+export interface OmsCorrida {
+  id: string;
+  createdAt: string;
+  corridaId: string | null;
+  actor: string;
+  level: OmsLogLevel;
+  action: string;
+  total: number | null;
+  priorizados: number | null;
+  liberados: number | null;
+  pendientes: number | null;
+  reconciliados: number | null;
+  message: string;
+}
+
+// Latido del motor: última corrida, historial corto y errores recientes.
+export interface OmsMotorActividad {
+  ultima: OmsCorrida | null;
+  corridas: OmsCorrida[];
+  erroresRecientes: number; // filas level='error' en las últimas 24 h
 }
 
 // --- Simulador como CONFIGURADOR de simulaciones (DECIDED 2026-09-15) ---
