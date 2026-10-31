@@ -18,7 +18,7 @@ import type { PlanStatus } from '../planificacion/planes-types';
 export default function GuiasPage() {
   const { appUser } = useAuth();
   const { planes, cargando } = usePlanesList();
-  const { conductores } = useCatalogos(appUser);
+  const { conductores, error: catalogosError } = useCatalogos(appUser);
   const { nombreDe } = useZonasNombre();
   const [filtro, setFiltro] = useState<'all' | 'confirmed' | 'completed'>('all');
   const [startDate, setStartDate] = useState('');
@@ -103,6 +103,13 @@ export default function GuiasPage() {
           Resultado de la planificación: una guía por viaje de los planes confirmados y completados. Abrí una para ver sus paradas e imprimirla.
         </p>
       </div>
+
+      {catalogosError && (
+        <div role="alert" className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700 flex items-center gap-2">
+          <i className="ri-error-warning-line"></i>
+          {catalogosError} Los nombres de conductor pueden no aparecer en las guías.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Total Guías" value={guias.length} icon="ri-file-list-3-line" color="teal" />

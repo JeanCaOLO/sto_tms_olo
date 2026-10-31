@@ -18,12 +18,17 @@ export function usePlanAutomatico({ vehiculos, conductores }: Deps) {
   const [cargando, setCargando] = useState(true);
   const [resultado, setResultado] = useState<ResultadoPlan | null>(null);
   const [planificando, setPlanificando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     setCargando(true);
     setResultado(null);
+    setError(null);
     try {
       setPedidos(await fetchPedidosParaPlanificar(fecha));
+    } catch (e) {
+      setPedidos([]);
+      setError(e instanceof Error ? e.message : 'No se pudieron cargar los pedidos.');
     } finally {
       setCargando(false);
     }
@@ -40,5 +45,5 @@ export function usePlanAutomatico({ vehiculos, conductores }: Deps) {
     setPlanificando(false);
   };
 
-  return { fecha, pedidos, cargando, resultado, planificando, planificar, recargar: cargar };
+  return { fecha, pedidos, cargando, error, resultado, planificando, planificar, recargar: cargar };
 }

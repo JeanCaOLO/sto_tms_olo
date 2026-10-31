@@ -6,7 +6,10 @@ import {
 import { FALLBACK_TRANSPORTISTAS } from './fallback-catalogos';
 import { getFallbackPedidos } from './fallback-pedidos';
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe('mapViaje', () => {
   const row = {
@@ -81,6 +84,26 @@ describe('fetch + fallback', () => {
     expect(v[0].route_type_id).toBe('eflow-rt-08');
     expect(v[0].trip_number).toBe('Viaje 1'); // solo número
     expect(v[0].pedidos).toEqual([]); // los pedidos se cargan al seleccionar
+  });
+
+  it('manda el JWT de la sesión en Authorization', async () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ([]) }));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('localStorage', {
+      getItem: () => JSON.stringify({ access_token: 'tok-123', user: { id: 'u', email: 'a@b.c' } }),
+    });
+    await fetchViajes();
+    const init = (fetchMock.mock.calls[0] as unknown as [string, { headers: Record<string, string> }])[1];
+    expect(init.headers).toEqual({ Authorization: 'Bearer tok-123' });
+  });
+
+  it('sin sesión no manda cabecera Authorization', async () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ([]) }));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('localStorage', { getItem: () => null });
+    await fetchViajes();
+    const init = (fetchMock.mock.calls[0] as unknown as [string, { headers: Record<string, string> }])[1];
+    expect(init.headers).toEqual({});
   });
 
   it('fetchTransportistas returns the fallback when the API errors', async () => {

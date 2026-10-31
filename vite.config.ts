@@ -82,7 +82,7 @@ export default defineConfig({
     // Dev proxy: frontend calls /api/* -> local read-only EFLOW QA server (pnpm server).
     proxy: {
       "/api": {
-        target: process.env.EFLOW_API_URL || "http://localhost:4000",
+        target: process.env.EFLOW_API_URL || "http://127.0.0.1:4000",
         changeOrigin: true,
       },
     },

@@ -67,6 +67,20 @@ function operationalHeaders(headers: Headers) {
   }
 }
 
+/**
+ * El backend rechazó el token (401): la sesión ya no sirve. La borra y avisa SIGNED_OUT para que
+ * `AuthProvider` devuelva al usuario a /login. Idempotente: si ya no hay sesión guardada no hace
+ * nada, así varias respuestas 401 simultáneas provocan un solo cierre. `rejectedToken` es el token
+ * con el que se hizo la llamada: si entre tanto el usuario inició otra sesión, no se la borra.
+ */
+export function expireSession(rejectedToken?: string | null): void {
+  const stored = readSession();
+  if (!stored) return;
+  if (rejectedToken && stored.access_token !== rejectedToken) return;
+  writeSession(null);
+  notify("SIGNED_OUT", null);
+}
+
 export async function apiFetch(path: string, init: NonNullable<Parameters<typeof fetch>[1]> = {}) {
   const current = readSession();
   const headers = new Headers(init.headers);
@@ -74,6 +88,8 @@ export async function apiFetch(path: string, init: NonNullable<Parameters<typeof
   if (current?.access_token) headers.set("Authorization", `Bearer ${current.access_token}`);
   operationalHeaders(headers);
   const res = await fetch(`${API_BASE}/api${path}`, { ...init, headers });
+  // Un 401 de login es "credenciales incorrectas", no una sesión vencida.
+  if (res.status === 401 && current && path !== "/auth/login") expireSession(current.access_token);
   const body = await res.json().catch(() => null);
   const normalizedError = typeof body?.error === 'string' ? { message: body.error } : (body?.error ?? null);
   return { ok: res.ok, status: res.status, body: body ? { ...body, error: normalizedError } : { error: normalizedError } };

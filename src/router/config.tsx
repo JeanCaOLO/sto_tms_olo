@@ -20,7 +20,9 @@ const LiquidacionesPage = lazy(() => import('../pages/liquidaciones/page'));
 const ProformasPage = lazy(() => import('../pages/proformas/page'));
 const ConfiguracionPage = lazy(() => import('../pages/configuracion/page'));
 const AuditoriaPage = lazy(() => import('../pages/auditoria/page'));
-const SeedPage = lazy(() => import('../pages/seed/page'));
+// Solo desarrollo: inserta datos maestros sin chequeo de rol. Con `DEV` en false Vite elimina la
+// página del bundle y `/seed` cae al 404.
+const SeedPage = import.meta.env.DEV ? lazy(() => import('../pages/seed/page')) : null;
 const NotFoundPage = lazy(() => import('../pages/NotFound'));
 const DevolucionesPage = lazy(() => import('../pages/devoluciones/page'));
 const GuiasPage = lazy(() => import('../pages/guias/page'));
@@ -122,10 +124,7 @@ const routes: RouteObject[] = [
     path: '/auditoria',
     element: <AuditoriaPage />
   },
-  {
-    path: '/seed',
-    element: <SeedPage />
-  },
+  ...(SeedPage ? [{ path: '/seed', element: <SeedPage /> }] : []),
   {
     path: '/devoluciones',
     element: <DevolucionesPage />
