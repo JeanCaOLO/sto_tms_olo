@@ -55,6 +55,8 @@ export function toTripRecord(row: Row): TripRecord {
     deliveredGuides: row.delivered_guides === null || row.delivered_guides === undefined
       ? num(row.guide_count) : num(row.delivered_guides),
     returnCount: num(row.return_count),
+    novedadCount: num(row.novedad_count),
+    pickupCount: num(row.pickup_count),
     settlementId: text(row.settlement_id),
   };
 }

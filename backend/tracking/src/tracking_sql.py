@@ -133,7 +133,7 @@ SELECT g.id, g.guide_number, g.sequence_number, g.status, g.delivery_status,
        cu.name AS customer_name, cu.phone AS customer_phone
 FROM dispatch_guides g
 JOIN routes r ON r.id = g.route_id
-JOIN orders o ON o.id = g.order_id
+LEFT JOIN orders o ON o.id = g.order_id
 LEFT JOIN customers cu ON cu.id = o.customer_id
 LEFT JOIN plan_stops ps ON ps.trip_id = r.plan_trip_id AND ps.order_id = g.order_id
 WHERE g.route_id = %s

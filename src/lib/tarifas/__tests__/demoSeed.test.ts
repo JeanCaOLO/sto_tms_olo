@@ -31,7 +31,7 @@ describe('semilla de demostración — cobertura', () => {
   const PUEDEN_ESTAR_VACIAS = new Set<string>([
     'tripTenderAwards',
     // Proformas: las crea la gente al agrupar liquidaciones; la demo no las inventa.
-    'proformas', 'proformaItems', 'proformaPhases', 'proformaFlowPhases', 'proformaEmailConfigs',
+    'proformas', 'proformaItems', 'proformaPhases', 'proformaClaims', 'proformaFlowPhases', 'proformaEmailConfigs',
   ]);
 
   it('trae todas las colecciones del almacén, con filas', () => {

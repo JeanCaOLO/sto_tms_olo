@@ -64,6 +64,7 @@ export default function LiquidarViajeModal({ trip, settlement, isOpen, onClose, 
               error={ctrl.error}
               loadError={ctrl.loadError}
               noLogic={ctrl.noLogic}
+              claimReason={trip?.claimVoidReason}
             />
             <LiquidarViajeBody ctrl={ctrl} simple={simple} blocking={blocking} currency={currency} />
           </>

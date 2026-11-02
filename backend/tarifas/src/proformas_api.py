@@ -1,4 +1,4 @@
-"""Decisiones sobre las fases de una proforma: aprobar, rechazar, quitar, reenviar o anular.
+"""Decisiones sobre las fases de una proforma: aprobar, rechazar, quitar, reenviar, apelar, reiniciar o anular.
 
 Todo cambio de estado de una proforma o de una fase pasa por aquí (la API genérica los rechaza, ver
 `check_direct_write`): así quién puede aprobar cada fase lo decide el servidor, no el navegador.
@@ -20,14 +20,19 @@ import tarifas_sql
 MODULE = "tarifas.proformas"
 PROFORMAS = "tarifas_proformas"
 PHASES = "tarifas_proforma_phases"
+CLAIMS = "tarifas_proforma_claims"
 ITEMS = "tarifas_proforma_items"
 # Estado que toman las liquidaciones de una proforma cuando ésta cambia (anulada: se liberan en Borrador).
 SETTLEMENT_STATUS = {"Anulado": "Borrador"}
+# Motivo con el que se excluyen los ítems cuando el liquidador reinicia la liquidación por un reclamo.
+RESTART_REASON = "Reinicio por reclamo"
 DIRECT_STATUS_MESSAGE = "El estado y las fases de una proforma cambian solo con su decisión (aprobar, rechazar, quitar fase)."
 
 
 def check_direct_write(table: str, kind: str, values: object) -> None:
     """La API genérica no puede saltarse el flujo: ni cambiar fases ni el estado de una proforma."""
+    if table == CLAIMS and kind in ("insert", "update", "delete"):
+        raise HttpError(405, "Los reclamos cambian solo con la decisión de la proforma (rechazar, apelar, reiniciar).")
     if table == PHASES and kind in ("update", "delete"):
         raise HttpError(405, DIRECT_STATUS_MESSAGE)
     if table == PROFORMAS and kind == "delete":
@@ -42,9 +47,17 @@ def _load(proforma_id: str, caller: permissions.Permissions) -> tuple[dict, list
     if not rows or not _in_scope(caller, rows[0]["country_id"]):
         raise HttpError(404, "Proforma no encontrada.")
     phases = tarifas_db.query(
-        "SELECT id, position, state, approver_type, role_name, user_id FROM tarifas_proforma_phases "
+        "SELECT id, position, name, state, approver_type, role_name, user_id FROM tarifas_proforma_phases "
         "WHERE proforma_id = %s ORDER BY position", [proforma_id])
     return rows[0], phases
+
+
+def _open_claim(proforma_id: str) -> dict | None:
+    """El reclamo vigente de la proforma: abierto (espera al liquidador) o apelado (espera a la fase)."""
+    rows = tarifas_db.query(
+        "SELECT id, phase_id, status, reason FROM tarifas_proforma_claims "
+        "WHERE proforma_id = %s AND status IN ('abierto', 'apelado') ORDER BY created_at DESC LIMIT 1", [proforma_id])
+    return rows[0] if rows else None
 
 
 def _in_scope(caller: permissions.Permissions, country_id: object) -> bool:
@@ -81,7 +94,9 @@ def decide(event: dict) -> dict:
     proforma, phases = _load(proforma_id, caller)
     action = str(body.get("action") or "")
     actor = auth_user(event).get("email") or caller.app_user_id
-    plan = _plan(proforma, phases, action, body, caller)
+    claim = _open_claim(proforma_id) if action in ("approve", "reject", "appeal", "restart") else None
+    plan = _plan(proforma, phases, action, body, caller, claim)
+    comment = str(body.get("comment") or "").strip() or None
 
     def apply(run) -> list:
         for phase_id, fields in plan["changes"]:
@@ -92,10 +107,22 @@ def decide(event: dict) -> dict:
         run("UPDATE tarifas_proformas SET status = %s, updated_at = now() WHERE id = %s RETURNING id",
             [plan["status"], proforma_id])
         # El estado de las liquidaciones incluidas sigue al de la proforma (anulada = vuelven a Borrador).
-        run("UPDATE tarifas_settlements SET status = %s, updated_at = now() "
-            "WHERE id IN (SELECT settlement_id FROM tarifas_proforma_items WHERE proforma_id = %s AND state <> 'excluded') "
-            "AND status IN ('Borrador', 'En Revisión', 'Aprobado') AND superseded_by IS NULL RETURNING id",
-            [SETTLEMENT_STATUS.get(plan["status"], plan["status"]), proforma_id])
+        if action == "restart":
+            # Reinicio por reclamo: las liquidaciones se anulan con el motivo del reclamo y el viaje vuelve a "Por liquidar".
+            run("UPDATE tarifas_settlements SET status = 'Anulado', void_kind = 'reclamo', void_reason = %s, claim_id = %s, "
+                "updated_at = now() WHERE id IN (SELECT settlement_id FROM tarifas_proforma_items "
+                "WHERE proforma_id = %s AND state <> 'excluded') AND status IN ('Borrador', 'En Revisión', 'Aprobado') "
+                "AND superseded_by IS NULL RETURNING id", [claim["reason"], claim["id"], proforma_id])
+        else:
+            run("UPDATE tarifas_settlements SET status = %s, updated_at = now() "
+                "WHERE id IN (SELECT settlement_id FROM tarifas_proforma_items WHERE proforma_id = %s AND state <> 'excluded') "
+                "AND status IN ('Borrador', 'En Revisión', 'Aprobado') AND superseded_by IS NULL RETURNING id",
+                [SETTLEMENT_STATUS.get(plan["status"], plan["status"]), proforma_id])
+        for sql, params in _claim_sql(action, proforma, phases, claim, body, actor, caller, comment):
+            run(sql, params)
+        if action == "restart":
+            run("UPDATE tarifas_proforma_items SET state = 'excluded', exclusion_reason = %s "
+                "WHERE proforma_id = %s AND state <> 'excluded' RETURNING id", [RESTART_REASON, proforma_id])
         if action == "annul":
             run("UPDATE tarifas_proforma_items SET state = 'excluded', exclusion_reason = 'Proforma anulada' "
                 "WHERE proforma_id = %s AND state <> 'excluded' RETURNING id", [proforma_id])
@@ -106,6 +133,30 @@ def decide(event: dict) -> dict:
 
     tarifas_db.run_in_transaction(apply, retries=2)
     return json_response(200, {"status": plan["status"], "phases": _load(proforma_id, caller)[1]})
+
+
+def _claim_sql(action: str, proforma: dict, phases: list[dict], claim: dict | None, body: dict, actor: str,
+               caller: permissions.Permissions, comment: str | None) -> list[tuple[str, list]]:
+    """Efecto de la decisión sobre el reclamo: un rechazo lo abre, apelar lo pasa a la fase, aprobar tras apelar
+    lo acepta, rechazar de nuevo tras apelar lo cierra como rechazado y abre otro, reiniciar lo cierra."""
+    ops: list[tuple[str, list]] = []
+    close = "UPDATE tarifas_proforma_claims SET status = %s, resolved_by = %s, resolved_at = now() WHERE id = %s RETURNING id"
+    if action == "reject":
+        phase = next(p for p in phases if p["id"] == body.get("phaseId"))
+        if claim and claim["status"] == "apelado":
+            ops.append((close, ["rechazado", actor, claim["id"]]))
+        ops.append(("INSERT INTO tarifas_proforma_claims (id, country_id, proforma_id, phase_id, phase_name, raised_by, "
+                    "raised_role, reason, status, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'abierto', now()) RETURNING id",
+                    [tarifas_sql.new_id("prc"), proforma["country_id"], proforma["id"], phase["id"], phase["name"],
+                     actor, caller.role_name, comment]))
+    elif action == "approve" and claim and claim["status"] == "apelado" and claim["phase_id"] == body.get("phaseId"):
+        ops.append((close, ["aceptado", actor, claim["id"]]))
+    elif action == "appeal":
+        ops.append(("UPDATE tarifas_proforma_claims SET status = 'apelado', appeal_reason = %s, appealed_by = %s, "
+                    "appealed_at = now() WHERE id = %s RETURNING id", [comment, actor, claim["id"]]))
+    elif action == "restart":
+        ops.append((close, ["reiniciado", actor, claim["id"]]))
+    return ops
 
 
 def authorize_send(event: dict) -> dict:
@@ -124,8 +175,17 @@ def authorize_send(event: dict) -> dict:
     return {"ok": True}
 
 
-def _plan(proforma: dict, phases: list[dict], action: str, body: dict, caller: permissions.Permissions) -> dict:
+def _plan(proforma: dict, phases: list[dict], action: str, body: dict, caller: permissions.Permissions,
+          claim: dict | None = None) -> dict:
     status = proforma["status"]
+    if action == "restart":
+        if not proformas_flow.can_manage(caller.role_name, caller.is_admin):
+            raise HttpError(403, "Solo el liquidador puede reiniciar la liquidación por un reclamo.")
+        if claim is None or claim["status"] != "abierto" or status != "Borrador":
+            raise HttpError(409, "Solo se puede reiniciar una proforma con un reclamo abierto.")
+        return {"changes": [], "status": "Anulado"}
+    if action == "appeal" and (claim is None or claim["status"] != "abierto"):
+        raise HttpError(409, "Solo se puede apelar un reclamo abierto.")
     if action == "annul":
         if status in ("Anulado", "Pagado"):
             raise HttpError(409, f'Una proforma "{status}" no se puede anular.')

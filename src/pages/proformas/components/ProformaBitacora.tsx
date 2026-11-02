@@ -3,9 +3,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
-import { listProformaEvents, type ProformaEvent } from '../../../lib/tarifas/proformas';
+import { listProformaEvents, type DateRange, type ProformaEvent } from '../../../lib/tarifas/proformas';
 
-const ACTIONS: Record<string, string> = { CREATE: 'Creación', UPDATE: 'Cambio', AUTHORIZE: 'Decisión de fase' };
+const ACTIONS: Record<string, string> = {
+  CREATE: 'Creación', UPDATE: 'Cambio', AUTHORIZE: 'Decisión de fase',
+  approve: 'Aprobó la fase', reject: 'Rechazó (reclamo)', skip: 'Quitó una fase', resubmit: 'Reenvió a revisión',
+  annul: 'Anuló la proforma', appeal: 'Apeló el reclamo', restart: 'Reinició la liquidación',
+};
 
 const when = (iso: string) => new Date(iso).toLocaleString('es-ES');
 const detailOf = (ev: ProformaEvent) => JSON.stringify({ antes: ev.before, despues: ev.after, motivo: ev.reason }, null, 2);
@@ -14,9 +18,11 @@ interface Props {
   proformaId?: string;
   /** id de proforma → número (PRO-…), para mostrar algo legible en la lista general. */
   numbers?: Map<string, string>;
+  /** Solo eventos de ese rango de fechas. */
+  range?: DateRange;
 }
 
-export default function ProformaBitacora({ proformaId, numbers }: Props) {
+export default function ProformaBitacora({ proformaId, numbers, range }: Props) {
   const [events, setEvents] = useState<ProformaEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -25,13 +31,13 @@ export default function ProformaBitacora({ proformaId, numbers }: Props) {
     setLoading(true);
     setError(null);
     try {
-      setEvents(await listProformaEvents(proformaId));
+      setEvents(await listProformaEvents(proformaId, range));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo cargar la bitácora.');
     } finally {
       setLoading(false);
     }
-  }, [proformaId]);
+  }, [proformaId, range]);
 
   useEffect(() => { void load(); }, [load]);
 

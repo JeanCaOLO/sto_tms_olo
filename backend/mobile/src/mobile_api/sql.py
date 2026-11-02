@@ -91,7 +91,7 @@ SELECT r.id, r.route_number, r.route_date, r.status, COALESCE(pt.created_at, r.c
        v.plate, z.name AS zone_name,
        lp.latitude AS last_lat, lp.longitude AS last_lng, lp.recorded_at AS last_position_at
 FROM routes r
-JOIN stores s ON s.id = r.store_id
+LEFT JOIN stores s ON s.id = r.store_id
 LEFT JOIN countries co ON co.id = s.country_id
 LEFT JOIN plan_trips pt ON pt.id = r.plan_trip_id
 LEFT JOIN route_plans rp ON rp.id = pt.plan_id
@@ -100,6 +100,7 @@ LEFT JOIN vehicles v ON v.id = r.vehicle_id
 LEFT JOIN zones z ON z.id = r.route_type_id
 LEFT JOIN tracking_last_positions lp ON lp.route_id = r.id
 WHERE r.organization_id = %s AND r.driver_id = %s AND lower(r.status) = ANY(%s)
+  AND (pt.status IS NULL OR pt.status NOT IN ('completed', 'cancelled'))
 ORDER BY COALESCE(r.actual_start_time, r.created_at), r.id
 LIMIT 10
 """
@@ -115,7 +116,7 @@ SELECT g.id, g.route_id, g.guide_number, g.sequence_number, g.status, g.delivery
                 ARRAY[]::text[]) AS evidence_kinds
 FROM dispatch_guides g
 JOIN routes r ON r.id = g.route_id
-JOIN orders o ON o.id = g.order_id
+LEFT JOIN orders o ON o.id = g.order_id
 LEFT JOIN customers cu ON cu.id = o.customer_id
 LEFT JOIN plan_stops ps ON ps.trip_id = r.plan_trip_id AND ps.order_id = g.order_id
 WHERE g.route_id = ANY(%s::uuid[])
@@ -250,9 +251,12 @@ WHERE pt.id = %s
 """
 ROUTE_BY_PLAN_TRIP_SQL = "SELECT id FROM routes WHERE plan_trip_id = %s"
 # Otro viaje del chofer, en tránsito y con paradas por entregar: mientras exista no se puede iniciar uno nuevo.
+# Si Planificación ya lo completó/canceló (plan_trips), no cuenta: igual que en Tracking (OPEN_IN_PLAN).
 UNFINISHED_ROUTE_SQL = f"""
 SELECT r.id FROM routes r
+LEFT JOIN plan_trips pt ON pt.id = r.plan_trip_id
 WHERE r.organization_id = %s AND r.driver_id = %s AND lower(r.status) = ANY(%s)
+  AND (pt.status IS NULL OR pt.status NOT IN ('completed', 'cancelled'))
   AND EXISTS (SELECT 1 FROM dispatch_guides g WHERE g.route_id = r.id
               AND NOT ({_GUIDE_STATE} IN {DELIVERED_SQL} OR {_GUIDE_STATE} IN {FAILED_SQL}))
 LIMIT 1

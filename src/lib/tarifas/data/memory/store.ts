@@ -45,6 +45,7 @@ export interface TarifasDatabase {
   proformas: Rows;
   proformaItems: Rows;
   proformaPhases: Rows;
+  proformaClaims: Rows;
   proformaFlowPhases: Rows;
   proformaEmailConfigs: Rows;
   auditLog: Rows;
@@ -57,7 +58,7 @@ export const COLLECTIONS: (keyof TarifasDatabase)[] = [
   'tripTenderAwards', 'countrySettings', 'zoneGroups', 'pricingRules', 'pricingTemplates', 'settlementParties',
   'partyVariables', 'settlements', 'costStructures', 'costStructureRows', 'rateTables',
   'rateTableRows', 'marginPolicies', 'proformas', 'proformaItems', 'proformaPhases',
-  'proformaFlowPhases', 'proformaEmailConfigs', 'auditLog',
+  'proformaClaims', 'proformaFlowPhases', 'proformaEmailConfigs', 'auditLog',
 ];
 
 let seed: TarifasDatabase | null = null;

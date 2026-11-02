@@ -1,6 +1,7 @@
 // Emitir una liquidación nueva.
 
 import { autoAssignSettlement } from '../proformas/autoAssign';
+import { stampClaimOrigin } from '../proformas/claimOrigin';
 import { getTrip } from '../tripsDataSource';
 import { failed, isNumberCollision } from './errorHandling';
 import { attemptEmit } from './emitLogic';
@@ -29,7 +30,10 @@ export async function emitSettlement(input: SettlementInput): Promise<EmitSettle
 
     const result = await attemptEmit(input, trip);
     // La proforma se genera sola: la liquidación entra a la abierta de su transportista (o abre una).
-    if (result.status === 'saved') await autoAssignSettlement(result.settlement);
+    if (result.status === 'saved') {
+      await stampClaimOrigin(result.settlement.id, input.trip.id);
+      await autoAssignSettlement(result.settlement);
+    }
     return result;
   } catch (error) {
     const isCollision = await isNumberCollision(error, input.trip.id);
