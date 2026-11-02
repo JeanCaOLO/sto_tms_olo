@@ -4,8 +4,30 @@
 > **re-corrida v4 por reuniones de negocio — inversión del flujo OMS↔Planificación**,
 > 2026-10-16). Proyecto brownfield `sto_tms_olo`. Idioma: español.
 >
-> **Nomenclatura (vigente)**: el WMS es **EFLOW**; el módulo que parte los pedidos
-> de EPA por línea es **EPRAC**. (No "IPRAC" ni "IFLOW".)
+> **Nomenclatura (vigente)**: el WMS es **EFLOW**; el módulo que asigna la
+> prioridad de los pedidos de EPA (1 o 2) es **EPRAC**. (No "IPRAC" ni "IFLOW".)
+>
+> **Refinamiento v4.2 (prioridad Cofersa, 2026-10-29)** — reuniones de negocio
+> 2026-10-27/28/29 (fuente: `docs/work/2026-10/2026-10-29-prioridad-cofersa-dias-hasta-salida.md`):
+>
+> - La prioridad de **Cofersa** pasa a una **escala numérica 0..n** (menor número =
+>   más urgente). **Supera, solo para Cofersa**, el DECIDED del 2026-09-02 "EPA y
+>   Cofersa usan 2 prioridades" y la idea de "~2 prioridades/día" del DECIDED del
+>   2026-09-10 (FR3.3). Para EPA ese DECIDED sigue vigente: 1 y 2.
+> - **El número = días que faltan para la salida del pedido** (horizonte ~3 días:
+>   sale mañana = 1, pasado = 2…). Se **recalcula en cada barrido**, así que baja
+>   solo conforme se acerca la fecha (FR3.6, FR3.8).
+> - **0 = pedido ya liberado / en proceso** (situación generada). **Nunca aparece en
+>   la cola**: la cola siempre es ≥ 1 (**piso de cola = 1**) (FR3.7).
+> - **Cliente-retira = máxima de la cola = piso de cola (1)**, nunca 0 (FR6.2).
+> - **EPA no cambia** (`priorizar=false`, trae su prioridad de EFLOW/EPRAC: **1 o
+>   2**, nunca 0). Para EPA el DECIDED del 2026-09-02 sigue vigente (FR6b.4).
+>   **OQ-EPA-VAL — CERRADA 2026-10-30: EPA = 1 y 2 (confirmado por Eduardo; fuente
+>   2026-09-01)**.
+> - **Primera entrega**: solo la regla de tiempo (fecha) + cliente-retira (FR3.10).
+> - El esquema de numeración es **por compañía y configurable** (estrategia +
+>   parámetros por scope en `oms_rule_configs`), no hardcodeado (FR3.9).
+> - Quedan **abiertas**: OQ-PRIO-A (aparcada), OQ-PRIO-B, OQ-PRIO-C.
 >
 > **Correcciones de esta re-corrida v4 (sobre v3), de reuniones de negocio
 > (process owner Antonio):**
@@ -23,9 +45,10 @@
 >    en EFLOW** (flag confirmado en TRUE). El OMS no escribe el número de viaje
 >    (lo escribe Planificación) ni toca el picking.
 > 3. **EPA sin cálculo (D9)**: para EPA la prioridad viene **pre-asignada** por
->    **EPRAC** (guion-0 = falla = prioridad 0; guion-1 = regular = prioridad 1); el
->    OMS no recalcula, solo pone ambas en `GENE` con su prioridad, liberándolas
->    juntas. EPA no usa la regla de fecha.
+>    **EPRAC** (**1 o 2**; nunca 0); el OMS no recalcula, solo pone el pedido en
+>    `GENE` con su prioridad. EPA no usa la regla de fecha. *(Corregido
+>    2026-10-30: se retira el mapeo "guion-0 = 0 / guion-1 = 1", sin respaldo en
+>    las fuentes; EPA = 1 y 2, ver ADR-009.)*
 > 4. **Regla de fecha generalizada (D10)**: T-1 es un caso particular de
 >    `fecha_listo = fecha_de_entrega − duración_logística`. La **duración es un
 >    insumo por pedido/viaje que entrega Planificación** (ya no un parámetro fijo
@@ -96,7 +119,8 @@ Lo que el OMS **busca lograr**:
 - Sustituir los "clicks" manuales de la Torre de Control por un motor de reglas
   auditable, para no depender de que un operador lea ~400–500 observaciones/día.
 - Decidir **cuándo** preparar cada pedido (regla de fecha T-1) y con qué
-  **prioridad** (número invertido), evitando el alistamiento prematuro (satura
+  **prioridad** (número invertido; en Cofersa, días hasta la salida — FR3.6),
+  evitando el alistamiento prematuro (satura
   el muelle) y el tardío (pierde el viaje).
 - Operar **multi-país y multi-compañía** (Cofersa, EPA… en CR/VE) con reglas
   específicas resueltas por **scope** (país → almacén → cliente).
@@ -167,9 +191,9 @@ El OMS **no** modifica el WMH ni lee las tablas intermedias.
 - **EFLOW**: el **WMS** (sistema de gestión de almacén); su BD es `EFLOW_OLO`.
   Genera las tareas de picking cuando la situación pasa a `GENE`. Fuente original
   de los pedidos (ingeridos a `public.orders`).
-- **EPRAC**: módulo que **parte los pedidos de EPA por línea** en dos expediciones
-  (mismo número + guion-0 / guion-1) y les **pre-asigna la prioridad** (0 = falla,
-  1 = regular). El OMS respeta esa prioridad para EPA (FR6b).
+- **EPRAC**: módulo que entrega los pedidos de EPA y les **pre-asigna la
+  prioridad** en cabecera: **1 o 2** (EPA maneja 2 prioridades, 1 y 2; nunca 0;
+  esos valores no cambian). El OMS respeta esa prioridad para EPA (FR6b).
 - **lambda de activación**: función nueva que **Planificación invoca** para activar
   al OMS sobre un lote/corrida ya procesado (FR0); reemplaza el disparo por
   cron/EventBridge.
@@ -186,8 +210,23 @@ El OMS **no** modifica el WMH ni lee las tablas intermedias.
 - **`estado` / `situación`**: campos del pedido en EFLOW. El pedido llega en
   `estado = DISP` / `situación = DISP` (disponible). El OMS lo cambia a
   `situación = GENERADA` para mandarlo a preparar.
-- **prioridad**: número **invertido** (menor = mayor urgencia; 0/1 primero).
-  Atada a la fecha de despacho.
+- **prioridad**: número **invertido** (menor = mayor urgencia), atado a la fecha de
+  despacho. **No hay niveles nombrados** (crítico/alto/medio/bajo). Cómo se numera
+  lo decide la **estrategia de prioridad** de la compañía (FR3.9). En **Cofersa**
+  (v4.2): escala `0..n` = días que faltan para la salida del pedido; `0` = pedido
+  ya liberado (nunca en la cola); en la cola, ≥ **piso de cola**. Los números
+  grandes del WMS (p. ej. 700) son del universo del WMS (pedidos parqueados en la
+  Bandeja, > 3 días), no de esta escala.
+- **piso de cola**: el número **mínimo** que puede mostrar un pedido mientras está
+  en la cola de priorización (parámetro `prioridad_piso` de `oms_rule_configs`,
+  default **1**). El `0` se reserva para el pedido ya liberado. Cliente-retira
+  recibe el piso de cola (FR6.2).
+- **estrategia de prioridad**: esquema de numeración que convierte el resultado
+  del motor en el número de prioridad. Se elige **por scope** en `oms_rule_configs`
+  (columna `estrategia`): `escala_lineal` (default; mapea el score a
+  `[1, escala_prioridad]`, comportamiento previo) o `dias_hasta_salida` (Cofersa;
+  parámetros `ancla_fecha` y `prioridad_piso`). La lógica de cada estrategia vive en
+  código; la config solo elige cuál y con qué parámetros (FR3.9).
 - **score**: valor ponderado (suma de pesos de las reglas que aplican) que
   determina la prioridad del pedido.
 - **Regla T-1**: fecha de listo = fecha de entrega − 1 día (ajustada por
@@ -197,7 +236,8 @@ El OMS **no** modifica el WMH ni lee las tablas intermedias.
   cliente. El OMS la usa como **insumo** y **no la modifica**.
 - **cliente retira**: pedido que el cliente recoge; se identifica por su **zona**
   (`delivery_zone`), no por el texto de observaciones (D11); recibe la prioridad
-  más alta + agrupación en su viaje/cliente.
+  más alta **de la cola** (= piso de cola, 1 en Cofersa; nunca 0) + agrupación en
+  su viaje/cliente.
 - **observaciones**: texto libre del vendedor (dirección, urgencia, cita…). Su
   interpretación por IA (Bedrock) queda **a futuro** (D11); ya no es la fuente de
   "cliente retira".
@@ -325,17 +365,73 @@ entrega. Aplica a Cofersa/mayoreo; NO aplica a EPA (ver FR6b).**
 ### FR3 — Modelo de prioridad numérica y score
 
 - **FR3.1** La prioridad es **numérica e invertida**: menor número = mayor
-  urgencia (0/1 se atiende primero). Debe hacer *match* con el esquema del WMS.
-- **FR3.2** El motor calcula la prioridad con un **score ponderado**: cada regla
-  aplicable suma su peso; el mayor peso corresponde a **cliente retira**, luego
-  a la fecha. El score entra en el alcance **desde la primera entrega**.
-- **FR3.3** Idealmente el día maneja pocas prioridades (lo de mañana + cliente
-  retira); si hay capacidad ociosa se adelantan pedidos de días siguientes.
+  urgencia. Debe hacer *match* con el esquema del WMS. **No** hay niveles nombrados
+  (crítico/alto/medio/bajo, `priority_tier`). Cómo se numera lo decide la
+  **estrategia de prioridad** de la compañía (FR3.9).
+- **FR3.2** El motor calcula un **score ponderado**: cada regla aplicable suma su
+  peso; el mayor peso corresponde a **cliente retira**, luego a la fecha. El score
+  entra en el alcance **desde la primera entrega** y se persiste (`oms_score`) para
+  auditoría. Con la estrategia `escala_lineal` el score **determina** el número de
+  prioridad; con `dias_hasta_salida` (Cofersa) el número sale de los días hasta la
+  salida y el score queda como dato auditable (v4.2).
+- **FR3.3** ~~Idealmente el día maneja pocas prioridades (lo de mañana + cliente
+  retira; "~2 prioridades/día")~~ **SUPERADO para Cofersa (v4.2, 2026-10-29)**: la
+  escala ya no se limita a 2 prioridades; el número es días hasta la salida
+  (FR3.6). Sigue vigente que, si hay capacidad ociosa, se pueden adelantar pedidos
+  de días siguientes (vía la acción manual de liberación de ADR-013).
 - **FR3.4** Existe un **umbral de inyección**: el OMS solo prepara pedidos hasta
   cierta prioridad (el resto espera). El umbral es configurable (ver OQ-5).
 - **FR3.5** El resultado de cada priorización queda **auditable** con la regla,
   su versión y los factores que la produjeron (base para `decision_log` /
   `rule_execution_log` del diseño objetivo).
+- **FR3.6 (Cofersa — escala por días hasta la salida, v4.2)** La prioridad de
+  Cofersa es una **escala `0..n`**: el número = **cuántos días faltan para la salida
+  del pedido** (horizonte ~3 días: sale mañana = 1, pasado = 2, etc.). La "salida"
+  se ancla hoy a la **fecha de alistado objetivo** (`delivery_date −
+  lead_time_days`, la misma de FR2); el ancla fina queda abierta (**OQ-PRIO-C**).
+  Si la fecha de entrega es el centinela/default (FR2.6), el pedido recibe el piso
+  de cola (urgente). Los números grandes del WMS (p. ej. 700) son del universo del
+  WMS (pedidos parqueados en la Bandeja, > 3 días), no de esta escala. **Supera, solo
+  para Cofersa**, el DECIDED del 2026-09-02 "EPA y Cofersa usan 2 prioridades"
+  (EPA mantiene 1 y 2, FR6b).
+- **FR3.7 (0 = liberado; piso de cola)** El `0` significa **pedido ya liberado / en
+  proceso** (situación generada). **Nunca aparece en la cola de priorización**:
+  mientras el pedido está en la cola su número es **≥ piso de cola** (default 1).
+  Hoy el código garantiza que la cola nunca muestra 0; que la **liberación escriba
+  0** al WMS es un **follow-up de construcción** (decisión tomada, falta
+  implementarlo). **Precisión (2026-10-30)**: "0 = liberado" es convención de la
+  estrategia `dias_hasta_salida` de Cofersa (piso de cola 1), no un invariante
+  global de `orders.priority`. EPA usa 1 y 2 (nunca 0), así que no hay roce
+  (FR6b.4).
+- **FR3.8 (recálculo por barrido)** El número se **recalcula en cada barrido**
+  (ADR-013: 5×/día), así que **baja solo** conforme se acerca la fecha (lo que hoy es
+  2, mañana es 1; al liberarse, 0). No hace falta una regla de "envejecimiento".
+- **FR3.9 (estrategia de numeración por scope, configurable)** El esquema de
+  numeración es **por compañía y configurable**, no hardcodeado por compañía: cada
+  fila de `oms_rule_configs` (resuelta por scope CUSTOMER→WAREHOUSE→COUNTRY→GLOBAL)
+  trae `estrategia` (`escala_lineal` default | `dias_hasta_salida`) y, para
+  `dias_hasta_salida`, los parámetros `ancla_fecha` (`alistado` default |
+  `entrega`) y `prioridad_piso` (default 1, ≥ 0). Una compañía que numere igual que
+  otra con otros parámetros = **solo config**; una **fórmula distinta** = una
+  estrategia nueva registrada en código. Compatible con el DECIDED "el Motor de
+  Reglas NO es un constructor dinámico": la lógica vive en código, la config elige
+  estrategia y parámetros. Nombre de estrategia desconocido → cae a la default.
+- **FR3.10 (alcance de la primera entrega)** En la primera salida/entrega la
+  prioridad de Cofersa solo usa **la regla de tiempo (fecha)** y **cliente-retira**.
+  Cómo pesan otras reglas u observaciones dentro de un mismo día queda **aparcado**
+  (**OQ-PRIO-A**).
+
+*Acceptance (BDD, v4.2 — Cofersa con `dias_hasta_salida`):*
+- Given un pedido de Cofersa en la cola cuya salida es mañana, When corre el
+  barrido, Then su prioridad es **1**; si sale pasado mañana, **2**; en 3 días, **3**.
+- Given un pedido de Cofersa cuya salida es hoy o ya pasó, When corre el barrido,
+  Then su prioridad es el **piso de cola (1)**, **nunca 0**.
+- Given un pedido de Cofersa con prioridad 2 hoy, When corre el barrido del día
+  siguiente, Then su prioridad es **1** (baja sola por el recálculo).
+- Given un pedido de Cofersa "cliente retira", When corre el barrido, Then su
+  prioridad es el **piso de cola (1)**.
+- Given una compañía sin `estrategia` en su config (o con un nombre desconocido),
+  When corre el barrido, Then se usa `escala_lineal` (comportamiento previo).
 
 ### FR4 — Override manual de prioridad
 
@@ -367,7 +463,10 @@ crear reglas nuevas desde la UI** (su lógica vive en código).
   activar/desactivar), peso/score (editable) y parámetros editables. **No** es un
   constructor dinámico de reglas.
 - **FR5.2** Parámetros editables por regla, según la regla: días de T-1, horas
-  de corte, umbral de inyección, patrón/prioridad/ventana de cliente retira.
+  de corte, umbral de inyección, patrón/prioridad/ventana de cliente retira. Por
+  scope, además, la **estrategia de prioridad** y sus parámetros (`estrategia`,
+  `ancla_fecha`, `prioridad_piso`, FR3.9); hoy se fijan por config/migración
+  (`sql/55`), su edición desde la UI es posterior.
 - **FR5.3** El catálogo y sus reglas se resuelven **por scope**
   (CUSTOMER → WAREHOUSE → COUNTRY → GLOBAL): un selector de scope (país/almacén/
   cliente) cambia qué reglas y parámetros aplican. La especificidad por compañía
@@ -382,8 +481,11 @@ crear reglas nuevas desde la UI** (su lógica vive en código).
   entrega.** Aplica a Cofersa/mayoreo; **no a EPA** (FR6b).
 - **FR6.2 (Regla "cliente retira" = ZONA, D11)**: el "cliente retira" se modela
   como una **zona** (`delivery_zone`), **no** interpretando observaciones. Un
-  pedido cuya zona es la de "cliente retira" recibe la prioridad más alta y se
-  agrupa en el viaje/cliente correspondiente. **Primera entrega.**
+  pedido cuya zona es la de "cliente retira" recibe la prioridad más alta **de la
+  cola** y se agrupa en el viaje/cliente correspondiente. **Primera entrega.**
+  **Precisión v4.2**: "más alta de la cola" = **piso de cola** (`prioridad_piso`,
+  1 en Cofersa), **nunca 0** (0 = liberado, FR3.7). Con `escala_lineal` es el
+  parámetro `prioridad_cliente_retira` acotado a `[1, escala_prioridad]`.
 - **FR6.3 (Regla 2 — análisis de observaciones por IA)**: **FUTURO (desprioritizado
   D11)**. Interpretar el texto libre de `observaciones` con un modelo de IA
   (Bedrock) queda **fuera de esta entrega**; "cliente retira" ya no depende de la
@@ -399,14 +501,21 @@ crear reglas nuevas desde la UI** (su lógica vive en código).
 Como sistema, para los pedidos de **EPA** el OMS **no calcula** la prioridad:
 viene **pre-asignada** y el OMS solo libera. **Primera entrega.**
 
-- **FR6b.1** **EPRAC** parte el pedido de la tienda EPA en **dos expediciones con
-  el mismo número + guion**: **guion-0** = artículos en falla = **prioridad 0** (la
-  más alta); **guion-1** = regular = **prioridad 1**.
+- **FR6b.1** **EPRAC** pre-asigna la prioridad de los pedidos de la tienda EPA:
+  **1 o 2** (EPA maneja 2 prioridades, 1 y 2). Esos valores **nunca cambian** y
+  EPA **nunca usa 0**.
 - **FR6b.2** El OMS **no recalcula** la prioridad de EPA (no aplica T-1 ni score):
-  toma la prioridad que ya traen (0/1) y pone **ambas expediciones en situación
-  `GENE`**, liberándolas **juntas**.
+  toma la prioridad que trae (**1 o 2**) y pone el pedido en situación `GENE`
+  con esa prioridad.
 - **FR6b.3** EPA se distingue por `customer_type = TIENDA` (y/o el código de
   compañía EPA) en `orders`/`final_customers`.
+- **FR6b.4 (v4.2 — EPA sin cambio)** El cambio de escala de Cofersa (FR3.6–FR3.9)
+  **no afecta a EPA**: su config sigue con `priorizar=false`, trae su prioridad de
+  EFLOW/EPRAC (**1 o 2**) y el OMS **no la recalcula** (solo la libera por fecha).
+  Para EPA sigue vigente el DECIDED del 2026-09-02 (2 prioridades: 1 y 2); solo se
+  superó para Cofersa. "0 = liberado" es convención de la estrategia
+  `dias_hasta_salida` de Cofersa (piso de cola 1), no un invariante global de
+  `orders.priority`. EPA usa 1 y 2 (nunca 0), así que no hay roce.
 
 ### FR6c — Backorder / inventario (nueva responsabilidad del OMS, D13)
 
@@ -590,6 +699,8 @@ priorización, manual o automáticamente.
 
 - **NFR1 — Frecuencia del motor**: el motor de reglas corre **al menos una vez
   al día** (primera hora) y en las **horas de corte**, revisitando prioridades.
+  (ADR-013: v1 = barrido 5×/día.) En Cofersa cada barrido **recalcula** los días
+  hasta la salida, así que la prioridad baja sola (FR3.8).
 - **NFR2 — Costo de IA**: el análisis de observaciones con Bedrock cuesta
   **< $1 USD/mes** para ~400 pedidos/día (texto ~40 caracteres).
 - **NFR3 — Volumen**: referencia ~**400–500 pedidos/día** (Cofersa).
@@ -670,7 +781,9 @@ priorización, manual o automáticamente.
 - **OQ-3 — Fecha de entrega de Cofersa**: hoy Cofersa **no** envía la fecha de
   entrega. Sin ella, la Regla 1 usa el fallback por ruta.
 - **OQ-4 — Tabla de prioridades del cliente**: los números 1..N que define el
-  cliente están pendientes de entrega.
+  cliente están pendientes de entrega. **Resuelta para Cofersa (v4.2,
+  2026-10-29)**: el número = días hasta la salida (FR3.6). Para las demás compañías
+  de mayoreo sigue abierta como **OQ-PRIO-B**.
 - **OQ-5 — Score vs. filtro estricto y umbral de inyección**: el modelo de score
   ya está decidido; queda cerrar si alguna regla es obligatoria (filtro) además de
   sumar peso, y a partir de qué prioridad se inyecta.
@@ -682,6 +795,20 @@ priorización, manual o automáticamente.
   trae peso/volumen (vienen de `EXPEDICIONESCABECERA` en EFLOW, hoy mock); llegan
   como `null`/`capacity_known:false`. Es dependencia del handoff a Planificación,
   no del cálculo de prioridad del OMS.
+- **OQ-PRIO-A (APARCADA por negocio, v4.2)** — ¿Cómo pesan las **otras reglas /
+  observaciones** dentro de un mismo día en la escala de Cofersa? Fuera de la
+  primera entrega (solo fecha + cliente-retira, FR3.10). Cuando entre, se evoluciona
+  la estrategia `dias_hasta_salida` (aislada en código).
+- **OQ-PRIO-B (v4.2)** — ¿Las **demás compañías de mayoreo** numeran igual que
+  Cofersa? Antonio lo presume, **sin confirmar** (falta almacén: Dylan/José). El
+  diseño por estrategia por scope (FR3.9) lo absorbe sin código nuevo, pero la
+  confirmación de negocio sigue abierta.
+- **OQ-PRIO-C (v4.2)** — **Ancla fina del día**: hoy se asume salida = fecha de
+  alistado objetivo (`delivery_date − lead_time_days`). Falta afinar el off-by-one
+  frente a la ventana de liberación de ADR-013 (`dispatch_date −
+  dias_prep_picking`).
+- **OQ-EPA-VAL — CERRADA 2026-10-30: EPA = 1 y 2 (confirmado por Eduardo; fuente
+  2026-09-01)**. Afina FR6b.
 
 ## Sources
 
@@ -698,10 +825,22 @@ priorización, manual o automáticamente.
   confirma `backend/` (Lambdas Python/SAM) y `src/` (React + motores TS).
 - Documentos de reunión (Antonio 09-08, Calzadilla 09-14, diseño 09-14, simulador
   09-15, roles 08-26) — invariantes del motor, T-1, cliente retira, simulador.
+- `knowledge/documents/2026-09-01-reunion-oms-revision-mockup.md` ("EPA y Cofersa
+  manejan **2 prioridades** (1 y 2)"; vigente para EPA) + confirmación de Eduardo
+  (2026-10-30) — FR6b, OQ-EPA-VAL (cerrada).
+- `docs/work/2026-10/2026-10-29-prioridad-cofersa-dias-hasta-salida.md` —
+  refinamiento v4.2 (escala 0..n de Cofersa, piso de cola, estrategia por scope;
+  reuniones 2026-10-27/28/29).
+- Código as-built (solo lectura): `backend/oms/src/estrategias_prioridad.py`,
+  `models.py`, `motor_reglas.py`, `reglas_config.py`;
+  `sql/55_oms_rule_configs_estrategia_prioridad.sql`.
 
 ## Assumptions & Open Questions
 
-Ver **Supuestos** (A1–A5) y **Open Questions** (OQ-1 a OQ-8). Lo abierto depende
+Ver **Supuestos** (A1–A5) y **Open Questions** (OQ-1 a OQ-8, OQ-PRIO-A/B/C,
+OQ-EPA-VAL — CERRADA 2026-10-30: EPA = 1 y 2). El supersede del DECIDED del 2026-09-02 ("EPA y Cofersa usan 2
+prioridades") solo para Cofersa (EPA mantiene 1 y 2) se registra por el ritual de learnings, no editando
+`project.md` a mano. Lo abierto depende
 de datos/arquitectura/cliente (BD, réplica, fecha de Cofersa, tabla de
 prioridades, score-vs-filtro, cortes, viaje cliente retira, gap peso/volumen) y no
 bloquea la aprobación de estos requerimientos. **C2** (dónde vive el motor de

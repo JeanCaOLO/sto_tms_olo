@@ -6,8 +6,8 @@
 > Given/When/Then (BDD). Cada historia traza a su(s) FR y lleva una **etiqueta de
 > entrega**: `[1ª entrega]`, `[siguiente]` o `[futuro]`. Actores en `personas.md`.
 >
-> **Nomenclatura (vigente)**: WMS = **EFLOW**; el módulo que parte EPA por línea =
-> **EPRAC**. (No "IPRAC"/"IFLOW".)
+> **Nomenclatura (vigente)**: WMS = **EFLOW**; el módulo que asigna la prioridad de
+> EPA (1 o 2) = **EPRAC**. (No "IPRAC"/"IFLOW".)
 >
 > **Correcciones de esta re-corrida v4** (base a corregir, no repetir):
 > - **Flujo invertido (D7)**: Planificación procesa, asigna viaje y **activa al
@@ -17,7 +17,7 @@
 >   **EFLOW real** (`TPEXSI='GENE'` + `PRIORIDAD`, flag TRUE). El OMS **no escribe
 >   el número de viaje** (lo escribe Planificación).
 > - **EPA sin cálculo (D9)**: nueva **E2b/US-EPA** — EPA cortocircuita el score;
->   prioridad pre-asignada por **EPRAC** (guion-0=0, guion-1=1).
+>   prioridad pre-asignada por **EPRAC** (1 o 2; nunca 0).
 > - **Regla fecha generalizada (D10)**: US7/US8 = `fecha_entrega − duración`, con
 >   **duración como insumo de Planificación**.
 > - **cliente retira = ZONA (D11)**: E3 (observaciones IA) pasa a **futuro**;
@@ -32,6 +32,16 @@
 >   ventana, por viaje) y **US9c** ("Procesar a Eflow" manual, gated por rol).
 >   `oms_processed_at` = **liberado** (no priorizado). El **Simulador (E6) sale del
 >   alcance** (opcional, solo rol developer; ver "Fuera de alcance").
+> - **Refinamiento v4.2 (prioridad Cofersa, 2026-10-29)** — fuente:
+>   `docs/work/2026-10/2026-10-29-prioridad-cofersa-dias-hasta-salida.md`. La
+>   prioridad de **Cofersa** pasa a una escala **0..n = días hasta la salida**
+>   (supera, solo para Cofersa, "EPA y Cofersa usan 2 prioridades" y "~2
+>   prioridades/día"; EPA mantiene 1 y 2). `0` = liberado, **nunca en la cola** (piso de cola = 1). Se
+>   recalcula en cada barrido. US10, US11 y US13 corregidas; **US10b nueva**
+>   (estrategia de numeración por compañía). US-EPA sin cambio de comportamiento
+>   (EPA = 1 y 2; OQ-EPA-VAL — CERRADA 2026-10-30: EPA = 1 y 2, confirmado por
+>   Eduardo; fuente 2026-09-01). Abiertas: OQ-PRIO-A (aparcada), OQ-PRIO-B,
+>   OQ-PRIO-C.
 
 ## Story map (épicas)
 
@@ -39,7 +49,7 @@
 |---|---|---|
 | **E0 — Activación por Planificación** | **US0** | **FR0** |
 | E1 — Cola de Priorización | US1–US6 | FR1, FR10 |
-| E2 — Motor de priorización (automático) | US7–US11b (incl. **US9b, US9c**) | FR2, FR3, FR6, FR8 |
+| E2 — Motor de priorización (automático) | US7–US11b (incl. **US9b, US9c, US10b**) | FR2, FR3, FR6, FR8 |
 | **E2b — EPA (prioridad pre-asignada)** | **US-EPA** | **FR6b** |
 | E3 — Análisis de observaciones con IA | US12–US13 | FR6.3, FR7 **(futuro, D11)** |
 | E4 — Override manual | US14–US15 | FR4 |
@@ -245,25 +255,64 @@ a la ventana automática.
 - **Auditoría**: Given una liberación manual, When ocurre, Then queda registrada como
   acción **manual** con el usuario (coherente con US33).
 
-### US10 — Asignar prioridad numérica con score `[1ª entrega]` (FR3)
-Como **Sistema/Motor OMS**, asigno una prioridad numérica invertida calculada
-por score ponderado, para ordenar el alistamiento.
+### US10 — Asignar prioridad numérica `[1ª entrega]` (FR3)
+Como **Sistema/Motor OMS**, asigno una prioridad numérica invertida (menor = más
+urgente), según la estrategia de numeración de la compañía, para ordenar el
+alistamiento. **Sin niveles nombrados** (no hay crítico/alto/medio/bajo).
 - Given las reglas activas que aplican a un pedido, When el motor calcula, Then
-  la prioridad es un **número invertido** (menor = más urgente) resultado del
-  **score ponderado** (suma de pesos; mayor peso = cliente retira, luego fecha).
-- Given dos pedidos, uno "cliente retira" y otro solo con la regla de fecha,
-  When el motor calcula, Then el de cliente retira obtiene mayor score y por
-  tanto **menor número de prioridad** (verifica la ponderación, no solo el orden).
-- Given dos pedidos con el **mismo score**, When el motor ordena, Then aplica un
-  **desempate estable** (fecha de entrega, luego hora de entrada, luego id) para
-  que el orden sea determinista entre corridas.
+  obtiene el **score ponderado** (suma de pesos; mayor peso = cliente retira, luego
+  fecha) y lo guarda en `oms_score` (auditable).
+- **Cofersa — días hasta la salida (v4.2)**: Given un pedido de Cofersa en la cola
+  (estrategia `dias_hasta_salida`), When corre el barrido, Then su prioridad es el
+  **número de días que faltan para su salida**: sale mañana ⇒ **1**, pasado ⇒ **2**,
+  en 3 días ⇒ **3**.
+- **0 nunca en la cola (v4.2)**: Given un pedido de Cofersa cuya salida es hoy o ya
+  pasó, When corre el barrido, Then su prioridad es el **piso de cola (1)**, **nunca
+  0**. El `0` se reserva para el pedido ya liberado (situación generada).
+- **Fecha centinela (v4.2)**: Given un pedido de Cofersa con la fecha de entrega
+  por default/centinela, When corre el barrido, Then recibe el **piso de cola**
+  (urgente, para que se revise).
+- **Escala lineal (compañías sin estrategia propia)**: Given un pedido de una
+  compañía con `escala_lineal` (default), When el motor calcula, Then el score se
+  mapea a `[1, escala_prioridad]` invertido (comportamiento previo, sin cambio), y el
+  de cliente retira obtiene **menor número** que uno solo con la regla de fecha.
+- Given dos pedidos con el **mismo número de prioridad**, When el motor ordena, Then
+  aplica un **desempate estable** (fecha de entrega, luego hora de entrada, luego id)
+  para que el orden sea determinista entre corridas.
+- **Alcance 1ª entrega**: la prioridad de Cofersa solo usa la regla de tiempo y
+  cliente-retira; cómo pesan otras reglas dentro del día está aparcado (OQ-PRIO-A).
 
-### US11 — Revisitar prioridades periódicamente `[siguiente]` (FR3.3, NFR1)
-Como **Sistema/Motor OMS**, corro al menos una vez al día y en las horas de
-corte, para actualizar prioridades según la capacidad.
-- Given pedidos no alcanzados hoy, When el motor corre al día siguiente, Then
-  su **número de prioridad disminuye** respecto a la corrida anterior (prioridad
-  invertida → más urgente).
+### US10b — Elegir estrategia de numeración por compañía `[1ª entrega]` (FR3)
+Como **Administrador de Módulo**, quiero que cada compañía tenga su propio esquema
+de numeración de prioridad, elegido por config (estrategia + parámetros por scope),
+para incorporar compañías que numeran distinto sin cambiar el motor.
+- Given la fila de `oms_rule_configs` de Cofersa con `estrategia =
+  'dias_hasta_salida'`, When corre el barrido, Then sus pedidos se numeran por días
+  hasta la salida (US10); las demás compañías siguen en `escala_lineal`.
+- Given una fila sin `estrategia` o con un nombre desconocido, When corre el barrido,
+  Then el motor usa `escala_lineal` (fallback seguro, sin romper la corrida).
+- Given una compañía que numera igual que Cofersa pero con otra ancla o piso, When se
+  ajustan `ancla_fecha` (`alistado` | `entrega`) y `prioridad_piso` en su fila, Then
+  cambia la numeración **sin código nuevo**.
+- Given `prioridad_piso = 0` en una fila, When se lee la config, Then se respeta el
+  0 (no se fuerza a 1); el default, si la columna no viene, es 1.
+- Given la vista Motor de Reglas, When se usa, Then **no** se arman fórmulas desde
+  la UI: la lógica de cada estrategia vive en código; la config solo elige cuál y
+  con qué parámetros (DECIDED "no es constructor dinámico"). Hoy la elección se fija
+  por config/migración (`sql/55`); editarla desde la UI es posterior (E5).
+- Nota: si las demás compañías de mayoreo numeran igual que Cofersa (OQ-PRIO-B, sin
+  confirmar), basta con apuntar su fila a `dias_hasta_salida`.
+
+### US11 — Revisitar prioridades periódicamente `[siguiente]` (FR3.8, NFR1)
+Como **Sistema/Motor OMS**, recalculo la prioridad en cada barrido (ADR-013: 5×/día),
+para que baje sola conforme se acerca la salida.
+- Given un pedido de Cofersa con prioridad **2** hoy, When corre el barrido del día
+  siguiente, Then su prioridad es **1** (días hasta la salida, recalculado).
+- Given un pedido de Cofersa con prioridad 1, When se libera, Then sale de la cola
+  (en el WMS queda como generado; el `0` = liberado nunca se muestra en la cola).
+- Given pedidos de una compañía con `escala_lineal`, When el motor corre al día
+  siguiente, Then su **número de prioridad no sube** respecto a la corrida anterior
+  (la urgencia por fecha crece).
 
 ### US11b — Cortar por umbral de inyección `[1ª entrega]` (FR3.4, NFR4)
 Como **Sistema/Motor OMS**, solo preparo pedidos hasta cierta prioridad, para no
@@ -285,17 +334,22 @@ pre-asignada **EPRAC** y yo solo la libero, porque EPA cortocircuita el score.
 - Given un pedido de EPA (`customer_type = TIENDA`), When el motor lo procesa,
   Then **NO pasa por T−duración ni por el score ponderado**: es una **rama propia
   que cortocircuita** el motor de fecha/score.
-- Given que EPRAC partió el pedido de tienda en **guion-0** (falla ⇒ prioridad 0,
-  la más alta) y **guion-1** (regular ⇒ prioridad 1), When el motor los procesa,
-  Then toma **la prioridad que ya traen** (0 / 1) sin recalcular.
-- Given ambas expediciones (guion-0 y guion-1) del mismo número, When el motor
-  genera, Then pone **ambas en `wms_situation = GENE`** y las **libera juntas**
-  con su prioridad.
+- Given un pedido de EPA con la prioridad que le pre-asignó EPRAC, When el motor
+  lo procesa, Then toma **la prioridad que trae (1 o 2) sin recalcular**; ese valor
+  no cambia y nunca es 0.
 - Given el flujo de escritura, When el motor procesa un pedido EPA, Then la
   **priorización** usa la escritura 1 de US9 (UPDATE a `orders`, `DISP`, sin
   `oms_processed_at`) y la **liberación** usa US9b/US9c (EFLOW `TPEXSI='GENE'` +
-  `PRIORIDAD` por la costura, estampa `oms_processed_at`), sin número de viaje. Ambas
-  expediciones (guion-0/guion-1) se liberan juntas al cruzar la ventana de su viaje.
+  `PRIORIDAD` por la costura, estampa `oms_processed_at`), sin número de viaje, con
+  la prioridad que trae (1 o 2).
+- **v4.2 — sin cambio**: Given el cambio de escala de Cofersa (US10/US10b), When el
+  motor procesa EPA, Then **nada cambia** para EPA (`priorizar=false`; no se le
+  aplica `dias_hasta_salida`).
+- **Nota OQ-EPA-VAL — CERRADA 2026-10-30: EPA = 1 y 2 (confirmado por Eduardo;
+  fuente 2026-09-01)** (ver ADR-009, nota de corrección). "0 = liberado" es
+  convención de la estrategia `dias_hasta_salida` de Cofersa (piso de cola 1), no
+  un invariante global de `orders.priority`. EPA usa 1 y 2 (nunca 0), así que no
+  hay roce.
 
 ---
 
@@ -313,13 +367,19 @@ Como **Sistema/Motor OMS**, (a futuro) interpretaría el texto libre de
 
 ### US13 — Detectar "cliente retira" por ZONA y priorizarlo `[1ª entrega]` (FR6.2)
 Como **Sistema/Motor OMS**, identifico los pedidos "cliente retira" por su **zona**
-(`delivery_zone`) y les asigno la prioridad más alta, para segregarlos.
+(`delivery_zone`) y les asigno la prioridad más alta **de la cola**, para segregarlos.
 - Given un pedido cuya **zona** (`delivery_zone`) es la de **"cliente retira"**,
-  When el motor lo procesa, Then recibe la **prioridad más alta** y se agrupa en su
-  viaje/cliente correspondiente. **(D11: por zona, NO por el texto de
+  When el motor lo procesa, Then recibe la **prioridad más alta de la cola** y se
+  agrupa en su viaje/cliente correspondiente. **(D11: por zona, NO por el texto de
   observaciones ni por IA.)**
+- **Piso de cola (v4.2)**: Given un pedido "cliente retira" de Cofersa
+  (`dias_hasta_salida`), When el motor lo procesa, Then su prioridad es el **piso de
+  cola = 1**, **nunca 0** (0 = liberado), aunque su salida sea en varios días.
+- Given un pedido "cliente retira" de una compañía con `escala_lineal`, When el
+  motor lo procesa, Then su prioridad es `prioridad_cliente_retira` acotado a
+  `[1, escala_prioridad]`.
 - **Testabilidad**: la detección se prueba con un dato de zona (zona = retira ⇒
-  prioridad máxima; zona normal ⇒ no), determinista, sin dependencia de IA.
+  piso de cola; zona normal ⇒ no), determinista, sin dependencia de IA.
 
 ---
 
@@ -544,7 +604,20 @@ Estas Open Questions del `requirements.md` condicionan varias historias pero
 
 - OQ-2 (réplica `EFLOW_OLO` no existe) → habilita E1/E2 en producción.
 - OQ-3 (Cofersa no envía la fecha de entrega) → afecta US7 (fallback por ruta).
-- OQ-4 (tabla de prioridades del cliente) → afina US10.
+- OQ-4 (tabla de prioridades del cliente) → afina US10. **Resuelta para Cofersa
+  (v4.2)**: número = días hasta la salida; para el resto de mayoreo sigue como
+  OQ-PRIO-B.
+- **OQ-PRIO-A (APARCADA por negocio, v4.2)** → cómo pesan otras reglas /
+  observaciones dentro de un mismo día en la escala de Cofersa. Fuera de la 1ª
+  entrega (solo fecha + cliente-retira). Afina US10 a futuro.
+- **OQ-PRIO-B (v4.2)** → ¿las demás compañías de mayoreo numeran igual que Cofersa?
+  Antonio lo presume, sin confirmar (falta almacén: Dylan/José). US10b lo absorbe
+  por config, pero la confirmación de negocio sigue abierta.
+- **OQ-PRIO-C (v4.2)** → ancla fina del día: hoy salida = fecha de alistado objetivo
+  (`delivery_date − lead_time_days`); falta afinar el off-by-one frente a la ventana
+  de liberación de ADR-013 (`dispatch_date − dias_prep_picking`). Afina US10/US11.
+- **OQ-EPA-VAL — CERRADA 2026-10-30: EPA = 1 y 2 (confirmado por Eduardo; fuente
+  2026-09-01)** → afina US-EPA.
 - OQ-5 (score vs. filtro estricto; umbral de inyección) → afina US10/US11b.
 - OQ-6 (duración de rutas y horas de corte) → habilita US8.
 - OQ-7 (viaje cliente retira) → contexto de E3 (US13).
@@ -600,7 +673,10 @@ mano.
 reconciliar: prioridad numérica invertida (no *tiers*); Motor de Reglas como
 catálogo con **selector de scope** (no *rule builder*); Simulador con modal
 previo + tabla-Cola; retirar la alerta "sincronización al lago"; **retirar toda
-pantalla/rastro del Calendario de rutas** (E8 retirada). Se registra como
+pantalla/rastro del Calendario de rutas** (E8 retirada). **v4.2**: también debe
+reconciliar la **escala 0..n de Cofersa** (número = días hasta la salida; la cola
+nunca muestra 0; cliente-retira = piso de cola 1) y no mostrar los números del
+universo del WMS (p. ej. 700) como si fueran de la escala del OMS. Se registra como
 dependencia, no como historia.
 
 Aportes de diseño del mob (a aterrizar en refined-mockups):
@@ -649,6 +725,8 @@ Aportes de dominio/construcción del mob (a aterrizar en domain-design):
   cambio sin anular, backorder).
 - `aidlc/spaces/default/codekb/sto_tms_olo/business-overview.md`,
   `component-inventory.md` — dominio y componentes reales (backend Python/SAM).
+- `docs/work/2026-10/2026-10-29-prioridad-cofersa-dias-hasta-salida.md` —
+  refinamiento v4.2 (US10, US10b, US11, US13, nota US-EPA).
 
 ## Assumptions & Open Questions
 

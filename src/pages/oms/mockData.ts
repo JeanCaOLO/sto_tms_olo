@@ -262,10 +262,10 @@ export const engineRules: EngineRule[] = [
   },
   {
     id: 'MR-CF-6', company: '0109', order: 2, name: 'Liberación a eFlow por ventana (ADR-013)', firstDelivery: true, active: true, weight: 0,
-    description: 'DESACOPLADA de la priorización: priorizar deja el pedido en DISP; la liberación cambia la situación a GENE (vía la costura a sim_expedicionescabecera) solo cuando hoy ≥ dispatch_date − dias_prep_picking. Es POR VIAJE "gratis" (todos los pedidos de un numero_viaje comparten dispatch_date). Casos sin dispatch_date: cliente-retira se libera de inmediato (alta prioridad, el cliente recoge); los demás (p. ej. sin coordenadas) caen a delivery_date como ancla de la ventana. El barrido corre 5×/día. La acción manual "Procesar a Eflow" (gated por rol) libera un viaje ignorando la ventana. Implementada en backend/oms/src/handoff_pedidos.py (en_ventana_liberacion / liberar_pedido).',
+    description: 'DESACOPLADA de la priorización: priorizar deja el pedido en DISP; la liberación cambia la situación a GENE (vía la costura a sim_expedicionescabecera) solo cuando hoy ≥ dispatch_date − dias_prep_picking. Es POR VIAJE "gratis" (todos los pedidos de un numero_viaje comparten dispatch_date). Casos sin dispatch_date: cliente-retira se libera de inmediato (alta prioridad, el cliente recoge); los demás (p. ej. sin coordenadas) caen a delivery_date como ancla de la ventana. La ejecución automática corre 5×/día. La acción manual "Procesar a Eflow" (gated por rol) libera un viaje ignorando la ventana. Implementada en backend/oms/src/handoff_pedidos.py (en_ventana_liberacion / liberar_pedido).',
     params: [
       { key: 'dias_prep_picking', label: 'Días de preparación de picking (ventana)', value: '1', kind: 'number', help: 'Política del OMS: cuántos días antes del despacho se libera a eFlow.' },
-      { key: 'barrido_veces_dia', label: 'Barridos por día (v1)', value: '5', kind: 'number' },
+      { key: 'barrido_veces_dia', label: 'Ejecuciones por día (v1)', value: '5', kind: 'number' },
     ],
   },
   {
@@ -320,10 +320,10 @@ export const engineRules: EngineRule[] = [
   },
   {
     id: 'MR-EPA-5', company: 'EPA', order: 4, name: 'Liberación a eFlow por ventana (ADR-013)', firstDelivery: true, active: true, weight: 0,
-    description: 'Igual que Cofersa — ver MR-CF-6 (liberación por dispatch_date − dias_prep_picking, por viaje, barrido 5×/día + acción manual).',
+    description: 'Igual que Cofersa — ver MR-CF-6 (liberación por dispatch_date − dias_prep_picking, por viaje, ejecución automática 5×/día + acción manual).',
     params: [
       { key: 'dias_prep_picking', label: 'Días de preparación de picking (ventana)', value: '1', kind: 'number' },
-      { key: 'barrido_veces_dia', label: 'Barridos por día (v1)', value: '5', kind: 'number' },
+      { key: 'barrido_veces_dia', label: 'Ejecuciones por día (v1)', value: '5', kind: 'number' },
     ],
   },
 ];

@@ -11,9 +11,7 @@ import {
   auditEntries,
   cofersaRoutes,
   companies,
-  computeKpis,
   engineRules,
-  omsAlerts,
   queueOrders,
 } from '../mockData';
 import type {
@@ -22,10 +20,13 @@ import type {
   Country,
   DispatchRoute,
   EngineRule,
-  OmsAlert,
+  OmsCorrida,
   OmsLogEntry,
   OmsLogLevel,
+  OmsMotorActividad,
+  OmsPipeline,
   PriorityTier,
+  ProximaLiberacion,
   QueueOrder,
   Simulation,
   SimulationExecution,
@@ -134,6 +135,38 @@ const QUEUE_SELECT = `
 
 const TIERS: readonly PriorityTier[] = [1, 2, 3, 4];
 
+// --- Panel del motor: columnas y helpers del embudo ---
+// Columnas mínimas de orders para derivar el embudo sin traer toda la fila.
+const PANEL_SELECT =
+  'priority,oms_score,prioritization_run_id,planning_run_id,oms_processed_at,wms_situation,dispatch_date,lead_time_days,numero_viaje,delivery_date,closed_at';
+// Política del OMS (ADR-013): la ventana de liberación abre dispatch_date − N días.
+const DIAS_PREP_PICKING_DEFECTO = 1;
+// Acciones de negocio que forman el "Historial OMS" del panel (barrido automático
+// + acciones manuales). Los logs internos/por pedido quedan fuera del historial.
+const HISTORIAL_ACTIONS = new Set(['barrido', 'procesar_viaje', 'override_manual']);
+
+// Día ISO (YYYY-MM-DD) de un timestamp/fecha; null si viene vacío.
+function isoDay(value: unknown): string | null {
+  if (!value) return null;
+  return String(value).slice(0, 10);
+}
+
+// Resta `dias` a una fecha YYYY-MM-DD y devuelve YYYY-MM-DD.
+function restarDias(iso: string, dias: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - dias);
+  return d.toISOString().slice(0, 10);
+}
+
+// Normaliza el jsonb `detail` a objeto (el backend puede devolverlo como objeto o string).
+function parseDetail(d: unknown): Record<string, unknown> {
+  if (d && typeof d === 'object') return d as Record<string, unknown>;
+  if (typeof d === 'string') {
+    try { return JSON.parse(d) as Record<string, unknown>; } catch { return {}; }
+  }
+  return {};
+}
+
 // Mapea un pedido de orders a QueueOrder. La llave EFLOW manda cuando el pedido
 // vino de EFLOW; si no (pedidos de prueba), se usan los códigos de los maestros.
 // Si el OMS ya persistió prioridad/score (orders.priority / oms_score) se muestran
@@ -166,6 +199,7 @@ function mapOrderToQueueOrder(row: any, country: Country, hoyIso: string): Queue
     itemCount: row.total_items ?? 0,
     observations: row.observaciones ?? '',
     dispatchDate: row.delivery_date ?? '',
+    salidaDate: row.dispatch_date ?? '',
     createdDate: row.wms_created_at ?? row.created_at ?? '',
     status: row.wms_status ?? row.status ?? '',
     situation: row.wms_situation ?? '',
@@ -217,14 +251,6 @@ export const omsApi = {
       .sort((a, b) => b.score - a.score);
     return delay(rows);
   },
-  getAlerts(country: Country): Promise<OmsAlert[]> {
-    void country;
-    return delay(omsAlerts);
-  },
-  getKpis(country: Country): Promise<ReturnType<typeof computeKpis>> {
-    void country;
-    return delay(computeKpis());
-  },
   getEngineRules(): Promise<EngineRule[]> {
     return delay(engineRules);
   },
@@ -272,16 +298,94 @@ export const omsApi = {
     if (error) throw new Error(error.message);
     return Array.isArray(data) ? data.length : 0;
   },
-  // FR4 — distribución de pedidos por priority_tier (para el Panel).
-  getTierDistribution(country: Country): Promise<{ tier: PriorityTier; count: number }[]> {
-    void country;
-    // Mock ilustrativo (conteos de ejemplo, no derivados de la cola reducida).
-    return delay([
-      { tier: 1, count: 12 },
-      { tier: 2, count: 45 },
-      { tier: 3, count: 102 },
-      { tier: 4, count: 88 },
-    ]);
+  // --- Panel del motor del OMS (dashboard real sobre orders + oms_logs) ---
+
+  // Embudo del día + "por liberar pronto". Lee las columnas mínimas de los pedidos
+  // ABIERTOS (closed_at IS NULL) y agrupa en el cliente: el cliente propio no tiene
+  // operador "IS NOT NULL", y con el volumen actual (~cientos) traer y contar aquí
+  // es barato y evita filtros que el backend genérico no expone. El scope operativo
+  // (almacén/compañía del header) ya lo aplica el backend por headers.
+  async getPanelResumen(): Promise<{ pipeline: OmsPipeline; proximas: ProximaLiberacion[] }> {
+    const { data, error } = await supabase.from('orders').select(PANEL_SELECT).is('closed_at', null);
+    if (error || !data) throw new Error(error?.message ?? 'No se pudo leer orders');
+    const rows = data as any[];
+    const hoyIso = new Date().toISOString().slice(0, 10);
+
+    const conPlan = (r: any) => r.planning_run_id != null;
+    const sinLiberar = (r: any) => r.oms_processed_at == null;
+    const priorizado = (r: any) => r.prioritization_run_id != null;
+
+    const pipeline: OmsPipeline = {
+      abiertos: rows.length,
+      enCola: rows.filter((r) => conPlan(r) && sinLiberar(r) && !priorizado(r)).length,
+      priorizados: rows.filter((r) => conPlan(r) && sinLiberar(r) && priorizado(r)).length,
+      liberadosHoy: rows.filter((r) => r.oms_processed_at != null && isoDay(r.oms_processed_at) === hoyIso).length,
+    };
+
+    // "Por liberar pronto": priorizados-no-liberados por fecha de salida del viaje.
+    // La ventana de liberación abre dispatch_date − dias_prep_picking (default 1).
+    const porFecha = new Map<string, { pedidos: number; viajes: Set<string> }>();
+    for (const r of rows) {
+      if (!(conPlan(r) && sinLiberar(r) && priorizado(r))) continue;
+      const salida = isoDay(r.dispatch_date);
+      if (!salida) continue;
+      const g = porFecha.get(salida) ?? { pedidos: 0, viajes: new Set<string>() };
+      g.pedidos += 1;
+      if (r.numero_viaje) g.viajes.add(String(r.numero_viaje));
+      porFecha.set(salida, g);
+    }
+    const proximas: ProximaLiberacion[] = [...porFecha.entries()]
+      .map(([dispatchDate, g]) => {
+        const ventanaAbre = restarDias(dispatchDate, DIAS_PREP_PICKING_DEFECTO);
+        return { dispatchDate, ventanaAbre, abreHoy: ventanaAbre <= hoyIso, pedidos: g.pedidos, viajes: g.viajes.size };
+      })
+      .sort((a, b) => a.dispatchDate.localeCompare(b.dispatchDate))
+      .slice(0, 8);
+
+    return { pipeline, proximas };
+  },
+
+  // Latido del motor: últimas corridas (filas 'barrido' de oms_logs con sus totales
+  // de detail) + conteo de errores de las últimas 24 h. Si no hay backend/tabla,
+  // devuelve vacío (no inventa corridas).
+  async getMotorActividad(limit = 10): Promise<OmsMotorActividad> {
+    const { data, error } = await supabase
+      .from('oms_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(120);
+    if (error || !data) {
+      console.warn('[OMS] oms_logs no disponible para el panel:', error?.message);
+      return { ultima: null, corridas: [], erroresRecientes: 0 };
+    }
+    const logs = data as any[];
+    const toCorrida = (r: any): OmsCorrida => {
+      const d = parseDetail(r.detail);
+      const num = (k: string) => (typeof d[k] === 'number' ? (d[k] as number) : null);
+      return {
+        id: r.id,
+        createdAt: r.created_at ?? '',
+        corridaId: r.corrida_id ?? null,
+        actor: r.actor ?? 'system',
+        level: (r.level ?? 'info') as OmsLogLevel,
+        action: r.action ?? '',
+        total: num('total'),
+        priorizados: num('priorizados'),
+        liberados: num('liberados'),
+        pendientes: num('pendientes'),
+        reconciliados: num('reconciliados'),
+        message: r.message ?? '',
+      };
+    };
+    // Historial OMS: acciones de negocio (corrida automática + acciones manuales).
+    const corridas = logs.filter((r) => HISTORIAL_ACTIONS.has(r.action)).slice(0, limit).map(toCorrida);
+    // La snapshot superior refleja la última corrida AUTOMÁTICA (barrido).
+    const ultima = corridas.find((c) => c.action === 'barrido') ?? null;
+    const hace24h = Date.now() - 24 * 60 * 60 * 1000;
+    const erroresRecientes = logs.filter(
+      (r) => r.level === 'error' && r.created_at && new Date(r.created_at).getTime() >= hace24h,
+    ).length;
+    return { ultima, corridas, erroresRecientes };
   },
 
   // --- Simulador (configurador) — todo mock/localStorage ---

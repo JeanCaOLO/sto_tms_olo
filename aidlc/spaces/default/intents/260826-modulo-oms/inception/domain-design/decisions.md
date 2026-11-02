@@ -5,9 +5,15 @@
 > delgada de 1ª entrega. Cada ADR: Contexto, Decisión, Consecuencias, Alternativas
 > rechazadas.
 >
-> **Nomenclatura (vigente)**: WMS = **EFLOW**; módulo que parte EPA por línea =
-> **EPRAC**. **ADR nuevos de esta re-corrida: ADR-007..ADR-012** (D7–D13).
+> **Nomenclatura (vigente)**: WMS = **EFLOW**; módulo que asigna la prioridad de
+> EPA (1 o 2) = **EPRAC**. **ADR nuevos de esta re-corrida: ADR-007..ADR-012** (D7–D13).
 > **ADR-002 queda SUPERSEDED** por ADR-007/ADR-008.
+>
+> **Refinamiento v4.2 (prioridad Cofersa, 2026-10-29)**: nuevo **ADR-014** (escala
+> 0..n de Cofersa por días hasta la salida; estrategia de numeración por scope).
+> Precisa **ADR-005** (la prioridad sale de una estrategia elegida por config) y
+> **ADR-011** (cliente-retira = piso de cola). Fuente:
+> `docs/work/2026-10/2026-10-29-prioridad-cofersa-dias-hasta-salida.md`.
 
 ## ADR-001: Motor de reglas del OMS propio y nuevo (C2 RESUELTO)
 
@@ -130,6 +136,14 @@
 - **Alternativas rechazadas**: `CalculadorScore` como componente separado (v2) —
   innecesario para la rebanada; cálculo embebido impuro — rechazado por Testing
   Posture.
+- **Precisión v4.2 (ADR-014, 2026-10-29)**: el score ponderado sigue siendo un
+  submódulo puro, pero **el número de prioridad ya no sale de un único punto fijo**
+  (`score.score_a_prioridad`). Sale de una **estrategia elegida por config**
+  (submódulo puro `EstrategiasPrioridad`, `estrategias_prioridad.py`).
+  `escala_lineal` (default) delega en `score.score_a_prioridad` y **preserva el
+  comportamiento previo**; `dias_hasta_salida` (Cofersa) numera por días hasta la
+  salida. Las dos son funciones puras (sin I/O), así que la propiedad de
+  testabilidad de este ADR se mantiene.
 
 ## ADR-006: Aterrizaje de los contratos al DDL real del WMS/EFLOW
 
@@ -169,6 +183,8 @@
 - `docs/wms-eflow/EFLOW_OLO-ddl.sql` (DDL real del WMS/EFLOW, 2026-10-01).
 - `docs/reference/mapeo-pedidos-eflow-orders.md` (mapeo EFLOW → `public.orders`).
 - `aidlc/spaces/default/memory/project.md` (`## Decided`: C2-RESUELTO, D5, C3-SUPERSEDE; Testing Posture; esquema único `public`).
+- `docs/work/2026-10/2026-10-29-prioridad-cofersa-dias-hasta-salida.md` (ADR-014; precisiones de ADR-005/ADR-009/ADR-011).
+- Código as-built (solo lectura): `backend/oms/src/estrategias_prioridad.py`, `models.py`, `motor_reglas.py`, `reglas_config.py`; `sql/55_oms_rule_configs_estrategia_prioridad.sql`.
 
 ## Assumptions & Open Questions
 
@@ -204,6 +220,20 @@
   consulta el OMS?
 - **OQ-BO3 (backorder, ADR-012)**: ¿el **disparador** del re-chequeo es un **evento
   de entrada de inventario** o un **barrido periódico**?
+- **OQ-PRIO-A (ADR-014, APARCADA por negocio)**: ¿cómo pesan otras reglas /
+  observaciones dentro de un mismo día en la escala de Cofersa? Fuera de la 1ª
+  entrega (solo fecha + cliente-retira).
+- **OQ-PRIO-B (ADR-014)**: ¿las demás compañías de mayoreo numeran igual que
+  Cofersa? Presunción de Antonio, sin confirmar (falta almacén: Dylan/José). El
+  diseño por estrategia por scope lo absorbe sin código; la confirmación de negocio
+  sigue abierta.
+- **OQ-PRIO-C (ADR-014)**: ancla fina del día. Hoy salida = fecha de alistado
+  objetivo (`delivery_date − lead_time_days`); falta afinar el off-by-one frente a la
+  ventana de liberación de ADR-013 (`dispatch_date − dias_prep_picking`).
+- **OQ-EPA-VAL — CERRADA 2026-10-30: EPA = 1 y 2 (confirmado por Eduardo; fuente
+  2026-09-01)** (ADR-009). "0 = liberado" es convención de la estrategia
+  `dias_hasta_salida` de Cofersa (piso de cola 1), no un invariante global de
+  `orders.priority`. EPA usa 1 y 2 (nunca 0), así que no hay roce.
 
 
 ---
@@ -292,19 +322,35 @@
 
 ## ADR-009: EPA cortocircuita el score — prioridad pre-asignada por EPRAC (D9)
 
-- **Contexto**: EPA no funciona como Cofersa/mayoreo. **EPRAC** parte el pedido de
-  la tienda EPA por línea en dos expediciones (mismo número + guion): guion-0
-  (falla ⇒ prioridad 0, la más alta) y guion-1 (regular ⇒ prioridad 1). La
-  prioridad **ya viene dada**.
+- **Contexto**: EPA no funciona como Cofersa/mayoreo: **no requiere
+  priorización** y su prioridad **ya viene dada** aguas arriba (EFLOW/**EPRAC**, en
+  cabecera): **EPRAC asigna la prioridad 1 o 2**. EPA maneja **2 prioridades (1 y
+  2)**; esos valores **nunca cambian** y EPA **nunca usa 0**.
 - **Decisión**: modelar **`ReglaEPA`** como **rama propia que cortocircuita** el
-  motor de fecha/score. Para EPA (`customer_type=TIENDA`) el OMS **no recalcula**:
-  toma la prioridad 0/1 que trae y pone ambas expediciones en `wms_situation='GENE'`,
-  liberándolas **juntas**. No pasa por ReglaFecha ni por el score ponderado.
+  motor de fecha/score. Para EPA (`customer_type=TIENDA`) el OMS **no recalcula**
+  (`priorizar=false`): toma la prioridad que trae (**1 o 2**), no le aplica fecha ni
+  score, y libera el pedido (`wms_situation='GENE'`) **con esa prioridad**. No pasa
+  por ReglaFecha ni por el score ponderado.
 - **Consecuencias**: (+) respeta la lógica de EPRAC sin duplicarla; (+) separa
   claramente EPA (pre-asignada) de Cofersa/mayoreo (calculada). (−) el motor tiene
   dos caminos (EPA vs. resto) — aceptado: es la realidad del negocio.
 - **Alternativas rechazadas**: tratar EPA como un caso más del motor de fecha/score
   — rechazada (EPA no usa T−duración; la prioridad ya viene dada por EPRAC).
+- **Nota v4.2 (2026-10-29)**: ADR-014 no cambia este ADR (EPA sigue con
+  `priorizar=false`). "0 = liberado" es convención de la estrategia
+  `dias_hasta_salida` de Cofersa (piso de cola 1), no un invariante global de
+  `orders.priority`. EPA usa 1 y 2 (nunca 0), así que no hay roce.
+- **Nota de corrección (2026-10-30)**: la versión anterior de este ADR afirmaba que
+  EPRAC parte el pedido de EPA en dos expediciones "guion-0" (falla ⇒ prioridad 0)
+  y "guion-1" (regular ⇒ prioridad 1), liberadas juntas. Es un error de origen: el
+  concepto "guion-0 / guion-1" no aparece en ninguna transcripción indexada y el
+  mapeo 0/1 contradice los valores reales. Se retira (también el split en dos
+  expediciones, que solo se sostenía en el guion). EPA = **1 y 2** (fuente
+  2026-09-01, confirmado por Eduardo 2026-10-30). **OQ-EPA-VAL — CERRADA
+  2026-10-30: EPA = 1 y 2 (confirmado por Eduardo; fuente 2026-09-01)**.
+- **Fuentes**: `knowledge/documents/2026-09-01-reunion-oms-revision-mockup.md`
+  ("EPA y Cofersa manejan **2 prioridades** (1 y 2)"; vigente para EPA, superado
+  solo para Cofersa por ADR-014); confirmación de Eduardo (2026-10-30).
 
 ## ADR-010: Regla de fecha generalizada — duración como insumo de Planificación (D10)
 
@@ -347,6 +393,10 @@
   bien catalogada; (−) se posterga el valor del análisis de texto libre.
 - **Alternativas rechazadas**: cliente-retira por IA sobre observaciones (modelo
   previo) — rechazada por D11 (zona es más simple y robusta para este caso).
+- **Precisión v4.2 (ADR-014, 2026-10-29)**: "prioridad máxima" = **la máxima de la
+  cola = piso de cola** (`prioridad_piso`, 1 en Cofersa), **nunca 0** (0 = pedido
+  ya liberado). Con `escala_lineal` es `prioridad_cliente_retira` acotado a
+  `[1, escala_prioridad]`.
 
 ## ADR-012: Backorder/inventario como loop propio desacoplado (D13)
 
@@ -453,3 +503,90 @@
   estampado) que un **replan** mueva a otro viaje/fecha queda potencialmente stale
   (el OMS no re-libera ni revierte automáticamente). No bloquea v1; se resuelve con
   negocio (¿reconciliación por barrido, alerta, o se acepta?).
+
+
+## ADR-014: Escala de prioridad de Cofersa 0..n por días hasta la salida; estrategia de numeración por scope
+
+> **Nuevo (v4.2, 2026-10-29)**: reuniones de prioridad Cofersa (planteamiento
+> 2026-10-27, confirmación 2026-10-28/29). Fuente:
+> `docs/work/2026-10/2026-10-29-prioridad-cofersa-dias-hasta-salida.md`. Precisa
+> ADR-005 y ADR-011; no cambia ADR-009 (EPA) ni ADR-013 (liberación).
+
+- **Contexto**: El DECIDED del 2026-09-02 fijaba que "EPA y Cofersa usan 2
+  prioridades" (y el del 2026-09-10, "~2 prioridades/día"). El gerente general
+  planteó que Cofersa pase a una escala `0, 1, 2 … n`. Tras dos reuniones quedó
+  definido: el número = **días que faltan para la salida del pedido** (horizonte ~3
+  días); `0` = pedido **ya liberado / en proceso** (situación generada) y **nunca**
+  aparece en la cola; el número se **recalcula en cada barrido**. Los números grandes
+  del WMS (p. ej. 700) son de su universo (pedidos parqueados en la Bandeja, > 3
+  días), no de esta escala. EPA no cambia (mantiene 1 y 2). En el código, el número de prioridad se
+  calculaba en un único punto fijo (`score.score_a_prioridad`, mapa lineal del score
+  a `[1, escala_prioridad]`), así que cambiar Cofersa sin tocar a las demás
+  compañías exigía separar "cómo se numera" del resto del motor.
+- **Decisión**:
+  1. **Cofersa** numera por **días hasta la salida** (`0..n`, menor = más urgente).
+     En la cola el número es `max(prioridad_piso, días hasta el ancla)`, con
+     **piso de cola = 1** por defecto. Cliente-retira y fecha centinela/default →
+     **piso de cola**. El `0` queda reservado para el pedido liberado. **Supera,
+     solo para Cofersa**, el DECIDED del 2026-09-02 (EPA mantiene 1 y 2; registro del supersede por el
+     ritual de learnings, no editando `project.md` a mano).
+  2. El **número de prioridad** sale de una **estrategia elegida por scope** en
+     `oms_rule_configs` (columna `estrategia`, resuelta con la jerarquía
+     CUSTOMER→WAREHOUSE→COUNTRY→GLOBAL). Registro en código
+     (`backend/oms/src/estrategias_prioridad.py`, submódulo `EstrategiasPrioridad`
+     del `MotorReglasOMS`):
+     - `escala_lineal` (default): delega en `score.score_a_prioridad`; **preserva
+       el comportamiento previo**. La usan GLOBAL y quien no fije otra.
+     - `dias_hasta_salida` (Cofersa): parametrizada por `ancla_fecha` (`alistado` =
+       `delivery_date − lead_time_days`, default; o `entrega` = fecha cruda) y
+       `prioridad_piso` (default 1, `≥ 0`).
+     - `resolver(nombre)` devuelve la estrategia; nombre desconocido o `None` → cae
+       a `escala_lineal` (degrada sin romper la corrida).
+  3. Dos niveles de flexibilidad: una compañía que numere **igual** con otro
+     ancla/piso = **solo config** (una fila); una **fórmula distinta** = registrar
+     **una** función nueva y apuntar su fila. El barrido, la escritura al WMS, el
+     panel y el resolver de scope no cambian.
+  4. Los nombres de estrategia/ancla viven como constantes en `models.py`
+     (`ESTRATEGIA_ESCALA_LINEAL`, `ESTRATEGIA_DIAS_HASTA_SALIDA`, `ANCLA_ALISTADO`,
+     `ANCLA_ENTREGA`, `PRIORIDAD_PISO_DEFECTO`); el `CHECK` de `sql/55` es el único
+     espejo del lado SQL.
+  5. **Primera entrega**: la prioridad de Cofersa solo usa la regla de tiempo y
+     cliente-retira. Cómo pesan otras reglas dentro del día queda aparcado
+     (OQ-PRIO-A).
+- **Consecuencias**:
+  - (+) Cofersa obtiene la escala que pidió negocio sin cambiar a las demás
+    compañías (`escala_lineal` intacta).
+  - (+) Agregar una compañía de mayoreo que numere igual es una fila de config
+    (absorbe OQ-PRIO-B por diseño, sin código).
+  - (+) Compatible con el DECIDED "el Motor de Reglas NO es un constructor
+    dinámico": la lógica vive en código; la config solo elige estrategia y
+    parámetros.
+  - (+) Las estrategias son funciones puras, testeables sin I/O (Testing Posture).
+  - (−) Para Cofersa el score ponderado ya no define el número; queda como dato
+    auditable (`oms_score`). Si más adelante otras reglas deben reordenar dentro del
+    día (OQ-PRIO-A), hay que evolucionar `dias_hasta_salida`.
+  - (−) Hoy la estrategia solo garantiza que la cola nunca muestra 0; que la
+    **liberación escriba 0** al WMS es un follow-up de construcción.
+  - (=) **EPA sin roce (2026-10-30)**: "0 = liberado" es convención de la
+    estrategia `dias_hasta_salida` de Cofersa (piso de cola 1), no un invariante
+    global de `orders.priority`. EPA usa 1 y 2 (nunca 0), así que no hay roce
+    (ADR-009).
+  - (−) El ancla "salida = fecha de alistado objetivo" puede diferir en un día de la
+    ventana de liberación de ADR-013 (OQ-PRIO-C).
+  - (−) La columna `estrategia` tiene un `CHECK` en SQL que hay que ampliar al
+    registrar una estrategia nueva.
+- **Alternativas rechazadas**:
+  - **Mantener 2 prioridades para Cofersa** (DECIDED 2026-09-02) — rechazada: el
+    negocio pidió explícitamente la escala `0..n` por días.
+  - **Escala `0..100` lineal para Cofersa** (`escala_lineal` con `PRIORIDAD_BASE`) —
+    rechazada: negocio quiere una escala chica cuyo número signifique días hasta la
+    salida, no un mapa del score.
+  - **Hardcodear la numeración por compañía** (`if compañía == Cofersa` en el motor)
+    — rechazada: cada compañía nueva obligaría a tocar el motor; contradice la
+    resolución por scope (C3-SUPERSEDE).
+  - **Constructor dinámico de fórmulas en la UI** — rechazada por el DECIDED "el
+    Motor de Reglas NO es un constructor dinámico" (las reglas son complejas y su
+    lógica va en código).
+- **Open questions**: OQ-PRIO-A (aparcada), OQ-PRIO-B, OQ-PRIO-C (ver
+  `## Assumptions & Open Questions`). OQ-EPA-VAL — CERRADA 2026-10-30: EPA = 1 y 2
+  (confirmado por Eduardo; fuente 2026-09-01).

@@ -1,6 +1,6 @@
 export default {
-  'omsQueue.title': 'Orders',
-  'omsQueue.subtitle': 'Prioritized and released orders',
+  'omsQueue.title': 'Prioritization Queue',
+  'omsQueue.subtitle': 'Prioritized orders pending release to eFlow',
   'omsQueue.warehouse': 'Warehouse',
   'omsQueue.company': 'Company',
   'omsQueue.branch': 'Branch',
@@ -28,6 +28,7 @@ export default {
   'omsQueue.colItemCount': 'No. of items',
   'omsQueue.colObservations': 'Notes',
   'omsQueue.colDispatchDate': 'Delivery Date',
+  'omsQueue.colSalidaDate': 'Dispatch Date',
   'omsQueue.colCreatedDate': 'Created Date',
   'omsQueue.colScore': 'Score',
   'omsQueue.colStatus': 'Status',

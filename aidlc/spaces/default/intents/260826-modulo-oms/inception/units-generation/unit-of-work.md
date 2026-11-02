@@ -5,8 +5,8 @@
 > `components.md` v4 (8 componentes en alcance) y `decisions.md` (ADR-007..012).
 > Pasada corta: descompone en unidades desplegables, NO re-abre diseño.
 >
-> **Nomenclatura (vigente)**: WMS = **EFLOW**; módulo que parte EPA por línea =
-> **EPRAC**.
+> **Nomenclatura (vigente)**: WMS = **EFLOW**; módulo que asigna la prioridad de
+> EPA (1 o 2) = **EPRAC**.
 
 ## Resumen
 
@@ -49,7 +49,7 @@ Descomposición mínima: **2 unidades** (ambas service).
     `ReglaFecha` + `ReglaClienteRetiraZona`, calcula el **score ponderado**
     (submódulo puro testeable), aplica umbral y ordena el handoff.
   - `ReglaEPA` — cortocircuito EPA (D9): prioridad pre-asignada por **EPRAC**
-    (guion-0=0, guion-1=1); no recalcula; libera ambas juntas.
+    (1 o 2; nunca 0); no recalcula; libera el pedido con esa prioridad.
   - `ReglaFecha` — fecha generalizada (D10): `fecha_entrega − duración`, con la
     **duración como insumo de Planificación** (Cofersa=1, VE dinámica); fallback por
     centinela.
