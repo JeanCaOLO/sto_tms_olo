@@ -54,8 +54,7 @@ Probado con la sesión del usuario en `localhost:3001` → backend `:4001` → A
      --profile ext-claude --region us-east-2
    ```
    Aurora y el bastión solo están encendidos L–V 05:00–17:00 (hora CR). El túnel se cae por inactividad.
-2. **Backend con tracking:** `npm run api:local:base` (`backend/local/serve.py`, puerto 4000).
-   **Ojo:** `npm run api:local` corre `backend-planif/serve.py`, que **no** incluye el stack `tracking`. Si se necesitan ambos a la vez, levantar el de tracking en otro puerto (`EFLOW_API_PORT=4001 npm run api:local:base`) y apuntar Vite a ese (`EFLOW_API_URL=http://localhost:4001 npm run dev`).
+2. **Backend con tracking:** `npm run api:local` (`backend/local/serve.py`, puerto 4000) ya monta todos los stacks de `backend/*`, tracking incluido.
 3. Requiere `.env.local` con `TMS_DB_*` y `JWT_SECRET`. Aurora exige SSL.
 
 ## T1 — Migraciones de tracking aplicadas
@@ -192,7 +191,7 @@ Diseñado y probado el 2026-10-17, **retirado** por la restricción de no altera
 2. **Tracking → Planificación:** en la misma transacción,
    `UPDATE plan_trips SET status = 'completed', updated_at = now() WHERE id = (SELECT plan_trip_id FROM routes WHERE id = %s) AND status = 'pending';`
    **Toca Planificación** (su tabla): requiere acuerdo.
-3. **Planificación → Tracking:** en `backend-planif/src/adapters/outbound/aurora/plan_repo.py` (`actualizar_estado_viaje` y `actualizar_estado`), dentro de una `pg.transaction()`:
+3. **Planificación → Tracking:** NOTA (2026-11-02): este punto asumía las transiciones de viaje/plan del backend hexagonal `backend-planif`, que se ELIMINÓ — planificación es ahora automática y no tiene handlers de transición. Si alguna vez se reintroduce el cierre de viaje, el hook iría en el backend vigente `backend/planning/src` dentro de una `pg.transaction()`:
    ```sql
    UPDATE routes SET status = %s /* 'Completada' | 'Anulada' */,
           actual_end_time = coalesce((SELECT max(g.actual_arrival_time) FROM dispatch_guides g WHERE g.route_id = routes.id), now()),
