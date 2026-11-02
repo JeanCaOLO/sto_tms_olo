@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchZones } from '../api/reglasTarifaApi';
 import type { ZoneRow } from '../types';
 
@@ -6,35 +6,29 @@ export function useZones(organizationId: string) {
   const [zones, setZones] = useState<ZoneRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [cancelledRef] = useState({ value: false });
+  const seq = useRef(0); // solo vale la respuesta de la última carga (ver useRulesAndParties)
 
   const load = useCallback(async () => {
+    const mine = ++seq.current;
     try {
       setLoading(true);
       setLoadError('');
       const zonesData = await fetchZones(organizationId);
-      if (!cancelledRef.value) {
-        setZones(zonesData);
-      }
+      if (mine === seq.current) setZones(zonesData);
     } catch (error) {
-      if (!cancelledRef.value) {
+      if (mine === seq.current) {
         console.error('Error cargando zonas:', error);
         setLoadError('No se pudieron cargar las zonas. Reintentá en unos segundos.');
       }
     } finally {
-      if (!cancelledRef.value) {
-        setLoading(false);
-      }
+      if (mine === seq.current) setLoading(false);
     }
-  }, [organizationId, cancelledRef]);
+  }, [organizationId]);
 
   useEffect(() => {
-    cancelledRef.value = false;
-    if (organizationId) {
-      void load();
-    }
-    return () => { cancelledRef.value = true; };
-  }, [load, organizationId, cancelledRef]);
+    if (organizationId) void load();
+    return () => { seq.current += 1; };
+  }, [load, organizationId]);
 
   return { zones, loading, loadError, load };
 }

@@ -10,6 +10,7 @@ import Button from '../../../components/base/Button';
 import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
 import { formatMoney } from '../../../lib/tarifas/format';
 import { decideProforma, groupProformasByCarrier, type ClaimRow, type ProformaCarrierGroup } from '../../../lib/tarifas/proformas';
+import { formatLocalDate as shortDate } from '../../../lib/tarifas/localDate';
 import ReasonModal from '../components/ReasonModal';
 
 interface Props {
@@ -24,26 +25,25 @@ type Ask = { kind: 'restart' | 'appeal'; row: ClaimRow };
 const TEXTS = {
   restart: {
     title: 'Reiniciar liquidación',
-    label: 'Nota para la bitácora (opcional). El motivo del reclamo viaja como indicación para re-liquidar.',
+    label: (row: ClaimRow) => `Reiniciar anula la proforma ${row.proforma.number} y todas sus liquidaciones: sus viajes vuelven a "Por liquidar" con el motivo del reclamo como indicación. Nota para la bitácora (opcional).`,
     confirm: 'Reiniciar',
     required: false,
     danger: true,
   },
   appeal: {
     title: 'Apelar el reclamo',
-    label: 'Explica por qué el reclamo no procede (lo verá quien lo puso)',
+    label: () => 'Explica por qué el reclamo no procede (lo verá quien lo puso)',
     confirm: 'Apelar',
     required: true,
     danger: false,
   },
 } as const;
 
-const shortDate = (iso: string) => (iso ? iso.slice(0, 10) : '');
-
 export default function ClaimsTable({ rows, loading, onOpen, onChanged }: Props) {
   const groups = useMemo(() => groupProformasByCarrier(rows), [rows]);
   const [ask, setAsk] = useState<Ask | null>(null);
   const [busy, setBusy] = useState(false);
+  const [askError, setAskError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
   const columns: DataTableColumn<ProformaCarrierGroup<ClaimRow>>[] = [
@@ -61,9 +61,11 @@ export default function ClaimsTable({ rows, loading, onOpen, onChanged }: Props)
   async function confirm(text: string) {
     if (!ask) return;
     setBusy(true);
+    setAskError(null);
     const { error } = await decideProforma(ask.row.proforma.id, { action: ask.kind, comment: text || undefined });
     setBusy(false);
-    if (error) { setNotice({ ok: false, text: error }); return; }
+    // El error va dentro del modal, que sigue abierto: en un aviso de la página quedaba tapado por el fondo.
+    if (error) { setAskError(error); return; }
     setNotice({ ok: true, text: ask.kind === 'restart'
       ? `${ask.row.proforma.number} anulada: sus viajes volvieron a "Por liquidar" con el reclamo como indicación.`
       : `${ask.row.proforma.number} devuelta a "${ask.row.claim.phaseName}" con tu explicación.` });
@@ -109,10 +111,10 @@ export default function ClaimsTable({ rows, loading, onOpen, onChanged }: Props)
                 )}
                 {r.claim.status === 'abierto' && (
                   <div className="flex flex-wrap justify-end gap-2 pt-1">
-                    <Button variant="secondary" size="sm" disabled={busy} icon={<i className="ri-scales-3-line" />} onClick={() => setAsk({ kind: 'appeal', row: r })}>
+                    <Button variant="secondary" size="sm" disabled={busy} icon={<i className="ri-scales-3-line" />} onClick={() => { setAskError(null); setAsk({ kind: 'appeal', row: r }); }}>
                       Apelar
                     </Button>
-                    <Button variant="danger" size="sm" disabled={busy} icon={<i className="ri-restart-line" />} onClick={() => setAsk({ kind: 'restart', row: r })}>
+                    <Button variant="danger" size="sm" disabled={busy} icon={<i className="ri-restart-line" />} onClick={() => { setAskError(null); setAsk({ kind: 'restart', row: r }); }}>
                       Reiniciar liquidación
                     </Button>
                   </div>
@@ -125,11 +127,12 @@ export default function ClaimsTable({ rows, loading, onOpen, onChanged }: Props)
       {ask && (
         <ReasonModal
           title={`${TEXTS[ask.kind].title} · ${ask.row.proforma.number}`}
-          label={TEXTS[ask.kind].label}
+          label={TEXTS[ask.kind].label(ask.row)}
           confirmLabel={TEXTS[ask.kind].confirm}
           required={TEXTS[ask.kind].required}
           danger={TEXTS[ask.kind].danger}
           busy={busy}
+          error={askError}
           onConfirm={(t) => void confirm(t)}
           onClose={() => { if (!busy) setAsk(null); }}
         />

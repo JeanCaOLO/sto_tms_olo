@@ -58,8 +58,8 @@ export default function TripOrdersPanel({
   useEffect(() => { void load(); }, [load]);
 
   const handleMarkOrder = async (order: TripOrder, mark: OrderMark, why?: string) => {
-    const success = await apply(order, mark, why);
-    if (success) {
+    const result = await apply(order, mark, why);
+    if (result.ok) {
       setError('');
       // Quien usa el panel recalcula y con eso trae los pedidos nuevos: una sola lectura.
       if (controlled) { await onChanged?.(); return; }
@@ -67,7 +67,7 @@ export default function TripOrdersPanel({
       onChanged?.();
       await load();
     } else {
-      setError('Error al cambiar la marca del pedido');
+      setError(result.error ? `No se pudo cambiar la marca del pedido: ${result.error}` : 'Error al cambiar la marca del pedido');
     }
   };
 

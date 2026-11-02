@@ -1,6 +1,6 @@
 // Acciones sobre tarifarios y sus filas: guardar, eliminar y activar/desactivar.
 
-import type { RateTable } from '../../../../lib/tarifas/types';
+import type { RateTable, RateTableRow } from '../../../../lib/tarifas/types';
 import {
   toggleRateTable, removeRateTable, removeRateRow, createOrUpdateRateRow, type RateRowFormInput,
 } from '../../api/tarifariosApi';
@@ -34,9 +34,10 @@ export function useTarifariosActions({ state, setState, selected, loadTables, lo
   };
 
   /** true = la fila se eliminó (quien llama limpia el formulario si era la que estaba en edición). */
-  const deleteRow = async (rowId: string): Promise<boolean> => {
+  const deleteRow = async (row: RateTableRow): Promise<boolean> => {
     try {
-      const { error } = await removeRateRow(rowId, selected?.id);
+      // Se pasa lo que valía la fila: la bitácora de un borrado tiene que decir qué se borró.
+      const { error } = await removeRateRow(row.id, selected?.id, { key: row.key, amount: row.amount, values: row.values });
       if (error) {
         setState((s) => ({ ...s, generalError: `No se pudo eliminar la fila: ${error}` }));
         return false;

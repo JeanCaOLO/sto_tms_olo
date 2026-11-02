@@ -8,7 +8,7 @@ import RateRowsCard from './tarifarios/RateRowsCard';
 import { useTarifariosController } from './tarifarios/useTarifariosController';
 import { useRateRowFormState } from './tarifarios/useRateRowFormState';
 import { useModulePermissions } from '../../../hooks/use-module-permissions';
-import type { RateTable } from '../../../lib/tarifas/types';
+import type { RateTable, RateTableRow } from '../../../lib/tarifas/types';
 
 interface Props {
   countryId: string;
@@ -59,10 +59,10 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
     }
   };
 
-  const handleDeleteRow = async (rowId: string) => {
-    const eliminada = await controller.deleteRow(rowId);
+  const handleDeleteRow = async (row: RateTableRow) => {
+    const eliminada = await controller.deleteRow(row);
     // Si era la fila que se estaba editando, el formulario no puede quedar apuntando a una fila que ya no existe.
-    if (eliminada && form.editingRowId === rowId) form.reset();
+    if (eliminada && form.editingRowId === row.id) form.reset();
   };
 
   return (
@@ -106,7 +106,7 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
           onSaveRow={handleSaveRow}
           onCancelEdit={form.reset}
           onEditRow={form.startEdit}
-          onDeleteRow={(row) => handleDeleteRow(row.id)}
+          onDeleteRow={handleDeleteRow}
           onClose={() => controller.selectTable(null)}
           onImportOpen={() => setIsImportOpen(true)}
         />

@@ -14,23 +14,30 @@ export function useProformaList(countryId: string, sweep: boolean, scope: Profor
   const [error, setError] = useState<string | null>(null);
   const [noPhases, setNoPhases] = useState(false);
   const swept = useRef<string | null>(null);
+  // Cada carga lleva su número: si mientras espera llega otra (otro rango, país o pestaña), su respuesta ya no vale y
+  // no debe reemplazar a la nueva, ni mostrar su error, ni apagar el "cargando" de la vigente.
+  const seq = useRef(0);
 
   const reload = useCallback(async () => {
-    if (!countryId || !enabled) { setRows([]); return; }
+    const mine = ++seq.current;
+    if (!countryId || !enabled) { setRows([]); setLoading(false); return; }
     setLoading(true);
     setError(null);
     try {
       if (sweep && swept.current !== countryId) {
         swept.current = countryId;
         const result = await assignPendingSettlements(countryId);
-        if (result.error) setError(`No se pudieron agrupar algunas liquidaciones: ${result.error}`);
-        setNoPhases(result.skipped === 'no-phases');
+        if (mine === seq.current) {
+          if (result.error) setError(`No se pudieron agrupar algunas liquidaciones: ${result.error}`);
+          setNoPhases(result.skipped === 'no-phases');
+        }
       }
-      setRows(await listProformas(countryId, scope, range));
+      const data = await listProformas(countryId, scope, range);
+      if (mine === seq.current) setRows(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudieron cargar las proformas.');
+      if (mine === seq.current) setError(e instanceof Error ? e.message : 'No se pudieron cargar las proformas.');
     } finally {
-      setLoading(false);
+      if (mine === seq.current) setLoading(false);
     }
   }, [countryId, sweep, scope, range, enabled]);
 

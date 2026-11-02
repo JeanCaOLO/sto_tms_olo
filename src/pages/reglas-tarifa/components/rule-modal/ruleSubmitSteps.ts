@@ -71,14 +71,17 @@ export function parseExpression({ calc }: SubmitContext): Parsed<Expr> {
   }
 }
 
-/** Id del perfil de cálculo de la compañía; lo crea si todavía no existe. */
-export async function resolvePartyId(c: SubmitContext): Promise<Parsed<string | null>> {
+/**
+ * Id del perfil de cálculo de la compañía; lo crea si todavía no existe. `created` dice si lo creó AHORA: si lo que
+ * viene después falla, quien llama lo deshace (un perfil vacío dejaría a la compañía como "Configurada" sin nada).
+ */
+export async function resolvePartyId(c: SubmitContext): Promise<Parsed<{ id: string | null; created: boolean }>> {
   const { formData } = c.form;
-  if (formData.scope !== 'PARTY') return { value: null };
-  if (formData.party_id) return { value: formData.party_id };
+  if (formData.scope !== 'PARTY') return { value: { id: null, created: false } };
+  if (formData.party_id) return { value: { id: formData.party_id, created: false } };
   const ensured = await ensurePartyProfile(c.selectedCarrierId);
   if (ensured.status === 'failed') {
     return { error: `No se pudo crear el perfil de cálculo de la compañía: ${ensured.error.message}` };
   }
-  return { value: ensured.partyId };
+  return { value: { id: ensured.partyId, created: ensured.created } };
 }

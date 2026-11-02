@@ -11,7 +11,7 @@ import { useModulePermissions } from '../../hooks/use-module-permissions';
 import { useTarifasActor } from '../../hooks/useTarifasActor';
 import { formatMoney } from '../../lib/tarifas/format';
 import { CLAIMS_LIMIT } from '../../lib/tarifas/proformas/claims';
-import { canManageProformas, HISTORY_LIMIT, isWaitingFor, pendingForActor, TODAY_RANGE } from '../../lib/tarifas/proformas';
+import { canManageProformas, HISTORY_LIMIT, isWaitingFor, pendingForActor, rangeFor, TODAY_RANGE } from '../../lib/tarifas/proformas';
 import DetalleProformaModal from './components/DetalleProformaModal';
 import ProformaBitacora from './components/ProformaBitacora';
 import EmailConfigForm from './config/EmailConfigForm';
@@ -20,6 +20,7 @@ import { useClaims } from './hooks/useClaims';
 import { useGoogleReturn } from './hooks/useGoogleReturn';
 import { useProformaActor } from './hooks/useProformaActor';
 import { useProformaList } from './hooks/useProformaList';
+import { useTodayRange } from './hooks/useTodayRange';
 import CarrierGroupsTable from './parts/CarrierGroupsTable';
 import ClaimsTable from './parts/ClaimsTable';
 
@@ -43,6 +44,7 @@ export default function ProformasPage() {
   const tabs: Tab[] = ['pending', ...(manager ? ['process', 'claims', 'done'] as Tab[] : []), 'log', ...(canConfigure ? ['config'] as Tab[] : [])];
   const tab = tabs.includes(requested) ? requested : 'pending';
   const [range, setRange] = useState(TODAY_RANGE);
+  useTodayRange(range, setRange);
   const [openId, setOpenId] = useState<string | null>(null);
 
   // Lo vigente (en revisión o aprobado sin enviar) siempre se carga: alimenta Por aprobar y los contadores. Aquí corre el barrido.
@@ -103,7 +105,7 @@ export default function ProformasPage() {
 
       {/* Quien solo aprueba ve su turno; el avance del resto del flujo es para el Liquidador y los administradores. */}
       <div className={`grid grid-cols-1 gap-4 ${manager ? 'md:grid-cols-4' : ''}`}>
-        {manager && <StatCard title="En revisión" value={String(inReview.length)} icon="ri-time-line" color="amber" />}
+        {manager && <StatCard title="En revisión (todas)" value={String(inReview.length)} icon="ri-time-line" color="amber" />}
         <StatCard title="Esperan mi aprobación" value={String(mine.length)} icon="ri-user-star-line" color="teal" />
         {manager && <StatCard title="Aprobadas por enviar" value={String(toSend.length)} icon="ri-mail-send-line" color="emerald" />}
         {manager && <StatCard title="Total en revisión" value={formatMoney(String(pendingTotal), currency)} icon="ri-money-dollar-circle-line" color="amber" />}
@@ -122,6 +124,13 @@ export default function ProformasPage() {
             {capped && (
               <p className="text-xs text-amber-700">
                 <i className="ri-information-line mr-1" />Se muestran las {tab === 'claims' ? CLAIMS_LIMIT : HISTORY_LIMIT} más recientes. Acota el periodo para ver el resto.
+              </p>
+            )}
+            {/* La tarjeta "En revisión" cuenta todo lo vigente; esta pestaña solo el periodo: si no coinciden, se dice. */}
+            {tab === 'process' && !section.loading && section.rows.length < inReview.length && (
+              <p className="text-xs text-amber-700">
+                <i className="ri-information-line mr-1" />Hay {inReview.length} en revisión en total; este periodo muestra {section.rows.length}.{' '}
+                <button type="button" className="underline cursor-pointer" onClick={() => setRange(rangeFor('all'))}>Ver todas</button>
               </p>
             )}
           </div>

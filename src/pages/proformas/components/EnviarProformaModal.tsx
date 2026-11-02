@@ -22,9 +22,11 @@ export default function EnviarProformaModal({ detail, onClose, onSent }: Props) 
   const [google, setGoogle] = useState<GoogleStatus | null>(null);
   const noEmail = m.config?.includeCarrierEmail && !m.carrierEmail;
   const ready = !m.busy && m.recipients.length > 0 && !!m.subject.trim();
+  // Con un envío en curso no se cierra (ni con Esc): el usuario no vería cómo termina.
+  const close = () => { if (!m.busy) onClose(); };
 
   return (
-    <Modal isOpen title="Enviar proforma por correo" onClose={onClose} widthClass="max-w-2xl" zClass="z-[60]" closeOnBackdrop={false}>
+    <Modal isOpen title="Enviar proforma por correo" onClose={close} widthClass="max-w-2xl" zClass="z-[60]" closeOnBackdrop={false}>
       <div className="space-y-4 p-6">
         <h2 className="text-xl font-semibold text-slate-800">Enviar {detail.proforma.number} por correo</h2>
         {m.error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{m.error}</div>}
@@ -58,7 +60,7 @@ export default function EnviarProformaModal({ detail, onClose, onSent }: Props) 
           <div className="space-y-3 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-900">
             <p>Se abrió Gmail y se descargó <strong>{m.fileName}</strong>. Gmail no permite adjuntar por enlace: adjunta el PDF, revisa y envía.</p>
             <div className="flex justify-end gap-2">
-              <Button variant="secondary" onClick={onClose}>Aún no lo envié</Button>
+              <Button variant="secondary" onClick={close} disabled={m.busy}>Aún no lo envié</Button>
               <Button variant="success" disabled={m.busy} onClick={() => void m.confirmSent()}>Ya lo envié</Button>
             </div>
           </div>
@@ -69,7 +71,7 @@ export default function EnviarProformaModal({ detail, onClose, onSent }: Props) 
               reintenta el registro. <strong>No se vuelve a enviar el correo.</strong>
             </p>
             <div className="flex justify-end gap-2">
-              <Button variant="secondary" onClick={onClose}>Cerrar sin registrar</Button>
+              <Button variant="secondary" onClick={close} disabled={m.busy}>Cerrar sin registrar</Button>
               <Button variant="success" disabled={m.busy} onClick={() => void m.confirmSent()}>
                 {m.busy ? 'Registrando…' : 'Reintentar registro'}
               </Button>
@@ -77,7 +79,7 @@ export default function EnviarProformaModal({ detail, onClose, onSent }: Props) 
           </div>
         ) : (
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-3">
-            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+            <Button variant="secondary" onClick={close} disabled={m.busy}>Cancelar</Button>
             <Button
               variant="secondary" disabled={!ready} icon={<i className="ri-mail-line" />}
               title="Abre Gmail con el correo armado y descarga el PDF para que lo adjuntes"
