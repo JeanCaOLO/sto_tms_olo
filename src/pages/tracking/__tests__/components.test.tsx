@@ -133,6 +133,15 @@ describe('ViajeDetallePanel (solo lectura)', () => {
     expect(screen.queryByText(/Novedades|Devoluciones/)).toBeNull();
   });
 
+  it('una recolecta muestra foto del producto y firma (no la factura)', () => {
+    const evidences = [{ id: 'e2', kind: 'photo_product' as const, mime_type: 'image/jpeg', captured_at: null, url: 'https://s3/p.jpg' }];
+    render(<ViajeDetallePanel {...base} detail={detail([stop({ type: 'collection', evidences })])} />);
+    fireEvent.click(screen.getByText('Tienda Uno'));
+    expect(screen.getByAltText('Foto del producto')).toBeTruthy();
+    expect(screen.getByText('Firma digital')).toBeTruthy();
+    expect(screen.queryByText('Factura firmada')).toBeNull();
+  });
+
   it('no ofrece acciones sobre el viaje (completar, revisar, mapas externos)', () => {
     render(<ViajeDetallePanel {...base} detail={detail([stop()])} />);
     fireEvent.click(screen.getByText('Tienda Uno'));

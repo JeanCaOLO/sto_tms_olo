@@ -66,6 +66,8 @@ export default {
   'tracking.recipient': 'Received by: {{name}}',
   'tracking.evidenceInvoice': 'Signed invoice',
   'tracking.evidenceSignature': 'Digital signature',
+  'tracking.evidenceProduct': 'Product photo',
+  'tracking.stopCollection': 'Pickup',
   'tracking.evidenceMissing': 'Pending',
   'tracking.alerts': 'Trip alerts',
   'tracking.alertFailed': '{{count}} failed stop(s)',

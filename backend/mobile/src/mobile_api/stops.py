@@ -49,6 +49,8 @@ def transition_stop(event: dict, driver: Driver) -> dict:
     target = body.get("to")
     if target not in logic.GUIDE_STATUS_TEXT:
         raise HttpError(400, "to debe ser pending, delivered o failed")
+    if body.get("type") is not None and body["type"] not in logic.STOP_TYPES:
+        raise HttpError(400, "type debe ser delivery o collection")
     reason = (body.get("reason") or "").strip() or None
     reason_code = body.get("reason_code")
     if reason_code is not None and reason_code not in logic.FAR_REASON_CODES:
@@ -102,10 +104,11 @@ def transition_stop(event: dict, driver: Driver) -> dict:
     if unlocated and not reason:
         raise HttpError(400, "No hay ubicación del dispositivo: envía lat/lng o indica el motivo.",
                         code="no_location")
-    # Foto de la factura y firma son obligatorias para entregar: la app las sube antes de la transición (outbox en orden).
-    if delivering and not set(logic.EVIDENCE_KINDS) <= set(guide.get("evidence_kinds") or []):
-        raise HttpError(400, "Para marcar la entrega se requiere la foto de la factura y la firma.",
-                        code="evidence_required")
+    # Entrega: foto de la factura + firma. Recolecta: foto del producto + firma (de quien lo entrega). La app las sube
+    # antes de la transición (outbox en orden). El tipo lo decide el servidor, no el cliente.
+    kind_of_stop = logic.stop_type(guide.get("stop_type"))
+    if delivering and not set(logic.REQUIRED_EVIDENCE[kind_of_stop]) <= set(guide.get("evidence_kinds") or []):
+        raise HttpError(400, logic.EVIDENCE_REQUIRED_TEXT[kind_of_stop], code="evidence_required")
     event_type = {"delivered": "delivery_completed", "failed": "delivery_failed", "pending": "stop_reverted"}[target]
     event_status = {"delivered": "success", "failed": "error", "pending": "info"}[target]
 

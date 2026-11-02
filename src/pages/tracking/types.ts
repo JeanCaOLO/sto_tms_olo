@@ -5,8 +5,10 @@ export type RouteState = 'planned' | 'active' | 'completed' | 'cancelled' | 'unk
 export type Signal = 'online' | 'stale' | 'offline' | 'none';
 export type MapColor = 'green' | 'amber' | 'gray' | 'blue';
 export type StopState = 'pending' | 'delivered' | 'failed';
-/** Evidencias de entrega: solo foto de la factura firmada y firma digital. */
-export type EvidenceKind = 'photo_invoice' | 'signature';
+/** Evidencias: foto de la factura firmada y firma digital (entrega) o foto del producto y firma (recolecta). */
+export type EvidenceKind = 'photo_invoice' | 'photo_product' | 'signature';
+/** Tipo de parada: entrega (por defecto) o recolecta del producto devuelto. */
+export type StopType = 'delivery' | 'collection';
 export type Phase = 'por_salir' | 'en_ruta';
 export type AlertCode = 'failed' | 'no_signal' | 'late' | 'stopped';
 export type ListMode = 'active' | 'all';
@@ -93,6 +95,8 @@ export interface Stop {
   guide_number: string;
   sequence: number;
   state: StopState;
+  /** Opcional por compatibilidad con respuestas anteriores: si falta, es una entrega. */
+  type?: StopType;
   order_number: string;
   invoice_number: string | null;
   customer_name: string | null;

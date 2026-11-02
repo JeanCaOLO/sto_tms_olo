@@ -83,6 +83,7 @@ export const STOP_KEY: Record<StopState, string> = {
 
 export const EVIDENCE_KEY: Record<EvidenceKind, string> = {
   photo_invoice: 'tracking.evidenceInvoice',
+  photo_product: 'tracking.evidenceProduct',
   signature: 'tracking.evidenceSignature',
 };
 

@@ -49,7 +49,7 @@ def _route_item(row: dict, guides: list[dict], at: datetime, driver_name: str | 
         metrics = live["by_stop"].get(stop["id"])
         stops.append({
             "id": stop["id"], "guide_number": g["guide_number"], "sequence": g["sequence_number"],
-            "state": stop["state"], "order_number": g["order_number"], "invoice_number": g["invoice_number"],
+            "state": stop["state"], "type": logic.stop_type(g.get("stop_type")), "order_number": g["order_number"], "invoice_number": g["invoice_number"],
             "customer_name": g["customer_name"], "customer_phone": g["customer_phone"],
             "address": g["delivery_address"], "city": g["delivery_city"], "items": g["total_items"],
             "weight": _float(g["total_weight"]), "lat": stop["lat"], "lng": stop["lng"],
@@ -90,7 +90,7 @@ def my_trips(event: dict, driver: Driver) -> dict:
         for st in db.query(sql.MY_PLANNED_STOPS_SQL, [[str(p["plan_trip_id"]) for p in planned]]):
             stops_by_trip.setdefault(str(st["trip_id"]), []).append({
                 "id": str(st["order_id"]), "sequence": st["stop_order"], "state": logic.GUIDE_PENDING,
-                "order_number": st["order_number"], "invoice_number": st["invoice_number"],
+                "type": "delivery", "order_number": st["order_number"], "invoice_number": st["invoice_number"],
                 "customer_name": st["customer_name"], "customer_phone": st["customer_phone"],
                 "address": st["delivery_address"], "city": st["delivery_city"], "items": st["total_items"],
                 "weight": _float(st["total_weight"]), "lat": _float(st["latitude"]), "lng": _float(st["longitude"])})
