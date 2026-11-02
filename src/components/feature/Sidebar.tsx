@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useSidebar } from '../../hooks/useSidebar';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -12,6 +12,9 @@ export default function Sidebar() {
   const { collapsed, toggleCollapsed, mobileOpen, setMobileOpen } = useSidebar();
   const { can } = usePermissions();
   const { t } = useTranslation();
+
+  // En móvil el menú es un cajón sobre la pantalla: al navegar a otro módulo se cierra solo.
+  useEffect(() => { setMobileOpen(false); }, [location.pathname, setMobileOpen]);
 
   // Solo se muestran los módulos con `view` (los "Coming Soon" quedan visibles
   // pero apagados; se controla en el render, no acá). Un grupo aparece si al

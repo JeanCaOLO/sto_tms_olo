@@ -86,7 +86,7 @@ export default function TripMapa({ paradas, alturaClase = 'h-[220px]', onParadaC
 
   return (
     <div
-      className={`${alturaClase} rounded-lg overflow-hidden border border-slate-100`}
+      className={`${alturaClase} isolate rounded-lg overflow-hidden border border-slate-100`}
       onMouseEnter={() => mapRef.current?.scrollWheelZoom.enable()}
       onMouseLeave={() => mapRef.current?.scrollWheelZoom.disable()}
     >

@@ -1,6 +1,7 @@
 import { lazy } from 'react';
 import { Navigate, RouteObject } from 'react-router-dom';
 import TarifadorHints from '../components/tarifas/TarifadorHints';
+import RedirectKeepingQuery from './RedirectKeepingQuery';
 
 const HomePage = lazy(() => import('../pages/home/page'));
 const LoginPage = lazy(() => import('../pages/login/page'));
@@ -38,9 +39,10 @@ const OmsSimuladorPage = lazy(() => import('../pages/oms/simulador/page'));
 const OmsAuditoriaPage = lazy(() => import('../pages/oms/auditoria/page'));
 
 const routes: RouteObject[] = [
+  // La entrada principal pasa por /dashboard para que el permiso de ese módulo también se aplique a "/".
   {
     path: '/',
-    element: <DashboardPage />
+    element: <Navigate to="/dashboard" replace />
   },
   {
     path: '/login',
@@ -65,7 +67,7 @@ const routes: RouteObject[] = [
   // Ruta anterior: se conserva como redirección para no romper enlaces guardados.
   {
     path: '/planificacion',
-    element: <Navigate to="/oms/planificacion" replace />
+    element: <RedirectKeepingQuery to="/oms/planificacion" />
   },
   {
     path: '/vehiculos',
@@ -102,11 +104,11 @@ const routes: RouteObject[] = [
   // Rutas anteriores: se conservan como redirección para no romper enlaces guardados.
   {
     path: '/tarifas/flota-propia',
-    element: <Navigate to="/tarifas/costos-flota?flota=propia" replace />
+    element: <RedirectKeepingQuery to="/tarifas/costos-flota" params={{ flota: 'propia' }} />
   },
   {
     path: '/tarifas/transportistas',
-    element: <Navigate to="/tarifas/costos-flota?flota=externa" replace />
+    element: <RedirectKeepingQuery to="/tarifas/costos-flota" params={{ flota: 'externa' }} />
   },
   {
     path: '/liquidaciones',
