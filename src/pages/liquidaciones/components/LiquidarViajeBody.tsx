@@ -34,7 +34,7 @@ export function LiquidarViajeBody({ ctrl, simple, blocking, currency }: Props) {
           calculation={calculation}
           simple={simple}
           customRaw={ctrl.customRaw}
-          onSetRaw={(k, v) => ctrl.setCustomRaw((prev) => ({ ...prev, [k]: v }))}
+          onSetRaw={ctrl.setCustomVar}
           returns={ctrl.returns}
           onSetReturns={ctrl.setReturns}
           notes={ctrl.notes}

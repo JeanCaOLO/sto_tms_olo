@@ -23,6 +23,8 @@ interface Props {
   onSave: () => void;
   onCancel: () => void;
   isEditing: boolean;
+  /** Hay un guardado en curso: el botón se bloquea para que un segundo clic no duplique la fila. */
+  saving?: boolean;
   canEdit: boolean;
   customLabels?: Record<string, string>;
 }
@@ -42,6 +44,7 @@ export default function RateRowForm({
   onSave,
   onCancel,
   isEditing,
+  saving = false,
   canEdit,
   customLabels = {},
 }: Props) {
@@ -125,13 +128,13 @@ export default function RateRowForm({
         ))}
         <div className="flex gap-2 pb-0.5">
           {isEditing && (
-            <Button variant="secondary" onClick={onCancel}>
+            <Button variant="secondary" onClick={onCancel} disabled={saving}>
               Cancelar
             </Button>
           )}
-          <Button onClick={onSave} disabled={!canEdit} title={!canEdit ? 'Tu rol no puede editar tarifarios' : undefined}>
-            <i className={isEditing ? 'ri-save-line mr-1' : 'ri-add-line mr-1'}></i>
-            {isEditing ? 'Guardar' : 'Agregar'}
+          <Button onClick={onSave} disabled={!canEdit || saving} title={!canEdit ? 'Tu rol no puede editar tarifarios' : undefined}>
+            <i className={saving ? 'ri-loader-4-line animate-spin mr-1' : isEditing ? 'ri-save-line mr-1' : 'ri-add-line mr-1'}></i>
+            {saving ? 'Guardando…' : isEditing ? 'Guardar' : 'Agregar'}
           </Button>
         </div>
       </div>

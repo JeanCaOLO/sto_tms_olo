@@ -12,7 +12,6 @@ export interface TarifariosState {
   loadError: string;
   loadingRows: boolean;
   generalError: string;
-  editingRowId: string | null;
 }
 
 export type SetTarifariosState = Dispatch<SetStateAction<TarifariosState>>;
@@ -27,5 +26,4 @@ export const INITIAL_TARIFARIOS_STATE: TarifariosState = {
   loadError: '',
   loadingRows: false,
   generalError: '',
-  editingRowId: null,
 };

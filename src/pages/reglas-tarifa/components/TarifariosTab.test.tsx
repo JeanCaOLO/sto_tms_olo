@@ -147,4 +147,69 @@ describe('TarifariosTab (caracterización)', () => {
     fireEvent.click(within(rowsTable()).getAllByTitle('Eliminar')[0]);
     await waitFor(() => expect(rowCount()).toBe(5));
   });
+
+  // El id de la fila en edición vivía en dos estados (formulario y controlador): cancelar solo limpiaba
+  // el del formulario y el siguiente "Agregar" actualizaba la fila vieja.
+  it('editar, cancelar y agregar crea una fila nueva (no actualiza la que se había editado)', async () => {
+    open();
+    await selectZonas();
+    expect(rowCount()).toBe(6);
+
+    fireEvent.click(within(rowsTable()).getAllByTitle('Editar')[0]);
+    await screen.findByText('Editar fila');
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    await screen.findByText('Nueva fila');
+
+    const [origin, dest] = screen.getAllByPlaceholderText('cualquiera') as HTMLInputElement[];
+    fireEvent.change(origin, { target: { value: 'CCS' } });
+    fireEvent.change(dest, { target: { value: 'MCBO' } });
+    fireEvent.change(screen.getByLabelText('Importe *'), { target: { value: '12.5' } });
+    fireEvent.click(screen.getByRole('button', { name: /Agregar/ }));
+    await waitFor(() => expect(rowCount()).toBe(7));
+  });
+
+  it('al guardar una edición el formulario vuelve a "Nueva fila" y queda limpio', async () => {
+    open();
+    await selectZonas();
+    fireEvent.click(within(rowsTable()).getAllByTitle('Editar')[0]);
+    await screen.findByText('Editar fila');
+
+    fireEvent.change(screen.getByLabelText('Importe *'), { target: { value: '77' } });
+    fireEvent.click(screen.getByRole('button', { name: /Guardar/ }));
+
+    await screen.findByText('Nueva fila');
+    expect(rowCount()).toBe(6);
+    expect((screen.getByLabelText('Importe *') as HTMLInputElement).value).toBe('');
+    expect(screen.getByRole('button', { name: /Agregar/ })).toBeTruthy();
+  });
+
+  it('mientras guarda deshabilita el botón para que un segundo clic no duplique', async () => {
+    open();
+    await selectZonas();
+    const [origin, dest] = screen.getAllByPlaceholderText('cualquiera') as HTMLInputElement[];
+    fireEvent.change(origin, { target: { value: 'CCS' } });
+    fireEvent.change(dest, { target: { value: 'MCBO' } });
+    fireEvent.change(screen.getByLabelText('Importe *'), { target: { value: '12.5' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /Agregar/ }));
+    // Justo después del clic (antes de que termine el guardado) el botón ya está bloqueado.
+    const guardando = screen.getByRole('button', { name: /Guardando/ }) as HTMLButtonElement;
+    expect(guardando.disabled).toBe(true);
+    fireEvent.click(guardando); // un segundo clic no hace nada
+    await waitFor(() => expect(rowCount()).toBe(7));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(rowCount()).toBe(7);
+    expect(screen.getByRole('button', { name: /Agregar/ })).toBeTruthy();
+  });
+
+  it('el borrador de la fila sobrevive a una recarga de la lista de tarifarios', async () => {
+    open();
+    await selectZonas();
+    fireEvent.change(screen.getByLabelText('Importe *'), { target: { value: '99' } });
+
+    // Activar/desactivar recarga los tarifarios y entrega un objeto nuevo del tarifario elegido.
+    fireEvent.click(screen.getByTitle('Desactivar'));
+    await screen.findByText('Inactivo');
+    expect((screen.getByLabelText('Importe *') as HTMLInputElement).value).toBe('99');
+  });
 });

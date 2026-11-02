@@ -62,6 +62,19 @@ export default function EnviarProformaModal({ detail, onClose, onSent }: Props) 
               <Button variant="success" disabled={m.busy} onClick={() => void m.confirmSent()}>Ya lo envié</Button>
             </div>
           </div>
+        ) : m.sent ? (
+          <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <p>
+              El correo ya salió hacia el transportista. Falta dejar constancia del envío en la proforma:
+              reintenta el registro. <strong>No se vuelve a enviar el correo.</strong>
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={onClose}>Cerrar sin registrar</Button>
+              <Button variant="success" disabled={m.busy} onClick={() => void m.confirmSent()}>
+                {m.busy ? 'Registrando…' : 'Reintentar registro'}
+              </Button>
+            </div>
+          </div>
         ) : (
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-3">
             <Button variant="secondary" onClick={onClose}>Cancelar</Button>

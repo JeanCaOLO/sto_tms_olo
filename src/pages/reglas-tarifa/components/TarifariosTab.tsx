@@ -1,6 +1,6 @@
 // Tarifarios: orquesta la gestión de tarifarios y sus filas.
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import RateTableModal from './RateTableModal';
 import ImportRateTableModal from './ImportRateTableModal';
 import RateTablesListCard from './tarifarios/RateTablesListCard';
@@ -30,18 +30,39 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
     .filter((p) => p.partyId === controller.selected?.partyId)
     .map((p) => p.carrierId);
 
+  // Guardado en curso: el ref cierra la ventana entre el clic y el re-render (un doble clic rápido
+  // pasaba las dos veces); el estado deshabilita el botón y cambia su texto.
+  const guardandoFila = useRef(false);
+  const [savingRow, setSavingRow] = useState(false);
+
   const handleSaveRow = async () => {
-    if (!controller.selected) return;
-    const result = await controller.saveRow({
-      tableId: controller.selected.id,
-      key: form.draftKey,
-      amount: form.draftAmount,
-      values: form.draftValues,
-      active: true,
-    });
-    if (result.status === 'invalid' && result.errors) {
-      form.setRowErrors(result.errors);
+    if (!controller.selected || guardandoFila.current) return;
+    guardandoFila.current = true;
+    setSavingRow(true);
+    try {
+      const result = await controller.saveRow({
+        tableId: controller.selected.id,
+        key: form.draftKey,
+        amount: form.draftAmount,
+        values: form.draftValues,
+        active: true,
+      }, form.editingRowId ?? undefined);
+      if (result.status === 'invalid' && result.errors) {
+        form.setRowErrors(result.errors);
+      } else if (result.status !== 'invalid' && result.status !== 'failed') {
+        // Guardada: el formulario vuelve a "Nueva fila" y sin el borrador anterior.
+        form.reset();
+      }
+    } finally {
+      guardandoFila.current = false;
+      setSavingRow(false);
     }
+  };
+
+  const handleDeleteRow = async (rowId: string) => {
+    const eliminada = await controller.deleteRow(rowId);
+    // Si era la fila que se estaba editando, el formulario no puede quedar apuntando a una fila que ya no existe.
+    if (eliminada && form.editingRowId === rowId) form.reset();
   };
 
   return (
@@ -69,6 +90,7 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
           loadingRows={controller.loadingRows}
           generalError={controller.generalError}
           editingRowId={form.editingRowId}
+          saving={savingRow}
           draftKey={form.draftKey}
           draftAmount={form.draftAmount}
           draftValues={form.draftValues}
@@ -83,8 +105,8 @@ export default function TarifariosTab({ countryId, currency, zones, partyId }: P
           onValuesChange={form.updateValues}
           onSaveRow={handleSaveRow}
           onCancelEdit={form.reset}
-          onEditRow={(row) => { form.startEdit(row); controller.startEditRow(row); }}
-          onDeleteRow={(row) => controller.deleteRow(row.id)}
+          onEditRow={form.startEdit}
+          onDeleteRow={(row) => handleDeleteRow(row.id)}
           onClose={() => controller.selectTable(null)}
           onImportOpen={() => setIsImportOpen(true)}
         />

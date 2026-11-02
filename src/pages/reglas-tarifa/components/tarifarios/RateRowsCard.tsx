@@ -12,6 +12,7 @@ interface Props {
   loadingRows: boolean;
   generalError: string;
   editingRowId: string | null;
+  saving?: boolean;
   draftKey: string[];
   draftAmount: string;
   draftValues: Record<string, string>;
@@ -39,6 +40,7 @@ export default function RateRowsCard({
   loadingRows,
   generalError,
   editingRowId,
+  saving,
   draftKey,
   draftAmount,
   draftValues,
@@ -107,6 +109,7 @@ export default function RateRowsCard({
         onSave={onSaveRow}
         onCancel={onCancelEdit}
         isEditing={editingRowId !== null}
+        saving={saving}
         canEdit={canEdit}
         customLabels={customLabels}
       />
