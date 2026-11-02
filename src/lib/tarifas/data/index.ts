@@ -11,7 +11,7 @@
 // prueba en la app. Las pruebas inyectan un almacén en memoria con `setDataSource`
 // (`data/memory`).
 
-import { STORAGE_KEY, currentAccessToken, expireSession } from '../../supabase';
+import { STORAGE_KEY, currentAccessToken, expireSession, isTokenRejected } from '../../supabase';
 import type { DataSource } from './datasource';
 import { HttpDataSource } from './http-datasource';
 
@@ -48,7 +48,10 @@ function sessionHeaders(): Record<string, string> {
 export async function fetchExpiringSession(...args: Parameters<typeof fetch>): Promise<Response> {
   const sentToken = currentAccessToken();
   const response = await fetch(...args);
-  if (response.status === 401 && sentToken) expireSession(sentToken);
+  if (sentToken && (response.status === 401 || response.status === 403)) {
+    const body = await response.clone().json().catch(() => null);
+    if (isTokenRejected(response.status, body)) expireSession(sentToken);
+  }
   return response;
 }
 

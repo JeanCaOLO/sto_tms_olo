@@ -52,6 +52,22 @@ describe('apiFetch ante un 401', () => {
     expect(events).toEqual([]);
   });
 
+  it('un 403 del authorizer de API Gateway (token vencido o alterado) cierra la sesión', async () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(session('vencido')));
+    mockFetch(403, { message: 'Forbidden' });
+    await apiFetch('/v1/viajes');
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+    expect(events).toEqual(['SIGNED_OUT']);
+  });
+
+  it('un 403 de permisos de una Lambda (con error) no cierra la sesión', async () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(session('ok')));
+    mockFetch(403, { data: null, error: { message: 'Tu rol no tiene permiso para "view" en "tracking".' } });
+    await apiFetch('/v1/viajes');
+    expect(localStorage.getItem(STORAGE_KEY)).not.toBeNull();
+    expect(events).toEqual([]);
+  });
+
   it('un 403 no cierra la sesión', async () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(session('viejo')));
     mockFetch(403, { error: 'forbidden' });
@@ -98,6 +114,23 @@ describe('cliente HTTP del tarifador ante un 401', () => {
     expect(res.status).toBe(401);
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
     expect(events).toEqual(['SIGNED_OUT']);
+  });
+
+  it('un 403 del authorizer también cierra la sesión', async () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(session('vencido')));
+    mockFetch(403, { message: 'Forbidden' });
+    const res = await fetchExpiringSession('/api/tarifas/x');
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ message: 'Forbidden' }); // el cuerpo sigue legible para el driver
+    expect(events).toEqual(['SIGNED_OUT']);
+  });
+
+  it('un 403 de permisos no cierra la sesión', async () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(session('ok')));
+    mockFetch(403, { error: 'sin permiso' });
+    await fetchExpiringSession('/api/tarifas/x');
+    expect(localStorage.getItem(STORAGE_KEY)).not.toBeNull();
+    expect(events).toEqual([]);
   });
 
   it('no toca la sesión con respuestas distintas de 401', async () => {

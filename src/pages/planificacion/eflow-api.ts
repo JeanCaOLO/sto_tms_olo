@@ -1,4 +1,4 @@
-import { currentAccessToken, expireSession } from '../../lib/supabase';
+import { currentAccessToken, expireSession, isTokenRejected } from '../../lib/supabase';
 import type { Conductor, Pedido, RutaTipo, Transportista, Vehiculo, Viaje } from './types';
 import { getFallbackPedidos } from './fallback-pedidos';
 import { mockFallbackEnabled } from './mock-fallback';
@@ -69,7 +69,10 @@ async function getJson<T>(path: string): Promise<T> {
       signal: ctrl.signal,
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
-    if (res.status === 401 && token) expireSession(token);
+    if (token && (res.status === 401 || res.status === 403)) {
+      const body = await res.clone().json().catch(() => null);
+      if (isTokenRejected(res.status, body)) expireSession(token);
+    }
     if (!res.ok) throw new Error(`${path} -> HTTP ${res.status}`);
     return (await res.json()) as T;
   } finally {

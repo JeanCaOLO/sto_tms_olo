@@ -73,6 +73,18 @@ function operationalHeaders(headers: Headers) {
  * nada, así varias respuestas 401 simultáneas provocan un solo cierre. `rejectedToken` es el token
  * con el que se hizo la llamada: si entre tanto el usuario inició otra sesión, no se la borra.
  */
+/**
+ * ¿La respuesta significa "tu token ya no sirve"? Un 401 sí. Un token vencido o alterado lo corta el
+ * authorizer de API Gateway con 403 `{"message":"Forbidden"}` (sin `error`); un 403 de las Lambdas
+ * de los módulos (rol sin permiso) siempre trae `error`, y ese NO cierra la sesión.
+ */
+export function isTokenRejected(status: number, body: unknown): boolean {
+  if (status === 401) return true;
+  if (status !== 403 || typeof body !== "object" || body === null) return false;
+  const { message, error } = body as { message?: unknown; error?: unknown };
+  return message === "Forbidden" && error === undefined;
+}
+
 export function expireSession(rejectedToken?: string | null): void {
   const stored = readSession();
   if (!stored) return;
@@ -88,9 +100,9 @@ export async function apiFetch(path: string, init: NonNullable<Parameters<typeof
   if (current?.access_token) headers.set("Authorization", `Bearer ${current.access_token}`);
   operationalHeaders(headers);
   const res = await fetch(`${API_BASE}/api${path}`, { ...init, headers });
-  // Un 401 de login es "credenciales incorrectas", no una sesión vencida.
-  if (res.status === 401 && current && path !== "/auth/login") expireSession(current.access_token);
   const body = await res.json().catch(() => null);
+  // Un 401 de login es "credenciales incorrectas", no una sesión vencida.
+  if (current && path !== "/auth/login" && isTokenRejected(res.status, body)) expireSession(current.access_token);
   const normalizedError = typeof body?.error === 'string' ? { message: body.error } : (body?.error ?? null);
   return { ok: res.ok, status: res.status, body: body ? { ...body, error: normalizedError } : { error: normalizedError } };
 }
