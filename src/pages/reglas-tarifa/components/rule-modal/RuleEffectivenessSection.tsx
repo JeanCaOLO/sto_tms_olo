@@ -17,9 +17,9 @@ export default function RuleEffectivenessSection({
   onEffectiveToChange,
 }: RuleEffectivenessSectionProps) {
   return (
-    <section className="border-t border-gray-200 pt-4">
-      <h3 className="text-sm font-semibold text-gray-700 mb-1">Desde y hasta cuándo rige</h3>
-      <p className="text-xs text-gray-500 mb-3">
+    <section className="border-t border-slate-200 pt-4">
+      <h3 className="text-sm font-semibold text-slate-700 mb-1">Desde y hasta cuándo rige</h3>
+      <p className="text-xs text-slate-500 mb-3">
         Se compara contra la <strong>fecha del viaje</strong>, no contra hoy. Un viaje de
         agosto se sigue liquidando con la tarifa de agosto aunque el acuerdo ya haya cambiado.
         Dejalas vacías si la regla no tiene vencimiento.
@@ -44,7 +44,7 @@ export default function RuleEffectivenessSection({
           La fecha de fin es anterior a la de inicio: así la regla no aplicaría nunca.
         </p>
       )}
-      <p className="text-xs text-gray-500 mt-2">
+      <p className="text-xs text-slate-500 mt-2">
         Ambos días quedan <strong>incluidos</strong>. Vencerla no es lo mismo que desactivarla:
         una regla vencida sigue aplicando a los viajes anteriores a su fecha de fin, y una
         inactiva no aplica a ninguno.

@@ -74,7 +74,7 @@ export async function fetchWithRetry(
       if (timedOut) recordTimeout();
       if (last) {
         throw timedOut
-          ? new Error(`La API no respondió en ${Math.round(config.timeoutMs / 1000)} s. Probá de nuevo en un momento.`)
+          ? new Error(`La API no respondió en ${Math.round(config.timeoutMs / 1000)} s. Prueba de nuevo en un momento.`)
           : error;
       }
     } finally {

@@ -86,7 +86,7 @@ export default function BitacoraTab() {
           <HelpButton
             title="Bitácora"
             steps={[
-              'Registro de solo lectura, append-only: cada alta/edición/eliminación de reglas y zonas queda acá con quién, con qué rol simulado, y el valor anterior/nuevo.',
+              'Registro de solo lectura, append-only: cada alta/edición/eliminación de reglas y zonas queda acá con quién, con qué rol, y el valor anterior/nuevo.',
               'No se puede editar ni borrar desde acá ni desde la app — solo se agregan filas nuevas.',
             ]}
           />

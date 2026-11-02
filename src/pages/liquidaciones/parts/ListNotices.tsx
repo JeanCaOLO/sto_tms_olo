@@ -6,7 +6,7 @@ import { TRIPS_LIMIT } from '../../../lib/tarifas/tripsDataSource';
 export function TruncatedNotice() {
   return (
     <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg px-4 py-3">
-      Hay más viajes pendientes de los que se pueden mostrar a la vez ({TRIPS_LIMIT}). Acotá el rango de fechas
+      Hay más viajes pendientes de los que se pueden mostrar a la vez ({TRIPS_LIMIT}). Acota el rango de fechas
       para ver el resto.
     </div>
   );

@@ -128,7 +128,7 @@ export function runChargePipeline(
       discarded.push({
         ruleCode: rule.code,
         reason: 'RULE_BROKEN',
-        detail: `No se pudo leer: ${e.message}. Revisá su expresión en modo avanzado.`,
+        detail: `No se pudo leer: ${e.message}. Revisa su expresión en modo avanzado.`,
       });
       blockingIssues.push({
         code: 'REGLA_ILEGIBLE',
@@ -146,7 +146,7 @@ export function runChargePipeline(
       if ((rule.effect === 'INCREASE') !== sube) {
         warnings.push(
           `La regla "${rule.code}" está marcada como "${rule.effect === 'INCREASE' ? 'aumenta' : 'disminuye'} el costo" ` +
-          `pero su importe ${sube ? 'suma' : 'resta'}. Revisá el signo de la expresión.`,
+          `pero su importe ${sube ? 'suma' : 'resta'}. Revisa el signo de la expresión.`,
         );
       }
     }
@@ -195,7 +195,7 @@ export function runChargePipeline(
       code: 'TOTAL_NEGATIVO',
       message:
         `El total da ${totalLiquidado} ${country.localCurrency}: los descuentos superan a los cargos. ` +
-        'Revisá las reglas de ajuste, o habilitá los totales negativos para este país si es intencional.',
+        'Revisa las reglas de ajuste, o habilita los totales negativos para este país si es intencional.',
     });
   }
 

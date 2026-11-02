@@ -25,7 +25,7 @@ export function useRulesAndParties(organizationId: string) {
     } catch (error) {
       if (mine === seq.current) {
         console.error('Error cargando reglas:', error);
-        setLoadError('No se pudieron cargar las reglas. Reintentá en unos segundos.');
+        setLoadError('No se pudieron cargar las reglas. Reintenta en unos segundos.');
       }
     } finally {
       if (mine === seq.current) setLoading(false);

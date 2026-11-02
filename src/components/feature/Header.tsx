@@ -63,6 +63,7 @@ export default function Header() {
       <div className="flex items-center gap-3 flex-1 min-w-0">
         <button
           onClick={() => setMobileOpen(true)}
+          aria-label="Abrir menú"
           className="lg:hidden w-9 h-9 flex-shrink-0 flex items-center justify-center text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
         >
           <i className="ri-menu-line text-xl"></i>

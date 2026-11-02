@@ -79,15 +79,15 @@ function RuleModalBody({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={readOnly ? 'Ver regla' : rule ? 'Editar regla' : 'Nueva regla'} widthClass="max-w-3xl">
-      <div className="sticky top-0 bg-white flex items-center justify-between px-6 py-4 border-b border-gray-200 z-10">
+      <div className="sticky top-0 bg-white flex items-center justify-between px-6 py-4 border-b border-slate-200 z-10">
         <div></div>
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+        <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
           {(['simple', 'advanced'] as const).map((t) => (
             <button
               key={t}
               type="button"
               onClick={() => calc.setTab(t)}
-              className={`px-3 py-1 text-xs rounded-md transition-colors ${calc.tab === t ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-600'}`}
+              className={`px-3 py-1 text-xs rounded-md transition-colors ${calc.tab === t ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-600'}`}
             >
               {TAB_LABELS[t]}
             </button>
@@ -104,7 +104,7 @@ function RuleModalBody({
         {readOnly ? (
           <fieldset disabled className="space-y-6 min-w-0 border-0 p-0 m-0">{sections}</fieldset>
         ) : sections}
-        <div className="flex justify-end gap-3 pt-2 border-t border-gray-200 px-6 pb-6">
+        <div className="flex justify-end gap-3 pt-2 border-t border-slate-200 px-6 pb-6">
           <Button type="button" variant="secondary" onClick={onClose} disabled={submit.loading}>
             {readOnly ? 'Cerrar' : 'Cancelar'}
           </Button>

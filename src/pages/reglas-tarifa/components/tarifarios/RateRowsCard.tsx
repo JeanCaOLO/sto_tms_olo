@@ -76,7 +76,7 @@ export default function RateRowsCard({
           <button
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600 cursor-pointer w-8 h-8 flex items-center justify-center"
-            title="Cerrar"
+            title="Cerrar" aria-label="Cerrar filas del tarifario"
           >
             <i className="ri-close-line text-lg"></i>
           </button>
@@ -84,7 +84,7 @@ export default function RateRowsCard({
       </div>
 
       <p className="text-xs text-slate-500 mb-4">
-        Dejá una celda <strong>vacía</strong> para que acepte cualquier valor — se guarda como{' '}
+        Deja una celda <strong>vacía</strong> para que acepte cualquier valor — se guarda como{' '}
         <code className="font-mono">*</code>. Gana la fila que resuelva más columnas con un valor exacto.
       </p>
 

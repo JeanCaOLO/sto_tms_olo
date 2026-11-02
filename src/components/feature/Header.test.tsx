@@ -74,4 +74,9 @@ describe('Header', () => {
     await vi.waitFor(() => expect(screen.getByTestId('ruta').textContent).toBe('/login'));
     expect(state.signOut).toHaveBeenCalledTimes(1);
   });
+
+  it('el botón del menú móvil tiene nombre', () => {
+    open();
+    expect(screen.getByRole('button', { name: 'Abrir menú' })).toBeTruthy();
+  });
 });

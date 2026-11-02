@@ -71,12 +71,15 @@ export default function Sidebar() {
           )}
           <button
             onClick={toggleCollapsed}
+            aria-label={collapsed ? 'Expandir menú' : 'Contraer menú'}
+            aria-expanded={!collapsed}
             className="hidden lg:flex w-8 h-8 items-center justify-center hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
           >
             <i className={`ri-${collapsed ? 'menu-unfold' : 'menu-fold'}-line text-lg`}></i>
           </button>
           <button
             onClick={() => setMobileOpen(false)}
+            aria-label="Cerrar menú"
             className="lg:hidden w-8 h-8 flex items-center justify-center hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
           >
             <i className="ri-close-line text-lg"></i>

@@ -79,7 +79,7 @@ export default function TripOrdersPanel({
     { key: 'order', header: 'Pedido', sortable: true, accessor: (o) => o.orderNumber ?? '', render: (o) => <span className="font-mono text-xs">{o.orderNumber ?? '—'}</span> },
     { key: 'customer', header: 'Casa comercial', sortable: true, filterable: true, accessor: (o) => o.customerName ?? 'Sin casa comercial' },
     {
-      key: 'value', header: 'Valor', sortable: true, align: 'right',
+      key: 'value', header: 'Valor de la mercancía', sortable: true, align: 'right',
       accessor: (o) => Number(o.value),
       render: (o) => (toDecimal(o.value).greaterThan(0) ? formatMoney(o.value, currency) : <span className="text-slate-300">—</span>),
     },
@@ -144,17 +144,17 @@ export default function TripOrdersPanel({
           ) : (
             <div className="flex items-center gap-1">
               {o.mark && (
-                <Button size="sm" variant="secondary" disabled={busy || !o.orderId} onClick={() => void handleMarkOrder(o, null)} title="Volver a incluir el pedido">
+                <Button size="sm" variant="secondary" disabled={busy || !o.orderId} onClick={() => void handleMarkOrder(o, null)}>
                   Incluir
                 </Button>
               )}
               {o.mark !== 'DIFERIDO' && (
-                <Button size="sm" variant="secondary" disabled={busy || !o.orderId} onClick={() => void handleMarkOrder(o, 'DIFERIDO')} title="Se reparte su parte, pero su proforma queda pendiente">
+                <Button size="sm" variant="secondary" disabled={busy || !o.orderId} onClick={() => void handleMarkOrder(o, 'DIFERIDO')}>
                   Liquidar después
                 </Button>
               )}
               {o.mark !== 'ANULADO' && (
-                <Button size="sm" variant="ghost" disabled={busy || !o.orderId} onClick={() => { setAnnulling(o.guideId); setReason(''); }} title="Sacar el pedido del reparto">
+                <Button size="sm" variant="ghost" disabled={busy || !o.orderId} onClick={() => { setAnnulling(o.guideId); setReason(''); }} aria-label="Anular">
                   <i className="ri-prohibited-line" />
                 </Button>
               )}

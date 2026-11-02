@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Viaje } from '../types';
 import {
   ageSeconds, driverLoggedOut, formatAge, formatClock, formatDay, formatDistance, colorVariant, COLOR_HEX, lastSignalAt, legDone, matchesKpi, positioned,
-  stopVariant,
+  stopVariant, failedStopsOfActive,
 } from '../tracking-logic';
 
 const NOW = Date.parse('2026-10-16T15:00:00Z');
@@ -67,7 +67,7 @@ describe('tracking-logic', () => {
     expect(colorVariant('green')).toBe('success');
     expect(colorVariant('amber')).toBe('warning');
     expect(colorVariant('gray')).toBe('default');
-    expect(colorVariant('blue')).toBe('info');
+    expect(colorVariant('blue')).toBe('blue');
     expect(stopVariant('failed')).toBe('danger');
     expect(positioned([viaje(), viaje({ id: 'v2', position: { lat: 1, lng: 2, speed_mps: null, recorded_at: '' } })])).toHaveLength(1);
     expect(formatDay('2026-10-02')).toMatch(/2/);
@@ -97,7 +97,7 @@ describe('tracking-logic', () => {
 // insignia salen de él. Antes la insignia tenía su propio mapeo (activo sin señal en rojo, cancelado en rojo) y
 // contradecía al mapa, que los pinta grises.
 describe('un solo color por viaje', () => {
-  const BADGE_OF_COLOR = { green: 'success', amber: 'warning', gray: 'default', blue: 'info' } as const;
+  const BADGE_OF_COLOR = { green: 'success', amber: 'warning', gray: 'default', blue: 'blue' } as const;
 
   it('cada color del mapa tiene una sola insignia y todas son distintas', () => {
     const colors = Object.keys(COLOR_HEX) as (keyof typeof COLOR_HEX)[];
@@ -109,7 +109,7 @@ describe('un solo color por viaje', () => {
   it('un viaje activo sin señal o cancelado no sale rojo: es gris como en el mapa', () => {
     expect(colorVariant(viaje({ state: 'active', signal: 'offline', color: 'gray' }).color)).toBe('default');
     expect(colorVariant(viaje({ state: 'cancelled', signal: 'none', color: 'gray' }).color)).toBe('default');
-    expect(colorVariant(viaje({ state: 'completed', signal: 'none', color: 'blue' }).color)).toBe('info');
+    expect(colorVariant(viaje({ state: 'completed', signal: 'none', color: 'blue' }).color)).toBe('blue');
   });
 });
 
@@ -150,3 +150,25 @@ describe('tramo de la ruta hecho', () => {
   });
 });
 
+// El resumen del backend cuenta como "hechas" las entregadas MÁS las fallidas; para decir cuántas fallaron hay que sumarlas
+// de los viajes cargados, y solo se puede si están todos los activos.
+describe('paradas fallidas de los viajes en curso', () => {
+  const con = (state: Viaje['state'], failed: number) => viaje({ state, progress: { total: 4, done: 2 + failed, delivered: 2, failed, percent: 50 } });
+
+  it('suma las fallidas de los viajes activos cargados cuando están todos', () => {
+    const viajes = [con('active', 1), con('active', 2), con('completed', 3)];
+    expect(failedStopsOfActive(viajes, { active: 2 })).toBe(3);
+  });
+
+  it('con menos viajes activos cargados que los del resumen no se sabe: null', () => {
+    expect(failedStopsOfActive([con('active', 1)], { active: 5 })).toBeNull();
+  });
+
+  it('sin resumen no se sabe', () => {
+    expect(failedStopsOfActive([con('active', 1)], null)).toBeNull();
+  });
+
+  it('sin fallidas es 0, no null', () => {
+    expect(failedStopsOfActive([con('active', 0)], { active: 1 })).toBe(0);
+  });
+});

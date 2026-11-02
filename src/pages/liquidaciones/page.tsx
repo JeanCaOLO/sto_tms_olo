@@ -3,6 +3,8 @@
 
 import { useMemo, useState } from 'react';
 import Card from '../../components/base/Card';
+import TabBar from '../../components/base/TabBar';
+import { tabPanelProps } from '../../components/base/tabPanelProps';
 import Button from '../../components/base/Button';
 import Input from '../../components/base/Input';
 import DataTable from '../../components/base/DataTable';
@@ -97,26 +99,29 @@ export default function LiquidacionesPage() {
 
       <Card>
         <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
-          <div className="flex border-b border-slate-200">
-            <button type="button" className={getTabClass(tab, 'trips')} onClick={() => setTab('trips')}>
-              Por Liquidar
-            </button>
-            <button type="button" className={getTabClass(tab, 'history')} onClick={() => setTab('history')}>
-              Historial
-            </button>
-          </div>
+          <TabBar<'trips' | 'history'>
+            tabs={[{ key: 'trips', label: 'Por Liquidar' }, { key: 'history', label: 'Historial' }]}
+            value={tab}
+            onChange={setTab}
+            ariaLabel="Secciones de liquidaciones"
+            idBase="liquidaciones"
+            className="flex border-b border-slate-200"
+            tabClassName={getTabClass}
+          />
           <div className="grid grid-cols-2 gap-3">
             <Input label="Desde" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
             <Input label="Hasta" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
           </div>
         </div>
 
+        <div {...tabPanelProps('liquidaciones', tab)}>
         {tab === 'trips' && (
           <div className="flex flex-wrap items-center gap-2 mb-3">
             {ALCANCES.map((a) => (
               <button
                 key={a.value}
                 type="button"
+                aria-pressed={alcance === a.value}
                 title={a.hint}
                 onClick={() => setAlcance(a.value)}
                 className={`px-3 py-1.5 text-xs font-medium rounded-full border cursor-pointer transition-colors ${
@@ -179,6 +184,7 @@ export default function LiquidacionesPage() {
           {siguiente && <LoadMoreBar shown={settlements.length} loading={cargandoMas} onLoadMore={() => void loadMore()} />}
           </div>
         )}
+        </div>
       </Card>
 
       <LiquidarViajeModal

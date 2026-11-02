@@ -18,6 +18,7 @@ export function LevelSelector({ nivel, setNivel }: Props) {
         <button
           key={id}
           type="button"
+          aria-pressed={nivel === id}
           onClick={() => setNivel(id)}
           className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
             nivel === id ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'

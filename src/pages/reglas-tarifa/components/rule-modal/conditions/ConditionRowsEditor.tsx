@@ -61,13 +61,14 @@ function RowValue({ row, onChange }: Pick<RowProps, 'row' | 'onChange'>) {
 }
 
 function ConditionRow({ row, error, varOptions, onChange, onRemove }: RowProps) {
-  const negateClass = row.negate ? 'bg-red-50 border-red-300 text-red-700' : 'border-gray-300 text-gray-500';
+  const negateClass = row.negate ? 'bg-red-50 border-red-300 text-red-700' : 'border-slate-300 text-slate-500';
   return (
     <div className="space-y-1">
       <div className="flex flex-wrap gap-2 items-end">
         <button
           type="button"
           title="Negar esta condición"
+          aria-pressed={!!row.negate}
           onClick={() => onChange({ negate: !row.negate })}
           className={`px-2 py-2 text-xs rounded-lg border transition-colors ${negateClass}`}
         >
@@ -99,15 +100,16 @@ export function ConditionRowsEditor({
   return (
     <div className="space-y-2">
       {rows.length > 1 && (
-        <div className="flex items-center gap-2 text-xs text-gray-600">
+        <div className="flex items-center gap-2 text-xs text-slate-600">
           <span>Se cumplen</span>
-          <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+          <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
             {COMBINATORS.map(({ value, label }) => (
               <button
                 key={value}
                 type="button"
+                aria-pressed={combinator === value}
                 onClick={() => onCombinatorChange(value)}
-                className={`px-2 py-0.5 rounded-md transition-colors ${combinator === value ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-600'}`}
+                className={`px-2 py-0.5 rounded-md transition-colors ${combinator === value ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-600'}`}
               >
                 {label}
               </button>

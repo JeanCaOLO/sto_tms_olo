@@ -29,7 +29,7 @@ export default function ToastStack({ toasts, onDismiss }: Props) {
           <div key={toast.id} className={`flex items-start gap-2 border rounded-lg shadow-lg px-4 py-3 text-sm ${style.box}`}>
             <i className={`${style.icon} text-lg flex-shrink-0`}></i>
             <p className="flex-1">{toast.message}</p>
-            <button onClick={() => onDismiss(toast.id)} className="flex-shrink-0 text-current opacity-60 hover:opacity-100 cursor-pointer">
+            <button onClick={() => onDismiss(toast.id)} aria-label="Cerrar aviso" className="flex-shrink-0 text-current opacity-60 hover:opacity-100 cursor-pointer">
               <i className="ri-close-line"></i>
             </button>
           </div>

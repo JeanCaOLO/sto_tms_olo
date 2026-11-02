@@ -20,7 +20,7 @@ interface ValidationResult {
 
 async function validateBeforeReliquiudate(currentId: string, input: SettlementInput, reason: string): Promise<ValidationResult> {
   if (!reason.trim()) {
-    return { error: 'Indicá por qué se re-liquida el viaje.', errorType: 'invalid', actual: null };
+    return { error: 'Indica por qué se re-liquida el viaje.', errorType: 'invalid', actual: null };
   }
 
   const actual = await db().findOne('settlement', currentId);

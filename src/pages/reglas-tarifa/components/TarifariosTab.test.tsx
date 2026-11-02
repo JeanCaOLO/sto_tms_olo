@@ -47,7 +47,7 @@ describe('TarifariosTab (caracterización)', () => {
   it('lista los tarifarios del país y avisa que se puede tocar uno', async () => {
     const { container } = open();
     await screen.findByText('ZONAS');
-    expect(screen.getByText(/Tocá un tarifario para ver y cargar sus filas/)).toBeTruthy();
+    expect(screen.getByText(/Toca un tarifario para ver y cargar sus filas/)).toBeTruthy();
     expect(screen.getByText('Todo el país')).toBeTruthy();
     expect(html(container)).toMatchSnapshot();
   });

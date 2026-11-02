@@ -144,7 +144,7 @@ export default function GuiasPage() {
         getRowId={(g) => g.id}
         searchPlaceholder="Buscar por guía, conductor, vehículo o zona..."
         exportFileName="guias_de_despacho"
-        emptyMessage="No hay guías (generá y confirmá un plan en Planificación)."
+        emptyMessage="No hay guías (genera y confirmá un plan en Planificación)."
         actions={(g) => (
           <button
             onClick={() => setDetalle(g)}

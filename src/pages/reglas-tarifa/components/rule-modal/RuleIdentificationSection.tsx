@@ -36,7 +36,7 @@ export default function RuleIdentificationSection({
 }: RuleIdentificationSectionProps) {
   return (
     <section>
-      <h3 className="text-sm font-semibold text-gray-700 mb-3">Identificación</h3>
+      <h3 className="text-sm font-semibold text-slate-700 mb-3">Identificación</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Input
           label="Código *"

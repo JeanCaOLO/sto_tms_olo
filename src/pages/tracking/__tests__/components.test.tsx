@@ -225,3 +225,35 @@ describe('ChoferesEnLinea', () => {
   });
 });
 
+
+// Contraste: texto secundario en slate-400 sobre fondo slate-50 no llega a 4,5:1 (WCAG AA).
+describe('ChoferesEnLinea: contraste', () => {
+  it('el país y el resto del texto usan slate-600 o más oscuro, y el punto de estado tiene nombre', () => {
+    const sinViaje: ChoferEnLinea = {
+      driver_id: 'd1', driver_name: 'Ana Mora', country: 'CR', signal: 'online', last_seen_at: '2026-10-16T14:59:30Z',
+      battery_pct: 80, route_id: null,
+    };
+    const { container } = render(<ChoferesEnLinea choferes={[sinViaje]} now={NOW} />);
+    expect(container.innerHTML).not.toMatch(/text-slate-[345]00/);
+    expect(container.querySelector('li span[title]')).not.toBeNull();
+  });
+});
+
+describe('ResumenBar: entregas y fallidas', () => {
+  const base = { active: 7, on_time: 5, late: 2, no_signal: 1, completed_today: 4, deliveries_total: 10, deliveries_done: 8, deliveries_remaining: 2 };
+
+  it('con las fallidas conocidas las separa de las entregadas', () => {
+    render(<ResumenBar resumen={base} failedStops={2} selected={null} onSelect={vi.fn()} />);
+    expect(screen.getByTestId('deliveries-progress').textContent).toBe('Entregas: 6 de 10 · 2 fallidas · faltan 2');
+  });
+
+  it('sin fallidas dice 0 fallidas, no las oculta', () => {
+    render(<ResumenBar resumen={base} failedStops={0} selected={null} onSelect={vi.fn()} />);
+    expect(screen.getByTestId('deliveries-progress').textContent).toBe('Entregas: 8 de 10 · 0 fallidas · faltan 2');
+  });
+
+  it('si no se conocen (lista incompleta) no dice "entregas": habla de paradas gestionadas, sin inventar el desglose', () => {
+    render(<ResumenBar resumen={base} failedStops={null} selected={null} onSelect={vi.fn()} />);
+    expect(screen.getByTestId('deliveries-progress').textContent).toBe('Paradas gestionadas: 8 de 10 · faltan 2');
+  });
+});

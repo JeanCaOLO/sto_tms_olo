@@ -1,6 +1,6 @@
 // Reglas puras de presentación del tracking (sin React): colores, etiquetas y tiempos relativos.
 // Los umbrales (señal, retraso, detenido) viven SOLO en el backend: la UI pinta `signal`, `color` y `alerts`.
-import type { AlertCode, EvidenceKind, MapColor, RouteState, StopState, Viaje } from './types';
+import type { AlertCode, EvidenceKind, MapColor, Resumen, RouteState, StopState, Viaje } from './types';
 
 export const COLOR_HEX: Record<MapColor, string> = {
   green: '#059669',
@@ -15,7 +15,7 @@ export const STOP_COLOR_HEX: Record<StopState, string> = {
   failed: '#dc2626',
 };
 
-export type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'info';
+export type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'info' | 'blue';
 
 /**
  * Insignia del estado del viaje. Sale del MISMO `color` que el punto del mapa y la leyenda (lo calcula el backend:
@@ -25,9 +25,19 @@ export function colorVariant(color: MapColor): BadgeVariant {
   switch (color) {
     case 'green': return 'success';
     case 'amber': return 'warning';
-    case 'blue': return 'info';
+    case 'blue': return 'blue';
     default: return 'default';
   }
+}
+
+/**
+ * Paradas fallidas de los viajes en curso. El resumen del backend cuenta como "hechas" las entregadas MÁS las fallidas y
+ * no las separa; se suman de los viajes cargados, y solo si están TODOS los activos (si no, el número sería parcial: null).
+ */
+export function failedStopsOfActive(viajes: Viaje[], resumen: Pick<Resumen, 'active'> | null): number | null {
+  if (!resumen) return null;
+  const activos = viajes.filter((v) => v.state === 'active');
+  return activos.length === resumen.active ? activos.reduce((sum, v) => sum + v.progress.failed, 0) : null;
 }
 
 /** ¿El tramo de la ruta hacia esa parada ya se recorrió? Una parada que no está en el detalle no cuenta como hecha. */

@@ -55,7 +55,7 @@ describe('RuleTester (caracterización)', () => {
     await ready();
     expect(optionCount('País')).toBe(3);
     await waitFor(() => expect(document.querySelector('option[value="TRIP_RT_CO_A1"]')).not.toBeNull());
-    expect(screen.getByText('Elegí un viaje completado para ver el desglose.')).toBeTruthy();
+    expect(screen.getByText('Elige un viaje completado para ver el desglose.')).toBeTruthy();
     expect(html(container)).toMatchSnapshot();
   });
 
@@ -77,7 +77,7 @@ describe('RuleTester (caracterización)', () => {
     await chooseCountry('VE');
     await pickFirstTrip();
     await screen.findByText('Total a liquidar');
-    expect(screen.queryByText('Elegí un viaje completado para ver el desglose.')).toBeNull();
+    expect(screen.queryByText('Elige un viaje completado para ver el desglose.')).toBeNull();
   });
 
   it('en viaje libre elige zonas por defecto y calcula', async () => {

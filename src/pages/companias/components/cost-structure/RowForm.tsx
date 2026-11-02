@@ -71,7 +71,7 @@ export function RowForm({
         {editing && <Button variant="ghost" onClick={onCancel}>Cancelar</Button>}
         {editing?.frequency && (
           <span className="text-xs text-slate-500">
-            Esta fila se repite cada cierto tiempo: para cambiar su importe o frecuencia, volvé a subir la plantilla.
+            Esta fila se repite cada cierto tiempo: para cambiar su importe o frecuencia, vuelve a subir la plantilla.
           </span>
         )}
       </div>

@@ -5,7 +5,7 @@ export default {
   'common.comingSoonTitle': 'Próximamente',
   'common.comingSoonBody': 'Este módulo todavía no está disponible. Estamos trabajando en él.',
   'common.noAccessTitle': 'Sin acceso',
-  'common.noAccessBody': 'No tenés permiso para ver este módulo. Consultá con un administrador.',
+  'common.noAccessBody': 'No tienes permiso para ver este módulo. Consulta con un administrador.',
   'common.notFoundTitle': 'Página no encontrada',
   'common.notFoundBody': 'La dirección no existe o ya no está disponible. Revisa el enlace o vuelve al inicio.',
   'common.backHome': 'Volver al inicio',

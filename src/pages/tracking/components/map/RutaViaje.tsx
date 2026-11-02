@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Marker, Polyline, Tooltip, useMap } from 'react-leaflet';
 import type L from 'leaflet';
 import { useRutaOsrm } from '../../hooks/useRutaOsrm';
@@ -14,6 +15,7 @@ const STOP_RADIUS_PX = 26; // paradas más cerca que esto (o en el mismo punto) 
  * las paradas destacadas. Si OSRM no responde, solo se ven sede y paradas (sin líneas rectas).
  */
 export default function RutaViaje({ detail }: { detail: ViajeDetalle }) {
+  const { t } = useTranslation();
   const { tramos, stopIds } = useRutaOsrm(detail);
   const map = useMap();
   const [view, setView] = useState(0); // cambia al mover o hacer zoom: recalcular el abanico
@@ -60,7 +62,7 @@ export default function RutaViaje({ detail }: { detail: ViajeDetalle }) {
         ) : null;
       })}
       {detail.origin && (
-        <Marker position={[detail.origin.lat, detail.origin.lng]} icon={originIcon()}>
+        <Marker position={[detail.origin.lat, detail.origin.lng]} icon={originIcon()} title={detail.origin.name ?? t('tracking.originMarker')}>
           <Tooltip direction="top">{detail.origin.name ?? ''}</Tooltip>
         </Marker>
       )}
@@ -70,6 +72,7 @@ export default function RutaViaje({ detail }: { detail: ViajeDetalle }) {
           position={placed.at.get(s.id)!}
           icon={stopIcon(s.sequence, s.state, s.id === detail.next_stop_id)}
           zIndexOffset={s.id === detail.next_stop_id ? 500 : 0}
+          title={`${s.sequence}. ${s.customer_name ?? s.order_number}`}
         >
           <Tooltip direction="top">{`${s.sequence}. ${s.customer_name ?? s.order_number}`}</Tooltip>
         </Marker>

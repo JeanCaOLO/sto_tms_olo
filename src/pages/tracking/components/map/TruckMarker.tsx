@@ -17,7 +17,7 @@ interface Props {
 function TruckMarker({ id, lat, lng, color, selected, alert, label, onSelect }: Props) {
   const handlers = useMemo(() => ({ click: () => onSelect(id) }), [id, onSelect]);
   return (
-    <Marker position={[lat, lng]} icon={truckIcon(color, selected, alert)} zIndexOffset={selected ? 1000 : 0} eventHandlers={handlers}>
+    <Marker position={[lat, lng]} icon={truckIcon(color, selected, alert)} zIndexOffset={selected ? 1000 : 0} eventHandlers={handlers} title={label}>
       <Tooltip direction="top">{label}</Tooltip>
     </Marker>
   );

@@ -152,7 +152,7 @@ export default function MargenPolicyTab({ organizationId, countryId }: MargenPol
         {saved && !error && <p role="status" className="text-xs text-emerald-700 mt-3">Umbrales guardados.</p>}
         <div className="pt-4 mt-4 border-t border-slate-200">
           <Button onClick={handleSave} disabled={saving || !countryId || !canEdit || loadFailed}
-            title={!canEdit ? 'Tu rol no puede editar la alerta' : loadFailed ? 'No se pudo leer la política actual: reintentá antes de guardar' : undefined}>
+            title={!canEdit ? 'Tu rol no puede editar la alerta' : loadFailed ? 'No se pudo leer la política actual: reintenta antes de guardar' : undefined}>
             {saving ? 'Guardando...' : 'Guardar umbrales'}
           </Button>
         </div>

@@ -57,3 +57,19 @@ describe('Sidebar en móvil', () => {
     expect(abierto()).toBe('false');
   });
 });
+
+describe('botones de ícono del menú lateral', () => {
+  it('el de contraer cambia de nombre y de aria-expanded según el estado', () => {
+    open();
+    const boton = screen.getByRole('button', { name: 'Contraer menú' });
+    expect(boton.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(boton);
+    const expandir = screen.getByRole('button', { name: 'Expandir menú' });
+    expect(expandir.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('el de cerrar el cajón móvil tiene nombre', () => {
+    open();
+    expect(screen.getByRole('button', { name: 'Cerrar menú' })).toBeTruthy();
+  });
+});

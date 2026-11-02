@@ -3,6 +3,8 @@
 
 import { useMemo, useState } from 'react';
 import Card from '../../components/base/Card';
+import TabBar from '../../components/base/TabBar';
+import { tabPanelProps } from '../../components/base/tabPanelProps';
 import DateRangeFilter from '../../components/feature/DateRangeFilter';
 import StatCard from '../../components/feature/StatCard';
 import CountryScopeBar from '../../components/feature/CountryScopeBar';
@@ -26,8 +28,8 @@ import ClaimsTable from './parts/ClaimsTable';
 
 type Tab = 'pending' | 'process' | 'claims' | 'done' | 'log' | 'config';
 
-const tabClass = (current: Tab, tab: Tab) =>
-  `px-4 py-2 text-sm font-medium border-b-2 cursor-pointer ${current === tab ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`;
+const tabClass = (active: boolean) =>
+  `px-4 py-2 text-sm font-medium border-b-2 cursor-pointer ${active ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`;
 
 // Estas secciones traen datos por periodo (por defecto, hoy). Por aprobar no: un pendiente de ayer no puede quedar oculto.
 const SECTION_SCOPE = { process: 'review', done: 'done', log: 'all' } as const;
@@ -112,11 +114,16 @@ export default function ProformasPage() {
       </div>
 
       <Card>
-        <div className="mb-4 flex flex-wrap border-b border-slate-200">
-          {tabs.map((t) => (
-            <button key={t} type="button" className={tabClass(tab, t)} onClick={() => setTab(t)}>{label[t]}</button>
-          ))}
-        </div>
+        <TabBar<Tab>
+          tabs={tabs.map((t) => ({ key: t, label: label[t] }))}
+          value={tab}
+          onChange={setTab}
+          ariaLabel="Secciones de proformas"
+          idBase="proformas"
+          className="mb-4 flex flex-wrap border-b border-slate-200"
+          tabClassName={(on) => tabClass(on)}
+        />
+        <div {...tabPanelProps('proformas', tab)}>
 
         {(tab === 'process' || tab === 'claims' || tab === 'done' || tab === 'log') && (
           <div className="mb-4 space-y-2">
@@ -150,6 +157,7 @@ export default function ProformasPage() {
         ) : (
           <CarrierGroupsTable rows={section.rows} mode={tab === 'process' ? 'process' : 'done'} loading={section.loading} onOpen={setOpenId} onChanged={reloadAll} />
         )}
+        </div>
       </Card>
 
       {openId && (

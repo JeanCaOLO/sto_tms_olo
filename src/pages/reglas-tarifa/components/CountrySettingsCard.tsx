@@ -110,7 +110,7 @@ export default function CountrySettingsCard({ countryId, currency }: Props) {
             </Button>
           </div>
           {!configured && (
-            <p className="text-xs text-amber-600 mt-2">
+            <p className="text-xs text-red-700 mt-2">
               Este país todavía no tiene configuración de cálculo: sin ella no se puede liquidar.
             </p>
           )}

@@ -21,7 +21,7 @@ export default function RuleDescriptionSection({
   onReasonChange,
 }: RuleDescriptionSectionProps) {
   return (
-    <section className="border-t border-gray-200 pt-4 space-y-3">
+    <section className="border-t border-slate-200 pt-4 space-y-3">
       <div>
         <div className="flex items-center justify-between mb-1.5">
           <label htmlFor="rule-description" className="block text-sm font-medium text-slate-700">Descripción</label>
@@ -43,7 +43,7 @@ export default function RuleDescriptionSection({
           className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
         />
         {!descriptionTouched && (
-          <p className="text-xs text-gray-500 mt-1">Se escribe sola desde el cálculo. Editala si querés otra redacción.</p>
+          <p className="text-xs text-slate-500 mt-1">Se escribe sola desde el cálculo. Edítala si quieres otra redacción.</p>
         )}
       </div>
 

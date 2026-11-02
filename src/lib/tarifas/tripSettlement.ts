@@ -149,7 +149,7 @@ export async function calculateTrip(
   const { rows: orders, failure } = await ordersRequest;
   const cargo: CargoSummary | null = failure ? null : cargoFromOrders(orders);
   const cargoWarning: string | null = failure
-    ? 'No se pudo leer la mercancía del viaje (pedidos de sus guías): no habrá ganancia/pérdida de '
+    ? 'No se pudo leer la mercancía del viaje (pedidos de sus guías): no habrá margen de '
       + `auditoría ni reparto por casa comercial. ${failure instanceof Error ? failure.message : ''}`.trim()
     : null;
   const built = buildCalculateInput(catalog, context, {

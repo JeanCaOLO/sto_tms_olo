@@ -33,7 +33,7 @@ export function useTripReturnsPreload(
       } catch (e) {
         console.error('No se pudieron leer las devoluciones del viaje:', e);
         loadedFor.current = null; // permite reintentar con el siguiente cálculo
-        onError('No se pudieron precargar las devoluciones del viaje; podés cargarlas a mano.');
+        onError('No se pudieron precargar las devoluciones del viaje; puedes cargarlas a mano.');
       }
     })();
     // `onLoaded`/`onError` son funciones del llamador: se precarga con el primer cálculo, no cuando ellas cambian.

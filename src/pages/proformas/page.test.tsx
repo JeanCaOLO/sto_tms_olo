@@ -59,7 +59,7 @@ describe('Proformas · tarjeta "En revisión" y pestaña "En proceso"', () => {
 
   it('en "En proceso" avisa que hay más en revisión que las del periodo y ofrece verlas todas', () => {
     open();
-    fireEvent.click(screen.getByRole('button', { name: 'En proceso' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'En proceso' }));
     expect(screen.getByText(/Hay 5 en revisión en total; este periodo muestra 1\./)).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Ver todas' }));

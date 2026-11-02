@@ -18,7 +18,7 @@ export function useZones(organizationId: string) {
     } catch (error) {
       if (mine === seq.current) {
         console.error('Error cargando zonas:', error);
-        setLoadError('No se pudieron cargar las zonas. Reintentá en unos segundos.');
+        setLoadError('No se pudieron cargar las zonas. Reintenta en unos segundos.');
       }
     } finally {
       if (mine === seq.current) setLoading(false);

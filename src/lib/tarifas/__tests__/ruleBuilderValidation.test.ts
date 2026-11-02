@@ -74,7 +74,7 @@ describe('validateBuilder', () => {
       percentBase: { of: 'RULE', ruleCode: '' }, // Error: empty ruleCode
     };
     const errors = validateBuilder(form);
-    expect(errors.percentBase).toContain('indicá cuál');
+    expect(errors.percentBase).toContain('indica cuál');
   });
 
   it('should reject DECREASE percent over 100', () => {

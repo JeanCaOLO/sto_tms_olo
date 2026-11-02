@@ -22,6 +22,8 @@ export default function NotificationsMenu({ open, onToggle, buttonRef }: Props) 
       <button
         ref={buttonRef}
         onClick={onToggle}
+        aria-label={unreadCount > 0 ? `Notificaciones (${unreadCount} sin leer)` : 'Notificaciones'}
+        aria-expanded={open}
         className="w-10 h-10 flex items-center justify-center hover:bg-slate-100 rounded-lg transition-colors cursor-pointer relative"
       >
         <i className="ri-notification-3-line text-xl text-slate-600"></i>

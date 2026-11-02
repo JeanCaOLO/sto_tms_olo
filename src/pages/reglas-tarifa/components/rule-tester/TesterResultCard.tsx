@@ -44,8 +44,8 @@ export default function TesterResultCard({
       {!result && !error && !calculando && (
         <p className="text-sm text-slate-400">
           {modo === 'viaje'
-            ? 'Elegí un viaje completado para ver el desglose.'
-            : 'Completá el viaje para ver el desglose.'}
+            ? 'Elige un viaje completado para ver el desglose.'
+            : 'Completa el viaje para ver el desglose.'}
         </p>
       )}
 

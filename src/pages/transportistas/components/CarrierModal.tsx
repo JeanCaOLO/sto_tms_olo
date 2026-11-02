@@ -391,7 +391,7 @@ export default function CarrierModal({ isOpen, onClose, carrier, onSave }: Carri
               {contractFile
                 ? `Se subirá "${contractFile.name}" al guardar.`
                 : hasContract
-                  ? 'Elegí un PDF para reemplazar el contrato actual. Máx. 10 MB.'
+                  ? 'Elige un PDF para reemplazar el contrato actual. Máx. 10 MB.'
                   : 'PDF, máx. 10 MB. Se sube al guardar el transportista.'}
             </p>
           </div>

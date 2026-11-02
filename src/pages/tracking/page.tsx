@@ -10,7 +10,7 @@ import ViajesSidebar from './components/ViajesSidebar';
 import { useNow } from './hooks/useNow';
 import { useTrackingCountry } from './hooks/useTrackingCountry';
 import { useChoferesEnLinea, useViajeDetalle, useViajesEnVivo } from './hooks/useViajesEnVivo';
-import { formatAge, matchesKpi, type KpiFilter } from './tracking-logic';
+import { failedStopsOfActive, formatAge, matchesKpi, type KpiFilter } from './tracking-logic';
 import type { ListMode } from './types';
 
 // Leaflet pesa: el mapa se descarga solo al abrir Tracking. La simulación es solo del modo mock.
@@ -109,7 +109,7 @@ export default function TrackingPage() {
         </p>
       )}
 
-      <ResumenBar resumen={summary ?? null} selected={kpi} onSelect={pickKpi} />
+      <ResumenBar resumen={summary ?? null} failedStops={failedStopsOfActive(viajes, summary ?? null)} selected={kpi} onSelect={pickKpi} />
 
       <div className={`grid grid-cols-1 gap-4 h-[calc(100vh-16rem)] min-h-[520px] ${layout}`}>
         <ViajesSidebar

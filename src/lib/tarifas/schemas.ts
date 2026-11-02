@@ -171,7 +171,7 @@ export const RuleSchema = z.object({
   // "Una sola gana" solo tiene sentido en la BASE (una regla de país vs. la de la compañía). En las
   // demás fases anularía recargos ajenos por accidente: ahí se usa SUM, o MAX con grupo explícito.
   (rule) => rule.stacking !== 'EXCLUSIVE' || rule.stage === 'BASE',
-  { message: 'EXCLUSIVE solo se permite en la fase BASE; en las demás usá SUM, o MAX con un grupo.', path: ['stacking'] },
+  { message: 'EXCLUSIVE solo se permite en la fase BASE; en las demás usa SUM, o MAX con un grupo.', path: ['stacking'] },
 ).refine(
   (rule) => rule.baseMethod !== 'TENDERING',
   { message: 'Tendering no se declara en una regla: el monto sale de la adjudicación del viaje.', path: ['baseMethod'] },
