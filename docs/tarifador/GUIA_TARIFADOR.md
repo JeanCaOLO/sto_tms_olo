@@ -180,7 +180,7 @@ Es el modo para probar con datos reales sin desplegar nada.
 2. **`.env.local`:** `TMS_DB_HOST=localhost`, `TMS_DB_PORT=15432`, `TMS_DB_NAME=tms_olo`, `TMS_DB_USER`,
    `TMS_DB_PASSWORD` y `JWT_SECRET`. (Las credenciales no se
    versionan.)
-3. **API local:** `npm run api:local:base` → Lambdas en `:4000` (incluye `tarifas`). Corre `backend/local/serve.py`, que ejecuta tal cual las Lambdas de `backend/`: es el código que se despliega. `npm run api:local` corre `backend-planif/serve.py`, una copia del backend de Planificación que **no** tiene `tarifas`; no sirve para este módulo.
+3. **API local:** `npm run api:local` → Lambdas en `:4000` (incluye `tarifas`). Corre `backend/local/serve.py`, que ejecuta tal cual las Lambdas de `backend/`: es el código que se despliega.
 4. **Front:** `npm run dev`. El proxy de Vite envía `/api/*` a `:4000`. Iniciar sesión con un usuario
    del TMS (`scripts/create-dev-user.mjs` crea uno).
 5. Si cambió `data/schema.ts`: `npm run tarifas:manifest` (regenera `backend/tarifas/src/schema_manifest.json`).
