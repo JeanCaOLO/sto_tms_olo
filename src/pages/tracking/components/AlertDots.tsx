@@ -7,17 +7,18 @@ export default function AlertDots({ alerts, showText = false }: { alerts: TripAl
   const { t } = useTranslation();
   if (!alerts.length) return null;
   return (
-    <ul className="flex flex-wrap gap-1" aria-label={t('tracking.alerts')}>
+    // span con roles (no ul/li): este componente también va dentro del <button> de la tarjeta, donde solo cabe contenido de frase.
+    <span role="list" className="flex flex-wrap gap-1" aria-label={t('tracking.alerts')}>
       {alerts.map((alert) => {
         const meta = ALERT_META[alert.code];
         const text = t(meta.key, { count: alert.count ?? 0 });
         return (
-          <li key={alert.code} title={text} className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-medium ${meta.cls}`}>
+          <span role="listitem" key={alert.code} title={text} className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-medium ${meta.cls}`}>
             <i className={meta.icon} aria-hidden />
             {showText ? text : <span className="sr-only">{text}</span>}
-          </li>
+          </span>
         );
       })}
-    </ul>
+    </span>
   );
 }

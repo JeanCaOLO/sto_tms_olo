@@ -27,6 +27,8 @@ export default {
   'tracking.retry': 'Retry',
   'tracking.loading': 'Loading...',
   'tracking.noTrips': 'No trips to show',
+  'tracking.kpiPartial': 'Showing {{shown}} of {{total}} trips for this indicator. Use search to narrow them down.',
+  'tracking.listCapped': 'Showing the {{limit}} most recent trips. Use search to see the rest.',
   'tracking.noTripsFiltered': 'No trips match the selected indicator',
   'tracking.progress': '{{done}} of {{total}} stops',
   'tracking.noStops': 'No stops',

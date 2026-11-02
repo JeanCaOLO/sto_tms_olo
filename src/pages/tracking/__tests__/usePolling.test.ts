@@ -94,4 +94,86 @@ describe('usePolling', () => {
     expect(backoffDelay(15_000, 2)).toBe(60_000);
     expect(backoffDelay(15_000, 5)).toBe(60_000);
   });
+
+  // Buscar, cambiar de modo o pedir más cambian las dependencias pero NO la lista que se está viendo:
+  // vaciar los datos hacía parpadear la lista y quitaba los camiones del mapa a cada tecla.
+  it('con resetKey, cambiar otras dependencias conserva el dato mientras llega el nuevo', async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce('a').mockResolvedValueOnce('b');
+    const { result, rerender } = renderHook(
+      ({ dep, key }) => usePolling(fetcher, [dep], { resetKey: key }),
+      { initialProps: { dep: 1, key: 'CR' } },
+    );
+    await flush();
+    expect(result.current.data).toBe('a');
+
+    rerender({ dep: 2, key: 'CR' });
+    expect(result.current.data).toBe('a');
+    expect(result.current.loading).toBe(false);
+    await flush();
+    expect(result.current.data).toBe('b');
+  });
+
+  it('con resetKey, cambiar la clave sí limpia el dato (otro país no muestra lo del anterior)', async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce('cr').mockResolvedValueOnce('ve');
+    const { result, rerender } = renderHook(
+      ({ dep, key }) => usePolling(fetcher, [dep], { resetKey: key }),
+      { initialProps: { dep: 1, key: 'CR' } },
+    );
+    await flush();
+    expect(result.current.data).toBe('cr');
+
+    rerender({ dep: 1, key: 'VE' });
+    expect(result.current.data).toBeNull();
+    await flush();
+    expect(result.current.data).toBe('ve');
+  });
+
+  it('con resetKey, el error de la consulta anterior no se arrastra a la nueva', async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce('a').mockRejectedValueOnce(new Error('caído')).mockResolvedValue('c');
+    const { result, rerender } = renderHook(
+      ({ dep }) => usePolling(fetcher, [dep], { resetKey: 'CR', intervalMs: 1000 }),
+      { initialProps: { dep: 1 } },
+    );
+    await flush();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(result.current.error?.message).toBe('caído');
+
+    rerender({ dep: 2 });
+    expect(result.current.error).toBeNull();
+    expect(result.current.data).toBe('a');
+  });
+
+  // Un rol sin acceso recibe 403 en cada consulta: seguir preguntando cada ciclo solo gasta Lambda y llena la consola.
+  it('con shouldRetry en false deja de consultar tras ese error, ni al volver a la pestaña', async () => {
+    const forbidden = Object.assign(new Error('sin acceso'), { status: 403 });
+    const fetcher = vi.fn().mockRejectedValue(forbidden);
+    renderHook(() => usePolling(fetcher, [], { intervalMs: 1000, shouldRetry: () => false }));
+    await flush();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(120_000); });
+    document.dispatchEvent(new Event('visibilitychange'));
+    await flush();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('refresh() reanuda una consulta detenida por shouldRetry', async () => {
+    const fetcher = vi.fn().mockRejectedValueOnce(new Error('403')).mockResolvedValue('ahora sí');
+    const { result } = renderHook(() => usePolling(fetcher, [], { intervalMs: 1000, shouldRetry: () => false }));
+    await flush();
+    expect(result.current.error?.message).toBe('403');
+
+    act(() => result.current.refresh());
+    await flush();
+    expect(result.current.data).toBe('ahora sí');
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('shouldRetry en true mantiene el ritmo normal con backoff', async () => {
+    const fetcher = vi.fn().mockRejectedValue(new Error('caído'));
+    renderHook(() => usePolling(fetcher, [], { intervalMs: 1000, shouldRetry: () => true }));
+    await flush();
+    await act(async () => { await vi.advanceTimersByTimeAsync(2100); });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
 });

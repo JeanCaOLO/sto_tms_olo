@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Viaje } from '../types';
 import {
-  ageSeconds, driverLoggedOut, formatAge, formatClock, formatDay, formatDistance, lastSignalAt, matchesKpi, positioned, stateVariant,
+  ageSeconds, driverLoggedOut, formatAge, formatClock, formatDay, formatDistance, colorVariant, COLOR_HEX, lastSignalAt, legDone, matchesKpi, positioned,
   stopVariant,
 } from '../tracking-logic';
 
@@ -64,10 +64,10 @@ describe('tracking-logic', () => {
   });
 
   it('elige variantes de badge y filtra viajes con posición', () => {
-    expect(stateVariant('active', 'online')).toBe('success');
-    expect(stateVariant('active', 'stale')).toBe('warning');
-    expect(stateVariant('active', 'offline')).toBe('danger');
-    expect(stateVariant('completed', 'none')).toBe('info');
+    expect(colorVariant('green')).toBe('success');
+    expect(colorVariant('amber')).toBe('warning');
+    expect(colorVariant('gray')).toBe('default');
+    expect(colorVariant('blue')).toBe('info');
     expect(stopVariant('failed')).toBe('danger');
     expect(positioned([viaje(), viaje({ id: 'v2', position: { lat: 1, lng: 2, speed_mps: null, recorded_at: '' } })])).toHaveLength(1);
     expect(formatDay('2026-10-02')).toMatch(/2/);
@@ -92,3 +92,61 @@ describe('tracking-logic', () => {
     expect(matchesKpi(doneToday, 'active', NOW)).toBe(false);
   });
 });
+
+// El color del viaje lo calcula el backend (`map_color`) y es la única fuente: el punto del mapa, la leyenda y la
+// insignia salen de él. Antes la insignia tenía su propio mapeo (activo sin señal en rojo, cancelado en rojo) y
+// contradecía al mapa, que los pinta grises.
+describe('un solo color por viaje', () => {
+  const BADGE_OF_COLOR = { green: 'success', amber: 'warning', gray: 'default', blue: 'info' } as const;
+
+  it('cada color del mapa tiene una sola insignia y todas son distintas', () => {
+    const colors = Object.keys(COLOR_HEX) as (keyof typeof COLOR_HEX)[];
+    expect(colors.sort()).toEqual(['amber', 'blue', 'gray', 'green']);
+    for (const color of colors) expect(colorVariant(color)).toBe(BADGE_OF_COLOR[color]);
+    expect(new Set(colors.map(colorVariant)).size).toBe(colors.length);
+  });
+
+  it('un viaje activo sin señal o cancelado no sale rojo: es gris como en el mapa', () => {
+    expect(colorVariant(viaje({ state: 'active', signal: 'offline', color: 'gray' }).color)).toBe('default');
+    expect(colorVariant(viaje({ state: 'cancelled', signal: 'none', color: 'gray' }).color)).toBe('default');
+    expect(colorVariant(viaje({ state: 'completed', signal: 'none', color: 'blue' }).color)).toBe('info');
+  });
+});
+
+describe('zona horaria y reloj', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  // El backend cuenta "completados hoy" en la zona del país y, si el país no la tiene, en UTC. La pantalla usaba
+  // la zona del navegador cuando faltaba: dos personas veían un número distinto al del tile.
+  it('un viaje sin zona se cuenta como "hoy" en UTC, no en la zona del navegador', () => {
+    vi.stubEnv('TZ', 'America/Costa_Rica'); // navegador en UTC-6
+    const ahora = Date.parse('2026-10-16T15:00:00Z');
+    // 21:00 del día 16 en el navegador, pero ya es el día 17 en UTC.
+    const sinZona = viaje({ state: 'completed', timezone: null, ended_at: '2026-10-17T03:00:00Z' });
+    expect(matchesKpi(sinZona, 'completed_today', ahora)).toBe(false);
+    // Mismo día UTC: sí cuenta.
+    expect(matchesKpi({ ...sinZona, ended_at: '2026-10-16T23:30:00Z' }, 'completed_today', ahora)).toBe(true);
+  });
+
+  it('con zona del país cuenta por el día local de ese país', () => {
+    const ahora = Date.parse('2026-10-16T15:00:00Z'); // 09:00 del 16 en Costa Rica
+    const cr = viaje({ state: 'completed', timezone: 'America/Costa_Rica', ended_at: '2026-10-17T03:00:00Z' }); // 21:00 del 16
+    expect(matchesKpi(cr, 'completed_today', ahora)).toBe(true);
+  });
+
+  it('a medianoche el reloj marca 00:05 y no 24:05', () => {
+    expect(formatClock('2026-10-31T00:05:00Z', 'UTC')).toBe('00:05');
+    expect(formatClock('2026-10-31T06:05:00Z', 'America/Costa_Rica')).toBe('00:05');
+  });
+});
+
+describe('tramo de la ruta hecho', () => {
+  it('solo lo está si la parada de destino existe y ya no está pendiente', () => {
+    expect(legDone('delivered')).toBe(true);
+    expect(legDone('failed')).toBe(true);
+    expect(legDone('pending')).toBe(false);
+    // Una parada que no está en el detalle no es una parada "hecha".
+    expect(legDone(undefined)).toBe(false);
+  });
+});
+

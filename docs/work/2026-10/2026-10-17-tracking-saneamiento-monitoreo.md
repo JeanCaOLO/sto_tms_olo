@@ -17,7 +17,7 @@ Fecha: 2026-10-17. Base: auditoría del módulo con `.test/blueprint/mobile-trac
 - Retirados: `POST /paradas/{id}/novedades`, `POST /paradas/{id}/devoluciones`. `/resumen` queda deprecado (devuelve la forma nueva).
 
 ## Rendimiento, costo y robustez
-- Por tick: de 3 Lambdas (lista + resumen + detalle) a 2 (lista con KPIs + detalle solo con panel abierto); intervalo de 10 s a 15 s. Detalle sin 200 eventos, 100 puntos de rastro ni el escaneo `FIRST_POSITIONS`.
+- Por tick: de 3 Lambdas (lista + resumen + detalle) a 2 (lista con KPIs + detalle solo con panel abierto); intervalo de 10 s a 15 s (el vigente en el código es 10 s: `POLL_MS` en `src/pages/tracking/api.ts`; el poller de choferes se detiene tras un 401/403). Detalle sin 200 eventos, 100 puntos de rastro ni el escaneo `FIRST_POSITIONS`.
 - URLs firmadas estables (caché por llave S3, TTL 1 h, se re-firma con < 10 min): el navegador reutiliza las fotos en vez de bajarlas cada refresco.
 - Gzip en las respuestas del stack tracking (> 1 KB y `Accept-Encoding: gzip`); `serve.py` lo decodifica en local.
 - Polling: una consulta en vuelo (no se acumulan ni se descartan todas), timeout 15 s con abort, backoff x2 hasta 60 s, limpia el dato al cambiar de viaje.

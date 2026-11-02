@@ -3,7 +3,7 @@ import { Marker, Polyline, Tooltip, useMap } from 'react-leaflet';
 import type L from 'leaflet';
 import { useRutaOsrm } from '../../hooks/useRutaOsrm';
 import type { ViajeDetalle } from '../../types';
-import { COLOR_HEX } from '../../tracking-logic';
+import { COLOR_HEX, legDone } from '../../tracking-logic';
 import { clusterPoints } from './cluster';
 import { originIcon, stopIcon } from './icons';
 
@@ -50,7 +50,7 @@ export default function RutaViaje({ detail }: { detail: ViajeDetalle }) {
     <>
       {tramos.map((tramo, i) => {
         const to = stopIds[i + 1];
-        const done = to != null && stateOf.get(to) !== 'pending';
+        const done = to != null && legDone(stateOf.get(to));
         return tramo.length > 1 ? (
           <Polyline
             key={`${detail.id}-t${i}`}

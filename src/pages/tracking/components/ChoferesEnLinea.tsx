@@ -28,8 +28,8 @@ export default function ChoferesEnLinea({ choferes, now }: Props) {
               {chofer.country && <span className="text-xs text-slate-400">{chofer.country}</span>}
             </span>
             <span className="text-xs text-slate-500 shrink-0">
-              {t('tracking.noTripYet')} · {formatAge(chofer.last_seen_at, now, t)}
-              {chofer.battery_pct !== null && ` · ${chofer.battery_pct}%`}
+              {[t('tracking.noTripYet'), formatAge(chofer.last_seen_at, now, t), chofer.battery_pct !== null ? `${chofer.battery_pct}%` : null]
+                .filter(Boolean).join(' · ')}
             </span>
           </li>
         ))}

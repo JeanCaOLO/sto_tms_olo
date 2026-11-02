@@ -27,6 +27,8 @@ export default {
   'tracking.retry': 'Reintentar',
   'tracking.loading': 'Cargando...',
   'tracking.noTrips': 'No hay viajes para mostrar',
+  'tracking.kpiPartial': 'Mostrando {{shown}} de {{total}} viajes de este indicador. Usa la búsqueda para acotar.',
+  'tracking.listCapped': 'Mostrando los {{limit}} viajes más recientes. Usa la búsqueda para ver los demás.',
   'tracking.noTripsFiltered': 'Ningún viaje coincide con el indicador elegido',
   'tracking.progress': '{{done}} de {{total}} paradas',
   'tracking.noStops': 'Sin paradas',
