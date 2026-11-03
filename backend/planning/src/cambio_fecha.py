@@ -23,7 +23,7 @@ WHERE o.id = %s AND o.organization_id = %s AND o.eflow_id_expedicion IS NOT NULL
 
 _CAMBIAR = """
 UPDATE orders SET delivery_date = %s::date, delivery_date_changed_at = now(), delivery_date_changed_by = %s,
-       delivery_date_changes = delivery_date_changes + 1, updated_at = now()
+       delivery_date_change_count = delivery_date_change_count + 1, updated_at = now()
 WHERE id = %s"""
 
 
