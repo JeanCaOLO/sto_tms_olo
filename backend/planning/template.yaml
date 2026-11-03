@@ -60,6 +60,9 @@ Resources:
           REPLAN_APP_USER_ID: !Ref ReplanAppUserId
           TMS_DB_SECRET_NAME:
             Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName
+          # Ingesta de pedidos y artículos del pedido leen eFlow en vivo (eflow_db).
+          EFLOW_SECRET_NAME:
+            Fn::ImportValue: !Sub ${CommonStackName}-EflowSecretName
       Events:
         ReplanHorario:
           Type: ScheduleV2

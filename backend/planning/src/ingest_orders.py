@@ -9,10 +9,12 @@ hoy en adelante. UPSERT idempotente por la clave de eFlow
 (eflow_id_almacen, eflow_id_compania, eflow_id_sucursal, eflow_id_expedicion):
 re-ingestar NO duplica, actualiza estado/fecha/peso.
 
-Read-only contra eFlow; la única escritura es el UPSERT en `orders`.
+Read-only contra eFlow; escribe el UPSERT en `orders` y sus líneas en `order_items`
+(ingest_items).
 """
 
 import cliente_retira
+import ingest_items
 import sim_eflow_sync
 from tms_common import eflow_db, pg
 
@@ -133,5 +135,6 @@ def ingest_cr(limite: int = 500, dry_run: bool = False) -> dict:
         upserted += 1
     # Espejo de la cabecera de eFlow (sim_expedicionescabecera) para el write-back.
     espejadas = 0 if dry_run else sim_eflow_sync.sincronizar()
-    return {"leidos": len(filas), "upserted": upserted, "saltados": len(faltantes),
-            "espejadas": espejadas, "faltantes": faltantes[:20], "dry_run": dry_run}
+    lineas = 0 if dry_run else ingest_items.sincronizar(ORG_CR, [str(r["IDEXPEDICION"]) for r in filas])
+    return {"leidos": len(filas), "upserted": upserted, "saltados": len(faltantes), "espejadas": espejadas,
+            "lineas": lineas, "faltantes": faltantes[:20], "dry_run": dry_run}
