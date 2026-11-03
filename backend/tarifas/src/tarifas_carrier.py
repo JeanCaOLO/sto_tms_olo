@@ -8,7 +8,7 @@ la empresa. El filtro vive en el servidor: el navegador solo refleja lo que ést
 from tms_common import permissions
 from tms_common.errors import HttpError
 
-OWN_PROFORMAS = "SELECT id FROM tarifas_proformas WHERE carrier_id = %s::uuid"
+OWN_PROFORMAS = "SELECT id FROM tbl_tarifas_proformas WHERE carrier_id = %s::uuid"
 
 # tabla -> condición SQL con UN parámetro (la empresa). Lo que no figura aquí no se le muestra.
 _CLAUSES = {
@@ -16,7 +16,7 @@ _CLAUSES = {
     "tarifas_proforma_phases": f"proforma_id IN ({OWN_PROFORMAS})",
     "tarifas_proforma_items": f"proforma_id IN ({OWN_PROFORMAS})",
     "tarifas_proforma_claims": f"proforma_id IN ({OWN_PROFORMAS})",
-    "tarifas_settlements": f"id IN (SELECT settlement_id FROM tarifas_proforma_items WHERE proforma_id IN ({OWN_PROFORMAS}))",
+    "tarifas_settlements": f"id IN (SELECT settlement_id FROM tbl_tarifas_proforma_items WHERE proforma_id IN ({OWN_PROFORMAS}))",
     "tarifas_audit_log": f"entity = 'proforma' AND entity_id IN ({OWN_PROFORMAS})",
 }
 

@@ -12,7 +12,7 @@ from tms_common import pg
 
 _PLANS = """
 SELECT id, country_id, warehouse_id, plan_date, status, notes, created_at, updated_at
-FROM route_plans
+FROM tbl_route_plans
 WHERE organization_id = %s AND (%s::uuid IS NULL OR warehouse_id = %s::uuid)
   AND (%s::uuid IS NULL OR customer_id = %s::uuid)
 ORDER BY plan_date DESC
@@ -22,8 +22,8 @@ _TRIPS = """
 SELECT t.id, t.plan_id, t.status, t.vehicle_id, t.driver_id, t.delivery_zone, t.sequence_order,
        t.numero_viaje, t.total_weight, t.total_volume, t.vehicle_plate, v.brand AS vehicle_label,
        t.vehicle_capacity_weight, t.vehicle_capacity_volume, t.is_owned
-FROM plan_trips t
-LEFT JOIN vehicles v ON v.id = t.vehicle_id
+FROM tbl_plan_trips t
+LEFT JOIN tbl_vehicles v ON v.id = t.vehicle_id
 WHERE t.plan_id = ANY(%s)
 ORDER BY t.sequence_order
 """
@@ -32,8 +32,8 @@ _STOPS = """
 SELECT s.id, s.trip_id, s.order_id, s.stop_order, s.order_number, s.customer_name,
        s.delivery_city, s.delivery_zone, s.latitude, s.longitude, s.weight, s.volume,
        s.es_cliente_retira, o.delivery_address, o.priority, o.eflow_id_compania, o.observaciones
-FROM plan_stops s
-LEFT JOIN orders o ON o.id = s.order_id
+FROM tbl_plan_stops s
+LEFT JOIN tbl_orders o ON o.id = s.order_id
 WHERE s.trip_id = ANY(%s)
 ORDER BY s.stop_order
 """
@@ -107,6 +107,6 @@ def listar(org: str, warehouse: str | None, customer: str | None = None) -> list
 def obtener(org: str, plan_id: str) -> dict | None:
     planes = pg.query(
         "SELECT id, country_id, warehouse_id, plan_date, status, notes, created_at, updated_at "
-        "FROM route_plans WHERE organization_id = %s AND id = %s::uuid", [org, plan_id])
+        "FROM tbl_route_plans WHERE organization_id = %s AND id = %s::uuid", [org, plan_id])
     ensamblados = _ensamblar(planes)
     return ensamblados[0] if ensamblados else None

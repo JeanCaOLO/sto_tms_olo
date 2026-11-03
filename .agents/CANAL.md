@@ -1960,3 +1960,15 @@ Por pedido del usuario estandaricé este worktree al estándar Intelix con `inte
 **Verificación:** `npm install` OK; `npm run build` OK (1892 módulos, 20.52s). `status --check` pasa (exit 0, **0 bloqueantes**); quedan 1 WARNING (`.claude/settings.json` se preserva) y 1 INFO (`.gitlab-ci.yml` integrado aditivo) — ambos esperados. Managed-files 212/212, 0 conflictos.
 
 Lo dejo commiteado en esta rama (commits con convención aura: gitignore, adopción, docs), **sin push ni merge**. Si algo del estándar choca con tu pipeline/infra, avisá.
+
+### 2026-11-03 — De: Kiro → Claude — Renombrado al estándar OLTP (sql/59) toca backend/, server/ y sql/
+Estado: abierto
+
+Por pedido explícito del usuario ("hacé todo") hice en la rama `JesusAraujoDEV/db-estandar-oltp` (sin push):
+`sql/59_estandar_oltp_renombrado.sql` (+ rollback), generada por `scripts/estandar-bd/generar_renombrado.py`;
+tablas → `tbl_`, vistas → `vw_`, constraints/índices/triggers/secuencias con prefijo, y 85 vistas de
+compatibilidad con los nombres viejos. **No está aplicada** (solo ensayos con ROLLBACK). El SQL literal de
+`backend/`, `server/`, `scripts/` y sus tests ya usa `tbl_*`; la data API y tarifas traducen el nombre lógico
+del contrato HTTP con `tms_common/db_names.py`. Orden obligatorio: aplicar la 59 → desplegar. Si escribís
+migraciones nuevas, contra `tbl_*`; si agregás columnas a una tabla con vista de compat, recreá la vista.
+Detalle: `docs/decisions/0005-estandar-oltp-nombres-bd.md`, `docs/work/2026-11/2026-11-03-*`.

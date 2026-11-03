@@ -27,11 +27,11 @@ class Script(FakeDb):
 
     def query(self, sql, params=()):
         self.calls.append((sql, list(params)))
-        if "FROM tarifas_proformas WHERE id" in sql:
+        if "FROM tbl_tarifas_proformas WHERE id" in sql:
             return [self.proforma] if self.proforma else []
-        if "FROM tarifas_proforma_phases" in sql:
+        if "FROM tbl_tarifas_proforma_phases" in sql:
             return self.phases
-        if "FROM tarifas_proforma_claims" in sql:
+        if "FROM tbl_tarifas_proforma_claims" in sql:
             return [self.claim] if self.claim else []
         return self.rows
 
@@ -66,7 +66,7 @@ def test_el_aprobador_del_rol_avanza_a_la_siguiente_fase(api, caller_permissions
     assert body_of(response)["status"] == "En Revisión"
     assert db.tx_state == "commit"
     sql = " ".join(s for s, _ in db.tx_calls)
-    assert "UPDATE tarifas_proforma_phases" in sql and "UPDATE tarifas_proformas" in sql and "tarifas_audit_log" in sql
+    assert "UPDATE tbl_tarifas_proforma_phases" in sql and "UPDATE tbl_tarifas_proformas" in sql and "tarifas_audit_log" in sql
 
 
 def test_la_ultima_fase_aprobada_deja_la_proforma_aprobada(api, caller_permissions):
@@ -74,9 +74,9 @@ def test_la_ultima_fase_aprobada_deja_la_proforma_aprobada(api, caller_permissio
     as_role(caller_permissions, "Gerente")
     response = decide(app, {"action": "approve", "phaseId": "f2"})
     assert body_of(response)["status"] == "Aprobado"
-    status_update = next(p for s, p in db.tx_calls if s.startswith("UPDATE tarifas_proformas"))
+    status_update = next(p for s, p in db.tx_calls if s.startswith("UPDATE tbl_tarifas_proformas"))
     assert status_update[0] == "Aprobado"
-    sync = next(p for s, p in db.tx_calls if s.startswith("UPDATE tarifas_settlements"))
+    sync = next(p for s, p in db.tx_calls if s.startswith("UPDATE tbl_tarifas_settlements"))
     assert sync == ["Aprobado", "pro_1"]  # las liquidaciones siguen a la proforma
 
 
@@ -126,7 +126,7 @@ def test_anular_libera_las_liquidaciones_y_pide_motivo(api, caller_permissions):
     response = decide(app, {"action": "annul", "comment": "error de transportista"})
     assert body_of(response)["status"] == "Anulado"
     assert any("tarifas_proforma_items SET state = 'excluded'" in s for s, _ in db.tx_calls)
-    sync = next(p for s, p in db.tx_calls if s.startswith("UPDATE tarifas_settlements"))
+    sync = next(p for s, p in db.tx_calls if s.startswith("UPDATE tbl_tarifas_settlements"))
     assert sync == ["Borrador", "pro_1"]
 
 
@@ -243,7 +243,7 @@ def test_rechazar_abre_un_reclamo_con_el_motivo(api, caller_permissions):
     app, db = api()
     as_role(caller_permissions, "Jefe")
     assert decide(app, {"action": "reject", "phaseId": "f1", "comment": "montos mal"})["statusCode"] == 200
-    insert = next(p for s, p in db.tx_calls if s.startswith("INSERT INTO tarifas_proforma_claims"))
+    insert = next(p for s, p in db.tx_calls if s.startswith("INSERT INTO tbl_tarifas_proforma_claims"))
     assert "montos mal" in insert and "f1" in insert and "Fase 1" in insert
 
 
@@ -269,7 +269,7 @@ def test_aprobar_tras_apelar_acepta_el_reclamo(api, caller_permissions):
     app, db = api(phases=[phase("f1", 1), phase("f2", 2, role="Gerente")], claim={**CLAIM, "status": "apelado"})
     as_role(caller_permissions, "Jefe")
     assert decide(app, {"action": "approve", "phaseId": "f1"})["statusCode"] == 200
-    close = next(p for s, p in db.tx_calls if s.startswith("UPDATE tarifas_proforma_claims"))
+    close = next(p for s, p in db.tx_calls if s.startswith("UPDATE tbl_tarifas_proforma_claims"))
     assert close[0] == "aceptado"
 
 
@@ -277,9 +277,9 @@ def test_rechazar_de_nuevo_tras_apelar_cierra_y_abre_otro_reclamo(api, caller_pe
     app, db = api(claim={**CLAIM, "status": "apelado"})
     as_role(caller_permissions, "Jefe")
     assert decide(app, {"action": "reject", "phaseId": "f1", "comment": "sigue mal"})["statusCode"] == 200
-    close = next(p for s, p in db.tx_calls if s.startswith("UPDATE tarifas_proforma_claims"))
+    close = next(p for s, p in db.tx_calls if s.startswith("UPDATE tbl_tarifas_proforma_claims"))
     assert close[0] == "rechazado"
-    assert "INSERT INTO tarifas_proforma_claims" in tx_sql(db)
+    assert "INSERT INTO tbl_tarifas_proforma_claims" in tx_sql(db)
 
 
 def test_reiniciar_anula_proforma_y_liquidaciones_por_reclamo(api, caller_permissions):
@@ -292,7 +292,7 @@ def test_reiniciar_anula_proforma_y_liquidaciones_por_reclamo(api, caller_permis
     void = next(p for s, p in db.tx_calls if "void_kind = 'reclamo'" in s)
     assert void == ["montos mal", "prc_1", "pro_1"]
     assert "tarifas_proforma_items SET state = 'excluded'" in tx_sql(db)
-    assert next(p for s, p in db.tx_calls if s.startswith("UPDATE tarifas_proforma_claims"))[0] == "reiniciado"
+    assert next(p for s, p in db.tx_calls if s.startswith("UPDATE tbl_tarifas_proforma_claims"))[0] == "reiniciado"
 
 
 def test_los_reclamos_no_se_escriben_por_la_api_generica(api, caller_permissions):
@@ -351,7 +351,7 @@ def test_lectura_de_fases_y_liquidaciones_cuelga_de_las_proformas_de_su_empresa(
     for table in ("tarifas_proforma_phases", "tarifas_proforma_items", "tarifas_settlements"):
         assert read(app, table)["statusCode"] == 200
         sql, params = db.calls[-1]
-        assert "FROM tarifas_proformas WHERE carrier_id = %s::uuid" in sql and params[-1] == CARRIER
+        assert "FROM tbl_tarifas_proformas WHERE carrier_id = %s::uuid" in sql and params[-1] == CARRIER
 
 
 def test_transportista_no_lee_el_catalogo_de_tarifas_ni_escribe(api, caller_permissions):

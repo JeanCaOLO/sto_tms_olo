@@ -43,7 +43,7 @@ async function main() {
     await client.query('BEGIN');
 
     const { rows } = await client.query(
-      `SELECT id, id_compania, expedicion FROM wms_expediciones ORDER BY id_compania, expedicion`,
+      `SELECT id, id_compania, expedicion FROM tbl_wms_expediciones ORDER BY id_compania, expedicion`,
     );
     if (rows.length === 0) throw new Error('wms_expediciones está vacía - corré primero scripts/seed-wms-expediciones.mjs');
 
@@ -58,7 +58,7 @@ async function main() {
       const observaciones = i % 9 === 0 ? 'Cliente retira en bodega - coordinar con seguridad' : null;
 
       await client.query(
-        `UPDATE wms_expediciones SET fecha_planificada = $1, observaciones = $2, updated_at = now() WHERE id = $3`,
+        `UPDATE tbl_wms_expediciones SET fecha_planificada = $1, observaciones = $2, updated_at = now() WHERE id = $3`,
         [fechaPlanificada, observaciones, id],
       );
       report.actualizadas++;

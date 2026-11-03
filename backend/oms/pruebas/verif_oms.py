@@ -1,7 +1,7 @@
 """Verificación local del contrato OMS ↔ Planificación sobre Aurora (ADR-013).
 
 Contraparte del OMS al plan de pruebas de Planificación (2026-10-21), CORREGIDA al
-modelo real: NO existe oms.pedidos; el OMS escribe en public.orders y la costura en
+modelo real: NO existe oms.pedidos; el OMS escribe en public.tbl_orders y la costura en
 sim_expedicionescabecera; priorizar deja DISP (no GENE, no oms_processed_at) y liberar
 pone GENE + oms_processed_at solo dentro de la ventana dispatch_date − dias_prep_picking.
 
@@ -68,12 +68,12 @@ def verificar(cur) -> list[tuple[str, bool, str]]:
     r: list[tuple[str, bool, str]] = []
 
     # T6 — La cola del OMS: planificado y no procesado.
-    cola = _uno(cur, "select count(*) from orders where planning_run_id is not null and oms_processed_at is null")
+    cola = _uno(cur, "select count(*) from tbl_orders where planning_run_id is not null and oms_processed_at is null")
     r.append(("T6 cola (planning_run_id not null & oms_processed_at null)", cola >= 0, f"{cola} en cola"))
 
     # ADR-013 (a) — PRIORIZAR deja DISP: ningún priorizado-no-liberado debe estar en GENE.
     mal_gene = _uno(cur, """
-        select count(*) from orders
+        select count(*) from tbl_orders
         where prioritization_run_id is not null and oms_processed_at is null
           and wms_situation <> 'DISP'""")
     r.append(("ADR-013 priorizar deja DISP (no GENE si no liberado)", mal_gene == 0,
@@ -81,14 +81,14 @@ def verificar(cur) -> list[tuple[str, bool, str]]:
 
     # ADR-013 (a) — priorizar NO estampa oms_processed_at: no debe haber liberado sin prioridad.
     lib_sin_prio = _uno(cur, """
-        select count(*) from orders
+        select count(*) from tbl_orders
         where oms_processed_at is not null and prioritization_run_id is null""")
     r.append(("Liberado implica priorizado (prioritization_run_id)", lib_sin_prio == 0,
               f"{lib_sin_prio} liberados sin prioritization_run_id (debe ser 0)"))
 
     # ADR-013 (b) — LIBERAR pone GENE + oms_processed_at juntos y consistentes.
     lib_mal = _uno(cur, """
-        select count(*) from orders
+        select count(*) from tbl_orders
         where oms_processed_at is not null and wms_situation <> 'GENE'""")
     r.append(("Liberado => wms_situation='GENE'", lib_mal == 0,
               f"{lib_mal} con oms_processed_at pero sin GENE (debe ser 0)"))
@@ -96,7 +96,7 @@ def verificar(cur) -> list[tuple[str, bool, str]]:
     # ADR-013 (c) — fuera de ventana NO liberado: priorizado con dispatch_date futuro lejano
     # no debería estar liberado. (dias_prep_picking=1 => se libera si dispatch_date <= hoy+1.)
     fuera_lib = _uno(cur, """
-        select count(*) from orders
+        select count(*) from tbl_orders
         where oms_processed_at is not null and dispatch_date is not null
           and dispatch_date > current_date + 1""")
     r.append(("Fuera de ventana NO liberado (dispatch_date > hoy+1)", fuera_lib == 0,
@@ -104,7 +104,7 @@ def verificar(cur) -> list[tuple[str, bool, str]]:
 
     # T11 / costura — cada liberado tiene su fila en el espejo con TPEXSI='GENE'.
     sin_espejo = _uno(cur, """
-        select count(*) from orders o
+        select count(*) from tbl_orders o
         where o.oms_processed_at is not null
           and not exists (
             select 1 from sim_expedicionescabecera s
@@ -117,7 +117,7 @@ def verificar(cur) -> list[tuple[str, bool, str]]:
               f"{sin_espejo} liberados sin espejo GENE (debe ser 0)"))
 
     # T12 — hay bitácora del OMS (la pestaña Logs lee de aquí).
-    tiene_logs = _uno(cur, "select case when to_regclass('public.oms_logs') is null then 0 else 1 end")
+    tiene_logs = _uno(cur, "select case when to_regclass('public.tbl_oms_logs') is null then 0 else 1 end")
     r.append(("Tabla oms_logs existe (trazabilidad)", tiene_logs == 1, "oms_logs presente" if tiene_logs else "FALTA oms_logs"))
 
     return r

@@ -9,14 +9,14 @@ from tms_common.responses import json_response
 
 from admin_access import require_admin
 
-CATALOG_SQL = "SELECT key, group_key AS \"group\", path FROM app_modules ORDER BY sort_order"
-ROLE_SQL = "SELECT id, name, COALESCE(all_countries, true) AS all_countries FROM roles WHERE id = %s"
-COUNTRIES_EXIST_SQL = "SELECT id FROM countries WHERE id = ANY(%s::uuid[])"
-DELETE_PERMISSIONS_SQL = "DELETE FROM role_permissions WHERE role_id = %s"
-INSERT_PERMISSION_SQL = "INSERT INTO role_permissions (role_id, module_key, action) VALUES (%s, %s, %s)"
-DELETE_COUNTRIES_SQL = "DELETE FROM role_countries WHERE role_id = %s"
-INSERT_COUNTRY_SQL = "INSERT INTO role_countries (role_id, country_id) VALUES (%s, %s)"
-UPDATE_ALL_COUNTRIES_SQL = "UPDATE roles SET all_countries = %s WHERE id = %s"
+CATALOG_SQL = "SELECT key, group_key AS \"group\", path FROM tbl_app_modules ORDER BY sort_order"
+ROLE_SQL = "SELECT id, name, COALESCE(all_countries, true) AS all_countries FROM tbl_roles WHERE id = %s"
+COUNTRIES_EXIST_SQL = "SELECT id FROM tbl_countries WHERE id = ANY(%s::uuid[])"
+DELETE_PERMISSIONS_SQL = "DELETE FROM tbl_role_permissions WHERE role_id = %s"
+INSERT_PERMISSION_SQL = "INSERT INTO tbl_role_permissions (role_id, module_key, action) VALUES (%s, %s, %s)"
+DELETE_COUNTRIES_SQL = "DELETE FROM tbl_role_countries WHERE role_id = %s"
+INSERT_COUNTRY_SQL = "INSERT INTO tbl_role_countries (role_id, country_id) VALUES (%s, %s)"
+UPDATE_ALL_COUNTRIES_SQL = "UPDATE tbl_roles SET all_countries = %s WHERE id = %s"
 
 
 def _ok(data: object) -> dict:

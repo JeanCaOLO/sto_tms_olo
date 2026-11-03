@@ -58,45 +58,45 @@ async function main() {
   try {
     await client.query('BEGIN');
 
-    const { rows: orgRows } = await client.query('SELECT id FROM organizations LIMIT 1');
+    const { rows: orgRows } = await client.query('SELECT id FROM tbl_organizations LIMIT 1');
     const organizationId = orgRows[0]?.id;
     if (!organizationId) throw new Error('No hay organización - corré primero el seed base.');
 
-    const { rows: crCountry } = await client.query(`SELECT id FROM countries WHERE code = 'CR' LIMIT 1`);
+    const { rows: crCountry } = await client.query(`SELECT id FROM tbl_countries WHERE code = 'CR' LIMIT 1`);
     const countryId = crCountry[0]?.id;
     if (!countryId) throw new Error('No existe país CR.');
 
     const { rows: whRows } = await client.query(
-      `SELECT w.id FROM warehouses w WHERE w.country_id = $1 LIMIT 1`,
+      `SELECT w.id FROM tbl_warehouses w WHERE w.country_id = $1 LIMIT 1`,
       [countryId],
     );
     const warehouseId = whRows[0]?.id;
     if (!warehouseId) throw new Error('No existe warehouse para CR.');
 
     const { rows: custRows } = await client.query(
-      `SELECT id, code FROM customers WHERE warehouse_id = $1 AND code IN ('EPA','COFERSA')`,
+      `SELECT id, code FROM tbl_customers WHERE warehouse_id = $1 AND code IN ('EPA','COFERSA')`,
       [warehouseId],
     );
     const epaId = custRows.find((c) => c.code === 'EPA')?.id;
     const cofersaId = custRows.find((c) => c.code === 'COFERSA')?.id;
     if (!epaId || !cofersaId) throw new Error('No se encontró EPA/COFERSA.');
 
-    const { rows: routeTypes } = await client.query(`SELECT id, name FROM zones WHERE organization_id = $1`, [organizationId]);
+    const { rows: routeTypes } = await client.query(`SELECT id, name FROM tbl_zones WHERE organization_id = $1`, [organizationId]);
     if (routeTypes.length === 0) throw new Error('No hay zonas (tabla zones, ex route_types).');
 
-    const { rows: drivers } = await client.query(`SELECT id, carrier_id FROM drivers WHERE organization_id = $1`, [organizationId]);
-    const { rows: vehicles } = await client.query(`SELECT id FROM vehicles WHERE organization_id = $1`, [organizationId]);
+    const { rows: drivers } = await client.query(`SELECT id, carrier_id FROM tbl_drivers WHERE organization_id = $1`, [organizationId]);
+    const { rows: vehicles } = await client.query(`SELECT id FROM tbl_vehicles WHERE organization_id = $1`, [organizationId]);
     if (drivers.length === 0 || vehicles.length === 0) throw new Error('Faltan drivers/vehicles.');
 
     // --- stores: 1 bodega origen + las 6 tiendas EPA reales ---
     const { rows: existingOrigin } = await client.query(
-      `SELECT id FROM stores WHERE organization_id = $1 AND code = 'CD-CR' LIMIT 1`,
+      `SELECT id FROM tbl_stores WHERE organization_id = $1 AND code = 'CD-CR' LIMIT 1`,
       [organizationId],
     );
     let origenStoreId = existingOrigin[0]?.id ?? null;
     if (!origenStoreId) {
       const { rows } = await client.query(
-        `INSERT INTO stores (organization_id, country_id, warehouse_id, name, code, address, city, status, store_type, is_origin)
+        `INSERT INTO tbl_stores (organization_id, country_id, warehouse_id, name, code, address, city, status, store_type, is_origin)
          VALUES ($1,$2,$3,'Bodega Central OLO CR','CD-CR','Zona Industrial, La Uruca','San José','active','warehouse',true)
          RETURNING id`,
         [organizationId, countryId, warehouseId],
@@ -108,7 +108,7 @@ async function main() {
     const epaStoreIdByCode = new Map();
     for (const s of EPA_STORES) {
       const { rows: existing } = await client.query(
-        `SELECT id FROM stores WHERE organization_id = $1 AND code = $2 LIMIT 1`,
+        `SELECT id FROM tbl_stores WHERE organization_id = $1 AND code = $2 LIMIT 1`,
         [organizationId, s.code],
       );
       if (existing[0]) {
@@ -116,7 +116,7 @@ async function main() {
         continue;
       }
       const { rows } = await client.query(
-        `INSERT INTO stores (organization_id, country_id, warehouse_id, name, code, address, city, status, store_type, is_origin)
+        `INSERT INTO tbl_stores (organization_id, country_id, warehouse_id, name, code, address, city, status, store_type, is_origin)
          VALUES ($1,$2,$3,$4,$5,$6,$7,'active','store',false)
          RETURNING id`,
         [organizationId, countryId, warehouseId, s.name, s.code, s.city, s.city],
@@ -158,7 +158,7 @@ async function main() {
         const orderNumber = `DEMO-${isoDate(fecha).replace(/-/g, '')}-${i}${j}`;
 
         const { rows } = await client.query(
-          `INSERT INTO orders (
+          `INSERT INTO tbl_orders (
              organization_id, store_id, customer_id, order_number, order_date, delivery_date,
              total_weight, total_volume, total_items, total_amount,
              delivery_address, delivery_city, delivery_zone, priority, status, notes, route_type_id
@@ -176,7 +176,7 @@ async function main() {
       }
 
       const { rows: routeRows } = await client.query(
-        `INSERT INTO routes (
+        `INSERT INTO tbl_routes (
            organization_id, store_id, driver_id, vehicle_id, carrier_id, route_number, route_date,
            planned_start_time, actual_start_time, planned_end_time, actual_end_time,
            total_distance, total_stops, completed_stops, total_weight, total_volume,
@@ -202,7 +202,7 @@ async function main() {
         const guideStatus = deliveryStatus === 'delivered' ? 'completada' : deliveryStatus === 'in_transit' ? 'en_ruta' : 'pendiente';
 
         await client.query(
-          `INSERT INTO dispatch_guides (
+          `INSERT INTO tbl_dispatch_guides (
              organization_id, route_id, order_id, guide_number, sequence_number,
              planned_arrival_time, actual_arrival_time, planned_departure_time, actual_departure_time,
              status, delivery_status, recipient_name, notes

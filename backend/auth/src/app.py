@@ -19,7 +19,7 @@ MIN_PASSWORD_LENGTH = 6  # contrato heredado de /auth/signup; la administración
 
 LOGIN_SQL = """
 SELECT c.auth_user_id, c.email, c.password_hash, u.is_active
-FROM auth_credentials c LEFT JOIN app_users u ON u.auth_user_id = c.auth_user_id
+FROM tbl_auth_credentials c LEFT JOIN tbl_app_users u ON u.auth_user_id = c.auth_user_id
 WHERE c.email = %s
 """
 
@@ -57,13 +57,13 @@ def sign_up(event: dict) -> dict:
     email, password = _credentials(event)
     if len(password) < MIN_PASSWORD_LENGTH:
         raise HttpError(400, f"La contraseña debe tener al menos {MIN_PASSWORD_LENGTH} caracteres")
-    if pg.query("SELECT 1 FROM auth_credentials WHERE email = %s", [email]):
+    if pg.query("SELECT 1 FROM tbl_auth_credentials WHERE email = %s", [email]):
         body = {"error": "email_exists", "message": "Ya existe un usuario con ese correo."}
         return json_response(409, body)
     user_id = str(uuid4())
     password_hash = hash_password(password)
     pg.query(
-        "INSERT INTO auth_credentials (auth_user_id, email, password_hash) VALUES (%s, %s, %s)",
+        "INSERT INTO tbl_auth_credentials (auth_user_id, email, password_hash) VALUES (%s, %s, %s)",
         [user_id, email, password_hash],
     )
     return json_response(200, {"data": {"user": {"id": user_id, "email": email}}, "error": None})

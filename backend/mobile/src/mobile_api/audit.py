@@ -1,4 +1,4 @@
-"""Bitácora de auditoría de la BD compartida (tabla audit.events del TMS).
+"""Bitácora de auditoría de la BD compartida (tabla audit.tbl_events del TMS).
 
 Los cambios de filas los captura un trigger de la BD; aquí solo se le dice QUIÉN hace el request
 (`bind`: `tms.audit_actor` LOCAL a cada transacción de escritura) y se olvida al terminar (`clear`). Los eventos que no son filas
@@ -11,12 +11,12 @@ import os
 from . import db
 
 INSERT_EVENT_SQL = """
-INSERT INTO audit.events (actor_type, auth_user_id, app_user_id, actor_email, role_name, source, action,
+INSERT INTO audit.tbl_events (actor_type, auth_user_id, app_user_id, actor_email, role_name, source, action,
                           module_key, entity_table, entity_id, request_id, ip, user_agent, metadata)
 SELECT %s, au.auth_user_id, au.id, %s, r.name, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb
 FROM (SELECT %s::uuid AS auth_user_id) caller
-LEFT JOIN app_users au ON au.auth_user_id = caller.auth_user_id
-LEFT JOIN roles r ON r.id = au.role_id
+LEFT JOIN tbl_app_users au ON au.auth_user_id = caller.auth_user_id
+LEFT JOIN tbl_roles r ON r.id = au.role_id
 """
 
 

@@ -32,11 +32,11 @@ def _text(value: object) -> str | None:
 
 
 def resolve_scopes(user: dict) -> list[Scope]:
-    users = pg.query("SELECT id, organization_id FROM app_users WHERE auth_user_id = %s", [user["id"]])
+    users = pg.query("SELECT id, organization_id FROM tbl_app_users WHERE auth_user_id = %s", [user["id"]])
     if not users:
         raise HttpError(401, "No existe app_user para este usuario autenticado.")
     rows = pg.query(
-        "SELECT id, role_id, country_id, warehouse_id, customer_id FROM user_scopes WHERE app_user_id = %s",
+        "SELECT id, role_id, country_id, warehouse_id, customer_id FROM tbl_user_scopes WHERE app_user_id = %s",
         [users[0]["id"]],
     )
     return [
@@ -57,7 +57,7 @@ def resolve_chain(country_id: str | None = None, warehouse_id: str | None = None
     if customer_id:
         rows = pg.query(
             "SELECT c.id AS customer_id, w.id AS warehouse_id, w.country_id AS country_id "
-            "FROM customers c LEFT JOIN warehouses w ON w.id = c.warehouse_id WHERE c.id = %s",
+            "FROM tbl_customers c LEFT JOIN tbl_warehouses w ON w.id = c.warehouse_id WHERE c.id = %s",
             [customer_id],
         )
         if not rows:
@@ -65,7 +65,7 @@ def resolve_chain(country_id: str | None = None, warehouse_id: str | None = None
         row = rows[0]
         return Chain(_text(row["country_id"]), _text(row["warehouse_id"]), _text(row["customer_id"]))
     if warehouse_id:
-        rows = pg.query("SELECT id, country_id FROM warehouses WHERE id = %s", [warehouse_id])
+        rows = pg.query("SELECT id, country_id FROM tbl_warehouses WHERE id = %s", [warehouse_id])
         if not rows:
             raise HttpError(404, f"Almacén no encontrado: {warehouse_id}")
         return Chain(_text(rows[0]["country_id"]), _text(rows[0]["id"]))

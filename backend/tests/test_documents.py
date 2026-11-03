@@ -73,7 +73,7 @@ def documents(monkeypatch):
 
     def query(sql, params=()):
         calls.append((sql, list(params)))
-        return [carrier] if "FROM carriers" in sql else []
+        return [carrier] if "FROM tbl_carriers" in sql else []
 
     monkeypatch.setattr(pg, "query", query)
     monkeypatch.setenv("DOCUMENTS_BUCKET", "dev-tms-documents-1")
@@ -101,7 +101,7 @@ def test_save_checks_the_object_and_stores_the_key(documents):
     s3.head = {"ContentType": "application/pdf", "ContentLength": 1000}
     response = app.handler(_event("PUT /api/v1/carriers/{id}/contract", {"key": KEY}), None)
     assert response["statusCode"] == 200
-    assert [p for sql, p in calls if sql.startswith("UPDATE carriers")] == [[KEY, CARRIER_ID]]
+    assert [p for sql, p in calls if sql.startswith("UPDATE tbl_carriers")] == [[KEY, CARRIER_ID]]
 
 
 def test_save_rejects_a_missing_upload(documents):

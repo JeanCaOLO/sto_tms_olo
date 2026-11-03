@@ -11,19 +11,19 @@ def mut(fake_columns):
 
 def test_insert_multiple_rows_fills_missing_columns_with_null(mut):
     sql, params = mut.build_insert_query("drivers", [{"name": "A"}, {"name": "B", "status": "x"}])
-    assert sql == 'INSERT INTO "drivers" ("name", "status") VALUES (%s,%s), (%s,%s) RETURNING *'
+    assert sql == 'INSERT INTO "tbl_drivers" ("name", "status") VALUES (%s,%s), (%s,%s) RETURNING *'
     assert params == ["A", None, "B", "x"]
 
 
 def test_update_puts_set_params_before_where_params(mut):
     sql, params = mut.build_update_query("drivers", {"name": "N"}, [["id", "eq", "1"]])
-    assert sql == 'UPDATE "drivers" SET "name" = %s WHERE "id" = %s RETURNING *'
+    assert sql == 'UPDATE "tbl_drivers" SET "name" = %s WHERE "id" = %s RETURNING *'
     assert params == ["N", "1"]
 
 
 def test_delete(mut):
     sql, params = mut.build_delete_query("drivers", [["id", "eq", "1"]])
-    assert sql == 'DELETE FROM "drivers" WHERE "id" = %s RETURNING *'
+    assert sql == 'DELETE FROM "tbl_drivers" WHERE "id" = %s RETURNING *'
     assert params == ["1"]
 
 

@@ -98,10 +98,10 @@ async function main() {
 
     if (limpiar) {
       const { rows } = await c.query(
-        `SELECT id FROM orders WHERE notes = $1 AND planning_run_id IS NULL AND oms_processed_at IS NULL`, [NOTE]);
+        `SELECT id FROM tbl_orders WHERE notes = $1 AND planning_run_id IS NULL AND oms_processed_at IS NULL`, [NOTE]);
       const ids = rows.map((r) => r.id);
-      await c.query('DELETE FROM order_items WHERE order_id = ANY($1)', [ids]);
-      await c.query('DELETE FROM orders WHERE id = ANY($1)', [ids]);
+      await c.query('DELETE FROM tbl_order_items WHERE order_id = ANY($1)', [ids]);
+      await c.query('DELETE FROM tbl_orders WHERE id = ANY($1)', [ids]);
       console.log(`Mock sin planificar a borrar: ${ids.length}`);
       await finish(c);
       return;
@@ -112,7 +112,7 @@ async function main() {
     for (const cl of CLIENTES) {
       const { rows } = await c.query(
         `SELECT final_customer_id, delivery_address, delivery_city, delivery_zone, delivery_latitude, delivery_longitude
-           FROM orders
+           FROM tbl_orders
           WHERE customer_id = $1 AND eflow_id_expedicion IS NOT NULL AND notes IS DISTINCT FROM $2
             AND final_customer_id IS NOT NULL
           ORDER BY (delivery_latitude IS NULL), eflow_id_expedicion
@@ -143,7 +143,7 @@ async function main() {
         const expedicion = `99${String(seq).padStart(8, '0')}`;
 
         const { rows: dup } = await c.query(
-          `SELECT 1 FROM orders WHERE eflow_id_almacen='0001' AND eflow_id_compania=$1 AND eflow_id_sucursal='0001' AND eflow_id_expedicion=$2`,
+          `SELECT 1 FROM tbl_orders WHERE eflow_id_almacen='0001' AND eflow_id_compania=$1 AND eflow_id_sucursal='0001' AND eflow_id_expedicion=$2`,
           [cl.compania, expedicion]);
         if (dup.length) { existentes++; continue; }
 
@@ -161,7 +161,7 @@ async function main() {
         const jitter = () => between(-0.006, 0.006); // ~600 m: no todos en el mismo punto
 
         const { rows: [o] } = await c.query(
-          `INSERT INTO orders (organization_id, customer_id, order_number, order_date, delivery_date, total_weight, total_volume,
+          `INSERT INTO tbl_orders (organization_id, customer_id, order_number, order_date, delivery_date, total_weight, total_volume,
               total_items, total_amount, delivery_address, delivery_city, delivery_latitude, delivery_longitude, delivery_zone,
               priority, status, notes, warehouse_id, branch_id, final_customer_id,
               eflow_id_almacen, eflow_id_compania, eflow_id_sucursal, eflow_id_expedicion,
@@ -175,7 +175,7 @@ async function main() {
 
         for (const x of items) {
           await c.query(
-            `INSERT INTO order_items (order_id, product_code, product_name, quantity, weight, volume, unit_price, total_price,
+            `INSERT INTO tbl_order_items (order_id, product_code, product_name, quantity, weight, volume, unit_price, total_price,
                 line_number, presentation, wms_status, wms_situation)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'DISP','DISP')`,
             [o.id, x.code, x.name, x.qty, x.weight, x.volume, x.price, x.total, x.k, x.pres]);

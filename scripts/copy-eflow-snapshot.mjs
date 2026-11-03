@@ -109,11 +109,11 @@ async function main() {
   try {
     await client.query('BEGIN');
 
-    const { rows: orgRows } = await client.query('SELECT id FROM organizations LIMIT 1');
+    const { rows: orgRows } = await client.query('SELECT id FROM tbl_organizations LIMIT 1');
     if (!orgRows[0]) throw new Error('No hay ninguna organización.');
     const organizationId = orgRows[0].id;
 
-    const { rows: crRows } = await client.query(`SELECT id FROM countries WHERE code = 'CR' LIMIT 1`);
+    const { rows: crRows } = await client.query(`SELECT id FROM tbl_countries WHERE code = 'CR' LIMIT 1`);
     if (!crRows[0]) throw new Error('No existe el país CR.');
     const countryId = crRows[0].id;
 
@@ -121,9 +121,9 @@ async function main() {
     for (const r of RUTAS) {
       const code = r.name.match(/^\s*(\d+)\s*·/)?.[1] ?? null;
       const { rowCount } = await client.query(
-        `INSERT INTO zones (organization_id, country_id, code, name, status)
+        `INSERT INTO tbl_zones (organization_id, country_id, code, name, status)
          SELECT $1, $3, $4, $2, 'active'
-         WHERE NOT EXISTS (SELECT 1 FROM zones WHERE organization_id = $1 AND name = $2)`,
+         WHERE NOT EXISTS (SELECT 1 FROM tbl_zones WHERE organization_id = $1 AND name = $2)`,
         [organizationId, r.name, countryId, code],
       );
       report.route_types += rowCount;
@@ -134,7 +134,7 @@ async function main() {
     for (const c of CARRIERS) {
       const code = `EFLOW-${c.eflowId.replace('eflow-car-', '')}`;
       const { rows } = await client.query(
-        `INSERT INTO carriers (organization_id, country_id, name, code, status)
+        `INSERT INTO tbl_carriers (organization_id, country_id, name, code, status)
          VALUES ($1, $2, $3, $4, 'active')
          ON CONFLICT (organization_id, code) DO UPDATE SET name = EXCLUDED.name
          RETURNING id`,
@@ -147,7 +147,7 @@ async function main() {
     // vehicles — carrier_id queda NULL (el snapshot no vincula vehículo->transportista).
     for (const v of VEHICLES) {
       const { rowCount } = await client.query(
-        `INSERT INTO vehicles (organization_id, plate, brand, model, vehicle_type, capacity_weight, capacity_volume, status)
+        `INSERT INTO tbl_vehicles (organization_id, plate, brand, model, vehicle_type, capacity_weight, capacity_volume, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, 'active')
          ON CONFLICT (organization_id, plate) DO NOTHING`,
         [organizationId, v.plate, v.brand, v.model, v.vehicle_type, v.capacity_weight, v.capacity_volume],
@@ -161,7 +161,7 @@ async function main() {
       const carrierId = carrierIdByEflowId.get(d.carrierEflowId) ?? null;
       const code = `DRV-${d.code.replace('eflow-drv-', 'EFLOW-')}`;
       const { rowCount } = await client.query(
-        `INSERT INTO drivers (organization_id, carrier_id, code, full_name, document, license_number, phone, status)
+        `INSERT INTO tbl_drivers (organization_id, carrier_id, code, full_name, document, license_number, phone, status)
          VALUES ($1, $2, $3, $4, $5, 'PENDIENTE', 'PENDIENTE', 'active')
          ON CONFLICT (organization_id, code) DO NOTHING`,
         [organizationId, carrierId, code, d.full_name, d.document],

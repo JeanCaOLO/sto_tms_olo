@@ -16,7 +16,7 @@ from .config import db_config
 from .errors import HttpError
 
 SOCKET_TIMEOUT_SECONDS = 25
-APPLICATION_NAME = "tms-api"  # origen en audit.events de lo que se escriba sin actor
+APPLICATION_NAME = "tms-api"  # origen en audit.tbl_events de lo que se escriba sin actor
 
 _connection = None
 

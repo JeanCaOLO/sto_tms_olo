@@ -57,7 +57,7 @@ def ingest_positions(event: dict, driver: Driver) -> dict:
                        pos["client_id"], pos["latitude"], pos["longitude"], pos["accuracy_m"], pos["speed_mps"],
                        pos["heading_deg"], pos["battery_pct"], pos["is_mock"], pos["recorded_at"]]
         stored = {str(r["client_id"]) for r in run(
-            f"INSERT INTO tracking_positions ({sql.POSITION_COLUMNS}) VALUES {', '.join(values)} "
+            f"INSERT INTO tbl_tracking_positions ({sql.POSITION_COLUMNS}) VALUES {', '.join(values)} "
             "ON CONFLICT (client_id) DO NOTHING RETURNING client_id", params)}
         fresh = [(pos, route) for pos, route in accepted if pos["client_id"] in stored]
 

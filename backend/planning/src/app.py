@@ -47,7 +47,7 @@ def _date_filter(params: dict) -> tuple[str, list]:
 
 
 def _app_user(event: dict) -> dict:
-    rows = pg.query("SELECT id, organization_id FROM app_users WHERE auth_user_id = %s", [auth_user(event)["id"]])
+    rows = pg.query("SELECT id, organization_id FROM tbl_app_users WHERE auth_user_id = %s", [auth_user(event)["id"]])
     if not rows:
         raise HttpError(401, "No existe app_user para este usuario autenticado.")
     return {"id": str(rows[0]["id"]), "org": str(rows[0]["organization_id"])}
@@ -114,7 +114,7 @@ def build_plan(event: dict) -> dict:
     fecha = (json.loads(event.get("body") or "{}")).get("plan_date")
     if not fecha or not ISO_DATE.match(fecha):
         raise HttpError(400, "plan_date debe tener formato YYYY-MM-DD")
-    rows = pg.query("SELECT country_id FROM warehouses WHERE id = %s", [warehouse])
+    rows = pg.query("SELECT country_id FROM tbl_warehouses WHERE id = %s", [warehouse])
     if not rows:
         raise HttpError(400, "Almacén inexistente")
     # Replan: primero ingesta lo nuevo de eFlow (best-effort: si eFlow no está
@@ -125,7 +125,7 @@ def build_plan(event: dict) -> dict:
         logging.getLogger().warning("ingest eFlow no disponible; se planifica sobre lo ya ingestado")
     country = str(rows[0]["country_id"])
     # Un plan por CLIENTE (compañía) del día: planificaciones separadas Cofersa/EPA.
-    custs = pg.query("""SELECT DISTINCT customer_id FROM orders WHERE organization_id=%s AND warehouse_id=%s
+    custs = pg.query("""SELECT DISTINCT customer_id FROM tbl_orders WHERE organization_id=%s AND warehouse_id=%s
                         AND delivery_date=%s::date AND wms_status='DISP' AND wms_situation='DISP'
                         AND eflow_id_expedicion IS NOT NULL""", [user["org"], warehouse, fecha])
     armados = [plan_builder.construir_y_persistir(user["org"], country, warehouse, str(c["customer_id"]), fecha, user["id"])
@@ -146,7 +146,7 @@ def replan_todo(event: dict) -> dict:
     warehouse = _warehouse(event)
     if not warehouse:
         raise HttpError(400, "Falta el almacén (x-warehouse-id) para replanificar")
-    rows = pg.query("SELECT country_id FROM warehouses WHERE id = %s", [warehouse])
+    rows = pg.query("SELECT country_id FROM tbl_warehouses WHERE id = %s", [warehouse])
     if not rows:
         raise HttpError(400, "Almacén inexistente")
     try:

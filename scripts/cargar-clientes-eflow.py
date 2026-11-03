@@ -86,7 +86,7 @@ def filas_staging(ruta_csv, companias):
 CARGA_SQL = """
 -- 1. Clientes: insertar nuevos; en existentes, refrescar status/tipo EFLOW y completar vacíos.
 with res as (
-  insert into final_customers as fc (customer_id, external_code, name, short_name, contact, phone, mobile, email,
+  insert into tbl_final_customers as fc (customer_id, external_code, name, short_name, contact, phone, mobile, email,
                                      erp_reference, wms_client_type, wms_client_class, status, customer_type)
   select customer_id, external_code, name, short_name, contact, phone, mobile, email,
          erp_reference, wms_client_type, wms_client_class, status, customer_type
@@ -122,18 +122,18 @@ create temp table stg_puntos on commit drop as
 select gen_random_uuid() as address_id, fc.id as final_customer_id, c.country_id,
        s.external_code, fc.name, s.address, s.latitude, s.longitude, s.phone, s.status
 from stg_clientes s
-join final_customers fc on fc.customer_id = s.customer_id and fc.external_code = s.external_code
-join customers c on c.id = fc.customer_id
-where not exists (select 1 from delivery_points dp where dp.final_customer_id = fc.id);
+join tbl_final_customers fc on fc.customer_id = s.customer_id and fc.external_code = s.external_code
+join tbl_customers c on c.id = fc.customer_id
+where not exists (select 1 from tbl_delivery_points dp where dp.final_customer_id = fc.id);
 
-insert into addresses (id, country_id, line1, latitude, longitude, geocoding_status, geocoding_provider, geocoded_at)
+insert into tbl_addresses (id, country_id, line1, latitude, longitude, geocoding_status, geocoding_provider, geocoded_at)
 select address_id, country_id, address, latitude, longitude,
        case when latitude is not null then 'OK' else 'PENDING' end,
        case when latitude is not null then 'EFLOW' end,
        case when latitude is not null then now() end
 from stg_puntos;
 
-insert into delivery_points (final_customer_id, address_id, external_code, name, is_default, active, contact_phone)
+insert into tbl_delivery_points (final_customer_id, address_id, external_code, name, is_default, active, contact_phone)
 select final_customer_id, address_id, external_code, name, true, status = 'active', phone
 from stg_puntos;
 
@@ -148,12 +148,12 @@ with objetivo as (
          a.line1 is null and s.address is not null as falta_linea,
          a.latitude is null and s.latitude is not null as faltan_coords
   from stg_clientes s
-  join final_customers fc on fc.customer_id = s.customer_id and fc.external_code = s.external_code
-  join delivery_points dp on dp.final_customer_id = fc.id and dp.is_default
-  join addresses a on a.id = dp.address_id
+  join tbl_final_customers fc on fc.customer_id = s.customer_id and fc.external_code = s.external_code
+  join tbl_delivery_points dp on dp.final_customer_id = fc.id and dp.is_default
+  join tbl_addresses a on a.id = dp.address_id
   where not exists (select 1 from stg_puntos p where p.final_customer_id = fc.id)
 ), cambios as (
-  update addresses a set
+  update tbl_addresses a set
     line1              = case when o.falta_linea then o.address else a.line1 end,
     latitude           = case when o.faltan_coords then o.latitude else a.latitude end,
     longitude          = case when o.faltan_coords then o.longitude else a.longitude end,
@@ -170,7 +170,7 @@ select count(*) filter (where falta_linea), count(*) filter (where faltan_coords
 
 RESUMEN_SQL = """
 select c.code, fc.customer_type, fc.status, count(*)
-from final_customers fc join customers c on c.id = fc.customer_id
+from tbl_final_customers fc join tbl_customers c on c.id = fc.customer_id
 where c.source_system = %s
 group by 1, 2, 3 order by 1, 2, 3;
 """
@@ -188,7 +188,7 @@ def main():
     cur = conn.cursor()
     try:
         cur.execute("set local statement_timeout = '15min'")
-        cur.execute("select external_code, id, code from customers where source_system = %s and external_code is not null",
+        cur.execute("select external_code, id, code from tbl_customers where source_system = %s and external_code is not null",
                     (SOURCE_SYSTEM,))
         companias = {ext: (cid, code) for ext, cid, code in cur.fetchall()}
         if not companias:

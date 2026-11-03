@@ -130,11 +130,11 @@ class MatrixDb:
     def query(self, sql, params=()):
         if "WHERE u.auth_user_id" in sql:
             return [{"id": "app-admin", "organization_id": "org", "is_active": True, "role_name": "Admin"}]
-        if "FROM roles WHERE id" in sql:
+        if "FROM tbl_roles WHERE id" in sql:
             return [{"id": params[0], "name": self.role_name, "all_countries": False}]
         if sql == permissions.MODULES_SQL:
             return [{"key": "pedidos"}, {"key": "tracking"}]
-        if "FROM countries WHERE id = ANY" in sql:
+        if "FROM tbl_countries WHERE id = ANY" in sql:
             return [{"id": "cr"}]
         if sql == permissions.ROLE_PERMISSIONS_SQL:
             return [{"module_key": "pedidos", "action": "view"}]

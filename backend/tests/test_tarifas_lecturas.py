@@ -57,7 +57,7 @@ def test_batch_corre_varias_lecturas_y_devuelve_un_array_por_consulta(api):
     assert response["statusCode"] == 200
     assert body_of(response) == [[{"id": "a"}], [{"id": "b"}, {"id": "c"}]]
     assert len(db.calls) == 2
-    assert 'FROM "tarifas_pricing_rules"' in db.calls[0][0] and 'FROM "tarifas_zone_groups"' in db.calls[1][0]
+    assert 'FROM "tbl_tarifas_pricing_rules"' in db.calls[0][0] and 'FROM "tbl_tarifas_zone_groups"' in db.calls[1][0]
     assert db.calls[0][1] == [CR]
 
 
@@ -107,7 +107,7 @@ def test_find_por_post_equivale_al_get_con_q_en_el_cuerpo(api, audit_calls):
 
     assert response["statusCode"] == 200 and body_of(response) == [{"id": "x"}]
     sql, params = db.calls[-1]
-    assert 'FROM "tarifas_v_viajes"' in sql and "LIMIT 10" in sql and params == ["completed"]
+    assert 'FROM "vw_tarifas_viajes"' in sql and "LIMIT 10" in sql and params == ["completed"]
     assert not [c for c in audit_calls if c[0] == "bind"]
 
 

@@ -21,7 +21,7 @@ export async function resolveEntityChain({ countryId, warehouseId, customerId })
   if (customerId) {
     const { rows } = await tmsQuery(
       `SELECT c.id AS customer_id, w.id AS warehouse_id, w.country_id AS country_id
-       FROM customers c LEFT JOIN warehouses w ON w.id = c.warehouse_id
+       FROM tbl_customers c LEFT JOIN tbl_warehouses w ON w.id = c.warehouse_id
        WHERE c.id = $1`,
       [customerId]
     );
@@ -29,7 +29,7 @@ export async function resolveEntityChain({ countryId, warehouseId, customerId })
     return { countryId: rows[0].country_id, warehouseId: rows[0].warehouse_id, customerId: rows[0].customer_id };
   }
   if (warehouseId) {
-    const { rows } = await tmsQuery(`SELECT id, country_id FROM warehouses WHERE id = $1`, [warehouseId]);
+    const { rows } = await tmsQuery(`SELECT id, country_id FROM tbl_warehouses WHERE id = $1`, [warehouseId]);
     if (!rows[0]) throw new HttpError(404, `Almacén no encontrado: ${warehouseId}`);
     return { countryId: rows[0].country_id, warehouseId: rows[0].id, customerId: null };
   }

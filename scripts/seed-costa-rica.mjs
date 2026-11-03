@@ -51,7 +51,7 @@ const COFERSA_FINAL_CUSTOMERS = [
 
 async function upsertFinalCustomer(client, customerId, countryId, row) {
   const { rows: fcRows } = await client.query(
-    `INSERT INTO final_customers (customer_id, external_code, name, region, status)
+    `INSERT INTO tbl_final_customers (customer_id, external_code, name, region, status)
      VALUES ($1, $2, $3, $4, 'active')
      ON CONFLICT (customer_id, external_code) DO UPDATE SET name = EXCLUDED.name
      RETURNING id`,
@@ -60,7 +60,7 @@ async function upsertFinalCustomer(client, customerId, countryId, row) {
   const finalCustomerId = fcRows[0].id;
 
   const { rows: addrRows } = await client.query(
-    `INSERT INTO addresses (country_id, city, state, latitude, longitude, geocoding_status, geocoding_provider)
+    `INSERT INTO tbl_addresses (country_id, city, state, latitude, longitude, geocoding_status, geocoding_provider)
      VALUES ($1, $2, $3, $4, $5, 'OK', 'seed-manual')
      RETURNING id`,
     [countryId, row.name, row.region, row.lat, row.lon],
@@ -68,7 +68,7 @@ async function upsertFinalCustomer(client, customerId, countryId, row) {
   const addressId = addrRows[0].id;
 
   await client.query(
-    `INSERT INTO delivery_points (final_customer_id, address_id, external_code, name, delivery_window_start, delivery_window_end, is_default, active)
+    `INSERT INTO tbl_delivery_points (final_customer_id, address_id, external_code, name, delivery_window_start, delivery_window_end, is_default, active)
      VALUES ($1, $2, $3, $4, $5, $6, true, true)
      ON CONFLICT DO NOTHING`,
     [finalCustomerId, addressId, `${row.code}-DP1`, row.name, row.window[0], row.window[1]],
@@ -82,16 +82,16 @@ async function main() {
   try {
     await client.query('BEGIN');
 
-    const { rows: crRows } = await client.query(`SELECT id FROM countries WHERE code = 'CR' LIMIT 1`);
+    const { rows: crRows } = await client.query(`SELECT id FROM tbl_countries WHERE code = 'CR' LIMIT 1`);
     if (!crRows[0]) throw new Error('No existe el país CR — corré primero sql/06_fase1_multicountry_foundation.sql');
     const countryId = crRows[0].id;
 
-    const { rows: whRows } = await client.query(`SELECT id FROM warehouses WHERE country_id = $1 LIMIT 1`, [countryId]);
+    const { rows: whRows } = await client.query(`SELECT id FROM tbl_warehouses WHERE country_id = $1 LIMIT 1`, [countryId]);
     if (!whRows[0]) throw new Error('No existe ningún warehouse para CR — corré primero sql/06_fase1_multicountry_foundation.sql');
     const warehouseId = whRows[0].id;
 
-    const { rows: epaRows } = await client.query(`SELECT id FROM customers WHERE code = 'EPA' AND warehouse_id = $1`, [warehouseId]);
-    const { rows: cofersaRows } = await client.query(`SELECT id FROM customers WHERE code = 'COFERSA' AND warehouse_id = $1`, [warehouseId]);
+    const { rows: epaRows } = await client.query(`SELECT id FROM tbl_customers AS customers WHERE code = 'EPA' AND warehouse_id = $1`, [warehouseId]);
+    const { rows: cofersaRows } = await client.query(`SELECT id FROM tbl_customers AS customers WHERE code = 'COFERSA' AND warehouse_id = $1`, [warehouseId]);
     if (!epaRows[0] || !cofersaRows[0]) {
       throw new Error('No se encontró EPA/COFERSA bajo el warehouse de CR — verificar que la migración de Fase 1 backfilleó customers.warehouse_id.');
     }
