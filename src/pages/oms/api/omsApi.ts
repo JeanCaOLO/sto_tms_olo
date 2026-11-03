@@ -138,7 +138,7 @@ const TIERS: readonly PriorityTier[] = [1, 2, 3, 4];
 // --- Panel del motor: columnas y helpers del embudo ---
 // Columnas mínimas de orders para derivar el embudo sin traer toda la fila.
 const PANEL_SELECT =
-  'priority,oms_score,prioritization_run_id,planning_run_id,oms_processed_at,wms_situation,dispatch_date,lead_time_days,numero_viaje,delivery_date,closed_at';
+  'priority,oms_score,prioritization_run_id,planning_run_id,oms_processed_at,wms_situation,dispatch_date,lead_time_days,numero_viaje,delivery_date,delivery_date_change_count,closed_at';
 // Política del OMS (ADR-013): la ventana de liberación abre dispatch_date − N días.
 const DIAS_PREP_PICKING_DEFECTO = 1;
 // Acciones de negocio que forman el "Historial OMS" del panel (barrido automático
@@ -236,14 +236,17 @@ export const omsApi = {
       if (scope.customerId) query = query.eq('customer_id', scope.customerId);
       const { data, error } = await query;
       if (!error && data) {
-        // Datos REALES de orders (aunque vengan vacíos): es lo que pidió negocio,
-        // no mock. Solo un error de red/BD cae al mock de respaldo (abajo).
+        // Datos REALES de orders (aunque vengan vacíos): es lo que pidió negocio.
         const hoyIso = new Date().toISOString().slice(0, 10);
         return data
           .map((row: any) => mapOrderToQueueOrder(row, country, hoyIso))
           .sort((a, b) => b.score - a.score);
       }
-      console.warn('[OMS] orders no disponible, usando mock de respaldo:', error?.message);
+      // CR trabaja SOLO con datos reales: ante un error de BD mostramos la cola
+      // vacía (y el error en consola), NUNCA mock. El mock de abajo queda solo
+      // para países sin fuente real todavía (p. ej. VE).
+      console.error('[OMS] cola no disponible (orders):', error?.message);
+      return [];
     }
     const rows = queueOrders
       .filter((o) => o.country === country)
@@ -320,6 +323,15 @@ export const omsApi = {
       enCola: rows.filter((r) => conPlan(r) && sinLiberar(r) && !priorizado(r)).length,
       priorizados: rows.filter((r) => conPlan(r) && sinLiberar(r) && priorizado(r)).length,
       liberadosHoy: rows.filter((r) => r.oms_processed_at != null && isoDay(r.oms_processed_at) === hoyIso).length,
+      // Indicadores de atención (reunión 2026-11-03):
+      //  - sin fecha de entrega: cualquier pedido abierto sin delivery_date (anomalía);
+      //  - sin fecha de salida: SOLO los ya planificados (planning_run_id) sin dispatch_date
+      //    (los de bandeja sin planificar legítimamente no la tienen → no son anomalía);
+      //  - modificaciones de fecha: suma del contador por pedido (0 hasta que exista la
+      //    edición de fecha con aprobación; ver sql/56).
+      sinFechaEntrega: rows.filter((r) => r.delivery_date == null).length,
+      sinFechaSalida: rows.filter((r) => conPlan(r) && r.dispatch_date == null).length,
+      modificacionesFecha: rows.reduce((acc, r) => acc + (Number(r.delivery_date_change_count) || 0), 0),
     };
 
     // "Por liberar pronto": priorizados-no-liberados por fecha de salida del viaje.

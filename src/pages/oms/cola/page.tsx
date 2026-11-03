@@ -36,7 +36,7 @@ export default function OmsColaPage() {
   ];
 
   const columns: DataTableColumn<QueueOrder>[] = [
-    { key: 'tier', header: t('omsQueue.colPriority'), accessor: (o) => o.tier, sortable: true, render: (o) => <PriorityBadge tier={o.tier} /> },
+    { key: 'tier', header: t('omsQueue.colPriority'), accessor: (o) => (o.prioritized ? o.tier : 99), sortable: true, render: (o) => (o.prioritized ? <PriorityBadge tier={o.tier} /> : <span className="text-slate-400 italic">{t('omsQueue.notPrioritized')}</span>) },
     { key: 'ref', header: t('omsQueue.colOrder'), accessor: (o) => o.ref, sortable: true, render: (o) => <span className="font-medium text-slate-900">{o.ref}</span> },
     { key: 'warehouseId', header: t('omsQueue.colWarehouseId'), accessor: (o) => o.warehouseId, sortable: true, filterable: true },
     { key: 'companyId', header: t('omsQueue.colCompanyId'), accessor: (o) => o.companyId, sortable: true, filterable: true },

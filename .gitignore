@@ -130,5 +130,8 @@ build/
 # Data temporal de paso Kiro -> Claude (ingesta a BD; se borra tras cargar)
 .tmp-claude/
 
+# Respaldos locales de filas borradas/reconciliadas en pruebas (no commitear)
+backup-*.json
+
 graphify-out/
 .test/

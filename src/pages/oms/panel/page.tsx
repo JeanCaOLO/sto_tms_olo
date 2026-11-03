@@ -97,6 +97,34 @@ export default function OmsPanelPage() {
             Priorizados = con prioridad, esperando su ventana de salida · Liberados = enviados a eFlow hoy.
           </p>
 
+          {/* Indicadores de atención (reunión 2026-11-03). */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <StatCard
+              title="Sin fecha de entrega"
+              value={pipeline.sinFechaEntrega}
+              icon="ri-calendar-close-line"
+              color={pipeline.sinFechaEntrega > 0 ? 'amber' : 'teal'}
+            />
+            <StatCard
+              title="Planificados sin fecha de salida"
+              value={pipeline.sinFechaSalida}
+              icon="ri-truck-line"
+              color={pipeline.sinFechaSalida > 0 ? 'amber' : 'teal'}
+            />
+            <StatCard
+              title="Modificaciones de fecha"
+              value={pipeline.modificacionesFecha}
+              icon="ri-calendar-event-line"
+              color="blue"
+            />
+          </div>
+          <p className="-mt-2 text-xs text-slate-500">
+            Sin fecha de entrega = pedidos abiertos a los que el WMS no les mandó la fecha ·
+            Planificados sin fecha de salida = ya pasaron por Planificación pero quedaron sin salida
+            (p. ej. sin coordenadas) · Modificaciones de fecha = veces que se ha cambiado la fecha de
+            entrega de los pedidos abiertos.
+          </p>
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Bloque 2 — Historial OMS (corridas automáticas + acciones manuales). */}
             <Card className="lg:col-span-2">
