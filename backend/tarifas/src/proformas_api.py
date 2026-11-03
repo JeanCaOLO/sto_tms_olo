@@ -13,6 +13,7 @@ from tms_common.event import auth_user, json_body, path_param
 from tms_common.responses import json_response
 
 import proformas_flow
+import tarifas_carrier
 import tarifas_db
 import tarifas_perms
 import tarifas_sql
@@ -26,6 +27,8 @@ ITEMS = "tarifas_proforma_items"
 SETTLEMENT_STATUS = {"Anulado": "Borrador"}
 # Motivo con el que se excluyen los ítems cuando el liquidador reinicia la liquidación por un reclamo.
 RESTART_REASON = "Reinicio por reclamo"
+# Lo único que decide un usuario transportista: aprobar o rechazar la fase que le toca.
+CARRIER_ACTIONS = ("approve", "reject")
 DIRECT_STATUS_MESSAGE = "El estado y las fases de una proforma cambian solo con su decisión (aprobar, rechazar, quitar fase)."
 
 
@@ -42,9 +45,9 @@ def check_direct_write(table: str, kind: str, values: object) -> None:
 
 
 def _load(proforma_id: str, caller: permissions.Permissions) -> tuple[dict, list[dict]]:
-    sql, params = "SELECT id, country_id, status FROM tarifas_proformas WHERE id = %s", [proforma_id]
+    sql, params = "SELECT id, country_id, carrier_id, status FROM tarifas_proformas WHERE id = %s", [proforma_id]
     rows = tarifas_db.query(sql, params)
-    if not rows or not _in_scope(caller, rows[0]["country_id"]):
+    if not rows or not _in_scope(caller, rows[0]["country_id"]) or not tarifas_carrier.owns(caller, rows[0]["carrier_id"]):
         raise HttpError(404, "Proforma no encontrada.")
     phases = tarifas_db.query(
         "SELECT id, position, name, state, approver_type, role_name, user_id FROM tarifas_proforma_phases "
@@ -93,6 +96,8 @@ def decide(event: dict) -> dict:
         raise HttpError(400, "El body debe ser un objeto JSON")
     proforma, phases = _load(proforma_id, caller)
     action = str(body.get("action") or "")
+    if caller.carrier_id is not None and action not in CARRIER_ACTIONS:
+        raise HttpError(403, "Tu usuario de transportista solo puede aprobar o rechazar.")
     actor = auth_user(event).get("email") or caller.app_user_id
     claim = _open_claim(proforma_id) if action in ("approve", "reject", "appeal", "restart") else None
     plan = _plan(proforma, phases, action, body, caller, claim)
@@ -167,6 +172,7 @@ def authorize_send(event: dict) -> dict:
     try:
         caller = permissions.for_user(str(event.get("user_id") or ""))
         caller.require(MODULE, "edit")
+        tarifas_carrier.forbid_write(caller)  # enviar el correo no es cosa del transportista
         proforma, _ = _load(str(event.get("proforma_id") or ""), caller)
     except HttpError as err:
         return {"ok": False, "status": err.status, "message": str(err)}

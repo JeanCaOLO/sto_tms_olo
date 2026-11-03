@@ -23,6 +23,7 @@ class NewUser:
     role_id: str
     status: str
     scopes: list[payload.ScopeInput]
+    carrier_id: str | None = None
 
 
 def _ok(data: object) -> dict:
@@ -48,6 +49,18 @@ def _role_id(run: pg.Runner, body: dict) -> str:
     return role_id
 
 
+def _carrier_for_role(run: pg.Runner, role_id: str, carrier_id: str | None) -> str | None:
+    """El rol Transportista exige empresa; cualquier otro rol no puede tener una (no se arrastra al cambiar de rol)."""
+    is_carrier_role = str(run(sql.ROLE_NAME_SQL, [role_id])[0]["name"]).strip().lower() == payload.CARRIER_ROLE
+    if not is_carrier_role:
+        return None
+    if carrier_id is None:
+        raise HttpError(400, "El rol Transportista necesita una empresa transportista")
+    if not run(sql.CARRIER_EXISTS_SQL, [carrier_id]):
+        raise HttpError(400, "La empresa transportista no existe")
+    return carrier_id
+
+
 def _write_scopes(run: pg.Runner, user_id: str, role_id: str, scopes: list[payload.ScopeInput]) -> None:
     run(sql.DELETE_SCOPES_SQL, [user_id])
     for scope in scopes:
@@ -61,7 +74,7 @@ def insert_user(run: pg.Runner, organization_id: str, user: NewUser) -> str:
     auth_user_id = str(uuid4())
     run(sql.INSERT_CREDENTIAL_SQL, [auth_user_id, user.email, hash_password(user.password)])
     rows = run(sql.INSERT_USER_SQL, [auth_user_id, organization_id, user.full_name, user.email,
-                                     user.role_id, user.status == "active"])
+                                     user.role_id, user.status == "active", user.carrier_id])
     user_id = str(rows[0]["id"])
     _write_scopes(run, user_id, user.role_id, user.scopes)
     return user_id
@@ -80,8 +93,10 @@ def list_users(event: dict) -> dict:
 def create_user(event: dict) -> dict:
     admin, body = require_admin(event), _body(event)
     with pg.transaction() as run:
+        role_id = _role_id(run, body)
         user = NewUser(payload.required_text(body, "full_name", "El nombre"), payload.email(body),
-                       payload.password(body), _role_id(run, body), payload.status(body), payload.scopes(body))
+                       payload.password(body), role_id, payload.status(body), payload.scopes(body),
+                       _carrier_for_role(run, role_id, payload.carrier_id(body)))
         user_id = insert_user(run, admin.organization_id, user)
     return _ok(_fetch(admin, user_id)[0])
 
@@ -94,6 +109,12 @@ def _update_fields(run: pg.Runner, user_id: str, body: dict) -> str | None:
         fields["is_active"] = payload.status(body) == "active"
     if "role_id" in body:
         fields["role_id"] = _role_id(run, body)
+    if "role_id" in body or "carrier_id" in body:
+        current = run(sql.USER_ROLE_CARRIER_SQL, [user_id])[0]
+        role = str(fields.get("role_id") or current["role_id"])
+        carrier = payload.carrier_id(body) if "carrier_id" in body else (
+            None if current["carrier_id"] is None else str(current["carrier_id"]))
+        fields["carrier_id"] = _carrier_for_role(run, role, carrier)
     if fields:
         assignments = ", ".join(f"{column} = %s" for column in fields)
         run(f"UPDATE app_users SET {assignments}, updated_at = now() WHERE id = %s", [*fields.values(), user_id])

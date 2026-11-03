@@ -13,7 +13,7 @@ import { useModulePermissions } from '../../hooks/use-module-permissions';
 import { useTarifasActor } from '../../hooks/useTarifasActor';
 import { formatMoney } from '../../lib/tarifas/format';
 import { CLAIMS_LIMIT } from '../../lib/tarifas/proformas/claims';
-import { canManageProformas, HISTORY_LIMIT, isWaitingFor, pendingForActor, rangeFor, TODAY_RANGE } from '../../lib/tarifas/proformas';
+import { canManageProformas, HISTORY_LIMIT, isCarrierRole, isWaitingFor, pendingForActor, rangeFor, TODAY_RANGE } from '../../lib/tarifas/proformas';
 import DetalleProformaModal from './components/DetalleProformaModal';
 import ProformaBitacora from './components/ProformaBitacora';
 import EmailConfigForm from './config/EmailConfigForm';
@@ -42,15 +42,17 @@ export default function ProformasPage() {
   const actor = useProformaActor();
   const google = useGoogleReturn();
   const manager = canManageProformas(actor?.roleName);
+  // Transportista: solo ve lo que espera su aprobación (el servidor ya limita a su empresa); sin historial ni barrido.
+  const carrierUser = isCarrierRole(actor?.roleName);
   const [requested, setTab] = useState<Tab>('pending');
-  const tabs: Tab[] = ['pending', ...(manager ? ['process', 'claims', 'done'] as Tab[] : []), 'log', ...(canConfigure ? ['config'] as Tab[] : [])];
+  const tabs: Tab[] = carrierUser ? ['pending'] : ['pending', ...(manager ? ['process', 'claims', 'done'] as Tab[] : []), 'log', ...(canConfigure ? ['config'] as Tab[] : [])];
   const tab = tabs.includes(requested) ? requested : 'pending';
   const [range, setRange] = useState(TODAY_RANGE);
   useTodayRange(range, setRange);
   const [openId, setOpenId] = useState<string | null>(null);
 
   // Lo vigente (en revisión o aprobado sin enviar) siempre se carga: alimenta Por aprobar y los contadores. Aquí corre el barrido.
-  const active = useProformaList(countryId, canEdit, 'active');
+  const active = useProformaList(countryId, canEdit && !carrierUser, 'active');
   const sectionScope = tab === 'process' || tab === 'done' || tab === 'log' ? SECTION_SCOPE[tab] : 'all';
   const section = useProformaList(countryId, false, sectionScope, range, tab === 'process' || tab === 'done' || tab === 'log');
   const claims = useClaims(countryId, range, tab === 'claims');

@@ -131,7 +131,7 @@ def _after(table: Table, after, order_by) -> tuple[str, list]:
 
 
 def build_where(table: Table, where: list | None, countries: tuple[str, ...] | None,
-                after=None, order_by=None) -> tuple[str, list]:
+                after=None, order_by=None, scope: tuple[str, list] | None = None) -> tuple[str, list]:
     if where is not None and not isinstance(where, list):
         raise HttpError(400, '"where" debe ser una lista de condiciones')
     parts, params = [], []
@@ -147,6 +147,9 @@ def build_where(table: Table, where: list | None, countries: tuple[str, ...] | N
     if country_sql:
         parts.append(country_sql)
         params.extend(country_args)
+    if scope:  # restricción extra del que llama (usuario transportista): una condición con sus parámetros
+        parts.append(f"({scope[0]})")
+        params.extend(scope[1])
     return (" AND ".join(parts) if parts else "TRUE"), params
 
 
@@ -185,20 +188,22 @@ def _select_list(table: Table, columns) -> str:
     return ", ".join(quote(column) for column in dict.fromkeys(columns))
 
 
-def build_find(table: Table, options: dict | None, countries: tuple[str, ...] | None) -> tuple[str, list]:
+def build_find(table: Table, options: dict | None, countries: tuple[str, ...] | None,
+               scope: tuple[str, list] | None = None) -> tuple[str, list]:
     options = options or {}
     if not isinstance(options, dict):
         raise HttpError(400, '"q" debe ser un objeto { where, orderBy, limit, offset }')
-    where, params = build_where(table, options.get("where"), countries, options.get("after"), options.get("orderBy"))
+    where, params = build_where(table, options.get("where"), countries, options.get("after"), options.get("orderBy"), scope)
     limit = min(_int(options.get("limit"), "limit", MAX_ROWS), MAX_ROWS)
     offset = _int(options.get("offset"), "offset", 0)
     sql = f"SELECT {_select_list(table, options.get('columns'))} FROM {quote(table.name)} WHERE {where}{_order(table, options.get('orderBy'))} LIMIT {limit} OFFSET {offset}"
     return sql, params
 
 
-def build_get(table: Table, row_id: str, countries: tuple[str, ...] | None) -> tuple[str, list]:
+def build_get(table: Table, row_id: str, countries: tuple[str, ...] | None,
+              scope: tuple[str, list] | None = None) -> tuple[str, list]:
     pk = table.primary_key
-    where, params = build_where(table, [{"column": pk, "op": "eq", "value": row_id}], countries)
+    where, params = build_where(table, [{"column": pk, "op": "eq", "value": row_id}], countries, scope=scope)
     return f"SELECT * FROM {quote(table.name)} WHERE {where} LIMIT 1", params
 
 

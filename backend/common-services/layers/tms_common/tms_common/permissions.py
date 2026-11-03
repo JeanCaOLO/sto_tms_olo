@@ -16,7 +16,7 @@ ACTIONS = ("view", "create", "edit", "delete", "export")
 
 CALLER_SQL = """
 SELECT u.id, COALESCE(u.is_active, true) AS is_active, r.id AS role_id, r.name AS role_name,
-       COALESCE(r.all_countries, true) AS all_countries
+       COALESCE(r.all_countries, true) AS all_countries, u.carrier_id
 FROM app_users u LEFT JOIN roles r ON r.id = u.role_id
 WHERE u.auth_user_id = %s
 """
@@ -34,6 +34,8 @@ class Permissions:
     modules: dict[str, frozenset[str]]
     all_countries: bool
     country_ids: tuple[str, ...]
+    # Empresa transportista del usuario (rol Transportista): solo ve y decide lo de su empresa.
+    carrier_id: str | None = None
 
     def can(self, module: str, action: str) -> bool:
         return self.is_admin or action in self.modules.get(module, frozenset())
@@ -86,7 +88,9 @@ def for_user(auth_user_id: str) -> Permissions:
         modules, all_countries = role_modules(role_id), bool(caller["all_countries"])
         countries = () if all_countries else tuple(
             str(row["country_id"]) for row in pg.query(ROLE_COUNTRIES_SQL, [role_id]))
-    return Permissions(str(caller["id"]), role_id, caller["role_name"], is_admin, modules, all_countries, countries)
+    carrier_id = None if is_admin or caller.get("carrier_id") is None else str(caller["carrier_id"])
+    return Permissions(str(caller["id"]), role_id, caller["role_name"], is_admin, modules, all_countries, countries,
+                       carrier_id)
 
 
 def for_event(event: dict) -> Permissions:
