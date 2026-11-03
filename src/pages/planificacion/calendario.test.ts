@@ -26,9 +26,10 @@ const PLANES = [
 const SEMANA = diasSemana(new Date('2026-10-13T12:00:00')).map(isoDe);
 
 describe('calendario', () => {
-  it('la semana arranca en lunes y trae 6 días (L..S)', () => {
+  it('la semana arranca en lunes y trae 7 días (L..D)', () => {
     expect(SEMANA[0]).toBe('2026-10-12'); // lunes
-    expect(SEMANA).toHaveLength(6);
+    expect(SEMANA).toHaveLength(7);
+    expect(SEMANA[6]).toBe('2026-10-18'); // domingo
   });
 
   it('el mes cubre semanas completas (múltiplo de 7)', () => {

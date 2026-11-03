@@ -3,8 +3,9 @@ import Card from '../../../components/base/Card';
 import Button from '../../../components/base/Button';
 import Select from '../../../components/base/Select';
 import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
-import type { QueueOrder } from '../types';
+import type { BandejaOrder } from './bandeja-api';
 import BandejaDetailModal from './BandejaDetailModal';
+import KindBadge from './KindBadge';
 import { useBandejaController } from './useBandejaController';
 
 const money = (n: number) => n.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -20,7 +21,7 @@ const soloFecha = (v: string) => (v ? v.slice(0, 10) : '');
 export default function OmsBandejaPage() {
   const { t } = useTranslation();
   const {
-    orders, loading, error,
+    orders, loading, error, reload,
     filters, setFilter, resetFilters, filtersActive, options,
     selectedId, setSelectedId, selected,
     detailOpen, setDetailOpen,
@@ -31,12 +32,12 @@ export default function OmsBandejaPage() {
     ...all.map((v) => ({ value: v, label: v })),
   ];
 
-  const columns: DataTableColumn<QueueOrder>[] = [
+  const columns: DataTableColumn<BandejaOrder>[] = [
     { key: 'ref', header: t('omsBandeja.colOrder'), accessor: (o) => o.ref, sortable: true, render: (o) => <span className="font-medium text-slate-900">{o.ref}</span> },
+    { key: 'kind', header: t('omsBandeja.colKind'), accessor: (o) => o.kind, sortable: true, render: (o) => <KindBadge order={o} /> },
     { key: 'warehouseId', header: t('omsBandeja.colWarehouseId'), accessor: (o) => o.warehouseId, sortable: true, filterable: true },
     { key: 'companyId', header: t('omsBandeja.colCompanyId'), accessor: (o) => o.companyId, sortable: true, filterable: true },
     { key: 'branchId', header: t('omsBandeja.colBranchId'), accessor: (o) => o.branchId, sortable: true, filterable: true },
-    { key: 'orderType', header: t('omsBandeja.colOrderType'), accessor: (o) => o.orderType, sortable: true, filterable: true },
     { key: 'customer', header: t('omsBandeja.colCustomer'), accessor: (o) => o.customer, sortable: true, filterable: true },
     { key: 'route', header: t('omsBandeja.colRoute'), accessor: (o) => o.route, sortable: true, filterable: true },
     { key: 'totalAmount', header: t('omsBandeja.colTotalAmount'), accessor: (o) => o.totalAmount, sortable: true, align: 'right', render: (o) => money(o.totalAmount) },
@@ -49,7 +50,17 @@ export default function OmsBandejaPage() {
       accessor: (o) => o.observations,
       render: (o) => <span className="max-w-[220px] truncate block" title={o.observations}>{o.observations}</span>,
     },
-    { key: 'dispatchDate', header: t('omsBandeja.colDispatchDate'), accessor: (o) => o.dispatchDate, sortable: true, render: (o) => soloFecha(o.dispatchDate) },
+    {
+      key: 'dispatchDate', header: t('omsBandeja.colDispatchDate'), accessor: (o) => o.dispatchDate, sortable: true,
+      render: (o) => (
+        <span className="whitespace-nowrap">
+          {soloFecha(o.dispatchDate)}
+          {o.dateChanges > 0 && (
+            <i className="ri-edit-2-line text-amber-600 ml-1" title={t('omsBandeja.dateChangedHint', { eflow: o.eflowDate })}></i>
+          )}
+        </span>
+      ),
+    },
     { key: 'createdDate', header: t('omsBandeja.colCreatedDate'), accessor: (o) => o.createdDate, sortable: true, render: (o) => soloFecha(o.createdDate) },
   ];
 
@@ -62,6 +73,18 @@ export default function OmsBandejaPage() {
 
       <Card>
         <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end">
+          <div className="sm:w-48">
+            <Select
+              label={t('omsBandeja.kind')}
+              value={filters.kind}
+              onChange={(e) => setFilter('kind', e.target.value)}
+              options={[
+                { value: 'todos', label: t('omsBandeja.allMasc') },
+                { value: 'delivery', label: t('omsBandeja.kindDeliveryFilter') },
+                { value: 'pickup', label: t('omsBandeja.kindPickupFilter') },
+              ]}
+            />
+          </div>
           <div className="sm:w-40">
             <Select label={t('omsBandeja.branch')} value={filters.branch} onChange={(e) => setFilter('branch', e.target.value)} options={opt(options.branches, t('omsBandeja.allFem'))} />
           </div>
@@ -101,6 +124,7 @@ export default function OmsBandejaPage() {
         <BandejaDetailModal
           order={selected}
           onClose={() => { setDetailOpen(false); setSelectedId(null); }}
+          onDateChanged={reload}
         />
       )}
     </div>
