@@ -13,18 +13,18 @@ export function validateBuilder(form: RuleBuilderForm): BuilderErrors {
 
   // El tarifario trae su propia clave, así que no se elige una variable: la elige la tabla.
   if (form.operator !== 'FIXED' && form.operator !== 'RATE_TABLE' && !form.variable) {
-    errors.variable = 'Elegí sobre qué variable se aplica.';
+    errors.variable = 'Elige sobre qué variable se aplica.';
   }
 
   if (form.operator === 'RATE_TABLE' && !(form.rateTableCode ?? '').trim()) {
-    errors.rateTableCode = 'Elegí de qué tarifario sale el importe.';
+    errors.rateTableCode = 'Elige de qué tarifario sale el importe.';
   }
 
   // Los escalones no usan el importe único: cada tramo trae el suyo.
   if (form.operator !== 'TIERED' && !NON_NEGATIVE.test((form.value ?? '').trim())) {
     // El signo no se escribe: lo decide "aumenta / disminuye". Aceptar un negativo acá daría dos
     // maneras de expresar lo mismo y una regla que dice una cosa y hace la contraria.
-    errors.value = 'Escribí el importe sin signo — si resta, marcá "Disminuye el costo".';
+    errors.value = 'Escribe el importe sin signo — si resta, marca "Disminuye el costo".';
   }
 
   if (form.operator === 'PER_BLOCK') {
@@ -36,12 +36,12 @@ export function validateBuilder(form: RuleBuilderForm): BuilderErrors {
   }
 
   if (form.operator === 'PERCENT' && !form.percentBase) {
-    errors.percentBase = 'Indicá sobre qué base se calcula el porcentaje.';
+    errors.percentBase = 'Indica sobre qué base se calcula el porcentaje.';
   }
 
   if (form.operator === 'PERCENT') {
     if (form.percentBase?.of === 'RULE' && !(form.percentBase?.ruleCode ?? '').trim()) {
-      errors.percentBase = 'Cuando usás otra regla como base, indicá cuál.';
+      errors.percentBase = 'Cuando usas otra regla como base, indica cuál.';
     }
     if (form.effect === 'DECREASE') {
       const parsed = parseMoneyInput(form.value);
@@ -54,7 +54,7 @@ export function validateBuilder(form: RuleBuilderForm): BuilderErrors {
   if (form.operator === 'TIERED') {
     const tiers = form.tiers ?? [];
     if (tiers.length === 0) {
-      errors.tiers = 'Agregá al menos un tramo.';
+      errors.tiers = 'Agrega al menos un tramo.';
     } else {
       const hasOpenTier = tiers.some((t) => t.upTo === null);
       if (!hasOpenTier) {

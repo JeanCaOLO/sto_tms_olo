@@ -34,10 +34,10 @@ export default function RuleCalculationSection(props: RuleCalculationSectionProp
   const fields = { builder, builderErrors, onChange };
 
   return (
-    <section className="border-t border-gray-200 pt-4">
-      <h3 className="text-sm font-semibold text-gray-700 mb-3">¿Cuánto suma o resta?</h3>
+    <section className="border-t border-slate-200 pt-4">
+      <h3 className="text-sm font-semibold text-slate-700 mb-3">¿Cuánto suma o resta?</h3>
       <OperatorFields {...fields} numericVarOptions={props.numericVarOptions} currencyLabel={currencyLabel} />
-      <p className="text-xs text-gray-500 mt-2">{OPERATOR_HINTS[builder.operator]}</p>
+      <p className="text-xs text-slate-500 mt-2">{OPERATOR_HINTS[builder.operator]}</p>
       {builder.operator === 'RATE_TABLE' && <RateTableFields {...fields} rateTables={props.rateTables} />}
       {builder.operator === 'TIERED' && <TieredFields {...fields} currencyLabel={currencyLabel} />}
       {builder.operator === 'PERCENT' && <PercentFields {...fields} />}

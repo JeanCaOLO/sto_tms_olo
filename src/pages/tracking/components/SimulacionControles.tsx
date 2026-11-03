@@ -20,7 +20,7 @@ export default function SimulacionControles({ onChange }: { onChange: () => void
       <button type="button" className={btn} onClick={() => apply({ speed: SPEEDS[index - 1] })} disabled={index <= 0} aria-label={t('tracking.simSlower')} title={t('tracking.simSlower')}>
         <i className="ri-rewind-fill" />
       </button>
-      <button type="button" className={btn} onClick={() => apply({ paused: !sim.paused })} aria-pressed={sim.paused} aria-label={sim.paused ? t('tracking.simPlay') : t('tracking.simPause')} title={sim.paused ? t('tracking.simPlay') : t('tracking.simPause')}>
+      <button type="button" className={btn} onClick={() => apply({ paused: !sim.paused })} aria-label={sim.paused ? t('tracking.simPlay') : t('tracking.simPause')} title={sim.paused ? t('tracking.simPlay') : t('tracking.simPause')}>
         <i className={sim.paused ? 'ri-play-fill' : 'ri-pause-fill'} />
       </button>
       <button type="button" className={btn} onClick={() => apply({ speed: SPEEDS[index + 1] })} disabled={index >= SPEEDS.length - 1} aria-label={t('tracking.simFaster')} title={t('tracking.simFaster')}>

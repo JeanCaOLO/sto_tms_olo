@@ -80,7 +80,7 @@ export function classifyConflict(a: ComparableRule, b: ComparableRule): RuleConf
 
 const MESSAGES: Record<RuleConflictKind, (codes: string) => string> = {
   MISMO_CODIGO: (c) => `Hay más de una regla activa con el código ${c}, del mismo alcance y vigentes a la vez: si las dos aplican, se cobran dos veces.`,
-  MISMA_LOGICA: (c) => `Las reglas ${c} hacen lo mismo (misma fase, condición y fórmula): el cargo se cobraría dos veces. Dejá una sola.`,
+  MISMA_LOGICA: (c) => `Las reglas ${c} hacen lo mismo (misma fase, condición y fórmula): el cargo se cobraría dos veces. Deja una sola.`,
   MISMO_NOMBRE: (c) => `Las reglas ${c} tienen el mismo nombre con distinto código: en pantalla no se pueden distinguir.`,
 };
 

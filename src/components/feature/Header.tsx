@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { usePermissions } from '../../hooks/usePermissions';
 import { useSidebar } from '../../hooks/useSidebar';
 import ContextSelector from './ContextSelector';
 import NotificationsMenu from './NotificationsMenu';
@@ -25,6 +26,7 @@ export default function Header() {
   const { appUser, signOut } = useAuth();
   const { collapsed, setMobileOpen } = useSidebar();
   const navigate = useNavigate();
+  const { can } = usePermissions();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -61,22 +63,13 @@ export default function Header() {
       <div className="flex items-center gap-3 flex-1 min-w-0">
         <button
           onClick={() => setMobileOpen(true)}
+          aria-label="Abrir menú"
           className="lg:hidden w-9 h-9 flex-shrink-0 flex items-center justify-center text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
         >
           <i className="ri-menu-line text-xl"></i>
         </button>
         <div className="hidden md:block">
           <ContextSelector />
-        </div>
-        <div className="relative flex-1 max-w-md hidden sm:block">
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center">
-            <i className="ri-search-line text-slate-400 text-base"></i>
-          </div>
-          <input
-            type="text"
-            placeholder="Buscar pedidos, rutas, clientes..."
-            className="w-full pl-10 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-          />
         </div>
       </div>
 
@@ -135,20 +128,19 @@ export default function Header() {
                 </div>
               </div>
 
-              <div className="py-1">
-                <button className="w-full flex items-center gap-3 px-4 py-2 hover:bg-slate-50 cursor-pointer text-left">
-                  <div className="w-4 h-4 flex items-center justify-center">
-                    <i className="ri-user-line text-slate-500 text-base"></i>
-                  </div>
-                  <span className="text-sm text-slate-700">Mi Perfil</span>
-                </button>
-                <button className="w-full flex items-center gap-3 px-4 py-2 hover:bg-slate-50 cursor-pointer text-left">
-                  <div className="w-4 h-4 flex items-center justify-center">
-                    <i className="ri-settings-3-line text-slate-500 text-base"></i>
-                  </div>
-                  <span className="text-sm text-slate-700">Configuración</span>
-                </button>
-              </div>
+              {can('configuracion', 'view') && (
+                <div className="py-1">
+                  <button
+                    onClick={() => { setShowProfile(false); navigate('/configuracion'); }}
+                    className="w-full flex items-center gap-3 px-4 py-2 hover:bg-slate-50 cursor-pointer text-left"
+                  >
+                    <div className="w-4 h-4 flex items-center justify-center">
+                      <i className="ri-settings-3-line text-slate-500 text-base"></i>
+                    </div>
+                    <span className="text-sm text-slate-700">Configuración</span>
+                  </button>
+                </div>
+              )}
 
               <div className="border-t border-slate-200 pt-1">
                 <button

@@ -72,7 +72,7 @@ export function buildCalculateInput(
     issues.push({
       code: 'BASE_NO_DISPONIBLE',
       message: `La zona de origen del viaje no existe en ${catalog.country.name}. `
-        + 'Revisá la zona en el catálogo: puede no tener código o estar dada de baja.',
+        + 'Revisa la zona en el catálogo: puede no tener código o estar dada de baja.',
     });
   }
   if (!trip.destLocationId) {
@@ -85,7 +85,7 @@ export function buildCalculateInput(
     issues.push({
       code: 'BASE_NO_DISPONIBLE',
       message: `La zona de destino del viaje no existe en ${catalog.country.name}. `
-        + 'Revisá la zona en el catálogo: puede no tener código o estar dada de baja.',
+        + 'Revisa la zona en el catálogo: puede no tener código o estar dada de baja.',
     });
   }
 

@@ -62,7 +62,14 @@ export function useFlowEditor(countryId: string) {
       // Con fases configuradas, las liquidaciones que esperaban sin proforma se agrupan ya.
       const swept = await assignPendingSettlements(countryId);
       const made = swept.created + swept.added;
-      setNotice(`Fases guardadas. Las proformas nuevas las usarán; las ya creadas conservan las suyas.${made > 0 ? ` Se agruparon ${made} liquidaciones pendientes.` : ''}`);
+      const base = 'Fases guardadas. Las proformas nuevas las usarán; las ya creadas conservan las suyas.';
+      if (swept.error) {
+        // Las fases sí se guardaron; lo que falló es agrupar las pendientes: no se anuncia como hecho.
+        setNotice(base);
+        setError(`No se pudieron agrupar las liquidaciones pendientes: ${swept.error}`);
+      } else {
+        setNotice(`${base}${made > 0 ? ` Se agruparon ${made} liquidaciones pendientes.` : ''}`);
+      }
     }
   }, [countryId, drafts, roles, users]);
 

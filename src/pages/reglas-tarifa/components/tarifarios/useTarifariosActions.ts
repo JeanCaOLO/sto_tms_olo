@@ -17,40 +17,37 @@ interface Params {
 }
 
 export function useTarifariosActions({ state, setState, selected, loadTables, loadRows, selectTable }: Params) {
-  const startEditRow = (row: RateTableRow) => {
-    setState((s) => ({ ...s, editingRowId: row.id, generalError: '' }));
-  };
-
-  const resetRowForm = () => {
-    setState((s) => ({ ...s, editingRowId: null }));
-  };
-
-  const saveRow = async (input: RateRowFormInput) => {
+  /**
+   * Guarda una fila: `editingRowId` es la fila que el formulario está editando (undefined = fila nueva).
+   * Ese id vive SOLO en el formulario: tenerlo también acá hacía que, tras cancelar, el siguiente
+   * "Agregar" actualizara la fila vieja.
+   */
+  const saveRow = async (input: RateRowFormInput, editingRowId?: string) => {
     setState((s) => ({ ...s, generalError: '' }));
-    const result = await createOrUpdateRateRow(input, state.editingRowId ?? undefined);
+    const result = await createOrUpdateRateRow(input, editingRowId);
     if (result.status === 'invalid' || result.status === 'failed') {
       setState((s) => ({ ...s, generalError: result.status === 'failed' ? result.error.message : '' }));
       return result;
     }
-    if (selected) {
-      await loadRows(selected.id);
-      resetRowForm();
-    }
+    if (selected) await loadRows(selected.id);
     return result;
   };
 
-  const deleteRow = async (rowId: string) => {
+  /** true = la fila se eliminó (quien llama limpia el formulario si era la que estaba en edición). */
+  const deleteRow = async (row: RateTableRow): Promise<boolean> => {
     try {
-      const { error } = await removeRateRow(rowId, selected?.id);
+      // Se pasa lo que valía la fila: la bitácora de un borrado tiene que decir qué se borró.
+      const { error } = await removeRateRow(row.id, selected?.id, { key: row.key, amount: row.amount, values: row.values });
       if (error) {
         setState((s) => ({ ...s, generalError: `No se pudo eliminar la fila: ${error}` }));
-        return;
+        return false;
       }
-      if (state.editingRowId === rowId) resetRowForm();
       if (selected) await loadRows(selected.id);
+      return true;
     } catch (error) {
       console.error('Error eliminando fila:', error);
       setState((s) => ({ ...s, generalError: 'No se pudo eliminar la fila.' }));
+      return false;
     }
   };
 
@@ -85,5 +82,5 @@ export function useTarifariosActions({ state, setState, selected, loadTables, lo
     }
   };
 
-  return { startEditRow, resetRowForm, saveRow, deleteRow, toggleTable, deleteTable };
+  return { saveRow, deleteRow, toggleTable, deleteTable };
 }

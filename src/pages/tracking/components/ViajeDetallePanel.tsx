@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import Badge from '../../../components/base/Badge';
 import { ordenarPorSecuencia } from '../stop-order';
 import type { Viaje, ViajeDetalle } from '../types';
-import { STATE_KEY, driverLoggedOut, formatAge, formatClock, formatDay, formatDistance, lastSignalAt, stateVariant } from '../tracking-logic';
+import { STATE_KEY, driverLoggedOut, formatAge, formatClock, formatDay, formatDistance, lastSignalAt, colorVariant } from '../tracking-logic';
 import AlertDots from './AlertDots';
 import ParadaItem from './ParadaItem';
 import ProgressBar from './ProgressBar';
@@ -39,7 +39,7 @@ export default function ViajeDetallePanel({ viaje, detail, error, now, onClose, 
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Badge size="sm" variant={stateVariant(viaje.state, viaje.signal)}>
+            <Badge size="sm" variant={colorVariant(viaje.color)}>
               {viaje.phase === 'por_salir' ? t('tracking.phaseDeparting') : t(STATE_KEY[viaje.state])}
             </Badge>
             <button type="button" onClick={onClose} aria-label={t('tracking.close')} className="text-slate-400 hover:text-slate-700 cursor-pointer">

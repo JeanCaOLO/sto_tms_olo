@@ -58,7 +58,7 @@ export function validateRateRow(
   if (!amount) {
     errors.amount = 'El importe es obligatorio.';
   } else if (!AMOUNT_SHAPE.test(amount)) {
-    errors.amount = 'Escribí un número, por ejemplo 1250.50';
+    errors.amount = 'Escribe un número, por ejemplo 1250.50';
   }
 
   const declaradas = table.valueColumns ?? [];
@@ -70,7 +70,7 @@ export function validateRateRow(
     if (!declaradas.includes(name)) {
       errors.values = `El tarifario no tiene la columna de valor "${name}".`;
     } else if (!AMOUNT_SHAPE.test(value)) {
-      errors.values = `"${name}": escribí un número, por ejemplo 1250.50`;
+      errors.values = `"${name}": escribe un número, por ejemplo 1250.50`;
     }
   }
 

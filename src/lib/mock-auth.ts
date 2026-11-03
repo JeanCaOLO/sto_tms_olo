@@ -33,8 +33,8 @@ const MOCK_ROLE_ID = 'mock-role-superusuario';
 export const mockAppUser: AppUser = {
   id: 'mock-app-user',
   auth_user_id: 'mock-auth-user',
-  full_name: 'Jesús Araujo (mock)',
-  email: 'jaraujo@intelix.biz',
+  full_name: 'Usuario de prueba (mock)',
+  email: 'mock@example.com',
   role_id: MOCK_ROLE_ID,
   organization_id: MOCK_ORGANIZATION_ID,
   role: { id: MOCK_ROLE_ID, name: 'SuperUsuario' },

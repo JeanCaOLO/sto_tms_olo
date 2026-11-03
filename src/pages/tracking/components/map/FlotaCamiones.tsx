@@ -80,6 +80,7 @@ export default function FlotaCamiones({ trucks, selectedId, onSelect }: Props) {
             key={`grupo-${c.ids.join('-')}`}
             position={bounds.getCenter()}
             icon={clusterIcon(members.length, alert)}
+            title={t('tracking.clusterTip', { count: members.length })}
             eventHandlers={{ click: () => map.fitBounds(bounds.pad(0.3), { maxZoom: NO_CLUSTER_ZOOM }) }}
           >
             <Tooltip direction="top">{t('tracking.clusterTip', { count: members.length })}</Tooltip>

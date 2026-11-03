@@ -3,6 +3,8 @@
 
 import { useMemo, useState } from 'react';
 import Card from '../../components/base/Card';
+import TabBar from '../../components/base/TabBar';
+import { tabPanelProps } from '../../components/base/tabPanelProps';
 import DateRangeFilter from '../../components/feature/DateRangeFilter';
 import StatCard from '../../components/feature/StatCard';
 import CountryScopeBar from '../../components/feature/CountryScopeBar';
@@ -11,7 +13,7 @@ import { useModulePermissions } from '../../hooks/use-module-permissions';
 import { useTarifasActor } from '../../hooks/useTarifasActor';
 import { formatMoney } from '../../lib/tarifas/format';
 import { CLAIMS_LIMIT } from '../../lib/tarifas/proformas/claims';
-import { canManageProformas, HISTORY_LIMIT, isWaitingFor, pendingForActor, TODAY_RANGE } from '../../lib/tarifas/proformas';
+import { canManageProformas, HISTORY_LIMIT, isCarrierRole, isWaitingFor, pendingForActor, rangeFor, TODAY_RANGE } from '../../lib/tarifas/proformas';
 import DetalleProformaModal from './components/DetalleProformaModal';
 import ProformaBitacora from './components/ProformaBitacora';
 import EmailConfigForm from './config/EmailConfigForm';
@@ -20,13 +22,14 @@ import { useClaims } from './hooks/useClaims';
 import { useGoogleReturn } from './hooks/useGoogleReturn';
 import { useProformaActor } from './hooks/useProformaActor';
 import { useProformaList } from './hooks/useProformaList';
+import { useTodayRange } from './hooks/useTodayRange';
 import CarrierGroupsTable from './parts/CarrierGroupsTable';
 import ClaimsTable from './parts/ClaimsTable';
 
 type Tab = 'pending' | 'process' | 'claims' | 'done' | 'log' | 'config';
 
-const tabClass = (current: Tab, tab: Tab) =>
-  `px-4 py-2 text-sm font-medium border-b-2 cursor-pointer ${current === tab ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`;
+const tabClass = (active: boolean) =>
+  `px-4 py-2 text-sm font-medium border-b-2 cursor-pointer ${active ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`;
 
 // Estas secciones traen datos por periodo (por defecto, hoy). Por aprobar no: un pendiente de ayer no puede quedar oculto.
 const SECTION_SCOPE = { process: 'review', done: 'done', log: 'all' } as const;
@@ -39,14 +42,17 @@ export default function ProformasPage() {
   const actor = useProformaActor();
   const google = useGoogleReturn();
   const manager = canManageProformas(actor?.roleName);
+  // Transportista: solo ve lo que espera su aprobación (el servidor ya limita a su empresa); sin historial ni barrido.
+  const carrierUser = isCarrierRole(actor?.roleName);
   const [requested, setTab] = useState<Tab>('pending');
-  const tabs: Tab[] = ['pending', ...(manager ? ['process', 'claims', 'done'] as Tab[] : []), 'log', ...(canConfigure ? ['config'] as Tab[] : [])];
+  const tabs: Tab[] = carrierUser ? ['pending'] : ['pending', ...(manager ? ['process', 'claims', 'done'] as Tab[] : []), 'log', ...(canConfigure ? ['config'] as Tab[] : [])];
   const tab = tabs.includes(requested) ? requested : 'pending';
   const [range, setRange] = useState(TODAY_RANGE);
+  useTodayRange(range, setRange);
   const [openId, setOpenId] = useState<string | null>(null);
 
   // Lo vigente (en revisión o aprobado sin enviar) siempre se carga: alimenta Por aprobar y los contadores. Aquí corre el barrido.
-  const active = useProformaList(countryId, canEdit, 'active');
+  const active = useProformaList(countryId, canEdit && !carrierUser, 'active');
   const sectionScope = tab === 'process' || tab === 'done' || tab === 'log' ? SECTION_SCOPE[tab] : 'all';
   const section = useProformaList(countryId, false, sectionScope, range, tab === 'process' || tab === 'done' || tab === 'log');
   const claims = useClaims(countryId, range, tab === 'claims');
@@ -103,18 +109,23 @@ export default function ProformasPage() {
 
       {/* Quien solo aprueba ve su turno; el avance del resto del flujo es para el Liquidador y los administradores. */}
       <div className={`grid grid-cols-1 gap-4 ${manager ? 'md:grid-cols-4' : ''}`}>
-        {manager && <StatCard title="En revisión" value={String(inReview.length)} icon="ri-time-line" color="amber" />}
+        {manager && <StatCard title="En revisión (todas)" value={String(inReview.length)} icon="ri-time-line" color="amber" />}
         <StatCard title="Esperan mi aprobación" value={String(mine.length)} icon="ri-user-star-line" color="teal" />
         {manager && <StatCard title="Aprobadas por enviar" value={String(toSend.length)} icon="ri-mail-send-line" color="emerald" />}
         {manager && <StatCard title="Total en revisión" value={formatMoney(String(pendingTotal), currency)} icon="ri-money-dollar-circle-line" color="amber" />}
       </div>
 
       <Card>
-        <div className="mb-4 flex flex-wrap border-b border-slate-200">
-          {tabs.map((t) => (
-            <button key={t} type="button" className={tabClass(tab, t)} onClick={() => setTab(t)}>{label[t]}</button>
-          ))}
-        </div>
+        <TabBar<Tab>
+          tabs={tabs.map((t) => ({ key: t, label: label[t] }))}
+          value={tab}
+          onChange={setTab}
+          ariaLabel="Secciones de proformas"
+          idBase="proformas"
+          className="mb-4 flex flex-wrap border-b border-slate-200"
+          tabClassName={(on) => tabClass(on)}
+        />
+        <div {...tabPanelProps('proformas', tab)}>
 
         {(tab === 'process' || tab === 'claims' || tab === 'done' || tab === 'log') && (
           <div className="mb-4 space-y-2">
@@ -122,6 +133,13 @@ export default function ProformasPage() {
             {capped && (
               <p className="text-xs text-amber-700">
                 <i className="ri-information-line mr-1" />Se muestran las {tab === 'claims' ? CLAIMS_LIMIT : HISTORY_LIMIT} más recientes. Acota el periodo para ver el resto.
+              </p>
+            )}
+            {/* La tarjeta "En revisión" cuenta todo lo vigente; esta pestaña solo el periodo: si no coinciden, se dice. */}
+            {tab === 'process' && !section.loading && section.rows.length < inReview.length && (
+              <p className="text-xs text-amber-700">
+                <i className="ri-information-line mr-1" />Hay {inReview.length} en revisión en total; este periodo muestra {section.rows.length}.{' '}
+                <button type="button" className="underline cursor-pointer" onClick={() => setRange(rangeFor('all'))}>Ver todas</button>
               </p>
             )}
           </div>
@@ -141,6 +159,7 @@ export default function ProformasPage() {
         ) : (
           <CarrierGroupsTable rows={section.rows} mode={tab === 'process' ? 'process' : 'done'} loading={section.loading} onOpen={setOpenId} onChanged={reloadAll} />
         )}
+        </div>
       </Card>
 
       {openId && (

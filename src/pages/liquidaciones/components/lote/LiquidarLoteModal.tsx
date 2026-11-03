@@ -4,6 +4,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import Button from '../../../../components/base/Button';
 import Modal from '../../../../components/base/Modal';
+import { confirmAction } from '../../../../lib/confirm';
 import { formatMoney } from '../../../../lib/tarifas/format';
 import { sumMoney, toMoney } from '../../../../lib/tarifas/money';
 import { useLiquidadorVista } from '../../hooks/useLiquidadorVista';
@@ -49,14 +50,29 @@ export default function LiquidarLoteModal({ trips, onClose, onEmitted }: Props) 
   });
 
   const emitirTodos = async () => {
+    // Son varias liquidaciones de una vez: se confirma con la cantidad (y el total, si es una sola moneda).
+    const cuantas = listos.length;
+    const importe = monedas.size === 1 ? ` por un total de ${formatMoney(total, currency)}` : '';
+    const seguir = await confirmAction({
+      title: 'Emitir liquidaciones',
+      message: `Se van a emitir ${cuantas} liquidaci${cuantas === 1 ? 'ón' : 'ones'}${importe}. ¿Continuar?`,
+      confirmLabel: 'Emitir',
+    });
+    if (!seguir) return;
     setRunning(true);
     const saved: SettlementRecord[] = [];
     const fallidos: string[] = [];
     try {
       for (const trip of listos) {
-        const result = await handles.current[trip.id]?.emitir();
-        if (result) saved.push(result);
-        else fallidos.push(trip.id);
+        // Un error inesperado en un viaje cuenta como fallido: no corta el ciclo ni deja sin avisar lo ya emitido.
+        try {
+          const result = await handles.current[trip.id]?.emitir();
+          if (result) saved.push(result);
+          else fallidos.push(trip.id);
+        } catch (e) {
+          console.error(`No se pudo emitir el viaje ${trip.id}:`, e);
+          fallidos.push(trip.id);
+        }
       }
     } finally {
       setRunning(false);

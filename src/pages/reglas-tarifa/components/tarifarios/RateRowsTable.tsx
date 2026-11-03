@@ -111,6 +111,7 @@ export default function RateRowsTable({
             disabled={!canEdit}
             className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             title={canEdit ? 'Editar' : 'Tu rol no puede editar tarifarios'}
+            aria-label="Editar fila"
           >
             <i className="ri-edit-line"></i>
           </button>
@@ -119,6 +120,7 @@ export default function RateRowsTable({
             disabled={!canDelete}
             className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             title={canDelete ? 'Eliminar' : 'Tu rol no puede eliminar filas'}
+            aria-label="Eliminar fila"
           >
             <i className="ri-delete-bin-line"></i>
           </button>

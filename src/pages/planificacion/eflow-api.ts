@@ -1,5 +1,7 @@
+import { currentAccessToken, expireSession, isTokenRejected } from '../../lib/supabase';
 import type { Conductor, Pedido, RutaTipo, Transportista, Vehiculo, Viaje } from './types';
 import { getFallbackPedidos } from './fallback-pedidos';
+import { mockFallbackEnabled } from './mock-fallback';
 import {
   mapConductor,
   mapPedido,
@@ -17,8 +19,8 @@ export * from './eflow-mappers';
 
 // Thin client for the read-only EFLOW API (`server/` en dev, API Gateway en
 // prod). En dev, Vite proxya /api/* -> http://localhost:4000 (`pnpm server`).
-// Cada llamada cae al mock curado si /api no responde, así el módulo funciona
-// offline.
+// En desarrollo cada llamada cae al mock curado si /api no responde, así el módulo funciona
+// offline. En producción el error se propaga (ver mock-fallback.ts).
 
 const TIMEOUT_MS = 4000;
 
@@ -61,7 +63,16 @@ async function getJson<T>(path: string): Promise<T> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(API_BASE + conPais(path), { signal: ctrl.signal });
+    // El API exige el JWT del TMS (server/index.mjs). Sin sesión no se manda cabecera y responde 401.
+    const token = currentAccessToken();
+    const res = await fetch(API_BASE + conPais(path), {
+      signal: ctrl.signal,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (token && (res.status === 401 || res.status === 403)) {
+      const body = await res.clone().json().catch(() => null);
+      if (isTokenRejected(res.status, body)) expireSession(token);
+    }
     if (!res.ok) throw new Error(`${path} -> HTTP ${res.status}`);
     return (await res.json()) as T;
   } finally {
@@ -80,13 +91,16 @@ export async function fetchViajes(): Promise<Viaje[]> {
 // al ELEGIR el viaje (carga perezosa). Cae al pool mock si /api no responde o el
 // viaje no trae filas reales — mismo patrón que rutas/conductores.
 export async function fetchPedidosDeViaje(viajeId: string, routeTypeId: string): Promise<Pedido[]> {
+  let rows: PedidoRow[];
   try {
-    const rows = await getJson<PedidoRow[]>(`/api/viajes/${viajeId}/pedidos`);
-    return rows.length ? rows.map((r) => mapPedido(r, routeTypeId)) : getFallbackPedidos(routeTypeId);
+    rows = await getJson<PedidoRow[]>(`/api/viajes/${viajeId}/pedidos`);
   } catch (err) {
+    if (!mockFallbackEnabled()) throw err;
     console.warn(`[planificacion] /api/viajes/${viajeId}/pedidos no disponible, usando mock:`, (err as Error).message);
     return getFallbackPedidos(routeTypeId);
   }
+  if (rows.length) return rows.map((r) => mapPedido(r, routeTypeId));
+  return mockFallbackEnabled() ? getFallbackPedidos(routeTypeId) : [];
 }
 
 export async function fetchRutas(fallback: RutaTipo[]): Promise<RutaTipo[]> {
@@ -115,11 +129,14 @@ export function fetchRutasDias(): Promise<RutaDiaRow[]> {
 }
 
 async function listOrFallback<R, T>(path: string, map: (r: R) => T, fallback: T[]): Promise<T[]> {
+  let rows: R[];
   try {
-    const rows = await getJson<R[]>(path);
-    return rows.length ? rows.map(map) : fallback;
+    rows = await getJson<R[]>(path);
   } catch (err) {
+    if (!mockFallbackEnabled()) throw err;
     console.warn(`[planificacion] ${path} no disponible, usando mock:`, (err as Error).message);
     return fallback;
   }
+  if (rows.length) return rows.map(map);
+  return mockFallbackEnabled() ? fallback : [];
 }

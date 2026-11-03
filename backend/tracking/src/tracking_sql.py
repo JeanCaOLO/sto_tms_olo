@@ -7,8 +7,8 @@ _GUIDE_STATE = "lower(coalesce(g.delivery_status, g.status, ''))"
 DELIVERED_SQL = "('delivered', 'entregado', 'completada')"
 FAILED_SQL = "('failed', 'fallido')"
 
-# Evidencias que el módulo acepta (factura firmada y firma). Las filas antiguas de otros tipos no se leen.
-EVIDENCE_KINDS_SQL = "('photo_invoice', 'signature')"
+# Evidencias que el módulo acepta (factura firmada, firma y foto del producto de una recolecta). Las filas antiguas de otros tipos no se leen.
+EVIDENCE_KINDS_SQL = "('photo_invoice', 'signature', 'photo_product')"
 
 # El viaje lo TERMINA Planificación (completar / cancelar en plan_trips). Tracking no escribe en Planificación:
 # solo LEE ese estado y muestra el viaje cerrado aunque `routes` siga "En tránsito" (la hora de cierre es la
@@ -130,7 +130,8 @@ SELECT g.id, g.guide_number, g.sequence_number, g.status, g.delivery_status,
        o.delivery_address, o.delivery_city,
        COALESCE(o.delivery_latitude, ps.latitude) AS latitude,
        COALESCE(o.delivery_longitude, ps.longitude) AS longitude,
-       cu.name AS customer_name, cu.phone AS customer_phone
+       cu.name AS customer_name, cu.phone AS customer_phone,
+       g.stop_type
 FROM dispatch_guides g
 JOIN routes r ON r.id = g.route_id
 LEFT JOIN orders o ON o.id = g.order_id

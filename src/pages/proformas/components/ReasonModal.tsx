@@ -12,11 +12,13 @@ interface Props {
   required?: boolean;
   danger?: boolean;
   busy?: boolean;
+  /** Por qué falló la acción: se muestra dentro del modal (un aviso fuera de él queda tapado por el fondo). */
+  error?: string | null;
   onConfirm: (reason: string) => void;
   onClose: () => void;
 }
 
-export default function ReasonModal({ title, label, confirmLabel, required = true, danger = false, busy = false, onConfirm, onClose }: Props) {
+export default function ReasonModal({ title, label, confirmLabel, required = true, danger = false, busy = false, error = null, onConfirm, onClose }: Props) {
   const [text, setText] = useState('');
   const missing = required && !text.trim();
   return (
@@ -32,6 +34,7 @@ export default function ReasonModal({ title, label, confirmLabel, required = tru
             className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
           />
         </label>
+        {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={onClose} disabled={busy}>Cancelar</Button>
           <Button variant={danger ? 'danger' : 'primary'} disabled={missing || busy} onClick={() => onConfirm(text.trim())}>

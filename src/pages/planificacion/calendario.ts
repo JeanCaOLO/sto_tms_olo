@@ -24,11 +24,12 @@ export function isoDe(d: Date): string {
   return format(d, 'yyyy-MM-dd');
 }
 
-// Columnas de la vista semana: lunes..sábado (6). El dibujo usa L-V; agregamos
-// sábado porque hay entregas ese día.
+// Columnas de la vista semana: lunes..domingo (7). No se planifica en fin de semana,
+// pero si la fecha de entrega cae sábado o domingo, el viaje tiene que verse
+// (reunión 2026-11-03).
 export function diasSemana(ancla: Date): Date[] {
   const inicio = startOfWeek(ancla, OPC_SEMANA);
-  return Array.from({ length: 6 }, (_, i) => addDays(inicio, i));
+  return Array.from({ length: 7 }, (_, i) => addDays(inicio, i));
 }
 
 // Celdas de la vista mes: semanas completas (lun..dom) que cubren el mes.

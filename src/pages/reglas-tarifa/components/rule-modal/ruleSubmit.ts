@@ -100,6 +100,25 @@ export function toRulePayload(
   };
 }
 
+/** Nombre con el que el usuario ve cada campo de la regla (el de `RuleSchema` es interno, en camelCase). */
+const RULE_FIELD_LABELS: Record<string, string> = {
+  code: 'Código', name: 'Nombre', scope: 'Alcance', partyId: 'Compañía', countryId: 'País', stage: 'Fase',
+  category: 'Categoría', priority: 'Prioridad', stacking: '¿Se suma o compite?', exclusionGroup: 'Grupo de exclusión',
+  appliesToBase: 'Forma de cobro a la que aplica', baseMethod: 'Forma de cobro', conditions: 'Condiciones',
+  expression: 'Cálculo', description: 'Descripción', reason: 'Motivo', effect: 'Efecto', effectiveFrom: 'Vigente desde',
+  effectiveTo: 'Vigente hasta', active: 'Activa', version: 'Versión', min: 'Mínimo', max: 'Máximo', tiers: 'Escalones',
+};
+
+/** "Regla inválida: Grupo de exclusión — …": el primer problema de la validación, con el campo en español. */
+export function ruleIssueMessage(issue: { path: (string | number)[]; message: string } | undefined): string {
+  if (!issue) return 'Regla inválida.';
+  const [first, ...rest] = issue.path;
+  if (first === undefined) return `Regla inválida: ${issue.message}`;
+  const label = RULE_FIELD_LABELS[String(first)] ?? String(first);
+  const detail = rest.length ? ` (${rest.join('.')})` : '';
+  return `Regla inválida: ${label}${detail} — ${issue.message}`;
+}
+
 /** Mensaje para el usuario cuando falla el guardado. */
 export function saveErrorMessage(error: unknown): string {
   const msg = error instanceof Error ? error.message : JSON.stringify(error);

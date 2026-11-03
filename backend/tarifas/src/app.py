@@ -38,6 +38,7 @@ from tms_common.event import auth_user, json_body, parse_json_param, path_param,
 from tms_common.handler import tms_handler
 from tms_common.responses import empty_response, json_response
 
+import tarifas_carrier
 import tarifas_db
 import tarifas_metrics
 import proformas_api
@@ -81,6 +82,7 @@ def _reader(event: dict) -> permissions.Permissions:
 
 def _writer(event: dict, table_name: str, action: str, operation: str) -> tuple[permissions.Permissions, Table]:
     caller = tarifas_perms.for_event(event)
+    tarifas_carrier.forbid_write(caller)
     table = _writable(table_name, operation)
     _require_write(caller, table, action)
     return caller, table
@@ -169,7 +171,7 @@ def list_rows(event: dict) -> dict:
     caller = _reader(event)
     table = _table(path_param(event, "table"))
     options = parse_json_param(query_params(event).get("q"), "q")
-    sql, params = build_find(table, options, caller.country_filter)
+    sql, params = build_find(table, options, caller.country_filter, tarifas_carrier.read_scope(caller, table.name))
     return _reads_response([table], [(options, tarifas_db.query(sql, params))])
 
 
@@ -178,7 +180,7 @@ def find_rows(event: dict) -> dict:
     caller = _reader(event)
     table = _table(path_param(event, "table"))
     options = _body(event)
-    sql, params = build_find(table, options, caller.country_filter)
+    sql, params = build_find(table, options, caller.country_filter, tarifas_carrier.read_scope(caller, table.name))
     return _reads_response([table], [(options, tarifas_db.query(sql, params))])
 
 
@@ -198,7 +200,7 @@ def batch_rows(event: dict) -> dict:
         if not isinstance(item, dict):
             raise HttpError(400, "Cada consulta debe ser un objeto { table, q }")
         table = _table(str(item.get("table")))
-        planned.append(build_find(table, item.get("q"), caller.country_filter))
+        planned.append(build_find(table, item.get("q"), caller.country_filter, tarifas_carrier.read_scope(caller, table.name)))
         tables.append(table)
         options.append(item.get("q"))
     results = [(opt, tarifas_db.query(sql, params)) for opt, (sql, params) in zip(options, planned)]
@@ -208,7 +210,8 @@ def batch_rows(event: dict) -> dict:
 def get_row(event: dict) -> dict:
     caller = _reader(event)
     table = _table(path_param(event, "table"))
-    rows = tarifas_db.query(*build_get(table, path_param(event, "id"), caller.country_filter))
+    rows = tarifas_db.query(*build_get(table, path_param(event, "id"), caller.country_filter,
+                                       tarifas_carrier.read_scope(caller, table.name)))
     if not rows:
         raise HttpError(404, f"{table.label} no encontrado.")
     return json_response(200, rows[0])
@@ -278,6 +281,7 @@ def _planned(caller: permissions.Permissions, op: object, event: dict) -> list[t
 
 def run_transaction(event: dict) -> dict:
     caller = tarifas_perms.for_event(event)
+    tarifas_carrier.forbid_write(caller)
     ops = _body(event).get("ops")
     if not isinstance(ops, list) or not ops:
         raise HttpError(400, '"ops" debe ser una lista no vacía')

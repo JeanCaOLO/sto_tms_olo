@@ -103,7 +103,7 @@ export function TripsTable({
             disabled={!!motivo}
             onClick={() => onLiquidar(t)}
             {...prefetchProps(t, !!motivo)}
-            title={motivo ?? (parcial ? 'Tiene pedidos sin entregar: podés anularlos o dejarlos para después' : 'Liquidar este viaje')}
+            title={motivo ?? (parcial ? 'Tiene pedidos sin entregar: puedes anularlos o dejarlos para después' : 'Liquidar este viaje')}
           >
             <i className="ri-calculator-line mr-1" />
             Liquidar

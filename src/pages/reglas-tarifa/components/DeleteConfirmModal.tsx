@@ -1,4 +1,5 @@
 import Button from '../../../components/base/Button';
+import Modal from '../../../components/base/Modal';
 
 interface DeleteConfirmModalProps {
   isOpen: boolean;
@@ -14,8 +15,7 @@ export default function DeleteConfirmModal({ isOpen, onClose, onConfirm, title, 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl w-full max-w-md shadow-xl">
+    <Modal isOpen onClose={busy ? () => undefined : onClose} ariaLabel={title} widthClass="max-w-md">
         <div className="p-6">
           <div className="flex items-center gap-4 mb-4">
             <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
@@ -44,7 +44,6 @@ export default function DeleteConfirmModal({ isOpen, onClose, onConfirm, title, 
             )}
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

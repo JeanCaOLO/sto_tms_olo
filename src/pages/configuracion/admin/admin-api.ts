@@ -25,6 +25,9 @@ export interface AdminUser {
   email: string;
   role_id: string | null;
   role_name: string | null;
+  // Solo el rol Transportista: la empresa de la que ve las proformas.
+  carrier_id: string | null;
+  carrier_name: string | null;
   status: UserStatus;
   created_at: string;
   scopes: UserScope[];
@@ -42,6 +45,7 @@ export interface UserPayload {
   role_id: string;
   status: UserStatus;
   scopes: ScopeInput[];
+  carrier_id?: string | null;
   email?: string;
   password?: string;
 }

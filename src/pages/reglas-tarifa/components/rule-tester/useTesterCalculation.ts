@@ -56,7 +56,7 @@ export function useTesterCalculation(p: Params) {
       terminar(calculateFreeTrip(catalog, buildFreeTrip(libre, dia, libreCarrier, countryId, values)));
     } catch (err) {
       console.error('Error en el probador del motor:', err);
-      terminar(null, mensajeDe(err, 'No se pudo evaluar. Revisá el JSON de condiciones o expresiones en modo avanzado.'));
+      terminar(null, mensajeDe(err, 'No se pudo evaluar. Revisa el JSON de condiciones o expresiones en modo avanzado.'));
     }
     return () => { vigente = false; };
   }, [modo, trip, libre, libreCarrier, dia, customFields, customRaw, catalog, countryId, setError, setViajePartyId]);

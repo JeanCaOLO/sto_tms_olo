@@ -12,8 +12,8 @@ export const ALCANCES: Alcance[] = [
   { value: 'all', label: 'Todos', hint: 'Todos los viajes sin liquidación vigente' },
 ];
 
-export function getTabClass(current: string, tab: string): string {
+export function getTabClass(active: boolean): string {
   return `px-4 py-2 text-sm font-medium border-b-2 cursor-pointer ${
-    current === tab ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+    active ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700'
   }`;
 }

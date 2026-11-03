@@ -11,6 +11,7 @@ import {
   completedAt, decideProformas, groupProformasByCarrier, phaseLabel,
   type ProformaAlerts, type ProformaCarrierGroup, type ProformaWithPhases,
 } from '../../../lib/tarifas/proformas';
+import { formatLocalDate as shortDate } from '../../../lib/tarifas/localDate';
 import IrregularBadge from '../components/IrregularBadge';
 import PhaseTimeline from '../components/PhaseTimeline';
 import ReasonModal from '../components/ReasonModal';
@@ -32,7 +33,6 @@ const EMPTY: Record<GroupsMode, string> = {
   done: 'No hay proformas completadas en este periodo',
 };
 
-const shortDate = (iso: string) => (iso ? iso.slice(0, 10) : '');
 
 function alertsOf(group: ProformaCarrierGroup, alerts: Map<string, ProformaAlerts>) {
   const flags = group.rows.flatMap((r) => alerts.get(r.proforma.id)?.settlements.flatMap((s) => s.flags) ?? []);
@@ -92,6 +92,15 @@ export default function CarrierGroupsTable({ rows, mode, loading, onOpen, onChan
   // Antes de aprobar en lote se avisa cuántas proformas traen alertas; no se bloquea.
   const withAlerts = (ids: string[]) =>
     groups.filter((g) => ids.includes(g.id)).flatMap((g) => g.rows).filter((r) => (alerts.get(r.proforma.id)?.irregularCount ?? 0) > 0).length;
+
+  // "3 proformas de 2 transportistas (A, B)": a qué afecta exactamente la decisión en lote antes de confirmarla.
+  const scopeText = (ids: string[]) => {
+    const chosen = groups.filter((g) => ids.includes(g.id));
+    const proformas = chosen.reduce((n, g) => n + g.rows.length, 0);
+    const names = [...new Set(chosen.map((g) => g.carrierName))];
+    const shown = names.length > 5 ? `${names.slice(0, 5).join(', ')} y ${names.length - 5} más` : names.join(', ');
+    return `${proformas} proforma${proformas === 1 ? '' : 's'} de ${names.length} transportista${names.length === 1 ? '' : 's'} (${shown}).`;
+  };
 
   return (
     <div className="space-y-3">
@@ -158,8 +167,8 @@ export default function CarrierGroupsTable({ rows, mode, loading, onOpen, onChan
         <ReasonModal
           title={ask.action === 'approve' ? 'Aprobar proformas' : 'Rechazar proformas'}
           label={ask.action === 'approve'
-            ? `Comentario (opcional)${withAlerts(ask.ids) > 0 ? ` — ${withAlerts(ask.ids)} proforma(s) traen alertas de revisión` : ''}`
-            : 'Motivo del reclamo'}
+            ? `${scopeText(ask.ids)} Comentario (opcional)${withAlerts(ask.ids) > 0 ? ` — ${withAlerts(ask.ids)} proforma(s) traen alertas de revisión` : ''}`
+            : `${scopeText(ask.ids)} Motivo del reclamo`}
           confirmLabel={ask.action === 'approve' ? 'Aprobar' : 'Rechazar'}
           required={ask.action === 'reject'}
           danger={ask.action === 'reject'}

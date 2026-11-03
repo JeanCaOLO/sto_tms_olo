@@ -1,6 +1,7 @@
 import { lazy } from 'react';
 import { Navigate, RouteObject } from 'react-router-dom';
 import TarifadorHints from '../components/tarifas/TarifadorHints';
+import RedirectKeepingQuery from './RedirectKeepingQuery';
 
 const HomePage = lazy(() => import('../pages/home/page'));
 const LoginPage = lazy(() => import('../pages/login/page'));
@@ -20,7 +21,9 @@ const LiquidacionesPage = lazy(() => import('../pages/liquidaciones/page'));
 const ProformasPage = lazy(() => import('../pages/proformas/page'));
 const ConfiguracionPage = lazy(() => import('../pages/configuracion/page'));
 const AuditoriaPage = lazy(() => import('../pages/auditoria/page'));
-const SeedPage = lazy(() => import('../pages/seed/page'));
+// Solo desarrollo: inserta datos maestros sin chequeo de rol. Con `DEV` en false Vite elimina la
+// página del bundle y `/seed` cae al 404.
+const SeedPage = import.meta.env.DEV ? lazy(() => import('../pages/seed/page')) : null;
 const NotFoundPage = lazy(() => import('../pages/NotFound'));
 const DevolucionesPage = lazy(() => import('../pages/devoluciones/page'));
 const GuiasPage = lazy(() => import('../pages/guias/page'));
@@ -36,9 +39,10 @@ const OmsSimuladorPage = lazy(() => import('../pages/oms/simulador/page'));
 const OmsAuditoriaPage = lazy(() => import('../pages/oms/auditoria/page'));
 
 const routes: RouteObject[] = [
+  // La entrada principal pasa por /dashboard para que el permiso de ese módulo también se aplique a "/".
   {
     path: '/',
-    element: <DashboardPage />
+    element: <Navigate to="/dashboard" replace />
   },
   {
     path: '/login',
@@ -63,7 +67,7 @@ const routes: RouteObject[] = [
   // Ruta anterior: se conserva como redirección para no romper enlaces guardados.
   {
     path: '/planificacion',
-    element: <Navigate to="/oms/planificacion" replace />
+    element: <RedirectKeepingQuery to="/oms/planificacion" />
   },
   {
     path: '/vehiculos',
@@ -100,11 +104,11 @@ const routes: RouteObject[] = [
   // Rutas anteriores: se conservan como redirección para no romper enlaces guardados.
   {
     path: '/tarifas/flota-propia',
-    element: <Navigate to="/tarifas/costos-flota?flota=propia" replace />
+    element: <RedirectKeepingQuery to="/tarifas/costos-flota" params={{ flota: 'propia' }} />
   },
   {
     path: '/tarifas/transportistas',
-    element: <Navigate to="/tarifas/costos-flota?flota=externa" replace />
+    element: <RedirectKeepingQuery to="/tarifas/costos-flota" params={{ flota: 'externa' }} />
   },
   {
     path: '/liquidaciones',
@@ -122,10 +126,7 @@ const routes: RouteObject[] = [
     path: '/auditoria',
     element: <AuditoriaPage />
   },
-  {
-    path: '/seed',
-    element: <SeedPage />
-  },
+  ...(SeedPage ? [{ path: '/seed', element: <SeedPage /> }] : []),
   {
     path: '/devoluciones',
     element: <DevolucionesPage />

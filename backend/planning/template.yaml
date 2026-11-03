@@ -16,6 +16,10 @@ Parameters:
     Type: AWS::SSM::Parameter::Value<List<String>>
   SecurityGroupId:
     Type: AWS::SSM::Parameter::Value<String>
+  ReplanAppUserId:
+    Type: String
+    Default: ""
+    Description: app_users.id que firma los planes del replan horario. Vacío = el app_user activo más antiguo de la org.
 
 Conditions:
   IsProduction: !Equals [!Ref Environment, prod]
@@ -38,7 +42,7 @@ Resources:
       Handler: app.handler
       Runtime: python3.13
       Architectures: [x86_64]
-      Timeout: 30
+      Timeout: 120  # el replan programado recorre todos los almacenes; HTTP igual corta a 30s en API Gateway
       MemorySize: 512
       Role:
         Fn::ImportValue: !Sub ${CommonStackName}-LambdaRoleArn
@@ -53,8 +57,22 @@ Resources:
       Environment:
         Variables:
           ENVIRONMENT: !Ref Environment
+          REPLAN_APP_USER_ID: !Ref ReplanAppUserId
           TMS_DB_SECRET_NAME:
             Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName
+          # Ingesta de pedidos y artículos del pedido leen eFlow en vivo (eflow_db).
+          EFLOW_SECRET_NAME:
+            Fn::ImportValue: !Sub ${CommonStackName}-EflowSecretName
+      Events:
+        ReplanHorario:
+          Type: ScheduleV2
+          Properties:
+            Name: !Sub ${AWS::StackName}-replan-horario
+            Description: Replan automático cada hora, L-V 05:00-16:00 CR
+            # Hasta 16:00 y no 17:00: Aurora se apaga a las 17:00 (infra/horarios).
+            ScheduleExpression: cron(0 5-16 ? * MON-FRI *)
+            ScheduleExpressionTimezone: America/Costa_Rica
+            Input: '{"accion": "replan_programado"}'
 
   PlanningApiIntegration:
     Type: AWS::ApiGatewayV2::Integration
@@ -93,6 +111,17 @@ Resources:
       ApiId:
         Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
       RouteKey: GET /api/v1/planificacion/pedidos/{id}/articulos
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${PlanningApiIntegration}
+
+  PlanningOrderDeliveryDateRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/v1/planificacion/pedidos/{id}/fecha-entrega
       AuthorizationType: CUSTOM
       AuthorizerId:
         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId

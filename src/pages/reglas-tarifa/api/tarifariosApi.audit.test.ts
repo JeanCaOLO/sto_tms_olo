@@ -54,6 +54,28 @@ describe('bitácora de tarifarios', () => {
     expect(rows.map((e) => e.action)).toEqual(['CREATE', 'UPDATE', 'DELETE']);
   });
 
+  // Antes la bitácora de borrar una fila solo guardaba la tabla: no se podía saber qué fila era ni cuánto valía.
+  it('quitar una fila guarda en la bitácora qué fila era (clave, importe y valores)', async () => {
+    const created = await saveRateTableWithAudit(tabla({ code: 'TARIFARIO_BORRAR' }));
+    if (created.status !== 'saved') throw new Error('no se guardó');
+    const tableId = created.table.id;
+    const added = await createOrUpdateRateRow({ tableId, key: ['Z9'], amount: '150.00', values: {}, active: true });
+    if (added.status !== 'saved') throw new Error(JSON.stringify(added));
+
+    await removeRateRow(added.row.id, tableId, { key: added.row.key, amount: added.row.amount, values: added.row.values });
+
+    const log = (await db().find('auditLog')).find((e) => e.entity === 'tarifas_rate_table_rows' && e.action === 'DELETE' && e.entity_id === added.row.id);
+    expect(log?.before).toMatchObject({ tableId, key: ['Z9'], amount: '150.00' });
+  });
+
+  it('quitar una fila sin pasar su contenido sigue funcionando (compatibilidad)', async () => {
+    const created = await saveRateTableWithAudit(tabla({ code: 'TARIFARIO_BORRAR_2' }));
+    if (created.status !== 'saved') throw new Error('no se guardó');
+    const added = await createOrUpdateRateRow({ tableId: created.table.id, key: ['Z8'], amount: '10.00', values: {}, active: true });
+    if (added.status !== 'saved') throw new Error(JSON.stringify(added));
+    expect((await removeRateRow(added.row.id, created.table.id)).error).toBeNull();
+  });
+
   it('un cambio inválido no deja evento', async () => {
     const before = (await eventos()).length;
     const result = await saveRateTableWithAudit(tabla({ code: '', name: '' }));

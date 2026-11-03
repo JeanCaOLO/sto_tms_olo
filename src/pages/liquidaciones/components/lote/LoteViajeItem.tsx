@@ -39,7 +39,7 @@ function estadoDe(args: {
   if (args.saving) return { text: 'Guardando…', tone: 'text-slate-600 bg-slate-100', icon: 'ri-loader-4-line animate-spin' };
   if (args.error) return { text: 'Revisar', tone: 'text-red-700 bg-red-50', icon: 'ri-error-warning-line' };
   if (args.loading) return { text: 'Calculando…', tone: 'text-slate-600 bg-slate-100', icon: 'ri-loader-4-line animate-spin' };
-  if (args.blocked) return { text: 'Bloqueado', tone: 'text-amber-700 bg-amber-50', icon: 'ri-lock-line' };
+  if (args.blocked) return { text: 'Bloqueado', tone: 'text-red-700 bg-red-50', icon: 'ri-lock-line' };
   return { text: 'Listo', tone: 'text-teal-700 bg-teal-50', icon: 'ri-checkbox-circle-line' };
 }
 

@@ -113,7 +113,8 @@ SELECT g.id, g.route_id, g.guide_number, g.sequence_number, g.status, g.delivery
        COALESCE(o.delivery_longitude, ps.longitude) AS longitude,
        cu.name AS customer_name, cu.phone AS customer_phone,
        COALESCE((SELECT array_agg(DISTINCT e.kind) FROM tracking_evidences e WHERE e.dispatch_guide_id = g.id),
-                ARRAY[]::text[]) AS evidence_kinds
+                ARRAY[]::text[]) AS evidence_kinds,
+       g.stop_type
 FROM dispatch_guides g
 JOIN routes r ON r.id = g.route_id
 LEFT JOIN orders o ON o.id = g.order_id
@@ -190,7 +191,8 @@ SELECT g.id, g.route_id, g.organization_id, g.order_id, o.order_number, g.delive
        r.driver_id,
        COALESCE(o.delivery_latitude, ps.latitude) AS stop_lat, COALESCE(o.delivery_longitude, ps.longitude) AS stop_lng,
        COALESCE((SELECT array_agg(DISTINCT e.kind) FROM tracking_evidences e WHERE e.dispatch_guide_id = g.id),
-                ARRAY[]::text[]) AS evidence_kinds
+                ARRAY[]::text[]) AS evidence_kinds,
+       g.stop_type
 FROM dispatch_guides g
 JOIN routes r ON r.id = g.route_id
 LEFT JOIN orders o ON o.id = g.order_id

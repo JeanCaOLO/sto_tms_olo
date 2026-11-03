@@ -41,7 +41,7 @@ export function CostStructureCard({
 
       {!structure ? (
         <p className="text-xs text-amber-600">
-          Sin estructura cargada: una liquidación de flota propia para este país no se puede calcular. Descargá la plantilla, llenala y subila.
+          Sin estructura cargada: una liquidación de flota propia para este país no se puede calcular. Descarga la plantilla, llenala y subila.
         </p>
       ) : (
         <>

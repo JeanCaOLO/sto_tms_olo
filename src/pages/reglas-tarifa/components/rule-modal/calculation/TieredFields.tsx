@@ -63,7 +63,7 @@ export function TieredFields({ builder, builderErrors, onChange, currencyLabel }
         onChange={(e) => onChange('tierMode', e.target.value as NonNullable<typeof builder.tierMode>)}
         options={TIER_MODE_OPTIONS}
       />
-      <p className="text-xs text-gray-500">{TIER_MODE_HINTS[builder.tierMode ?? 'RATE']}</p>
+      <p className="text-xs text-slate-500">{TIER_MODE_HINTS[builder.tierMode ?? 'RATE']}</p>
       <div className="border border-slate-200 rounded-lg overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-slate-50">

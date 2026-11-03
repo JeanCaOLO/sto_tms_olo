@@ -7,7 +7,6 @@ import { useCustomVarsState } from './useCustomVarsState';
 import { useCalculationTotals } from './useCalculationTotals';
 import { useEmissionState } from './useEmissionState';
 import { useExclusionsState } from './useExclusionsState';
-import { useEditsUsed } from './useEditsUsed';
 import { useRecheckBeforeEmit } from './useRecheckBeforeEmit';
 import { useTripReturnsPreload } from './useTripReturnsPreload';
 import type { SettlementRecord, TripRecord } from '../../../lib/tarifas/types';
@@ -48,9 +47,8 @@ export function useLiquidarViajeController({ trip, settlement, isOpen }: Props) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, settlement?.id]);
 
-  const editsUsed = useEditsUsed(calcState.calculation, customVarsState.customRaw);
   useTripReturnsPreload(
-    calcState.calculation, tripId, settlement, emissionState.setReturns, emissionState.setError,
+    calcState.calculation, tripId, settlement, isOpen, emissionState.setReturns, emissionState.setError,
   );
   const recheck = useRecheckBeforeEmit({
     calc: calcState, reliquidando, setError: emissionState.setError, resetExcluded,
@@ -62,6 +60,8 @@ export function useLiquidarViajeController({ trip, settlement, isOpen }: Props) 
     loading,
     customRaw: customVarsState.customRaw,
     setCustomRaw: customVarsState.setCustomRaw,
+    /** Teclear una variable: la guarda, marca el cálculo como pendiente y lo recalcula tras una pausa. */
+    setCustomVar: customVarsState.handleSetRaw,
     excludedSeqs,
     setExcludedSeqs,
     /** Lo calculado más reciente: lo que se guarda, aunque después se siga tecleando. */
@@ -71,7 +71,6 @@ export function useLiquidarViajeController({ trip, settlement, isOpen }: Props) 
     totals,
     effectiveResult,
     reliquidando,
-    editsUsed,
   };
 }
 

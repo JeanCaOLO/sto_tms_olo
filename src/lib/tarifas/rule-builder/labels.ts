@@ -26,9 +26,9 @@ export const TIER_MODE_HINTS: Record<TierMode, string> = {
 
 export const OPERATOR_HINTS: Record<BuilderOperator, string> = {
   FIXED: 'Un importe fijo, sin depender de ninguna variable.',
-  TIMES: 'Multiplica la variable por el importe. Ej: por cada peaje, $20.',
-  PER_BLOCK: 'Cuenta bloques COMPLETOS. Ej: cada 10 peajes, $15 — con 25 peajes se pagan 2 bloques.',
-  PERCENT: 'Un porcentaje sobre una base que elegís explícitamente.',
+  TIMES: 'Multiplica la variable por el importe. Ej: por cada peaje, 20.',
+  PER_BLOCK: 'Cuenta bloques COMPLETOS. Ej: cada 10 peajes, 15 — con 25 peajes se pagan 2 bloques.',
+  PERCENT: 'Un porcentaje sobre una base que eliges explícitamente.',
   TIERED: 'Tramos por cantidad. El modo decide si el tramo fija un importe, una tarifa, o cobra solo lo suyo.',
   RATE_TABLE: 'El importe sale de un tarifario cargado aparte. Acá se elige cuál y cuánto cobrar si el viaje no casa ninguna fila.',
 };

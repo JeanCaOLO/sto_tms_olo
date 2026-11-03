@@ -110,7 +110,7 @@ export function creationOrder(): EntityName[] {
   const visit = (name: EntityName): void => {
     if (ordered.includes(name)) return;
     if (visiting.has(name)) {
-      throw new Error(`Ciclo de dependencias en el esquema, en "${name}": revisá las FK del registro.`);
+      throw new Error(`Ciclo de dependencias en el esquema, en "${name}": revisa las FK del registro.`);
     }
     visiting.add(name);
     for (const col of Object.values(entityDef(name).columns)) {

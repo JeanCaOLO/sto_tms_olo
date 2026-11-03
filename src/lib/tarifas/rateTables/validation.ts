@@ -22,7 +22,7 @@ function validateValueColumns(columns: string[]): string | undefined {
   const names = columns.map((c) => c.trim());
   if (names.some((c) => !c)) return 'Hay una columna de valor sin nombre.';
   const bad = names.find((c) => !VALUE_COLUMN_SHAPE.test(c));
-  if (bad) return `"${bad}": usá solo letras, números y guión bajo (sin espacios ni acentos).`;
+  if (bad) return `"${bad}": usa solo letras, números y guión bajo (sin espacios ni acentos).`;
   if (names.some((c) => c.toLowerCase() === 'amount' || c.toLowerCase() === 'valor')) {
     return 'Los nombres "amount" y "valor" están reservados para el valor principal.';
   }
@@ -42,7 +42,7 @@ export function validateRateTable(
   if (!code) {
     errors.code = 'El código es obligatorio.';
   } else if (!CODE_SHAPE.test(code)) {
-    errors.code = 'Usá solo letras, números y guión bajo (sin espacios ni acentos).';
+    errors.code = 'Usa solo letras, números y guión bajo (sin espacios ni acentos).';
   } else if (
     existing.some((t) => t.id !== id && t.countryId === input.countryId
       && (t.partyId ?? null) === (input.partyId ?? null)
@@ -54,7 +54,7 @@ export function validateRateTable(
   if (!input.name.trim()) errors.name = 'El nombre es obligatorio.';
 
   if (input.keyColumns.length === 0) {
-    errors.keyColumns = 'Elegí al menos una variable para la clave.';
+    errors.keyColumns = 'Elige al menos una variable para la clave.';
   } else if (new Set(input.keyColumns).size !== input.keyColumns.length) {
     errors.keyColumns = 'Hay una variable repetida en la clave.';
   } else {

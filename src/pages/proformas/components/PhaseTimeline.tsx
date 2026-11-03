@@ -1,6 +1,7 @@
 // Línea de tiempo de las fases: quién aprobó cuándo, quién falta y qué fases se quitaron.
 
 import Badge from '../../../components/base/Badge';
+import { formatLocalDateTime } from '../../../lib/tarifas/localDate';
 import { currentPhase, type PhaseState, type ProformaPhase } from '../../../lib/tarifas/proformas';
 
 const STATE: Record<PhaseState, { label: string; variant: 'default' | 'success' | 'danger' | 'warning'; icon: string }> = {
@@ -40,7 +41,7 @@ export default function PhaseTimeline({ phases, onSkip, reviewing = true }: Prop
               {p.decidedBy && (
                 <div className="text-xs text-slate-500">
                   {p.state === 'omitida' ? 'Quitada por' : 'Decidida por'} {p.decidedBy}
-                  {p.decidedAt ? ` · ${p.decidedAt.slice(0, 16).replace('T', ' ')}` : ''}
+                  {p.decidedAt ? ` · ${formatLocalDateTime(p.decidedAt)}` : ''}
                 </div>
               )}
               {p.comment && <div className="text-xs text-slate-600">“{p.comment}”</div>}

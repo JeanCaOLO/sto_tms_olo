@@ -132,3 +132,6 @@ build/
 
 # Respaldos locales de filas borradas/reconciliadas en pruebas (no commitear)
 backup-*.json
+
+graphify-out/
+.test/

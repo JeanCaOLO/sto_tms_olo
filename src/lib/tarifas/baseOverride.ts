@@ -87,7 +87,7 @@ export function applyBaseOverride(
       issues: [{
         code: 'BASE_NO_DISPONIBLE',
         message: `No se puede calcular la base "${label}": ${option?.reason ?? NO_DATA} `
-          + 'Elegí otro tipo de cobro o volvé a la base por defecto.',
+          + 'Elige otro tipo de cobro o vuelve a la base por defecto.',
       }],
     };
   }

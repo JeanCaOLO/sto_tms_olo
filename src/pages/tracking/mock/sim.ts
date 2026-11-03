@@ -5,7 +5,7 @@
 // Reglas iguales a backend/tracking/src/tracking_logic.py. La consume solo fakeTrackingBackend.ts.
 import demo from '../data/viajes-demo.json';
 import type {
-  Evidence, ListMode, MapColor, Phase, Position, Resumen, Signal, Stop, StopState, TripAlert, Viaje, ViajeDetalle,
+  Evidence, ListMode, MapColor, Phase, Position, Resumen, Signal, Stop, StopState, StopType, TripAlert, Viaje, ViajeDetalle,
   ViajePlanificado, ViajesPage,
 } from '../types';
 
@@ -35,6 +35,8 @@ export class SimError extends Error {
 interface StopDef {
   customer: string; address: string; city: string; lat: number; lng: number; invoice: string;
   state: StopState; arrivedMinAgo?: number; evidence?: 'full' | 'invoice' | 'none'; recipient?: string;
+  /** Recolecta del producto devuelto; sin esto, entrega. */
+  type?: StopType;
 }
 interface TripDef {
   id: string; route_number: string; country: string; zone: string; driver: string; plate: string;
@@ -345,7 +347,10 @@ function placeholder(label: string, color: string): string {
 function evidencesOf(stop: SStop): Evidence[] {
   if (stop.state !== 'delivered' || stop.evidence === 'none') return [];
   const at = iso(stop.arrivedAt);
-  const list: Evidence[] = [{ id: `${stop.id}-f`, kind: 'photo_invoice', mime_type: 'image/svg+xml', captured_at: at, url: placeholder(`Factura ${stop.def.invoice}`, '#e2e8f0') }];
+  const collection = stop.def.type === 'collection';
+  const list: Evidence[] = [collection
+    ? { id: `${stop.id}-p`, kind: 'photo_product', mime_type: 'image/svg+xml', captured_at: at, url: placeholder('Producto recolectado', '#fef3c7') }
+    : { id: `${stop.id}-f`, kind: 'photo_invoice', mime_type: 'image/svg+xml', captured_at: at, url: placeholder(`Factura ${stop.def.invoice}`, '#e2e8f0') }];
   if (stop.evidence === 'full') list.push({ id: `${stop.id}-s`, kind: 'signature', mime_type: 'image/svg+xml', captured_at: at, url: placeholder('Firma del cliente', '#f1f5f9') });
   return list;
 }
@@ -353,7 +358,7 @@ function evidencesOf(stop: SStop): Evidence[] {
 function toStop(trip: STrip, stop: SStop, index: number, next: Map<string, Eta>): Stop {
   const eta = next.get(stop.id);
   return {
-    id: stop.id, guide_number: `${trip.routeNumber}-${index + 1}`, sequence: index + 1, state: stop.state,
+    id: stop.id, guide_number: `${trip.routeNumber}-${index + 1}`, sequence: index + 1, state: stop.state, type: stop.def.type ?? 'delivery',
     order_number: `PED-${stop.def.invoice.slice(4)}`, invoice_number: stop.def.invoice, customer_name: stop.def.customer,
     address: stop.def.address, city: stop.def.city, lat: stop.def.lat, lng: stop.def.lng, arrived_at: iso(stop.arrivedAt),
     recipient_name: stop.recipient, evidences: evidencesOf(stop), planned_arrival_at: iso(trip.planned[index]),

@@ -4,6 +4,8 @@ import type { Resumen } from '../types';
 
 interface Props {
   resumen: Resumen | null;
+  /** Paradas fallidas de los viajes en curso; null si no se conocen (lista incompleta): entonces no se desglosa. */
+  failedStops?: number | null;
   selected: KpiFilter | null;
   onSelect: (kpi: KpiFilter | null) => void;
 }
@@ -17,7 +19,7 @@ const TILES: { key: KpiFilter; field: keyof Resumen; label: string; alert?: stri
 ];
 
 /** KPIs por VIAJE, lo que se ve de un vistazo. Cada uno filtra la lista y el mapa; otro clic quita el filtro. */
-export default function ResumenBar({ resumen, selected, onSelect }: Props) {
+export default function ResumenBar({ resumen, failedStops = null, selected, onSelect }: Props) {
   const { t } = useTranslation();
   const hasDeliveries = resumen?.deliveries_total !== undefined;
   return (
@@ -43,11 +45,18 @@ export default function ResumenBar({ resumen, selected, onSelect }: Props) {
       </div>
       {hasDeliveries && (
         <p className="text-xs text-slate-600" data-testid="deliveries-progress">
-          {t('tracking.deliveriesProgress', {
-            done: resumen?.deliveries_done ?? 0,
-            total: resumen?.deliveries_total ?? 0,
-            remaining: resumen?.deliveries_remaining ?? 0,
-          })}
+          {failedStops === null
+            ? t('tracking.stopsHandled', {
+              done: resumen?.deliveries_done ?? 0,
+              total: resumen?.deliveries_total ?? 0,
+              remaining: resumen?.deliveries_remaining ?? 0,
+            })
+            : t('tracking.deliveriesProgress', {
+              delivered: (resumen?.deliveries_done ?? 0) - failedStops,
+              failed: failedStops,
+              total: resumen?.deliveries_total ?? 0,
+              remaining: resumen?.deliveries_remaining ?? 0,
+            })}
         </p>
       )}
     </div>
