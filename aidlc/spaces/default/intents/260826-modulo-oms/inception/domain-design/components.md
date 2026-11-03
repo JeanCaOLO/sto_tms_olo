@@ -5,8 +5,8 @@
 > Lead: arquitecto; apoyo: plataforma AWS, diseño. Deriva de `requirements.md` v4
 > y `stories.md` v4 y de `project.md` (`## Decided`).
 >
-> **Nomenclatura (vigente)**: WMS = **EFLOW**; módulo que parte EPA por línea =
-> **EPRAC**. (No "IPRAC"/"IFLOW".)
+> **Nomenclatura (vigente)**: WMS = **EFLOW**; módulo que asigna la prioridad de
+> EPA (1 o 2) = **EPRAC**. (No "IPRAC"/"IFLOW".)
 >
 > **Correcciones de esta re-corrida v4 (D7–D13), SUPERSEDE del modelo D6:**
 > - **Flujo invertido (D7)**: Planificación procesa, asigna viaje y **activa al
@@ -18,7 +18,7 @@
 >   flag TRUE). **No** escribe el número de viaje. **No existe `oms.pedidos`**
 >   (esquema único `public`, BD 2026-10-16).
 > - **EPA (D9)**: nuevo componente/regla **`ReglaEPA`** que **cortocircuita** el
->   score (prioridad pre-asignada por EPRAC guion-0/1).
+>   score (prioridad pre-asignada por EPRAC: 1 o 2).
 > - **Regla fecha generalizada (D10)**: `ReglaFecha` = `fecha_entrega − duración`,
 >   con **duración como insumo de Planificación** (no parámetro fijo).
 > - **cliente retira = zona (D11)**: `AnalizadorObservaciones` **diferido a
@@ -35,7 +35,10 @@
 > esquema completo es de Functional Design.
 >
 > **Invariantes firmes** (project.md): el OMS lee del WMS/EFLOW; **no escribe
-> fechas**; prioridad numérica invertida por score ponderado; motor de reglas
+> fechas**; prioridad numérica invertida (menor = más urgente; **cómo se numera lo
+> decide una estrategia elegida por scope** — `escala_lineal` = score ponderado,
+> default; `dias_hasta_salida` = Cofersa, `0..n` días hasta la salida, 0 = liberado,
+> nunca en la cola; v4.2/ADR-014); motor de reglas
 > **propio del OMS, nuevo, en Lambda Python** (C2-RESUELTO: no portar AST, no
 > motor compartido, no tocar Liquidaciones); multi-compañía **por scope**
 > CUSTOMER→WAREHOUSE→COUNTRY→GLOBAL (C3-SUPERSEDE, no Lambda por compañía);
@@ -63,10 +66,16 @@ components:
       pedidos EPA a ReglaEPA** (D9: EPA cortocircuita fecha/score, prioridad
       pre-asignada por EPRAC). Para Cofersa/mayoreo invoca las reglas ejecutables
       (ReglaFecha generalizada T−duración, ReglaClienteRetiraZona por zona),
-      calcula el SCORE PONDERADO (submódulo puro: suma de pesos → prioridad numérica
-      INVERTIDA menor=más urgente, desempate estable fecha→hora→id), aplica el
-      UMBRAL DE INYECCIÓN (FR3.4/NFR4) y ordena a HandoffPedidosOMS generar los que
-      pasan. Aplica el EFECTO "cliente retira" (prioridad máxima + agrupación).
+      calcula el SCORE PONDERADO (submódulo puro: suma de pesos), y convierte el
+      resultado en la prioridad numérica INVERTIDA (menor=más urgente, desempate
+      estable fecha→hora→id) con la ESTRATEGIA de numeración de la compañía
+      (submódulo puro **EstrategiasPrioridad**, `estrategias_prioridad.py`, elegida
+      por `config.estrategia` del scope: `escala_lineal` default = mapa del score a
+      [1, escala_prioridad]; `dias_hasta_salida` = Cofersa, días hasta la salida con
+      `ancla_fecha`/`prioridad_piso`; nombre desconocido → default; v4.2/ADR-014),
+      aplica el UMBRAL DE INYECCIÓN (FR3.4/NFR4) y ordena a HandoffPedidosOMS generar
+      los que pasan. Aplica el EFECTO "cliente retira" (prioridad máxima DE LA COLA =
+      piso de cola, nunca 0; + agrupación).
       **AnalizadorObservaciones queda FUERA de la ruta activa (diferido, D11).** NO
       escribe fechas. NO escribe el número de viaje. NO arma viajes (eso es de
       Planificación). El cálculo de score se mantiene como submódulo PURO testeable
@@ -74,9 +83,10 @@ components:
     responsibilities:
       - Ser activado por LambdaActivacion y orquestar la corrida del lote/scope
       - Derivar los pedidos EPA a ReglaEPA (cortocircuito); el resto a fecha/zona/score
-      - Calcular el score ponderado y la prioridad numérica invertida (submódulo puro)
+      - Calcular el score ponderado (submódulo puro)
+      - Numerar la prioridad con la estrategia del scope (submódulo puro EstrategiasPrioridad, ADR-014)
       - Aplicar el umbral de inyección (corte por capacidad)
-      - Aplicar el efecto "cliente retira" (prioridad máxima + agrupación)
+      - Aplicar el efecto "cliente retira" (piso de cola + agrupación)
       - Ordenar el handoff (UPDATE orders + escritura EFLOW) de los pedidos que pasan
     depends_on:
       - component: ColaCandidatos
@@ -89,7 +99,7 @@ components:
         interaction: evalúa fecha_entrega − duración (Cofersa/mayoreo; duración = insumo de Planificación)
         style: sync
       - component: ReglaClienteRetiraZona
-        interaction: detecta cliente-retira por delivery_zone (prioridad máxima)
+        interaction: detecta cliente-retira por delivery_zone (prioridad máxima de la cola = piso de cola)
         style: sync
       - component: HandoffPedidosOMS
         interaction: ordena las dos escrituras (UPDATE orders + EFLOW GENE+prioridad) de los pedidos que pasan
@@ -102,9 +112,10 @@ components:
       - name: ConfiguracionReglas (parámetros por scope)
         kind: other
         purpose: >
-          Pesos, umbral de inyección y PARÁMETROS DE RUTA (días de salida, horas de
-          corte, duración estimada) resueltos POR SCOPE (CUSTOMER→WAREHOUSE→COUNTRY→
-          GLOBAL). En la rebanada se consumen como configuración/parámetros del
+          Pesos, umbral de inyección, PARÁMETROS DE RUTA (días de salida, horas de
+          corte, duración estimada) y ESTRATEGIA DE PRIORIDAD (`estrategia`,
+          `ancla_fecha`, `prioridad_piso` en `oms_rule_configs`, `sql/55`; ADR-014)
+          resueltos POR SCOPE (CUSTOMER→WAREHOUSE→COUNTRY→GLOBAL). En la rebanada se consumen como configuración/parámetros del
           motor (no hay componente CatalogoReglas-UI todavía — DIFERIDO); su edición
           desde UI es trabajo posterior.
     entities:
@@ -153,27 +164,24 @@ components:
     behaviour: >
       Regla ejecutable para pedidos de **EPA** (`customer_type = TIENDA`). D9: EPA
       **NO calcula** prioridad — **cortocircuita** el motor de fecha/score. **EPRAC**
-      (módulo que parte los pedidos de EPA por línea) crea dos expediciones con el
-      mismo número + guion: **guion-0** (artículos en falla ⇒ prioridad 0, la más
-      alta) y **guion-1** (regular ⇒ prioridad 1). ReglaEPA **toma la prioridad que
-      ya traen** (0/1) sin recalcular, y marca ambas expediciones para liberarse
-      JUNTAS. NO pasa por ReglaFecha ni por el score ponderado. El EFECTO (poner
-      ambas en `wms_situation = GENE` con su prioridad) lo aplica el flujo normal de
-      MotorReglasOMS→HandoffPedidosOMS. Es una regla/rama propia, no un caso del
-      motor de fecha.
+      asigna la prioridad **1 o 2** aguas arriba (EFLOW); esos valores nunca cambian
+      y EPA nunca usa 0. ReglaEPA **toma la prioridad que trae** (1 o 2) sin
+      recalcular (`priorizar=false`). NO pasa por ReglaFecha ni por el score
+      ponderado. El EFECTO (poner el pedido en `wms_situation = GENE` con esa
+      prioridad) lo aplica el flujo normal de MotorReglasOMS→HandoffPedidosOMS. Es
+      una regla/rama propia, no un caso del motor de fecha.
     responsibilities:
       - Detectar pedidos EPA (customer_type=TIENDA) y cortocircuitar fecha/score
-      - Tomar la prioridad pre-asignada por EPRAC (guion-0=0, guion-1=1) sin recalcular
-      - Marcar ambas expediciones (guion-0/guion-1) para liberarse juntas
+      - Tomar la prioridad pre-asignada por EPRAC (1 o 2) sin recalcular
     depends_on: []
     dependents:
       - component: MotorReglasOMS
         interaction: el motor deriva los pedidos EPA a esta rama en vez de fecha/score
         style: sync
     external_dependencies:
-      - name: EPRAC (módulo que parte EPA por línea y pre-asigna prioridad)
+      - name: EPRAC (módulo que pre-asigna la prioridad de EPA)
         kind: other
-        purpose: origen de la prioridad pre-asignada (guion-0/guion-1); el OMS la respeta, no la recalcula
+        purpose: origen de la prioridad pre-asignada (1 o 2); el OMS la respeta, no la recalcula
     entities: []
 
   - name: ReglaClienteRetiraZona
@@ -182,12 +190,13 @@ components:
       Regla ejecutable (FR6.2). **D11**: "cliente retira" se identifica por la
       **zona** del pedido (`delivery_zone`), **NO** interpretando el texto de
       observaciones ni con IA. Un pedido cuya zona es la de "cliente retira" recibe
-      la **prioridad más alta** y se agrupa en su viaje/cliente correspondiente.
+      la **prioridad más alta de la cola** (= piso de cola, 1 en Cofersa; nunca 0,
+      que es "liberado" — ADR-014) y se agrupa en su viaje/cliente correspondiente.
       Determinista y testeable sin IA. El EFECTO (prioridad máxima vía peso +
       agrupación) lo aplica MotorReglasOMS.
     responsibilities:
       - Detectar cliente-retira por delivery_zone (no por observaciones)
-      - Señalar prioridad máxima + agrupación para esos pedidos
+      - Señalar prioridad máxima de la cola (piso de cola) + agrupación para esos pedidos
     depends_on: []
     dependents:
       - component: MotorReglasOMS
@@ -433,9 +442,9 @@ las dos escrituras: (1) **UPDATE a `public.orders`** y (2) **EFLOW real** (`TPEX
 |---|---|---|---|---|
 | LambdaActivacion | Entrada async: Planificación activa al OMS (planning_run_id + scope) | MotorReglasOMS | — | — |
 | MotorReglasOMS | Motor propio (orquesta + score + umbral + efecto cliente-retira) | ColaCandidatos, ReglaEPA, ReglaFecha, ReglaClienteRetiraZona, HandoffPedidosOMS | LambdaActivacion | RegistroPrioridad |
-| ReglaEPA | Cortocircuito EPA (prioridad pre-asignada por EPRAC, guion-0/1) | — | MotorReglasOMS | — |
+| ReglaEPA | Cortocircuito EPA (prioridad pre-asignada por EPRAC, 1 o 2) | — | MotorReglasOMS | — |
 | ReglaFecha | Fecha generalizada (fecha_entrega − duración; duración = insumo de Planificación) | — | MotorReglasOMS | — |
-| ReglaClienteRetiraZona | Cliente-retira por delivery_zone (prioridad máxima) | — | MotorReglasOMS | — |
+| ReglaClienteRetiraZona | Cliente-retira por delivery_zone (prioridad máxima de la cola = piso de cola) | — | MotorReglasOMS | — |
 | ColaCandidatos | Lectura de public.orders (adaptador de entrada) | — | MotorReglasOMS | PedidoCandidato |
 | HandoffPedidosOMS | Dos escrituras: UPDATE orders + EFLOW (GENE+prioridad) | — | MotorReglasOMS | PedidoOMS |
 | BackorderInventario | Loop desacoplado: re-genera acciones omitidas al entrar stock | HandoffPedidosOMS | — | — |
@@ -457,7 +466,7 @@ las dos escrituras: (1) **UPDATE a `public.orders`** y (2) **EFLOW real** (`TPEX
 | ColaCandidatos | public.orders (Aurora) | database | Pull por columna: wms_trip_number IS NOT NULL AND oms_processed_at IS NULL. Reemplaza la lectura de EXPEDICIONESCABECERA (D7) |
 | HandoffPedidosOMS | public.orders (Aurora) | database | Escritura 1: UPDATE (prioridad, score, situación). Reemplaza oms.pedidos (descartada) |
 | HandoffPedidosOMS | EFLOW / WMS (EXPEDICIONESCABECERA) | database | Escritura 2: TPEXSI='GENE' + PRIORIDAD (D8); sin número de viaje |
-| ReglaEPA | EPRAC | other | Prioridad pre-asignada (guion-0/1); el OMS la respeta |
+| ReglaEPA | EPRAC | other | Prioridad pre-asignada (1 o 2); el OMS la respeta |
 | ReglaFecha | duración logística (de Planificación) | other | Insumo por pedido/viaje; Cofersa=1, VE dinámica (D10) |
 | BackorderInventario | EFLOW (acciones omitidas, OQ-BO1) + inventario (OQ-BO2) | database | Backorder: origen y fuente de inventario por confirmar |
 | MotorReglasOMS | ConfiguracionReglas (por scope) | other | Pesos, umbral, parámetros por scope |
@@ -468,7 +477,7 @@ las dos escrituras: (1) **UPDATE a `public.orders`** y (2) **EFLOW real** (`TPEX
 | Componente | Por qué es un bloque distinto |
 |---|---|
 | LambdaActivacion | Puerta de entrada async del flujo invertido (D7); aísla el contrato con Planificación y la idempotencia por corrida |
-| MotorReglasOMS | Núcleo del OMS; propio y nuevo (C2); dueño del ciclo de corrida y del score (submódulo puro testeable) |
+| MotorReglasOMS | Núcleo del OMS; propio y nuevo (C2); dueño del ciclo de corrida, del score y de la numeración de prioridad (submódulos puros `score` y `EstrategiasPrioridad`, testeables; EstrategiasPrioridad NO es un componente de alto nivel, ADR-014) |
 | ReglaEPA | Rama que cortocircuita fecha/score (D9); ritmo y origen propios (EPRAC); no es un caso del motor de fecha |
 | ReglaFecha | Fecha generalizada (fecha − duración); duración = insumo de Planificación (D10); cambia con reglas de fecha/cortes |
 | ReglaClienteRetiraZona | Detección por zona (D11); determinista, reemplaza la vía por observaciones/IA |
@@ -509,6 +518,7 @@ alcance más allá de la rebanada de 1ª entrega:
 - `aidlc/spaces/default/memory/project.md` (`## Decided`: D1–D6, C3-SUPERSEDE, C2-RESUELTO).
 - `aidlc/spaces/default/codekb/sto_tms_olo/architecture.md`, `component-inventory.md` (backend real Python/SAM; multi-tenancy por scope; EFLOW mock; wms_expediciones).
 - `docs/wms-eflow/EFLOW_OLO-ddl.sql` — DDL real del WMS/EFLOW (SQL Server): nombres de tabla/columna/PK confirmados (EXPEDICIONESCABECERA, TPEXES/TPEXSI, FECHAEXPEDICIONPLANIFICADA, PRIORIDAD, OBSERVACIONESEXPEDICION, PESOPEDIDO_TOTAL/CUBICAJEPEDIDO_TOTAL, ALMACENMOVIMIENTOS_CARCAM).
+- `docs/work/2026-10/2026-10-29-prioridad-cofersa-dias-hasta-salida.md` — v4.2: escala 0..n de Cofersa y submódulo `EstrategiasPrioridad` (ADR-014); código `backend/oms/src/estrategias_prioridad.py`, `sql/55`.
 
 ## Assumptions & Open Questions
 
@@ -517,8 +527,14 @@ alcance más allá de la rebanada de 1ª entrega:
   por el **esqueleto del MotorReglasOMS en Lambda**.
 - OQ abiertas que afinan (no bloquean): réplica EFLOW inexistente/mock (OQ-2),
   fecha de Cofersa por default/centinela → fallback por ruta (OQ-3), tabla de
-  prioridades del cliente (OQ-4), score-vs-filtro + umbral (OQ-5), cortes/duración
-  estimada de ruta por scope (OQ-6), nomenclatura viaje cliente retira (OQ-7).
+  prioridades del cliente (OQ-4, resuelta para Cofersa en v4.2), score-vs-filtro +
+  umbral (OQ-5), cortes/duración estimada de ruta por scope (OQ-6), nomenclatura
+  viaje cliente retira (OQ-7).
+- **v4.2 (ADR-014), abiertas**: OQ-PRIO-A (aparcada: peso de otras reglas dentro
+  del día), OQ-PRIO-B (¿las demás compañías de mayoreo numeran igual que Cofersa?),
+  OQ-PRIO-C (ancla fina del día vs. ventana de liberación de ADR-013). OQ-EPA-VAL —
+  CERRADA 2026-10-30: EPA = 1 y 2 (confirmado por Eduardo; fuente 2026-09-01). Detalle
+  en `decisions.md`.
 - **OQ-8 (peso/volumen) — INFORMADA, no cerrada**: `PESOPEDIDO_TOTAL` y
   `CUBICAJEPEDIDO_TOTAL` (float NULL) **sí existen** en EXPEDICIONESCABECERA → el
   handoff PUEDE cargarlos cuando vengan. Sigue abierta porque pueden venir null y es

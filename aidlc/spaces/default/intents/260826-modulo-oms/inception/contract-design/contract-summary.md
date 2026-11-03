@@ -5,7 +5,7 @@
 > motor-reglas-oms, U2 backorder-inventario-oms), `unit-of-work-dependency.md`
 > (DAG U2→U1), `components.md` (v4) y `requirements.md` (v4).
 >
-> Nomenclatura: WMS = **EFLOW**; módulo que parte EPA por línea = **EPRAC**.
+> Nomenclatura: WMS = **EFLOW**; módulo que asigna la prioridad de EPA (1 o 2) = **EPRAC**.
 >
 > Esta etapa formaliza las fronteras del flujo invertido (D7–D13). Las dos
 > fronteras que cruzan el OMS con otros módulos/sistemas son: **(C1) activación

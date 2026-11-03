@@ -5,7 +5,7 @@
   "story_map": [
     { "epic": "E0", "name": "Activación por Planificación", "stories": ["US0"] },
     { "epic": "E1", "name": "Cola de Priorización", "stories": ["US1", "US2", "US3", "US4", "US5", "US6"] },
-    { "epic": "E2", "name": "Motor de priorización (automático)", "stories": ["US7", "US8", "US9", "US9b", "US9c", "US10", "US11", "US11b"] },
+    { "epic": "E2", "name": "Motor de priorización (automático)", "stories": ["US7", "US8", "US9", "US9b", "US9c", "US10", "US10b", "US11", "US11b"] },
     { "epic": "E2b", "name": "EPA (prioridad pre-asignada por EPRAC)", "stories": ["US-EPA"] },
     { "epic": "E3", "name": "Análisis de observaciones con IA (FUTURO, D11)", "stories": ["US12"] },
     { "epic": "E4", "name": "Override manual", "stories": ["US14", "US15", "US15b"] },
@@ -35,6 +35,7 @@
     { "id": "US9b", "traces_to": ["FR8"], "delivery": "primera-entrega" },
     { "id": "US9c", "traces_to": ["FR8", "FR4"], "delivery": "primera-entrega" },
     { "id": "US10", "traces_to": ["FR3"], "delivery": "primera-entrega" },
+    { "id": "US10b", "traces_to": ["FR3"], "delivery": "primera-entrega" },
     { "id": "US11", "traces_to": ["FR3"], "delivery": "siguiente" },
     { "id": "US11b", "traces_to": ["FR3"], "delivery": "primera-entrega" },
     { "id": "US-EPA", "traces_to": ["FR6b"], "delivery": "primera-entrega" },
@@ -64,7 +65,7 @@
   ],
   "fr_coverage": {
     "FR0": ["US0"],
-    "FR1": ["US1"], "FR2": ["US7", "US8", "US9"], "FR3": ["US10", "US11", "US11b"],
+    "FR1": ["US1"], "FR2": ["US7", "US8", "US9"], "FR3": ["US10", "US10b", "US11", "US11b"],
     "FR4": ["US6", "US9c", "US14", "US15", "US15b"], "FR5": ["US16", "US17", "US18"],
     "FR6": ["US13", "US16"], "FR6b": ["US-EPA"], "FR6c": ["US-BO"],
     "FR7": ["US12"],
@@ -77,5 +78,6 @@
   "fr7_status": "DIFERIDO a futuro por D11 (cliente-retira = zona, no observaciones IA). US12 marcada delivery=futuro.",
   "e6_simulador_status": "FUERA DE ALCANCE (2026-10-19/20, D14/§13): desarrollo opcional, solo rol Developer. Supera el DECIDED 'Simulador = configurador' (2026-09-15). US19-US24b conservadas solo como registro; no trazan a construcción de U1.",
   "v4_1_note": "Refinamiento v4.1 (D14/ADR-013, 2026-10-19/20): desacople priorización↔liberación. US9 = solo priorización (deja DISP, no GENE, no oms_processed_at). US9b (liberación automática por ventana dispatch_date − dias_prep_picking, por viaje) y US9c (acción manual 'Procesar a Eflow', gated por rol) nuevas. oms_processed_at = liberado (no priorizado).",
-  "open_questions_as_dependencies": ["OQ-2", "OQ-3", "OQ-4", "OQ-5", "OQ-8", "OQ-lambda-activacion", "OQ-BO1", "OQ-BO2", "OQ-BO3", "OQ-REL1"]
+  "v4_2_note": "Refinamiento v4.2 (prioridad Cofersa, 2026-10-29; fuente docs/work/2026-10/2026-10-29-prioridad-cofersa-dias-hasta-salida.md): la prioridad de Cofersa pasa a escala 0..n = días hasta la salida (supera, solo para Cofersa, el DECIDED 2026-09-02 '2 prioridades' y '~2 prioridades/día'); 0 = liberado, nunca en la cola (piso de cola = 1); recálculo en cada barrido. US10, US11 y US13 (cliente-retira = piso de cola) corregidas; US10b nueva (estrategia de numeración por compañía, FR3.9). US-EPA sin cambio de comportamiento: EPA = 1 y 2 (nunca 0; el DECIDED 2026-09-02 sigue vigente para EPA). OQ-EPA-VAL — CERRADA 2026-10-30: EPA = 1 y 2 (confirmado por Eduardo; fuente 2026-09-01). OQ-4 resuelta para Cofersa. Abiertas: OQ-PRIO-A (aparcada), OQ-PRIO-B, OQ-PRIO-C.",
+  "open_questions_as_dependencies": ["OQ-2", "OQ-3", "OQ-4", "OQ-5", "OQ-8", "OQ-lambda-activacion", "OQ-BO1", "OQ-BO2", "OQ-BO3", "OQ-REL1", "OQ-PRIO-A", "OQ-PRIO-B", "OQ-PRIO-C"]
 }

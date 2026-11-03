@@ -7,7 +7,7 @@
 > el contrato cerrado (ADR-007 polling, ADR-008 eFlow read-only + costura).
 > Nomenclatura EFLOW/EPRAC.
 
-## Módulos de la unidad (7) y sus contratos
+## Módulos de la unidad (8, con `estrategias_prioridad.py` desde v4.2) y sus contratos
 
 | Módulo | Responsabilidad | Contrato (entrada → salida) |
 |---|---|---|
@@ -15,6 +15,7 @@
 | `cola_candidatos.py` | LECTURA de `public.orders` por polling | filtro `planning_run_id IS NOT NULL AND oms_processed_at IS NULL` → lista de `PedidoCandidato` |
 | `motor_reglas.py` | Orquesta: deriva EPA, invoca reglas, score, umbral, batching por compañía | `PedidoCandidato[]` → `RegistroPrioridad[]` |
 | `score.py` | **Submódulo PURO** de score ponderado → prioridad numérica invertida | pesos + señales → `(score, prioridad)` sin I/O |
+| `estrategias_prioridad.py` | **Submódulo PURO** (v4.2, ADR-014): elige por config cómo se numera la prioridad (`escala_lineal` default, `dias_hasta_salida` Cofersa) | `ContextoPrioridad` → `int` sin I/O |
 | `regla_fecha.py` | `fecha_listo = delivery_date − lead_time_days` (dinámico; default 1) | pedido + `lead_time_days` → contribución de score |
 | `analizador_observaciones.py` | **DIFERIDO (D11)** — cliente-retira es zona, no IA | n/a en esta rebanada |
 | `handoff_pedidos.py` | ESCRITURA: UPDATE orders + escritura 2 por costura | `RegistroPrioridad` → orders + `sim_expedicionescabecera` |
@@ -38,6 +39,28 @@
 ### Score — `score.py` (submódulo puro)
 - `score_ponderado(señales, pesos) -> float`; `score_a_prioridad(score, ...) -> int`
   (invertida: menor = más urgente). Sin I/O; testeable aislado (Testing Posture).
+  Desde v4.2, `score_a_prioridad` solo lo usa la estrategia `escala_lineal`.
+
+### Estrategias de prioridad — `estrategias_prioridad.py` (submódulo puro, v4.2 / ADR-014)
+- `ContextoPrioridad` (dataclass frozen): `pedido: PedidoCandidato`, `hoy: date`,
+  `score: float`, `cliente_retira: bool`, `config: ConfiguracionReglas`. Lo arma
+  `motor_reglas._priorizar_uno` tras calcular el score.
+- `EstrategiaPrioridad = Callable[[ContextoPrioridad], int]`.
+- `escala_lineal(ctx) -> int`: delega en `score.score_a_prioridad(score,
+  cliente_retira, config)` → `[1, escala_prioridad]`. Comportamiento previo intacto.
+- `dias_hasta_salida(ctx) -> int` (Cofersa): `piso = config.prioridad_piso`;
+  cliente-retira → `piso`; ancla según `config.ancla_fecha` (`entrega` →
+  `regla_fecha.fecha_entrega`; si no, `regla_fecha.fecha_alistado_objetivo`); ancla
+  `None` (fecha centinela) → `piso`; resto → `max(piso, (ancla − hoy).days)`.
+- `resolver(nombre: str | None) -> EstrategiaPrioridad`: busca en el registro
+  `{escala_lineal, dias_hasta_salida}`; nombre desconocido o `None` → `escala_lineal`.
+- Constantes (fuente única en `models.py`): `ESTRATEGIA_ESCALA_LINEAL =
+  "escala_lineal"`, `ESTRATEGIA_DIAS_HASTA_SALIDA = "dias_hasta_salida"`,
+  `ANCLA_ALISTADO = "alistado"`, `ANCLA_ENTREGA = "entrega"`,
+  `PRIORIDAD_PISO_DEFECTO = 1`.
+- Config: `reglas_config.py` lee `estrategia`, `ancla_fecha` y `prioridad_piso` de
+  la fila de `oms_rule_configs` (defaults `escala_lineal` / `alistado` / 1; un
+  `prioridad_piso = 0` explícito se respeta, no se coacciona a 1).
 
 ### Handoff — `handoff_pedidos.py`
 - **Escritura 1**: `UPDATE orders SET priority, oms_score, wms_situation='GENE',
@@ -52,7 +75,9 @@
 
 1. Polling de `orders` (cola_candidatos) → candidatos del lote pendientes.
 2. Por compañía: EPA → ReglaEPA (prioridad pre-asignada); resto → ReglaFecha +
-   cliente-retira-por-zona → score (puro) → umbral.
+   cliente-retira-por-zona → score (puro) → **número de prioridad con
+   `estrategias_prioridad.resolver(config.estrategia)(ContextoPrioridad(...))`**
+   (v4.2) → umbral.
 3. Handoff: escritura 1 (orders + `oms_processed_at=now()`) → escritura 2 (costura).
 
 ## Sources
@@ -60,6 +85,8 @@
 - `aidlc/spaces/default/intents/260826-modulo-oms/inception/domain-design/components.md` (v4) y `decisions.md` (ADR-007, ADR-008, ADR-009, ADR-010, ADR-011).
 - `aidlc/spaces/default/intents/260826-modulo-oms/inception/contract-design/contract-summary.md` (C1, C2).
 - Código as-built: `backend/oms/src/*.py`, `backend/tests/test_oms.py`.
+- `docs/work/2026-10/2026-10-29-prioridad-cofersa-dias-hasta-salida.md` (v4.2:
+  `estrategias_prioridad.py`, `sql/55`; ADR-014).
 
 ## Assumptions & Open Questions
 
@@ -67,3 +94,7 @@
   re-abre.
 - Pendiente externo (no bloquea): endpoint real de EPRAC detrás de `EscritorSituacion`.
 - `analizador_observaciones.py` diferido (D11).
+- v4.2 (ADR-014), abiertas: OQ-PRIO-A (aparcada), OQ-PRIO-B, OQ-PRIO-C.
+  OQ-EPA-VAL — CERRADA 2026-10-30: EPA = 1 y 2 (confirmado por Eduardo; fuente 2026-09-01).
+  Follow-up de construcción: que la liberación de Cofersa escriba prioridad 0 al WMS (hoy solo
+  se garantiza que la cola nunca muestra 0).

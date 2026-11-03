@@ -43,7 +43,8 @@ de `project.md` (`## Decided`) y los cambios D7–D13:
   (atómica, nunca `GENE` sin prioridad) + escritura 2 = **EFLOW real**
   (`TPEXSI='GENE'` + `PRIORIDAD`); **el OMS no escribe el número de viaje**.
 - **EPA cortocircuita el score (D9)**: US-EPA — prioridad pre-asignada por EPRAC
-  (guion-0=0, guion-1=1), sin T−duración ni score.
+  (EPA = 1 y 2; nunca 0; OQ-EPA-VAL cerrada 2026-10-30), sin
+  T−duración ni score.
 - **Regla fecha generalizada (D10)**: US7/US8 — `fecha_entrega − duración`, con la
   duración como insumo de Planificación.
 - **Cliente retira = zona (D11)**: US13 por `delivery_zone`; US12 (observaciones

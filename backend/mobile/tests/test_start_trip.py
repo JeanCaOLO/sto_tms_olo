@@ -84,7 +84,7 @@ def test_start_without_origin_coordinates_has_no_planned_times(call, fake_db):
 
 def test_cannot_start_another_trip_while_current_has_pending_stops(call, fake_db):
     prepare(fake_db)
-    fake_db.answer("FROM routes r WHERE r.organization_id", [{"id": "otra-ruta"}])
+    fake_db.answer("SELECT r.id FROM routes r", [{"id": "otra-ruta"}])
     response = call(START, path={"id": TRIP})
     assert response["statusCode"] == 409 and body_of(response)["error"]["code"] == "trip_in_progress"
     assert not fake_db.wrote("INSERT INTO routes")
