@@ -35,6 +35,17 @@ WHERE p.organization_id = %s AND p.warehouse_id = %s AND p.customer_id = %s AND 
 LIMIT 1"""
 
 
+def en_ventana(dia: str, hoy: str) -> bool:
+    """El día (ISO) cae en la ventana que planifica el replan: (hoy, hoy+HORIZONTE_DIAS]."""
+    return pg.query("SELECT %s::date > %s::date AND %s::date <= %s::date + %s::int AS ok",
+                    [dia, hoy, dia, hoy, HORIZONTE_DIAS])[0]["ok"]
+
+
+def bloqueado(org: str, warehouse: str, customer: str, dia: str) -> bool:
+    """El día ya tiene viajes despachados (completed/cancelled): no se re-arma."""
+    return bool(pg.query(_BLOQUEADO, [org, warehouse, customer, dia]))
+
+
 def replanificar_todo(org: str, country: str, warehouse: str, created_by: str) -> dict:
     """(Re)planifica todos los días pendientes, POR CLIENTE. Devuelve qué (día/cliente)
     se planificaron y cuáles se saltaron por estar ya despachados."""
@@ -43,7 +54,7 @@ def replanificar_todo(org: str, country: str, warehouse: str, created_by: str) -
     for r in pg.query(_PENDIENTES, [org, warehouse, HORIZONTE_DIAS]):
         cust, dia = r["cust"], r["d"]
         etiqueta = f"{dia}/{cust[:8]}"
-        if pg.query(_BLOQUEADO, [org, warehouse, cust, dia]):
+        if bloqueado(org, warehouse, cust, dia):
             bloqueados.append(etiqueta)
             continue
         if plan_builder.construir_y_persistir(org, country, warehouse, cust, dia, created_by):

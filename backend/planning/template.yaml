@@ -116,6 +116,17 @@ Resources:
         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
       Target: !Sub integrations/${PlanningApiIntegration}
 
+  PlanningOrderDeliveryDateRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/v1/planificacion/pedidos/{id}/fecha-entrega
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${PlanningApiIntegration}
+
   PlanningBandejaRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:

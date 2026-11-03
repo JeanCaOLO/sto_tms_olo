@@ -16,6 +16,8 @@ import json
 import logging
 import re
 
+import bandeja
+import cambio_fecha
 import ingest_orders
 import pedido_articulos
 import plan_builder
@@ -70,35 +72,23 @@ def list_orders(event: dict) -> dict:
     return json_response(200, {"data": rows, "error": None})
 
 
-BANDEJA_SQL = """
-SELECT o.id,
-       o.eflow_id_expedicion, o.eflow_id_almacen, o.eflow_id_compania, o.eflow_id_sucursal,
-       fc.name AS final_customer_name,
-       o.delivery_zone, o.total_amount, o.total_weight, o.total_volume, o.total_items,
-       o.observaciones, o.delivery_date, o.order_date, o.wms_status, o.wms_situation
-FROM orders o
-LEFT JOIN final_customers fc ON fc.id = o.final_customer_id
-WHERE o.organization_id = %s
-  AND o.wms_status = 'DISP' AND o.wms_situation = 'DISP'
-  AND o.eflow_id_expedicion IS NOT NULL{scope}
-ORDER BY o.delivery_date, o.eflow_id_expedicion
-"""
-
-
 def list_bandeja(event: dict) -> dict:
-    """Pedidos en Bandeja: TODOS los DISP/DISP crudos de eFlow ya guardados en orders,
-    de donde el planificador toma los que caen en su ventana de días."""
+    """Pedidos en Bandeja: DISP/DISP de eFlow (delivery) + devoluciones abiertas (pickup)."""
     permissions.for_event(event).require("planificacion", "view")
-    params: list = [_organization(event)]
-    scope = ""
-    if (warehouse := _warehouse(event)):
-        scope += " AND o.warehouse_id = %s"
-        params.append(warehouse)
-    if (customer := _customer(event)):
-        scope += " AND o.customer_id = %s"
-        params.append(customer)
-    rows = pg.query(BANDEJA_SQL.format(scope=scope), params)
+    rows = bandeja.listar(_organization(event), _warehouse(event), _customer(event))
     return json_response(200, {"data": rows, "error": None})
+
+
+def cambiar_fecha_entrega(event: dict) -> dict:
+    """Cambia la fecha de entrega de un pedido. Solo admin (reunión 2026-11-03)."""
+    if not permissions.for_event(event).is_admin:
+        raise HttpError(403, "Solo un administrador puede cambiar la fecha de entrega")
+    fecha = (json.loads(event.get("body") or "{}")).get("delivery_date")
+    if not fecha or not ISO_DATE.match(fecha):
+        raise HttpError(400, "delivery_date debe tener formato YYYY-MM-DD")
+    user = _app_user(event)
+    data = cambio_fecha.cambiar(path_param(event, "id"), user["org"], fecha, user["id"])
+    return json_response(200, {"data": data, "error": None})
 
 
 def list_planes(event: dict) -> dict:
@@ -171,6 +161,7 @@ ROUTES = {
     "GET /api/v1/planificacion/pedidos": list_orders,
     "GET /api/v1/planificacion/bandeja": list_bandeja,
     "GET /api/v1/planificacion/pedidos/{id}/articulos": get_articulos,
+    "POST /api/v1/planificacion/pedidos/{id}/fecha-entrega": cambiar_fecha_entrega,
     "GET /api/v1/planificacion/planes": list_planes,
     "GET /api/v1/planificacion/planes/{id}": get_plan,
     "POST /api/v1/planificacion/planes": build_plan,

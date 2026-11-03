@@ -72,15 +72,17 @@ def _lookups(filas: list[dict]) -> tuple[dict, dict, dict]:
 _UPSERT = """
 INSERT INTO orders (
   organization_id, customer_id, final_customer_id, branch_id, warehouse_id,
-  order_number, order_date, delivery_date, planned_dispatch_at,
+  order_number, order_date, delivery_date, delivery_date_eflow, planned_dispatch_at,
   total_weight, total_volume, total_items, total_amount, delivery_address, delivery_latitude, delivery_longitude,
   delivery_zone, priority, status, wms_status, wms_situation,
   observaciones, es_cliente_retira,
   eflow_id_compania, eflow_id_almacen, eflow_id_sucursal, eflow_id_expedicion, eflow_id_cliente)
-VALUES (%s,%s,%s,%s,%s, %s,%s,%s,%s, %s,%s,%s,%s,%s,%s,%s, %s,%s,'pending',%s,%s, %s,%s, %s,%s,%s,%s,%s)
+VALUES (%s,%s,%s,%s,%s, %s,%s,%s,%s,%s, %s,%s,%s,%s,%s,%s,%s, %s,%s,'pending',%s,%s, %s,%s, %s,%s,%s,%s,%s)
 ON CONFLICT (eflow_id_almacen, eflow_id_compania, eflow_id_sucursal, eflow_id_expedicion)
 DO UPDATE SET
-  delivery_date = EXCLUDED.delivery_date, planned_dispatch_at = EXCLUDED.planned_dispatch_at,
+  -- Fecha cambiada a mano en la Bandeja (sql/57): eFlow ya no la pisa; lo suyo queda en delivery_date_eflow.
+  delivery_date = CASE WHEN orders.delivery_date_changed_at IS NULL THEN EXCLUDED.delivery_date ELSE orders.delivery_date END,
+  delivery_date_eflow = EXCLUDED.delivery_date_eflow, planned_dispatch_at = EXCLUDED.planned_dispatch_at,
   total_weight = EXCLUDED.total_weight, total_volume = EXCLUDED.total_volume,
   total_items = EXCLUDED.total_items, total_amount = EXCLUDED.total_amount,
   delivery_address = EXCLUDED.delivery_address,
@@ -124,7 +126,7 @@ def ingest_cr(limite: int = 500, dry_run: bool = False) -> dict:
         if not dry_run:
             pg.query(_UPSERT, [
                 ORG_CR, customer_id, final_id, branch_id, WAREHOUSE_CR,
-                r["IDEXPEDICION"], r["FECHA"], r["FECHA"], r["FECHA"],
+                r["IDEXPEDICION"], r["FECHA"], r["FECHA"], r["FECHA"], r["FECHA"],
                 r["PESOPEDIDO_TOTAL"], r["CUBICAJEPEDIDO_TOTAL"], r["CANT_LINEAS"], r["COSTO_TOTAL"], r["DIRECCIONLARGA"],
                 _coord(r["LATITUD"]), _coord(r["LONGITUD"]),
                 r["RUTA"], _prioridad(r["PRIORIDAD"]), r["TPEXES"], r["TPEXSI"],
