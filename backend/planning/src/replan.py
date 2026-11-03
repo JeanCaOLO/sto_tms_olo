@@ -6,6 +6,10 @@ Hoy no se planifica y lo posterior a la ventana no se muestra hasta que avance e
 día. NO toca días que ya tienen viajes despachados (completed/cancelled).
 """
 
+import logging
+import os
+
+import ingest_orders
 import plan_builder
 from tms_common import pg
 
@@ -45,3 +49,27 @@ def replanificar_todo(org: str, country: str, warehouse: str, created_by: str) -
         if plan_builder.construir_y_persistir(org, country, warehouse, cust, dia, created_by):
             planificados.append(etiqueta)
     return {"planificados": planificados, "bloqueados": bloqueados}
+
+
+# Almacenes con cola: la corrida programada no tiene usuario/almacén de un request.
+# Autor (route_plans.created_by es NOT NULL): REPLAN_APP_USER_ID si está, si no el
+# app_user activo más antiguo de la org. ponytail: upgrade = un app_user "Sistema".
+_ALMACENES = """
+SELECT DISTINCT o.organization_id::text AS org, o.warehouse_id::text AS wh, w.country_id::text AS country,
+  COALESCE(%s::uuid, (SELECT u.id FROM app_users u WHERE u.organization_id = o.organization_id
+                      AND u.is_active ORDER BY u.created_at LIMIT 1))::text AS autor
+FROM orders o JOIN warehouses w ON w.id = o.warehouse_id
+WHERE o.eflow_id_expedicion IS NOT NULL AND o.wms_status = 'DISP' AND o.wms_situation = 'DISP'"""
+
+
+def replanificar_programado() -> dict:
+    """Corrida horaria (EventBridge Scheduler, ver template): ingesta eFlow y replanifica
+    cada almacén con cola."""
+    try:
+        ingest_orders.ingest_cr()
+    except Exception:  # noqa: BLE001 - frontera: no bloquear por eFlow
+        logging.getLogger().warning("ingest eFlow no disponible; se replanifica sobre lo ya ingestado")
+    almacenes = pg.query(_ALMACENES, [os.environ.get("REPLAN_APP_USER_ID") or None])
+    res = {a["wh"]: replanificar_todo(a["org"], a["country"], a["wh"], a["autor"]) for a in almacenes}
+    logging.getLogger().info("replan programado: %s", res)
+    return res

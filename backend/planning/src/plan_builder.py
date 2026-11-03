@@ -3,13 +3,14 @@ real del camión y los PERSISTE en route_plans/plan_trips/plan_stops.
 
 Reemplaza el agrupamiento fijo de la demo: los pedidos de una zona se consolidan
 en la flota propia (vehicles) por peso/volumen con margen legal CR, no por un
-número fijo de paradas. Idempotente: re-planificar un día borra sus planes y los
-reconstruye con la cola vigente (replan).
+número fijo de paradas. Idempotente: re-planificar un día borra lo no liberado y lo
+reconstruye con la cola vigente (replan); lo ya liberado a eFlow no se toca.
 """
 
 import math
 import uuid
 
+import viajes_liberados
 from tms_common import pg
 
 # Márgenes de seguridad (ver capacity-fit.ts / Decreto 31363-MOPT): el peso es
@@ -63,7 +64,7 @@ LEFT JOIN final_customers fc ON fc.id = o.final_customer_id
 WHERE o.organization_id = %s AND o.warehouse_id = %s AND o.customer_id = %s
   AND o.eflow_id_expedicion IS NOT NULL
   AND o.wms_status = 'DISP' AND o.wms_situation = 'DISP'
-  AND o.delivery_date = %s::date
+  AND o.delivery_date = %s::date AND """ + viajes_liberados.fuera_de_congelados("o.id") + """
 ORDER BY COALESCE(o.delivery_zone, 'ZZZ'), o.priority NULLS LAST, o.total_weight DESC NULLS LAST
 """
 
@@ -98,16 +99,6 @@ def _empacar(pedidos: list[dict], flota: list[dict], vi: int) -> tuple[list[dict
         restantes = fuera
         vi += 1
     return viajes, vi
-
-
-def _borrar_plan_del_dia(run, org: str, warehouse: str, customer: str, fecha: str) -> None:
-    sel = "organization_id=%s AND warehouse_id=%s AND customer_id=%s AND plan_date=%s::date"
-    p = [org, warehouse, customer, fecha]
-    run(f"""DELETE FROM plan_stops WHERE trip_id IN (
-             SELECT t.id FROM plan_trips t JOIN route_plans pl ON pl.id = t.plan_id WHERE pl.{sel})""", p)
-    run(f"DELETE FROM plan_trips WHERE plan_id IN (SELECT id FROM route_plans WHERE {sel})", p)
-    run(f"DELETE FROM route_plans WHERE {sel}", p)
-    run("UPDATE orders SET planning_run_id=NULL, numero_viaje=NULL, dispatch_date=NULL, lead_time_days=NULL, updated_at=now() WHERE organization_id=%s AND warehouse_id=%s AND customer_id=%s AND (delivery_date=%s::date OR numero_viaje LIKE %s) AND planning_run_id IS NOT NULL", p + [f"{fecha.replace('-', '')}-%"])  # OMS: pedidos caidos del plan vuelven a NULL -- por delivery_date O por nº de viaje del dia (asi alcanza a los que cambiaron de fecha); si siguen, _persistir_viaje los re-estampa
 
 
 def _agrupar_por_zona(pedidos: list[dict]) -> dict:
@@ -166,7 +157,7 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
     Los pedidos 'cliente retira' NO se rutean: van a una zona RETIRA sin camión."""
     pedidos = pg.query(_ORDERS, [org, warehouse, customer, fecha])
     if not pedidos:
-        pg.run_in_transaction(lambda run: _borrar_plan_del_dia(run, org, warehouse, customer, fecha))
+        pg.run_in_transaction(lambda run: viajes_liberados.borrar_no_liberado(run, org, warehouse, customer, fecha))
         return None
     retira = [o for o in pedidos if o["es_cliente_retira"]]
     normales = [o for o in pedidos if not o["es_cliente_retira"]]
@@ -179,12 +170,12 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
     fecha_compact = fecha.replace("-", "")
 
     def trabajo(run):
-        _borrar_plan_del_dia(run, org, warehouse, customer, fecha)
-        plan = run("""INSERT INTO route_plans (organization_id, country_id, warehouse_id, customer_id, plan_date, status, created_by)
-                      VALUES (%s,%s,%s,%s,%s::date,'confirmed',%s) RETURNING id""",
-                   [org, country, warehouse, customer, fecha, created_by])
-        plan_id = plan[0]["id"]
-        seq = 0
+        viajes_liberados.borrar_no_liberado(run, org, warehouse, customer, fecha)
+        plan_id, seq = viajes_liberados.plan_vigente(run, org, warehouse, customer, fecha)  # seq sigue tras los congelados
+        if plan_id is None:
+            plan_id = run("""INSERT INTO route_plans (organization_id, country_id, warehouse_id, customer_id, plan_date, status, created_by)
+                             VALUES (%s,%s,%s,%s,%s::date,'confirmed',%s) RETURNING id""",
+                          [org, country, warehouse, customer, fecha, created_by])[0]["id"]
         vi = 0
         for zona, ped_zona in sorted(_agrupar_por_zona(normales).items()):
             viajes, vi = _empacar(ped_zona, flota, vi)

@@ -177,4 +177,12 @@ ROUTES = {
     "POST /api/v1/planificacion/planes/replanificar": replan_todo,
 }
 
-handler = tms_handler(ROUTES)
+_http_handler = tms_handler(ROUTES)
+REPLAN_PROGRAMADO = "replan_programado"  # Input del Scheduler en template.yaml
+
+
+def handler(event: dict, context: object) -> dict:
+    """EventBridge Scheduler (replan horario) o API Gateway (rutas HTTP)."""
+    if isinstance(event, dict) and event.get("accion") == REPLAN_PROGRAMADO:
+        return replan.replanificar_programado()
+    return _http_handler(event, context)
