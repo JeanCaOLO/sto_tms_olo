@@ -1,6 +1,7 @@
 // Motor del refresco periódico (sin React): una sola consulta en vuelo, timeout con abort, espera creciente ante
 // errores y pausa con la pestaña oculta. `usePolling` solo lo conecta al ciclo de vida del componente.
 import type { MutableRefObject } from 'react';
+import { shareStructure } from './share-structure';
 
 export const POLL_INTERVAL_MS = 5_000;
 export const REQUEST_TIMEOUT_MS = 15_000;
@@ -58,7 +59,7 @@ export function startPoller<T>({ fetcher, intervalMs, timeoutMs, setState }: Pol
       const data = await fetcher.current(controller.signal);
       if (stopped) return;
       failures = 0;
-      setState(() => ({ data, error: null, loading: false, updatedAt: Date.now() }));
+      setState((prev) => ({ data: shareStructure(prev.data, data), error: null, loading: false, updatedAt: Date.now() }));
     } catch (err) {
       if (stopped) return;
       failures += 1;

@@ -7,7 +7,9 @@ refleja para mostrar u ocultar botones.
 
 from tms_common.errors import HttpError
 
-ACTIONS = ("approve", "reject", "skip", "resubmit")
+ACTIONS = ("approve", "reject", "skip", "resubmit", "appeal")
+# Roles (además de los administradores) que gestionan reclamos: reiniciar la liquidación o apelar.
+MANAGER_ROLES = ("liquidador",)
 
 
 def current_phase(phases: list[dict]) -> dict | None:
@@ -25,6 +27,11 @@ def resolve_status(phases: list[dict]) -> str:
 
 def _same(a: str | None, b: str | None) -> bool:
     return (a or "").strip().lower() == (b or "").strip().lower()
+
+
+def can_manage(role_name: str | None, is_admin: bool) -> bool:
+    """Quien gestiona reclamos: el Liquidador o un administrador. El servidor lo decide; la UI solo lo refleja."""
+    return is_admin or (role_name or "").strip().lower() in MANAGER_ROLES
 
 
 def can_decide(phase: dict, phases: list[dict], user_id: str, role_name: str | None) -> bool:
@@ -48,6 +55,8 @@ def plan_decision(phases: list[dict], phase_id: str | None, action: str, *, user
         raise HttpError(400, f'La acción debe ser una de: {", ".join(ACTIONS)}')
     if action == "resubmit":
         return _resubmit(phases)
+    if action == "appeal":
+        return _appeal(phases, role_name, is_admin, comment)
     phase = next((p for p in phases if p["id"] == phase_id), None)
     if phase is None:
         raise HttpError(404, "La fase no existe en esta proforma.")
@@ -77,6 +86,19 @@ def _resubmit(phases: list[dict]) -> dict:
         raise HttpError(409, "Solo se puede reenviar una proforma rechazada.")
     changes = {p["id"]: {"state": "pendiente", "reset": True} for p in phases if p["state"] != "omitida"}
     return _result(phases, changes)
+
+
+def _appeal(phases: list[dict], role_name: str | None, is_admin: bool, reason: str | None) -> dict:
+    """El liquidador devuelve la proforma a la fase que la rechazó, explicando por qué el reclamo no procede.
+    Las fases ya aprobadas se conservan; la rechazada vuelve a `pendiente` y su rol decide de nuevo."""
+    if not can_manage(role_name, is_admin):
+        raise HttpError(403, "Solo el liquidador puede apelar un reclamo.")
+    if not reason:
+        raise HttpError(400, "Explica por qué el reclamo no procede.")
+    rejected = next((p for p in sorted(phases, key=lambda p: p["position"]) if p["state"] == "rechazada"), None)
+    if rejected is None:
+        raise HttpError(409, "Solo se puede apelar una proforma rechazada.")
+    return _result(phases, {rejected["id"]: {"state": "pendiente", "reset": True}})
 
 
 def _result(phases: list[dict], changes: dict[str, dict]) -> dict:

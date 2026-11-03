@@ -30,6 +30,7 @@ export default {
   'tracking.noTripsFiltered': 'No trips match the selected indicator',
   'tracking.progress': '{{done}} of {{total}} stops',
   'tracking.noStops': 'No stops',
+  'tracking.stopsUnavailable': 'This trip\'s stops could not be loaded.',
   'tracking.noPosition': 'No location yet',
   'tracking.clusterTip': '{{count}} trucks here: click to zoom in',
   'tracking.noDriver': 'No driver',

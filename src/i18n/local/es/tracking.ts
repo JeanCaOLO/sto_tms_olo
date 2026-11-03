@@ -30,6 +30,7 @@ export default {
   'tracking.noTripsFiltered': 'Ningún viaje coincide con el indicador elegido',
   'tracking.progress': '{{done}} de {{total}} paradas',
   'tracking.noStops': 'Sin paradas',
+  'tracking.stopsUnavailable': 'No se pudieron cargar las paradas de este viaje.',
   'tracking.noPosition': 'Sin ubicación todavía',
   'tracking.clusterTip': '{{count}} camiones aquí: clic para acercar',
   'tracking.noDriver': 'Sin conductor',

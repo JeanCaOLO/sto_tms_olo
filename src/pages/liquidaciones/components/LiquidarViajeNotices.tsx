@@ -11,12 +11,20 @@ interface Props {
   loadError: string;
   /** Falta la lógica de costos de la flota del viaje: se ofrece el enlace para cargarla. */
   noLogic?: NoLogicInfo | null;
+  /** El viaje volvió por un reclamo de proforma: su motivo es la indicación para re-liquidar. */
+  claimReason?: string | null;
 }
 
-export function LiquidarViajeNotices({ calculation, error, loadError, noLogic }: Props) {
+export function LiquidarViajeNotices({ calculation, error, loadError, noLogic, claimReason }: Props) {
   const progreso = calculation ? tripProgress(calculation.trip) : null;
   return (
     <>
+      {claimReason && (
+        <div className="bg-red-50 border border-red-200 text-red-800 text-sm rounded-lg px-4 py-3 mb-4">
+          <div className="font-medium"><i className="ri-error-warning-line mr-1" />Anulada por reclamo</div>
+          <p className="mt-1">Indicación para re-liquidar: “{claimReason}”</p>
+        </div>
+      )}
       {(error || loadError) && (
         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 mb-4">
           {error || loadError}

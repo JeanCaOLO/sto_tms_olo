@@ -4,7 +4,8 @@ import Badge from '../../../components/base/Badge';
 import Button from '../../../components/base/Button';
 import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
 import { formatMoney } from '../../../lib/tarifas/format';
-import type { ProformaDetail } from '../../../lib/tarifas/proformas';
+import type { IrregularFlag, ProformaDetail } from '../../../lib/tarifas/proformas';
+import IrregularBadge from './IrregularBadge';
 
 type Item = ProformaDetail['items'][number];
 
@@ -16,15 +17,22 @@ interface Props {
   onExclude: (settlementId: string) => void;
   /** Clic en una línea: abre el desglose de esa liquidación. */
   onOpen: (settlementId: string) => void;
+  /** Alertas de irregularidad por liquidación (vacío = típica). */
+  flags?: Map<string, IrregularFlag[]>;
 }
 
-export default function ProformaItemsTable({ detail, canToggle, busy, onInclude, onExclude, onOpen }: Props) {
+export default function ProformaItemsTable({ detail, canToggle, busy, onInclude, onExclude, onOpen, flags }: Props) {
   const currency = detail.proforma.currency;
   const columns: DataTableColumn<Item>[] = [
     {
       key: 'number', header: 'Liquidación', sortable: true,
       accessor: (i) => detail.settlements.get(i.settlementId)?.number ?? i.settlementId,
-      render: (i) => <span className="font-mono text-xs text-teal-700">{detail.settlements.get(i.settlementId)?.number ?? i.settlementId}</span>,
+      render: (i) => (
+        <span className="inline-flex items-center gap-2">
+          <span className="font-mono text-xs text-teal-700">{detail.settlements.get(i.settlementId)?.number ?? i.settlementId}</span>
+          <IrregularBadge flags={flags?.get(i.settlementId) ?? []} />
+        </span>
+      ),
     },
     { key: 'trip', header: 'Viaje', sortable: true, accessor: (i) => detail.settlements.get(i.settlementId)?.tripNumber ?? '' },
     { key: 'date', header: 'Fecha', sortable: true, accessor: (i) => detail.settlements.get(i.settlementId)?.settlementDate ?? '' },

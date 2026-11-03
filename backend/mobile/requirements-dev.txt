@@ -1,2 +1,4 @@
 -r src/requirements.txt
 pytest==8.3.3
+# Solo para probar S3 real en local (en Lambda boto3 ya viene en el runtime, por eso no está en src/requirements.txt).
+boto3>=1.35

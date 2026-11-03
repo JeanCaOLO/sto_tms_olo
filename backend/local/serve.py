@@ -58,6 +58,15 @@ def load_env_files() -> None:
             if sep and not key.strip().startswith("#"):
                 os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
     os.environ.setdefault("EFLOW_MODE", "mock")
+    os.environ.setdefault("TRACKING_BUCKET", "local-dev")  # sin esto el detalle de tracking fallaba al firmar evidencias
+    # Las evidencias de la app del chofer viven en SU bucket (backend/mobile). Sin este valor, tracking firma la lectura
+    # en TRACKING_BUCKET y el enlace de la foto no abre. Se toma del .env del backend móvil para no repetirlo.
+    mobile_env = BACKEND / "mobile" / ".env"
+    if mobile_env.exists():
+        for line in mobile_env.read_text(encoding="utf-8").splitlines():
+            key, sep, value = line.partition("=")
+            if sep and key.strip() == "EVIDENCE_BUCKET" and value.strip():
+                os.environ.setdefault("MOBILE_EVIDENCE_BUCKET", value.strip().strip('"').strip("'"))
 
 
 def load_module(name: str, path: Path):

@@ -169,6 +169,10 @@ CREATE TABLE IF NOT EXISTS tarifas_settlements (
   rules_used jsonb NOT NULL,
   excluded_seqs jsonb NOT NULL,
   base_change jsonb,
+  void_kind text,
+  void_reason text,
+  claim_id text,
+  from_claim_id text,
   returns jsonb NOT NULL,
   superseded_by text,
   created_at timestamptz NOT NULL,
@@ -323,6 +327,31 @@ CREATE TABLE IF NOT EXISTS tarifas_proforma_phases (
 );
 CREATE INDEX IF NOT EXISTS tarifas_proforma_phases_proforma_id_idx ON tarifas_proforma_phases (proforma_id);
 CREATE INDEX IF NOT EXISTS tarifas_proforma_phases_state_idx ON tarifas_proforma_phases (state);
+
+-- Reclamo de proforma
+CREATE TABLE IF NOT EXISTS tarifas_proforma_claims (
+  id text PRIMARY KEY,
+  country_id uuid NOT NULL,
+  proforma_id text NOT NULL,
+  phase_id text NOT NULL,
+  phase_name text NOT NULL,
+  raised_by text NOT NULL,
+  raised_role text,
+  reason text NOT NULL,
+  status text NOT NULL,
+  appeal_reason text,
+  appealed_by text,
+  appealed_at timestamptz,
+  resolved_by text,
+  resolved_at timestamptz,
+  created_at timestamptz NOT NULL,
+  CONSTRAINT tarifas_proforma_claims_country_id_fkey FOREIGN KEY (country_id) REFERENCES countries (id) ON DELETE RESTRICT,
+  CONSTRAINT tarifas_proforma_claims_proforma_id_fkey FOREIGN KEY (proforma_id) REFERENCES tarifas_proformas (id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS tarifas_proforma_claims_country_id_idx ON tarifas_proforma_claims (country_id);
+CREATE INDEX IF NOT EXISTS tarifas_proforma_claims_proforma_id_idx ON tarifas_proforma_claims (proforma_id);
+CREATE INDEX IF NOT EXISTS tarifas_proforma_claims_status_idx ON tarifas_proforma_claims (status);
+CREATE INDEX IF NOT EXISTS tarifas_proforma_claims_created_at_idx ON tarifas_proforma_claims (created_at);
 
 -- Fase del flujo de proformas
 CREATE TABLE IF NOT EXISTS tarifas_proforma_flow_phases (

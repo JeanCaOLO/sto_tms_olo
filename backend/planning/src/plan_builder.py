@@ -31,10 +31,10 @@ def _haversine_km(a: tuple[float, float], b: tuple[float, float]) -> float:
     return 2 * r * math.asin(math.sqrt(h))
 
 
-def _lead_time_dias(pedidos: list[dict]) -> int | None:
-    """T-n por distancia real de la parada más lejana al depósito. None sin coords."""
+def _lead_time_dias(pedidos: list[dict]) -> int:
+    """T-n por distancia de la parada más lejana al depósito; sin coords → piso de 1 día (nunca None)."""
     kms = [_haversine_km(DEPOT_CR, (o["lat"], o["lng"])) for o in pedidos if o["lat"] is not None and o["lng"] is not None]
-    return 1 + int(max(kms) // KM_POR_DIA) if kms else None
+    return 1 + int(max(kms) // KM_POR_DIA) if kms else 1  # ponytail: piso sin coords; upgrade = geocodificar en el ingest
 
 
 def _ordenar_por_ruta(pedidos: list[dict]) -> list[dict]:
@@ -117,7 +117,7 @@ def _agrupar_por_zona(pedidos: list[dict]) -> dict:
     return zonas
 
 
-# dispatch_date = salida = delivery_date (ya en la fila) - lead_time_days; sin lead (NULL) queda NULL y el OMS usa su default.
+# dispatch_date = salida = delivery_date - lead_time_days; lead nunca es NULL, siempre hay salida.
 _UPD_ORDER = "UPDATE orders SET numero_viaje=%s, lead_time_days=%s, dispatch_date=(delivery_date - make_interval(days => %s))::date, planning_run_id=%s, updated_at=now() WHERE id=%s"
 # Write-back del nº de viaje a la tabla espejo de eFlow. UPDATE (no insert): solo sobre
 # la fila ya espejada (no crea parciales). NUMEROVIAJEWMH es bigint (nº de viaje sin guion).

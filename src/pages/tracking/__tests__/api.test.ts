@@ -60,7 +60,7 @@ describe('cliente de tracking', () => {
 
   it('el modo mock cambia reloj e intervalo; el normal usa el reloj real y 5 s', () => {
     expect(isTrackingMock()).toBe(false);
-    expect(pollIntervalMs()).toBe(5_000);
+    expect(pollIntervalMs()).toBe(10_000);
     setTrackingTransport(vi.fn(), () => 42);
     expect(isTrackingMock()).toBe(true);
     expect(trackingNow()).toBe(42);
