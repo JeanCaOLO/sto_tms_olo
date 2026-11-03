@@ -28,7 +28,7 @@ pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Archivos de entorno locales (nunca deben ir a git — ver Estandares_Desarrollo_AWS_Intelix.md §12)
+# Archivos de entorno locales (nunca deben ir a git â€” ver Estandares_Desarrollo_AWS_Intelix.md Â§12)
 .env
 .env.local
 .env.*.local
@@ -36,7 +36,7 @@ yarn-error.log*
 .env.local.bak
 *.env.bak
 
-# Buffer local de traspaso de mensajes a Kiro (scratch de sesión, no es artefacto del proyecto)
+# Buffer local de traspaso de mensajes a Kiro (scratch de sesiÃ³n, no es artefacto del proyecto)
 /mensajes para kiro.md
 
 # OS / editor
@@ -58,24 +58,24 @@ Thumbs.db
 
 
 # BEGIN AI-DLC:gitignore
-# AI-DLC — the committed-vs-ignored split (workspace layout, re-rooted under aidlc/).
-# Rule of thumb (vision §5.1): per-user session CURSORS and machine-local
-# runtime/derived state are ignored; everything that is the shared work —
-# method, registry, state, AUDIT (per-clone shards), artifacts — is committed.
+# AI-DLC â€” the committed-vs-ignored split (workspace layout, re-rooted under aidlc/).
+# Rule of thumb (vision Â§5.1): per-user session CURSORS and machine-local
+# runtime/derived state are ignored; everything that is the shared work â€”
+# method, registry, state, AUDIT (per-clone shards), artifacts â€” is committed.
 #
-# Per-user session cursors — ignored (two teammates legitimately point at
+# Per-user session cursors â€” ignored (two teammates legitimately point at
 # different spaces/intents at once; committing them would turn per-user
 # navigation into shared state and cause conflicts on births and switches).
 aidlc/active-space
 aidlc/spaces/*/intents/active-intent
 #
-# Machine-local runtime / derived — ignored (regenerated per machine).
+# Machine-local runtime / derived â€” ignored (regenerated per machine).
 # The clone-id token names this clone's audit shard; it MUST stay machine-local
 # (gitignored) or every clone from a commit would share a shard and git-conflict.
 aidlc/.aidlc-clone-id
 # Atomic active-space create staging (normally unlinked immediately).
 aidlc/.aidlc-active-space-*.tmp
-# Per-conversation session→intent map (resume rebind, P8): per-user runtime
+# Per-conversation sessionâ†’intent map (resume rebind, P8): per-user runtime
 # state keyed by Claude Code session_id, never shared truth.
 aidlc/.aidlc-sessions/
 aidlc/spaces/*/intents/.aidlc-*
@@ -94,16 +94,16 @@ aidlc/spaces/*/knowledge/.sources.local.json
 aidlc/spaces/*/intents/*/runtime-graph.json
 aidlc/spaces/*/intents/*/.aidlc-*
 # Redacted diagnostic reports (/aidlc --doctor --export): regenerated, meant to
-# be shared then deleted — machine-local derived output, never shared truth.
+# be shared then deleted â€” machine-local derived output, never shared truth.
 aidlc/diagnostics/
 #
-# COMMITTED (NOT ignored, listed here for the record — do NOT add ignore rules
-# for these): aidlc/spaces/*/memory/** · aidlc/spaces/*/codekb/** ·
-# aidlc/spaces/*/intents/intents.json · aidlc/spaces/*/intents/*/aidlc-state.md ·
+# COMMITTED (NOT ignored, listed here for the record â€” do NOT add ignore rules
+# for these): aidlc/spaces/*/memory/** Â· aidlc/spaces/*/codekb/** Â·
+# aidlc/spaces/*/intents/intents.json Â· aidlc/spaces/*/intents/*/aidlc-state.md Â·
 # aidlc/spaces/*/intents/*/audit/*.md (the audit trail, committed as PER-CLONE
 # SHARDS: each machine appends to audit/<host>-<clone>.md so git never merges
-# concurrent appends — there is intentionally NO .gitattributes merge=union,
-# which was proven to corrupt the multi-line audit blocks) ·
+# concurrent appends â€” there is intentionally NO .gitattributes merge=union,
+# which was proven to corrupt the multi-line audit blocks) Â·
 # aidlc/spaces/*/intents/*/<phase>/<stage>/*.md (artifacts + diary).
 # END AI-DLC:gitignore
 
@@ -112,7 +112,7 @@ backend/**/.aws-sam/
 backend/.venv/
 backend/**/__pycache__/
 backend/.pytest_cache/
-# Enlaces que crea `orca skills install --local` con rutas absolutas de la máquina
+# Enlaces que crea `orca skills install --local` con rutas absolutas de la mÃ¡quina
 .claude/skills/orca-cli
 .claude/skills/orchestration
 # Skills de Intelix copiadas desde git.intelix.biz/grupomayoreo/template_base (templates/skills/)
@@ -121,7 +121,7 @@ backend/.pytest_cache/
 # Artefactos de despliegue al sandbox (scripts/sandbox/)
 build/
 
-# Exports de EFLOW con datos personales de clientes (contactos, teléfonos, emails): no versionar.
+# Exports de EFLOW con datos personales de clientes (contactos, telÃ©fonos, emails): no versionar.
 /CLIENTES_*.csv
 /SUCURSAL_*.csv
 
@@ -132,3 +132,5 @@ build/
 
 graphify-out/
 .test/
+# Respaldos locales de filas borradas/reconciliadas en pruebas (no commitear)
+backup-*.json

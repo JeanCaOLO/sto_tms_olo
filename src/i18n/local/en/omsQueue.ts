@@ -15,6 +15,7 @@ export default {
   'omsQueue.emptyFiltered': 'No order matches the filters.',
   'omsQueue.emptyNoOrders': 'No pending orders for this country.',
   'omsQueue.colPriority': 'Priority',
+  'omsQueue.notPrioritized': 'Not prioritized',
   'omsQueue.colOrder': 'Order',
   'omsQueue.colWarehouseId': 'Warehouse ID',
   'omsQueue.colCompanyId': 'Company ID',

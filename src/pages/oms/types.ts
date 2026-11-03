@@ -173,6 +173,10 @@ export interface OmsPipeline {
   enCola: number;        // pedidos en la BANDEJA: crudos DISP/DISP aún sin priorizar (los que salen a más de 3 días). Se cuenta desde el endpoint de la bandeja para coincidir 1:1 con esa vista
   priorizados: number;   // ya con prioridad, esperando la ventana de salida (prioritization_run_id, sin oms_processed_at)
   liberadosHoy: number;  // enviados a eFlow hoy (oms_processed_at = hoy)
+  // Indicadores de atención (reunión 2026-11-03):
+  sinFechaEntrega: number;   // pedidos abiertos sin delivery_date (anomalía: EFLOW siempre debería mandarla)
+  sinFechaSalida: number;    // pedidos YA planificados (planning_run_id) pero sin dispatch_date (p. ej. EPA sin coordenadas)
+  modificacionesFecha: number; // total de modificaciones de fecha de entrega (suma de delivery_date_change_count) sobre los pedidos abiertos
 }
 
 // Una fila de "por liberar pronto": pedidos priorizados-no-liberados agrupados por
