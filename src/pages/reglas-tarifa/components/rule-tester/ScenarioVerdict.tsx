@@ -34,7 +34,7 @@ export default function ScenarioVerdict({ veredicto, result, guardando, onFix }:
           <i className="ri-error-warning-line mr-1"></i>
           El total se movió: esperaba <strong>{formatMoney(veredicto.expected!, result.currency)}</strong>{' '}
           y da <strong>{formatMoney(veredicto.actual, result.currency)}</strong>{' '}
-          (diferencia {veredicto.drift}). Si el cambio es correcto, fijá el total nuevo.
+          (difiere en {formatMoney(veredicto.drift!, result.currency)}). Si el cambio es correcto, fija el total nuevo.
         </>
       )}
       {veredicto.verdict === 'SIN_ESPERADO' && (
@@ -42,7 +42,7 @@ export default function ScenarioVerdict({ veredicto, result, guardando, onFix }:
       )}
       {veredicto.verdict !== 'OK' && (
         <div className="mt-2">
-          <Button variant="secondary" size="sm" onClick={onFix} disabled={guardando}>
+          <Button variant="secondary" size="sm" onClick={onFix} disabled={guardando} aria-label="Fijar como el total esperado">
             <i className="ri-bookmark-line mr-1"></i>
             Fijar {formatMoney(veredicto.actual, result.currency)} como el total esperado
           </Button>

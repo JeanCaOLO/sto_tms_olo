@@ -17,7 +17,7 @@ export function ValueColumnsEditor({ text, error, savedColumns, current, onChang
       <h3 className="text-sm font-semibold text-slate-700">Columnas de valor adicionales (opcional)</h3>
       <p className="text-xs text-slate-500">
         Por defecto cada fila trae un solo importe. Si la misma combinación da más de un valor
-        (por ejemplo <em>flete</em> y <em>peaje</em>), escribí sus nombres separados por coma y
+        (por ejemplo <em>flete</em> y <em>peaje</em>), escribe sus nombres separados por coma y
         cada regla elegirá cuál usa.
       </p>
       <Input

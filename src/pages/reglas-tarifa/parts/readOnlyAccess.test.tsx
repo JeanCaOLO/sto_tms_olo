@@ -27,6 +27,13 @@ describe('solo lectura de la configuración', () => {
     expect(screen.queryByText('Alerta Margen')).toBeNull();
   });
 
+  it('son pestañas accesibles: tablist, la activa seleccionada y la lista con nombre', () => {
+    render(<TabNavigation activeTab="tarifarios" onTabChange={() => {}} />);
+    expect(screen.getByRole('tablist', { name: 'Secciones de reglas de tarifa' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Tarifarios' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('tab', { name: 'Reglas' }).getAttribute('aria-selected')).toBe('false');
+  });
+
   it('con permiso de edición aparecen todas las pestañas', () => {
     perms.canEdit = true;
     render(<TabNavigation activeTab="reglas" onTabChange={() => {}} />);
@@ -38,7 +45,7 @@ describe('solo lectura de la configuración', () => {
     const rules = [{ id: 'R1', code: 'R1', name: 'Regla 1', scope: 'COUNTRY', stacking: 'SUM', active: true }];
     render(<MemoryRouter><RulesSection rules={rules} parties={[]} loading={false} canCreate={false} canEdit={false} canDelete={false}
       onNew={() => {}} onEdit={() => {}} onDelete={() => {}} onBulk={() => {}} /></MemoryRouter>);
-    expect(screen.getByTitle('Ver')).toBeTruthy();
+    expect(screen.getByTitle('Ver regla (solo lectura)')).toBeTruthy();
     expect(screen.queryByTitle('Editar')).toBeNull();
     expect(screen.queryByTitle('Eliminar')).toBeNull();
   });

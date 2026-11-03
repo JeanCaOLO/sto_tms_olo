@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
-import { getViaje, listChoferes, listViajes, pollIntervalMs } from '../api';
-import type { ListMode } from '../types';
+import { getViaje, listChoferes, listViajes, pollIntervalMs, TrackingApiError } from '../api';
+import type { ListMode, ViajesPage } from '../types';
 import { usePolling } from './usePolling';
 
 export interface ListFilters {
@@ -10,19 +10,29 @@ export interface ListFilters {
   country: string | null;
 }
 
+/** Página de viajes + el `limit` con el que se pidió: al conservar datos entre consultas hay que saber de cuál son. */
+export type ViajesVivo = ViajesPage & { requestedLimit: number };
+
 /** Lista de viajes (recientes primero) + KPIs en UNA sola llamada, refrescada sola. */
 export function useViajesEnVivo({ mode, q, limit, country }: ListFilters) {
   const fetcher = useCallback(
-    (signal: AbortSignal) => listViajes({ mode, q, limit, country, summary: true }, signal),
+    async (signal: AbortSignal): Promise<ViajesVivo> => ({
+      ...(await listViajes({ mode, q, limit, country, summary: true }, signal)),
+      requestedLimit: limit,
+    }),
     [mode, q, limit, country],
   );
-  return usePolling(fetcher, [mode, q, limit, country], { intervalMs: pollIntervalMs() });
+  // Buscar, cambiar de modo o pedir más NO vacía la lista (ni quita los camiones del mapa): solo otro país la limpia.
+  return usePolling(fetcher, [mode, q, limit, country], { intervalMs: pollIntervalMs(), resetKey: country });
 }
+
+const isForbidden = (error: Error) => error instanceof TrackingApiError && (error.status === 401 || error.status === 403);
 
 /** Choferes con la app abierta (con o sin viaje), refrescados con el mismo ritmo que la lista. */
 export function useChoferesEnLinea(country: string | null) {
   const fetcher = useCallback((signal: AbortSignal) => listChoferes(country, signal), [country]);
-  return usePolling(fetcher, [country], { intervalMs: pollIntervalMs() });
+  // Solo el administrador ve a los choferes: ante un 401/403 no se vuelve a preguntar cada ciclo.
+  return usePolling(fetcher, [country], { intervalMs: pollIntervalMs(), shouldRetry: (error) => !isForbidden(error) });
 }
 
 /** Detalle del viaje abierto; sin id no consulta. */

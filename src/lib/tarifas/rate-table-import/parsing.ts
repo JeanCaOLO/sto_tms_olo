@@ -73,7 +73,7 @@ export function parseRateTableSheet(
       warnings.push({
         sourceRow: i,
         key,
-        reason: `El importe "${rawAmount}" se leyó como decimal (${amount}). Si es un importe de miles, elegí el formato de número es/en.`,
+        reason: `El importe "${rawAmount}" se leyó como decimal (${amount}). Si es un importe de miles, elige el formato de número es/en.`,
       });
     }
 

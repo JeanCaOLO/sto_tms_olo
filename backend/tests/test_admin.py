@@ -21,6 +21,8 @@ class FakeDb:
         self.caller_role = "SuperAdministrador"
         self.email_taken = False
         self.committed = False
+        self.role_name = "Operaciones"
+        self.current = {"role_id": "role-ops", "carrier_id": None}
 
     def query(self, sql, params=()):
         self.calls.append((sql, list(params)))
@@ -28,6 +30,12 @@ class FakeDb:
             return [{"id": "app-admin", "organization_id": ORG, "is_active": True, "role_name": self.caller_role}]
         if "FROM auth_credentials WHERE email" in sql:
             return [{"?": 1}] if self.email_taken else []
+        if "SELECT name FROM roles WHERE id" in sql:
+            return [{"name": self.role_name}]
+        if "FROM carriers WHERE id" in sql:
+            return [{"?": 1}]
+        if "SELECT role_id, carrier_id FROM app_users" in sql:
+            return [self.current]
         if "FROM roles WHERE id" in sql:
             return [{"?": 1}]
         if sql.lstrip().startswith("INSERT INTO app_users"):
@@ -70,7 +78,7 @@ def test_create_user_is_atomic_and_writes_credential_user_and_global_scope(app, 
     assert response["statusCode"] == 200 and db.committed
     credential = _sql(db, "INSERT INTO auth_credentials")[0]
     assert credential[1] == "ana@ologistics.com" and verify_password("Clave1234", credential[2])
-    assert _sql(db, "INSERT INTO app_users")[0][1:] == [ORG, "Ana Mora", "ana@ologistics.com", "role-ops", True]
+    assert _sql(db, "INSERT INTO app_users")[0][1:] == [ORG, "Ana Mora", "ana@ologistics.com", "role-ops", True, None]
     assert _sql(db, "INSERT INTO user_scopes")[0] == ["app-new", "role-ops", None, None, None]
 
 
@@ -157,3 +165,33 @@ def test_transaction_rolls_back_on_error(monkeypatch):
             run("INSERT 1")
             raise HttpError(400, "boom")
     assert statements == ["BEGIN", "INSERT 1", "ROLLBACK"]
+
+
+CARRIER = "33333333-3333-3333-3333-333333333331"
+
+
+def _create(app, **extra):
+    return app.handler(http_event("POST /api/v1/admin/users", body={**VALID_USER, **extra}, user=ADMIN), None)
+
+
+def test_rol_transportista_exige_empresa(app, db):
+    db.role_name = "Transportista"
+    assert _create(app)["statusCode"] == 400
+    assert _create(app, carrier_id=CARRIER)["statusCode"] == 200
+    insert = next(p for s, p in db.calls if s.lstrip().startswith("INSERT INTO app_users"))
+    assert insert[-1] == CARRIER
+
+
+def test_otro_rol_no_guarda_empresa(app, db):
+    assert _create(app, carrier_id=CARRIER)["statusCode"] == 200
+    insert = next(p for s, p in db.calls if s.lstrip().startswith("INSERT INTO app_users"))
+    assert insert[-1] is None
+
+
+def test_cambiar_de_transportista_a_gerente_limpia_la_empresa(app, db):
+    db.role_name = "Gerente"
+    db.current = {"role_id": "role-t", "carrier_id": CARRIER}
+    response = app.handler(http_event("PATCH /api/v1/admin/users/{id}", path={"id": "app-9"}, body={"role_id": "role-g"}, user=ADMIN), None)
+    assert response["statusCode"] == 200
+    update = next(s for s, _ in db.calls if s.startswith("UPDATE app_users SET"))
+    assert "carrier_id = %s" in update

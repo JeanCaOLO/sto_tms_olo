@@ -30,6 +30,12 @@ Or directly: `node --env-file=.env.local server/index.mjs`.
 
 Change the port with `EFLOW_API_PORT` in `.env.local`.
 
+By default the server listens on `127.0.0.1` only (the Vite dev proxy reaches it through
+loopback). Set `EFLOW_API_HOST=0.0.0.0` in `.env.local` if another machine must reach it.
+
+`/api/viajes*` and `/api/catalogos/*` require the TMS JWT (`Authorization: Bearer <token>`,
+same token the frontend stores in `tms_session`); `/api/health` stays open.
+
 ## Endpoints
 
 | Method + path | Returns |

@@ -80,7 +80,7 @@ describe('RuleModal (caracterización)', () => {
     open();
     fireEvent.change(screen.getByLabelText('Alcance *'), { target: { value: 'PARTY' } });
     submit();
-    await screen.findByText(/Elegí a qué compañía pertenece la regla/);
+    await screen.findByText(/Elige a qué compañía pertenece la regla/);
   });
 
   it('el modo "compite" exige el grupo de exclusión', async () => {

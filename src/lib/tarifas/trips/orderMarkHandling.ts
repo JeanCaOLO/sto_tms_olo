@@ -18,7 +18,7 @@ export interface OrderMarkInput {
  */
 export async function setOrderMark(input: OrderMarkInput): Promise<{ error: string | null }> {
   const reason = input.reason?.trim() || null;
-  if (input.mark === 'ANULADO' && !reason) return { error: 'Indicá por qué se anula el pedido.' };
+  if (input.mark === 'ANULADO' && !reason) return { error: 'Indica por qué se anula el pedido.' };
 
   try {
     await db().transaction(async (tx) => {

@@ -5,7 +5,7 @@ import Modal from '../../../components/base/Modal';
 import Badge from '../../../components/base/Badge';
 import Button from '../../../components/base/Button';
 import { formatMoney } from '../../../lib/tarifas/format';
-import { canEditItems, currentPhase, isSuperAdmin, phaseLabel, type PhaseActor, type ProformaDetail, type ProformaPhase } from '../../../lib/tarifas/proformas';
+import { canEditItems, currentPhase, isCarrierRole, isSuperAdmin, phaseLabel, type PhaseActor, type ProformaDetail, type ProformaPhase } from '../../../lib/tarifas/proformas';
 import DetalleLiquidacionModal from '../../liquidaciones/components/DetalleLiquidacionModal';
 import { useIrregularities } from '../hooks/useIrregularities';
 import { useProformaDetail } from '../hooks/useProformaDetail';
@@ -69,7 +69,7 @@ export default function DetalleProformaModal({ proformaId, actor, canEdit, onClo
   }
 
   const proforma = detail?.proforma;
-  const editable = !!detail && canEdit && canEditItems(detail.proforma, detail.phases);
+  const editable = !!detail && canEdit && !isCarrierRole(actor?.roleName) && canEditItems(detail.proforma, detail.phases);
   const texts = pending ? TEXTS[pending.kind] : null;
 
   return (
@@ -131,7 +131,7 @@ export default function DetalleProformaModal({ proformaId, actor, canEdit, onClo
           </>
         )}
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
-          {proforma?.status === 'Aprobado' && canEdit && (
+          {proforma?.status === 'Aprobado' && canEdit && !isCarrierRole(actor?.roleName) && (
             <Button icon={<i className="ri-mail-send-line" />} onClick={() => setSending(true)}>
               {proforma.emailSentAt ? 'Reenviar por correo' : 'Enviar por correo'}
             </Button>

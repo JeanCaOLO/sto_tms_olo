@@ -45,7 +45,7 @@ describe('TripOrdersPanel', () => {
     await waitFor(() => expect(screen.getByText('PED-1002')).toBeTruthy());
     const row = () => screen.getByText('PED-1002').closest('tr') as HTMLElement;
 
-    fireEvent.click(within(row()).getByTitle('Sacar el pedido del reparto'));
+    fireEvent.click(within(row()).getByRole('button', { name: 'Anular' }));
     const confirmar = within(row()).getByText('Anular') as HTMLButtonElement;
     expect(confirmar.disabled).toBe(true);
 

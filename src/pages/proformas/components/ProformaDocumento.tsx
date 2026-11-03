@@ -2,6 +2,7 @@
 // entiende todo el CSS moderno, y el PDF no debe depender del tema de la app.
 
 import { formatMoney } from '../../../lib/tarifas/format';
+import { formatLocalDate } from '../../../lib/tarifas/localDate';
 import type { ProformaDetail } from '../../../lib/tarifas/proformas';
 
 const CELL = { padding: '6px 8px', borderBottom: '1px solid #e2e8f0', fontSize: 12 } as const;
@@ -13,7 +14,7 @@ export default function ProformaDocumento({ detail }: { detail: ProformaDetail }
     <div style={{ width: 794, padding: 40, background: '#ffffff', color: '#0f172a', fontFamily: 'Arial, sans-serif' }}>
       <h1 style={{ fontSize: 22, margin: 0 }}>Proforma {proforma.number}</h1>
       <p style={{ fontSize: 13, margin: '6px 0 20px', color: '#475569' }}>
-        Transportista: <strong>{proforma.carrierName}</strong> · Fecha: {proforma.createdAt.slice(0, 10)}
+        Transportista: <strong>{proforma.carrierName}</strong> · Fecha: {formatLocalDate(proforma.createdAt)}
       </p>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>

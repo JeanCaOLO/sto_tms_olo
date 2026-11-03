@@ -119,7 +119,7 @@ export default function CostStructureModal({
             loading={loading}
             customLabels={customLabels}
             exportFileName="estructura_costos_compania"
-            emptyMessage="Todavía no hay conceptos cargados: subí la plantilla o cargalos a mano."
+            emptyMessage="Todavía no hay conceptos cargados: sube la plantilla o cárgalos a mano."
             actions={!structure ? undefined : (row) => (
               <RowActions
                 row={row} canEdit={canEdit} canDelete={canDelete} onEdit={startEdit}

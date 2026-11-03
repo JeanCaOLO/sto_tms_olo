@@ -61,9 +61,18 @@ export async function createOrUpdateRateRow(
   return result;
 }
 
-export async function removeRateRow(rowId: string, tableId?: string): Promise<{ error: string | null }> {
+/** Quita una fila. `snapshot` es lo que valía (clave, importe, valores): sin eso la bitácora no diría qué fila se borró. */
+export async function removeRateRow(
+  rowId: string,
+  tableId?: string,
+  snapshot?: { key: string[]; amount: string; values?: Record<string, string> },
+): Promise<{ error: string | null }> {
   const result = await deleteRateRow(rowId);
-  if (!result.error) await audit('tarifas_rate_table_rows', rowId, 'DELETE', { antes: { tableId: tableId ?? null } });
+  if (!result.error) {
+    await audit('tarifas_rate_table_rows', rowId, 'DELETE', {
+      antes: { tableId: tableId ?? null, ...(snapshot ? { key: snapshot.key, amount: snapshot.amount, values: snapshot.values ?? {} } : {}) },
+    });
+  }
   return result;
 }
 

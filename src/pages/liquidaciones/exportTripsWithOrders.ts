@@ -10,6 +10,7 @@
 // `exceljs` se carga al exportar: pesa y solo hace falta aquí.
 
 import type { Cell, Row, Workbook, Worksheet } from 'exceljs';
+import { todayLocalIso } from '../../lib/tarifas/localDate';
 import { deliveryLabel, MARK_LABELS } from '../../lib/tarifas/tripOrders';
 import type { DataTableColumn } from '../../components/base/DataTable';
 import type { TripOrder, TripRecord } from '../../lib/tarifas/types';
@@ -173,7 +174,7 @@ export async function downloadTripsWorkbook(
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `${fileName}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  link.download = `${fileName}-${todayLocalIso()}.xlsx`;
   document.body.appendChild(link);
   link.click();
   link.remove();

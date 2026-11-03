@@ -42,7 +42,7 @@ export function RateTableFields({ builder, builderErrors, onChange, rateTables }
           Todavía no hay ninguno cargado. Se crean en la pestaña <strong>Tarifarios</strong>.
         </p>
       ) : (
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-slate-500">
           El <strong>respaldo</strong> es lo que se cobra si el viaje no casa ninguna fila del tarifario. Queda
           anotado en el desglose cuando pasa, así que un viaje sin cobertura se ve en vez de liquidarse en silencio.
         </p>

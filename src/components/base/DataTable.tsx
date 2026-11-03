@@ -605,7 +605,7 @@ export default function DataTable<T>({
                       );
                     })}
                   </ul>
-                  <p className="text-[11px] text-slate-400 px-1 pt-1.5">También podés arrastrar el título de una columna.</p>
+                  <p className="text-[11px] text-slate-400 px-1 pt-1.5">También puedes arrastrar el título de una columna.</p>
                 </div>,
                 document.body,
               )}
@@ -688,6 +688,7 @@ export default function DataTable<T>({
                       <button
                         type="button"
                         data-filter-trigger
+                        aria-label={`Filtrar ${col.header}`}
                         onClick={(e) => {
                           setFilterAnchor(e.currentTarget.getBoundingClientRect());
                           setOpenFilterKey(openFilterKey === col.key ? null : col.key);

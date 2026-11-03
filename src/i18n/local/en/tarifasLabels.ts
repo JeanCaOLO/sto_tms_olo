@@ -64,8 +64,8 @@ export default {
   'tarifas.tierModeHint.PROGRESSIVE': 'With 250 km and that same table, it charges 100×2 + 150×1.50 = 425.',
 
   'tarifas.operatorHint.FIXED': 'A fixed amount that does not depend on any variable.',
-  'tarifas.operatorHint.TIMES': 'Multiplies the variable by the amount. E.g.: per toll, $20.',
-  'tarifas.operatorHint.PER_BLOCK': 'Counts COMPLETE blocks. E.g.: every 10 tolls, $15 — with 25 tolls, 2 blocks are paid.',
+  'tarifas.operatorHint.TIMES': 'Multiplies the variable by the amount. E.g.: per toll, 20.',
+  'tarifas.operatorHint.PER_BLOCK': 'Counts COMPLETE blocks. E.g.: every 10 tolls, 15 — with 25 tolls, 2 blocks are paid.',
   'tarifas.operatorHint.PERCENT': 'A percentage of a base that you choose explicitly.',
   'tarifas.operatorHint.TIERED': 'Tiers by quantity. The mode decides whether a tier sets an amount, a rate, or charges only its own part.',
   'tarifas.operatorHint.RATE_TABLE': 'The amount comes from a separately loaded rate table. Choose which one here, and how much to charge if the trip matches no row.',

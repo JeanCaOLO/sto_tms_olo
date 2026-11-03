@@ -16,6 +16,8 @@ interface Props {
   now: number;
   canLoadMore: boolean;
   filtered: boolean;
+  /** Aviso sobre lo que NO se está mostrando (más viajes que el tope); null = lista completa. */
+  notice?: string | null;
   onMode: (value: ListMode) => void;
   onSearch: (value: string) => void;
   onSelect: (id: string) => void;
@@ -65,6 +67,9 @@ export default function ViajesSidebar(props: Props) {
             <i className="ri-truck-line text-3xl text-slate-300" />
             <p className="text-sm mt-1">{props.filtered ? t('tracking.noTripsFiltered') : t('tracking.noTrips')}</p>
           </div>
+        )}
+        {props.notice && (
+          <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{props.notice}</p>
         )}
         {viajes.map((viaje) => (
           <ViajeCard key={viaje.id} viaje={viaje} now={props.now} selected={props.selectedId === viaje.id} onSelect={props.onSelect} />

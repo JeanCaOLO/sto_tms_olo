@@ -30,7 +30,7 @@ export function MapStep({ state, analysis, matrix, mapping }: Props) {
         <Button
           onClick={() => state.setStep('preview')}
           disabled={incomplete}
-          title={incomplete ? 'Marcá al menos una columna como Concepto y otra como Importe' : undefined}
+          title={incomplete ? 'Marca al menos una columna como Concepto y otra como Importe' : undefined}
         >
           Ver qué se va a importar
         </Button>

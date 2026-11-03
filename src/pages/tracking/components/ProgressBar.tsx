@@ -10,15 +10,15 @@ export default function ProgressBar({ percent, failed = 0, total = 0, className 
   const clamped = Math.max(0, Math.min(100, percent));
   const failedPercent = total > 0 ? Math.min(clamped, Math.round((failed * 100) / total)) : 0;
   return (
-    <div
+    <span
       role="progressbar"
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={clamped}
       className={`h-2 w-full rounded-full bg-slate-100 overflow-hidden flex ${className}`}
     >
-      <div className="h-full bg-emerald-500" style={{ width: `${clamped - failedPercent}%` }} />
-      {failedPercent > 0 && <div className="h-full bg-red-400" style={{ width: `${failedPercent}%` }} />}
-    </div>
+      <span className="block h-full bg-emerald-500" style={{ width: `${clamped - failedPercent}%` }} />
+      {failedPercent > 0 && <span className="block h-full bg-red-400" style={{ width: `${failedPercent}%` }} />}
+    </span>
   );
 }

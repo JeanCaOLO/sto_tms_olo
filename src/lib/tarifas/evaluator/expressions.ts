@@ -110,7 +110,7 @@ export function evaluateExpr(expr: Expr, ctx: EvalContext): Decimal {
         // agujero. Se avisa y vale cero, en vez de romper toda la liquidación por una regla.
         ctx.warn(
           `Los escalones de esta regla no cubren el valor ${qty.toFixed(2)}. ` +
-          'Dejá el último tramo sin límite superior para que cubra "de acá en adelante".',
+          'Deja el último tramo sin límite superior para que cubra "de acá en adelante".',
         );
         return ZERO;
       }
@@ -154,8 +154,8 @@ export function evaluateExpr(expr: Expr, ctx: EvalContext): Decimal {
       if (found.tiedWith.length > 0) {
         ctx.warn(
           `En la tabla "${table.code}" hay ${found.tiedWith.length + 1} filas igual de específicas para ` +
-          `este viaje. Se aplicó "${found.match.matchedKey}"; agregá una columna a la clave o ajustá el ` +
-          'orden si querés que gane otra.',
+          `este viaje. Se aplicó "${found.match.matchedKey}"; agrega una columna a la clave o ajusta el ` +
+          'orden si quieres que gane otra.',
         );
       }
 

@@ -3,6 +3,7 @@
 // El mismo diálogo lo usan Reglas de Tarifa (flota propia del país) y la ficha de la compañía.
 
 import Button from '../base/Button';
+import Modal from '../base/Modal';
 import { CostTemplatePreview } from './cost-template/CostTemplatePreview';
 import { downloadCostTemplate } from './cost-template/costTemplateFile';
 import { useCostTemplateUpload } from './cost-template/useCostTemplateUpload';
@@ -34,13 +35,12 @@ export default function CostTemplateModal({
   const hasErrors = !!parsed && parsed.errors.length > 0;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[92vh] overflow-y-auto">
+    <Modal isOpen onClose={onClose} ariaLabel="Subir plantilla de estructura de costos" widthClass="max-w-3xl" zClass="z-[60]" closeOnBackdrop={false}>
         <div className="sticky top-0 bg-white flex items-center justify-between px-6 py-4 border-b border-slate-200 z-10">
           <div>
             <h2 className="text-lg font-semibold text-slate-800">Subir plantilla de estructura de costos</h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Al guardar se reemplaza {scopeLabel}. Si todavía no tenés el archivo, descargá la plantilla vacía.
+              Al guardar se reemplaza {scopeLabel}. Si todavía no tienes el archivo, descarga la plantilla vacía.
             </p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 cursor-pointer" aria-label="Cerrar">
@@ -79,7 +79,6 @@ export default function CostTemplateModal({
             {saving ? 'Guardando...' : 'Guardar y reemplazar'}
           </Button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

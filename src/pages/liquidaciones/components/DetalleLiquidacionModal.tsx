@@ -8,6 +8,7 @@
 // releerse tal cual se emitió aunque después la regla se haya editado o dado de baja.
 
 import Button from '../../../components/base/Button';
+import Modal from '../../../components/base/Modal';
 import Badge from '../../../components/base/Badge';
 import CalcBreakdownPanel, { AllocationBlock } from '../../../components/tarifas/CalcBreakdownPanel';
 import { BASE_METHODS } from '../../../lib/tarifas/baseMethods';
@@ -34,8 +35,7 @@ export default function DetalleLiquidacionModal({ settlement, onClose }: Props) 
   const result = settlementToResult(settlement);
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[92vh] overflow-y-auto">
+    <Modal isOpen onClose={onClose} ariaLabel={`Liquidación ${settlement.number}`} widthClass="max-w-4xl">
         <div className="sticky top-0 bg-white flex items-center justify-between px-6 py-4 border-b border-slate-200 z-10">
           <div>
             <h2 className="text-lg font-semibold text-slate-800">
@@ -129,8 +129,7 @@ export default function DetalleLiquidacionModal({ settlement, onClose }: Props) 
           </Button>
           <Button variant="secondary" onClick={onClose}>Cerrar</Button>
         </div>
-      </div>
       {printPortal}
-    </div>
+    </Modal>
   );
 }

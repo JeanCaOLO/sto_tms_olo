@@ -17,6 +17,17 @@ describe('ordenarPorSecuencia', () => {
     expect(ids(ordenarPorSecuencia(list))).toEqual(['a', 'b', 'c']);
   });
 
+  // El comentario del módulo promete que las paradas sin secuencia válida quedan al final; la resta con NaN las
+  // dejaba en cualquier lugar (y rompía el orden de las demás).
+  it('las paradas sin secuencia válida van al final y no desordenan al resto', () => {
+    const sinSecuencia = stop('x', Number.NaN);
+    const nula = stop('y', 0, { sequence: null as unknown as number });
+    const list = [sinSecuencia, stop('c', 3), nula, stop('a', 1), stop('b', 2)];
+    const sorted = ids(ordenarPorSecuencia(list));
+    expect(sorted.slice(0, 3)).toEqual(['a', 'b', 'c']);
+    expect(sorted.slice(3).sort()).toEqual(['x', 'y']);
+  });
+
   it('no muta la lista original y acepta una lista vacía', () => {
     const list = [stop('b', 2), stop('a', 1)];
     ordenarPorSecuencia(list);

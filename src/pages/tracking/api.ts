@@ -15,8 +15,7 @@ export class TrackingApiError extends Error {
 type RequestOptions = NonNullable<Parameters<typeof fetch>[1]>;
 export type TrackingTransport = (path: string, init?: RequestOptions) => Promise<{ ok: boolean; status: number; body: any }>;
 
-// 5 s: el chofer que inicia o cierra sesión, o recupera la señal, se ve casi en tiempo real. El resumen (KPIs) del
-// backend se cachea 5 s, así que varias pantallas abiertas no multiplican ese cálculo.
+// El resumen (KPIs) del backend se cachea 5 s, así que varias pantallas abiertas no multiplican ese cálculo.
 const POLL_MS = 10_000; // el chofer reporta cada ~30 s: refrescar más seguido solo gasta Lambda/Aurora
 const MOCK_POLL_MS = 3_000;
 
@@ -35,7 +34,7 @@ export function setTrackingTransport(next: TrackingTransport, mockClock?: () => 
 export const isTrackingMock = () => mock;
 /** "Ahora" para calcular antigüedades ("hace X"): el real, o el simulado en modo mock. */
 export const trackingNow = () => clock();
-/** Cada cuánto se refresca: 5 s contra el backend; 3 s en mock para ver avanzar la simulación. */
+/** Cada cuánto se refresca: 10 s contra el backend; 3 s en mock para ver avanzar la simulación. */
 export const pollIntervalMs = () => (mock ? MOCK_POLL_MS : POLL_MS);
 
 async function call<T>(path: string, init?: RequestOptions): Promise<T> {

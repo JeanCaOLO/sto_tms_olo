@@ -42,7 +42,7 @@ const COPY: Record<PartyClassification, Copy> = {
     subtitle: 'Compañías propias a las que se les liquida el viaje con recursos internos',
     icon: 'ri-home-gear-line',
     intro:
-      'Acá administrás recursos internos: los conductores están en nómina y el costo del viaje se ' +
+      'Aquí administras recursos internos: los conductores están en nómina y el costo del viaje se ' +
       'arma con la estructura de costos detallada de la compañía (combustible, depreciación, ' +
       'salarios, mantenimiento). No se factura contra un tercero. La lista sale del catálogo ' +
       '(solo lectura): acá solo se configura el cálculo.',

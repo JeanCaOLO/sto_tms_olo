@@ -35,7 +35,7 @@ export function PreviewSummary({ state, parsed, total }: Props) {
       </div>
 
       <p className="text-xs text-slate-500">
-        Compará esa suma con el total de la planilla: si no coinciden, revisá el mapeo antes
+        Compara esa suma con el total de la planilla: si no coinciden, revisa el mapeo antes
         de importar.
       </p>
 

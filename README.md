@@ -30,7 +30,7 @@ Es una suite de módulos (catálogos, planificación de rutas, liquidación/tari
 ## Requisitos previos
 
 - **Node.js 20+** (el server usa `node --env-file`, nativo desde Node 20).
-- **npm** o **pnpm**. El repo tiene `pnpm-lock.yaml` (pnpm es el gestor de CI/Amplify), pero `npm` también funciona para desarrollo local.
+- **npm** o **pnpm**. El repo tiene `pnpm-lock.yaml` (pnpm es el gestor de CI/Amplify), pero `npm` también funciona para desarrollo local. Ojo: hay **dos lockfiles versionados**; las versiones que se despliegan salen de `pnpm-lock.yaml` (`amplify.yml` instala con `--frozen-lockfile`). `package-lock.json` puede quedar desfasado: para reproducir lo que corre en CI, instala con `pnpm install --frozen-lockfile`. Al agregar o actualizar una dependencia, hazlo con pnpm.
 - Para datos reales: acceso a la BD Aurora (túnel SSM) y/o credenciales de EFLOW QA. Sin eso, se trabaja en **modo mock** (ver abajo).
 
 ---
@@ -115,6 +115,14 @@ Build de Vite (`out/`) servido en Amplify como SPA.
 
 - **CI (Amplify git):** definido en [`amplify.yml`](amplify.yml) — `pnpm install --frozen-lockfile` + `pnpm build`, artefacto `out/`.
 - **Deploy manual por zip:** [`deploy-frontend.ps1`](deploy-frontend.ps1) buildea con `VITE_API_BASE`/`VITE_MOCK_AUTH`, empaqueta `out/` (con rutas forward-slash — clave para que Amplify no dé 404 en los assets) y hace `create-deployment` → upload → `start-deployment`.
+
+**Recarga de página en una ruta del SPA (`/tracking`, `/tarifas/costos-flota`…):** Amplify solo la resuelve si el app tiene una regla de reescritura que mande toda ruta sin extensión a `/index.html` con código **200**. Sin ella, recargar o abrir un enlace directo da 404. `scripts/sandbox/deploy_frontend.py` ya la configura (`SPA_RULE`) en el sandbox. Para un app creado por conexión git (`amplify.yml`) hay que cargarla una vez en la consola (Hosting → Rewrites and redirects) con esta regla:
+
+| Source | Target | Tipo |
+|---|---|---|
+| `</^[^.]+$\|\.(?!(css\|gif\|ico\|jpg\|jpeg\|js\|png\|txt\|svg\|woff\|woff2\|ttf\|map\|json\|webp)$)([^.]+$)/>` | `/index.html` | 200 (Rewrite) |
+
+**Variables del build:** además de `VITE_API_BASE`, en producción conviene definir `VITE_WS_URL`, `VITE_OSRM_URL` y `VITE_MAP_TILES_URL`; si no, el código usa valores de desarrollo (WebSocket a `localhost`, OSRM y tiles públicos sin SLA). Detalle y riesgos en [`.env.example`](.env.example).
 
 ```powershell
 ./deploy-frontend.ps1                       # dev, login real (usuarios de Aurora) — default

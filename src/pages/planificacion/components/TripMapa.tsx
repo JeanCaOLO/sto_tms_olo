@@ -86,7 +86,9 @@ export default function TripMapa({ paradas, alturaClase = 'h-[220px]', onParadaC
 
   return (
     <div
-      className={`${alturaClase} rounded-lg overflow-hidden border border-slate-100`}
+      role="region"
+      aria-label="Mapa de las paradas del viaje"
+      className={`${alturaClase} isolate rounded-lg overflow-hidden border border-slate-100`}
       onMouseEnter={() => mapRef.current?.scrollWheelZoom.enable()}
       onMouseLeave={() => mapRef.current?.scrollWheelZoom.disable()}
     >
@@ -111,6 +113,7 @@ export default function TripMapa({ paradas, alturaClase = 'h-[220px]', onParadaC
             key={p.id}
             position={[p.delivery_latitude, p.delivery_longitude]}
             icon={iconoParada(p.stop_number, p.color)}
+            title={`Parada ${p.stop_number}`}
             eventHandlers={{ click: () => onParadaClick?.(p.id) }}
           />
         ))}

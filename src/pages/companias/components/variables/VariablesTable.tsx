@@ -61,7 +61,7 @@ export function VariablesTable({ variables, loading, canEdit, onEdit, onToggle }
         <i className="ri-code-box-line text-3xl text-slate-300"></i>
         <p className="mt-2 text-sm text-slate-600 font-medium">Esta compañía no tiene variables propias</p>
         <p className="text-xs text-slate-500">
-          Agregá una solo si esta compañía calcula con algo que el sistema no trae de fábrica.
+          Agrega una solo si esta compañía calcula con algo que el sistema no trae de fábrica.
         </p>
       </div>
     );

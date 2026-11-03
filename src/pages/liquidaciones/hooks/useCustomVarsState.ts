@@ -1,6 +1,6 @@
 // State for custom variables with validation and debouncing.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   parseCustomVarValues,
   initialCustomVarValues,
@@ -27,35 +27,44 @@ export function useCustomVarsState({
 }: Props) {
   const [customRaw, setCustomRaw] = useState<Record<string, string>>({});
 
+  // Los callbacks del controlador cambian en cada render: se leen por ref para que el efecto del
+  // debounce dependa solo de lo tecleado y un render ajeno no reinicie los 400 ms.
+  const callbacks = useRef({ onPendingChange, onError, onCalcTriggered });
+  useEffect(() => {
+    callbacks.current = { onPendingChange, onError, onCalcTriggered };
+  });
+
   const handleSetRaw = (key: string, value: string) => {
     setCustomRaw((prev) => ({ ...prev, [key]: value }));
     onPendingChange(true);
   };
 
+  // Se siembra UNA vez por apertura (customRaw vacío + hay cálculo): sembrar con cada cálculo nuevo
+  // borraría lo que la persona acaba de teclear. Al re-liquidar parte de lo guardado en esa liquidación.
   useEffect(() => {
-    if (!calculation) {
-      setCustomRaw({});
-      return;
-    }
-    if (!settlement) {
-      setCustomRaw({ ...initialCustomVarValues(calculation.customVarFields) });
-    }
-  }, [calculation, settlement]);
+    if (!calculation) return;
+    if (Object.keys(customRaw).length > 0) return;
+    const guardado = Object.fromEntries(
+      Object.entries(settlement?.tripEdits?.customVars ?? {}).map(([k, v]) => [k, String(v)]),
+    );
+    const seed = { ...initialCustomVarValues(calculation.customVarFields), ...guardado };
+    if (Object.keys(seed).length > 0) setCustomRaw(seed);
+  }, [calculation, settlement, customRaw]);
 
   useEffect(() => {
     if (!pending || !calculation) return;
     const { values, errors } = parseCustomVarValues(calculation.customVarFields, customRaw);
     if (Object.keys(errors).length > 0) {
-      onError(Object.values(errors).join(' '));
-      onPendingChange(false);
+      callbacks.current.onError(Object.values(errors).join(' '));
+      callbacks.current.onPendingChange(false);
       return;
     }
-    onError('');
+    callbacks.current.onError('');
     const timer = setTimeout(() => {
-      onCalcTriggered({ customVars: values as TripEdits['customVars'] });
+      callbacks.current.onCalcTriggered({ customVars: values as TripEdits['customVars'] });
     }, 400);
     return () => clearTimeout(timer);
-  }, [customRaw, calculation, pending, onCalcTriggered, onError, onPendingChange]);
+  }, [customRaw, calculation, pending]);
 
   return { customRaw, setCustomRaw, handleSetRaw };
 }

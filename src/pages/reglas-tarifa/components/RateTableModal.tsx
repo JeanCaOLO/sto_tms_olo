@@ -3,6 +3,7 @@
 // clave sin ver cómo queda la fila es donde la gente se equivoca y después carga sesenta filas mal.
 
 import Button from '../../../components/base/Button';
+import Modal from '../../../components/base/Modal';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
 import { VAR_KEY_LABELS } from '../../../lib/tarifas/format';
@@ -45,8 +46,7 @@ export default function RateTableModal({ isOpen, countryId, table, parties, curr
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+    <Modal isOpen onClose={onClose} ariaLabel={table ? `Editar tarifario ${table.code}` : 'Nuevo tarifario'} widthClass="max-w-3xl" closeOnBackdrop={false}>
         <RateTableModalHeader table={table} onClose={onClose} />
 
         <div className="px-6 py-5 space-y-5">
@@ -154,7 +154,6 @@ export default function RateTableModal({ isOpen, countryId, table, parties, curr
             {state.saving ? 'Guardando…' : table ? 'Guardar cambios' : 'Crear tarifario'}
           </Button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

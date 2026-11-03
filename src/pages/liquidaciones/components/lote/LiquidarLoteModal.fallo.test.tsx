@@ -11,6 +11,9 @@ import { notLiquidableReason } from '../../../../lib/tarifas/tripContext';
 import { tripProgress } from '../../../../lib/tarifas/tripOrders';
 import type { SettlementRecord, TripRecord } from '../../../../lib/tarifas/types';
 
+// Emitir en lote pide confirmar: en estas pruebas se acepta siempre.
+vi.mock('../../../../lib/confirm', () => ({ confirmAction: vi.fn(async () => true) }));
+
 vi.mock('../../../../hooks/usePermissions', () => ({
   usePermissions: () => ({ can: () => false }),
 }));

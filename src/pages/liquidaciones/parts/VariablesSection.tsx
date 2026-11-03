@@ -50,7 +50,7 @@ export function VariablesSection({ calculation, customRaw, onSetRaw, simple }: P
       )}
 
       {!simple && calculation.undeclaredVars.length > 0 && (
-        <p className="text-xs text-amber-700 mt-2">
+        <p className="text-xs text-red-700 mt-2">
           Hay reglas que usan variables que el transportista no declaró (valen 0):{' '}
           {calculation.undeclaredVars.join(', ')}.
         </p>
