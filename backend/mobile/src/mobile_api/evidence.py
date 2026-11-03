@@ -91,7 +91,7 @@ def confirm(event: dict, driver: Driver) -> dict:
                                                 guide.get("order_number"), config.evidence_bucket_or_none()])
         if kind == "signature":
             run(sql.SET_GUIDE_SIGNATURE_SQL, [key, guide_id])
-        elif kind == "photo_invoice":
+        elif kind in ("photo_invoice", "photo_product"):   # la guía solo tiene una columna de foto
             run(sql.SET_GUIDE_PHOTO_SQL, [key, guide_id])
         return {"evidence_id": str(created[0]["id"]) if created else None, "duplicate": not created}
 

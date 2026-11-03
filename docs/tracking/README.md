@@ -2,7 +2,7 @@
 
 **Qué es:** la pantalla `/tracking` del TMS. **Solo monitorea** los viajes en curso: lista, mapa, avance, hacia dónde va cada camión y las evidencias de entrega. No crea, asigna, cancela, reprograma ni completa viajes: eso es de Planificación (FR7). Las posiciones y las entregas las produce la app del chofer (`.test/blueprint/mobile-tracking-tms/`).
 
-**Evidencias de entrega:** solo **foto de la factura firmada** y **firma digital**. No hay novedades, recolectas ni devoluciones.
+**Evidencias:** entrega = **foto de la factura firmada** + **firma digital**; recolecta (`type: collection`) = **foto del producto** (`photo_product`) + **firma**. Una parada es recolecta si Planificación la asignó así (`dispatch_guides.stop_type = 'collection'`: buscar mercancía ya entregada); no es la devolución inmediata en sitio. No hay novedades ni devoluciones en el monitor.
 
 ## Estado (2026-10-17)
 

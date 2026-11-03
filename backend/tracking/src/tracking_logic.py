@@ -37,7 +37,7 @@ MAX_FUTURE_SKEW = timedelta(minutes=5)
 GRACE_AFTER_CLOSE = timedelta(hours=2)  # el chofer puede vaciar el lote de posiciones después de cerrar la ruta
 ACCURACY_MAX_M = 200                    # precisión peor que esto: se guarda marcada, no mueve la última posición
 MAX_EVIDENCE_BYTES = 5 * 1024 * 1024
-EVIDENCE_KINDS = ("photo_invoice", "signature")  # solo factura firmada y firma digital
+EVIDENCE_KINDS = ("photo_invoice", "signature", "photo_product")  # factura firmada, firma digital y foto del producto (recolecta)
 EVIDENCE_MIME = {"image/jpeg": "jpg", "image/png": "png"}
 URL_TTL_SECONDS = 300                   # formulario de subida (POST firmado)
 SIGNED_GET_TTL_SECONDS = 3600           # URL de lectura de evidencias (estable: se reusa desde caché)

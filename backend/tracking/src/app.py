@@ -439,6 +439,7 @@ def _stop_view(g: dict, live: dict, evidences: dict, driver: bool) -> dict:
     stop = {
         "id": sid, "guide_number": g["guide_number"], "sequence": g["sequence_number"],
         "state": logic.guide_state(g["delivery_status"], g["status"]),
+        "type": g.get("stop_type") if g.get("stop_type") in ("delivery", "collection") else "delivery",
         "order_number": g["order_number"], "invoice_number": g["invoice_number"],
         "customer_name": g["customer_name"], "address": g["delivery_address"], "city": g["delivery_city"],
         "lat": _float(g["latitude"]), "lng": _float(g["longitude"]),
@@ -798,7 +799,7 @@ def evidence_confirm(event: dict) -> dict:
                                                 lng, client_id, caller.app_user_id])
         if kind == "signature":
             run(sql.SET_GUIDE_SIGNATURE_SQL, [key, guide_id])
-        elif kind == "photo_invoice":
+        elif kind in ("photo_invoice", "photo_product"):
             run(sql.SET_GUIDE_PHOTO_SQL, [key, guide_id])
         return {"evidence_id": str(created[0]["id"]) if created else None, "duplicate": not created}
 

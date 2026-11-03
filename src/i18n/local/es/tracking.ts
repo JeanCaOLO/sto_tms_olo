@@ -72,6 +72,8 @@ export default {
   'tracking.recipient': 'Recibió: {{name}}',
   'tracking.evidenceInvoice': 'Factura firmada',
   'tracking.evidenceSignature': 'Firma digital',
+  'tracking.evidenceProduct': 'Foto del producto',
+  'tracking.stopCollection': 'Recolecta',
   'tracking.evidenceMissing': 'Pendiente',
   'tracking.alerts': 'Alertas del viaje',
   'tracking.alertFailed': '{{count}} parada(s) fallida(s)',

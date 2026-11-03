@@ -672,3 +672,70 @@ def test_a_settled_trip_cannot_be_reopened(call, fake_db):
     fake_db.answer("FROM dispatch_guides g JOIN routes r", [closed_guide(settlements=1)])
     response = call(TRANSITION, path={"id": GUIDE}, body={"to": "pending"})
     assert response["statusCode"] == 409 and body_of(response)["error"]["code"] == "already_settled"
+
+
+# --- recolectas (type = collection) ------------------------------------------------------------------------------
+
+
+def test_mi_viaje_exposes_the_stop_type_assigned_by_planning(call, fake_db):
+    fake_db.answer("FROM routes r LEFT JOIN stores s", [route_row()])
+    fake_db.answer("FROM dispatch_guides g JOIN routes r",
+                   [guide_item(1, stop_type="collection"), guide_item(2, stop_type="delivery"), guide_item(3)])
+    stops = body_of(call("GET /api/mobile/v1/mi-viaje"))["data"]["items"][0]["stops"]
+    assert [s["type"] for s in stops] == ["collection", "delivery", "delivery"]   # sin dato = entrega
+
+
+def test_collection_requires_product_photo_and_signature(call, fake_db):
+    for kinds in ([], ["photo_product"], ["signature"], ["photo_invoice", "signature"]):
+        fake_db.answer("FROM dispatch_guides g JOIN routes r",
+                       [guide_row(stop_type="collection", evidence_kinds=kinds)])
+        response = delivered(call)
+        assert response["statusCode"] == 400 and "evidence_required" in response["body"]
+        assert "foto del producto" in response["body"]
+    assert not fake_db.wrote("UPDATE dispatch_guides")
+    fake_db.answer("FROM dispatch_guides g JOIN routes r",
+                   [guide_row(stop_type="collection", evidence_kinds=["photo_product", "signature"])])
+    fake_db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 2}])
+    assert delivered(call)["statusCode"] == 200
+
+
+def test_delivery_still_requires_invoice_photo_even_with_product_photo(call, fake_db):
+    fake_db.answer("FROM dispatch_guides g JOIN routes r",
+                   [guide_row(stop_type="delivery", evidence_kinds=["photo_product", "signature"])])
+    assert delivered(call)["statusCode"] == 400
+
+
+def test_failed_collection_needs_only_a_reason(call, fake_db):
+    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row(stop_type="collection", evidence_kinds=[])])
+    fake_db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 2}])
+    no_reason = call(TRANSITION, path={"id": GUIDE}, body={"to": "failed", "type": "collection"})
+    assert no_reason["statusCode"] == 400
+    ok_response = call(TRANSITION, path={"id": GUIDE}, body={"to": "failed", "type": "collection", "reason": "No estaba"})
+    assert ok_response["statusCode"] == 200
+
+
+def test_transition_rejects_unknown_type_and_trusts_the_server_over_the_client(call, fake_db):
+    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row(stop_type="delivery")])
+    assert delivered(call, type="otra")["statusCode"] == 400
+    # El cliente dice "collection" pero la parada es entrega: manda el servidor (pide factura).
+    fake_db.answer("FROM dispatch_guides g JOIN routes r",
+                   [guide_row(stop_type="delivery", evidence_kinds=["photo_product", "signature"])])
+    assert delivered(call, type="collection")["statusCode"] == 400
+
+
+def test_product_photo_evidence_is_accepted_and_linked_to_the_guide(call, fake_db, s3):
+    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row(stop_type="collection")])
+    fake_db.answer("INSERT INTO tracking_evidences", [{"id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc"}])
+    upload = "POST /api/mobile/v1/paradas/{id}/evidencias/upload-url"
+    data = body_of(call(upload, path={"id": GUIDE}, body={"kind": "photo_product", "mime_type": "image/jpeg"}))["data"]
+    assert data["key"].startswith(f"{FOLDER}photo_product-") and data["kind"] == "photo_product"
+    confirm = call("POST /api/mobile/v1/paradas/{id}/evidencias", path={"id": GUIDE},
+                   body={"kind": "photo_product", "key": data["key"]})
+    assert confirm["statusCode"] == 201
+    assert fake_db.wrote("INSERT INTO tracking_evidences")[0][1][3] == "photo_product"
+    assert fake_db.wrote("UPDATE dispatch_guides SET photo_url")[0][1] == [data["key"], GUIDE]
+    # Una foto de factura no se confirma como foto de producto.
+    invoice_key = data["key"].replace("photo_product-", "photo_invoice-")
+    bad = call("POST /api/mobile/v1/paradas/{id}/evidencias", path={"id": GUIDE},
+               body={"kind": "photo_product", "key": invoice_key})
+    assert bad["statusCode"] == 400

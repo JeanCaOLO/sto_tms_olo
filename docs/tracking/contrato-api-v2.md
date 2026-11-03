@@ -43,7 +43,7 @@ Respuesta: `{ items: Viaje[], next_cursor: string | null, summary?: Resumen }`.
 Viaje + `{ origin: { lat, lng, name } | null, next_stop_id, departed_at, stops: Stop[] }`.
 
 **Stop:** `id, guide_number, sequence, state (pending|delivered|failed), order_number, invoice_number, customer_name, address, city, lat, lng, arrived_at, recipient_name, evidences, planned_arrival_at, distance_m, eta_at, delay_min`.
-- `evidences`: `{ id, kind: photo_invoice | signature, mime_type, captured_at, url }[]`. `url` firmada, estable ~1 h (se puede cachear en el navegador).
+- `evidences`: `{ id, kind: photo_invoice | photo_product | signature, mime_type, captured_at, url }[]`. `url` firmada, estable ~1 h (se puede cachear en el navegador).
 - `next_stop_id`: la siguiente **pendiente por secuencia**.
 - `departed_at`: primera salida de la sede (> 300 m), leída de `routes.departed_at` (columna de `sql/44`).
 - La app del chofer (rol Chofer) recibe además `customer_phone`, `items`, `weight` y no recibe URLs de evidencias.
@@ -69,7 +69,7 @@ La web **no** tiene umbrales propios: pinta `signal`, `color` y `alerts` tal com
 ## Escritura (app del chofer)
 - `POST /posiciones` — lote ≤ 200, idempotente por `client_id`. Acepta puntos hasta 2 h después de cerrar el viaje (se guardan, no mueven la última posición). `is_mock` / `accuracy_m > 200` se guardan marcados y no mueven el camión.
 - `POST /paradas/{id}/transicion` — `pending | delivered | failed` (fallida exige motivo). Entrega fuera de la geocerca de 150 m: evento `geofence_out`.
-- `POST /paradas/{id}/evidencias/upload-url` y `POST /paradas/{id}/evidencias` — solo `photo_invoice` y `signature` (`photo_other` → 422).
+- `POST /paradas/{id}/evidencias/upload-url` y `POST /paradas/{id}/evidencias` — `photo_invoice`, `photo_product` (recolecta) y `signature` (`photo_other` → 422). Cada parada trae `type: delivery | collection`.
 
 ## Cierre del viaje
 **Tracking no termina viajes.** El viaje lo termina **Planificación** (completar o cancelar el viaje en `plan_trips`). Tracking solo **lee** ese estado, sin escribir en Planificación:
