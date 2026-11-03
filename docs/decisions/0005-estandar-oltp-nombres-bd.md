@@ -84,6 +84,8 @@ Desviaciones (no se tocan, quedan documentadas):
 
 ## Migration notes
 
+Guía para escribir las migraciones posteriores a la 59: [`sql/README.md`](../../sql/README.md).
+
 1. `node --env-file=.env.local scripts/run-migration.mjs sql/59_estandar_oltp_renombrado.sql` (ensayo, ROLLBACK)
    y `python scripts/estandar-bd/humo_59.py --codigo` (todo OK).
 2. Aplicar con `--execute` (humano). Rollback exacto: `sql/59_estandar_oltp_renombrado_rollback.sql`.
