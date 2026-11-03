@@ -52,7 +52,7 @@ describe('ImportSheetWizard (caracterización)', () => {
 
   it('paso 1: pide el archivo', () => {
     const { container } = open();
-    expect(screen.getByText('Elegí un Excel o un CSV')).toBeTruthy();
+    expect(screen.getByText('Elige un Excel o un CSV')).toBeTruthy();
     expect(container.innerHTML).toMatchSnapshot();
   });
 
@@ -61,7 +61,7 @@ describe('ImportSheetWizard (caracterización)', () => {
     await upload(container);
     expect(container.innerHTML).toMatchSnapshot();
     fireEvent.click(screen.getByRole('button', { name: 'Atrás' }));
-    expect(screen.getByText('Elegí un Excel o un CSV')).toBeTruthy();
+    expect(screen.getByText('Elige un Excel o un CSV')).toBeTruthy();
   });
 
   it('paso 3: propone el mapeo de columnas', async () => {
@@ -78,7 +78,7 @@ describe('ImportSheetWizard (caracterización)', () => {
     fieldSelects.forEach((s) => fireEvent.change(s, { target: { value: 'ignore' } }));
     const next = screen.getByRole('button', { name: 'Ver qué se va a importar' }) as HTMLButtonElement;
     expect(next.disabled).toBe(true);
-    expect(next.title).toBe('Marcá al menos una columna como Concepto y otra como Importe');
+    expect(next.title).toBe('Marca al menos una columna como Concepto y otra como Importe');
   });
 
   it('paso 4: muestra qué se importa, qué se descarta y la suma', async () => {
@@ -122,7 +122,7 @@ describe('ImportSheetWizard (caracterización)', () => {
     await upload(container);
     fireEvent.click(screen.getByLabelText('Cerrar'));
     expect(onClose).toHaveBeenCalledTimes(1);
-    expect(screen.getByText('Elegí un Excel o un CSV')).toBeTruthy();
+    expect(screen.getByText('Elige un Excel o un CSV')).toBeTruthy();
   });
 
   it('un archivo que no se puede leer muestra el error', async () => {

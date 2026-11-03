@@ -1,6 +1,6 @@
 // Reglas puras de presentación del tracking (sin React): colores, etiquetas y tiempos relativos.
 // Los umbrales (señal, retraso, detenido) viven SOLO en el backend: la UI pinta `signal`, `color` y `alerts`.
-import type { AlertCode, EvidenceKind, MapColor, RouteState, Signal, StopState, Viaje } from './types';
+import type { AlertCode, EvidenceKind, MapColor, Resumen, RouteState, StopState, Viaje } from './types';
 
 export const COLOR_HEX: Record<MapColor, string> = {
   green: '#059669',
@@ -15,14 +15,33 @@ export const STOP_COLOR_HEX: Record<StopState, string> = {
   failed: '#dc2626',
 };
 
-export type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'info';
+export type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'info' | 'blue';
 
-export function stateVariant(state: RouteState, signal: Signal): BadgeVariant {
-  if (state === 'completed') return 'info';
-  if (state === 'active') return signal === 'online' ? 'success' : signal === 'stale' ? 'warning' : signal === 'offline' ? 'danger' : 'default';
-  if (state === 'cancelled') return 'danger';
-  return 'default';
+/**
+ * Insignia del estado del viaje. Sale del MISMO `color` que el punto del mapa y la leyenda (lo calcula el backend:
+ * verde con señal, ámbar señal vieja, gris sin señal o no activo, azul completado), para que nunca se contradigan.
+ */
+export function colorVariant(color: MapColor): BadgeVariant {
+  switch (color) {
+    case 'green': return 'success';
+    case 'amber': return 'warning';
+    case 'blue': return 'blue';
+    default: return 'default';
+  }
 }
+
+/**
+ * Paradas fallidas de los viajes en curso. El resumen del backend cuenta como "hechas" las entregadas MÁS las fallidas y
+ * no las separa; se suman de los viajes cargados, y solo si están TODOS los activos (si no, el número sería parcial: null).
+ */
+export function failedStopsOfActive(viajes: Viaje[], resumen: Pick<Resumen, 'active'> | null): number | null {
+  if (!resumen) return null;
+  const activos = viajes.filter((v) => v.state === 'active');
+  return activos.length === resumen.active ? activos.reduce((sum, v) => sum + v.progress.failed, 0) : null;
+}
+
+/** ¿El tramo de la ruta hacia esa parada ya se recorrió? Una parada que no está en el detalle no cuenta como hecha. */
+export const legDone = (state: StopState | undefined): boolean => state !== undefined && state !== 'pending';
 
 export function stopVariant(state: StopState): BadgeVariant {
   return state === 'delivered' ? 'success' : state === 'failed' ? 'danger' : 'default';
@@ -83,6 +102,7 @@ export const STOP_KEY: Record<StopState, string> = {
 
 export const EVIDENCE_KEY: Record<EvidenceKind, string> = {
   photo_invoice: 'tracking.evidenceInvoice',
+  photo_product: 'tracking.evidenceProduct',
   signature: 'tracking.evidenceSignature',
 };
 
@@ -105,9 +125,10 @@ export function formatClock(iso: string | null | undefined, timezone?: string | 
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
   try {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: timezone ?? undefined });
+    // hourCycle 'h23' (no hour12:false): algunos motores escriben "24:05" a medianoche con hour12:false.
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: timezone ?? undefined });
   } catch {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
   }
 }
 
@@ -129,12 +150,16 @@ export function formatDay(date: string | null | undefined, timezone?: string | n
 
 export type KpiFilter = 'active' | 'on_time' | 'late' | 'no_signal' | 'completed_today';
 
-/** Fecha local (YYYY-MM-DD) de un instante en la zona dada (o la del navegador). */
+/**
+ * Fecha local (YYYY-MM-DD) de un instante en la zona dada. Sin zona se usa UTC, igual que el backend
+ * (`coalesce(countries.timezone, 'UTC')`): con la del navegador, "Completados hoy" no coincidiría con el tile.
+ */
 function localDate(ms: number, timezone: string | null): string {
   try {
-    return new Intl.DateTimeFormat('en-CA', { timeZone: timezone ?? undefined, year: 'numeric', month: '2-digit', day: '2-digit' }).format(ms);
+    return new Intl.DateTimeFormat('en-CA', { timeZone: timezone ?? 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(ms);
   } catch {
-    return new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(ms);
+    // Zona inválida: el backend también cae a UTC.
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(ms);
   }
 }
 

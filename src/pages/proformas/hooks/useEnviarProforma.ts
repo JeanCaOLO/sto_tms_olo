@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatMoney } from '../../../lib/tarifas/format';
 import {
   blobToBase64, buildRecipients, fillTemplate, getCarrierEmail, getEmailConfig, gmailComposeUrl, markEmailSent,
@@ -17,6 +17,11 @@ export function useEnviarProforma(detail: ProformaDetail, onSent: () => void) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<'edit' | 'opened'>('edit');
+  // El correo YA salió por Gmail (envío directo) y falta solo dejar constancia. Desde ahí no se puede
+  // volver a enviar: solo reintentar el registro. Sin esto, si fallaba el registro, "Enviar" se
+  // reactivaba y un segundo clic mandaba el mismo correo otra vez al transportista.
+  const [sent, setSent] = useState(false);
+  const sendingRef = useRef(false);
 
   // Se arma una vez por proforma: depender del objeto `proforma` volvía a rellenar el correo (y borraba lo editado)
   // cada vez que el detalle se recargaba.
@@ -43,12 +48,15 @@ export function useEnviarProforma(detail: ProformaDetail, onSent: () => void) {
   const recipients = useMemo(() => buildRecipients(to.split(/[\s,;]+/), true, null), [to]);
   const fileName = `Proforma-${proforma.number}.pdf`;
 
-  const downloadPdf = useCallback(async () => {
+  /** true = el PDF se generó y se descargó. */
+  const downloadPdf = useCallback(async (): Promise<boolean> => {
     setBusy(true); setError(null);
     try {
       downloadBlob(await renderProformaPdf(detail), fileName);
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo generar el PDF.');
+      return false;
     } finally {
       setBusy(false);
     }
@@ -56,13 +64,17 @@ export function useEnviarProforma(detail: ProformaDetail, onSent: () => void) {
 
   /** Manual: descarga el PDF y abre Gmail con el correo armado; el usuario lo adjunta y lo envía. */
   const openInGmail = useCallback(async () => {
-    await downloadPdf();
+    // Sin PDF no se abre Gmail ni se dice "se descargó": el usuario vería un correo sin nada que adjuntar.
+    if (!(await downloadPdf())) return;
     window.open(gmailComposeUrl({ to: recipients, subject, body }), '_blank', 'noopener');
     setStep('opened');
   }, [downloadPdf, recipients, subject, body]);
 
   /** Directo: el PDF viaja al servidor, que envía por Gmail con la cuenta conectada del usuario. */
   const sendDirect = useCallback(async () => {
+    // El ref cierra la ventana entre el clic y el re-render; `sent` impide reenviar un correo que ya salió.
+    if (sendingRef.current || sent) return;
+    sendingRef.current = true;
     setBusy(true); setError(null);
     try {
       const pdfBase64 = await blobToBase64(await renderProformaPdf(detail));
@@ -70,14 +82,17 @@ export function useEnviarProforma(detail: ProformaDetail, onSent: () => void) {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo enviar el correo.');
       setBusy(false);
+      sendingRef.current = false;
       return;
     }
     // El correo ya salió: si falla dejar constancia, se avisa sin ocultar que se envió.
+    setSent(true);
     const marked = await markEmailSent(proforma.id, recipients);
     setBusy(false);
+    sendingRef.current = false;
     if (marked.error) setError(`El correo se envió, pero no se pudo registrar: ${marked.error}`);
     else onSent();
-  }, [detail, proforma.id, recipients, subject, body, fileName, onSent]);
+  }, [detail, proforma.id, recipients, subject, body, fileName, onSent, sent]);
 
   const confirmSent = useCallback(async () => {
     setBusy(true);
@@ -89,6 +104,6 @@ export function useEnviarProforma(detail: ProformaDetail, onSent: () => void) {
 
   return {
     config, carrierEmail, to, setTo, subject, setSubject, body, setBody, recipients,
-    busy, error, step, fileName, openInGmail, sendDirect, confirmSent,
+    busy, error, step, sent, fileName, openInGmail, sendDirect, confirmSent,
   };
 }

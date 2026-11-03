@@ -62,7 +62,6 @@ export function useTarifariosState(countryId: string, partyId?: string) {
     setState((s) => ({
       ...s,
       selectedId: id === s.selectedId ? null : id,
-      editingRowId: null,
     }));
   };
 

@@ -70,7 +70,7 @@ export default function FlotaMapa({ fitKey, viajes, selectedId, detail, onSelect
   const trucks = useMemo(() => positioned(viajes), [viajes]);
 
   return (
-    <div className="relative isolate h-full min-h-[320px] rounded-lg overflow-hidden border border-slate-200">
+    <div role="region" aria-label={t('tracking.mapLabel')} className="relative isolate h-full min-h-[320px] rounded-lg overflow-hidden border border-slate-200">
       <MapContainer center={DEFAULT_CENTER} zoom={DEFAULT_ZOOM} className="w-full h-full" scrollWheelZoom>
         <TileLayer url={TILES_URL} attribution="&copy; OpenStreetMap" />
         {detail && <RutaViaje detail={detail} />}

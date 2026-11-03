@@ -129,3 +129,6 @@ build/
 
 # Data temporal de paso Kiro -> Claude (ingesta a BD; se borra tras cargar)
 .tmp-claude/
+
+graphify-out/
+.test/

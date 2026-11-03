@@ -27,7 +27,7 @@ export function useEmissionState({ reliquidando, settlement }: Props) {
       }
     }
     if (reliquidando && !reason.trim()) {
-      setError('Indicá por qué se re-liquida el viaje.');
+      setError('Indica por qué se re-liquida el viaje.');
       return false;
     }
     return true;

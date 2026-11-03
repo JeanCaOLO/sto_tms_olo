@@ -41,7 +41,20 @@ MAX_FUTURE_SKEW = timedelta(days=1)   # un reloj adelantado se acota a "ahora"; 
 PRESENCE_ONLINE_SECONDS = 300         # mismos umbrales que la señal de la web (tracking_logic.py)
 PRESENCE_STALE_SECONDS = 1800
 MAX_EVIDENCE_BYTES = 5 * 1024 * 1024
-EVIDENCE_KINDS = ("photo_invoice", "signature")   # la web solo muestra estas dos (photo_other se rechaza allá)
+EVIDENCE_KINDS = ("photo_invoice", "signature", "photo_product")   # la web no muestra photo_other (se rechaza allá)
+STOP_TYPES = ("delivery", "collection")
+# Evidencias que exige cada tipo de parada para marcarla "Entregada/Recolectada".
+REQUIRED_EVIDENCE = {"delivery": ("photo_invoice", "signature"), "collection": ("photo_product", "signature")}
+EVIDENCE_REQUIRED_TEXT = {
+    "delivery": "Para marcar la entrega se requiere la foto de la factura y la firma.",
+    "collection": "Para marcar la recolecta se requiere la foto del producto y la firma.",
+}
+
+
+def stop_type(value) -> str:
+    """`delivery` (por defecto) o `collection`; cualquier otro valor se trata como entrega."""
+    return value if value in STOP_TYPES else "delivery"
+
 EVIDENCE_MIME = {"image/jpeg": "jpg", "image/png": "png"}
 URL_TTL_SECONDS = 300
 SPEED_KMH = 30

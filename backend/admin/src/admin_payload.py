@@ -9,6 +9,8 @@ from tms_common.passwords import MIN_PASSWORD_LENGTH
 EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 STATUSES = ("active", "inactive")
 SCOPE_KEYS = ("country_id", "warehouse_id", "customer_id")
+# Rol cuyos usuarios pertenecen a UNA empresa transportista y solo ven lo de ella.
+CARRIER_ROLE = "transportista"
 
 
 @dataclass(frozen=True)
@@ -58,3 +60,8 @@ def scopes(body: dict) -> list[ScopeInput]:
     if not isinstance(raw, list) or not raw:
         raise HttpError(400, "El usuario necesita al menos un alcance (Global o país/almacén/cliente)")
     return list(dict.fromkeys(_scope(item) for item in raw))
+
+
+def carrier_id(body: dict) -> str | None:
+    value = str(body.get("carrier_id") or "").strip()
+    return value or None

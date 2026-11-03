@@ -59,19 +59,19 @@ export function KeyColumnsEditor({
               </span>
               <span className="flex-1 text-sm text-slate-800">{varLabelOf(key as VarKey)}</span>
               <code className="text-[11px] text-slate-400 font-mono">{key}</code>
-              <button type="button" onClick={() => onMove(index, -1)} disabled={index === 0} className={ICON_BTN} title="Subir">
+              <button type="button" onClick={() => onMove(index, -1)} disabled={index === 0} className={ICON_BTN} title="Subir" aria-label="Subir columna">
                 <i className="ri-arrow-up-line"></i>
               </button>
               <button
                 type="button" onClick={() => onMove(index, 1)} disabled={index === keyColumns.length - 1}
-                className={ICON_BTN} title="Bajar"
+                className={ICON_BTN} title="Bajar" aria-label="Bajar columna"
               >
                 <i className="ri-arrow-down-line"></i>
               </button>
               <button
                 type="button" onClick={() => onRemove(index)}
                 className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded cursor-pointer"
-                title="Quitar"
+                title="Quitar" aria-label="Quitar columna"
               >
                 <i className="ri-close-line"></i>
               </button>

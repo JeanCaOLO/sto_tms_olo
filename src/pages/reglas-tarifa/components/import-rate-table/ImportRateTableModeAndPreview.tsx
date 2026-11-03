@@ -70,7 +70,7 @@ export default function ImportRateTableModeAndPreview({
         )}
 
         {duplicadas.length > 0 && (
-          <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-4 py-3 mb-3">
+          <div className="bg-red-50 border border-red-200 text-red-800 text-xs rounded-lg px-4 py-3 mb-3">
             <i className="ri-alert-line mr-1"></i>
             El archivo repite estas combinaciones:{' '}
             {duplicadas.slice(0, 5).map((k) => k.join(' | ')).join(' · ')}

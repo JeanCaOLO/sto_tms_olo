@@ -10,12 +10,17 @@ import type { Pedido } from './types';
 export function usePedidosDia(fecha: string) {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { selectedCountryId, selectedWarehouseId, selectedCustomerId } = useOperationalContext();
 
   const cargar = useCallback(async () => {
     setCargando(true);
+    setError(null);
     try {
       setPedidos(await fetchPedidosParaPlanificar(fecha));
+    } catch (e) {
+      setPedidos([]);
+      setError(e instanceof Error ? e.message : 'No se pudieron cargar los pedidos.');
     } finally {
       setCargando(false);
     }
@@ -25,5 +30,5 @@ export function usePedidosDia(fecha: string) {
     cargar();
   }, [cargar, selectedCountryId, selectedWarehouseId, selectedCustomerId]);
 
-  return { pedidos, cargando, recargar: cargar };
+  return { pedidos, cargando, error, recargar: cargar };
 }

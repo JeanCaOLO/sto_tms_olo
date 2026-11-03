@@ -11,7 +11,7 @@
 // prueba en la app. Las pruebas inyectan un almacén en memoria con `setDataSource`
 // (`data/memory`).
 
-import { STORAGE_KEY } from '../../supabase';
+import { STORAGE_KEY, currentAccessToken, expireSession, isTokenRejected } from '../../supabase';
 import type { DataSource } from './datasource';
 import { HttpDataSource } from './http-datasource';
 
@@ -43,11 +43,23 @@ function sessionHeaders(): Record<string, string> {
   }
 }
 
+// Un 401 del backend del tarifador = token vencido o inválido: cierra la sesión (vuelve a /login)
+// en vez de seguir mostrando errores. La respuesta se devuelve intacta para que el driver la maneje.
+export async function fetchExpiringSession(...args: Parameters<typeof fetch>): Promise<Response> {
+  const sentToken = currentAccessToken();
+  const response = await fetch(...args);
+  if (sentToken && (response.status === 401 || response.status === 403)) {
+    const body = await response.clone().json().catch(() => null);
+    if (isTokenRejected(response.status, body)) expireSession(sentToken);
+  }
+  return response;
+}
+
 function build(): DataSource {
   // Misma API que el resto del TMS: vacío en dev (Vite proxya /api), el API Gateway en build.
   const baseUrl =
     env('VITE_TARIFAS_API_URL') ?? `${(env('VITE_API_BASE') ?? '').replace(/\/$/, '')}/api`;
-  return new HttpDataSource({ baseUrl, headers: sessionHeaders });
+  return new HttpDataSource({ baseUrl, headers: sessionHeaders, fetchImpl: fetchExpiringSession });
 }
 
 let instance: DataSource | null = null;

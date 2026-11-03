@@ -130,7 +130,7 @@ export function getSettlementColumnsExtended(
   const baseCols = getSettlementColumns(numeroDe, canEdit, onStatusChange);
   const marginCol: DataTableColumn<SettlementRecord> = {
     key: 'margin',
-    header: 'Ganancia (auditoría)',
+    header: 'Margen (auditoría)',
     filterable: true,
     accessor: (s) => (s.cargoValue && s.marginStatus ? MARGIN_LABEL[s.marginStatus] ?? s.marginStatus : ''),
     exportValue: (s) => (s.cargoValue && s.marginAmount ? Number(s.marginAmount) : ''),

@@ -32,6 +32,7 @@
      "lat": 9.933,
      "lng": -84.183,
      "invoice": "FAC-1002",
+     "type": "collection",
      "state": "pending"
     },
     {

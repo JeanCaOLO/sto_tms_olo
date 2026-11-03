@@ -49,7 +49,7 @@ export class MemoryDataSource implements DataSource {
     if (!Array.isArray(rows)) {
       throw new Error(
         `La colección "${String(key)}" no existe en el almacén en memoria. ` +
-          'Revisá la semilla del almacén.',
+          'Revisa la semilla del almacén.',
       );
     }
     return rows as Row[];

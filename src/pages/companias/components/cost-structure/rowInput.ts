@@ -1,8 +1,8 @@
 import { parseMoneyInput } from '../../../../lib/tarifas/money';
 import type { CostRowInput, CostStructureRow } from '../../../../lib/tarifas/costStructureDataSource';
 
-export const INHERITED_MESSAGE = 'Esta compañía usa la estructura del país. Antes de agregar conceptos, creá una propia a '
-  + 'partir de la del país (botón de arriba) o subí la plantilla completa.';
+export const INHERITED_MESSAGE = 'Esta compañía usa la estructura del país. Antes de agregar conceptos, crea una propia a '
+  + 'partir de la del país (botón de arriba) o sube la plantilla completa.';
 
 const MAX_CODE_LENGTH = 40;
 

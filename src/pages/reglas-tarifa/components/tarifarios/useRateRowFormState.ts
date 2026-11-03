@@ -11,7 +11,10 @@ export function useRateRowFormState(selected: RateTable | null) {
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [rowErrors, setRowErrors] = useState<RateRowErrors>({});
 
-  // Limpiar el borrador cuando cambia la tabla elegida.
+  // Limpiar el borrador cuando cambia la tabla elegida (o sus columnas clave). Depende del id, no del
+  // objeto: cada recarga de la lista (activar, borrar o guardar otro tarifario) entrega un objeto nuevo
+  // y borraba lo que la persona estaba escribiendo.
+  const keyColumnsSignature = selected?.keyColumns.join('|');
   useEffect(() => {
     if (!selected) {
       setDraftKey([]);
@@ -26,7 +29,9 @@ export function useRateRowFormState(selected: RateTable | null) {
     setDraftValues({});
     setEditingRowId(null);
     setRowErrors({});
-  }, [selected]);
+    // `selected` se lee solo para sembrar el borrador; ver el comentario de arriba.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id, keyColumnsSignature]);
 
   const startEdit = (row: RateTableRow) => {
     if (!selected) return;

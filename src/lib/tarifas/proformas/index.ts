@@ -2,6 +2,7 @@ export type {
   PhaseState, ApproverType, FlowPhaseTemplate, ProformaPhase, PhaseActor, ProformaItem, ProformaRecord, PhaseDecision,
 } from './types';
 export { isSuperAdmin } from './isSuperAdmin';
+export { isCarrierRole } from './isCarrierRole';
 export { currentPhase } from './currentPhase';
 export { canApprove } from './canApprove';
 export { resolveStatus } from './resolveStatus';

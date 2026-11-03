@@ -82,7 +82,7 @@ export function enablePersistence(key: string): void {
 }
 
 function cloneSeed(): TarifasDatabase {
-  if (!seed) throw new Error('El almacén en memoria no tiene semilla: llamá a setSeed() primero.');
+  if (!seed) throw new Error('El almacén en memoria no tiene semilla: llama a setSeed() primero.');
   // structuredClone evita que dos lecturas compartan referencias y que una mute la semilla original.
   return structuredClone(seed);
 }

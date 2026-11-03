@@ -9,7 +9,8 @@ from test_tarifas import FakeDb, USER
 from tms_common import pg
 
 DECISION = "POST /api/tarifas/proformas/{id}/decision"
-PROFORMA = {"id": "pro_1", "country_id": "22222222-2222-2222-2222-222222222221", "status": "En Revisión"}
+CARRIER = "33333333-3333-3333-3333-333333333331"
+PROFORMA = {"id": "pro_1", "country_id": "22222222-2222-2222-2222-222222222221", "carrier_id": CARRIER, "status": "En Revisión"}
 
 
 def phase(pid, position, state="pendiente", role="Jefe", user=None):
@@ -299,3 +300,70 @@ def test_los_reclamos_no_se_escriben_por_la_api_generica(api, caller_permissions
     for kind in ("insert", "update", "delete"):
         with pytest.raises(Exception):
             check_direct_write("tarifas_proforma_claims", kind, {})
+
+
+# ── Usuario transportista: solo lo de su empresa ───────────────────────────────────────────────────
+
+def as_carrier_user(caller_permissions, carrier_id=CARRIER, role="Transportista"):
+    perms = make_permissions({"tarifas.proformas": ["view", "edit"]})
+    caller_permissions.set(type(perms)(perms.app_user_id, perms.role_id, role, False, perms.modules, True, (), carrier_id))
+
+
+def read(app, table, q=None):
+    return app.handler(http_event("GET /api/tarifas/{table}", path={"table": table},
+                                  query={"q": json.dumps(q or {})}, user=USER), None)
+
+
+def test_transportista_aprueba_su_fase_en_una_proforma_de_su_empresa(api, caller_permissions):
+    app, db = api(phases=[phase("f1", 1, role="Transportista"), phase("f2", 2, role="Gerente")])
+    as_carrier_user(caller_permissions)
+    response = decide(app, {"action": "approve", "phaseId": "f1"})
+    assert response["statusCode"] == 200
+    assert body_of(response)["status"] == "En Revisión"  # pasa a la fase del gerente
+
+
+def test_transportista_no_decide_una_proforma_de_otra_empresa(api, caller_permissions):
+    app, db = api(phases=[phase("f1", 1, role="Transportista")])
+    as_carrier_user(caller_permissions, carrier_id="33333333-3333-3333-3333-333333333332")
+    assert decide(app, {"action": "approve", "phaseId": "f1"})["statusCode"] == 404
+    assert db.tx_calls == []
+
+
+@pytest.mark.parametrize("action", ["annul", "resubmit", "skip", "appeal", "restart"])
+def test_transportista_solo_aprueba_o_rechaza(api, caller_permissions, action):
+    app, db = api(phases=[phase("f1", 1, role="Transportista")])
+    as_carrier_user(caller_permissions)
+    assert decide(app, {"action": action, "phaseId": "f1", "comment": "x"})["statusCode"] == 403
+    assert db.tx_calls == []
+
+
+def test_lectura_de_proformas_del_transportista_se_filtra_por_su_empresa(api, caller_permissions):
+    app, db = api()
+    as_carrier_user(caller_permissions)
+    assert read(app, "tarifas_proformas")["statusCode"] == 200
+    sql, params = db.calls[-1]
+    assert "carrier_id = %s::uuid" in sql and params[-1] == CARRIER
+
+
+def test_lectura_de_fases_y_liquidaciones_cuelga_de_las_proformas_de_su_empresa(api, caller_permissions):
+    app, db = api()
+    as_carrier_user(caller_permissions)
+    for table in ("tarifas_proforma_phases", "tarifas_proforma_items", "tarifas_settlements"):
+        assert read(app, table)["statusCode"] == 200
+        sql, params = db.calls[-1]
+        assert "FROM tarifas_proformas WHERE carrier_id = %s::uuid" in sql and params[-1] == CARRIER
+
+
+def test_transportista_no_lee_el_catalogo_de_tarifas_ni_escribe(api, caller_permissions):
+    app, db = api()
+    as_carrier_user(caller_permissions)
+    assert read(app, "tarifas_pricing_rules")["statusCode"] == 403
+    insert = app.handler(http_event("POST /api/tarifas/{table}", path={"table": "tarifas_proformas"}, body={"number": "x"}, user=USER), None)
+    assert insert["statusCode"] == 403
+
+
+def test_el_gerente_sin_empresa_ve_todas(api, caller_permissions):
+    app, db = api()
+    as_role(caller_permissions, "Gerente")
+    assert read(app, "tarifas_proformas")["statusCode"] == 200
+    assert "carrier_id = %s::uuid" not in db.calls[-1][0]

@@ -1,7 +1,7 @@
 // Bitácora de proformas (solo lectura). Con `proformaId` muestra solo el historial de esa proforma.
 // Se consulta al montar: la pestaña o la sección se abre cuando el usuario la pide.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
 import { listProformaEvents, type DateRange, type ProformaEvent } from '../../../lib/tarifas/proformas';
 
@@ -27,15 +27,19 @@ export default function ProformaBitacora({ proformaId, numbers, range }: Props) 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const seq = useRef(0); // solo vale la respuesta de la última carga
+
   const load = useCallback(async () => {
+    const mine = ++seq.current;
     setLoading(true);
     setError(null);
     try {
-      setEvents(await listProformaEvents(proformaId, range));
+      const data = await listProformaEvents(proformaId, range);
+      if (mine === seq.current) setEvents(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo cargar la bitácora.');
+      if (mine === seq.current) setError(e instanceof Error ? e.message : 'No se pudo cargar la bitácora.');
     } finally {
-      setLoading(false);
+      if (mine === seq.current) setLoading(false);
     }
   }, [proformaId, range]);
 

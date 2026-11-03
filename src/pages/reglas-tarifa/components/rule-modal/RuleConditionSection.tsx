@@ -27,16 +27,17 @@ const MODES: { mode: ConditionMode; label: string }[] = [
 export default function RuleConditionSection(props: RuleConditionSectionProps) {
   const { conditionMode, advancedConditionsJson, onModeChange } = props;
   return (
-    <section className="border-t border-gray-200 pt-4">
+    <section className="border-t border-slate-200 pt-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-700">¿Cuándo aplica?</h3>
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+        <h3 className="text-sm font-semibold text-slate-700">¿Cuándo aplica?</h3>
+        <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
           {MODES.map(({ mode, label }) => (
             <button
               key={mode}
               type="button"
+              aria-pressed={conditionMode === mode}
               onClick={() => onModeChange(mode)}
-              className={`px-3 py-1 text-xs rounded-md transition-colors ${conditionMode === mode ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-600'}`}
+              className={`px-3 py-1 text-xs rounded-md transition-colors ${conditionMode === mode ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-600'}`}
             >
               {label}
             </button>
@@ -60,7 +61,7 @@ export default function RuleConditionSection(props: RuleConditionSectionProps) {
           value={advancedConditionsJson}
           onChange={(e) => props.onAdvancedJsonChange(e.target.value)}
           rows={4}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-teal-500"
+          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-teal-500"
         />
       )}
     </section>

@@ -18,6 +18,7 @@ export function RateTableActions({ table: t, canEdit, canDelete, onEdit, onToggl
         disabled={!canEdit}
         className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         title={canEdit ? 'Editar' : 'Tu rol no puede editar tarifarios'}
+        aria-label="Editar tarifario"
       >
         <i className="ri-edit-line"></i>
       </button>
@@ -26,6 +27,7 @@ export function RateTableActions({ table: t, canEdit, canDelete, onEdit, onToggl
         disabled={!canEdit}
         className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         title={!canEdit ? 'Tu rol no puede editar tarifarios' : t.active ? 'Desactivar' : 'Reactivar'}
+        aria-label={t.active ? 'Desactivar tarifario' : 'Reactivar tarifario'}
       >
         <i className={t.active ? 'ri-forbid-line' : 'ri-refresh-line'}></i>
       </button>
@@ -34,6 +36,7 @@ export function RateTableActions({ table: t, canEdit, canDelete, onEdit, onToggl
         disabled={!canDelete}
         className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         title={canDelete ? 'Eliminar' : 'Tu rol no puede eliminar tarifarios'}
+        aria-label="Eliminar tarifario"
       >
         <i className="ri-delete-bin-line"></i>
       </button>

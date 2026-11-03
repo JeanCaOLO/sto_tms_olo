@@ -3,9 +3,9 @@ export function FileStep({ onFile }: { onFile: (file: File | undefined) => void 
   return (
     <div className="text-center py-10 border-2 border-dashed border-slate-200 rounded-lg">
       <i className="ri-file-excel-2-line text-4xl text-slate-300"></i>
-      <p className="mt-3 text-sm text-slate-600 font-medium">Elegí un Excel o un CSV</p>
+      <p className="mt-3 text-sm text-slate-600 font-medium">Elige un Excel o un CSV</p>
       <p className="text-xs text-slate-500 mb-4">
-        Se leen todas las hojas; después elegís cuál importar.
+        Se leen todas las hojas; después eliges cuál importar.
       </p>
       <input
         type="file"

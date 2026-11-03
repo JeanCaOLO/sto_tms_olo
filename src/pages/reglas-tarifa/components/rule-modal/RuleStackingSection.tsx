@@ -47,8 +47,8 @@ export default function RuleStackingSection({
   // "Compite: gana una sola" solo existe en la BASE; en las demás fases anularía recargos ajenos.
   const stackingOptions = stage === 'BASE' ? STACKING_OPTIONS : STACKING_OPTIONS.filter((o) => o.value !== 'EXCLUSIVE');
   return (
-    <section className="border-t border-gray-200 pt-4">
-      <h3 className="text-sm font-semibold text-gray-700 mb-3">Cómo convive con las demás reglas</h3>
+    <section className="border-t border-slate-200 pt-4">
+      <h3 className="text-sm font-semibold text-slate-700 mb-3">Cómo convive con las demás reglas</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Select
           label="Fase del cálculo *"

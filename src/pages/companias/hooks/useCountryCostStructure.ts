@@ -33,7 +33,7 @@ export function useCountryCostStructure(countryId: string) {
       } catch (e) {
         if (cancelled) return;
         console.error('Error cargando la estructura del país:', e);
-        setError('No se pudo cargar la estructura de costos del país. Reintentá en unos segundos.');
+        setError('No se pudo cargar la estructura de costos del país. Reintenta en unos segundos.');
       } finally {
         if (!cancelled) setLoading(false);
       }

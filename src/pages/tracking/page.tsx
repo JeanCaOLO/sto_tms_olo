@@ -10,7 +10,7 @@ import ViajesSidebar from './components/ViajesSidebar';
 import { useNow } from './hooks/useNow';
 import { useTrackingCountry } from './hooks/useTrackingCountry';
 import { useChoferesEnLinea, useViajeDetalle, useViajesEnVivo } from './hooks/useViajesEnVivo';
-import { formatAge, matchesKpi, type KpiFilter } from './tracking-logic';
+import { failedStopsOfActive, formatAge, matchesKpi, type KpiFilter } from './tracking-logic';
 import type { ListMode } from './types';
 
 // Leaflet pesa: el mapa se descarga solo al abrir Tracking. La simulación es solo del modo mock.
@@ -44,7 +44,9 @@ export default function TrackingPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  const list = useViajesEnVivo(useMemo(() => ({ mode, q: query, limit, country }), [mode, query, limit, country]));
+  // Con un indicador elegido hay que ver TODOS los viajes que cuenta (no solo la página): se pide el máximo del backend.
+  const effectiveLimit = kpi ? MAX_LIMIT : limit;
+  const list = useViajesEnVivo(useMemo(() => ({ mode, q: query, limit: effectiveLimit, country }), [mode, query, effectiveLimit, country]));
   const detail = useViajeDetalle(selectedId);
   // Si falla (p. ej. rol sin acceso) la lista de choferes simplemente no aparece; no afecta al monitoreo de viajes.
   const drivers = useChoferesEnLinea(country);
@@ -55,13 +57,23 @@ export default function TrackingPage() {
   const visibles = useMemo(() => (kpi ? viajes.filter((v) => matchesKpi(v, kpi, now)) : viajes), [viajes, kpi, now]);
   const detailData = detail.data?.id === selectedId ? detail.data : null;
   const selected = viajes.find((v) => v.id === selectedId) ?? detailData;
-  const canLoadMore = viajes.length >= limit && limit < MAX_LIMIT;
+  // Al conservar la lista entre consultas, solo se decide con datos que ya son del límite pedido (sin parpadeos).
+  const current = list.data !== null && list.data.requestedLimit === effectiveLimit;
+  const hasMore = current && list.data?.next_cursor != null;
+  const canLoadMore = hasMore && !kpi && limit < MAX_LIMIT;
+  const capReached = hasMore && !kpi && limit >= MAX_LIMIT;
   const stale = list.error !== null && list.data !== null;
 
   // Los KPIs no dependen de Activos/Todos ni del filtro: se conserva el último valor del país mientras recarga.
   const keptSummary = useRef<{ country: string | null; summary: NonNullable<typeof list.data>['summary'] } | null>(null);
   if (list.data?.summary) keptSummary.current = { country, summary: list.data.summary };
   const summary = list.data?.summary ?? (keptSummary.current?.country === country ? keptSummary.current.summary : null);
+  // El tile cuenta TODOS los viajes del indicador; si la lista trae menos (pasaron del tope), se avisa en vez de callar.
+  const kpiTotal = kpi && summary ? summary[kpi] : null;
+  const kpiPartial = hasMore && kpi !== null && kpiTotal !== null && visibles.length < kpiTotal;
+  const notice = kpiPartial
+    ? t('tracking.kpiPartial', { shown: visibles.length, total: kpiTotal })
+    : capReached ? t('tracking.listCapped', { limit: MAX_LIMIT }) : null;
   const select = useCallback((id: string) => setSelectedId((current) => (current === id ? null : id)), []);
   const refresh = () => { list.refresh(); detail.refresh(); drivers.refresh(); };
   const pickKpi = (value: KpiFilter | null) => {
@@ -98,7 +110,7 @@ export default function TrackingPage() {
         </p>
       )}
 
-      <ResumenBar resumen={summary ?? null} selected={kpi} onSelect={pickKpi} />
+      <ResumenBar resumen={summary ?? null} failedStops={failedStopsOfActive(viajes, summary ?? null)} selected={kpi} onSelect={pickKpi} />
 
       <div className={`grid grid-cols-1 gap-4 h-[calc(100vh-16rem)] min-h-[520px] ${layout}`}>
         <ViajesSidebar
@@ -112,6 +124,7 @@ export default function TrackingPage() {
           now={now}
           canLoadMore={canLoadMore}
           filtered={kpi !== null}
+          notice={notice}
           onMode={(value) => { setMode(value); setKpi(null); setLimit(PAGE_SIZE); }}
           onSearch={(value) => { setSearch(value); setLimit(PAGE_SIZE); }}
           onSelect={select}

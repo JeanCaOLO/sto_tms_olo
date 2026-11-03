@@ -64,9 +64,9 @@ export default {
   'tarifas.tierModeHint.PROGRESSIVE': 'Con 250 km y esa misma tabla, cobra 100×2 + 150×1,50 = 425.',
 
   'tarifas.operatorHint.FIXED': 'Un importe fijo, sin depender de ninguna variable.',
-  'tarifas.operatorHint.TIMES': 'Multiplica la variable por el importe. Ej: por cada peaje, $20.',
-  'tarifas.operatorHint.PER_BLOCK': 'Cuenta bloques COMPLETOS. Ej: cada 10 peajes, $15 — con 25 peajes se pagan 2 bloques.',
-  'tarifas.operatorHint.PERCENT': 'Un porcentaje sobre una base que elegís explícitamente.',
+  'tarifas.operatorHint.TIMES': 'Multiplica la variable por el importe. Ej: por cada peaje, 20.',
+  'tarifas.operatorHint.PER_BLOCK': 'Cuenta bloques COMPLETOS. Ej: cada 10 peajes, 15 — con 25 peajes se pagan 2 bloques.',
+  'tarifas.operatorHint.PERCENT': 'Un porcentaje sobre una base que eliges explícitamente.',
   'tarifas.operatorHint.TIERED': 'Tramos por cantidad. El modo decide si el tramo fija un importe, una tarifa, o cobra solo lo suyo.',
   'tarifas.operatorHint.RATE_TABLE': 'El importe sale de un tarifario cargado aparte. Acá se elige cuál y cuánto cobrar si el viaje no casa ninguna fila.',
 

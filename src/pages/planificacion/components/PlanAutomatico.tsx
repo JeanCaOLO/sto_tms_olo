@@ -17,7 +17,7 @@ function formatoFecha(iso: string): string {
 // y se reparten entre la flota por capacidad al pulsar "Planificar". No hay
 // armado manual de viajes.
 export default function PlanAutomatico({ vehiculos, conductores }: Props) {
-  const { fecha, pedidos, cargando, resultado, planificando, planificar, recargar } =
+  const { fecha, pedidos, cargando, error, resultado, planificando, planificar, recargar } =
     usePlanAutomatico({ vehiculos, conductores });
   const { nombreDe } = useZonasNombre();
 
@@ -57,7 +57,22 @@ export default function PlanAutomatico({ vehiculos, conductores }: Props) {
         </div>
       </div>
 
-      {pedidos.length === 0 && (
+      {error && (
+        <div role="alert" className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between gap-3">
+          <p className="text-sm text-red-700 flex items-center gap-2">
+            <i className="ri-error-warning-line"></i>
+            {error}
+          </p>
+          <button
+            onClick={recargar}
+            className="px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 rounded-lg cursor-pointer whitespace-nowrap"
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
+
+      {!error && pedidos.length === 0 && (
         <p className="text-center text-sm text-slate-400 py-10">
           No hay pedidos con entrega para mañana.
         </p>

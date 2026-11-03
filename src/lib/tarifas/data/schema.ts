@@ -606,7 +606,7 @@ export const ENTITIES = {
       {
         name: 'tarifas_settlements_country_number_uq',
         columns: ['country_id', 'number'],
-        message: 'Otra liquidación tomó ese número al mismo tiempo. Emití de nuevo.',
+        message: 'Otra liquidación tomó ese número al mismo tiempo. Emite de nuevo.',
       },
     ],
     columns: {

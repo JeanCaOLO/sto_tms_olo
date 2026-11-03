@@ -1,6 +1,7 @@
 // Importación de las filas de un tarifario desde CSV o Excel.
 
 import Button from '../../../components/base/Button';
+import Modal from '../../../components/base/Modal';
 import { useModulePermissions } from '../../../hooks/use-module-permissions';
 import { useImportRateTable } from './import-rate-table/useImportRateTable';
 import ImportRateTableFileInput from './import-rate-table/ImportRateTableFileInput';
@@ -31,8 +32,7 @@ export default function ImportRateTableModal({ isOpen, table, onClose, onImporte
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[92vh] overflow-y-auto">
+    <Modal isOpen onClose={handleClose} ariaLabel={`Importar filas de ${table.code}`} widthClass="max-w-4xl" closeOnBackdrop={false}>
         <div className="sticky top-0 bg-white flex items-center justify-between px-6 py-4 border-b border-slate-200 z-10">
           <div>
             <h2 className="text-lg font-semibold text-slate-800">
@@ -132,7 +132,6 @@ export default function ImportRateTableModal({ isOpen, table, onClose, onImporte
             </Button>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

@@ -95,7 +95,7 @@ export default function RateTablesListCard({
       {!selectedId && tables.length > 0 && (
         <p className="text-xs text-slate-500 mt-3">
           <i className="ri-cursor-line mr-1"></i>
-          Tocá un tarifario para ver y cargar sus filas.
+          Toca un tarifario para ver y cargar sus filas.
         </p>
       )}
     </Card>

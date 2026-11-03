@@ -26,7 +26,7 @@ export function resolveCarrierBase(rateType: unknown, flatRateAmount?: unknown, 
   if (type === '') return { issue: `El transportista no tiene forma de cobro. Definila${enCatalogo}` };
   if (type === 'TENDERING') {
     const award = tenderAmount != null ? String(tenderAmount).trim() : '';
-    if (award === '') return { issue: 'La forma de cobro es "Tendering" pero el viaje no tiene un monto adjudicado. Registrá la adjudicación del viaje.' };
+    if (award === '') return { issue: 'La forma de cobro es "Tendering" pero el viaje no tiene un monto adjudicado. Registra la adjudicación del viaje.' };
     if (!(Number(award) >= 0)) return { issue: 'El monto adjudicado por tendering no es válido. Corregilo en la adjudicación del viaje.' };
     return { override: { method: 'FIXED', amount: award, origin: 'TENDER' } };
   }

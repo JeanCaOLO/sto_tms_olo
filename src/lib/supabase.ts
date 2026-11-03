@@ -67,6 +67,32 @@ function operationalHeaders(headers: Headers) {
   }
 }
 
+/**
+ * El backend rechazó el token (401): la sesión ya no sirve. La borra y avisa SIGNED_OUT para que
+ * `AuthProvider` devuelva al usuario a /login. Idempotente: si ya no hay sesión guardada no hace
+ * nada, así varias respuestas 401 simultáneas provocan un solo cierre. `rejectedToken` es el token
+ * con el que se hizo la llamada: si entre tanto el usuario inició otra sesión, no se la borra.
+ */
+/**
+ * ¿La respuesta significa "tu token ya no sirve"? Un 401 sí. Un token vencido o alterado lo corta el
+ * authorizer de API Gateway con 403 `{"message":"Forbidden"}` (sin `error`); un 403 de las Lambdas
+ * de los módulos (rol sin permiso) siempre trae `error`, y ese NO cierra la sesión.
+ */
+export function isTokenRejected(status: number, body: unknown): boolean {
+  if (status === 401) return true;
+  if (status !== 403 || typeof body !== "object" || body === null) return false;
+  const { message, error } = body as { message?: unknown; error?: unknown };
+  return message === "Forbidden" && error === undefined;
+}
+
+export function expireSession(rejectedToken?: string | null): void {
+  const stored = readSession();
+  if (!stored) return;
+  if (rejectedToken && stored.access_token !== rejectedToken) return;
+  writeSession(null);
+  notify("SIGNED_OUT", null);
+}
+
 export async function apiFetch(path: string, init: NonNullable<Parameters<typeof fetch>[1]> = {}) {
   const current = readSession();
   const headers = new Headers(init.headers);
@@ -75,6 +101,8 @@ export async function apiFetch(path: string, init: NonNullable<Parameters<typeof
   operationalHeaders(headers);
   const res = await fetch(`${API_BASE}/api${path}`, { ...init, headers });
   const body = await res.json().catch(() => null);
+  // Un 401 de login es "credenciales incorrectas", no una sesión vencida.
+  if (current && path !== "/auth/login" && isTokenRejected(res.status, body)) expireSession(current.access_token);
   const normalizedError = typeof body?.error === 'string' ? { message: body.error } : (body?.error ?? null);
   return { ok: res.ok, status: res.status, body: body ? { ...body, error: normalizedError } : { error: normalizedError } };
 }

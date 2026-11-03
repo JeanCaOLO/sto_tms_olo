@@ -3,10 +3,14 @@ import { query, dbNames, sql } from "./db.mjs";
 import * as q from "./queries.mjs";
 import { tmsRouter } from "./tms-routes.mjs";
 import { tmsContextRouter } from "./tms-context-routes.mjs";
+import { requireAuth } from "./tms-auth.mjs";
 import { loadSchema } from "./tms-schema.mjs";
 
 const app = express();
 const PORT = Number(process.env.EFLOW_API_PORT) || 4000;
+// Solo loopback por defecto: el proxy de Vite (dev) llega por localhost y no hace falta exponer el
+// API a la red. EFLOW_API_HOST=0.0.0.0 en .env.local si otro equipo debe alcanzarlo.
+const HOST = process.env.EFLOW_API_HOST || "127.0.0.1";
 
 app.use("/api", tmsRouter);
 app.use("/api", express.json({ limit: "1mb" }), tmsContextRouter);
@@ -30,6 +34,10 @@ app.get("/api/health", wrap(async (req, res) => {
   const rows = await query(pais(req), "SELECT 1 AS ok");
   res.json({ ok: rows[0].ok === 1, pais: pais(req) });
 }));
+
+// Viajes y catálogos traen datos operativos y personales (conductores): exigen el mismo JWT que el
+// resto del TMS. /api/health queda abierto como sonda de conectividad.
+app.use(["/api/viajes", "/api/catalogos"], requireAuth);
 
 app.get("/api/viajes", wrap(async (req, res) => {
   const p = pais(req);
@@ -83,8 +91,8 @@ app.get("/api/catalogos/vehiculos", wrap(async (req, res) => {
 
 loadSchema()
   .then(() => {
-    app.listen(PORT, () => {
-      console.log(`eflow read-only API + TMS API on http://localhost:${PORT}  (pais por defecto: cr; ?pais=cr|ve)`);
+    app.listen(PORT, HOST, () => {
+      console.log(`eflow read-only API + TMS API on http://${HOST}:${PORT}  (pais por defecto: cr; ?pais=cr|ve)`);
     });
   })
   .catch((err) => {

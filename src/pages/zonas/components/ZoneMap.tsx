@@ -222,5 +222,6 @@ export default function ZoneMap({
     editLayerRef.current?.getLayers().forEach((l) => (l as L.Polygon).setStyle?.({ color, fillColor: color }));
   }, [editColor]);
 
-  return <div ref={containerRef} className={className} />;
+  // `isolate`: los paneles de Leaflet (z-index 400 a 1000) no deben pintarse sobre el encabezado ni los modales.
+  return <div ref={containerRef} className={`isolate ${className}`} />;
 }

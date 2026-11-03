@@ -26,6 +26,10 @@ export interface PollerConfig<T> {
   intervalMs: number;
   timeoutMs: number;
   setState: (update: (prev: Snapshot<T>) => Snapshot<T>) => void;
+  /** Al reiniciar el poller (cambiaron los filtros) se conserva el dato en pantalla en vez de vaciarlo. */
+  keepData?: boolean;
+  /** Tras un error, ¿vale la pena volver a preguntar? `false` detiene el refresco (p. ej. un 403: no se va a arreglar solo). */
+  shouldRetry?: (error: Error) => boolean;
 }
 
 /** Espera hasta la próxima consulta: el intervalo, o el doble por cada error seguido (tope 60 s). */
@@ -38,8 +42,10 @@ export const emptySnapshot = <T>(loading: boolean): Snapshot<T> => ({ data: null
 const isHidden = () => typeof document !== 'undefined' && document.hidden;
 
 /** Arranca el refresco y devuelve cómo forzarlo o detenerlo. Cada parada descarta lo que siga en vuelo. */
-export function startPoller<T>({ fetcher, intervalMs, timeoutMs, setState }: PollerConfig<T>): Poller {
+export function startPoller<T>({ fetcher, intervalMs, timeoutMs, setState, shouldRetry }: PollerConfig<T>): Poller {
   let stopped = false;
+  // Detenido por `shouldRetry`: no se reprograma ni reacciona a la pestaña; solo `refresh()` lo reanuda.
+  let halted = false;
   let inFlight: AbortController | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let failures = 0;
@@ -63,20 +69,22 @@ export function startPoller<T>({ fetcher, intervalMs, timeoutMs, setState }: Pol
     } catch (err) {
       if (stopped) return;
       failures += 1;
-      setState((prev) => ({ ...prev, error: err instanceof Error ? err : new Error(String(err)), loading: false }));
+      const error = err instanceof Error ? err : new Error(String(err));
+      if (shouldRetry && !shouldRetry(error)) halted = true;
+      setState((prev) => ({ ...prev, error, loading: false }));
     } finally {
       clearTimeout(timeout);
       if (inFlight === controller) inFlight = null;
-      if (!stopped) schedule();
+      if (!stopped && !halted) schedule();
     }
   }
 
-  const onVisible = () => { if (!isHidden()) void run(); };
+  const onVisible = () => { if (!isHidden() && !halted) void run(); };
   document.addEventListener('visibilitychange', onVisible);
   void run();
 
   return {
-    refresh: () => { void run(); },
+    refresh: () => { halted = false; void run(); },
     stop: () => {
       stopped = true;
       inFlight?.abort();
@@ -86,9 +94,14 @@ export function startPoller<T>({ fetcher, intervalMs, timeoutMs, setState }: Pol
   };
 }
 
-/** Efecto de `usePolling`: limpia el dato anterior y, si está habilitado, arranca un poller nuevo. */
+/**
+ * Efecto de `usePolling`: limpia el dato anterior (o lo conserva con `keepData`) y, si está habilitado, arranca un
+ * poller nuevo.
+ */
 export function bindPoller<T>(ref: MutableRefObject<Poller | null>, config: PollerConfig<T>): () => void {
-  config.setState(() => emptySnapshot<T>(config.enabled));
+  config.setState((prev) => (config.keepData && config.enabled
+    ? { ...prev, error: null, loading: prev.data === null }
+    : emptySnapshot<T>(config.enabled)));
   if (!config.enabled) return () => undefined;
   const poller = startPoller(config);
   ref.current = poller;

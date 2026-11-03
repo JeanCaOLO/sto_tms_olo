@@ -66,6 +66,12 @@ describe('backend simulado del tracking (contrato v2)', () => {
     await expect(get('/viajes/no-existe')).rejects.toMatchObject({ status: 404 });
   });
 
+  it('marca las recolectas con type y el resto como entrega', async () => {
+    const d = await get<ViajeDetalle>('/viajes/demo-cr-01');
+    expect(d.stops.map((s) => s.type)).toContain('collection');
+    expect(d.stops.filter((s) => s.type !== 'collection').every((s) => s.type === 'delivery')).toBe(true);
+  });
+
   it('inicia un plan (idempotente) y deja de ofrecerlo', async () => {
     const [plan] = await get<{ plan_trip_id: string }[]>('/planificados');
     const first = await backend(`/v1/tracking/viajes/${plan.plan_trip_id}/iniciar`, { method: 'POST', body: '{}' });

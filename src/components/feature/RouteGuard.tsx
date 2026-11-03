@@ -20,7 +20,15 @@ export default function RouteGuard({ children }: { children: ReactNode }) {
     if (permKey && allowed) postAuditEvent('view', permKey);
   }, [permKey, allowed]);
 
-  if (loading || !permKey) return <>{children}</>;
+  if (!permKey) return <>{children}</>;
+  // Fail-closed: mientras no se sabe el permiso no se monta la página (dispararía sus llamadas a la API).
+  if (loading) {
+    return (
+      <div role="status" className="flex items-center justify-center h-64">
+        <i className="ri-loader-4-line animate-spin text-teal-600 text-2xl"></i>
+      </div>
+    );
+  }
   if (!can(permKey, 'view')) return <NoAccess />;
   return <>{children}</>;
 }
