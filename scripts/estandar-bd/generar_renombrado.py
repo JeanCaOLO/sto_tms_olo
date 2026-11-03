@@ -1,7 +1,7 @@
 """Genera sql/59_estandar_oltp_renombrado.sql (+ _rollback.sql) leyendo el catálogo de tms_olo.
 
 Solo LEE el catálogo (SELECT). Aplica el estándar OLTP Intelix
-(docs/decisions/0014-estandar-oltp-nombres-bd.md):
+(docs/decisions/0005-estandar-oltp-nombres-bd.md):
   tablas tbl_, vistas vw_, secuencias seq_, pk_/fk_/uq_/ck_, idx_/uidx_, trg_.
 Entidad = nombre de la tabla sin tbl_. Lo que ya cumple su prefijo se deja.
 Nombres > 63: 54 caracteres + '_' + 8 de md5 (determinista).
@@ -430,7 +430,7 @@ def write(tables, con_ren, idx_ren, trg_ren, seq_ren, view_ren, funcs) -> None:
         o, n = rel(sch, old), rel(sch, new)
         stmt = f"create or replace view {o} as select * from {n}"
         fwd.append(f"select pg_temp.exec_if(to_regclass({lit(o)}) is null or pg_temp.rel_is({lit(o)}, 'v'), {lit(stmt)});")
-        fwd.append(f"comment on view {o} is {lit(f'{COMPAT}: nombre viejo de {n}; se retira tras redesplegar todos los stacks (ADR-0014)')};")
+        fwd.append(f"comment on view {o} is {lit(f'{COMPAT}: nombre viejo de {n}; se retira tras redesplegar todos los stacks (ADR-0005)')};")
         fwd.append(f"select pg_temp.copiar_grants({lit(n)}::regclass, {lit(o)}::regclass);")
         rb_compat.append(f"select pg_temp.exec_if(pg_temp.rel_is({lit(o)}, 'v') and "
                          f"coalesce(obj_description(to_regclass({lit(o)}), 'pg_class'), '') like '{COMPAT}%', "
@@ -464,7 +464,7 @@ def write(tables, con_ren, idx_ren, trg_ren, seq_ren, view_ren, funcs) -> None:
 -- 59 — Estándar OLTP Intelix en tms_olo: tablas, vistas, secuencias, constraints, índices y triggers.
 --
 -- GENERADO por scripts/estandar-bd/generar_renombrado.py desde el catálogo. No editar a mano:
--- regenerar. Decisión: docs/decisions/0014-estandar-oltp-nombres-bd.md.
+-- regenerar. Decisión: docs/decisions/0005-estandar-oltp-nombres-bd.md.
 -- Corre DESPUÉS de sql/58_orders_unificar_contador_cambio_fecha.sql.
 {counts}
 -- Fuera de alcance (desviaciones): schema_migrations, mobile_migrations, sim_expedicionescabecera
@@ -491,7 +491,7 @@ begin;
     names = sorted([(t["old"], t["new"]) for t in tops if t["schema"] == "public" and not t["part"]]
                    + [(old, new) for sch, old, new in view_ren if sch == "public"])
     body_map = "\n".join(f"    {old!r}: {new!r}," for old, new in names)
-    DB_NAMES.write_text(f'''"""Nombres lógicos → físicos de tms_olo (estándar OLTP, sql/59; ADR-0014).
+    DB_NAMES.write_text(f'''"""Nombres lógicos → físicos de tms_olo (estándar OLTP, sql/59; ADR-0005).
 
 GENERADO por scripts/estandar-bd/generar_renombrado.py. No editar a mano: regenerar.
 El contrato HTTP (/api/data/<tabla>, /api/tarifas/<tabla>) y la bitácora (audit.events.entity_table)
@@ -515,7 +515,7 @@ def logical(name: str) -> str:
 ''', encoding="utf-8", newline="\n")
     print(f"escrito {DB_NAMES.relative_to(ROOT)}")
     js_map = "\n".join(f"  {old}: {new!r}," for old, new in names).replace("'", '"')
-    DB_NAMES_JS.write_text(f"""// Nombres lógicos → físicos de tms_olo (estándar OLTP, sql/59; ADR-0014).
+    DB_NAMES_JS.write_text(f"""// Nombres lógicos → físicos de tms_olo (estándar OLTP, sql/59; ADR-0005).
 // GENERADO por scripts/estandar-bd/generar_renombrado.py (mismo mapa que tms_common/db_names.py).
 // El contrato HTTP usa el nombre LÓGICO; el SQL, el FÍSICO.
 

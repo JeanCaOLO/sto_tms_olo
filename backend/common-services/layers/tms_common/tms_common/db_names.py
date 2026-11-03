@@ -1,4 +1,4 @@
-"""Nombres lógicos → físicos de tms_olo (estándar OLTP, sql/59; ADR-0014).
+"""Nombres lógicos → físicos de tms_olo (estándar OLTP, sql/59; ADR-0005).
 
 GENERADO por scripts/estandar-bd/generar_renombrado.py. No editar a mano: regenerar.
 El contrato HTTP (/api/data/<tabla>, /api/tarifas/<tabla>) y la bitácora (audit.events.entity_table)

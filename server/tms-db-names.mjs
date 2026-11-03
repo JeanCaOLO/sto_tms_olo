@@ -1,4 +1,4 @@
-// Nombres lógicos → físicos de tms_olo (estándar OLTP, sql/59; ADR-0014).
+// Nombres lógicos → físicos de tms_olo (estándar OLTP, sql/59; ADR-0005).
 // GENERADO por scripts/estandar-bd/generar_renombrado.py (mismo mapa que tms_common/db_names.py).
 // El contrato HTTP usa el nombre LÓGICO; el SQL, el FÍSICO.
 
