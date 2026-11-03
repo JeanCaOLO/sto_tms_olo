@@ -280,10 +280,10 @@ async function main() {
         console.log(`reset ${t}: ${r.rowCount}`);
       }
     } else {
-      const { rows: countries } = await client.query('SELECT id, code FROM countries');
+      const { rows: countries } = await client.query('SELECT id, code FROM tbl_countries');
       const cid = Object.fromEntries(countries.map((c) => [c.code, c.id]));
-      const { rows: carriers } = await client.query('SELECT id, name, is_flota_propia FROM carriers');
-      const { rows: parties } = await client.query('SELECT id, carrier_id FROM tarifas_settlement_parties');
+      const { rows: carriers } = await client.query('SELECT id, name, is_flota_propia FROM tbl_carriers');
+      const { rows: parties } = await client.query('SELECT id, carrier_id FROM tbl_tarifas_settlement_parties');
       const partyOfCarrier = Object.fromEntries(parties.map((p) => [p.carrier_id, p.id]));
 
       const ins = async (key, sql, params) => bump(key, (await client.query(sql, params)).rowCount);
@@ -291,14 +291,14 @@ async function main() {
       // Configuración de cálculo y margen de los países que no la tienen (VN).
       for (const [code, margin] of [['VN', 'MP_VN']]) {
         if (!cid[code]) continue;
-        await ins('country_settings', `INSERT INTO tarifas_country_settings (id, country_id, rounding_decimals, rounding_mode, overnight_threshold_hours)
+        await ins('country_settings', `INSERT INTO tbl_tarifas_country_settings (id, country_id, rounding_decimals, rounding_mode, overnight_threshold_hours)
           VALUES ($1,$2,2,'HALF_UP',24) ON CONFLICT DO NOTHING`, [`CSET_${code}`, cid[code]]);
-        await ins('margin_policies', `INSERT INTO tarifas_margin_policies (id, country_id, warn_below, critical_below, require_reason_below, block_on_loss)
+        await ins('margin_policies', `INSERT INTO tbl_tarifas_margin_policies (id, country_id, warn_below, critical_below, require_reason_below, block_on_loss)
           VALUES ($1,$2,0.18,0.08,0.18,false) ON CONFLICT DO NOTHING`, [margin, cid[code]]);
       }
 
       const insRule = (countryCode, scope, partyId, tag, r, n) => ins('rules', `
-        INSERT INTO tarifas_pricing_rules (id, country_id, scope, party_id, code, name, stage, priority, stacking, exclusion_group,
+        INSERT INTO tbl_tarifas_pricing_rules (id, country_id, scope, party_id, code, name, stage, priority, stacking, exclusion_group,
           conditions, expression, description, reason, effect, builder, condition_builder, is_adhoc, active, effective_from, effective_to, version)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13,$14,$15,null,null,false,true,$16,$17,1)
         ON CONFLICT (id) DO NOTHING`,
@@ -321,7 +321,7 @@ async function main() {
         let partyId = partyOfCarrier[carrier.id];
         if (!partyId) {
           partyId = `TEST_SP_${slug(name)}`;
-          await ins('parties', `INSERT INTO tarifas_settlement_parties (id, carrier_id, status, notes)
+          await ins('parties', `INSERT INTO tbl_tarifas_settlement_parties (id, carrier_id, status, notes)
             VALUES ($1,$2,'active','Perfil de prueba') ON CONFLICT DO NOTHING`, [partyId, carrier.id]);
           partyOfCarrier[carrier.id] = partyId;
         }
@@ -333,12 +333,12 @@ async function main() {
         let t = 1;
         for (const [code, tname, keyCols, valueCols, rows] of TABLES_CR[name] ?? []) {
           const tid = `TEST_RT_${tag}_${t++}`;
-          await ins('rate_tables', `INSERT INTO tarifas_rate_tables (id, country_id, party_id, code, name, key_columns, value_columns, active)
+          await ins('rate_tables', `INSERT INTO tbl_tarifas_rate_tables (id, country_id, party_id, code, name, key_columns, value_columns, active)
             VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,true) ON CONFLICT (id) DO NOTHING`,
           [tid, cid.CR, partyId, code, tname, J(keyCols), valueCols ? J(valueCols) : null]);
           let ro = 1;
           for (const row of rows) {
-            await ins('rate_table_rows', `INSERT INTO tarifas_rate_table_rows (id, table_id, key, amount, row_order, active, extra_values)
+            await ins('rate_table_rows', `INSERT INTO tbl_tarifas_rate_table_rows (id, table_id, key, amount, row_order, active, extra_values)
               VALUES ($1,$2,$3::jsonb,$4,$5,true,$6::jsonb) ON CONFLICT (id) DO NOTHING`,
             [`${tid}_R${ro}`, tid, J(row.key), row.amount, ro, row.values ? J(row.values) : null]);
             ro++;
@@ -348,12 +348,12 @@ async function main() {
         const declared = new Set();
         for (const [key, label, kind, origin, def, unit] of VARS_CR[name] ?? []) {
           declared.add(key);
-          await ins('variables', `INSERT INTO tarifas_party_variables (id, party_id, key, label, kind, origin, default_value, unit, active)
+          await ins('variables', `INSERT INTO tbl_tarifas_party_variables (id, party_id, key, label, kind, origin, default_value, unit, active)
             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,true) ON CONFLICT (id) DO NOTHING`,
           [`TEST_PV_${tag}_${key.slice(7).toUpperCase()}`, partyId, key, label, kind, origin, def, unit]);
         }
         // Toda variable personalizada que usa una regla de la compañía debe estar declarada (o ya existir).
-        const { rows: existing } = await client.query('SELECT key FROM tarifas_party_variables WHERE party_id = $1', [partyId]);
+        const { rows: existing } = await client.query('SELECT key FROM tbl_tarifas_party_variables WHERE party_id = $1', [partyId]);
         existing.forEach((e) => declared.add(e.key));
         for (const r of PARTY_RULES_CR[name]) {
           for (const k of customKeysIn([r.conditions, r.expression])) {
@@ -365,18 +365,18 @@ async function main() {
       // Estructura de costos por defecto de Venezuela (propia)
       if (cid.VN) {
         const sid = 'TEST_CSTR_VN_DEFAULT';
-        await ins('cost_structures', `INSERT INTO tarifas_cost_structures (id, party_id, country_id, name, operating_days_per_month, params, effective_from, active, notes)
+        await ins('cost_structures', `INSERT INTO tbl_tarifas_cost_structures (id, party_id, country_id, name, operating_days_per_month, params, effective_from, active, notes)
           VALUES ($1,null,$2,$3,$4,$5::jsonb,null,true,'Estructura de prueba (USD)') ON CONFLICT (id) DO NOTHING`,
         [sid, cid.VN, COST_VN.name, COST_VN.operatingDays, J(COST_VN.params)]);
         let o = 1;
         for (const [code, label, driver, amount, group, truck, unit] of COST_VN.rows) {
-          await ins('cost_rows', `INSERT INTO tarifas_cost_structure_rows (id, structure_id, code, label, driver, amount, sign, applies_when, unit, row_order, active, cost_group, truck_type)
+          await ins('cost_rows', `INSERT INTO tbl_tarifas_cost_structure_rows (id, structure_id, code, label, driver, amount, sign, applies_when, unit, row_order, active, cost_group, truck_type)
             VALUES ($1,$2,$3,$4,$5,$6,'ADD',null,$7,$8,true,$9,$10) ON CONFLICT (id) DO NOTHING`,
           [`TEST_CROW_VN_${o}`, sid, code, label, driver, amount, unit, o, group, truck]);
           o++;
         }
         for (const [code, label, amount, kmEvery] of COST_VN.maintenance) {
-          await ins('cost_rows', `INSERT INTO tarifas_cost_structure_rows (id, structure_id, code, label, driver, amount, sign, applies_when, unit, row_order, active,
+          await ins('cost_rows', `INSERT INTO tbl_tarifas_cost_structure_rows (id, structure_id, code, label, driver, amount, sign, applies_when, unit, row_order, active,
               cost_group, frequency, frequency_qty, unit_qty, cost_per_km, truck_type)
             VALUES ($1,$2,$3,$4,'PER_KM',$5,'ADD',null,'USD',$6,true,'mantenimiento','km',$7,1,$8,null) ON CONFLICT (id) DO NOTHING`,
           [`TEST_CROW_VN_${o}`, sid, code, label, amount, o, kmEvery, (Number(amount) / kmEvery).toFixed(6)]);

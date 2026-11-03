@@ -21,7 +21,7 @@ HORIZONTE_DIAS = 3
 # Ventana (hoy, hoy+N]: excluye hoy, incluye los N días siguientes.
 _PENDIENTES = """
 SELECT DISTINCT customer_id::text AS cust, delivery_date::text AS d
-FROM orders
+FROM tbl_orders
 WHERE organization_id = %s AND warehouse_id = %s AND eflow_id_expedicion IS NOT NULL
   AND wms_status = 'DISP' AND wms_situation = 'DISP'
   AND delivery_date >  (now() AT TIME ZONE 'America/Costa_Rica')::date
@@ -29,7 +29,7 @@ WHERE organization_id = %s AND warehouse_id = %s AND eflow_id_expedicion IS NOT 
 ORDER BY d, cust"""
 
 _BLOQUEADO = """
-SELECT 1 FROM plan_trips t JOIN route_plans p ON p.id = t.plan_id
+SELECT 1 FROM tbl_plan_trips t JOIN tbl_route_plans p ON p.id = t.plan_id
 WHERE p.organization_id = %s AND p.warehouse_id = %s AND p.customer_id = %s AND p.plan_date = %s::date
   AND t.status IN ('completed', 'cancelled')
 LIMIT 1"""
@@ -67,9 +67,9 @@ def replanificar_todo(org: str, country: str, warehouse: str, created_by: str) -
 # app_user activo más antiguo de la org. ponytail: upgrade = un app_user "Sistema".
 _ALMACENES = """
 SELECT DISTINCT o.organization_id::text AS org, o.warehouse_id::text AS wh, w.country_id::text AS country,
-  COALESCE(%s::uuid, (SELECT u.id FROM app_users u WHERE u.organization_id = o.organization_id
+  COALESCE(%s::uuid, (SELECT u.id FROM tbl_app_users u WHERE u.organization_id = o.organization_id
                       AND u.is_active ORDER BY u.created_at LIMIT 1))::text AS autor
-FROM orders o JOIN warehouses w ON w.id = o.warehouse_id
+FROM tbl_orders o JOIN tbl_warehouses w ON w.id = o.warehouse_id
 WHERE o.eflow_id_expedicion IS NOT NULL AND o.wms_status = 'DISP' AND o.wms_situation = 'DISP'"""
 
 

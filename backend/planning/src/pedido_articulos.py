@@ -10,7 +10,7 @@ from tms_common import pg
 _LINEAS = """
 SELECT i.product_code, i.product_name, i.quantity, i.weight::float AS weight,
        i.volume::float AS volume, i.guia_fiscal
-FROM order_items i JOIN orders o ON o.id = i.order_id
+FROM tbl_order_items i JOIN tbl_orders o ON o.id = i.order_id
 WHERE i.order_id = %s AND o.organization_id = %s
 ORDER BY i.line_number"""
 

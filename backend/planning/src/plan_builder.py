@@ -59,8 +59,8 @@ SELECT o.id, o.order_number, o.delivery_city, o.delivery_zone,
        o.total_weight::float AS weight, o.total_volume::float AS volume, o.priority,
        fc.name AS customer_name, o.es_cliente_retira,
        o.eflow_id_compania, o.eflow_id_almacen, o.eflow_id_sucursal, o.eflow_id_expedicion
-FROM orders o
-LEFT JOIN final_customers fc ON fc.id = o.final_customer_id
+FROM tbl_orders o
+LEFT JOIN tbl_final_customers fc ON fc.id = o.final_customer_id
 WHERE o.organization_id = %s AND o.warehouse_id = %s AND o.customer_id = %s
   AND o.eflow_id_expedicion IS NOT NULL
   AND o.wms_status = 'DISP' AND o.wms_situation = 'DISP'
@@ -70,7 +70,7 @@ ORDER BY COALESCE(o.delivery_zone, 'ZZZ'), o.priority NULLS LAST, o.total_weight
 
 _FLOTA = """
 SELECT id, plate, capacity_weight::float AS cw, capacity_volume::float AS cv
-FROM vehicles
+FROM tbl_vehicles
 WHERE organization_id = %s AND status = 'active' AND carrier_id IS NULL
 ORDER BY capacity_weight DESC NULLS LAST
 """
@@ -109,20 +109,20 @@ def _agrupar_por_zona(pedidos: list[dict]) -> dict:
 
 
 # dispatch_date = salida = delivery_date - lead_time_days; lead nunca es NULL, siempre hay salida.
-_UPD_ORDER = "UPDATE orders SET numero_viaje=%s, lead_time_days=%s, dispatch_date=(delivery_date - make_interval(days => %s))::date, planning_run_id=%s, updated_at=now() WHERE id=%s"
+_UPD_ORDER = "UPDATE tbl_orders SET numero_viaje=%s, lead_time_days=%s, dispatch_date=(delivery_date - make_interval(days => %s))::date, planning_run_id=%s, updated_at=now() WHERE id=%s"
 # Write-back del nº de viaje a la tabla espejo de eFlow. UPDATE (no insert): solo sobre
 # la fila ya espejada (no crea parciales). NUMEROVIAJEWMH es bigint (nº de viaje sin guion).
 _UPD_SIM = """
 UPDATE sim_expedicionescabecera SET "NUMEROVIAJEWMH"=%s, planning_run_id=%s, escrito_en=now()
 WHERE "IDALMACEN"=%s AND "IDCOMPANIA"=%s AND "IDSUCURSAL"=%s AND "IDEXPEDICION"=%s"""
 _INS_TRIP = """
-INSERT INTO plan_trips (plan_id, vehicle_id, delivery_zone, sequence_order, total_weight, total_volume,
+INSERT INTO tbl_plan_trips (plan_id, vehicle_id, delivery_zone, sequence_order, total_weight, total_volume,
   vehicle_plate, vehicle_capacity_weight, vehicle_capacity_volume, is_owned, status, numero_viaje, lead_time_days)
 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'pending',%s,%s) RETURNING id"""
 # Zona especial: los pedidos "cliente retira" no van a viaje con camión.
 ZONA_RETIRA = "RETIRA"
 _INS_STOP = """
-INSERT INTO plan_stops (trip_id, order_id, stop_order, order_number, customer_name, delivery_city,
+INSERT INTO tbl_plan_stops (trip_id, order_id, stop_order, order_number, customer_name, delivery_city,
   delivery_zone, latitude, longitude, weight, volume, es_cliente_retira)
 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
 
@@ -173,7 +173,7 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
         viajes_liberados.borrar_no_liberado(run, org, warehouse, customer, fecha)
         plan_id, seq = viajes_liberados.plan_vigente(run, org, warehouse, customer, fecha)  # seq sigue tras los congelados
         if plan_id is None:
-            plan_id = run("""INSERT INTO route_plans (organization_id, country_id, warehouse_id, customer_id, plan_date, status, created_by)
+            plan_id = run("""INSERT INTO tbl_route_plans (organization_id, country_id, warehouse_id, customer_id, plan_date, status, created_by)
                              VALUES (%s,%s,%s,%s,%s::date,'confirmed',%s) RETURNING id""",
                           [org, country, warehouse, customer, fecha, created_by])[0]["id"]
         vi = 0

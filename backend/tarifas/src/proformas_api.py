@@ -45,12 +45,12 @@ def check_direct_write(table: str, kind: str, values: object) -> None:
 
 
 def _load(proforma_id: str, caller: permissions.Permissions) -> tuple[dict, list[dict]]:
-    sql, params = "SELECT id, country_id, carrier_id, status FROM tarifas_proformas WHERE id = %s", [proforma_id]
+    sql, params = "SELECT id, country_id, carrier_id, status FROM tbl_tarifas_proformas WHERE id = %s", [proforma_id]
     rows = tarifas_db.query(sql, params)
     if not rows or not _in_scope(caller, rows[0]["country_id"]) or not tarifas_carrier.owns(caller, rows[0]["carrier_id"]):
         raise HttpError(404, "Proforma no encontrada.")
     phases = tarifas_db.query(
-        "SELECT id, position, name, state, approver_type, role_name, user_id FROM tarifas_proforma_phases "
+        "SELECT id, position, name, state, approver_type, role_name, user_id FROM tbl_tarifas_proforma_phases "
         "WHERE proforma_id = %s ORDER BY position", [proforma_id])
     return rows[0], phases
 
@@ -58,7 +58,7 @@ def _load(proforma_id: str, caller: permissions.Permissions) -> tuple[dict, list
 def _open_claim(proforma_id: str) -> dict | None:
     """El reclamo vigente de la proforma: abierto (espera al liquidador) o apelado (espera a la fase)."""
     rows = tarifas_db.query(
-        "SELECT id, phase_id, status, reason FROM tarifas_proforma_claims "
+        "SELECT id, phase_id, status, reason FROM tbl_tarifas_proforma_claims "
         "WHERE proforma_id = %s AND status IN ('abierto', 'apelado') ORDER BY created_at DESC LIMIT 1", [proforma_id])
     return rows[0] if rows else None
 
@@ -70,17 +70,17 @@ def _in_scope(caller: permissions.Permissions, country_id: object) -> bool:
 
 def _phase_sql(fields: dict, actor: str) -> tuple[str, list]:
     if fields.get("reset"):
-        return ("UPDATE tarifas_proforma_phases SET state = 'pendiente', decided_by = NULL, decided_at = NULL, "
+        return ("UPDATE tbl_tarifas_proforma_phases SET state = 'pendiente', decided_by = NULL, decided_at = NULL, "
                 "comment = NULL WHERE id = %s RETURNING id", [])
     removed = ", removed_by = %s" if fields.get("removed") else ""
-    sql = ("UPDATE tarifas_proforma_phases SET state = %s, decided_by = %s, decided_at = now(), comment = %s"
+    sql = ("UPDATE tbl_tarifas_proforma_phases SET state = %s, decided_by = %s, decided_at = now(), comment = %s"
            f"{removed} WHERE id = %s AND state = 'pendiente' RETURNING id")
     params = [fields["state"], actor, fields.get("comment")] + ([actor] if fields.get("removed") else [])
     return sql, params
 
 
 def _audit_sql(proforma_id: str, action: str, actor: str, role: str | None, before: str, after: str, reason: str | None):
-    return ("INSERT INTO tarifas_audit_log (id, entity, entity_id, action, user_name, role, before, after, reason, created_at) "
+    return ("INSERT INTO tbl_tarifas_audit_log (id, entity, entity_id, action, user_name, role, before, after, reason, created_at) "
             "VALUES (%s, 'proforma', %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s, now()) RETURNING id",
             [tarifas_sql.new_id("audit"), proforma_id, action, actor, role or "desconocido",
              json.dumps({"status": before}), json.dumps({"status": after}), reason])
@@ -109,27 +109,27 @@ def decide(event: dict) -> dict:
             rows = run(sql, params + [phase_id])
             if not rows:  # otro usuario decidió esta fase antes: se revierte todo
                 raise HttpError(409, "La fase ya fue decidida por otra persona. Actualiza la pantalla.")
-        run("UPDATE tarifas_proformas SET status = %s, updated_at = now() WHERE id = %s RETURNING id",
+        run("UPDATE tbl_tarifas_proformas SET status = %s, updated_at = now() WHERE id = %s RETURNING id",
             [plan["status"], proforma_id])
         # El estado de las liquidaciones incluidas sigue al de la proforma (anulada = vuelven a Borrador).
         if action == "restart":
             # Reinicio por reclamo: las liquidaciones se anulan con el motivo del reclamo y el viaje vuelve a "Por liquidar".
-            run("UPDATE tarifas_settlements SET status = 'Anulado', void_kind = 'reclamo', void_reason = %s, claim_id = %s, "
-                "updated_at = now() WHERE id IN (SELECT settlement_id FROM tarifas_proforma_items "
+            run("UPDATE tbl_tarifas_settlements SET status = 'Anulado', void_kind = 'reclamo', void_reason = %s, claim_id = %s, "
+                "updated_at = now() WHERE id IN (SELECT settlement_id FROM tbl_tarifas_proforma_items "
                 "WHERE proforma_id = %s AND state <> 'excluded') AND status IN ('Borrador', 'En Revisión', 'Aprobado') "
                 "AND superseded_by IS NULL RETURNING id", [claim["reason"], claim["id"], proforma_id])
         else:
-            run("UPDATE tarifas_settlements SET status = %s, updated_at = now() "
-                "WHERE id IN (SELECT settlement_id FROM tarifas_proforma_items WHERE proforma_id = %s AND state <> 'excluded') "
+            run("UPDATE tbl_tarifas_settlements SET status = %s, updated_at = now() "
+                "WHERE id IN (SELECT settlement_id FROM tbl_tarifas_proforma_items WHERE proforma_id = %s AND state <> 'excluded') "
                 "AND status IN ('Borrador', 'En Revisión', 'Aprobado') AND superseded_by IS NULL RETURNING id",
                 [SETTLEMENT_STATUS.get(plan["status"], plan["status"]), proforma_id])
         for sql, params in _claim_sql(action, proforma, phases, claim, body, actor, caller, comment):
             run(sql, params)
         if action == "restart":
-            run("UPDATE tarifas_proforma_items SET state = 'excluded', exclusion_reason = %s "
+            run("UPDATE tbl_tarifas_proforma_items SET state = 'excluded', exclusion_reason = %s "
                 "WHERE proforma_id = %s AND state <> 'excluded' RETURNING id", [RESTART_REASON, proforma_id])
         if action == "annul":
-            run("UPDATE tarifas_proforma_items SET state = 'excluded', exclusion_reason = 'Proforma anulada' "
+            run("UPDATE tbl_tarifas_proforma_items SET state = 'excluded', exclusion_reason = 'Proforma anulada' "
                 "WHERE proforma_id = %s AND state <> 'excluded' RETURNING id", [proforma_id])
         sql, params = _audit_sql(proforma_id, action, actor, caller.role_name, proforma["status"], plan["status"],
                                  (str(body.get("comment") or "").strip() or None))
@@ -145,19 +145,19 @@ def _claim_sql(action: str, proforma: dict, phases: list[dict], claim: dict | No
     """Efecto de la decisión sobre el reclamo: un rechazo lo abre, apelar lo pasa a la fase, aprobar tras apelar
     lo acepta, rechazar de nuevo tras apelar lo cierra como rechazado y abre otro, reiniciar lo cierra."""
     ops: list[tuple[str, list]] = []
-    close = "UPDATE tarifas_proforma_claims SET status = %s, resolved_by = %s, resolved_at = now() WHERE id = %s RETURNING id"
+    close = "UPDATE tbl_tarifas_proforma_claims SET status = %s, resolved_by = %s, resolved_at = now() WHERE id = %s RETURNING id"
     if action == "reject":
         phase = next(p for p in phases if p["id"] == body.get("phaseId"))
         if claim and claim["status"] == "apelado":
             ops.append((close, ["rechazado", actor, claim["id"]]))
-        ops.append(("INSERT INTO tarifas_proforma_claims (id, country_id, proforma_id, phase_id, phase_name, raised_by, "
+        ops.append(("INSERT INTO tbl_tarifas_proforma_claims (id, country_id, proforma_id, phase_id, phase_name, raised_by, "
                     "raised_role, reason, status, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'abierto', now()) RETURNING id",
                     [tarifas_sql.new_id("prc"), proforma["country_id"], proforma["id"], phase["id"], phase["name"],
                      actor, caller.role_name, comment]))
     elif action == "approve" and claim and claim["status"] == "apelado" and claim["phase_id"] == body.get("phaseId"):
         ops.append((close, ["aceptado", actor, claim["id"]]))
     elif action == "appeal":
-        ops.append(("UPDATE tarifas_proforma_claims SET status = 'apelado', appeal_reason = %s, appealed_by = %s, "
+        ops.append(("UPDATE tbl_tarifas_proforma_claims SET status = 'apelado', appeal_reason = %s, appealed_by = %s, "
                     "appealed_at = now() WHERE id = %s RETURNING id", [comment, actor, claim["id"]]))
     elif action == "restart":
         ops.append((close, ["reiniciado", actor, claim["id"]]))

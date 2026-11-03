@@ -20,7 +20,7 @@ def fast_password(monkeypatch):
 
 
 def _credentials(fake_db):
-    fake_db.answer("FROM auth_credentials c WHERE", [{"auth_user_id": AUTH_USER, "email": EMAIL, "password_hash": "hash"}])
+    fake_db.answer("FROM tbl_auth_credentials c WHERE", [{"auth_user_id": AUTH_USER, "email": EMAIL, "password_hash": "hash"}])
 
 
 def login(body):
@@ -41,7 +41,7 @@ def test_login_returns_tokens_and_stores_only_the_refresh_hash(fake_db):
     assert data["expires_in"] == security.ACCESS_TTL_SECONDS
     claims = jwt.decode(data["access_token"], options={"verify_signature": False})
     assert claims["sub"] == AUTH_USER and claims["iss"] == "tms-mobile" and claims["typ"] == "access"
-    stored = fake_db.wrote("INSERT INTO mobile_refresh_tokens")[0][1]
+    stored = fake_db.wrote("INSERT INTO tbl_mobile_refresh_tokens")[0][1]
     assert stored[0] == APP_USER and stored[1] == security.hash_refresh(data["refresh_token"]) and stored[2] == "dev-1"
     assert data["refresh_token"] not in str(stored)                      # en la BD solo el hash
     assert ["chofer@demo.tms.local"] in [params for _, params in fake_db.calls]    # correo normalizado
@@ -51,17 +51,17 @@ def test_login_wrong_password_is_401_and_audited(fake_db):
     _credentials(fake_db)
     response = login({"email": EMAIL, "password": "mala"})
     assert response["statusCode"] == 401 and body_of(response)["error"]["code"] == "invalid_credentials"
-    assert not fake_db.wrote("INSERT INTO mobile_refresh_tokens")
-    assert any("login_failed" in str(p) for _, p in fake_db.wrote("INSERT INTO audit.events"))
+    assert not fake_db.wrote("INSERT INTO tbl_mobile_refresh_tokens")
+    assert any("login_failed" in str(p) for _, p in fake_db.wrote("INSERT INTO audit.tbl_events"))
 
 
 def test_login_is_throttled_after_five_recent_failures_without_checking_the_password(fake_db):
     _credentials(fake_db)
-    fake_db.answer("FROM audit.events", [{"n": 5}])
+    fake_db.answer("FROM audit.tbl_events", [{"n": 5}])
     response = login({"email": EMAIL, "password": "correcta"})                # aunque la clave sea correcta
     assert response["statusCode"] == 429 and body_of(response)["error"]["code"] == "too_many_attempts"
-    assert not [c for c in fake_db.calls if "FROM auth_credentials" in c[0]]   # ni se consultó la credencial
-    assert not fake_db.wrote("INSERT INTO mobile_refresh_tokens")
+    assert not [c for c in fake_db.calls if "FROM tbl_auth_credentials" in c[0]]   # ni se consultó la credencial
+    assert not fake_db.wrote("INSERT INTO tbl_mobile_refresh_tokens")
 
 
 def test_login_is_throttled_by_ip_even_with_few_failures_per_email(fake_db):
@@ -75,7 +75,7 @@ def test_login_is_throttled_by_ip_even_with_few_failures_per_email(fake_db):
 
 def test_login_with_four_recent_failures_still_works(fake_db):
     _credentials(fake_db)
-    fake_db.answer("FROM audit.events", [{"n": 4}])
+    fake_db.answer("FROM audit.tbl_events", [{"n": 4}])
     assert login({"email": EMAIL, "password": "correcta"})["statusCode"] == 200
 
 
@@ -98,10 +98,10 @@ def test_login_requires_fields(fake_db):
 ])
 def test_login_only_lets_linked_active_drivers_in(fake_db, row, code):
     _credentials(fake_db)
-    fake_db.answer("FROM app_users u", [row])
+    fake_db.answer("FROM tbl_app_users u", [row])
     response = login({"email": EMAIL, "password": "correcta"})
     assert response["statusCode"] == 403 and body_of(response)["error"]["code"] == code
-    assert not fake_db.wrote("INSERT INTO mobile_refresh_tokens")
+    assert not fake_db.wrote("INSERT INTO tbl_mobile_refresh_tokens")
 
 
 def test_private_route_needs_a_token(fake_db):
@@ -128,7 +128,7 @@ def test_a_tms_style_token_without_issuer_is_rejected(fake_db):
 
 
 def test_token_of_a_user_that_stopped_being_a_driver_is_403(fake_db):
-    fake_db.answer("FROM app_users u", [driver_row(is_active=False)])
+    fake_db.answer("FROM tbl_app_users u", [driver_row(is_active=False)])
     assert routes.handler(event(TRIPS), None)["statusCode"] == 403
 
 
@@ -140,51 +140,51 @@ def _refresh_row(**over):
 
 
 def test_refresh_rotates_the_token(fake_db):
-    fake_db.answer("FROM mobile_refresh_tokens t", [_refresh_row()])
+    fake_db.answer("FROM tbl_mobile_refresh_tokens t", [_refresh_row()])
     response = routes.handler(event(REFRESH, body={"refresh_token": "viejo"}, token=None), None)
     data = body_of(response)["data"]
     assert response["statusCode"] == 200 and data["refresh_token"] != "viejo" and data["access_token"]
-    assert fake_db.wrote("UPDATE mobile_refresh_tokens")[0][1] == ["rt-1"]            # el anterior queda revocado
-    assert fake_db.wrote("INSERT INTO mobile_refresh_tokens")
+    assert fake_db.wrote("UPDATE tbl_mobile_refresh_tokens")[0][1] == ["rt-1"]            # el anterior queda revocado
+    assert fake_db.wrote("INSERT INTO tbl_mobile_refresh_tokens")
 
 
 def test_refresh_reuse_revokes_every_session_of_the_user(fake_db):
-    fake_db.answer("FROM mobile_refresh_tokens t", [_refresh_row(revoked_at=datetime.now(timezone.utc) - timedelta(minutes=10))])
+    fake_db.answer("FROM tbl_mobile_refresh_tokens t", [_refresh_row(revoked_at=datetime.now(timezone.utc) - timedelta(minutes=10))])
     response = routes.handler(event(REFRESH, body={"refresh_token": "robado"}, token=None), None)
     assert response["statusCode"] == 401 and body_of(response)["error"]["code"] == "invalid_refresh"
-    revoke_all = fake_db.wrote("UPDATE mobile_refresh_tokens")
+    revoke_all = fake_db.wrote("UPDATE tbl_mobile_refresh_tokens")
     assert revoke_all and revoke_all[0][1] == [APP_USER]
-    assert not fake_db.wrote("INSERT INTO mobile_refresh_tokens")
+    assert not fake_db.wrote("INSERT INTO tbl_mobile_refresh_tokens")
 
 
 def test_refresh_retry_right_after_rotation_gets_a_new_session_without_revoking_everything(fake_db):
     """La respuesta del primer canje se perdió: el reintento con el mismo token no debe cerrar todas las sesiones."""
-    fake_db.answer("FROM mobile_refresh_tokens t", [_refresh_row(revoked_at=datetime.now(timezone.utc) - timedelta(seconds=5))])
+    fake_db.answer("FROM tbl_mobile_refresh_tokens t", [_refresh_row(revoked_at=datetime.now(timezone.utc) - timedelta(seconds=5))])
     response = routes.handler(event(REFRESH, body={"refresh_token": "reintento"}, token=None), None)
     assert response["statusCode"] == 200 and body_of(response)["data"]["refresh_token"] != "reintento"
-    assert fake_db.wrote("INSERT INTO mobile_refresh_tokens")
-    assert not fake_db.wrote("UPDATE mobile_refresh_tokens")
+    assert fake_db.wrote("INSERT INTO tbl_mobile_refresh_tokens")
+    assert not fake_db.wrote("UPDATE tbl_mobile_refresh_tokens")
 
 
 @pytest.mark.parametrize("rows", [[], [_refresh_row(expires_at=datetime.now(timezone.utc) - timedelta(seconds=1))]])
 def test_refresh_unknown_or_expired_is_401(fake_db, rows):
-    fake_db.answer("FROM mobile_refresh_tokens t", rows)
+    fake_db.answer("FROM tbl_mobile_refresh_tokens t", rows)
     response = routes.handler(event(REFRESH, body={"refresh_token": "x"}, token=None), None)
     assert response["statusCode"] == 401 and body_of(response)["error"]["code"] == "invalid_refresh"
 
 
 def test_refresh_of_a_deactivated_driver_is_refused(fake_db):
-    fake_db.answer("FROM mobile_refresh_tokens t", [_refresh_row()])
-    fake_db.answer("FROM app_users u", [driver_row(is_active=False)])
+    fake_db.answer("FROM tbl_mobile_refresh_tokens t", [_refresh_row()])
+    fake_db.answer("FROM tbl_app_users u", [driver_row(is_active=False)])
     assert routes.handler(event(REFRESH, body={"refresh_token": "x"}, token=None), None)["statusCode"] == 403
-    assert not fake_db.wrote("INSERT INTO mobile_refresh_tokens")
+    assert not fake_db.wrote("INSERT INTO tbl_mobile_refresh_tokens")
 
 
 def test_logout_revokes_and_is_idempotent(fake_db):
-    fake_db.answer("FROM mobile_refresh_tokens t", [_refresh_row()])
+    fake_db.answer("FROM tbl_mobile_refresh_tokens t", [_refresh_row()])
     assert routes.handler(event(LOGOUT, body={"refresh_token": "x"}, token=None), None)["statusCode"] == 200
-    assert fake_db.wrote("UPDATE mobile_refresh_tokens")
-    fake_db.answer("FROM mobile_refresh_tokens t", [])
+    assert fake_db.wrote("UPDATE tbl_mobile_refresh_tokens")
+    fake_db.answer("FROM tbl_mobile_refresh_tokens t", [])
     assert routes.handler(event(LOGOUT, body={"refresh_token": "desconocido"}, token=None), None)["statusCode"] == 200
     assert routes.handler(event(LOGOUT, body={}, token=None), None)["statusCode"] == 200
 
@@ -203,7 +203,7 @@ def test_real_bcrypt_accepts_a_tms_style_hash(monkeypatch):
 
 
 def _context_queries(fake_db):
-    return [c for c in fake_db.calls if "FROM app_users u" in c[0]]
+    return [c for c in fake_db.calls if "FROM tbl_app_users u" in c[0]]
 
 
 def test_driver_context_is_cached_per_container(fake_db):
@@ -217,7 +217,7 @@ def test_cached_context_expires_so_a_deactivated_user_is_cut_within_a_minute(fak
     clock = [1000.0]
     monkeypatch.setattr(auth.time, "monotonic", lambda: clock[0])
     assert routes.handler(event(TRIPS), None)["statusCode"] == 200
-    fake_db.answer("FROM app_users u", [driver_row(is_active=False)])
+    fake_db.answer("FROM tbl_app_users u", [driver_row(is_active=False)])
     assert routes.handler(event(TRIPS), None)["statusCode"] == 200        # aún en caché
     clock[0] += auth.CONTEXT_TTL_SECONDS
     assert routes.handler(event(TRIPS), None)["statusCode"] == 403

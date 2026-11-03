@@ -50,41 +50,41 @@ async function main() {
     // Los viajes se crean para el día de la entrega.
     const hoyIso = fechaEntrega;
 
-    const { rows: orgRows } = await client.query('SELECT id FROM organizations LIMIT 1');
+    const { rows: orgRows } = await client.query('SELECT id FROM tbl_organizations LIMIT 1');
     const organizationId = orgRows[0]?.id;
-    const { rows: crCountry } = await client.query(`SELECT id FROM countries WHERE code = 'CR' LIMIT 1`);
+    const { rows: crCountry } = await client.query(`SELECT id FROM tbl_countries WHERE code = 'CR' LIMIT 1`);
     const countryId = crCountry[0]?.id;
-    const { rows: whRows } = await client.query(`SELECT id FROM warehouses WHERE country_id = $1 LIMIT 1`, [countryId]);
+    const { rows: whRows } = await client.query(`SELECT id FROM tbl_warehouses WHERE country_id = $1 LIMIT 1`, [countryId]);
     const warehouseId = whRows[0]?.id;
     if (!organizationId || !countryId || !warehouseId) throw new Error('Falta organización/país/warehouse base.');
 
     const { rows: custRows } = await client.query(
-      `SELECT id, code FROM customers WHERE warehouse_id = $1 AND code IN ('EPA','COFERSA')`,
+      `SELECT id, code FROM tbl_customers WHERE warehouse_id = $1 AND code IN ('EPA','COFERSA')`,
       [warehouseId],
     );
     const epaCustomerId = custRows.find((c) => c.code === 'EPA')?.id;
     const cofersaCustomerId = custRows.find((c) => c.code === 'COFERSA')?.id;
 
     const { rows: origenRows } = await client.query(
-      `SELECT id FROM stores WHERE organization_id = $1 AND code = 'CD-CR' LIMIT 1`,
+      `SELECT id FROM tbl_stores WHERE organization_id = $1 AND code = 'CD-CR' LIMIT 1`,
       [organizationId],
     );
     const origenStoreId = origenRows[0]?.id ?? null;
     const { rows: epaStoreRows } = await client.query(
-      `SELECT id, code FROM stores WHERE organization_id = $1 AND is_origin = false`,
+      `SELECT id, code FROM tbl_stores WHERE organization_id = $1 AND is_origin = false`,
       [organizationId],
     );
     const epaStoreIdByCode = new Map(epaStoreRows.map((s) => [s.code, s.id]));
 
     // Zonas (antes route_types, sql/09): el código de la zona es el código de ruta del WMS.
-    const { rows: zones } = await client.query(`SELECT id, code, name FROM zones WHERE organization_id = $1`, [organizationId]);
+    const { rows: zones } = await client.query(`SELECT id, code, name FROM tbl_zones WHERE organization_id = $1`, [organizationId]);
 
     // --- pedidos alistados por el OMS con entrega en la fecha, todavía SIN viaje ---
     const pedidosAlistados = await loadPedidosAlistados(client, fechaEntrega, calcularPrioridad);
 
     // --- flota disponible HOY: excluye choferes/vehículos ya en una ruta de hoy sin anular ---
     const { rows: ocupadosHoy } = await client.query(
-      `SELECT driver_id, vehicle_id FROM routes WHERE route_date = $1 AND status <> 'anulado'`,
+      `SELECT driver_id, vehicle_id FROM tbl_routes WHERE route_date = $1 AND status <> 'anulado'`,
       [hoyIso],
     );
     const driversOcupados = new Set(ocupadosHoy.map((r) => r.driver_id).filter(Boolean));
@@ -92,12 +92,12 @@ async function main() {
 
     const { rows: drivers } = await client.query(
       `SELECT d.id AS conductor_id, d.full_name, d.carrier_id, c.is_flota_propia, c.name AS carrier_name
-       FROM drivers d JOIN carriers c ON c.id = d.carrier_id
+       FROM tbl_drivers d JOIN tbl_carriers c ON c.id = d.carrier_id
        WHERE d.organization_id = $1 AND d.id != ALL($2::uuid[])`,
       [organizationId, [...driversOcupados]],
     );
     const { rows: vehicles } = await client.query(
-      `SELECT id, plate, vehicle_type, capacity_weight, capacity_volume FROM vehicles
+      `SELECT id, plate, vehicle_type, capacity_weight, capacity_volume FROM tbl_vehicles
        WHERE organization_id = $1 AND id != ALL($2::uuid[]) ORDER BY id`,
       [organizationId, [...vehiclesOcupados]],
     );
@@ -122,7 +122,7 @@ async function main() {
         const customerId = esEpa ? epaCustomerId : cofersaCustomerId;
         const storeId = esEpa ? (epaStoreIdByCode.get(pedido.cliente_code) ?? origenStoreId) : origenStoreId;
         const { rows } = await client.query(
-          `INSERT INTO orders (
+          `INSERT INTO tbl_orders (
              organization_id, store_id, customer_id, order_number, order_date, delivery_date,
              total_weight, total_volume, total_items, total_amount,
              delivery_address, delivery_city, delivery_zone, priority, status, notes, route_type_id
@@ -141,7 +141,7 @@ async function main() {
 
       const routeNumber = `RT-AUTO-${hoyIso.replace(/-/g, '')}-${contador}`;
       const { rows: routeRows } = await client.query(
-        `INSERT INTO routes (
+        `INSERT INTO tbl_routes (
            organization_id, store_id, driver_id, vehicle_id, carrier_id, route_number, route_date,
            total_stops, completed_stops, status, notes, route_type_id
          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,0,'planificada',$9,$10)
@@ -159,7 +159,7 @@ async function main() {
 
       for (let i = 0; i < propuesta.pedidos.length; i++) {
         await client.query(
-          `INSERT INTO dispatch_guides (organization_id, route_id, order_id, guide_number, sequence_number, status, delivery_status, notes)
+          `INSERT INTO tbl_dispatch_guides (organization_id, route_id, order_id, guide_number, sequence_number, status, delivery_status, notes)
            VALUES ($1,$2,$3,$4,$5,'pendiente','pending',$6)`,
           [
             organizationId, routeId, orderIds[i], `${routeNumber}-${i + 1}`, i + 1,
@@ -170,7 +170,7 @@ async function main() {
       }
 
       const idsAlistados = propuesta.pedidos.map((p) => p.id);
-      await client.query(`UPDATE wms_expediciones SET numero_viaje_wmh = $1, updated_at = now() WHERE id = ANY($2::uuid[])`, [routeNumber, idsAlistados]);
+      await client.query(`UPDATE tbl_wms_expediciones SET numero_viaje_wmh = $1, updated_at = now() WHERE id = ANY($2::uuid[])`, [routeNumber, idsAlistados]);
       reporte.pedidosMarcados += idsAlistados.length;
     }
 

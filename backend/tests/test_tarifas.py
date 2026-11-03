@@ -89,7 +89,7 @@ def test_lista_viajes_desde_la_vista_con_filtro_orden_y_limite(api):
     assert response["statusCode"] == 200
     assert body_of(response) == [{"id": "x"}]  # el contrato devuelve el array crudo
     sql, params = db.calls[-1]
-    assert 'FROM "tarifas_v_viajes"' in sql
+    assert 'FROM "vw_tarifas_viajes"' in sql
     assert '"status" = %s::text' in sql and '"settlement_id" IS NULL' in sql
     assert 'ORDER BY "route_date" DESC NULLS LAST' in sql and "LIMIT 50" in sql
     assert params == ["completed"]
@@ -145,7 +145,7 @@ def test_columnas_proyecta_solo_las_pedidas_y_las_valida(api):
     app, db = api
     q = {"where": [{"column": "country_id", "op": "eq", "value": "CR"}], "columns": ["number", "number", "id"]}
     call(app, "GET /api/tarifas/{table}", path={"table": "tarifas_settlements"}, query={"q": json.dumps(q)})
-    assert db.calls[-1][0].startswith('SELECT "number", "id" FROM "tarifas_settlements"')
+    assert db.calls[-1][0].startswith('SELECT "number", "id" FROM "tbl_tarifas_settlements"')
 
 
 @pytest.mark.parametrize("columns", [[], "number", [1], ["no_existe"], ["id; drop table x"]])
@@ -209,7 +209,7 @@ def test_insert_genera_id_con_prefijo_y_serializa_jsonb(api):
     response = call(app, "POST /api/tarifas/{table}", path={"table": "tarifas_settlements"}, body=body)
     assert response["statusCode"] == 200
     sql, params = db.calls[-1]
-    assert sql.startswith('INSERT INTO "tarifas_settlements"')
+    assert sql.startswith('INSERT INTO "tbl_tarifas_settlements"')
     assert "%s::jsonb" in sql and "%s::uuid" in sql
     assert json.dumps([{"seq": 1}]) in params
     assert any(isinstance(p, str) and p.startswith("stl_") for p in params)
@@ -300,7 +300,7 @@ def test_update_no_cambia_el_id_y_404_si_no_existe(api):
     call(app, "PATCH /api/tarifas/{table}/{id}", path={"table": "tarifas_settlements", "id": "s1"},
          body={"id": "otro", "status": "Anulado"})
     sql, params = db.calls[-1]
-    assert sql.startswith('UPDATE "tarifas_settlements" SET "status" = %s::text WHERE "id" = %s::text')
+    assert sql.startswith('UPDATE "tbl_tarifas_settlements" SET "status" = %s::text WHERE "id" = %s::text')
     # La transición se valida en el propio UPDATE: último parámetro = estados de origen permitidos.
     assert params[:2] == ["Anulado", "s1"]
     assert params[2] == ["Borrador", "En Revisión", "Aprobado", "Pagado"]
@@ -400,7 +400,7 @@ def test_delete_es_204(api):
     app, db = api
     response = call(app, "DELETE /api/tarifas/{table}/{id}", path={"table": "tarifas_rate_table_rows", "id": "r1"})
     assert response["statusCode"] == 204
-    assert db.calls[-1][0].startswith('DELETE FROM "tarifas_rate_table_rows"')
+    assert db.calls[-1][0].startswith('DELETE FROM "tbl_tarifas_rate_table_rows"')
 
 
 def test_integridad_llega_como_409_con_el_sqlstate(api):
@@ -553,7 +553,7 @@ def test_insert_many_inserta_cientos_de_filas_en_una_sola_sentencia(api):
     assert db.tx_state == "commit"
     assert len(db.tx_calls) == 1
     sql, params = db.tx_calls[0]
-    assert sql.startswith('INSERT INTO "tarifas_rate_table_rows"') and sql.endswith("RETURNING *")
+    assert sql.startswith('INSERT INTO "tbl_tarifas_rate_table_rows"') and sql.endswith("RETURNING *")
     assert sql.count("(%s::") >= 350  # una tupla de placeholders por fila
     assert len(params) % 350 == 0 and len(params) // 350 == len(rows[0]) + 1  # + el id generado
 

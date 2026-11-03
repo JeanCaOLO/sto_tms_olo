@@ -2,7 +2,7 @@
 
 Reunión 2026-11-03: el cliente puede pedir que un pedido salga antes o después.
 Lo aprueba un admin y queda registrado quién (orders.delivery_date_changed_by, sql/57;
-el historial completo en audit.events). La ingesta de eFlow ya no pisa esa fecha.
+el historial completo en audit.tbl_events). La ingesta de eFlow ya no pisa esa fecha.
 
 No se cambia un pedido ya liberado a eFlow por el OMS: su viaje está congelado
 (viajes_liberados) y eFlow ya lo tiene. Tras el cambio se re-arman los días de la
@@ -18,11 +18,11 @@ _PEDIDO = """
 SELECT o.id, o.customer_id::text AS cust, o.warehouse_id::text AS wh, w.country_id::text AS country,
        o.delivery_date::text AS fecha, o.oms_processed_at IS NOT NULL AS liberado,
        (now() AT TIME ZONE 'America/Costa_Rica')::date::text AS hoy
-FROM orders o JOIN warehouses w ON w.id = o.warehouse_id
+FROM tbl_orders o JOIN tbl_warehouses w ON w.id = o.warehouse_id
 WHERE o.id = %s AND o.organization_id = %s AND o.eflow_id_expedicion IS NOT NULL"""
 
 _CAMBIAR = """
-UPDATE orders SET delivery_date = %s::date, delivery_date_changed_at = now(), delivery_date_changed_by = %s,
+UPDATE tbl_orders SET delivery_date = %s::date, delivery_date_changed_at = now(), delivery_date_changed_by = %s,
        delivery_date_change_count = delivery_date_change_count + 1, updated_at = now()
 WHERE id = %s"""
 

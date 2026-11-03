@@ -37,7 +37,7 @@ export async function login(req, res) {
   if (!email || !password) throw new HttpError(400, "email y password son requeridos");
 
   const { rows } = await tmsQuery(
-    "SELECT auth_user_id, email, password_hash FROM auth_credentials WHERE email = $1",
+    "SELECT auth_user_id, email, password_hash FROM tbl_auth_credentials WHERE email = $1",
     [String(email).toLowerCase()]
   );
   const cred = rows[0];
@@ -55,7 +55,7 @@ export async function signUp(req, res) {
   if (String(password).length < 6) throw new HttpError(400, "La contraseña debe tener al menos 6 caracteres");
 
   const normalizedEmail = String(email).toLowerCase();
-  const existing = await tmsQuery("SELECT 1 FROM auth_credentials WHERE email = $1", [normalizedEmail]);
+  const existing = await tmsQuery("SELECT 1 FROM tbl_auth_credentials WHERE email = $1", [normalizedEmail]);
   if (existing.rows.length > 0) {
     return res.status(409).json({ error: "email_exists", message: "Ya existe un usuario con ese correo." });
   }
@@ -63,7 +63,7 @@ export async function signUp(req, res) {
   const authUserId = randomUUID();
   const passwordHash = await bcrypt.hash(password, 10);
   await tmsQuery(
-    "INSERT INTO auth_credentials (auth_user_id, email, password_hash) VALUES ($1, $2, $3)",
+    "INSERT INTO tbl_auth_credentials (auth_user_id, email, password_hash) VALUES ($1, $2, $3)",
     [authUserId, normalizedEmail, passwordHash]
   );
   res.json({ data: { user: { id: authUserId, email: normalizedEmail } }, error: null });

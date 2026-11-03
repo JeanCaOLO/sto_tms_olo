@@ -23,7 +23,7 @@ from typing import Any
 logger = logging.getLogger()
 
 _INSERT_SQL = """
-INSERT INTO oms_logs
+INSERT INTO tbl_oms_logs
   (level, action, corrida_id, message, detail, actor)
 VALUES (%s, %s, %s, %s, %s, %s)
 """

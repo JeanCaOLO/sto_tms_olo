@@ -125,7 +125,7 @@ describe.skipIf(!dbAvailable)('Catálogo de Zonas: tabla "zones"', () => {
   // `country_id` es NOT NULL. Este test invierte el anterior, que documentaba la
   // ausencia de la tabla (rotura §5.3 ya resuelta).
   it('existe y country_id es NOT NULL', async () => {
-    const { rows } = await pool.query("SELECT to_regclass('public.zones') AS reg");
+    const { rows } = await pool.query("SELECT to_regclass('public.tbl_zones') AS reg");
     expect(rows[0].reg).not.toBeNull();
 
     const { rows: cols } = await pool.query(

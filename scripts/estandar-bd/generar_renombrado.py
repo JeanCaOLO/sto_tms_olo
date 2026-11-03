@@ -25,6 +25,8 @@ SCHEMAS = ("public", "audit")
 EXCLUDED_TABLES = {"schema_migrations", "mobile_migrations", "sim_expedicionescabecera"}
 OUT = ROOT / "sql" / "59_estandar_oltp_renombrado.sql"
 OUT_RB = ROOT / "sql" / "59_estandar_oltp_renombrado_rollback.sql"
+DB_NAMES = ROOT / "backend" / "common-services" / "layers" / "tms_common" / "tms_common" / "db_names.py"
+DB_NAMES_JS = ROOT / "server" / "tms-db-names.mjs"
 COMPAT = "compat:estandar-oltp-59"
 SUFFIX = re.compile(r"_(pkey|fkey|key|check\d*|idx|index|uniq|unique|uk|fk|trg)$")
 PREFIX_OK = {"p": "pk_", "f": "fk_", "u": "uq_", "c": "ck_"}
@@ -486,6 +488,46 @@ begin;
 """ + "\n".join(rb_all) + "\n\ncommit;\n", encoding="utf-8", newline="\n")
     print(counts.lstrip("- "))
     print(f"escrito {OUT.relative_to(ROOT)} y {OUT_RB.relative_to(ROOT)}")
+    names = sorted([(t["old"], t["new"]) for t in tops if t["schema"] == "public" and not t["part"]]
+                   + [(old, new) for sch, old, new in view_ren if sch == "public"])
+    body_map = "\n".join(f"    {old!r}: {new!r}," for old, new in names)
+    DB_NAMES.write_text(f'''"""Nombres lógicos → físicos de tms_olo (estándar OLTP, sql/59; ADR-0014).
+
+GENERADO por scripts/estandar-bd/generar_renombrado.py. No editar a mano: regenerar.
+El contrato HTTP (/api/data/<tabla>, /api/tarifas/<tabla>) y la bitácora (audit.events.entity_table)
+usan el nombre LÓGICO; el SQL usa el FÍSICO. Este es el único lugar donde se traduce.
+"""
+
+PHYSICAL: dict[str, str] = {{
+{body_map}
+}}
+LOGICAL: dict[str, str] = {{v: k for k, v in PHYSICAL.items()}}
+
+
+def physical(name: str) -> str:
+    """Nombre físico de una tabla/vista lógica (los que no están en el mapa se devuelven igual)."""
+    return PHYSICAL.get(name, name)
+
+
+def logical(name: str) -> str:
+    """Nombre lógico de una tabla/vista física (inverso de physical)."""
+    return LOGICAL.get(name, name)
+''', encoding="utf-8", newline="\n")
+    print(f"escrito {DB_NAMES.relative_to(ROOT)}")
+    js_map = "\n".join(f"  {old}: {new!r}," for old, new in names).replace("'", '"')
+    DB_NAMES_JS.write_text(f"""// Nombres lógicos → físicos de tms_olo (estándar OLTP, sql/59; ADR-0014).
+// GENERADO por scripts/estandar-bd/generar_renombrado.py (mismo mapa que tms_common/db_names.py).
+// El contrato HTTP usa el nombre LÓGICO; el SQL, el FÍSICO.
+
+export const PHYSICAL = Object.freeze({{
+{js_map}
+}});
+const LOGICAL = Object.freeze(Object.fromEntries(Object.entries(PHYSICAL).map(([k, v]) => [v, k])));
+
+export const physical = (name) => PHYSICAL[name] ?? name;
+export const logical = (name) => LOGICAL[name] ?? name;
+""", encoding="utf-8", newline="\n")
+    print(f"escrito {DB_NAMES_JS.relative_to(ROOT)}")
 
 
 VALIDATION = r"""

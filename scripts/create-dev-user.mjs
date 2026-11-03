@@ -21,8 +21,8 @@ const db = new pg.Client({
 });
 await db.connect();
 
-const { rows: [org] } = await db.query('SELECT id FROM organizations LIMIT 1');
-const { rows: [role] } = await db.query("SELECT id FROM roles WHERE name = 'SuperUsuario' LIMIT 1");
+const { rows: [org] } = await db.query('SELECT id FROM tbl_organizations LIMIT 1');
+const { rows: [role] } = await db.query("SELECT id FROM tbl_roles WHERE name = 'SuperUsuario' LIMIT 1");
 if (!org || !role) {
   console.error('No se encontró organización u rol SuperUsuario en tms_olo.');
   process.exit(1);
@@ -32,11 +32,11 @@ const authUserId = randomUUID();
 const passwordHash = await bcrypt.hash(password, 10);
 
 await db.query(
-  'INSERT INTO auth_credentials (auth_user_id, email, password_hash) VALUES ($1, $2, $3)',
+  'INSERT INTO tbl_auth_credentials (auth_user_id, email, password_hash) VALUES ($1, $2, $3)',
   [authUserId, email.toLowerCase(), passwordHash],
 );
 await db.query(
-  `INSERT INTO app_users (auth_user_id, organization_id, full_name, email, role_id)
+  `INSERT INTO tbl_app_users (auth_user_id, organization_id, full_name, email, role_id)
    VALUES ($1, $2, $3, $4, $5)`,
   [authUserId, org.id, fullName, email, role.id],
 );

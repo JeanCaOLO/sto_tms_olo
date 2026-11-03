@@ -92,7 +92,7 @@ def main() -> None:
     # Las coordenadas se validan contra la caja del país del cliente.
     rows = read_rows(args.csv, customer[0]["country_code"])
     report: dict = {}
-    # Acción automática: en audit.events queda como `system` con este origen (sql/16).
+    # Acción automática: en audit.tbl_events queda como `system` con este origen (sql/16).
     pg.query(audit.SET_ACTOR_SQL, [json.dumps({"type": "system", "source": f"ingest_delivery_points {args.customer}"})])
     try:
         with pg.transaction() as run:

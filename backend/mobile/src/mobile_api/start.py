@@ -84,7 +84,7 @@ def start_trip(event: dict, driver: Driver) -> dict:
     try:
         result = db.run_in_transaction(work)
     except HttpError as err:
-        # Dos "iniciar" a la vez para el mismo plan: el índice único ux_routes_plan_trip gana y el otro recupera la ruta.
+        # Dos "iniciar" a la vez para el mismo plan: el índice único uidx_routes_plan_trip gana y el otro recupera la ruta.
         if err.code != UNIQUE_VIOLATION:
             raise
         existing = db.query(sql.ROUTE_BY_PLAN_TRIP_SQL, [trip_id])

@@ -1,4 +1,4 @@
-import { q, assertColumn, HttpError } from "./tms-schema.mjs";
+import { q, qt, assertColumn, HttpError } from "./tms-schema.mjs";
 import { buildWhereClause } from "./tms-select.mjs";
 
 // INSERT de una o varias filas (mismo shape que `.insert(obj | obj[])` de
@@ -21,7 +21,7 @@ export function buildInsertQuery(table, rows) {
   });
 
   const columnList = columns.map(q).join(", ");
-  const sql = `INSERT INTO ${q(table)} (${columnList}) VALUES ${valueRows.join(", ")} RETURNING *`;
+  const sql = `INSERT INTO ${qt(table)} (${columnList}) VALUES ${valueRows.join(", ")} RETURNING *`;
   return { sql, params };
 }
 
@@ -39,7 +39,7 @@ export function buildUpdateQuery(table, values, filters) {
   const { clause, params: whereParams } = buildWhereClause(table, null, filters, params.length + 1);
   params.push(...whereParams);
 
-  let sql = `UPDATE ${q(table)} SET ${setClauses.join(", ")}`;
+  let sql = `UPDATE ${qt(table)} SET ${setClauses.join(", ")}`;
   if (clause) sql += ` WHERE ${clause}`;
   sql += " RETURNING *";
   return { sql, params };
@@ -47,7 +47,7 @@ export function buildUpdateQuery(table, values, filters) {
 
 export function buildDeleteQuery(table, filters) {
   const { clause, params } = buildWhereClause(table, null, filters, 1);
-  let sql = `DELETE FROM ${q(table)}`;
+  let sql = `DELETE FROM ${qt(table)}`;
   if (clause) sql += ` WHERE ${clause}`;
   sql += " RETURNING *";
   return { sql, params };

@@ -69,8 +69,8 @@ def fake_db(monkeypatch):
 
     monkeypatch.setattr(db, "transaction", transaction)
     monkeypatch.setattr(auth, "_contexts", {})                        # caché de contexto limpia por prueba
-    fake.answer("FROM app_users u", [driver_row()])
-    fake.answer("FROM audit.events", [{"n": 0}])                     # sin fallos de login recientes
+    fake.answer("FROM tbl_app_users u", [driver_row()])
+    fake.answer("FROM audit.tbl_events", [{"n": 0}])                     # sin fallos de login recientes
     return fake
 
 

@@ -83,13 +83,13 @@ def cmd_estado() -> None:
     print("== Estado de la cola (orders con llave EFLOW) ==")
     for row in pg.query(
         "select wms_situation, (oms_processed_at is not null) liberado, count(*) n "
-        "from orders where eflow_id_expedicion is not null group by 1,2 order by 1,2"):
+        "from tbl_orders where eflow_id_expedicion is not null group by 1,2 order by 1,2"):
         print(f"  situacion={row['wms_situation']:5} liberado={row['liberado']!s:5} -> {row['n']}")
     print("\n== Pendientes en cola (DISP/DISP, no liberados) por compañía/fecha ==")
     rows = pg.query(
         "select cu.code compania, o.delivery_date, (o.dispatch_date is not null) con_salida, "
         "       (o.prioritization_run_id is not null) priorizado, count(*) n "
-        "from orders o join customers cu on cu.id=o.customer_id "
+        "from tbl_orders o join tbl_customers cu on cu.id=o.customer_id "
         "where o.wms_status='DISP' and o.wms_situation='DISP' and o.oms_processed_at is null "
         "  and o.eflow_id_expedicion is not null "
         "group by 1,2,3,4 order by 1,2")
@@ -117,7 +117,7 @@ def cmd_plan() -> None:
     _path(TMS_COMMON, PLANNING)
     import replan
     from tms_common import pg
-    created_by = pg.query("select id from app_users limit 1")[0]["id"]
+    created_by = pg.query("select id from tbl_app_users limit 1")[0]["id"]
     print("== PLANIFICAR ventana (hoy, hoy+3] por fecha de ENTREGA ==")
     res = replan.replanificar_todo(ORG_CR, COUNTRY_CR, WAREHOUSE_CR, str(created_by))
     print(f"  planificados: {res['planificados']}")

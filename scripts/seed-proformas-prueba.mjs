@@ -51,32 +51,32 @@ try {
 }
 
 async function removeAll() {
-  const ids = (await db.query('SELECT id FROM tarifas_proformas WHERE number LIKE $1', [`${PREFIX}%`])).rows.map((r) => r.id);
+  const ids = (await db.query('SELECT id FROM tbl_tarifas_proformas WHERE number LIKE $1', [`${PREFIX}%`])).rows.map((r) => r.id);
   if (ids.length) {
-    await db.query("DELETE FROM tarifas_audit_log WHERE entity = 'proforma' AND entity_id = ANY($1)", [ids]);
-    await db.query('DELETE FROM tarifas_proforma_claims WHERE proforma_id = ANY($1)', [ids]);
-    await db.query('DELETE FROM tarifas_proformas WHERE id = ANY($1)', [ids]); // fases e ítems caen en cascada
+    await db.query("DELETE FROM tbl_tarifas_audit_log WHERE entity = 'proforma' AND entity_id = ANY($1)", [ids]);
+    await db.query('DELETE FROM tbl_tarifas_proforma_claims WHERE proforma_id = ANY($1)', [ids]);
+    await db.query('DELETE FROM tbl_tarifas_proformas WHERE id = ANY($1)', [ids]); // fases e ítems caen en cascada
   }
-  const users = (await db.query('SELECT id, auth_user_id FROM app_users WHERE email LIKE $1', [`%${DOMAIN}`])).rows;
+  const users = (await db.query('SELECT id, auth_user_id FROM tbl_app_users WHERE email LIKE $1', [`%${DOMAIN}`])).rows;
   for (const u of users) {
-    await db.query('DELETE FROM user_scopes WHERE app_user_id = $1', [u.id]);
-    await db.query('DELETE FROM app_users WHERE id = $1', [u.id]);
-    await db.query('DELETE FROM auth_credentials WHERE auth_user_id = $1', [u.auth_user_id]);
+    await db.query('DELETE FROM tbl_user_scopes WHERE app_user_id = $1', [u.id]);
+    await db.query('DELETE FROM tbl_app_users WHERE id = $1', [u.id]);
+    await db.query('DELETE FROM tbl_auth_credentials WHERE auth_user_id = $1', [u.auth_user_id]);
   }
   console.log(`Borradas ${ids.length} proformas de prueba y ${users.length} usuarios de prueba.`);
 }
 
 async function seed() {
-  const { rows: [org] } = await db.query('SELECT id FROM organizations LIMIT 1');
-  const { rows: roles } = await db.query("SELECT id, name FROM roles WHERE name IN ('Transportista', 'Gerente')");
+  const { rows: [org] } = await db.query('SELECT id FROM tbl_organizations LIMIT 1');
+  const { rows: roles } = await db.query("SELECT id, name FROM tbl_roles WHERE name IN ('Transportista', 'Gerente')");
   const roleId = (name) => roles.find((r) => r.name === name)?.id;
   if (!org || !roleId('Transportista') || !roleId('Gerente')) throw new Error('Faltan la organización o los roles: aplica sql/56 primero.');
 
   const country = (await db.query(
-    countryArg ? 'SELECT id, currency FROM countries WHERE id = $1' : 'SELECT id, currency FROM countries ORDER BY name LIMIT 1',
+    countryArg ? 'SELECT id, currency FROM tbl_countries WHERE id = $1' : 'SELECT id, currency FROM tbl_countries ORDER BY name LIMIT 1',
     countryArg ? [countryArg] : [])).rows[0];
   if (!country) throw new Error('No encontré el país.');
-  const carriers = (await db.query('SELECT id, name FROM carriers WHERE country_id = $1 ORDER BY name LIMIT 2', [country.id])).rows;
+  const carriers = (await db.query('SELECT id, name FROM tbl_carriers WHERE country_id = $1 ORDER BY name LIMIT 2', [country.id])).rows;
   if (carriers.length < 2) throw new Error('Se necesitan al menos 2 transportistas en el país para probar el aislamiento.');
   console.log(`País ${country.id} · transportistas: ${carriers.map((c) => c.name).join(' / ')}`);
 
@@ -87,13 +87,13 @@ async function seed() {
     { email: `gerente${DOMAIN}`, name: 'Prueba Gerente', role: 'Gerente', carrier: null },
   ];
   for (const u of users) {
-    if ((await db.query('SELECT 1 FROM auth_credentials WHERE email = $1', [u.email])).rowCount) { console.log(`ya existe ${u.email}`); continue; }
+    if ((await db.query('SELECT 1 FROM tbl_auth_credentials WHERE email = $1', [u.email])).rowCount) { console.log(`ya existe ${u.email}`); continue; }
     const authId = randomUUID();
-    await db.query('INSERT INTO auth_credentials (auth_user_id, email, password_hash) VALUES ($1, $2, $3)', [authId, u.email, hash]);
+    await db.query('INSERT INTO tbl_auth_credentials (auth_user_id, email, password_hash) VALUES ($1, $2, $3)', [authId, u.email, hash]);
     const { rows: [row] } = await db.query(
-      'INSERT INTO app_users (auth_user_id, organization_id, full_name, email, role_id, is_active, carrier_id) VALUES ($1,$2,$3,$4,$5,true,$6) RETURNING id',
+      'INSERT INTO tbl_app_users (auth_user_id, organization_id, full_name, email, role_id, is_active, carrier_id) VALUES ($1,$2,$3,$4,$5,true,$6) RETURNING id',
       [authId, org.id, u.name, u.email, roleId(u.role), u.carrier]);
-    await db.query('INSERT INTO user_scopes (app_user_id, role_id, country_id, warehouse_id, customer_id) VALUES ($1,$2,NULL,NULL,NULL)', [row.id, roleId(u.role)]);
+    await db.query('INSERT INTO tbl_user_scopes (app_user_id, role_id, country_id, warehouse_id, customer_id) VALUES ($1,$2,NULL,NULL,NULL)', [row.id, roleId(u.role)]);
     console.log(`usuario ${u.email} (${u.role})`);
   }
 
@@ -106,14 +106,14 @@ async function seed() {
   for (const p of plan) {
     const id = genId('pro');
     await db.query(
-      `INSERT INTO tarifas_proformas (id, country_id, number, carrier_id, carrier_name, status, currency, total_amount, created_by, created_at, updated_at)
+      `INSERT INTO tbl_tarifas_proformas (id, country_id, number, carrier_id, carrier_name, status, currency, total_amount, created_by, created_at, updated_at)
        VALUES ($1,$2,$3,$4,$5,'En Revisión',$6,$7,'prueba',now(),now())`,
       [id, country.id, p.n, p.carrier.id, p.carrier.name, country.currency ?? 'CRC', p.total]);
     const phases = [['Transportista', 'transportista'], ['Gerente', 'gerente']];
     for (const [i, [name]] of phases.entries()) {
       const done = i < p.approved;
       await db.query(
-        `INSERT INTO tarifas_proforma_phases (id, proforma_id, position, name, approver_type, role_name, approver_label, state, decided_by, decided_at)
+        `INSERT INTO tbl_tarifas_proforma_phases (id, proforma_id, position, name, approver_type, role_name, approver_label, state, decided_by, decided_at)
          VALUES ($1,$2,$3,$4,'role',$4,$4,$5,$6,$7)`,
         [genId('pph'), id, i + 1, name, done ? 'aprobada' : 'pendiente', done ? 'prueba' : null, done ? new Date() : null]);
     }
