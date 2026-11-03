@@ -58,6 +58,12 @@ completa (tabla de simulación) y el alcance incluye corregir el código.
 - ADR-0005 (estándar aplicado, desviaciones, vistas de compatibilidad y su retiro).
 - Orden de despliegue: **aplicar la 59 → desplegar el código**. El código nuevo no funciona sin la 59.
 
+## Estimación
+
+**No se capturaron datos de estimación para esta iteración** (esfuerzo/puntos/tiempo). No se reconstruyen ni se
+inventan. `team.md` no afirma un umbral de estimación obligatoria; queda explícito como gap. Si el proceso del
+equipo la exige para esta iteración, falta agregarla con cifras reales.
+
 ## Follow-ups
 
 - Aplicar la 59 con `--execute` (humano). `humo_59.py` está pensado para ANTES de aplicarla (compara contra el
