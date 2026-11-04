@@ -1256,3 +1256,96 @@ def test_stop_view_exposes_the_time_on_site_detected_by_gps():
     # Sin visita (aún no llegó o sin GPS) los tres quedan en null y el resto del contrato no cambia.
     bare = app._stop_view(_full_stop(1), {"by_stop": {}}, {}, False)
     assert bare["site_arrived_at"] is None and bare["site_departed_at"] is None and bare["dwell_seconds"] is None
+
+
+# --- vista del cliente (rol Cliente): solo SU entrega ----------------------------------------------------
+
+CLIENT_GUIDES = ("FROM dispatch_guides g JOIN routes r ON r.id = g.route_id JOIN orders o ON o.id = g.order_id "
+                 "JOIN tracking_client_access")
+CLIENT_PLANNED = "FROM plan_stops ps JOIN orders o ON o.id = ps.order_id JOIN tracking_client_access"
+ALL_GUIDES = "COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,"
+MINE = "00000000-0000-4000-8000-000000000002"
+MY_ENTREGAS = "GET /api/v1/tracking/mis-entregas"
+
+
+def _client_permissions():
+    from tms_common.permissions import Permissions
+    return Permissions("app-user", "role-client", "Cliente", False, {"tracking": frozenset({"view"})}, True, ())
+
+
+def _client_row(**over):
+    base = {"id": MINE, "route_id": ROUTE, "sequence_number": 2, "delivery_status": None, "status": None,
+            "actual_arrival_time": None, "planned_arrival_time": None, "order_number": "P-2",
+            "delivery_address": "Calle 2", "delivery_city": "Heredia", "point_name": "EPA Heredia",
+            "latitude": 9.95, "longitude": -84.05, "route_status": "En tránsito", "departed_at": NOW - timedelta(hours=1),
+            "actual_end_time": None, "last_lat": 9.9, "last_lng": -84.1, "last_position_at": NOW - timedelta(seconds=30),
+            "site_arrived_at": None, "site_departed_at": None, "dwell_seconds": None}
+    base.update(over)
+    return base
+
+
+@pytest.fixture
+def client(tracking, caller_permissions):
+    app, db = tracking
+    caller_permissions.set(_client_permissions())
+    return app, db
+
+
+def test_client_cannot_use_the_general_tracking_endpoints(client):
+    app, _ = client
+    for route, path in [("GET /api/v1/tracking/viajes", None), ("GET /api/v1/tracking/viajes/{id}", {"id": ROUTE}),
+                        ("GET /api/v1/tracking/choferes", None), ("GET /api/v1/tracking/planificados", None),
+                        ("GET /api/v1/tracking/resumen", None), ("GET /api/v1/tracking/mi-viaje", None)]:
+        assert app.handler(_event(route, path=path), None)["statusCode"] == 403, route
+
+
+def test_my_deliveries_is_only_for_the_client_role(tracking):
+    app, _ = tracking   # por defecto, administrador
+    assert app.handler(_event(MY_ENTREGAS), None)["statusCode"] == 403
+
+
+def test_client_without_access_sees_nothing(client):
+    app, _ = client
+    assert body_of(app.handler(_event(MY_ENTREGAS), None))["data"] == {"view": "client", "items": []}
+
+
+def test_client_sees_only_its_stop_with_eta_and_truck(client):
+    app, db = client
+    db.answer(CLIENT_GUIDES, [_client_row()])
+    db.answer(ALL_GUIDES, [_full_stop(1, planned=None), _full_stop(2)])   # la parada 1 es de OTRO cliente
+    data = body_of(app.handler(_event(MY_ENTREGAS), None))["data"]
+    assert data["view"] == "client" and len(data["items"]) == 1
+    item = data["items"][0]
+    assert item["status"] == "en_camino" and item["point_name"] == "EPA Heredia" and item["stops_ahead"] == 1
+    assert item["eta_at"] is not None and item["truck"]["lat"] == 9.9
+    flat = repr(data)
+    for leaked in ("Ana", "ABC123", "G-1", "P-1", "2222-0000", "driver", "plate", "customer_phone"):
+        assert leaked not in flat, leaked
+    assert any("'app-user'" in sql for sql, _ in db.calls if "tracking_client_access" in sql)   # filtrado por usuario
+
+
+def test_client_stops_seeing_the_truck_once_delivered(client):
+    app, db = client
+    db.answer(CLIENT_GUIDES, [_client_row(delivery_status="delivered", actual_arrival_time=NOW,
+                                          site_arrived_at=NOW - timedelta(minutes=10), site_departed_at=NOW,
+                                          dwell_seconds=600)])
+    db.answer(ALL_GUIDES, [_full_stop(1, state="delivered"), _full_stop(2, state="delivered")])
+    item = body_of(app.handler(_event(MY_ENTREGAS), None))["data"]["items"][0]
+    assert item["status"] == "entregado" and item["truck"] is None and item["eta_at"] is None
+    assert item["delivered_at"] is not None and item["dwell_seconds"] == 600
+
+
+def test_client_sees_a_not_yet_departed_trip_as_ready(client):
+    app, db = client
+    db.answer(CLIENT_GUIDES, [_client_row(departed_at=None)])
+    db.answer(ALL_GUIDES, [_full_stop(1), _full_stop(2)])
+    item = body_of(app.handler(_event(MY_ENTREGAS), None))["data"]["items"][0]
+    assert item["status"] == "listo" and item["eta_at"] is None
+
+
+def test_client_sees_todays_planned_delivery_as_ready(client):
+    app, db = client
+    db.answer(CLIENT_PLANNED, [{"trip_id": TRIP, "stop_order": 3, "order_number": "P-9", "delivery_address": "Calle 9",
+                                "delivery_city": "Cartago", "point_name": "EPA Cartago", "plan_date": date(2026, 10, 16)}])
+    item = body_of(app.handler(_event(MY_ENTREGAS), None))["data"]["items"][0]
+    assert item["status"] == "listo" and item["point_name"] == "EPA Cartago" and item["truck"] is None

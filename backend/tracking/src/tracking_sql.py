@@ -328,3 +328,52 @@ WHERE tracking_last_positions.recorded_at <= EXCLUDED.recorded_at
 POSITION_COLUMNS = ("organization_id, route_id, vehicle_id, driver_id, device_id, client_id, latitude, longitude, "
                     "accuracy_m, speed_mps, heading_deg, battery_pct, is_mock, recorded_at")
 POSITION_PLACEHOLDERS = "(" + ", ".join(["%s"] * 14) + ")"
+
+# --- vista del cliente (rol Cliente): SOLO las paradas de su punto de entrega -----------------------------------
+# El vínculo usuario → punto está en tracking_client_access (m07). Una parada es del cliente si su pedido apunta a
+# su punto de entrega o, cuando el vínculo es al cliente destino, a ese cliente destino.
+CLIENT_ORDER_MATCH = """
+JOIN tracking_client_access a ON a.app_user_id = %s AND a.organization_id = %s
+ AND ((a.delivery_point_id IS NOT NULL AND o.delivery_point_id = a.delivery_point_id)
+   OR (a.final_customer_id IS NOT NULL AND o.final_customer_id = a.final_customer_id))
+"""
+
+CLIENT_GUIDES_SQL = f"""
+SELECT DISTINCT g.id, g.route_id, g.sequence_number, g.delivery_status, g.status, g.actual_arrival_time,
+       g.planned_arrival_time, o.order_number, o.delivery_address, o.delivery_city,
+       COALESCE(dp.name, fc.name) AS point_name,
+       COALESCE(o.delivery_latitude, ps.latitude) AS latitude,
+       COALESCE(o.delivery_longitude, ps.longitude) AS longitude,
+       r.status AS route_status, r.departed_at, r.actual_end_time,
+       lp.latitude AS last_lat, lp.longitude AS last_lng, lp.recorded_at AS last_position_at,
+       v.arrived_at AS site_arrived_at, v.departed_at AS site_departed_at, v.dwell_seconds
+FROM dispatch_guides g
+JOIN routes r ON r.id = g.route_id
+JOIN orders o ON o.id = g.order_id
+{CLIENT_ORDER_MATCH}
+LEFT JOIN final_customers fc ON fc.id = o.final_customer_id
+LEFT JOIN delivery_points dp ON dp.id = o.delivery_point_id
+LEFT JOIN plan_stops ps ON ps.trip_id = r.plan_trip_id AND ps.order_id = g.order_id
+LEFT JOIN tracking_last_positions lp ON lp.route_id = r.id
+LEFT JOIN tracking_stop_visits v ON v.guide_id = g.id
+WHERE r.organization_id = %s AND (lower(r.status) = ANY(%s) OR r.actual_end_time >= %s)
+ORDER BY g.route_id, g.sequence_number
+"""
+
+# Entregas ya planificadas y confirmadas para hoy que aún no tienen viaje en ruta: el cliente las ve como "listo".
+CLIENT_PLANNED_SQL = f"""
+SELECT ps.trip_id, ps.stop_order, o.order_number, o.delivery_address, o.delivery_city,
+       COALESCE(dp.name, fc.name) AS point_name, rp.plan_date
+FROM plan_stops ps
+JOIN orders o ON o.id = ps.order_id
+{CLIENT_ORDER_MATCH}
+JOIN plan_trips pt ON pt.id = ps.trip_id
+JOIN route_plans rp ON rp.id = pt.plan_id
+LEFT JOIN countries co ON co.id = rp.country_id
+LEFT JOIN final_customers fc ON fc.id = o.final_customer_id
+LEFT JOIN delivery_points dp ON dp.id = o.delivery_point_id
+WHERE rp.organization_id = %s AND rp.status = 'confirmed' AND pt.status = 'pending'
+  AND rp.plan_date = (now() AT TIME ZONE coalesce(co.timezone, 'America/Costa_Rica'))::date
+  AND NOT EXISTS (SELECT 1 FROM routes r WHERE r.plan_trip_id = pt.id)
+ORDER BY rp.plan_date, ps.stop_order
+"""

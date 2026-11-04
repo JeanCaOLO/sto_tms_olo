@@ -1,9 +1,11 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Button from '../../components/base/Button';
+import { useAuth } from '../../hooks/useAuth';
 import { useModulePermissions } from '../../hooks/use-module-permissions';
 import { isTrackingMock, trackingNow } from './api';
 import IniciarViajeModal from './components/IniciarViajeModal';
+import MisEntregas from './components/MisEntregas';
 import ResumenBar from './components/ResumenBar';
 import ViajeDetallePanel from './components/ViajeDetallePanel';
 import ViajesSidebar from './components/ViajesSidebar';
@@ -22,8 +24,16 @@ const PAGE_SIZE = 30;
 const MAX_LIMIT = 100;
 const SEARCH_DEBOUNCE_MS = 300;
 
-/** Tracking: SOLO monitoreo de los viajes en curso (lista, mapa, avance y evidencias). Sin acciones sobre el viaje. */
+const CLIENT_ROLE = 'Cliente';
+
+/** El rol Cliente ve solo SU entrega (`/mis-entregas`); el resto, el monitor de viajes. */
 export default function TrackingPage() {
+  const { appUser } = useAuth();
+  return appUser?.role?.name === CLIENT_ROLE ? <MisEntregas /> : <TrackingMonitor />;
+}
+
+/** Tracking: SOLO monitoreo de los viajes en curso (lista, mapa, avance y evidencias). Sin acciones sobre el viaje. */
+function TrackingMonitor() {
   const { t } = useTranslation();
   const { canCreate } = useModulePermissions('tracking');
   const mock = isTrackingMock();
