@@ -637,7 +637,7 @@ def test_late_rule_is_the_same_in_list_and_detail(tracking):
     db.answer("SELECT g.route_id, g.id, g.sequence_number", [_full_stop(1, planned=LATE_STOP)])
     db.answer("FROM routes r", [row])
     item = body_of(app.handler(_event("GET /api/v1/tracking/viajes"), None))["data"]["items"][0]
-    db.answer("cu.phone AS customer_phone", [_full_stop(1, planned=LATE_STOP)])
+    db.answer("COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,", [_full_stop(1, planned=LATE_STOP)])
     db.answer("FROM routes r JOIN stores s", [row])
     detail = body_of(app.handler(_event("GET /api/v1/tracking/viajes/{id}", path={"id": ROUTE}), None))["data"]
     assert item["delay_min"] == detail["delay_min"] and 45 <= item["delay_min"] <= 55
@@ -756,7 +756,7 @@ def test_detail_has_contract_fields_and_no_event_or_trail_queries(tracking, monk
     app, db = tracking
     monkeypatch.setattr(app, "s3", lambda: FakeS3())
     db.answer("FROM routes r JOIN stores s", [_row(origin_lat=9.9, origin_lng=-84.1, departed_at=NOW - timedelta(hours=1))])
-    db.answer("cu.phone AS customer_phone", [_full_stop(1, planned=LATE_STOP)])
+    db.answer("COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,", [_full_stop(1, planned=LATE_STOP)])
     db.answer("FROM tracking_evidences WHERE route_id", [
         {"id": "ev-1", "dispatch_guide_id": "00000000-0000-4000-8000-000000000001", "kind": "photo_invoice",
          "storage_key": "k1", "mime_type": "image/jpeg", "captured_at": NOW}])
@@ -783,7 +783,7 @@ def test_signed_urls_are_cached_and_resigned_near_expiry(tracking, monkeypatch):
     db.answer("FROM tracking_evidences WHERE route_id", [
         {"id": "ev-1", "dispatch_guide_id": GUIDE, "kind": "signature", "storage_key": "k-stable",
          "mime_type": "image/png", "captured_at": NOW}])
-    db.answer("cu.phone AS customer_phone", [_full_stop(1)])
+    db.answer("COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,", [_full_stop(1)])
     get = "GET /api/v1/tracking/viajes/{id}"
     app.handler(_event(get, path={"id": ROUTE}), None)
     app.handler(_event(get, path={"id": ROUTE}), None)
@@ -801,7 +801,7 @@ def test_driver_detail_never_signs_evidence_urls(driver, monkeypatch):
     db.answer("FROM tracking_evidences WHERE route_id", [
         {"id": "ev-1", "dispatch_guide_id": "00000000-0000-4000-8000-000000000001", "kind": "signature", "storage_key": "k",
          "mime_type": "image/png", "captured_at": NOW}])
-    db.answer("cu.phone AS customer_phone", [_full_stop(1)])
+    db.answer("COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,", [_full_stop(1)])
     data = body_of(app.handler(_event("GET /api/v1/tracking/viajes/{id}", path={"id": ROUTE}), None))["data"]
     assert s3.signed == [] and data["stops"][0]["evidences"][0]["url"] is None
 
@@ -818,7 +818,7 @@ def test_detail_still_returns_stops_when_signing_an_evidence_fails(tracking, mon
     db.answer("FROM tracking_evidences WHERE route_id", [
         {"id": "ev-1", "dispatch_guide_id": "00000000-0000-4000-8000-000000000001", "kind": "signature", "storage_key": "k-broken",
          "mime_type": "image/png", "captured_at": NOW}])
-    db.answer("cu.phone AS customer_phone", [_full_stop(1)])
+    db.answer("COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,", [_full_stop(1)])
     data = body_of(app.handler(_event("GET /api/v1/tracking/viajes/{id}", path={"id": ROUTE}), None))["data"]
     assert len(data["stops"]) == 1 and data["stops"][0]["evidences"][0]["url"] is None
 
@@ -1045,7 +1045,7 @@ def test_mi_viaje_keeps_contact_for_the_driver_and_lists_planned_trips(driver):
         "trip_id": TRIP, "stop_order": 1, "order_id": ORDER, "order_number": "P-1", "invoice_number": "F-1",
         "total_items": 3, "total_weight": 5, "delivery_address": "Calle 1", "delivery_city": "San José",
         "latitude": STOP_LAT, "longitude": STOP_LNG, "customer_name": "Cliente", "customer_phone": "2222-0000"}])
-    db.answer("cu.phone AS customer_phone", [_full_stop(1)])
+    db.answer("COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,", [_full_stop(1)])
     result = body_of(app.handler(_event("GET /api/v1/tracking/mi-viaje"), None))["data"]
     assert [item["kind"] for item in result["items"]] == ["route", "planned"]
     route_item = result["items"][0]
@@ -1224,7 +1224,7 @@ def test_origin_coords_prefers_company_then_store_then_country(logic):
 def test_detail_origin_uses_the_fixed_company_site(tracking):
     app, db = tracking
     db.answer("FROM routes r JOIN stores s", [_row(country="VN", customer_code="FEBECA", origin_lat=10.4575, origin_lng=-66.9419)])
-    db.answer("cu.phone AS customer_phone", [_full_stop(1)])
+    db.answer("COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,", [_full_stop(1)])
     data = body_of(app.handler(_event("GET /api/v1/tracking/viajes/{id}", path={"id": ROUTE}), None))["data"]
     assert data["origin"]["lat"] == 10.1897571 and data["origin"]["lng"] == -67.9507191
 
@@ -1236,3 +1236,11 @@ def test_evidence_from_the_driver_app_is_signed_in_its_own_bucket(tracking, monk
     assert app.evidence_bucket("dev-tms-mobile-evidencias-1") == "dev-tms-mobile-evidencias-1"
     assert app.evidence_bucket(None) == "dev-tms-tracking-1"
     assert app.evidence_bucket("bucket-ajeno") == "dev-tms-tracking-1"
+
+
+def test_stop_name_comes_from_delivery_point_not_from_the_company():
+    import tracking_sql
+    for sql in (tracking_sql.GUIDES_SQL, tracking_sql.MY_PLANNED_STOPS_SQL):
+        assert "COALESCE(dp.name, fc.name, cu.name) AS customer_name" in sql
+        assert "JOIN final_customers fc ON fc.id = o.final_customer_id" in sql
+        assert "JOIN delivery_points dp ON dp.id = o.delivery_point_id" in sql

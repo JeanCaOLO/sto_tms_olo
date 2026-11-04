@@ -130,12 +130,15 @@ SELECT g.id, g.guide_number, g.sequence_number, g.status, g.delivery_status,
        o.delivery_address, o.delivery_city,
        COALESCE(o.delivery_latitude, ps.latitude) AS latitude,
        COALESCE(o.delivery_longitude, ps.longitude) AS longitude,
-       cu.name AS customer_name, cu.phone AS customer_phone,
+       COALESCE(dp.name, fc.name, cu.name) AS customer_name,
+       COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,
        g.stop_type
 FROM dispatch_guides g
 JOIN routes r ON r.id = g.route_id
 LEFT JOIN orders o ON o.id = g.order_id
 LEFT JOIN customers cu ON cu.id = o.customer_id
+LEFT JOIN final_customers fc ON fc.id = o.final_customer_id
+LEFT JOIN delivery_points dp ON dp.id = o.delivery_point_id
 LEFT JOIN plan_stops ps ON ps.trip_id = r.plan_trip_id AND ps.order_id = g.order_id
 WHERE g.route_id = %s
 ORDER BY g.sequence_number
@@ -263,10 +266,13 @@ MY_PLANNED_STOPS_SQL = """
 SELECT ps.trip_id, ps.stop_order, o.id AS order_id, o.order_number, o.invoice_number, o.total_items, o.total_weight,
        o.delivery_address, o.delivery_city,
        COALESCE(o.delivery_latitude, ps.latitude) AS latitude, COALESCE(o.delivery_longitude, ps.longitude) AS longitude,
-       cu.name AS customer_name, cu.phone AS customer_phone
+       COALESCE(dp.name, fc.name, cu.name) AS customer_name,
+       COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone
 FROM plan_stops ps
 JOIN orders o ON o.id = ps.order_id
 LEFT JOIN customers cu ON cu.id = o.customer_id
+LEFT JOIN final_customers fc ON fc.id = o.final_customer_id
+LEFT JOIN delivery_points dp ON dp.id = o.delivery_point_id
 WHERE ps.trip_id = ANY(%s::uuid[])
 ORDER BY ps.trip_id, ps.stop_order
 """
