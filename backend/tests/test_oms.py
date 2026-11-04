@@ -378,6 +378,160 @@ def test_liberar_live_falla_si_el_pedido_no_esta_en_orders(monkeypatch):
         handoff.liberar_pedido(pedido, registro)
 
 
+def test_liberar_cofersa_estampa_prioridad_cero_y_la_manda_a_la_costura(monkeypatch):
+    """Compañía priorizada por el OMS: al liberar, orders.priority = 0 y 0 va a eFlow."""
+    handoff = load_stack_module("oms", "handoff_pedidos")
+    models = load_stack_module("oms", "models")
+    from tms_common import pg
+
+    llamadas = []
+    monkeypatch.setenv("OMS_SOURCE", "live")
+    monkeypatch.setattr(pg, "query", lambda sql, params=(): llamadas.append((sql, list(params))) or [{"id": "o-1"}])
+    pedido = _pedido(models, fecha=datetime(2026, 10, 2, tzinfo=timezone.utc), exp="1001")
+    registro = models.RegistroPrioridad(pk=pedido.pk, prioridad=2, score=80.0, cliente_retira=False)
+
+    estado = handoff.liberar_pedido(pedido, registro, prioridad_liberacion=0)
+
+    assert estado == handoff.ESTADO_COMPLETADO
+    sql1, params1 = llamadas[0]
+    # Escritura 1 fija priority = 0 (además de GENE + oms_processed_at).
+    assert "priority = %s" in sql1
+    assert params1 == ["GENE", handoff.ESTADO_PENDIENTE, 0, "0001", "0109", "0001", "1001"]
+    # La costura (eFlow/sim) recibió la PRIORIDAD 0, no la de origen (2).
+    sim = next(c for c in llamadas if "sim_expedicionescabecera" in c[0])
+    assert sim[1][-1] == 0
+
+
+def test_liberar_pass_through_no_toca_priority_y_conserva_la_de_origen(monkeypatch):
+    """EPA (pass-through): sin prioridad_liberacion, NO se escribe orders.priority y la
+    costura recibe la prioridad de EFLOW intacta."""
+    handoff = load_stack_module("oms", "handoff_pedidos")
+    models = load_stack_module("oms", "models")
+    from tms_common import pg
+
+    llamadas = []
+    monkeypatch.setenv("OMS_SOURCE", "live")
+    monkeypatch.setattr(pg, "query", lambda sql, params=(): llamadas.append((sql, list(params))) or [{"id": "o-1"}])
+    pedido = _pedido(models, fecha=datetime(2026, 10, 2, tzinfo=timezone.utc), exp="1001")
+    registro = models.RegistroPrioridad(pk=pedido.pk, prioridad=2, score=0.0, cliente_retira=False)
+
+    handoff.liberar_pedido(pedido, registro)  # EPA: sin prioridad_liberacion
+
+    sql1, _ = llamadas[0]
+    assert "priority = %s" not in sql1  # no se toca orders.priority
+    sim = next(c for c in llamadas if "sim_expedicionescabecera" in c[0])
+    assert sim[1][-1] == 2  # conserva su prioridad de EFLOW
+
+
+def test_barrido_libera_con_cero_las_priorizadas_y_conserva_las_pass_through(monkeypatch):
+    """El barrido pasa prioridad_liberacion=0 a las compañías priorizar=true (Cofersa)
+    y None a las pass-through (EPA), que conservan su prioridad."""
+    app = load_stack_module("oms", "app")
+    models = load_stack_module("oms", "models")
+
+    capturado = []
+    monkeypatch.setattr(app.handoff_pedidos, "liberar_pedido",
+                        lambda pedido, registro, **kw: capturado.append(kw.get("prioridad_liberacion"))
+                        or app.handoff_pedidos.ESTADO_COMPLETADO)
+
+    pedido = _pedido(models, fecha=datetime(2026, 10, 2, tzinfo=timezone.utc), exp="1001")
+    registro = models.RegistroPrioridad(pk=pedido.pk, prioridad=2, score=0.0, cliente_retira=False)
+    cofersa = models.ConfiguracionReglas(pesos={}, priorizar=True)
+    epa = models.ConfiguracionReglas(pesos={}, priorizar=False)
+
+    app._liberar([(pedido, cofersa, registro), (pedido, epa, registro)])
+
+    assert capturado == [app.PRIORIDAD_LIBERADO, None]  # 0 para Cofersa, None (conserva) para EPA
+
+
+# --- Pasada 1b: sincronizar el número de prioridad a eFlow sin liberar ---------
+
+def test_sincronizar_prioridad_usa_la_costura_sin_liberar():
+    """La pasada 1b llama a `actualizar_prioridad` (número), NUNCA a `marcar_generada`
+    (liberación): refleja el número en eFlow dejando la situación intacta."""
+    handoff = load_stack_module("oms", "handoff_pedidos")
+    models = load_stack_module("oms", "models")
+
+    actualizados = []
+
+    class EscritorFake:
+        def actualizar_prioridad(self, pk, prioridad):
+            actualizados.append((pk, prioridad))
+
+        def marcar_generada(self, pk, prioridad):  # no debe invocarse al sincronizar
+            raise AssertionError("sincronizar_prioridad NO debe liberar (marcar_generada)")
+
+    pedido = _pedido(models, fecha=datetime(2026, 10, 4, tzinfo=timezone.utc), exp="1001", lead_time_days=1)
+    registro = models.RegistroPrioridad(pk=pedido.pk, prioridad=2, score=0.0, cliente_retira=False)
+
+    handoff.sincronizar_prioridad(pedido, registro, escritor=EscritorFake())
+
+    assert actualizados == [(pedido.pk, 2)]
+
+
+def test_sim_writer_actualizar_prioridad_escribe_solo_prioridad_en_disp(monkeypatch):
+    """El writer actualiza SOLO la PRIORIDAD: nace/queda en 'DISP' (nunca 'GENE') y el
+    DO UPDATE no toca "TPEXSI". Nunca eFlow real."""
+    handoff = load_stack_module("oms", "handoff_pedidos")
+    models = load_stack_module("oms", "models")
+    from tms_common import pg
+
+    llamadas = []
+    monkeypatch.setenv("OMS_SOURCE", "live")
+    monkeypatch.setattr(pg, "query", lambda sql, params=(): llamadas.append((sql, list(params))) or [])
+    pk = models.PedidoPK("0001", "0109", "0001", "1001")
+
+    handoff.SimExpedicionesWriter().actualizar_prioridad(pk, 3)
+
+    sql, params = llamadas[0]
+    assert "sim_expedicionescabecera" in sql
+    assert "'GENE'" not in sql and "'DISP'" in sql          # no libera: situación DISP
+    assert 'DO UPDATE SET "PRIORIDAD"' in sql
+    assert '"TPEXSI" = excluded' not in sql                 # al actualizar NO pisa la situación
+    assert "EXPEDICIONESCABECERA" not in sql                # nunca eFlow real
+    assert params == ["0001", "0109", "0001", "1001", 3]
+
+
+def test_barrido_sincroniza_solo_la_prioridad_cambiada_y_no_liberada(monkeypatch):
+    """Pasada 1b en el barrido: sincroniza a eFlow SOLO los priorizados que siguen en
+    cola (no los que se liberan en la corrida) y cuyo número cambió vs. el previo."""
+    app = load_stack_module("oms", "app")
+    models = load_stack_module("oms", "models")
+
+    cofersa = models.ConfiguracionReglas(pesos={"fecha_t1": 1.0}, priorizar=True,
+                                         estrategia="dias_hasta_salida", dias_prep_picking=1)
+
+    def mk(exp, entrega, dispatch, priority):
+        return models.PedidoCandidato(
+            id_almacen="0001", id_compania="0109", id_sucursal="0001", id_expedicion=exp,
+            fecha_expedicion_planificada=datetime(entrega.year, entrega.month, entrega.day, tzinfo=timezone.utc),
+            lead_time_days=1, numero_viaje=f"v-{exp}", planning_run_id="plan-1",
+            dispatch_date=datetime(dispatch.year, dispatch.month, dispatch.day, tzinfo=timezone.utc),
+            customer_id="cofersa", priority=priority)
+
+    # hoy=10-01, dias_prep_picking=1. A: dispatch 10-02 => en ventana (se libera, no sync).
+    # B: fuera de ventana, priority None => cambia (4 != None) => se sincroniza con 4.
+    # C: fuera de ventana, priority ya = 3 (objetivo 10-04 => 3 días) => NO se sincroniza.
+    pedidos = [
+        mk("A", date(2026, 10, 2), date(2026, 10, 2), None),
+        mk("B", date(2026, 10, 6), date(2026, 10, 20), None),
+        mk("C", date(2026, 10, 5), date(2026, 10, 20), 3),
+    ]
+    monkeypatch.setattr(app.cola_candidatos, "candidatos", lambda *a, **k: pedidos)
+
+    sincronizados = []
+    monkeypatch.setattr(app.handoff_pedidos, "sincronizar_prioridad",
+                        lambda pedido, registro, **kw: sincronizados.append((pedido.id_expedicion, registro.prioridad)))
+    monkeypatch.setattr(app.handoff_pedidos, "liberar_pedido",
+                        lambda pedido, registro, **kw: app.handoff_pedidos.ESTADO_COMPLETADO)
+
+    resumen = app.correr(hoy=date(2026, 10, 1), resolver_config=lambda _p: cofersa)
+
+    assert sincronizados == [("B", 4)]       # solo B: priorizado, no liberado y cambió
+    assert resumen["sincronizados"] == 1
+    assert resumen["liberados"] == 1         # A
+
+
 # --- (f) Ventana de liberación (predicado puro) — falla si se rompe el predicado ---
 
 def test_en_ventana_borde_dia_de_liberacion_es_true():

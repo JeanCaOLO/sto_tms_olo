@@ -52,11 +52,11 @@ export const cofersaRoutes: DispatchRoute[] = [
   { id: '44', name: 'REY', routeType: 'GAM', country: 'CR', loadDays: [], deliveryDays: [], byAppointment: true, exceptions: 0, active: true },
 ];
 
-// FR2/FR3 — cola de priorización (mock). tier numérico: 1 = más urgente.
+// FR2/FR3 — cola de priorización (mock). prioridad numérica: menor = más urgente.
 export const queueOrders: QueueOrder[] = [
   {
     id: 'PED-10432', ref: 'ERP-CF-88213', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Ferretería Central', route: '34 Escazú', country: 'CR', tier: 1, score: 920,
+    customer: 'Ferretería Central', route: '34 Escazú', country: 'CR', priority:1, score: 920,
     totalAmount: 1_240_500, weight: 320.5, volume: 2.4, itemCount: 24, observations: 'Entregar en oficina, urgente',
     dispatchDate: '2026-08-29', createdDate: '2026-08-27', status: 'DISP', situation: 'DISP', intakeTime: '08:41',
     appliedRules: [{ name: 'Fecha de entrega vencida', weight: 600 }, { name: 'Cliente — quiebre de stock', weight: 320 }],
@@ -64,7 +64,7 @@ export const queueOrders: QueueOrder[] = [
   },
   {
     id: 'PED-10440', ref: 'ERP-CF-88240', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Distribuidora Pacífico', route: '13 Puntarenas', country: 'CR', tier: 2, score: 610,
+    customer: 'Distribuidora Pacífico', route: '13 Puntarenas', country: 'CR', priority:2, score: 610,
     totalAmount: 486_200, weight: 95.0, volume: 0.9, itemCount: 8, observations: '—',
     dispatchDate: '2026-08-30', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '09:05',
     appliedRules: [{ name: 'Día de ruta próximo', weight: 610 }],
@@ -72,7 +72,7 @@ export const queueOrders: QueueOrder[] = [
   },
   {
     id: 'PED-10455', ref: 'ERP-CF-88255', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Ferretería San Carlos', route: '08 San Carlos', country: 'CR', tier: 3, score: 300,
+    customer: 'Ferretería San Carlos', route: '08 San Carlos', country: 'CR', priority:3, score: 300,
     totalAmount: 712_800, weight: 210.0, volume: 1.6, itemCount: 15, observations: 'Cliente retira',
     dispatchDate: '2026-08-31', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '09:22',
     appliedRules: [{ name: 'Día de ruta a 2 días', weight: 300 }],
@@ -80,7 +80,7 @@ export const queueOrders: QueueOrder[] = [
   },
   {
     id: 'PED-10461', ref: 'ERP-CF-88261', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Ferretería San Carlos', route: '08 San Carlos', country: 'CR', tier: 1, score: 950,
+    customer: 'Ferretería San Carlos', route: '08 San Carlos', country: 'CR', priority:1, score: 950,
     totalAmount: 158_000, weight: 42.3, volume: 0.3, itemCount: 3, observations: 'Viaje extra pagado por el cliente',
     dispatchDate: '2026-08-28', createdDate: '2026-08-26', status: 'DISP', situation: 'DISP', intakeTime: '07:58',
     appliedRules: [{ name: 'Fecha de entrega vencida', weight: 600 }, { name: 'Override manual', weight: 350 }],
@@ -91,7 +91,7 @@ export const queueOrders: QueueOrder[] = [
   },
   {
     id: 'PED-10470', ref: 'ERP-CF-88270', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Comercial Zona Sur', route: '12 Zona Sur', country: 'CR', tier: 4, score: 0,
+    customer: 'Comercial Zona Sur', route: '12 Zona Sur', country: 'CR', priority:4, score: 0,
     totalAmount: 2_050_900, weight: 540.0, volume: 4.1, itemCount: 41, observations: '—',
     dispatchDate: '2026-09-03', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '10:30',
     appliedRules: [],
@@ -99,7 +99,7 @@ export const queueOrders: QueueOrder[] = [
   },
   {
     id: 'PED-10471', ref: 'ERP-CF-88271', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Ferretería Limón', route: '09 Limón', country: 'CR', tier: 2, score: 640,
+    customer: 'Ferretería Limón', route: '09 Limón', country: 'CR', priority:2, score: 640,
     totalAmount: 890_400, weight: 178.5, volume: 1.2, itemCount: 12, observations: 'Entregar antes de mediodía',
     dispatchDate: '2026-08-30', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '08:12',
     appliedRules: [{ name: 'Día de ruta próximo', weight: 640 }],
@@ -107,7 +107,7 @@ export const queueOrders: QueueOrder[] = [
   },
   {
     id: 'PED-10472', ref: 'ERP-CF-88272', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Depósito Guanacaste', route: '10 Guanacaste Altura', country: 'CR', tier: 3, score: 340,
+    customer: 'Depósito Guanacaste', route: '10 Guanacaste Altura', country: 'CR', priority:3, score: 340,
     totalAmount: 1_320_000, weight: 410.0, volume: 3.0, itemCount: 28, observations: '—',
     dispatchDate: '2026-08-31', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '08:20',
     appliedRules: [{ name: 'Día de ruta a 2 días', weight: 340 }],
@@ -115,7 +115,7 @@ export const queueOrders: QueueOrder[] = [
   },
   {
     id: 'PED-10473', ref: 'ERP-CF-88273', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Ferretería Turrialba', route: '15 Turrialba', country: 'CR', tier: 1, score: 900,
+    customer: 'Ferretería Turrialba', route: '15 Turrialba', country: 'CR', priority:1, score: 900,
     totalAmount: 245_600, weight: 62.0, volume: 0.5, itemCount: 5, observations: 'Cliente retira',
     dispatchDate: '2026-08-29', createdDate: '2026-08-27', status: 'DISP', situation: 'DISP', intakeTime: '08:33',
     appliedRules: [{ name: 'Cliente retira', weight: 900 }],
@@ -123,7 +123,7 @@ export const queueOrders: QueueOrder[] = [
   },
   {
     id: 'PED-10474', ref: 'ERP-CF-88274', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Comercial Puriscal', route: '20 Puriscal', country: 'CR', tier: 2, score: 600,
+    customer: 'Comercial Puriscal', route: '20 Puriscal', country: 'CR', priority:2, score: 600,
     totalAmount: 512_300, weight: 130.0, volume: 1.0, itemCount: 9, observations: '—',
     dispatchDate: '2026-08-30', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '08:47',
     appliedRules: [{ name: 'Día de ruta próximo', weight: 600 }],
@@ -131,7 +131,7 @@ export const queueOrders: QueueOrder[] = [
   },
   {
     id: 'PED-10475', ref: 'ERP-CF-88275', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Distribuidora Bajura', route: '11 Guanacaste Bajura', country: 'CR', tier: 3, score: 320,
+    customer: 'Distribuidora Bajura', route: '11 Guanacaste Bajura', country: 'CR', priority:3, score: 320,
     totalAmount: 1_780_000, weight: 495.0, volume: 3.7, itemCount: 33, observations: 'Enviar a bodega nueva',
     dispatchDate: '2026-08-31', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '09:01',
     appliedRules: [{ name: 'Día de ruta a 2 días', weight: 320 }],
@@ -139,7 +139,7 @@ export const queueOrders: QueueOrder[] = [
   },
   {
     id: 'PED-10476', ref: 'ERP-CF-88276', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Ferretería Talamanca', route: '29 Talamanca', country: 'CR', tier: 1, score: 930,
+    customer: 'Ferretería Talamanca', route: '29 Talamanca', country: 'CR', priority:1, score: 930,
     totalAmount: 168_900, weight: 38.0, volume: 0.4, itemCount: 4, observations: 'Urgente — reposición',
     dispatchDate: '2026-08-29', createdDate: '2026-08-27', status: 'DISP', situation: 'DISP', intakeTime: '09:14',
     appliedRules: [{ name: 'Fecha de entrega vencida', weight: 600 }, { name: 'Quiebre de stock', weight: 330 }],
@@ -147,7 +147,7 @@ export const queueOrders: QueueOrder[] = [
   },
   {
     id: 'PED-10477', ref: 'ERP-CF-88277', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Comercial Sarapiquí', route: '39 Sarapiquí', country: 'CR', tier: 3, score: 300,
+    customer: 'Comercial Sarapiquí', route: '39 Sarapiquí', country: 'CR', priority:3, score: 300,
     totalAmount: 720_000, weight: 205.0, volume: 1.5, itemCount: 14, observations: '—',
     dispatchDate: '2026-08-31', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '09:28',
     appliedRules: [{ name: 'Día de ruta a 2 días', weight: 300 }],
@@ -155,7 +155,7 @@ export const queueOrders: QueueOrder[] = [
   },
   {
     id: 'PED-10478', ref: 'ERP-CF-88278', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Ferretería Corralillo', route: '16 Corralillo', country: 'CR', tier: 2, score: 620,
+    customer: 'Ferretería Corralillo', route: '16 Corralillo', country: 'CR', priority:2, score: 620,
     totalAmount: 398_000, weight: 88.0, volume: 0.8, itemCount: 7, observations: 'Entregar mañana',
     dispatchDate: '2026-08-30', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '09:40',
     appliedRules: [{ name: 'Día de ruta próximo', weight: 620 }],
@@ -163,7 +163,7 @@ export const queueOrders: QueueOrder[] = [
   },
   {
     id: 'PED-10479', ref: 'ERP-CF-88279', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Depósito Upala', route: '31 Upala', country: 'CR', tier: 4, score: 40,
+    customer: 'Depósito Upala', route: '31 Upala', country: 'CR', priority:4, score: 40,
     totalAmount: 2_410_500, weight: 610.0, volume: 4.8, itemCount: 47, observations: '—',
     dispatchDate: '2026-09-04', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '09:52',
     appliedRules: [{ name: 'Día de ruta lejano', weight: 40 }],
@@ -171,7 +171,7 @@ export const queueOrders: QueueOrder[] = [
   },
   {
     id: 'PED-10480', ref: 'ERP-CF-88280', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Ferretería Osa', route: '32 Puerto Jiménez', country: 'CR', tier: 1, score: 910,
+    customer: 'Ferretería Osa', route: '32 Puerto Jiménez', country: 'CR', priority:1, score: 910,
     totalAmount: 320_000, weight: 71.0, volume: 0.6, itemCount: 6, observations: 'Cliente retira 48h',
     dispatchDate: '2026-08-29', createdDate: '2026-08-27', status: 'DISP', situation: 'DISP', intakeTime: '10:05',
     appliedRules: [{ name: 'Cliente retira', weight: 910 }],
@@ -179,7 +179,7 @@ export const queueOrders: QueueOrder[] = [
   },
   {
     id: 'PED-10481', ref: 'ERP-CF-88281', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'EPA Cartago', route: '33 Cartago Epa', country: 'CR', tier: 2, score: 660,
+    customer: 'EPA Cartago', route: '33 Cartago Epa', country: 'CR', priority:2, score: 660,
     totalAmount: 1_050_000, weight: 260.0, volume: 2.0, itemCount: 19, observations: '—',
     dispatchDate: '2026-08-30', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '10:18',
     appliedRules: [{ name: 'Día de ruta próximo', weight: 660 }],
@@ -187,7 +187,7 @@ export const queueOrders: QueueOrder[] = [
   },
   {
     id: 'PED-10482', ref: 'ERP-CF-88282', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'EPA Belén', route: '38 Belén Epa', country: 'CR', tier: 3, score: 310,
+    customer: 'EPA Belén', route: '38 Belén Epa', country: 'CR', priority:3, score: 310,
     totalAmount: 640_800, weight: 152.0, volume: 1.1, itemCount: 11, observations: 'Revisar dirección en observación',
     dispatchDate: '2026-08-31', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '10:31',
     appliedRules: [{ name: 'Día de ruta a 2 días', weight: 310 }],
@@ -195,7 +195,7 @@ export const queueOrders: QueueOrder[] = [
   },
   {
     id: 'PED-10483', ref: 'ERP-CF-88283', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Ferretería Casco', route: '01 Casco', country: 'CR', tier: 2, score: 630,
+    customer: 'Ferretería Casco', route: '01 Casco', country: 'CR', priority:2, score: 630,
     totalAmount: 455_000, weight: 102.0, volume: 0.9, itemCount: 8, observations: '—',
     dispatchDate: '2026-08-30', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '10:44',
     appliedRules: [{ name: 'Día de ruta próximo', weight: 630 }],
@@ -203,7 +203,7 @@ export const queueOrders: QueueOrder[] = [
   },
   {
     id: 'PED-10484', ref: 'ERP-CF-88284', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Depósito Heredia', route: '05 Heredia', country: 'CR', tier: 4, score: 30,
+    customer: 'Depósito Heredia', route: '05 Heredia', country: 'CR', priority:4, score: 30,
     totalAmount: 1_990_000, weight: 520.0, volume: 4.0, itemCount: 38, observations: '—',
     dispatchDate: '2026-09-04', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '10:57',
     appliedRules: [{ name: 'Día de ruta lejano', weight: 30 }],
@@ -211,7 +211,7 @@ export const queueOrders: QueueOrder[] = [
   },
   {
     id: 'PED-10485', ref: 'ERP-CF-88285', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'El Rey Distribución', route: '44 REY', country: 'CR', tier: 1, score: 940,
+    customer: 'El Rey Distribución', route: '44 REY', country: 'CR', priority:1, score: 940,
     totalAmount: 275_000, weight: 55.0, volume: 0.5, itemCount: 5, observations: 'Cita previa — coordinar hora',
     dispatchDate: '2026-08-29', createdDate: '2026-08-27', status: 'DISP', situation: 'DISP', intakeTime: '11:10',
     appliedRules: [{ name: 'Cliente retira', weight: 940 }],
@@ -342,6 +342,6 @@ export function computeKpis() {
   const overrides = auditEntries.filter((a) => a.changeType === 'manual').length;
   const total = auditEntries.length || 1;
   const overridePct = Math.round((overrides / total) * 100);
-  const sinRuta = queueOrders.filter((o) => o.appliedRules.length === 0 && o.tier === 4).length;
+  const sinRuta = queueOrders.filter((o) => o.appliedRules.length === 0 && o.priority === 4).length;
   return { pendientes, vencidos, overridePct, sinRuta };
 }

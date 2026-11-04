@@ -8,8 +8,10 @@ no porta el AST de src/lib/tarifas/). Sigue el patrón de los módulos del backe
 Rutas (esqueleto):
 - GET  /api/v1/oms/health                              → estado + modo (mock/live).
 - POST /api/v1/oms/corridas                            → barrido ADR-013: lee la
-                                       cola, PRIORIZA todo (deja DISP) y LIBERA a
-                                       eFlow solo los que cruzan la ventana
+                                       cola, PRIORIZA todo (deja DISP), SINCRONIZA a
+                                       eFlow el número de prioridad de los priorizados
+                                       que cambió (pasada 1b, Cofersa) y LIBERA a eFlow
+                                       solo los que cruzan la ventana
                                        (`dispatch_date − dias_prep_picking`).
 - POST /api/v1/oms/viajes/{numero_viaje}/procesar      → acción manual "Procesar a
                                        Eflow" (gated por rol): libera los pedidos de
@@ -67,6 +69,11 @@ def _corrida_id(hoy: date) -> str:
 # para no colarlo como urgente por error.
 PRIORIDAD_PREEXISTENTE_DEFECTO = 99
 
+# Prioridad que se estampa al LIBERAR en una compañía priorizada por el OMS (Cofersa):
+# 0 = "ya se va" (DECIDED 0..n, aclaración 2026-11-04). Se escribe en orders.priority y
+# se manda a eFlow; nunca aparece en la cola (la cola solo lista los NO liberados).
+PRIORIDAD_LIBERADO = 0
+
 
 def _registro_preexistente(pedido: PedidoCandidato) -> RegistroPrioridad:
     """Registro para una compañía que NO se prioriza (EPA): conserva la prioridad
@@ -91,23 +98,48 @@ def _resolver_registros(pedidos, resolver_config, hoy: date):
     return resueltos
 
 
-def _liberar(pares) -> tuple[int, int, list]:
-    """Pasada 2 (ADR-013): libera los pares (pedido, registro) dados a eFlow.
+def _liberar(trios) -> tuple[int, int, list]:
+    """Pasada 2 (ADR-013): libera los trios (pedido, config, registro) dados a eFlow.
+
+    La prioridad de LIBERACIÓN depende del scope: una compañía priorizada por el OMS
+    (Cofersa) pasa a 0 al liberar ("ya se va"); una pass-through (EPA) conserva su
+    prioridad de EFLOW (prioridad_liberacion=None → no se toca orders.priority).
 
     Devuelve (liberados, pendientes, detalle). 'liberado' = handoff completado;
     'pendiente' = escritura 1 ok pero la costura (escritura 2) falló (reconciliable).
     """
     liberados = pendientes = 0
     detalle = []
-    for pedido, registro in pares:
-        estado = handoff_pedidos.liberar_pedido(pedido, registro)
+    for pedido, config, registro in trios:
+        prioridad_liberacion = PRIORIDAD_LIBERADO if config.priorizar else None
+        estado = handoff_pedidos.liberar_pedido(pedido, registro, prioridad_liberacion=prioridad_liberacion)
         if estado == handoff_pedidos.ESTADO_COMPLETADO:
             liberados += 1
         else:
             pendientes += 1
-        detalle.append({"pk": asdict(registro.pk), "prioridad": registro.prioridad,
+        prioridad_final = prioridad_liberacion if prioridad_liberacion is not None else registro.prioridad
+        detalle.append({"pk": asdict(registro.pk), "prioridad": prioridad_final,
                         "cliente_retira": registro.cliente_retira, "estado_handoff": estado})
     return liberados, pendientes, detalle
+
+
+def _sincronizar_prioridades(trios, corrida_id: str) -> int:
+    """Pasada 1b (ADR-013, aclaración 2026-11-04): refleja en eFlow el número de
+    prioridad de los pedidos priorizados-no-liberados cuya prioridad cambió (el llamador
+    ya los filtró). Best-effort por pedido: si la costura de uno falla, lo registra y
+    sigue; un barrido posterior reintenta cuando la prioridad vuelva a cambiar. Devuelve
+    cuántos se sincronizaron."""
+    sincronizados = 0
+    for pedido, _config, registro in trios:
+        try:
+            handoff_pedidos.sincronizar_prioridad(pedido, registro)
+            sincronizados += 1
+        except Exception as exc:  # noqa: BLE001 — un sync fallido no aborta el barrido
+            oms_log.registrar("sync_prioridad",
+                              f"Sync de prioridad falló exp={pedido.id_expedicion}: {exc}",
+                              level="warn", corrida_id=corrida_id,
+                              detail={"pk": asdict(registro.pk), "error": str(exc)})
+    return sincronizados
 
 
 def correr(
@@ -145,7 +177,7 @@ def correr(
         # Pasada 2: liberar los que cruzan la ventana (apliquen o no priorización; por
         # viaje "gratis": mismo dispatch_date en un numero_viaje => cruzan juntos).
         en_ventana = [
-            (pedido, registro)
+            (pedido, config, registro)
             for pedido, config, registro in resueltos
             if handoff_pedidos.en_ventana_liberacion(
                 pedido.dispatch_date, hoy, config.dias_prep_picking,
@@ -153,6 +185,26 @@ def correr(
                 delivery_date=pedido.fecha_expedicion_planificada)
         ]
         liberados, pendientes, prioridades = _liberar(en_ventana)
+
+        # Pasada 1b: sincronizar a eFlow el número de prioridad de los priorizados que
+        # SIGUEN en cola (no se liberaron en esta corrida) y cuyo número CAMBIÓ respecto
+        # al previo (orders.priority que trae el candidato; None = primera vez). Solo
+        # priorizar=true (EPA conserva su prioridad de EFLOW, no se sincroniza). A los
+        # que se liberan en esta misma corrida NO se les manda el número intermedio: la
+        # liberación ya les escribe el 0.
+        en_ventana_pks = {
+            (p.id_almacen, p.id_compania, p.id_sucursal, p.id_expedicion)
+            for p, _, _ in en_ventana
+        }
+        a_sincronizar = [
+            (pedido, config, registro)
+            for pedido, config, registro in resueltos
+            if config.priorizar
+            and (pedido.id_almacen, pedido.id_compania, pedido.id_sucursal,
+                 pedido.id_expedicion) not in en_ventana_pks
+            and registro.prioridad != pedido.priority
+        ]
+        sincronizados = _sincronizar_prioridades(a_sincronizar, corrida_id)
 
         # Pasada 3 (reconciliación): re-corre la costura de los 'disparo_pendiente'
         # que un barrido previo dejó a medias (escritura 1 ok, escritura 2 falló).
@@ -169,12 +221,13 @@ def correr(
         "priorizados": priorizados,
         "liberados": liberados,
         "pendientes": pendientes,
+        "sincronizados": sincronizados,
         "reconciliados": reconciliados,
     }
     oms_log.registrar(
         "barrido",
         f"Barrido: {priorizados} priorizados, {liberados} liberados, "
-        f"{pendientes} pendientes, {reconciliados} reconciliados",
+        f"{sincronizados} sincronizados, {pendientes} pendientes, {reconciliados} reconciliados",
         level="warn" if pendientes else "info",
         corrida_id=corrida_id,
         detail=resumen,
@@ -217,7 +270,7 @@ def procesar_viaje(event: dict) -> dict:
         for pedido, config, registro in resueltos:
             if config.priorizar:
                 handoff_pedidos.priorizar_pedido(pedido, registro, corrida_id)
-        liberados, pendientes, prioridades = _liberar([(p, r) for p, _, r in resueltos])
+        liberados, pendientes, prioridades = _liberar(resueltos)
     except Exception as exc:  # noqa: BLE001 — registra el fallo y re-lanza
         oms_log.registrar("procesar_viaje", f"Procesar viaje {numero_viaje} FALLÓ: {exc}",
                           level="error", corrida_id=corrida_id, actor="manual",

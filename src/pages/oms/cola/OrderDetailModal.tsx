@@ -17,7 +17,9 @@ export default function OrderDetailModal({ order, onOverride, onClose }: OrderDe
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <h3 className="text-lg font-semibold text-slate-900">{order.ref}</h3>
-            <PriorityBadge tier={order.tier} />
+            {order.priority != null
+              ? <PriorityBadge priority={order.priority} />
+              : <span className="text-sm text-slate-400 italic">Sin priorizar</span>}
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 cursor-pointer" aria-label="Cerrar">
             <i className="ri-close-line text-xl"></i>
@@ -40,7 +42,7 @@ export default function OrderDetailModal({ order, onOverride, onClose }: OrderDe
           <div className="flex justify-between"><span className="text-slate-500">Ingreso</span><span className="text-slate-900">{order.intakeTime}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Estado</span><span className="text-slate-900">{order.status}</span></div>
           <div className="flex justify-between"><span className="text-slate-500">Situación</span><span className="text-slate-900">{order.situation}</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">Score</span><span className="text-slate-900 font-semibold">{order.score}</span></div>
+          <div className="flex justify-between"><span className="text-slate-500">Score</span><span className="text-slate-900 font-semibold">{order.prioritized ? order.score : '—'}</span></div>
         </div>
 
         <div className="mb-5">
