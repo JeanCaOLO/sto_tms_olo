@@ -17,7 +17,7 @@ por eso el backend expone endpoints atómicos.
 
 ## How
 - Lista: query embed `delivery_points(... final_customer:final_customers(...,customer),
-  address, zone)` por el shim `supabase.from(...).select(...)`. Paginación cliente
+  address, zone)` por el shim `apiClient.from(...).select(...)`. Paginación cliente
   (`pageSize=25`) para ~1582 filas. Badge geocoding OK/PENDING/FAILED.
 - Escritura: `apiFetch` a `POST /v1/delivery-points`, `PATCH /v1/delivery-points/{id}`,
   `DELETE /v1/delivery-points/{id}` (contrato de Claude, ver `.agents/CANAL.md`).

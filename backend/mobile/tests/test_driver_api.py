@@ -254,7 +254,7 @@ def test_transition_updates_guide_counter_and_event_atomically(call, fake_db):
     fake_db.answer("FROM tbl_dispatch_guides g WHERE g.route_id", [{"done": 3, "pending": 1}])
     result = body_of(delivered(call))["data"]
     assert result == {"stop_id": GUIDE, "state": "delivered", "done": 3, "pending": 1, "distance_m": None,
-                      "route_closed": False, "route_reopened": False}
+                      "route_closed": False}
     assert fake_db.wrote("UPDATE tbl_dispatch_guides")[0][1][:2] == ["delivered", "Entregado"]
     assert fake_db.wrote("UPDATE tbl_routes SET completed_stops")[0][1] == [3, ROUTE]
     event_params = fake_db.wrote("INSERT INTO tbl_tracking_events")[0][1]
@@ -645,33 +645,11 @@ def test_a_closed_trip_still_rejects_a_different_change(call, fake_db):
     assert call(TRANSITION, path={"id": GUIDE}, body={"to": "pending"})["statusCode"] == 409
 
 
-# --- deshacer el cierre (ventana corta) -----------------------------------------------------------------------
-
-def closed_guide(minutes_ago=3, **over):
-    return guide_row(route_status="Completada", delivery_status="delivered", route_ended_at=NOW - timedelta(minutes=minutes_ago), **over)
-
-
-def test_driver_can_undo_the_last_stop_inside_the_window_and_the_trip_reopens(call, fake_db):
-    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [closed_guide()])
-    fake_db.answer("FROM tbl_dispatch_guides g WHERE g.route_id", [{"done": 4, "pending": 1}])
-    fake_db.answer("UPDATE tbl_routes SET status = 'En tránsito'", [{"id": ROUTE}])
+def test_a_closed_trip_rejects_undoing_the_last_stop(call, fake_db):
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row(route_status="Completada", delivery_status="delivered")])
     response = call(TRANSITION, path={"id": GUIDE}, body={"to": "pending"})
-    assert response["statusCode"] == 200 and body_of(response)["data"]["route_reopened"] is True
-    assert fake_db.wrote("UPDATE tbl_plan_trips SET status = 'pending'")
-    assert [c for c in fake_db.wrote("INSERT INTO tbl_tracking_events") if c[1][3] == "route_reopened"]
-
-
-def test_undo_after_the_window_is_rejected(call, fake_db):
-    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [closed_guide(minutes_ago=11)])
-    response = call(TRANSITION, path={"id": GUIDE}, body={"to": "pending"})
-    assert response["statusCode"] == 409 and body_of(response)["error"]["code"] == "reopen_expired"
+    assert response["statusCode"] == 409
     assert not fake_db.wrote("UPDATE tbl_routes SET status = 'En tránsito'")
-
-
-def test_a_settled_trip_cannot_be_reopened(call, fake_db):
-    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [closed_guide(settlements=1)])
-    response = call(TRANSITION, path={"id": GUIDE}, body={"to": "pending"})
-    assert response["statusCode"] == 409 and body_of(response)["error"]["code"] == "already_settled"
 
 
 # --- recolectas (type = collection) ------------------------------------------------------------------------------

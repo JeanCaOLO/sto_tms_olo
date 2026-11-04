@@ -52,7 +52,7 @@ def login(event: dict) -> dict:
 
 
 def sign_up(event: dict) -> dict:
-    """Equivalente a supabase.auth.signUp: crea solo la credencial; el app_user
+    """Equivalente a apiClient.auth.signUp: crea solo la credencial; el app_user
     lo crea el llamador (flujo de UserModal)."""
     email, password = _credentials(event)
     if len(password) < MIN_PASSWORD_LENGTH:

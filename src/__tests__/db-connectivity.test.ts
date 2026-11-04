@@ -23,7 +23,7 @@ try {
   // pueden venir igual del entorno del shell; si no, dbAvailable quedará en false.
 }
 
-// Todas las tablas que el frontend referencia hoy vía `supabase.from('<tabla>')`
+// Todas las tablas que el frontend referencia hoy vía `apiClient.from('<tabla>')`
 // (barrido exhaustivo de src/pages/**, ver docs/reference/analisis-sistema-tms.md §5.4).
 // Se listan agrupadas por módulo para que un fallo señale el módulo afectado.
 const TABLES_BY_MODULE: Record<string, string[]> = {

@@ -33,7 +33,7 @@ Había ~10 `.md` sueltos en la raíz mientras `docs/` ya tenía una estructura d
 
 - **`standards/code-quality.md` NO se movió.** Es propiedad del plugin crew y su ruta exacta la esperan los hooks (`hooks/kiro-guard-code-quality.js`, `hooks/lib/ceilings.js`) y el steering (`.kiro/steering/crew-baseline.md`). Moverlo rompía enforcement funcional. Se dejó en `standards/` y `docs/standards/README.md` apunta a él.
 - **Las entradas previas de `docs/work/` NO se editaron** (convención de inmutabilidad de `MAINTAINING.md`). Siguen citando `MOCKING.md`/`HANDOFF.md` por su nombre viejo — es correcto: son evidencia histórica de cuando el archivo se llamaba así.
-- **`HANDOFF.md` y `MOCKING.md` quedaron marcados como obsoletos** con un aviso arriba que apunta a `docs/reference/analisis-sistema-tms.md` (2026-09-21) como fuente de verdad actual: describían el backend como Supabase + pnpm + puerto 3000, pero la arquitectura real es Express + AWS Aurora (`supabase.ts` es un shim) y el dev server levanta con npm.
+- **`HANDOFF.md` y `MOCKING.md` quedaron marcados como obsoletos** con un aviso arriba que apunta a `docs/reference/analisis-sistema-tms.md` (2026-09-21) como fuente de verdad actual: describían el backend como Supabase + pnpm + puerto 3000, pero la arquitectura real es Express + AWS Aurora (`api-client.ts` es un shim) y el dev server levanta con npm.
 
 ## Promoted knowledge
 

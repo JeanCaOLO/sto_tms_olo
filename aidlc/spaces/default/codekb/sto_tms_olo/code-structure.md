@@ -38,7 +38,7 @@ Cada módulo (salvo `secrets`/`common-services`) es un stack SAM propio
 ```
 src/
   lib/
-    supabase.ts       shim del API (apiFetch + QueryBuilder)
+    api-client.ts       shim del API (apiFetch + QueryBuilder)
     tarifas/          MOTOR DE TARIFAS (TS puro): index.ts (calculate()),
                       evaluator.ts, resolver.ts, cost.ts, margin.ts, money.ts,
                       repository.ts, schemas.ts, types.ts, localData/, __tests__/

@@ -13,7 +13,7 @@ Dos mitades desplegadas por separado, sobre el estándar Intelix AWS:
   **Aurora PostgreSQL** (`us-east-2`). (Esto confirma el DECIDED C1; el `server/`
   Express es legacy — referencia de contrato, pendiente de retiro.)
 - **Frontend**: **SPA React 19 + Vite + TypeScript**, que consume el API vía un
-  shim (`src/lib/supabase.ts`) que imita supabase-js pero habla HTTP contra el
+  shim (`src/lib/api-client.ts`) que imita supabase-js pero habla HTTP contra el
   backend. Se despliega a Amplify.
 
 ## Estilo arquitectónico del backend
@@ -49,7 +49,7 @@ actor. Forma de error uniforme `{data:null, error:{message}}`.
 
 ```mermaid
 flowchart TB
-  fe["Frontend React (Amplify)<br/>src/lib/supabase.ts (apiFetch)"]
+  fe["Frontend React (Amplify)<br/>src/lib/api-client.ts (apiFetch)"]
   subgraph aws["AWS us-east-2"]
     api["API Gateway HTTP<br/>(common-services)"]
     authz["Lambda authorizer JWT"]
@@ -84,7 +84,7 @@ secretos. `eflow` habla con los SQL Server de EFLOW (mock por defecto).
 ## Frontend
 
 React 19 SPA (Vite + TS). El acceso a datos NO usa Supabase real: `src/lib/
-supabase.ts` es un **shim** — `apiFetch(path)` antepone `${VITE_API_BASE}/api`,
+api-client.ts` es un **shim** — `apiFetch(path)` antepone `${VITE_API_BASE}/api`,
 adjunta `Authorization: Bearer` desde `localStorage` (`tms_session`), y una clase
 `QueryBuilder` traduce `.from(table).select().eq()...` a HTTP contra
 `/api/data/{table}`. En dev, Vite proxya `/api` a `:4000` (Lambdas locales de
@@ -133,7 +133,7 @@ CUSTOMER→WAREHOUSE→COUNTRY→GLOBAL en Lambdas compartidas).
 - `backend/data/src/app.py`, `table_modules.py` (API genérica + permisos).
 - `backend/planning/src/app.py` (puente OMS→Planificación).
 - `backend/eflow/src/app.py` (mock/live).
-- `src/lib/supabase.ts` (shim del frontend).
+- `src/lib/api-client.ts` (shim del frontend).
 - `docs/decisions/0002-backend-lambdas-python-sam.md`, `docs/arquitectura-tms-oms/`.
 
 ## Assumptions & Open Questions

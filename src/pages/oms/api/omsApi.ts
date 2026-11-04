@@ -5,7 +5,7 @@
 // auditoría) sigue en mock — todavía no tienen tabla real detrás.
 // Patrón §11: Page -> Controller -> Api.
 
-import { supabase } from '../../../lib/supabase';
+import { apiClient } from '../../../lib/api-client';
 import { calcularPrioridad } from '../engine/priorityEngine';
 import {
   auditEntries,
@@ -230,7 +230,7 @@ export const omsApi = {
     if (country === 'CR') {
       // Solo pedidos sin cierre en el WMS (EFLOW FECHACIERRE IS NULL), filtrados
       // por el contexto operativo del header (almacén / compañía / país).
-      let query = supabase.from('orders').select(QUEUE_SELECT).is('closed_at', null);
+      let query = apiClient.from('orders').select(QUEUE_SELECT).is('closed_at', null);
       if (scope.warehouseId) query = query.eq('warehouse_id', scope.warehouseId);
       else if (scope.warehouseIds && scope.warehouseIds.length > 0) query = query.in('warehouse_id', scope.warehouseIds);
       if (scope.customerId) query = query.eq('customer_id', scope.customerId);
@@ -267,7 +267,7 @@ export const omsApi = {
   // de Aurora vía /api/data; si la tabla no existe/aún no hay backend que escriba,
   // devuelve lista vacía (no mock) para no inventar logs.
   async getOmsLogs(limit = 200): Promise<OmsLogEntry[]> {
-    const { data, error } = await supabase
+    const { data, error } = await apiClient
       .from('oms_logs')
       .select('*')
       .order('created_at', { ascending: false })
@@ -293,7 +293,7 @@ export const omsApi = {
   // alguno (si faltara el rango, se usa created_at >= época = todo). Devuelve
   // cuántas filas borró.
   async clearOmsLogs(range?: { fromIso?: string; toIso?: string }): Promise<number> {
-    let q = supabase.from('oms_logs').delete();
+    let q = apiClient.from('oms_logs').delete();
     if (range?.fromIso) q = q.gte('created_at', range.fromIso);
     if (range?.toIso) q = q.lt('created_at', range.toIso);
     if (!range?.fromIso && !range?.toIso) q = q.gte('created_at', '1900-01-01');
@@ -309,7 +309,7 @@ export const omsApi = {
   // es barato y evita filtros que el backend genérico no expone. El scope operativo
   // (almacén/compañía del header) ya lo aplica el backend por headers.
   async getPanelResumen(): Promise<{ pipeline: OmsPipeline; proximas: ProximaLiberacion[] }> {
-    const { data, error } = await supabase.from('orders').select(PANEL_SELECT).is('closed_at', null);
+    const { data, error } = await apiClient.from('orders').select(PANEL_SELECT).is('closed_at', null);
     if (error || !data) throw new Error(error?.message ?? 'No se pudo leer orders');
     const rows = data as any[];
     const hoyIso = new Date().toISOString().slice(0, 10);
@@ -361,7 +361,7 @@ export const omsApi = {
   // de detail) + conteo de errores de las últimas 24 h. Si no hay backend/tabla,
   // devuelve vacío (no inventa corridas).
   async getMotorActividad(limit = 10): Promise<OmsMotorActividad> {
-    const { data, error } = await supabase
+    const { data, error } = await apiClient
       .from('oms_logs')
       .select('*')
       .order('created_at', { ascending: false })

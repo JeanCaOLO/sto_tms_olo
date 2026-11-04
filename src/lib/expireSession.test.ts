@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { apiFetch, STORAGE_KEY, supabase } from './supabase';
+import { apiFetch, STORAGE_KEY, apiClient } from './api-client';
 import { fetchExpiringSession } from './tarifas/data';
 
 const session = (token: string) => ({ access_token: token, token_type: 'bearer', user: { id: 'u1', email: 'a@b.c' } });
@@ -17,7 +17,7 @@ let unsubscribe: () => void;
 beforeEach(() => {
   localStorage.clear();
   events = [];
-  const { data } = supabase.auth.onAuthStateChange((event) => events.push(event));
+  const { data } = apiClient.auth.onAuthStateChange((event) => events.push(event));
   unsubscribe = () => data.subscription.unsubscribe();
 });
 

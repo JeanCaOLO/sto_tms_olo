@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
-import { supabase } from '../../../lib/supabase';
+import { apiClient } from '../../../lib/api-client';
 import {
   createUser, updateUser, type AdminRole, type AdminUser, type ScopeInput, type UserPayload, type UserStatus,
 } from '../admin/admin-api';
@@ -55,7 +55,7 @@ export default function UserModal({ user, roles, onClose, onSaved }: UserModalPr
 
   useEffect(() => {
     if (!isCarrierRole || carriers.length > 0) return;
-    void supabase.from('carriers').select('id, name').order('name').then(({ data }) => { if (data) setCarriers(data); });
+    void apiClient.from('carriers').select('id, name').order('name').then(({ data }) => { if (data) setCarriers(data); });
   }, [isCarrierRole, carriers.length]);
 
   const handleSubmit = async (e: FormEvent) => {

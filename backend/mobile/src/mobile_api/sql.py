@@ -187,7 +187,6 @@ WHERE tracking_last_positions.recorded_at <= EXCLUDED.recorded_at
 GUIDE_ROW_SQL = """
 SELECT g.id, g.route_id, g.organization_id, g.order_id, o.order_number, g.delivery_status, g.notes,
        r.status AS route_status, r.actual_end_time AS route_ended_at,
-       (SELECT count(*) FROM tbl_tarifas_settlements st WHERE st.trip_id = r.id AND st.status <> 'Anulado') AS settlements,
        r.driver_id,
        COALESCE(o.delivery_latitude, ps.latitude) AS stop_lat, COALESCE(o.delivery_longitude, ps.longitude) AS stop_lng,
        COALESCE((SELECT array_agg(DISTINCT e.kind) FROM tbl_tracking_evidences e WHERE e.dispatch_guide_id = g.id),
@@ -221,16 +220,6 @@ CLOSE_ROUTE_SQL = """
 UPDATE tbl_routes SET status = 'Completada', actual_end_time = %s, completed_stops = %s, updated_at = now()
 WHERE id = %s AND lower(status) = ANY(%s)
 RETURNING id
-"""
-# Deshacer el cierre (ventana corta): el viaje vuelve a "En tránsito" y su viaje planificado a 'pending'.
-REOPEN_ROUTE_SQL = """
-UPDATE tbl_routes SET status = 'En tránsito', actual_end_time = NULL, updated_at = now()
-WHERE id = %s AND lower(status) = ANY(%s)
-RETURNING id
-"""
-REOPEN_PLAN_TRIP_SQL = """
-UPDATE tbl_plan_trips SET status = 'pending', updated_at = now()
-WHERE id = (SELECT plan_trip_id FROM tbl_routes WHERE id = %s) AND status = 'completed'
 """
 CLOSE_PLAN_TRIP_SQL = """
 UPDATE tbl_plan_trips SET status = 'completed', updated_at = now()

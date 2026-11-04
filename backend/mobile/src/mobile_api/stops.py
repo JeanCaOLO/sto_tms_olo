@@ -69,17 +69,7 @@ def transition_stop(event: dict, driver: Driver) -> dict:
     lat, lng = logic.coords(body)
     client_id = optional_client_id(body)
     guide = guide_access(driver, guide_id)
-    reopen = False
     if logic.route_state(guide["route_status"]) != "active":
-        closed = logic.route_state(guide["route_status"]) == "completed"
-        # Deshacer el cierre: "volver a pendiente" una parada de un viaje recién cerrado y todavía no liquidado.
-        if closed and target == logic.GUIDE_PENDING and guide.get("route_ended_at") is not None:
-            if now() - logic.aware(guide["route_ended_at"]) > logic.REOPEN_WINDOW:
-                raise HttpError(409, "Pasó el tiempo para deshacer: el viaje ya está cerrado.", code="reopen_expired")
-            if int(guide.get("settlements") or 0) > 0:
-                raise HttpError(409, "El viaje ya fue liquidado y no se puede reabrir.", code="already_settled")
-            reopen = True
-    if logic.route_state(guide["route_status"]) != "active" and not reopen:
         # Reenvío de la última parada ya registrada: el viaje se cerró solo y la repetición no es un error.
         if (logic.route_state(guide["route_status"]) == "completed" and target != logic.GUIDE_PENDING
                 and logic.guide_state(guide.get("delivery_status"), guide.get("status")) == target):
@@ -117,10 +107,6 @@ def transition_stop(event: dict, driver: Driver) -> dict:
                                    receiver, note, guide_id])
         counts = run(sql.COUNT_DONE_SQL, [route_id])[0]
         run(sql.SET_COMPLETED_STOPS_SQL, [int(counts["done"]), route_id])
-        if reopen and run(sql.REOPEN_ROUTE_SQL, [route_id, logic.COMPLETED_STATUS_SQL_VALUES]):
-            run(sql.REOPEN_PLAN_TRIP_SQL, [route_id])
-            add_event(run, driver, route_id, guide_id, "route_reopened", "info",
-                      "Cierre deshecho por el chofer dentro de la ventana de corrección.", lat, lng, when)
         first_time = add_event(run, driver, route_id, guide_id, event_type, event_status, reason, lat, lng, when,
                                distance_m, client_id)
         if (outside or unlocated) and first_time:
@@ -136,8 +122,7 @@ def transition_stop(event: dict, driver: Driver) -> dict:
                 add_event(run, driver, route_id, None, "route_completed", "success",
                           "Viaje cerrado automáticamente al registrar la última parada.", lat, lng, when)
         return {"stop_id": guide_id, "state": target, "done": int(counts["done"]),
-                "pending": int(counts["pending"]), "distance_m": distance_m, "route_closed": closed,
-                "route_reopened": reopen}
+                "pending": int(counts["pending"]), "distance_m": distance_m, "route_closed": closed}
 
     return ok(db.run_in_transaction(work))
 

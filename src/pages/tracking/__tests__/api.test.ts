@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../../lib/supabase', () => ({ apiFetch: vi.fn() }));
+vi.mock('../../../lib/api-client', () => ({ apiFetch: vi.fn() }));
 
 import {
   errorKey, getViaje, iniciarViaje, isTrackingMock, listChoferes, listViajes, pollIntervalMs, setTrackingTransport, TrackingApiError,
   trackingNow,
 } from '../api';
-import { apiFetch } from '../../../lib/supabase';
+import { apiFetch } from '../../../lib/api-client';
 
 const ok = (data: unknown) => ({ ok: true, status: 200, body: { data, error: null } });
 

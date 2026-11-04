@@ -5,7 +5,7 @@
 // delivery = pedidos DISP/DISP de eFlow ya guardados en orders; pickup = devoluciones
 // abiertas (creadas en el TMS o en la app) que hay que pasar a recoger. El scope
 // (almacén/compañía) lo adjunta apiFetch como headers desde el contexto operativo.
-import { apiFetch } from '../../../lib/supabase';
+import { apiFetch } from '../../../lib/api-client';
 import type { QueueOrder } from '../types';
 
 export type BandejaKind = 'delivery' | 'pickup';

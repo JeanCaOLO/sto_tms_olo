@@ -3,7 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-09-23
 - **Owner role**: system-architect
-- **Affects**: `server/` (Express), `backend/` (nuevo), `src/lib/supabase.ts`
+- **Affects**: `server/` (Express), `backend/` (nuevo), `src/lib/api-client.ts`
 
 ## Context
 

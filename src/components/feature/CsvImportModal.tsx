@@ -200,7 +200,7 @@ export default function CsvImportModal({
     let failedCount = 0;
 
     try {
-      const { supabase } = await import('../../lib/supabase');
+      const { apiClient } = await import('../../lib/api-client');
       
       for (const row of validRows) {
         try {
@@ -210,7 +210,7 @@ export default function CsvImportModal({
             dataToInsert = await transformRow(row.data, organizationId);
           }
 
-          const { error } = await supabase.from(tableName).insert([dataToInsert]);
+          const { error } = await apiClient.from(tableName).insert([dataToInsert]);
           
           if (error) {
             console.error(`Error en fila ${row.rowNumber}:`, error);

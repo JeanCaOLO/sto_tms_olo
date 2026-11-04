@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../../../lib/supabase';
+import { apiClient } from '../../../lib/api-client';
 import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
@@ -44,7 +44,7 @@ export default function ReturnModal({ returnItem, onClose, onSave }: ReturnModal
 
   const fetchOrders = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await apiClient
         .from('orders')
         .select('id, order_number, customer:customers(name)')
         .order('created_at', { ascending: false })
@@ -70,7 +70,7 @@ export default function ReturnModal({ returnItem, onClose, onSave }: ReturnModal
         organization_id: '00000000-0000-0000-0000-000000000000'
       };
 
-      const { error } = await supabase
+      const { error } = await apiClient
         .from('returns')
         .insert([returnData]);
 

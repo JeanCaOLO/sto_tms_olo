@@ -22,8 +22,6 @@ COMPLETED_STATUS_SQL_VALUES = sorted(_COMPLETED)
 GUIDE_PENDING, GUIDE_DELIVERED, GUIDE_FAILED = "pending", "delivered", "failed"
 GUIDE_STATUS_TEXT = {GUIDE_PENDING: "Pendiente", GUIDE_DELIVERED: "Entregado", GUIDE_FAILED: "Fallido"}
 
-# Tras el cierre automático del viaje, el chofer puede deshacer la última parada durante este tiempo (si no se liquidó).
-REOPEN_WINDOW = timedelta(minutes=10)
 GEOFENCE_M = 150            # "Entregado" sin motivo solo a ≤ 150 m del punto de entrega
 DEPARTURE_RADIUS_M = 300    # el camión "salió" al alejarse más de esto de la sede
 ACCURACY_MAX_M = 200        # precisión peor que esto no mueve la última posición ni entra al recorrido

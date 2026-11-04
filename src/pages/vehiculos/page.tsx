@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api-client';
 import { useAuth } from '../../hooks/useAuth';
 import Card from '../../components/base/Card';
 import Button from '../../components/base/Button';
@@ -48,7 +48,7 @@ const VehiculosPage = () => {
   ];
 
   const transformVehicleRow = async (row: any) => {
-    const { data: carrier } = await supabase
+    const { data: carrier } = await apiClient
       .from('carriers')
       .select('id')
       .eq('code', row.carrier_code)
@@ -82,7 +82,7 @@ const VehiculosPage = () => {
   const loadVehicles = async () => {
     setLoadingVehicles(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await apiClient
         .from('vehicles')
         .select('*, carrier:carriers(id, name)')
         .eq('organization_id', appUser?.organization_id)
@@ -100,7 +100,7 @@ const VehiculosPage = () => {
   const loadVehicleTypes = async () => {
     setLoadingTypes(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await apiClient
         .from('vehicle_types')
         .select('*')
         .eq('organization_id', appUser?.organization_id)
@@ -154,7 +154,7 @@ const VehiculosPage = () => {
   const handleDeleteVehicle = async (vehicleId: string) => {
     if (!confirm('¿Estás seguro de eliminar este vehículo?')) return;
     try {
-      const { error } = await supabase.from('vehicles').delete().eq('id', vehicleId);
+      const { error } = await apiClient.from('vehicles').delete().eq('id', vehicleId);
       if (error) throw error;
       loadVehicles();
     } catch (error) {

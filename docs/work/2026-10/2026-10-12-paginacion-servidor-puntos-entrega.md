@@ -9,7 +9,7 @@
 
 ## What changed
 
-- `src/lib/supabase.ts`: nuevo método `.range(from, to)` (estilo supabase-js)
+- `src/lib/api-client.ts`: nuevo método `.range(from, to)` (estilo supabase-js)
   y param `offset` en el `QueryBuilder`. Cambio aditivo, no afecta call-sites
   existentes.
 - `src/pages/tiendas/page.tsx`: la lista pasó de traer todos los puntos de una

@@ -5,7 +5,7 @@
 //   1. POST /v1/carriers/{id}/contract/upload  -> { url, fields, key, max_bytes }
 //   2. fetch(url, {method:'POST', body: FormData}) SIN Authorization -> 204
 //   3. PUT  /v1/carriers/{id}/contract  body { key } -> { contract_file_key }
-import { apiFetch } from '../../lib/supabase';
+import { apiFetch } from '../../lib/api-client';
 
 export const CONTRACT_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 

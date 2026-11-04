@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api-client';
 import StatCard from '../../components/feature/StatCard';
 import Badge from '../../components/base/Badge';
 import Button from '../../components/base/Button';
@@ -63,7 +63,7 @@ export default function DevolucionesPage() {
   const fetchReturns = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      const { data, error } = await apiClient
         .from('returns')
         .select(`
           *,
@@ -102,7 +102,7 @@ export default function DevolucionesPage() {
 
   const handleStatusChange = async (returnId: string, newStatus: string) => {
     try {
-      const { error } = await supabase
+      const { error } = await apiClient
         .from('returns')
         .update({ status: newStatus, updated_at: new Date().toISOString() })
         .eq('id', returnId);

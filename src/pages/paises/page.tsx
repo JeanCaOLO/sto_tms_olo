@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api-client';
 import Button from '../../components/base/Button';
 import Badge from '../../components/base/Badge';
 import DataTable, { type DataTableColumn } from '../../components/base/DataTable';
@@ -59,9 +59,9 @@ export default function PaisesPage() {
 
   const fetchOrganizationAndCountries = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await apiClient.auth.getUser();
       if (!user) return;
-      const { data: userData } = await supabase
+      const { data: userData } = await apiClient
         .from('app_users')
         .select('organization_id')
         .eq('auth_user_id', user.id)
@@ -79,7 +79,7 @@ export default function PaisesPage() {
   };
 
   const fetchCountries = async (orgId: string) => {
-    const { data, error } = await supabase
+    const { data, error } = await apiClient
       .from('countries')
       .select('*')
       .eq('organization_id', orgId)
@@ -88,7 +88,7 @@ export default function PaisesPage() {
   };
 
   const fetchStoreCounts = async (orgId: string) => {
-    const { data } = await supabase
+    const { data } = await apiClient
       .from('stores')
       .select('country_id')
       .eq('organization_id', orgId);
@@ -118,10 +118,10 @@ export default function PaisesPage() {
         updated_at: new Date().toISOString(),
       };
       if (countryData.id) {
-        const { error } = await supabase.from('countries').update(payload).eq('id', countryData.id);
+        const { error } = await apiClient.from('countries').update(payload).eq('id', countryData.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('countries').insert([{ ...payload, organization_id: organizationId }]);
+        const { error } = await apiClient.from('countries').insert([{ ...payload, organization_id: organizationId }]);
         if (error) throw error;
       }
       await fetchCountries(organizationId);
@@ -136,7 +136,7 @@ export default function PaisesPage() {
     if (!countryToDelete) return;
     setDeleteError('');
     try {
-      const { error } = await supabase.from('countries').delete().eq('id', countryToDelete.id);
+      const { error } = await apiClient.from('countries').delete().eq('id', countryToDelete.id);
       if (error) {
         if (error.code === '23503') {
           setDeleteError('No se puede eliminar este país porque tiene registros asociados (transportistas, tiendas u otros). Primero elimina o reasigna esos registros.');

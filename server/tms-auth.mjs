@@ -47,7 +47,7 @@ export async function login(req, res) {
   res.json({ data: signSession(cred.auth_user_id, cred.email), error: null });
 }
 
-// Equivalente a supabase.auth.signUp: crea la credencial (no crea el app_user;
+// Equivalente a apiClient.auth.signUp: crea la credencial (no crea el app_user;
 // eso lo hace el llamador, igual que en el flujo original de UserModal).
 export async function signUp(req, res) {
   const { email, password } = req.body || {};

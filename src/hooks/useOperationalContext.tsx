@@ -6,7 +6,7 @@
 // el backend luego rechazaría.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { apiFetch as realApiFetch } from '../lib/supabase';
+import { apiFetch as realApiFetch } from '../lib/api-client';
 import { MOCK_AUTH_ENABLED, mockContextResponse } from '../lib/mock-auth';
 import { MOCK_COUNTRY_IDS } from '../lib/tarifas/data/memory/mockIds';
 import { useAuth } from './useAuth';
