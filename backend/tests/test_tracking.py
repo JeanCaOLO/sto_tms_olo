@@ -563,6 +563,30 @@ def test_delivery_without_gps_or_stop_coordinates_is_still_accepted(tracking):
     assert _delivered(app, lat=9.0, lng=-84.0)["statusCode"] == 200
 
 
+def test_driver_cannot_revert_a_stop_on_the_web_api(driver):
+    app, db = driver
+    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row(driver_id=DRIVER)])
+    response = app.handler(_event("POST /api/v1/tracking/paradas/{id}/transicion", path={"id": GUIDE},
+                                  body={"to": "pending"}), None)
+    assert response["statusCode"] == 403 and not db.wrote("UPDATE dispatch_guides")
+
+
+def test_driver_cannot_deliver_without_device_location_on_the_web_api(driver):
+    app, db = driver
+    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row(driver_id=DRIVER)])
+    for extra in ({}, {"reason": "GPS apagado"}, {"lat": 9.0}):
+        assert _delivered(app, **extra)["statusCode"] == 400
+    assert not db.wrote("UPDATE dispatch_guides")
+
+
+def test_admin_can_still_revert_a_stop(tracking):
+    app, db = tracking
+    _stop_with_coords(db)
+    response = app.handler(_event("POST /api/v1/tracking/paradas/{id}/transicion", path={"id": GUIDE},
+                                  body={"to": "pending"}), None)
+    assert response["statusCode"] == 200 and body_of(response)["data"]["state"] == "pending"
+
+
 def test_record_consent_is_idempotent_per_version(driver):
     app, db = driver
     route = "POST /api/v1/tracking/consentimiento-gps"

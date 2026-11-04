@@ -190,13 +190,13 @@ def test_incident_without_client_id_keeps_the_old_behaviour(call, fake_db):
 def test_invalid_client_id_is_400(call, fake_db):
     _guide(fake_db)
     assert call(INCIDENT, path={"id": GUIDE}, body={"description": "x", "client_id": "nope"})["statusCode"] == 400
-    assert call(TRANSITION, path={"id": GUIDE}, body={"to": "pending", "client_id": 7})["statusCode"] == 400
+    assert call(TRANSITION, path={"id": GUIDE}, body={"to": "failed", "reason": "x", "client_id": 7})["statusCode"] == 400
 
 
 def test_replayed_transition_does_not_duplicate_events(call, fake_db):
     _guide(fake_db)
     fake_db.answer("INSERT INTO tracking_events", [])                # ya existía: sin evento nuevo
     fake_db.answer("count(*) FILTER", [{"done": 0, "pending": 1}])
-    response = call(TRANSITION, path={"id": GUIDE}, body={"to": "pending", "client_id": UUID1})
+    response = call(TRANSITION, path={"id": GUIDE}, body={"to": "failed", "reason": "Ausente", "client_id": UUID1})
     assert response["statusCode"] == 200
     assert len(fake_db.wrote("INSERT INTO tracking_events")) == 1

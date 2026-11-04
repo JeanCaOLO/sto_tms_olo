@@ -711,6 +711,9 @@ def transition_stop(event: dict) -> dict:
     target = body.get("to")
     if target not in logic.GUIDE_STATUS_TEXT:
         raise HttpError(400, "to debe ser pending, delivered o failed")
+    is_driver = caller.role_name == logic.DRIVER_ROLE
+    if is_driver and target == logic.GUIDE_PENDING:
+        raise HttpError(403, "El chofer no puede deshacer una entrega.")
     reason = (body.get("reason") or "").strip() or None
     if target == logic.GUIDE_FAILED and not reason:
         raise HttpError(400, "Una entrega fallida requiere un motivo")
@@ -726,7 +729,9 @@ def transition_stop(event: dict) -> dict:
     receiver = (body.get("receiver_name") or "").strip() or None
     note = f"{guide['notes'] or ''}\nFallo: {reason}".strip() if reason and target == logic.GUIDE_FAILED else None
     # Geocerca (auditoría): distancia del dispositivo al punto. Fuera de 150 m, "Entregado" exige motivo.
-    # Sin lat/lng (o sin coordenadas de la parada) no se puede medir: se acepta, como la web del administrador.
+    # El administrador puede entregar sin lat/lng (no se mide); el chofer siempre debe enviar la ubicación.
+    if is_driver and target == logic.GUIDE_DELIVERED and (lat is None or lng is None):
+        raise HttpError(400, "No se puede entregar sin la ubicación del dispositivo (lat/lng).")
     distance_m = None if target == logic.GUIDE_PENDING else logic.distance_to_stop_m(
         lat, lng, guide["stop_lat"], guide["stop_lng"])
     outside = target == logic.GUIDE_DELIVERED and distance_m is not None and distance_m > logic.GEOFENCE_M

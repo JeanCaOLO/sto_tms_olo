@@ -49,6 +49,9 @@ def transition_stop(event: dict, driver: Driver) -> dict:
     target = body.get("to")
     if target not in logic.GUIDE_STATUS_TEXT:
         raise HttpError(400, "to debe ser pending, delivered o failed")
+    if target == logic.GUIDE_PENDING:
+        # El chofer no deshace entregas: solo la web de administración puede revertir una parada.
+        raise HttpError(403, "El chofer no puede deshacer una entrega.", code="revert_not_allowed")
     if body.get("type") is not None and body["type"] not in logic.STOP_TYPES:
         raise HttpError(400, "type debe ser delivery o collection")
     reason = (body.get("reason") or "").strip() or None
@@ -69,19 +72,9 @@ def transition_stop(event: dict, driver: Driver) -> dict:
     lat, lng = logic.coords(body)
     client_id = optional_client_id(body)
     guide = guide_access(driver, guide_id)
-    reopen = False
     if logic.route_state(guide["route_status"]) != "active":
-        closed = logic.route_state(guide["route_status"]) == "completed"
-        # Deshacer el cierre: "volver a pendiente" una parada de un viaje recién cerrado y todavía no liquidado.
-        if closed and target == logic.GUIDE_PENDING and guide.get("route_ended_at") is not None:
-            if now() - logic.aware(guide["route_ended_at"]) > logic.REOPEN_WINDOW:
-                raise HttpError(409, "Pasó el tiempo para deshacer: el viaje ya está cerrado.", code="reopen_expired")
-            if int(guide.get("settlements") or 0) > 0:
-                raise HttpError(409, "El viaje ya fue liquidado y no se puede reabrir.", code="already_settled")
-            reopen = True
-    if logic.route_state(guide["route_status"]) != "active" and not reopen:
         # Reenvío de la última parada ya registrada: el viaje se cerró solo y la repetición no es un error.
-        if (logic.route_state(guide["route_status"]) == "completed" and target != logic.GUIDE_PENDING
+        if (logic.route_state(guide["route_status"]) == "completed"
                 and logic.guide_state(guide.get("delivery_status"), guide.get("status")) == target):
             counts = db.query(sql.COUNT_DONE_SQL, [str(guide["route_id"])])[0]
             return ok({"stop_id": guide_id, "state": target, "done": int(counts["done"]),
@@ -93,51 +86,42 @@ def transition_stop(event: dict, driver: Driver) -> dict:
 
     # Geocerca: distancia del dispositivo al punto. Si la parada tiene coordenadas, "Entregado" exige estar a
     # ≤ 150 m, o un motivo (fuera de rango, o sin ubicación por GPS caído); con motivo queda además el evento `geofence_out` (el mismo que escribe la web).
-    distance_m = None if target == logic.GUIDE_PENDING else logic.distance_to_stop_m(
-        lat, lng, guide["stop_lat"], guide["stop_lng"])
+    distance_m = logic.distance_to_stop_m(lat, lng, guide["stop_lat"], guide["stop_lng"])
     delivering = target == logic.GUIDE_DELIVERED
+    if delivering and (lat is None or lng is None):
+        raise HttpError(400, "No se puede entregar sin la ubicación del dispositivo (lat/lng).",
+                        code="location_required")
     outside = delivering and distance_m is not None and distance_m > logic.GEOFENCE_M
-    unlocated = delivering and distance_m is None and guide["stop_lat"] is not None and guide["stop_lng"] is not None
     if outside and not reason:
         raise HttpError(400, f"Estás a {distance_m} m del punto de entrega (máximo {logic.GEOFENCE_M} m): "
                              "indica el motivo.", code="outside_geofence")
-    if unlocated and not reason:
-        raise HttpError(400, "No hay ubicación del dispositivo: envía lat/lng o indica el motivo.",
-                        code="no_location")
     # Entrega: foto de la factura + firma. Recolecta: foto del producto + firma (de quien lo entrega). La app las sube
     # antes de la transición (outbox en orden). El tipo lo decide el servidor, no el cliente.
     kind_of_stop = logic.stop_type(guide.get("stop_type"))
     if delivering and not set(logic.REQUIRED_EVIDENCE[kind_of_stop]) <= set(guide.get("evidence_kinds") or []):
         raise HttpError(400, logic.EVIDENCE_REQUIRED_TEXT[kind_of_stop], code="evidence_required")
-    event_type = {"delivered": "delivery_completed", "failed": "delivery_failed", "pending": "stop_reverted"}[target]
-    event_status = {"delivered": "success", "failed": "error", "pending": "info"}[target]
+    event_type = {"delivered": "delivery_completed", "failed": "delivery_failed"}[target]
+    event_status = {"delivered": "success", "failed": "error"}[target]
 
     def work(run):
-        run(sql.UPDATE_GUIDE_SQL, [target, logic.GUIDE_STATUS_TEXT[target], None if target == "pending" else when,
-                                   receiver, note, guide_id])
+        run(sql.UPDATE_GUIDE_SQL, [target, logic.GUIDE_STATUS_TEXT[target], when, receiver, note, guide_id])
         counts = run(sql.COUNT_DONE_SQL, [route_id])[0]
         run(sql.SET_COMPLETED_STOPS_SQL, [int(counts["done"]), route_id])
-        if reopen and run(sql.REOPEN_ROUTE_SQL, [route_id, logic.COMPLETED_STATUS_SQL_VALUES]):
-            run(sql.REOPEN_PLAN_TRIP_SQL, [route_id])
-            add_event(run, driver, route_id, guide_id, "route_reopened", "info",
-                      "Cierre deshecho por el chofer dentro de la ventana de corrección.", lat, lng, when)
         first_time = add_event(run, driver, route_id, guide_id, event_type, event_status, reason, lat, lng, when,
                                distance_m, client_id)
-        if (outside or unlocated) and first_time:
-            detail = f"fuera de la geocerca ({distance_m} m)" if outside else "sin ubicación del dispositivo"
-            add_event(run, driver, route_id, guide_id, "geofence_out", "warning", f"Entrega {detail}: {reason}",
-                      lat, lng, when)
+        if outside and first_time:
+            add_event(run, driver, route_id, guide_id, "geofence_out", "warning",
+                      f"Entrega fuera de la geocerca ({distance_m} m): {reason}", lat, lng, when)
         closed = False
         # Última parada del viaje (entregada o no entregada): el viaje se cierra solo y pasa a Liquidaciones.
-        if target != logic.GUIDE_PENDING and first_time and int(counts["pending"]) == 0:
+        if first_time and int(counts["pending"]) == 0:
             closed = bool(run(sql.CLOSE_ROUTE_SQL, [when, int(counts["done"]), route_id, logic.ACTIVE_STATUS_SQL_VALUES]))
             if closed:
                 run(sql.CLOSE_PLAN_TRIP_SQL, [route_id])
                 add_event(run, driver, route_id, None, "route_completed", "success",
                           "Viaje cerrado automáticamente al registrar la última parada.", lat, lng, when)
         return {"stop_id": guide_id, "state": target, "done": int(counts["done"]),
-                "pending": int(counts["pending"]), "distance_m": distance_m, "route_closed": closed,
-                "route_reopened": reopen}
+                "pending": int(counts["pending"]), "distance_m": distance_m, "route_closed": closed}
 
     return ok(db.run_in_transaction(work))
 

@@ -61,8 +61,9 @@ def test_event_types_are_the_ones_the_web_writes():
     source = (REFERENCE / "app.py").read_text(encoding="utf-8")
     web_types = set(re.findall(r'"(delivery_completed|delivery_failed|stop_reverted|geofence_out|route_started)"', source))
     ours = (Path(__file__).resolve().parents[1] / "src" / "mobile_api" / "stops.py").read_text(encoding="utf-8")
-    for event_type in ("delivery_completed", "delivery_failed", "stop_reverted", "geofence_out"):
+    for event_type in ("delivery_completed", "delivery_failed", "geofence_out"):
         assert event_type in web_types and f'"{event_type}"' in ours, event_type
+    assert "stop_reverted" in web_types and '"stop_reverted"' not in ours   # solo el admin web revierte
 
 
 @needs_reference

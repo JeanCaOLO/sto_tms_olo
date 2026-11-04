@@ -241,7 +241,9 @@ TRANSITION = "POST /api/mobile/v1/paradas/{id}/transicion"
 
 
 def delivered(call, **body):
-    return call(TRANSITION, path={"id": GUIDE}, body={"to": "delivered", "receiver_name": "Luis", **body})
+    # Entregar exige la ubicación del dispositivo: por defecto un punto cualquiera (sin coordenadas de parada no se mide).
+    return call(TRANSITION, path={"id": GUIDE},
+                body={"to": "delivered", "receiver_name": "Luis", "lat": 9.0, "lng": -84.0, **body})
 
 
 def stop_with_coords(fake_db):
@@ -254,7 +256,7 @@ def test_transition_updates_guide_counter_and_event_atomically(call, fake_db):
     fake_db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 3, "pending": 1}])
     result = body_of(delivered(call))["data"]
     assert result == {"stop_id": GUIDE, "state": "delivered", "done": 3, "pending": 1, "distance_m": None,
-                      "route_closed": False, "route_reopened": False}
+                      "route_closed": False}
     assert fake_db.wrote("UPDATE dispatch_guides")[0][1][:2] == ["delivered", "Entregado"]
     assert fake_db.wrote("UPDATE routes SET completed_stops")[0][1] == [3, ROUTE]
     event_params = fake_db.wrote("INSERT INTO tracking_events")[0][1]
@@ -319,30 +321,32 @@ def test_delivery_far_with_reason_is_saved_with_an_incident(call, fake_db):
     assert "Fallo" not in (fake_db.wrote("UPDATE dispatch_guides")[0][1][4] or "")
 
 
-def test_delivery_without_device_location_needs_a_reason(call, fake_db):
-    stop_with_coords(fake_db)
-    response = delivered(call)
-    assert response["statusCode"] == 400 and body_of(response)["error"]["code"] == "no_location"
+@pytest.mark.parametrize("with_stop_coords", [True, False])
+def test_delivery_without_device_location_is_rejected_even_with_a_reason(call, fake_db, with_stop_coords):
+    if with_stop_coords:
+        stop_with_coords(fake_db)
+    else:
+        fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row()])
+    for extra in ({"lat": None, "lng": None}, {"lat": None, "lng": None, "reason": "GPS apagado"}):
+        response = delivered(call, **extra)
+        assert response["statusCode"] == 400 and body_of(response)["error"]["code"] == "location_required"
+    response = delivered(call, lat=9.0, lng=None, reason="GPS apagado")                      # a medias tampoco vale
+    assert response["statusCode"] == 400 and body_of(response)["error"]["code"] == "location_required"
     assert not fake_db.wrote("UPDATE dispatch_guides")
-    ok = delivered(call, reason="GPS apagado")
-    assert ok["statusCode"] == 200 and body_of(ok)["data"]["distance_m"] is None
-    events = fake_db.wrote("INSERT INTO tracking_events")
-    assert [e[1][3] for e in events] == ["delivery_completed", "geofence_out"] and "sin ubicación" in events[1][1][8]
 
 
 def test_stop_without_coordinates_has_nothing_to_measure(call, fake_db):
     fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row()])
     fake_db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 2}])
-    assert delivered(call)["statusCode"] == 200
-    assert delivered(call, lat=9.0, lng=-84.0)["statusCode"] == 200
-    assert len(fake_db.wrote("INSERT INTO tracking_events")) == 2                             # sin incidentes
+    assert body_of(delivered(call))["data"]["distance_m"] is None
+    assert len(fake_db.wrote("INSERT INTO tracking_events")) == 1                             # sin incidentes
 
 
-def test_revert_records_stop_reverted_without_distance(call, fake_db):
+def test_driver_cannot_revert_a_stop(call, fake_db):
     stop_with_coords(fake_db)
-    result = body_of(call(TRANSITION, path={"id": GUIDE}, body={"to": "pending", "lat": 0, "lng": 0}))["data"]
-    assert result["state"] == "pending" and result["distance_m"] is None
-    assert fake_db.wrote("INSERT INTO tracking_events")[0][1][3] == "stop_reverted"
+    response = call(TRANSITION, path={"id": GUIDE}, body={"to": "pending", "lat": 0, "lng": 0})
+    assert response["statusCode"] == 403 and body_of(response)["error"]["code"] == "revert_not_allowed"
+    assert not fake_db.wrote("UPDATE dispatch_guides") and not fake_db.wrote("INSERT INTO tracking_events")
 
 
 # --- novedades, devoluciones -------------------------------------------------------------------------------------------
@@ -640,38 +644,11 @@ def test_resending_the_last_stop_after_the_trip_closed_is_not_an_error(call, fak
     assert response["statusCode"] == 200 and body_of(response)["data"]["route_closed"] is True
 
 
-def test_a_closed_trip_still_rejects_a_different_change(call, fake_db):
+def test_a_closed_trip_cannot_be_reopened_by_the_driver(call, fake_db):
     fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row(route_status="Completada", delivery_status="delivered")])
-    assert call(TRANSITION, path={"id": GUIDE}, body={"to": "pending"})["statusCode"] == 409
-
-
-# --- deshacer el cierre (ventana corta) -----------------------------------------------------------------------
-
-def closed_guide(minutes_ago=3, **over):
-    return guide_row(route_status="Completada", delivery_status="delivered", route_ended_at=NOW - timedelta(minutes=minutes_ago), **over)
-
-
-def test_driver_can_undo_the_last_stop_inside_the_window_and_the_trip_reopens(call, fake_db):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [closed_guide()])
-    fake_db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 4, "pending": 1}])
-    fake_db.answer("UPDATE routes SET status = 'En tránsito'", [{"id": ROUTE}])
     response = call(TRANSITION, path={"id": GUIDE}, body={"to": "pending"})
-    assert response["statusCode"] == 200 and body_of(response)["data"]["route_reopened"] is True
-    assert fake_db.wrote("UPDATE plan_trips SET status = 'pending'")
-    assert [c for c in fake_db.wrote("INSERT INTO tracking_events") if c[1][3] == "route_reopened"]
-
-
-def test_undo_after_the_window_is_rejected(call, fake_db):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [closed_guide(minutes_ago=11)])
-    response = call(TRANSITION, path={"id": GUIDE}, body={"to": "pending"})
-    assert response["statusCode"] == 409 and body_of(response)["error"]["code"] == "reopen_expired"
+    assert response["statusCode"] == 403 and body_of(response)["error"]["code"] == "revert_not_allowed"
     assert not fake_db.wrote("UPDATE routes SET status = 'En tránsito'")
-
-
-def test_a_settled_trip_cannot_be_reopened(call, fake_db):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [closed_guide(settlements=1)])
-    response = call(TRANSITION, path={"id": GUIDE}, body={"to": "pending"})
-    assert response["statusCode"] == 409 and body_of(response)["error"]["code"] == "already_settled"
 
 
 # --- recolectas (type = collection) ------------------------------------------------------------------------------
