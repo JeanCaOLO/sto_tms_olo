@@ -44,7 +44,8 @@ rules:
       ancla 'entrega' = delivery_date cruda (regla_fecha.fecha_entrega). Cliente-
       retira → prioridad_piso. Fecha centinela/default (ancla None) → prioridad_piso.
       prioridad_piso default = 1, así que la cola nunca muestra 0; el 0 se reserva
-      para el pedido ya liberado (que la liberación escriba 0 al WMS es follow-up).
+      para el pedido ya liberado (la liberación de Cofersa YA escribe 0 al WMS,
+      implementado v4.3; CHECK priority>=0 en sql/57).
       Se recalcula en cada barrido, así que baja sola conforme se acerca la fecha.
       Supera, solo para Cofersa, el DECIDED 2026-09-02 "2 prioridades" (EPA
       mantiene 1 y 2). Ancla fina vs. ventana de liberación ADR-013 abierta
@@ -100,6 +101,20 @@ rules:
       EPRAC, sin tocar el motor. El OMS nunca escribe directo a eFlow (read-only).
       GENE lo pone solo el OMS; no escribe numero_viaje.
     traces_to: [FR8, US9]
+  - id: BR6.3
+    name: Sync del número de prioridad a eFlow en la priorización (SOLO Cofersa)
+    statement: >
+      v4.3 (2026-11-04, SUPERSEDE PARCIAL de ADR-013): para Cofersa (compañía
+      priorizada por el OMS; EPA es pass-through y NO se sincroniza), el OMS refleja
+      en eFlow el NÚMERO de prioridad desde que prioriza y en CADA cambio
+      (3 -> 2 -> ... -> 0), no solo al liberar, por el verbo actualizar_prioridad de
+      la costura EscritorSituacion (TPEXSI queda DISP). Es write-on-delta: solo
+      sincroniza si registro.prioridad != pedido.priority (previo en orders.priority).
+      NO estampa oms_processed_at ni saca el pedido de la cola: GENE y oms_processed_at
+      siguen siendo exclusivos de la liberación (BR6.2, verbo marcar_generada). Pasada
+      1b del barrido (app._sincronizar_prioridades, handoff_pedidos.sincronizar_prioridad,
+      SQL SIM_PRIORIDAD_SQL); el resumen del barrido suma 'sincronizados'.
+    traces_to: [FR8, US9, US9b]
 ```
 
 ## Sources
@@ -110,3 +125,8 @@ rules:
 - `docs/work/2026-10/2026-10-29-prioridad-cofersa-dias-hasta-salida.md` (BR3.2,
   BR3.3, ajuste de BR3.1/BR4.1/BR5.1; ADR-014). Código:
   `backend/oms/src/estrategias_prioridad.py`, `sql/55_oms_rule_configs_estrategia_prioridad.sql`.
+- `docs/work/2026-11/2026-11-04-sync-prioridad-eflow-y-liberacion-manual.md` (BR6.3:
+  sync del número a eFlow en la priorización; ajuste de BR3.2; ADR-013 SUPERSEDE
+  PARCIAL). Código: `backend/oms/src/handoff_pedidos.py` (`sincronizar_prioridad`,
+  `SIM_PRIORIDAD_SQL`, costura de dos verbos), `app.py` (`_sincronizar_prioridades`,
+  `sincronizados`), `sql/57`.

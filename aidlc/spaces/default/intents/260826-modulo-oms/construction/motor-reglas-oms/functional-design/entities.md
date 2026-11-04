@@ -3,10 +3,18 @@
 > Intent: `260826-modulo-oms`. Functional Design (Construction), unidad U1.
 > As-built (rama `oms`). Nomenclatura EFLOW/EPRAC. Esquema único `public`.
 
+> **Nota de infraestructura de datos (v4.3, 2026-11-04)**: tras un refactor de
+> esquema, la **tabla real** es `public.tbl_orders` y **`public.orders` es una VISTA**
+> auto-actualizable sobre ella (convención `tbl_`). La lógica del OMS **no cambia**:
+> lectura y escritura siguen por la **vista `orders`**; solo el DDL (p. ej. el `CHECK`
+> de `sql/57`) va a `tbl_orders`. Donde abajo se dice `orders`/`public.orders` se
+> entiende la vista.
+
 ## `PedidoCandidato` (proyección de lectura de `public.orders`)
 
 Lo que `cola_candidatos.py` devuelve por polling. No es tabla propia; es la lectura
-de `public.orders` filtrada por `planning_run_id IS NOT NULL AND oms_processed_at IS NULL`.
+de `public.orders` (vista sobre `tbl_orders`) filtrada por
+`planning_run_id IS NOT NULL AND oms_processed_at IS NULL`.
 
 | Campo | Origen (`orders`) | Nota |
 |---|---|---|
@@ -72,16 +80,24 @@ Campos de `ConfiguracionReglas`: `estrategia: str = ESTRATEGIA_ESCALA_LINEAL`,
 
 ## Escritura (as-built)
 
-- **`public.orders`** (escritura 1): `priority`, `oms_score`, `wms_situation='GENE'`,
-  `handoff_status`, `prioritization_run_id`, `oms_processed_at=now()`.
-- **`sim_expedicionescabecera`** (escritura 2, vía costura `EscritorSituacion`):
-  `TPEXSI='GENE'` + `PRIORIDAD`. Temporal: reemplaza al endpoint EPRAC futuro. eFlow
-  real NO se toca.
+- **`public.orders`** (priorización): `priority`, `oms_score`,
+  `handoff_status='priorizado'`, `prioritization_run_id`; `wms_situation` queda
+  `DISP`, sin `oms_processed_at`.
+- **`public.orders`** (liberación, escritura 1): `wms_situation='GENE'`,
+  `handoff_status`, `oms_processed_at=now()` y, para Cofersa, `priority = 0`
+  (`LIBERAR_PEDIDO_CON_PRIORIDAD_SQL`; EPA no toca `priority`).
+- **`sim_expedicionescabecera`** (escritura 2, vía costura `EscritorSituacion`, DOS
+  verbos): `actualizar_prioridad` → **solo `PRIORIDAD`**, `TPEXSI` queda `DISP`
+  (`SIM_PRIORIDAD_SQL`; pasada 1b de sync, v4.3, SOLO Cofersa); `marcar_generada` →
+  `TPEXSI='GENE'` + `PRIORIDAD` (`SIM_SITUACION_SQL`; liberación). Temporal: reemplaza
+  a los endpoints EPRAC futuros. eFlow real NO se toca.
 
 ## Sources
 
-- `backend/oms/src/models.py`, `backend/oms/src/cola_candidatos.py`, `backend/oms/src/handoff_pedidos.py`.
+- `backend/oms/src/models.py`, `backend/oms/src/cola_candidatos.py`, `backend/oms/src/handoff_pedidos.py`, `backend/oms/src/app.py`.
 - `docs/reference/mapeo-pedidos-eflow-orders.md`.
+- `sql/57_orders_priority_allow_zero.sql` (CHECK priority>=0; `tbl_orders` + vista `orders`).
+- `docs/work/2026-11/2026-11-04-sync-prioridad-eflow-y-liberacion-manual.md` (v4.3: dos verbos de la costura, prioridad 0 al liberar, vista/`tbl_orders`).
 - `docs/work/2026-10/2026-10-29-prioridad-cofersa-dias-hasta-salida.md` (v4.2);
   `backend/oms/src/estrategias_prioridad.py`, `backend/oms/src/reglas_config.py`,
   `sql/55_oms_rule_configs_estrategia_prioridad.sql`.

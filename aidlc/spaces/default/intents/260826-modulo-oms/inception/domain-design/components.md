@@ -8,6 +8,14 @@
 > **Nomenclatura (vigente)**: WMS = **EFLOW**; módulo que asigna la prioridad de
 > EPA (1 o 2) = **EPRAC**. (No "IPRAC"/"IFLOW".)
 >
+> **Refinamiento v4.3 (2026-11-04)**: la costura `EscritorSituacion` de
+> `HandoffPedidosOMS` queda con **dos verbos** — `actualizar_prioridad` (solo número,
+> `DISP`) y `marcar_generada` (número + `GENE`). El barrido gana una **pasada 1b de
+> sincronización** write-on-delta que refleja el número de prioridad en eFlow desde la
+> priorización (Cofersa; EPA pass-through), **sin** estampar `oms_processed_at` ni
+> sacar el pedido de la cola (SUPERSEDE PARCIAL de ADR-013; ver `decisions.md`).
+> Fuente: `docs/work/2026-11/2026-11-04-sync-prioridad-eflow-y-liberacion-manual.md`.
+>
 > **Correcciones de esta re-corrida v4 (D7–D13), SUPERSEDE del modelo D6:**
 > - **Flujo invertido (D7)**: Planificación procesa, asigna viaje y **activa al
 >   OMS** por una **lambda de activación asíncrona** (nuevo componente
@@ -342,9 +350,13 @@ components:
       COSTURA)**: **eFlow real es READ-ONLY**; el OMS **nunca escribe directo a
       eFlow**. La escritura va por un **endpoint que proveerá EPRAC**; como aún no
       existe, se **simula escribiendo en `sim_expedicionescabecera`** (Aurora, ya
-      creada) detrás de una **interface intercambiable** (destino hoy =
-      `sim_expedicionescabecera`; mañana = endpoint EPRAC, sin tocar el motor). Pone
-      `TPEXSI='GENE'` + `PRIORIDAD`; el estado `TPEXES` PERMANECE 'DISP'. **GENE lo
+      creada) detrás de una **interface intercambiable** (`EscritorSituacion`, destino
+      hoy = `sim_expedicionescabecera`; mañana = endpoint EPRAC, sin tocar el motor).
+      **v4.3 (2026-11-04) — la costura tiene DOS verbos** = dos endpoints EPRAC:
+      **`actualizar_prioridad(pk, prioridad)`** (manda SOLO el número; `TPEXSI` queda
+      `DISP`; lo usa la pasada 1b de sincronización, Cofersa) y
+      **`marcar_generada(pk, prioridad)`** (liberación: número + `TPEXSI='GENE'`). En
+      la liberación pone `TPEXSI='GENE'` + `PRIORIDAD`; el estado `TPEXES` PERMANECE 'DISP'. **GENE lo
       pone SOLO el OMS** (Planificación deja los pedidos en `DISP`). **NO escribe
       `numero_viaje`** (lo escribe Planificación) ni toca el picking. ORDEN:
       escritura 1 (orders) ANTES de escritura 2 (sim/endpoint). FALLO PARCIAL: si la

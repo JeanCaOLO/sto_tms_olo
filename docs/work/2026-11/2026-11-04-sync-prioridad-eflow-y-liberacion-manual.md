@@ -89,6 +89,34 @@ interacción manual** pasa a ser **liberar el pedido**:
 - El historial de "cambios de prioridad manual" ya no aplica; dejar (si acaso) un evento
   de liberación manual.
 
+## PENDIENTE — Punto 4: auditoría/indicador de pedidos que se quedan sin liberar
+
+Viene de la revisión anterior. Caso raíz: un pedido con fecha de entrega pero sin
+`dispatch_date` (nunca entró a la ventana de liberación) se queda clavado en el **piso
+= 1** y nunca llega a `0`; hoy no hay señal de que algo está atascado. "Huérfanos" se
+descartó como nombre por genérico; el negocio pidió algo más descriptivo
+(p. ej. "vencidos"). **Nombre aún sin confirmar.**
+
+### Lógica para implementar (cuando se retome)
+
+- **Clasificar por motivo** en una pasada del barrido (sin I/O nuevo pesado), con códigos
+  por causa en vez de un "huérfano" genérico. Propuesta de códigos/nombres:
+  - `VENCIDO_NUNCA_PLANIFICADO` → "Vencidos sin planificar": `planning_run_id IS NULL`
+    y la fecha de entrega ya pasó.
+  - `PLANIFICADO_SIN_COORDENADAS` → "Planificados sin fecha de salida": `planning_run_id`
+    presente pero `dispatch_date IS NULL` (no abre la ventana).
+  - `LIBERACION_FALLIDA` → "Liberación incompleta": `handoff_status='disparo_pendiente'`
+    que la reconciliación no cerró.
+- **Dónde escribir**: `oms_logs` con una acción propia (p. ej. `auditoria_revisar`) +
+  un indicador en el Panel del OMS bajo una sección tipo **"Pedidos a revisar"**
+  (nombre a confirmar junto con el del concepto).
+- **No** confundir con el dashboard ya hecho (`sql/56`, modificaciones de fecha): esto es
+  un contador/listado de pedidos en estado anómalo, con su motivo.
+
+> Decisión pendiente del usuario: nombre del concepto ("vencidos" u otro) y de la sección
+> del Panel ("Pedidos a revisar" / "Pendientes con alerta" / otro). No implementar hasta
+> confirmarlo.
+
 ## Despliegue / commits
 
 - Cambio de `backend/oms` (sync de prioridad) requiere **deploy por Intelix** para que
