@@ -1244,3 +1244,15 @@ def test_stop_name_comes_from_delivery_point_not_from_the_company():
         assert "COALESCE(dp.name, fc.name, cu.name) AS customer_name" in sql
         assert "JOIN final_customers fc ON fc.id = o.final_customer_id" in sql
         assert "JOIN delivery_points dp ON dp.id = o.delivery_point_id" in sql
+
+
+def test_stop_view_exposes_the_time_on_site_detected_by_gps():
+    app = load_stack_module("tracking")
+    arrived, left = datetime(2026, 10, 16, 15, 0, tzinfo=timezone.utc), datetime(2026, 10, 16, 15, 20, tzinfo=timezone.utc)
+    row = {**_full_stop(1), "site_arrived_at": arrived, "site_departed_at": left, "dwell_seconds": 1200}
+    stop = app._stop_view(row, {"by_stop": {}}, {}, False)
+    assert stop["site_arrived_at"].startswith("2026-10-16T15:00") and stop["dwell_seconds"] == 1200
+    assert stop["site_departed_at"].startswith("2026-10-16T15:20")
+    # Sin visita (aún no llegó o sin GPS) los tres quedan en null y el resto del contrato no cambia.
+    bare = app._stop_view(_full_stop(1), {"by_stop": {}}, {}, False)
+    assert bare["site_arrived_at"] is None and bare["site_departed_at"] is None and bare["dwell_seconds"] is None

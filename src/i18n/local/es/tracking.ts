@@ -70,6 +70,8 @@ export default {
   'tracking.order': 'Pedido {{number}}',
   'tracking.invoice': 'Factura {{number}}',
   'tracking.recipient': 'Recibió: {{name}}',
+  'tracking.onSite': 'En sitio: {{arrived}} – {{departed}} ({{duration}})',
+  'tracking.onSiteNow': 'En sitio desde las {{arrived}} ({{duration}})',
   'tracking.evidenceInvoice': 'Factura firmada',
   'tracking.evidenceSignature': 'Firma digital',
   'tracking.evidenceProduct': 'Foto del producto',

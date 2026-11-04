@@ -105,6 +105,10 @@ export interface Stop {
   lat: number | null;
   lng: number | null;
   arrived_at: string | null;
+  /** Tiempo en el sitio detectado por GPS (radio de 150 m). Opcionales: respuestas anteriores no los traen. */
+  site_arrived_at?: string | null;
+  site_departed_at?: string | null;
+  dwell_seconds?: number | null;
   recipient_name: string | null;
   evidences: Evidence[];
   planned_arrival_at: string | null;

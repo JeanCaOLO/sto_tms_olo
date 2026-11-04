@@ -23,7 +23,9 @@ GUIDE_PENDING, GUIDE_DELIVERED, GUIDE_FAILED = "pending", "delivered", "failed"
 GUIDE_STATUS_TEXT = {GUIDE_PENDING: "Pendiente", GUIDE_DELIVERED: "Entregado", GUIDE_FAILED: "Fallido"}
 
 GEOFENCE_M = 150            # "Entregado" sin motivo solo a ≤ 150 m del punto de entrega
-DEPARTURE_RADIUS_M = 300    # el camión "salió" al alejarse más de esto de la sede
+VISIT_EXIT_M = 200          # sale de la parada al alejarse más de esto (histéresis sobre GEOFENCE_M)
+MIN_VISIT_SECONDS = 60      # menos que esto en una parada aún pendiente es pasar de largo, no una visita
+DEPARTURE_RADIUS_M = 300   # el camión "salió" al alejarse más de esto de la sede
 ACCURACY_MAX_M = 200        # precisión peor que esto no mueve la última posición ni entra al recorrido
 GRACE_AFTER_CLOSE = timedelta(hours=2)   # la web acepta puntos tardíos hasta 2 h después de cerrar el viaje
 FAR_REASON_CODES = {        # motivos predeterminados de una entrega lejos del punto (geocerca)
@@ -193,6 +195,51 @@ def first_departure(positions: list[dict], origin: tuple[float, float] | None) -
         if is_departed((float(p["latitude"]), float(p["longitude"])), origin):
             return p["recorded_at"]
     return None
+
+
+def detect_visits(points: list[dict], stops: list[dict]) -> dict:
+    """Entradas y salidas del radio de las paradas a partir de posiciones usables en orden cronológico.
+
+    Entra a ≤ GEOFENCE_M y sale a > VISIT_EXIT_M (histéresis: el ruido del GPS en el borde no parte la visita).
+    `stops`: [{"id","state","lat","lng","arrived_at","departed_at","completed_at"}] con lo ya guardado.
+    Una parada pendiente solo puede entrar si no tiene visita; una ya cerrada solo entra con puntos anteriores al
+    momento en que se cerró (llegó ANTES de entregar), así pasar de nuevo por el lugar no inventa una visita.
+    Pasar de largo (< MIN_VISIT_SECONDS en una parada aún pendiente) no cuenta.
+    Devuelve {"upserts": [{"id","arrived_at","departed_at","dwell_seconds","distance_m"}], "deletes": [id]}."""
+    state = {s["id"]: {"arrived": s.get("arrived_at"), "departed": s.get("departed_at"), "distance": None}
+             for s in stops}
+    for point in points:
+        when, here = point["recorded_at"], (float(point["latitude"]), float(point["longitude"]))
+        for stop in stops:
+            target, current = _point(stop), state[stop["id"]]
+            if target is None or current["departed"] is not None:
+                continue
+            distance_m = haversine_km(*here, *target) * 1000
+            if current["arrived"] is None:
+                completed = stop.get("completed_at")
+                may_enter = (completed is None and stop["state"] == GUIDE_PENDING) or (
+                    completed is not None and aware(when) <= aware(completed))
+                if distance_m <= GEOFENCE_M and may_enter:
+                    current["arrived"], current["distance"] = when, round(distance_m)
+            elif distance_m > VISIT_EXIT_M and aware(when) > aware(current["arrived"]):
+                passing = (stop.get("completed_at") is None and stop["state"] == GUIDE_PENDING
+                           and (aware(when) - aware(current["arrived"])).total_seconds() < MIN_VISIT_SECONDS)
+                if passing:
+                    current["arrived"] = current["distance"] = None
+                else:
+                    current["departed"] = when
+    upserts, deletes = [], []
+    for stop in stops:
+        before, after = (stop.get("arrived_at"), stop.get("departed_at")), state[stop["id"]]
+        if after["arrived"] is None:
+            if before[0] is not None:
+                deletes.append(stop["id"])
+        elif (after["arrived"], after["departed"]) != before:
+            dwell = (None if after["departed"] is None
+                     else max(0, round((aware(after["departed"]) - aware(after["arrived"])).total_seconds())))
+            upserts.append({"id": stop["id"], "arrived_at": after["arrived"], "departed_at": after["departed"],
+                            "dwell_seconds": dwell, "distance_m": after["distance"]})
+    return {"upserts": upserts, "deletes": deletes}
 
 
 def positions_usable(is_mock: bool, accuracy_m) -> bool:

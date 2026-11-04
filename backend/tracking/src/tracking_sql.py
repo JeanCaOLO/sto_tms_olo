@@ -132,7 +132,8 @@ SELECT g.id, g.guide_number, g.sequence_number, g.status, g.delivery_status,
        COALESCE(o.delivery_longitude, ps.longitude) AS longitude,
        COALESCE(dp.name, fc.name, cu.name) AS customer_name,
        COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,
-       g.stop_type
+       g.stop_type,
+       v.arrived_at AS site_arrived_at, v.departed_at AS site_departed_at, v.dwell_seconds
 FROM dispatch_guides g
 JOIN routes r ON r.id = g.route_id
 LEFT JOIN orders o ON o.id = g.order_id
@@ -140,6 +141,7 @@ LEFT JOIN customers cu ON cu.id = o.customer_id
 LEFT JOIN final_customers fc ON fc.id = o.final_customer_id
 LEFT JOIN delivery_points dp ON dp.id = o.delivery_point_id
 LEFT JOIN plan_stops ps ON ps.trip_id = r.plan_trip_id AND ps.order_id = g.order_id
+LEFT JOIN tracking_stop_visits v ON v.guide_id = g.id
 WHERE g.route_id = %s
 ORDER BY g.sequence_number
 """

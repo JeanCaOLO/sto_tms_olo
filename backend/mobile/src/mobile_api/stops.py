@@ -105,6 +105,7 @@ def transition_stop(event: dict, driver: Driver) -> dict:
 
     def work(run):
         run(sql.UPDATE_GUIDE_SQL, [target, logic.GUIDE_STATUS_TEXT[target], when, receiver, note, guide_id])
+        run(sql.COMPLETE_VISIT_SQL, [when, guide_id])   # separa «tiempo en el sitio» de «tiempo hasta cerrar»
         counts = run(sql.COUNT_DONE_SQL, [route_id])[0]
         run(sql.SET_COMPLETED_STOPS_SQL, [int(counts["done"]), route_id])
         first_time = add_event(run, driver, route_id, guide_id, event_type, event_status, reason, lat, lng, when,

@@ -444,6 +444,9 @@ def _stop_view(g: dict, live: dict, evidences: dict, driver: bool) -> dict:
         "customer_name": g["customer_name"], "address": g["delivery_address"], "city": g["delivery_city"],
         "lat": _float(g["latitude"]), "lng": _float(g["longitude"]),
         "arrived_at": _iso(g["actual_arrival_time"]), "recipient_name": g["recipient_name"],
+        # Tiempo en el sitio detectado por GPS (radio de 150 m); null mientras no haya llegado o si no hay GPS.
+        "site_arrived_at": _iso(g.get("site_arrived_at")), "site_departed_at": _iso(g.get("site_departed_at")),
+        "dwell_seconds": g.get("dwell_seconds"),
         "evidences": evidences.get(sid, []),
         "planned_arrival_at": _iso(g["planned_arrival_time"]),
         "distance_m": metrics["distance_m"] if metrics else None,

@@ -70,6 +70,8 @@ export default {
   'tracking.order': 'Order {{number}}',
   'tracking.invoice': 'Invoice {{number}}',
   'tracking.recipient': 'Received by: {{name}}',
+  'tracking.onSite': 'On site: {{arrived}} – {{departed}} ({{duration}})',
+  'tracking.onSiteNow': 'On site since {{arrived}} ({{duration}})',
   'tracking.evidenceInvoice': 'Signed invoice',
   'tracking.evidenceSignature': 'Digital signature',
   'tracking.evidenceProduct': 'Product photo',

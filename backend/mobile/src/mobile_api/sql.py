@@ -204,6 +204,31 @@ LEFT JOIN plan_stops ps ON ps.trip_id = r.plan_trip_id AND ps.order_id = g.order
 WHERE g.id = %s
 """
 
+# Paradas de los viajes con su visita (si ya hay): lo que `logic.detect_visits` necesita para marcar llegada y salida.
+VISIT_STOPS_SQL = """
+SELECT g.id, g.route_id, g.delivery_status, g.status, g.actual_arrival_time,
+       COALESCE(o.delivery_latitude, ps.latitude) AS latitude,
+       COALESCE(o.delivery_longitude, ps.longitude) AS longitude,
+       v.arrived_at, v.departed_at
+FROM dispatch_guides g
+JOIN routes r ON r.id = g.route_id
+LEFT JOIN orders o ON o.id = g.order_id
+LEFT JOIN plan_stops ps ON ps.trip_id = r.plan_trip_id AND ps.order_id = g.order_id
+LEFT JOIN tracking_stop_visits v ON v.guide_id = g.id
+WHERE g.route_id = ANY(%s::uuid[])
+"""
+
+UPSERT_VISIT_SQL = """
+INSERT INTO tracking_stop_visits (organization_id, route_id, guide_id, arrived_at, departed_at, dwell_seconds,
+                                  arrival_distance_m, completed_at)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+ON CONFLICT (guide_id) DO UPDATE SET departed_at = EXCLUDED.departed_at, dwell_seconds = EXCLUDED.dwell_seconds
+"""
+
+DELETE_VISIT_SQL = "DELETE FROM tracking_stop_visits WHERE guide_id = %s"
+
+COMPLETE_VISIT_SQL = "UPDATE tracking_stop_visits SET completed_at = %s WHERE guide_id = %s"
+
 UPDATE_GUIDE_SQL = """
 UPDATE dispatch_guides
 SET delivery_status = %s, status = %s, actual_arrival_time = %s, recipient_name = COALESCE(%s, recipient_name),
