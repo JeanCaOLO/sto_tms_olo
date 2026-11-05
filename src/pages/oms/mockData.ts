@@ -233,98 +233,52 @@ export const companies: Company[] = [
   { id: 'EPA', name: 'EPA' },
 ];
 
-// FR5 — catálogo de macro-reglas del OMS, asociadas por compañía.
-// `active` refleja el ESTADO REAL DEL CÓDIGO (src/pages/oms/engine/priorityEngine.ts),
-// no la aspiración de negocio: una regla en `false` todavía NO tiene lógica
-// detrás, sin importar cuánto se documentó en las reuniones. Mantener
-// sincronizado con priorityEngine.ts cada vez que se implemente/cambie una
-// regla ahí — este catálogo es lo único que un no-desarrollador puede leer
-// para saber "qué de esto ya es real".
-//
-// Hoy están activas exactamente 2 reglas (primera entrega, reunión Antonio
-// 2026-09-08), y priorityEngine.ts las aplica IGUAL para Cofersa y EPA (el
-// código no distingue compañía todavía) - por eso ambas compañías las listan.
-// Catálogo alineado al motor REAL del backend (ADR-013). La lógica vive en
-// Python (backend/oms/src/: regla_fecha.py, score.py, handoff_pedidos.py) y es
-// de solo lectura; este catálogo solo documenta y expone parámetros. La
-// prioridad es NUMÉRICA INVERTIDA (menor = más urgente; base 100, mínima 1) vía
-// score ponderado (score.py), NO tiers 1..4. ADR-013 DESACOPLA priorizar (deja
-// DISP) de liberar a eFlow (escribe GENE en la ventana dispatch_date − dias_prep_picking).
+// FR5 — catálogo de macro-reglas del OMS, de SOLO LECTURA (DECIDED 2026-11-05).
+// El set de reglas es FIJO en código (Python, backend/oms/src/: motor_reglas.py,
+// regla_fecha.py, estrategias_prioridad.py, handoff_pedidos.py); este catálogo
+// solo lo documenta. No hay toggle, ni peso, ni parámetros editables.
+// `active` = la lógica YA existe en código (no la aspiración de negocio).
+// `scope` = nivel de oms_rule_configs donde se resuelve (CUSTOMER → WAREHOUSE →
+// COUNTRY → GLOBAL). La estrategia por scope (FR3.9, sql/55) se siembra por
+// migración SQL, no desde la UI. Mantener sincronizado con el backend.
 export const engineRules: EngineRule[] = [
   // --- Cofersa ---
   {
-    id: 'MR-CF-1', company: '0109', order: 1, name: 'Regla de fecha de entrega', firstDelivery: true, active: true, weight: 600,
-    description: 'Calcula la urgencia desde la fecha en que el pedido debe estar listo = fecha de entrega (delivery_date) − lead_time_days. lead_time_days lo envía Planificación por pedido (default 1 si viene NULL). Si la fecha planificada es la centinela 1900-01-01 (cliente sin fecha real, p. ej. Cofersa por default) se trata como URGENTE para que un humano lo revise. Implementada en backend/oms/src/regla_fecha.py + score.py.',
-    params: [
-      { key: 'lead_time_default', label: 'lead_time_days por defecto (si viene NULL)', value: '1', kind: 'number' },
-      { key: 'fecha_centinela', label: 'Fecha centinela (fallback urgente)', value: '1900-01-01', kind: 'text', help: 'Si la fecha planificada == centinela, no es fecha real → urgente.' },
-    ],
+    id: 'MR-CF-1', company: '0109', order: 1, name: 'Prioridad por días hasta la salida', scope: 'CUSTOMER', firstDelivery: true, active: true,
+    description: 'Da más urgencia a los pedidos que salen antes: la prioridad es el número de días que faltan para la salida del viaje (menos días = más urgente). Se vuelve a calcular en cada revisión, así que la urgencia sube sola conforme se acerca la fecha.',
   },
   {
-    id: 'MR-CF-6', company: '0109', order: 2, name: 'Liberación a eFlow por ventana (ADR-013)', firstDelivery: true, active: true, weight: 0,
-    description: 'DESACOPLADA de la priorización: priorizar deja el pedido en DISP; la liberación cambia la situación a GENE (vía la costura a sim_expedicionescabecera) solo cuando hoy ≥ dispatch_date − dias_prep_picking. Es POR VIAJE "gratis" (todos los pedidos de un numero_viaje comparten dispatch_date). Casos sin dispatch_date: cliente-retira se libera de inmediato (alta prioridad, el cliente recoge); los demás (p. ej. sin coordenadas) caen a delivery_date como ancla de la ventana. La ejecución automática corre 5×/día. La acción manual "Procesar a Eflow" (gated por rol) libera un viaje ignorando la ventana. Implementada en backend/oms/src/handoff_pedidos.py (en_ventana_liberacion / liberar_pedido).',
-    params: [
-      { key: 'dias_prep_picking', label: 'Días de preparación de picking (ventana)', value: '1', kind: 'number', help: 'Política del OMS: cuántos días antes del despacho se libera a eFlow.' },
-      { key: 'barrido_veces_dia', label: 'Ejecuciones por día (v1)', value: '5', kind: 'number' },
-    ],
+    id: 'MR-CF-6', company: '0109', order: 2, name: 'Envío al almacén un día antes de la salida', scope: 'GLOBAL', firstDelivery: true, active: true,
+    description: 'Separa priorizar de enviar al almacén: el pedido se prioriza apenas entra, pero se envía a preparar (picking) solo cuando falta un día para la salida de su viaje. Como todos los pedidos de un mismo viaje salen el mismo día, el envío ocurre por viaje completo. Hay un envío automático varias veces al día y, además, un usuario con permiso puede enviar un viaje a mano cuando lo necesite, sin esperar.',
   },
   {
-    id: 'MR-CF-3', company: '0109', order: 3, name: 'Cliente retira (por zona)', firstDelivery: true, active: true, weight: 900,
-    description: 'Los pedidos cuya zona de entrega es "cliente retira" reciben la prioridad más alta, sin importar la fecha. Se modela por ZONA (delivery_zone), NO por el texto libre de observaciones. El análisis de observaciones con IA está diferido (ver MR-CF-2).',
-    params: [
-      { key: 'zona_cliente_retira', label: 'Zona(s) de cliente retira', value: 'cliente_retira', kind: 'text', help: 'Valor de delivery_zone que marca retiro en bodega.' },
-      { key: 'prioridad_retira', label: 'Prioridad asignada', value: '1', kind: 'number' },
-    ],
+    id: 'MR-CF-3', company: '0109', order: 3, name: 'Cliente retira (por zona)', scope: 'GLOBAL', firstDelivery: true, active: true,
+    description: 'Los pedidos cuya zona de entrega es "cliente retira" reciben la prioridad más alta, sin importar la fecha. Se reconocen por la zona del pedido, no por lo que diga el vendedor en las observaciones.',
   },
   {
-    id: 'MR-CF-2', company: '0109', order: 4, name: 'Análisis de observaciones con IA (DIFERIDO)', firstDelivery: false, active: false, weight: 0,
-    description: 'Interpretar el texto libre de observaciones (dirección, fecha solicitada, urgencia, cita) con un modelo de Amazon Bedrock. DIFERIDO (decisión D11): cliente-retira se resuelve hoy por zona (MR-CF-3). Hoy solo existe un stub determinístico de palabras clave en backend/oms/src/analizador_observaciones.py, NO activo en el flujo.',
-    params: [
-      { key: 'modelo', label: 'Modelo Bedrock (futuro)', value: 'por definir', kind: 'text' },
-    ],
+    id: 'MR-CF-2', company: '0109', order: 4, name: 'Lectura de observaciones con IA (pendiente)', scope: 'GLOBAL', firstDelivery: false, active: false,
+    description: 'Leer con inteligencia artificial el texto libre de las observaciones del pedido (dirección, fecha pedida, urgencia, cita). Queda para más adelante: por ahora los "cliente retira" se detectan por la zona del pedido.',
   },
   {
-    id: 'MR-CF-4', company: '0109', order: 5, name: 'Asignación de viaje / bajada', firstDelivery: false, active: false, weight: 0,
-    description: 'El viaje lo asigna PLANIFICACIÓN, no el OMS. El OMS solo lee numero_viaje/dispatch_date ya denormalizados en orders. NO hay lógica de asignación de viaje/bajada en el OMS.',
-    params: [],
+    id: 'MR-CF-4', company: '0109', order: 5, name: 'Asignación de viaje', scope: 'GLOBAL', firstDelivery: false, active: false,
+    description: 'El viaje lo arma Planificación, no las Reglas OMS. Aquí solo se lee el viaje que Planificación ya asignó al pedido.',
   },
   {
-    id: 'MR-CF-5', company: '0109', order: 6, name: 'Inventario / capacidad (backorder) — FUTURO', firstDelivery: false, active: false, weight: 0,
-    description: 'Validar viabilidad de inventario/capacidad antes de liberar (reservas, pendientes, reposición). FUTURO: unidad U2 (backorder-inventario-oms) diferida hasta que el negocio defina OQ-BO1/BO2/BO3.',
-    params: [],
+    id: 'MR-CF-5', company: '0109', order: 6, name: 'Inventario y capacidad (futuro)', scope: 'GLOBAL', firstDelivery: false, active: false,
+    description: 'Comprobar que haya inventario y capacidad suficientes antes de enviar el pedido a preparar. Pendiente para una etapa futura, cuando el negocio defina las reglas.',
   },
-  // --- EPA: mismo motor por scope (país→almacén→cliente); el cross docking
-  // (prioridad fija, sin regla de fecha) sigue sin codificarse. ---
+  // --- EPA: conserva la prioridad que trae de origen (no se recalcula) ---
   {
-    id: 'MR-EPA-1', company: 'EPA', order: 1, name: 'Regla de fecha de entrega', firstDelivery: true, active: true, weight: 600,
-    description: 'Misma lógica que Cofersa (el motor no distingue compañía todavía; la especificidad se resolverá por scope) — ver MR-CF-1.',
-    params: [
-      { key: 'lead_time_default', label: 'lead_time_days por defecto (si viene NULL)', value: '1', kind: 'number' },
-      { key: 'fecha_centinela', label: 'Fecha centinela (fallback urgente)', value: '1900-01-01', kind: 'text' },
-    ],
+    id: 'MR-EPA-1', company: 'EPA', order: 1, name: 'Prioridad que trae de origen', scope: 'CUSTOMER', firstDelivery: true, active: true,
+    description: 'Los pedidos de EPA no se vuelven a priorizar: conservan la prioridad con la que llegan (1 o 2). Las Reglas OMS solo se encargan de enviarlos a preparar en su momento.',
   },
   {
-    id: 'MR-EPA-2', company: 'EPA', order: 2, name: 'Cliente retira (por zona)', firstDelivery: true, active: true, weight: 900,
-    description: 'Misma lógica que Cofersa — ver MR-CF-3 (por zona, no por observaciones).',
-    params: [
-      { key: 'zona_cliente_retira', label: 'Zona(s) de cliente retira', value: 'cliente_retira', kind: 'text' },
-      { key: 'prioridad_retira', label: 'Prioridad asignada', value: '1', kind: 'number' },
-    ],
+    id: 'MR-EPA-3', company: 'EPA', order: 2, name: 'Cross docking (prioridad fija)', scope: 'CUSTOMER', firstDelivery: false, active: false,
+    description: 'EPA recibe y alista al mismo tiempo (cross docking), por lo que saldría con una prioridad fija sin pasar por la regla de fecha. Aún no está implementada.',
   },
   {
-    id: 'MR-EPA-3', company: 'EPA', order: 3, name: 'Cross docking (prioridad fija, sin regla de fecha)', firstDelivery: false, active: false, weight: 500,
-    description: 'EPA recibe y alista al mismo tiempo (cross docking): saldría con prioridad fija, SIN pasar por la regla de fecha. NO implementada — hoy EPA pasa por MR-EPA-1 igual que Cofersa. Activarla implica excluir a EPA de la regla de fecha en código.',
-    params: [
-      { key: 'prioridad_default', label: 'Prioridad por default (propuesta)', value: '1', kind: 'number' },
-    ],
-  },
-  {
-    id: 'MR-EPA-5', company: 'EPA', order: 4, name: 'Liberación a eFlow por ventana (ADR-013)', firstDelivery: true, active: true, weight: 0,
-    description: 'Igual que Cofersa — ver MR-CF-6 (liberación por dispatch_date − dias_prep_picking, por viaje, ejecución automática 5×/día + acción manual).',
-    params: [
-      { key: 'dias_prep_picking', label: 'Días de preparación de picking (ventana)', value: '1', kind: 'number' },
-      { key: 'barrido_veces_dia', label: 'Ejecuciones por día (v1)', value: '5', kind: 'number' },
-    ],
+    id: 'MR-EPA-5', company: 'EPA', order: 3, name: 'Envío al almacén un día antes de la salida', scope: 'GLOBAL', firstDelivery: true, active: true,
+    description: 'Igual que para Cofersa: el pedido se envía a preparar cuando falta un día para la salida de su viaje, por viaje completo, con envío automático y envío manual para quien tenga permiso.',
   },
 ];
 

@@ -62,7 +62,7 @@
 | E3 — Análisis de observaciones con IA | US12–US13 | FR6.3, FR7 **(futuro, D11)** |
 | E4 — Liberación manual | US14–US15b | FR4 |
 | E5 — Motor de Reglas (catálogo informativo, solo lectura) | US16 (solo lectura); ~~US17, US18~~ **DESCARTADAS (v4.4)** | FR5, FR6 |
-| E6 — Simulador (configurador) | US19–US24 | FR9 |
+| E6 — Simulador (configurador) | ~~US19–US24/US24b~~ **FUERA DE ALCANCE** (2026-10-19; vista retirada del frontend 2026-11-05) | FR9 |
 | E7 — Panel y Auditoría | US25–US27 | FR11 |
 | E8 — Calendario de rutas | ~~US28–US29~~ **RETIRADA (D5)** | ~~FR12~~ |
 | E9 — Multi-compañía (scope) y seguridad | US30–US33 | FR13, FR14 |
@@ -319,7 +319,8 @@ para incorporar compañías que numeran distinto sin cambiar el motor.
 - Given la vista Motor de Reglas, When se usa, Then **no** se arman fórmulas desde
   la UI: la lógica de cada estrategia vive en código; la config solo elige cuál y
   con qué parámetros (DECIDED "no es constructor dinámico"). Hoy la elección se fija
-  por config/migración (`sql/55`); editarla desde la UI es posterior (E5).
+  por config/migración (`sql/55`) sembrada por el equipo; **no** se edita desde la
+  UI (configurabilidad descartada, DECIDED 2026-11-05 — E5).
 - Nota: si las demás compañías de mayoreo numeran igual que Cofersa (OQ-PRIO-B, sin
   confirmar), basta con apuntar su fila a `dias_hasta_salida`.
 
@@ -479,6 +480,10 @@ implementadas y su scope, sin poder modificarlas.
 - Given la vista, When la uso, Then **no** puedo crear, activar/desactivar, editar
   peso ni parámetros de reglas (el set es fijo en código); la vista es
   **informativa**.
+- *Implementado en frontend (2026-11-05)*: `/oms/reglas` muestra nombre,
+  descripción, scope y estado "Implementada / No implementada"; se retiraron el
+  toggle, el input de peso y el modal de parámetros. El selector de scope/compañía
+  dentro de la vista es `[siguiente]` (hoy lista la primera compañía).
 
 ### US17 — ~~Activar/desactivar y ajustar peso de una regla~~ `[DESCARTADA]` (FR5.1)
 > **DESCARTADA (v4.4, 2026-11-05)**: set de reglas fijo en código; sin edición
@@ -510,11 +515,11 @@ cliente retira), sin tocar su lógica.
 > vigente **si** alguna vez se construye.
 >
 > **v4.4 (2026-11-05)**: como el Simulador depende de reglas configurables (que se
-> descartaron en FR5/E5), queda pendiente **quitar la vista Simulador del frontend**
-> (sin reglas configurables no tiene sentido). Pendiente de front; no se crea
-> historia.
+> descartaron en FR5/E5), la **vista Simulador se retiró del frontend** (ruta
+> `/oms/simulador`, entrada de menú, página, lógica y persistencia mock). No se crea
+> historia. US19–US24/US24b quedan marcadas `[FUERA DE ALCANCE]`.
 
-### US19 — Configurar una corrida en el modal previo `[siguiente]` (FR9.1, FR9.2)
+### US19 — Configurar una corrida en el modal previo `[FUERA DE ALCANCE]` (FR9.1, FR9.2)
 Como **Developer**, quiero elegir qué reglas activas y qué pedidos
 entran a una simulación, para acotarla.
 - Given el modal previo, When lo abro, Then vienen por defecto todas las reglas
@@ -523,26 +528,26 @@ entran a una simulación, para acotarla.
   simulación aplica a ese conjunto — incluido **re-simular sobre prioridades ya
   asignadas**.
 
-### US20 — Ver el resultado como tabla-Cola `[siguiente]` (FR9.3)
+### US20 — Ver el resultado como tabla-Cola `[FUERA DE ALCANCE]` (FR9.3)
 Como **Developer**, quiero ver el resultado de la simulación como una
 tabla igual que la Cola, para evaluarlo con todas las columnas.
 - Given una simulación ejecutada, When se muestra, Then aparece como tabla con
   todas las columnas (o selección), no como un recuadro de "estado actual".
 
-### US21 — Persistir la simulación (bitácora) `[siguiente]` (FR9.4)
+### US21 — Persistir la simulación (bitácora) `[FUERA DE ALCANCE]` (FR9.4)
 Como **Developer**, quiero que cada simulación quede registrada, para
 tener trazabilidad.
 - Given una simulación, When se ejecuta, Then se persiste con fecha, autor
   (usuario/automático), reglas usadas, filtro, estado (`simulada`/`aplicada`) y
   compañía.
 
-### US22 — Restringir a una simulación aplicada por compañía `[siguiente]` (FR9.4)
+### US22 — Restringir a una simulación aplicada por compañía `[FUERA DE ALCANCE]` (FR9.4)
 Como **Developer**, quiero que solo haya una simulación aplicada por
 compañía, para evitar priorizaciones en conflicto.
 - Given varias simulaciones `simuladas` de una compañía, When aplico una, Then
   queda como la **única `aplicada` de esa compañía** (la anterior deja de estarlo).
 
-### US23 — Aplicar manual / automática / mixta `[siguiente]` (FR9.5)
+### US23 — Aplicar manual / automática / mixta `[FUERA DE ALCANCE]` (FR9.5)
 Como **Developer**, quiero elegir el modo de aplicación, para validar
 manualmente al inicio y automatizar cuando confíe.
 - Given modo manual, When reviso y pulso "Aplicar", Then la simulación se aplica.
@@ -555,7 +560,7 @@ manualmente al inicio y automatizar cuando confíe.
   aplicada vigente de la compañía (US22), When pulso "Aplicar", Then se pide una
   confirmación explícita ("esto sustituye la priorización vigente de {compañía}").
 
-### US24 — Configurar simulaciones por compañía `[siguiente]` (FR9.6)
+### US24 — Configurar simulaciones por compañía `[FUERA DE ALCANCE]` (FR9.6)
 Como **Developer**, quiero configurar el número de simulaciones al
 día, su frecuencia/horarios, el filtro de situación y el modo por simulación,
 para adaptarlo a cada compañía.
@@ -566,7 +571,7 @@ para adaptarlo a cada compañía.
   es alcanzable por `Developer` (US24b). Antes se preveía para el Administrador de
   Módulo; con la restricción del 2026-10-01 queda bajo `Developer`.
 
-### US24b — Restringir la vista Simulador al rol Developer `[siguiente]` (FR9.0, FR14.4)
+### US24b — Restringir la vista Simulador al rol Developer `[FUERA DE ALCANCE]` (FR9.0, FR14.4)
 Como **sistema/seguridad**, quiero que la vista Simulador solo sea visible y
 accesible para el rol `Developer`, para que sea una herramienta de
 diagnóstico/pruebas y no una pantalla operativa de usuarios normales.
@@ -734,7 +739,7 @@ mano.
   Desarrollo **opcional**, visible solo para rol `Developer`. Supera el `DECIDED`
   "Simulador = configurador" (2026-09-15). No entra en el diseño ni la construcción
   de U1; se conserva solo como registro para un posible futuro. **v4.4
-  (2026-11-05)**: pendiente **quitar la vista Simulador del frontend** (sin reglas
+  (2026-11-05)**: la **vista Simulador se retiró del frontend** (sin reglas
   configurables no tiene sentido tras descartar el catálogo configurable de FR5).
 - **US17 y US18 (E5 — Motor de Reglas), DESCARTADAS (v4.4, 2026-11-05).** El set de
   reglas es **fijo en código**; sin edición desde la UI (activar/desactivar, peso,

@@ -1972,3 +1972,15 @@ compatibilidad con los nombres viejos. **No está aplicada** (solo ensayos con R
 del contrato HTTP con `tms_common/db_names.py`. Orden obligatorio: aplicar la 59 → desplegar. Si escribís
 migraciones nuevas, contra `tbl_*`; si agregás columnas a una tabla con vista de compat, recreá la vista.
 Detalle: `docs/decisions/0005-estandar-oltp-nombres-bd.md`, `docs/work/2026-11/2026-11-03-*`.
+
+### 2026-11-05 — De: Kiro → Claude — Vista Simulador retirada del front; NO borrar el permiso `oms.simulador`
+Estado: abierto
+
+Apliqué en `src/` (rama `oms`) los DECIDED 2026-10-19 y 2026-11-05: se retiró la vista Simulador (ruta `/oms/simulador`,
+menú, página y su mock) y el Motor de Reglas quedó como catálogo de solo lectura (sin toggle, peso ni parámetros).
+No toqué backend ni el barrido.
+
+Ojo con tu terreno: el permiso **`oms.simulador`** (`sql/15_matriz_permisos_roles.sql`, `backend/data/src/table_modules.py`)
+**sigue en uso**: el front lo usa como marca del rol Developer (`can('oms.simulador','view')` habilita la pestaña
+"Logs OMS" de Auditoría). Si algún día lo renombrás o lo borrás, avisame para cambiar el front a la vez. No necesito
+nada más de tu lado.

@@ -520,8 +520,12 @@ urgencia), sin alterar la prioridad a un número arbitrario.
 
 ### FR5 — Motor de Reglas (catálogo informativo, solo lectura)
 
-> **Estado:** Implementado (con nota) *(las reglas corren en código; la vista Motor
-> de Reglas es un catálogo de solo lectura y la configurabilidad quedó descartada)*
+> **Estado:** Implementado *(las reglas corren en código; la vista Motor de Reglas
+> quedó implementada en el frontend como catálogo de solo lectura —nombre,
+> descripción, scope y estado informativo "Implementada / No implementada"— el
+> 2026-11-05. El toggle activar/desactivar, la edición de peso/score y el modal de
+> parámetros se retiraron de la UI. La configurabilidad quedó descartada, no
+> diferida)*
 
 Como **Administrador de Módulo** (o cualquier rol con acceso), quiero **ver** el
 catálogo de las reglas implementadas (solo lectura), para conocer qué reglas
@@ -548,7 +552,9 @@ pesos o parámetros desde la UI (el set de reglas es fijo en código).
   → GLOBAL): un selector de scope (país/almacén/cliente) cambia qué reglas y
   parámetros se **muestran/aplican** (no se editan). La especificidad por compañía
   se logra con una regla de scope=CUSTOMER (Cofersa/EPA son clientes), no con una
-  Lambda por compañía (C3-SUPERSEDE).
+  Lambda por compañía (C3-SUPERSEDE). *(Implementación 2026-11-05: la vista
+  muestra el scope de cada regla como columna; el selector de scope/compañía dentro
+  de la vista es `[siguiente]` — hoy el catálogo lista la primera compañía.)*
 - **FR5.4** La lógica de cada regla y, cuando aplica, su **prompt de IA**, viven
   en el código (Lambda Python); **no** son editables desde la UI.
 
@@ -713,12 +719,15 @@ Como sistema, el OMS deja el pedido "alistado" con **dos escrituras** (D7/D8).
 
 ### FR9 — Simulador (configurador de simulaciones)
 
-> **Estado:** Fuera de alcance
+> **Estado:** Fuera de alcance — **vista retirada del frontend** (2026-11-05)
 
-> **Nota (v4.4, 2026-11-05)**: Fuera de alcance; además, pendiente **quitar la
-> vista Simulador del frontend** (sin reglas configurables no tiene sentido, al
-> descartarse el catálogo configurable de FR5). Pendiente de front — no se
-> implementa aquí.
+> **Nota (v4.4, 2026-11-05)**: Fuera de alcance (DECIDED 2026-10-19) y, al
+> descartarse el catálogo configurable de FR5, la vista Simulador **se retiró del
+> frontend**: se eliminaron la ruta `/oms/simulador`, su entrada en la navegación,
+> la página, su lógica de simulación y su persistencia mock. El retiro no cambia el
+> flujo: el Simulador era solo vista previa y el barrido de priorización no se
+> tocó. FR9.0–FR9.6 quedan **solo como registro histórico** del diseño superado; no
+> son requerimientos vigentes.
 
 Como **Developer**, quiero configurar, previsualizar y aplicar simulaciones de
 priorización, manual o automáticamente.
@@ -834,7 +843,10 @@ priorización, manual o automáticamente.
 - **FR14.4** La vista **Simulador** (FR9) está restringida al rol **`Developer`**:
   solo ese rol la ve en la navegación y puede acceder a su ruta; para cualquier
   otro rol la vista no es visible y su acceso se deniega fail-closed por la matriz
-  de permisos. (Cambio del 2026-10-01.)
+  de permisos. (Cambio del 2026-10-01.) **Nota (2026-11-05)**: la vista se retiró
+  del frontend (FR9); el permiso `oms.simulador` sigue en la matriz (`sql/15`) y el
+  frontend lo usa como marca del rol `Developer` (p. ej. la pestaña "Logs OMS" de
+  Auditoría).
 
 ## Requerimientos no funcionales
 
@@ -914,6 +926,11 @@ priorización, manual o automáticamente.
 - Picking, guía de carga, ruteo de entrega (WMS/TMS); facturación/despacho (TMS).
 - Regla 5 (inventario/capacidad) y priorización por línea — futuro.
 - Aprobación humana de la propuesta de priorización — no existe.
+- **Simulador (FR9) — FUERA DE ALCANCE (DECIDED 2026-10-19); vista retirada del
+  frontend el 2026-11-05.** Épica E6 (US19–US24/US24b) out-of-scope.
+- **Configurabilidad del Motor de Reglas (ex-FR5.2) — DESCARTADA (DECIDED
+  2026-11-05).** Sin toggle, peso ni parámetros editables desde la UI; US17/US18
+  descartadas.
 
 ## Open Questions
 
