@@ -7,10 +7,11 @@ número fijo de paradas. Idempotente: re-planificar un día borra lo no liberado
 reconstruye con la cola vigente (replan); lo ya liberado a eFlow no se toca.
 """
 
-import math
 import uuid
 
+import recolectas
 import viajes_liberados
+from ruta_geo import lead_time_dias, ordenar_por_ruta
 from tms_common import pg
 
 # Márgenes de seguridad (ver capacity-fit.ts / Decreto 31363-MOPT): el peso es
@@ -20,44 +21,12 @@ MARGEN_VOLUMEN = 0.95
 # Tope de pedidos por viaje: ~16/camión (reunión 2026-10-13 Ana/Eduardo: "~16
 # pedidos y ~80% capacidad; al superar → nuevo viaje"). Antes 25 → salían de 24.
 MAX_PARADAS = 16
-# Depósito de origen CR + alcance de una jornada (línea recta): knob del T-n.
-DEPOT_CR = (9.9281, -84.0907)
-KM_POR_DIA = 70
-
-
-def _haversine_km(a: tuple[float, float], b: tuple[float, float]) -> float:
-    r = 6371.0
-    dlat, dlng = math.radians(b[0] - a[0]), math.radians(b[1] - a[1])
-    h = math.sin(dlat / 2) ** 2 + math.cos(math.radians(a[0])) * math.cos(math.radians(b[0])) * math.sin(dlng / 2) ** 2
-    return 2 * r * math.asin(math.sqrt(h))
-
-
-def _lead_time_dias(pedidos: list[dict]) -> int:
-    """T-n por distancia de la parada más lejana al depósito; sin coords → piso de 1 día (nunca None)."""
-    kms = [_haversine_km(DEPOT_CR, (o["lat"], o["lng"])) for o in pedidos if o["lat"] is not None and o["lng"] is not None]
-    return 1 + int(max(kms) // KM_POR_DIA) if kms else 1  # ponytail: piso sin coords; upgrade = geocodificar en el ingest
-
-
-def _ordenar_por_ruta(pedidos: list[dict]) -> list[dict]:
-    """Ordena las paradas por vecino más cercano desde el depósito, para que el
-    nº de parada 1→N siga el camino real (y los pedidos del mismo punto queden
-    consecutivos). Los pedidos sin coordenadas van al final."""
-    con = [o for o in pedidos if o["lat"] is not None and o["lng"] is not None]
-    sin = [o for o in pedidos if o["lat"] is None or o["lng"] is None]
-    orden: list[dict] = []
-    actual = DEPOT_CR
-    while con:
-        nxt = min(con, key=lambda o: _haversine_km(actual, (o["lat"], o["lng"])))
-        orden.append(nxt)
-        con.remove(nxt)
-        actual = (nxt["lat"], nxt["lng"])
-    return orden + sin
 
 _ORDERS = """
 SELECT o.id, o.order_number, o.delivery_city, o.delivery_zone,
        o.delivery_latitude::float AS lat, o.delivery_longitude::float AS lng,
        o.total_weight::float AS weight, o.total_volume::float AS volume, o.priority,
-       fc.name AS customer_name, fc.customer_type, o.es_cliente_retira,
+       o.final_customer_id, fc.name AS customer_name, fc.customer_type, o.es_cliente_retira,
        o.eflow_id_compania, o.eflow_id_almacen, o.eflow_id_sucursal, o.eflow_id_expedicion
 FROM tbl_orders o
 LEFT JOIN tbl_final_customers fc ON fc.id = o.final_customer_id
@@ -101,13 +70,16 @@ def _empacar(pedidos: list[dict], flota: list[dict], vi: int) -> tuple[list[dict
     return viajes, vi
 
 
-def _agrupar_por_zona(pedidos: list[dict]) -> dict:
+def _clave(o: dict) -> str:
     """Mayoreo (Cofersa) se consolida por zona; una TIENDA (EPA) va en viaje directo,
     camión lleno a una sola tienda, así que su grupo es la tienda (reunión 2026-11-03)."""
+    return o["customer_name"] if o.get("customer_type") == "TIENDA" else (o["delivery_zone"] or "S/R")
+
+
+def _agrupar_por_zona(pedidos: list[dict]) -> dict:
     zonas: dict = {}
     for o in pedidos:
-        clave = o["customer_name"] if o.get("customer_type") == "TIENDA" else (o["delivery_zone"] or "S/R")
-        zonas.setdefault(clave, []).append(o)
+        zonas.setdefault(_clave(o), []).append(o)
     return zonas
 
 
@@ -133,12 +105,12 @@ VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
 def _persistir_viaje(run, plan_id: str, zona: str, seq: int, viaje: dict, run_id: str, numero: str) -> None:
     """Inserta el viaje y sus paradas, y estampa el resultado en orders + eFlow sim."""
     veh = viaje["veh"]  # None = viaje de cliente-retira (sin camión)
-    lead = _lead_time_dias(viaje["pedidos"])
+    lead = lead_time_dias(viaje["pedidos"])
     wmh = int(numero.replace("-", ""))  # NUMEROVIAJEWMH es bigint (nº de viaje sin guion)
     trip_id = run(_INS_TRIP, [plan_id, veh["id"] if veh else None, zona, seq, viaje["peso"], viaje["volumen"],
                               veh["plate"] if veh else None, veh["cw"] if veh else None,
                               veh["cv"] if veh else None, veh is not None, numero, lead])[0]["id"]
-    for i, o in enumerate(_ordenar_por_ruta(viaje["pedidos"]), start=1):
+    for i, o in enumerate(ordenar_por_ruta(viaje["pedidos"]), start=1):
         run(_INS_STOP, [trip_id, o["id"], i, o["order_number"], o["customer_name"], o["delivery_city"],
                         o["delivery_zone"], o["lat"], o["lng"], o["weight"], o["volume"], o["es_cliente_retira"]])
         run(_UPD_ORDER, [numero, lead, lead, run_id, o["id"]])  # denormaliza al pedido para el OMS (lead dos veces: col + intervalo)
@@ -160,7 +132,8 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
     Los pedidos 'cliente retira' NO se rutean: van a una zona RETIRA sin camión."""
     pedidos = pg.query(_ORDERS, [org, warehouse, customer, fecha])
     if not pedidos:
-        pg.run_in_transaction(lambda run: viajes_liberados.borrar_no_liberado(run, org, warehouse, customer, fecha))
+        pg.run_in_transaction(lambda run: (viajes_liberados.borrar_no_liberado(run, org, warehouse, customer, fecha),
+                                           recolectas.agendar(run, org, warehouse, customer, fecha, _clave)))  # viajes congelados
         return None
     retira = [o for o in pedidos if o["es_cliente_retira"]]
     normales = [o for o in pedidos if not o["es_cliente_retira"]]
@@ -188,6 +161,7 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
             for viaje in viajes:
                 seq += 1
                 _persistir_viaje(run, plan_id, zona, seq, viaje, run_id, f"{prefijo}-{seq:03d}")
+        recolectas.agendar(run, org, warehouse, customer, fecha, _clave)  # devoluciones → paradas collection
         if retira:  # grupo de cliente-retira: zona RETIRA, sin camión
             seq += 1
             _persistir_viaje(run, plan_id, ZONA_RETIRA, seq, _viaje_retira(retira), run_id, f"{prefijo}-{seq:03d}")

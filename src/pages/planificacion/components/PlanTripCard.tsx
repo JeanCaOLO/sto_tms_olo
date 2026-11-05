@@ -4,11 +4,11 @@ import CapacityBar from './CapacityBar';
 import TripMapa, { type ParadaMapa } from './TripMapa';
 import ParadaModal from './ParadaModal';
 import PuntoModal from './PuntoModal';
+import StopBadges from './StopBadges';
 import ViajePedidosModal from './ViajePedidosModal';
 import { coloresPorPunto } from '../colores-parada';
 import { cancelarViaje, completarViaje, reabrirViaje } from '../planes-api';
 import type { PlanStop, PlanTrip, TripStatus } from '../planes-types';
-
 interface Props {
   trip: PlanTrip;
   indice: number;
@@ -230,11 +230,7 @@ export default function PlanTripCard({
                 {nombre}
                 {s.delivery_city && <span className="text-slate-400"> — {s.delivery_city}</span>}
               </span>
-              {s.es_cliente_retira && (
-                <span className="shrink-0 inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800" title={t('planning.clientePickup')}>
-                  <i className="ri-store-2-line"></i>{t('planning.clientePickupShort')}
-                </span>
-              )}
+              <StopBadges stop={s} />
               {editable && destinos.length > 0 && (
                 <select
                   aria-label={`Mover ${nombre}`}
