@@ -31,6 +31,7 @@ Lo que falta de esto está en **[pendientes/](./pendientes/README.md)** (pendien
 | [contrato-api-v2.md](./contrato-api-v2.md) | Endpoints, campos, reglas de alertas y KPIs. Fuente única para backend, mock y app. |
 | [modo-mock.md](./modo-mock.md) | Cómo correr la pantalla sin túnel, escenarios de prueba y cómo agregar otros. |
 | [pendientes-tunel.md](./pendientes-tunel.md) | Lo que falta y requiere túnel/AWS, con el cómo paso a paso. |
+| [mobile/](./mobile/README.md) | App del chofer y su backend `/api/mobile/v1`: arquitectura, contrato, GPS, offline, paradas, evidencias, presencia, datos, despliegue, pruebas. |
 | [pendientes/](./pendientes/README.md) | Pendiente por implementar: correo de aviso, migraciones, vínculo del cliente, mock, app del chofer y mejoras posibles. |
 | [alternativas-mapas.md](./alternativas-mapas.md) | 14 proveedores pagos de mapas/rutas/geocoding, costo mensual estimado y pendientes para decidir. |
 | [decisiones.md](./decisiones.md) | Decisiones tomadas: POST + polling (no WebSocket), agrupación de camiones, el cierre del viaje lo hace la app del chofer con la última parada o Planificación (Tracking solo lo lee), mapas como están. |
