@@ -170,7 +170,10 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
         raise HttpError(409, "No hay flota propia activa para planificar")
 
     run_id = str(uuid.uuid4())
-    fecha_compact = fecha.replace("-", "")
+    # Nº de viaje = fecha-compañía-secuencia: cada compañía numera su plan desde 001, y sin la
+    # compañía Cofersa y EPA repetían el mismo nº el mismo día (el OMS libera por nº de viaje).
+    cia = pg.query("SELECT external_code FROM tbl_customers WHERE id = %s", [customer])[0]["external_code"]
+    prefijo = f"{fecha.replace('-', '')}-{cia or '0000'}"  # ponytail: '0000' si la compañía no tiene código eFlow (VE aún no)
 
     def trabajo(run):
         viajes_liberados.borrar_no_liberado(run, org, warehouse, customer, fecha)
@@ -184,10 +187,10 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
             viajes, vi = _empacar(ped_zona, flota, vi)
             for viaje in viajes:
                 seq += 1
-                _persistir_viaje(run, plan_id, zona, seq, viaje, run_id, f"{fecha_compact}-{seq:03d}")
+                _persistir_viaje(run, plan_id, zona, seq, viaje, run_id, f"{prefijo}-{seq:03d}")
         if retira:  # grupo de cliente-retira: zona RETIRA, sin camión
             seq += 1
-            _persistir_viaje(run, plan_id, ZONA_RETIRA, seq, _viaje_retira(retira), run_id, f"{fecha_compact}-{seq:03d}")
+            _persistir_viaje(run, plan_id, ZONA_RETIRA, seq, _viaje_retira(retira), run_id, f"{prefijo}-{seq:03d}")
         return plan_id
 
     return str(pg.run_in_transaction(trabajo))
