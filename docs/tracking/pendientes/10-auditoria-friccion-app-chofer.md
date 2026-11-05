@@ -8,6 +8,7 @@ La app del chofer debe ser simple: pocos toques, una mano, sin teclear de más. 
 ## Hecho (2026-11-05)
 | # | Hallazgo | Qué se hizo |
 |---|---|---|
+| 1 | Sin auto-arribo | Con viaje en tránsito la pantalla principal lee la ubicación cada 20 s; a ≤ 150 m (`GEOFENCE_M`) de una parada pendiente muestra «Llegaste a X» con «Abrir parada» y vibra una vez (`lib/arrival.ts`, `useHere(pollMs)`). Se limita a la app abierta: ver «Falta del auto-arribo». |
 | 3 | Entregar son 3 pasos con «Siguiente» a mano | Tras guardar la foto se abre la firma solo, y al volver de la firma se pasa al paso 3 (`parada/[id].tsx`). «Siguiente» sigue ahí por si ya había evidencia. |
 | 4 | El receptor se teclea siempre | Se propone el nombre de la parada; se puede editar (`parada/[id].tsx`). |
 | 5 | Motivo de falla: chip y además campo de texto | El campo solo sale con el chip «Otro». |
@@ -18,12 +19,17 @@ La app del chofer debe ser simple: pocos toques, una mano, sin teclear de más. 
 | 14 | Permisos con pantalla extra al iniciar viaje | Resuelto en [11](./11-permisos-primer-uso-verificar.md). |
 | 13 (parcial) | Cámara negada sin camino a Ajustes | Abre Ajustes directo si Android ya no muestra el diálogo (`lib/capture.ts`). |
 
+## Falta del auto-arribo (pendiente por verificar / implementar)
+- **Verificar en teléfono**: que a ≤ 150 m salga el aviso, vibre una sola vez y «Ahora no» lo quite. La lectura usa `getLastKnownPositionAsync` (hasta 2 min de antigüedad), así que el aviso puede tardar ese margen si no hay puntos nuevos.
+- **Con la pantalla apagada o la app en segundo plano no avisa**: hoy solo corre con la app abierta. Para avisar fuera de ella hace falta una notificación local desde la tarea GPS (`gps/task.ts`, `handleLocations`) con `expo-notifications`, que **no está instalado** (módulo nativo, APK nuevo).
+- **No abre la parada sola**: solo avisa. Abrirla automáticamente puede sorprender al chofer; decidir con operación.
+- **Mismo radio para todos**: 150 m fijos, sin configurar por punto (ver umbrales configurables en [08](./08-mejoras-posibles.md)).
+
 ## Pendiente por implementar
 Ordenado por impacto. Esfuerzo: S pequeño, M medio, L grande.
 
 | # | Hallazgo | Dónde | Propuesta | Esf. |
 |---|---|---|---|---|
-| 1 | **Sin auto-arribo**: el chofer abre la lista, toca la parada y «Entregar» aunque ya esté a menos de 150 m | `app/index.tsx:226`, `parada/[id].tsx` | Con el GPS a menos de 150 m de la próxima pendiente, aviso «Llegaste a X» que abre la parada. | M |
 | 7 | **Sin ubicación no se entrega, ni con motivo** (bloqueo duro dentro de un almacén) | `lib/geo.ts:19`, `parada/[id].tsx:95` | Permitir entregar sin coordenadas y marcar «sin ubicación» para revisión. **Requiere decisión de negocio.** | M |
 | 20 | **Actualización manual** del APK por GitHub Actions | `DEPLOY.md` §2 | OTA con `expo-updates` (EAS Update) o pantalla «Hay nueva versión» con versión mínima del servidor. | L |
 | 2 | «Iniciar viaje» se toca a mano | `app/index.tsx:132-165` | Botón fijo y grande al abrir si hay un solo plan; o iniciar al primer movimiento. | S |
