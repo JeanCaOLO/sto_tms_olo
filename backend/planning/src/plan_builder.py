@@ -57,7 +57,7 @@ _ORDERS = """
 SELECT o.id, o.order_number, o.delivery_city, o.delivery_zone,
        o.delivery_latitude::float AS lat, o.delivery_longitude::float AS lng,
        o.total_weight::float AS weight, o.total_volume::float AS volume, o.priority,
-       fc.name AS customer_name, o.es_cliente_retira,
+       fc.name AS customer_name, fc.customer_type, o.es_cliente_retira,
        o.eflow_id_compania, o.eflow_id_almacen, o.eflow_id_sucursal, o.eflow_id_expedicion
 FROM tbl_orders o
 LEFT JOIN tbl_final_customers fc ON fc.id = o.final_customer_id
@@ -102,9 +102,12 @@ def _empacar(pedidos: list[dict], flota: list[dict], vi: int) -> tuple[list[dict
 
 
 def _agrupar_por_zona(pedidos: list[dict]) -> dict:
+    """Mayoreo (Cofersa) se consolida por zona; una TIENDA (EPA) va en viaje directo,
+    camión lleno a una sola tienda, así que su grupo es la tienda (reunión 2026-11-03)."""
     zonas: dict = {}
     for o in pedidos:
-        zonas.setdefault(o["delivery_zone"] or "S/R", []).append(o)
+        clave = o["customer_name"] if o.get("customer_type") == "TIENDA" else (o["delivery_zone"] or "S/R")
+        zonas.setdefault(clave, []).append(o)
     return zonas
 
 
