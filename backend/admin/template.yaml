@@ -16,6 +16,10 @@ Parameters:
     Type: AWS::SSM::Parameter::Value<List<String>>
   SecurityGroupId:
     Type: AWS::SSM::Parameter::Value<String>
+  MobileEvidenceBucket:
+    Type: String
+    Default: ""
+    Description: Bucket de evidencias de la app del chofer (output EvidenceBucket del stack mobile). Con él, Devoluciones muestra la foto de cada devolución; el rol Lambda necesita s3:GetObject sobre pedidos/* (common-services).
 
 Conditions:
   IsProduction: !Equals [!Ref Environment, prod]
@@ -51,6 +55,7 @@ Resources:
       Environment:
         Variables:
           ENVIRONMENT: !Ref Environment
+          MOBILE_EVIDENCE_BUCKET: !Ref MobileEvidenceBucket
           TMS_DB_SECRET_NAME:
             Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName
 

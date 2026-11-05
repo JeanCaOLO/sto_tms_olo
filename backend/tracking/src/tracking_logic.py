@@ -20,6 +20,8 @@ _COMPLETED = {"completada", "completed"}
 _CANCELLED = {"anulado", "anulada", "cancelled", "cancelada"}
 
 DRIVER_ROLE = "Chofer"   # rol de la app móvil: solo opera SUS viajes (drivers.app_user_id)
+CLIENT_ROLE = "Cliente"  # rol de la vista del cliente: solo ve SU entrega (tracking_client_access)
+CLIENT_RECENT_HOURS = 6  # una entrega recién cerrada sigue visible para el cliente unas horas
 GEOFENCE_M = 150         # "Entregado" sin motivo solo a ≤ 150 m del punto de entrega
 
 ACTIVE_STATUS_SQL_VALUES = sorted(_ACTIVE)

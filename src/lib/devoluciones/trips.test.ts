@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { escapeHtml, formDocumentHtml } from './formDocument';
 import {
   defaultReceiveQuantity, draftFromDetail, formatRouteDate, groupBySection, isOpen, isReadyToSettle, isSelectable, newFormView,
-  parseQuantity, pruneSelection, reasonsOf, receivedQuantity, statusLabel, statusVariant, toFormPayload, toggleGroup,
+  parseQuantity, pruneSelection, reasonsOf, receivedQuantity, returnTypeLabel, statusLabel, statusVariant, toFormPayload, toggleGroup,
   toggleSelection, tripProgress,
 } from './trips';
 import type { FormSection, FormView, ReturnLine, ReturnTrip, TripDetail } from './types';
@@ -185,5 +185,14 @@ describe('selección de devoluciones para un formulario', () => {
     expect(view.returns.map((l) => l.id)).toEqual(['b']);
     expect(view.sections.map((s) => s.dispatch_guide_id)).toEqual(['g2']);
     expect(view.defaults.transport).toBe('Transportes - Luis');
+  });
+});
+
+describe('returnTypeLabel', () => {
+  it('nombra el origen de la devolución y conserva lo desconocido', () => {
+    expect(returnTypeLabel('contracamion')).toBe('Contracamión');
+    expect(returnTypeLabel('recolecta')).toBe('Recolecta');
+    expect(returnTypeLabel('rara')).toBe('rara');
+    expect(returnTypeLabel(null)).toBe('-');
   });
 });

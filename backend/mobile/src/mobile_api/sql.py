@@ -111,7 +111,8 @@ SELECT g.id, g.route_id, g.guide_number, g.sequence_number, g.status, g.delivery
        o.order_number, o.invoice_number, o.total_items, o.total_weight, o.delivery_address, o.delivery_city,
        COALESCE(o.delivery_latitude, ps.latitude) AS latitude,
        COALESCE(o.delivery_longitude, ps.longitude) AS longitude,
-       cu.name AS customer_name, cu.phone AS customer_phone,
+       COALESCE(dp.name, fc.name) AS customer_name, cu.name AS company_name,
+       COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,
        COALESCE((SELECT array_agg(DISTINCT e.kind) FROM tbl_tracking_evidences e WHERE e.dispatch_guide_id = g.id),
                 ARRAY[]::text[]) AS evidence_kinds,
        g.stop_type
@@ -119,6 +120,8 @@ FROM tbl_dispatch_guides g
 JOIN tbl_routes r ON r.id = g.route_id
 LEFT JOIN tbl_orders o ON o.id = g.order_id
 LEFT JOIN tbl_customers cu ON cu.id = o.customer_id
+LEFT JOIN tbl_final_customers fc ON fc.id = o.final_customer_id
+LEFT JOIN tbl_delivery_points dp ON dp.id = o.delivery_point_id
 LEFT JOIN tbl_plan_stops ps ON ps.trip_id = r.plan_trip_id AND ps.order_id = g.order_id
 WHERE g.route_id = ANY(%s::uuid[])
 ORDER BY g.route_id, g.sequence_number
@@ -142,10 +145,13 @@ MY_PLANNED_STOPS_SQL = """
 SELECT ps.trip_id, ps.stop_order, o.id AS order_id, o.order_number, o.invoice_number, o.total_items, o.total_weight,
        o.delivery_address, o.delivery_city,
        COALESCE(o.delivery_latitude, ps.latitude) AS latitude, COALESCE(o.delivery_longitude, ps.longitude) AS longitude,
-       cu.name AS customer_name, cu.phone AS customer_phone
+       COALESCE(dp.name, fc.name) AS customer_name, cu.name AS company_name,
+       COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone
 FROM tbl_plan_stops ps
 JOIN tbl_orders o ON o.id = ps.order_id
 LEFT JOIN tbl_customers cu ON cu.id = o.customer_id
+LEFT JOIN tbl_final_customers fc ON fc.id = o.final_customer_id
+LEFT JOIN tbl_delivery_points dp ON dp.id = o.delivery_point_id
 WHERE ps.trip_id = ANY(%s::uuid[])
 ORDER BY ps.trip_id, ps.stop_order
 """
@@ -186,8 +192,7 @@ WHERE tracking_last_positions.recorded_at <= EXCLUDED.recorded_at
 
 GUIDE_ROW_SQL = """
 SELECT g.id, g.route_id, g.organization_id, g.order_id, o.order_number, g.delivery_status, g.notes,
-       r.status AS route_status, r.actual_end_time AS route_ended_at,
-       r.driver_id,
+       r.status AS route_status, r.driver_id,
        COALESCE(o.delivery_latitude, ps.latitude) AS stop_lat, COALESCE(o.delivery_longitude, ps.longitude) AS stop_lng,
        COALESCE((SELECT array_agg(DISTINCT e.kind) FROM tbl_tracking_evidences e WHERE e.dispatch_guide_id = g.id),
                 ARRAY[]::text[]) AS evidence_kinds,
@@ -198,6 +203,31 @@ LEFT JOIN tbl_orders o ON o.id = g.order_id
 LEFT JOIN tbl_plan_stops ps ON ps.trip_id = r.plan_trip_id AND ps.order_id = g.order_id
 WHERE g.id = %s
 """
+
+# Paradas de los viajes con su visita (si ya hay): lo que `logic.detect_visits` necesita para marcar llegada y salida.
+VISIT_STOPS_SQL = """
+SELECT g.id, g.route_id, g.delivery_status, g.status, g.actual_arrival_time,
+       COALESCE(o.delivery_latitude, ps.latitude) AS latitude,
+       COALESCE(o.delivery_longitude, ps.longitude) AS longitude,
+       v.arrived_at, v.departed_at
+FROM tbl_dispatch_guides g
+JOIN tbl_routes r ON r.id = g.route_id
+LEFT JOIN tbl_orders o ON o.id = g.order_id
+LEFT JOIN tbl_plan_stops ps ON ps.trip_id = r.plan_trip_id AND ps.order_id = g.order_id
+LEFT JOIN tracking_stop_visits v ON v.guide_id = g.id
+WHERE g.route_id = ANY(%s::uuid[])
+"""
+
+UPSERT_VISIT_SQL = """
+INSERT INTO tracking_stop_visits (organization_id, route_id, guide_id, arrived_at, departed_at, dwell_seconds,
+                                  arrival_distance_m, completed_at)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+ON CONFLICT (guide_id) DO UPDATE SET departed_at = EXCLUDED.departed_at, dwell_seconds = EXCLUDED.dwell_seconds
+"""
+
+DELETE_VISIT_SQL = "DELETE FROM tracking_stop_visits WHERE guide_id = %s"
+
+COMPLETE_VISIT_SQL = "UPDATE tracking_stop_visits SET completed_at = %s WHERE guide_id = %s"
 
 UPDATE_GUIDE_SQL = """
 UPDATE tbl_dispatch_guides
@@ -294,9 +324,23 @@ RETURNING id
 INSERT_RETURN_SQL = """
 INSERT INTO tbl_returns (organization_id, dispatch_guide_id, order_id, return_number, return_type, reason,
                      product_code, product_name, quantity, photo_url, notes)
-VALUES (%s, %s, %s, %s, 'devolucion', %s, %s, %s, %s, %s, %s)
+VALUES (%s, %s, %s, %s, 'contracamion', %s, %s, %s, %s, %s, %s)
 ON CONFLICT (organization_id, return_number) DO NOTHING
 RETURNING id
+"""
+
+# Llave S3 de la foto de la devolución, por el `client_id` con que la app la subió (la devolución sale después en el outbox).
+RETURN_PHOTO_SQL = """
+SELECT storage_key FROM tbl_tracking_evidences
+WHERE dispatch_guide_id = %s AND kind = 'photo_return' AND client_id = %s
+"""
+
+# Artículos del pedido de la parada: lo que el chofer elige al registrar una devolución contracamión.
+ORDER_ITEMS_SQL = """
+SELECT i.line_number, i.product_code, i.product_name, i.quantity
+FROM tbl_order_items i
+WHERE i.order_id = %s
+ORDER BY i.line_number
 """
 
 INSERT_EVIDENCE_SQL = """

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Viaje } from '../types';
 import {
-  ageSeconds, driverLoggedOut, formatAge, formatClock, formatDay, formatDistance, colorVariant, COLOR_HEX, lastSignalAt, legDone, matchesKpi, positioned,
+  ageSeconds, driverLoggedOut, formatAge, formatClock, formatDwell, formatDay, formatDistance, colorVariant, COLOR_HEX, lastSignalAt, legDone, matchesKpi, positioned,
   stopVariant, failedStopsOfActive,
 } from '../tracking-logic';
 
@@ -170,5 +170,15 @@ describe('paradas fallidas de los viajes en curso', () => {
 
   it('sin fallidas es 0, no null', () => {
     expect(failedStopsOfActive([con('active', 0)], { active: 1 })).toBe(0);
+  });
+});
+
+describe('formatDwell', () => {
+  it('escribe la permanencia en segundos, minutos u horas', () => {
+    expect(formatDwell(45)).toBe('45 s');
+    expect(formatDwell(20 * 60)).toBe('20 min');
+    expect(formatDwell(65 * 60)).toBe('1 h 05 min');
+    expect(formatDwell(null)).toBeNull();
+    expect(formatDwell(-1)).toBeNull();
   });
 });

@@ -34,8 +34,10 @@
 
 - **Quién es**: heredero de las funciones que hoy hacen 3–4 personas de la Torre
   de Control.
-- **Objetivo**: monitorear el motor automatizado, ejercer el **override manual**
-  (única intervención humana sobre el cálculo) y decidir/aplicar simulaciones.
+- **Objetivo**: monitorear el motor automatizado, ejercer la **liberación manual**
+  de un pedido (única intervención humana: prioridad `0` + `GENE` + eFlow, v4.3; ya
+  **no** altera la prioridad a un número arbitrario, porque va atada a la fecha de
+  salida) y decidir/aplicar simulaciones.
 - **Contexto**: interviene solo en casos extraordinarios (camión accidentado,
   urgencia); confía progresivamente en la automatización.
 - **Dolor**: hoy prioriza a mano ~400–500 pedidos/día leyendo observaciones.
@@ -78,7 +80,7 @@
 - `aidlc/spaces/default/intents/260826-modulo-oms/inception/requirements-analysis/requirements.md`
   (Actores; FR2, FR4, FR8, FR13).
 - `aidlc/spaces/default/memory/project.md` (`## Decided`: roles, alcance del OMS,
-  override manual, viaje = Planificación).
+  liberación manual (v4.3), viaje = Planificación).
 - `documents/2026-08-26-reunion-oms-roles.md` (Adenda: los 4 roles).
 
 ## Assumptions & Open Questions

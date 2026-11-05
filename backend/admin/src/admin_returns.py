@@ -14,6 +14,7 @@ from tms_common.errors import HttpError
 from tms_common.event import json_body, path_param, query_params
 from tms_common.responses import json_response
 
+import admin_media
 import admin_returns_sql as sql
 
 MODULE = "devoluciones"
@@ -118,7 +119,8 @@ def get_trip(event: dict) -> dict:
     trip = _trip(caller, org, route_id)
     return _ok({
         "trip": trip,
-        "returns": pg.query(sql.RETURNS_SQL, [route_id, org]),
+        "returns": [{**line, "photo_url": admin_media.signed_photo_url(line.get("photo_url"))}
+                    for line in pg.query(sql.RETURNS_SQL, [route_id, org])],
         "sections": pg.query(sql.SECTIONS_SQL, [route_id, org]),
         "forms": pg.query(sql.FORMS_SQL, [route_id, org]),
         "defaults": {"transport": _transport(trip)},

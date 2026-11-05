@@ -16,7 +16,7 @@ como mejora futura con infra; NO es requisito de v1 y no bloquea. El OMS ya NO l
 de EXPEDICIONESCABECERA con TPEXES/TPEXSI='DISP' ni filtra por NUMEROVIAJEWMH:
 ese filtro viejo quedó eliminado del contrato.
 
-El número de viaje es `orders.numero_viaje` (formato 'YYYYMMDD-NNN'), NO
+El número de viaje es `orders.numero_viaje` (formato 'YYYYMMDD-CCCC-NNN', CCCC = compañía eFlow), NO
 wms_trip_number (columna eliminada, ADR-0004 de Planificación).
 
 Modo mock vs live (patrón del backend): OMS_SOURCE=live consulta Aurora real (vía

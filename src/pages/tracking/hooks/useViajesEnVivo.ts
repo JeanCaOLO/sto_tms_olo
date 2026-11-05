@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { getViaje, listChoferes, listViajes, pollIntervalMs, TrackingApiError } from '../api';
+import { getViaje, listChoferes, listMisEntregas, listViajes, pollIntervalMs, TrackingApiError } from '../api';
 import type { ListMode, ViajesPage } from '../types';
 import { usePolling } from './usePolling';
 
@@ -39,4 +39,10 @@ export function useChoferesEnLinea(country: string | null) {
 export function useViajeDetalle(id: string | null) {
   const fetcher = useCallback((signal: AbortSignal) => getViaje(id as string, signal), [id]);
   return usePolling(fetcher, [id], { enabled: id !== null, intervalMs: pollIntervalMs() });
+}
+
+/** Entregas del cliente (rol Cliente), refrescadas con el mismo ritmo que la lista del monitor. */
+export function useMisEntregas() {
+  const fetcher = useCallback((signal: AbortSignal) => listMisEntregas(signal), []);
+  return usePolling(fetcher, [], { intervalMs: pollIntervalMs() });
 }

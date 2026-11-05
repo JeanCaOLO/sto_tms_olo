@@ -29,6 +29,7 @@ PRIVATE = {
     f"POST {PREFIX}/presencia/heartbeat": presence.heartbeat,
     f"POST {PREFIX}/paradas/{{id}}/transicion": stops.transition_stop,
     f"POST {PREFIX}/paradas/{{id}}/novedades": stops.add_incident,
+    f"GET {PREFIX}/paradas/{{id}}/articulos": stops.list_items,
     f"POST {PREFIX}/paradas/{{id}}/devoluciones": stops.add_return,
     f"POST {PREFIX}/paradas/{{id}}/evidencias/upload-url": evidence.upload_url,
     f"POST {PREFIX}/paradas/{{id}}/evidencias": evidence.confirm,
@@ -86,6 +87,15 @@ def dispatch(event: dict) -> dict:
 
 
 def handler(event: dict, _context: object = None) -> dict:
+    response = _respond(event)
+    http = (event.get("requestContext") or {}).get("http") or {}
+    # Una línea por petición (sin cuerpo ni token): permite ver en CloudWatch qué llega desde los teléfonos y con qué estado.
+    logger.info("req %s %s -> %s ua=%s", http.get("method"), http.get("path") or event.get("rawPath"),
+                response.get("statusCode"), str(http.get("userAgent", ""))[:40])
+    return response
+
+
+def _respond(event: dict) -> dict:
     try:
         return dispatch(event)
     except HttpError as err:
