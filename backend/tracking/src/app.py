@@ -444,7 +444,8 @@ def _stop_view(g: dict, live: dict, evidences: dict, driver: bool) -> dict:
         "state": logic.guide_state(g["delivery_status"], g["status"]),
         "type": g.get("stop_type") if g.get("stop_type") in ("delivery", "collection") else "delivery",
         "order_number": g["order_number"], "invoice_number": g["invoice_number"],
-        "customer_name": g["customer_name"], "address": g["delivery_address"], "city": g["delivery_city"],
+        "customer_name": g["customer_name"], "company_name": g.get("company_name"),
+        "address": g["delivery_address"], "city": g["delivery_city"],
         "lat": _float(g["latitude"]), "lng": _float(g["longitude"]),
         "arrived_at": _iso(g["actual_arrival_time"]), "recipient_name": g["recipient_name"],
         # Tiempo en el sitio detectado por GPS (radio de 150 m); null mientras no haya llegado o si no hay GPS.
@@ -920,7 +921,8 @@ def my_trips(event: dict) -> dict:
             stops_by_trip.setdefault(str(st["trip_id"]), []).append({
                 "id": str(st["order_id"]), "sequence": st["stop_order"], "state": logic.GUIDE_PENDING,
                 "order_number": st["order_number"], "invoice_number": st["invoice_number"],
-                "customer_name": st["customer_name"], "customer_phone": st["customer_phone"],
+                "customer_name": st["customer_name"], "company_name": st.get("company_name"),
+                "customer_phone": st["customer_phone"],
                 "address": st["delivery_address"], "city": st["delivery_city"],
                 "items": st["total_items"], "weight": _float(st["total_weight"]),
                 "lat": _float(st["latitude"]), "lng": _float(st["longitude"])})

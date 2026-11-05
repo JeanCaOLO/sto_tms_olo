@@ -34,7 +34,7 @@ function ParadaItem({ stop, isNext, timezone }: Props) {
             {stop.customer_name ?? stop.address ?? stop.guide_number}
           </span>
           <span className="block text-xs text-slate-500 truncate">
-            {t('tracking.order', { number: stop.order_number })}
+            {stop.company_name ? t('tracking.orderFrom', { number: stop.order_number, company: stop.company_name }) : t('tracking.order', { number: stop.order_number })}
             {eta ? ` · ${t('tracking.eta', { time: eta })}` : ''}
             {stop.state === 'pending' && stop.distance_m != null ? ` · ${formatDistance(stop.distance_m)}` : ''}
             {arrived ? ` · ${arrived}` : ''}

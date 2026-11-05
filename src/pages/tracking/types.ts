@@ -99,7 +99,10 @@ export interface Stop {
   type?: StopType;
   order_number: string;
   invoice_number: string | null;
+  /** Punto de entrega (o cliente destino): lo que se muestra como nombre de la parada. */
   customer_name: string | null;
+  /** Empresa dueña del pedido (EPA, Cofersa…): va como nota, no como nombre. Opcional en respuestas anteriores. */
+  company_name?: string | null;
   address: string | null;
   city: string | null;
   lat: number | null;

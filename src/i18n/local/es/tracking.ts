@@ -68,6 +68,7 @@ export default {
   'tracking.stopFailed': 'Fallido',
   'tracking.orders': 'Pedidos del viaje',
   'tracking.order': 'Pedido {{number}}',
+  'tracking.orderFrom': 'Pedido {{number}} de {{company}}',
   'tracking.invoice': 'Factura {{number}}',
   'tracking.recipient': 'Recibió: {{name}}',
   'tracking.onSite': 'En sitio: {{arrived}} – {{departed}} ({{duration}})',

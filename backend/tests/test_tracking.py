@@ -1241,7 +1241,7 @@ def test_evidence_from_the_driver_app_is_signed_in_its_own_bucket(tracking, monk
 def test_stop_name_comes_from_delivery_point_not_from_the_company():
     import tracking_sql
     for sql in (tracking_sql.GUIDES_SQL, tracking_sql.MY_PLANNED_STOPS_SQL):
-        assert "COALESCE(dp.name, fc.name, cu.name) AS customer_name" in sql
+        assert "COALESCE(dp.name, fc.name) AS customer_name" in sql and "cu.name AS company_name" in sql
         assert "JOIN final_customers fc ON fc.id = o.final_customer_id" in sql
         assert "JOIN delivery_points dp ON dp.id = o.delivery_point_id" in sql
 

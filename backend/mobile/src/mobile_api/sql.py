@@ -111,7 +111,7 @@ SELECT g.id, g.route_id, g.guide_number, g.sequence_number, g.status, g.delivery
        o.order_number, o.invoice_number, o.total_items, o.total_weight, o.delivery_address, o.delivery_city,
        COALESCE(o.delivery_latitude, ps.latitude) AS latitude,
        COALESCE(o.delivery_longitude, ps.longitude) AS longitude,
-       COALESCE(dp.name, fc.name, cu.name) AS customer_name,
+       COALESCE(dp.name, fc.name) AS customer_name, cu.name AS company_name,
        COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,
        COALESCE((SELECT array_agg(DISTINCT e.kind) FROM tracking_evidences e WHERE e.dispatch_guide_id = g.id),
                 ARRAY[]::text[]) AS evidence_kinds,
@@ -145,7 +145,7 @@ MY_PLANNED_STOPS_SQL = """
 SELECT ps.trip_id, ps.stop_order, o.id AS order_id, o.order_number, o.invoice_number, o.total_items, o.total_weight,
        o.delivery_address, o.delivery_city,
        COALESCE(o.delivery_latitude, ps.latitude) AS latitude, COALESCE(o.delivery_longitude, ps.longitude) AS longitude,
-       COALESCE(dp.name, fc.name, cu.name) AS customer_name,
+       COALESCE(dp.name, fc.name) AS customer_name, cu.name AS company_name,
        COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone
 FROM plan_stops ps
 JOIN orders o ON o.id = ps.order_id
