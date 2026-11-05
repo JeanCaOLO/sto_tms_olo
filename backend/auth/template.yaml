@@ -16,6 +16,13 @@ Parameters:
     Type: AWS::SSM::Parameter::Value<List<String>>
   SecurityGroupId:
     Type: AWS::SSM::Parameter::Value<String>
+  GoogleClientId:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: Parámetro SSM con el ID del cliente OAuth "TMS login" de Google (uno por ambiente). El secreto del cliente no se usa.
+  AllowedDomains:
+    Type: String
+    Default: ologistics.com,intelix.biz
+    Description: Dominios de correo que pueden entrar con Google (separados por coma).
 
 Conditions:
   IsProduction: !Equals [!Ref Environment, prod]
@@ -76,7 +83,7 @@ Resources:
         - ApiId:
             Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
 
-  # Única ruta pública del API de Aurora.
+  # Ruta pública del API de Aurora (junto con POST /api/auth/google, más abajo).
   AuthLoginRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
@@ -118,6 +125,89 @@ Resources:
       AuthorizerId:
         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
       Target: !Sub integrations/${AuthApiIntegration}
+
+  # ── Entrar con Google ──────────────────────────────────────────────────────────────────────
+  # FUERA de la VPC: valida el ID token contra Google (la VPC de Aurora no tiene NAT) y luego
+  # invoca a AuthApiFunction, que busca o crea el usuario y firma la sesión (google/google_login.py).
+  GoogleLoginRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: invoke-auth
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt AuthApiFunction.Arn
+      Tags:
+        - { Key: Project, Value: TMS }
+
+  GoogleLoginLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-google-login
+      RetentionInDays: !If [IsProduction, 30, 7]
+
+  GoogleLoginFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-google-login
+      Description: TMS - AUTH GOOGLE | Valida el ID token de Google y pide la sesión a auth-api (fuera de la VPC)
+      CodeUri: google/
+      Handler: google_login.handler
+      Runtime: python3.13
+      Architectures: [x86_64]
+      Timeout: 15
+      MemorySize: 256
+      Role: !GetAtt GoogleLoginRole.Arn
+      LoggingConfig:
+        LogFormat: JSON
+        LogGroup: !Ref GoogleLoginLogGroup
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+          AUTH_FUNCTION: !Ref AuthApiFunction
+          GOOGLE_CLIENT_ID: !Ref GoogleClientId
+          ALLOWED_DOMAINS: !Ref AllowedDomains
+
+  GoogleLoginIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt GoogleLoginFunction.Arn
+      PayloadFormatVersion: "2.0"
+
+  GoogleLoginPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref GoogleLoginFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub
+        - arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/*/*
+        - ApiId:
+            Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+
+  # Pública como /login: quien llama todavía no tiene sesión del TMS.
+  AuthGoogleRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/auth/google
+      AuthorizationType: NONE
+      Target: !Sub integrations/${GoogleLoginIntegration}
 
 Outputs:
   AuthApiFunctionArn:

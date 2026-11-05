@@ -13,6 +13,7 @@ LAYER = BACKEND / "common-services" / "layers" / "tms_common"
 STACK_SOURCES = {
     "authorizer": BACKEND / "common-services" / "src" / "authorizer",
     "auth": BACKEND / "auth" / "src",
+    "auth-google": BACKEND / "auth" / "google",
     "data": BACKEND / "data" / "src",
     "context": BACKEND / "context" / "src",
     "eflow": BACKEND / "eflow" / "src",
