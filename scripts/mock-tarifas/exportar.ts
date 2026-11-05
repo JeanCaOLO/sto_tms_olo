@@ -3,6 +3,7 @@
 
 import type { Row } from '../../src/lib/tarifas/data';
 import type { TarifasDatabase } from '../../src/lib/tarifas/data/memory/store';
+import { construirFlujo } from './flujo';
 
 const ORG = '@ORG';
 const PREFIX = 'MOCK_';
@@ -21,6 +22,8 @@ export function exportar(
   const out: Table[] = [];
   const add = (table: string, rows: Row[]) => out.push({ table, rows });
   const created = iso(now - 40 * 86_400_000);
+  // Capa de Tracking y Devoluciones sobre los mismos viajes (ver flujo.ts).
+  const flujo = construirFlujo(final, { uuidOf, now });
 
   const countryOf = new Map(final.countries.map((c) => [String(c.id), c]));
   const codeOf = (countryId: string) => String(countryOf.get(countryId)?.code ?? '');
@@ -59,11 +62,11 @@ export function exportar(
   })));
   add('tbl_final_customers', custRows.map((c) => ({
     id: uuidOf(`fc:${c.country}:${c.id}`), customer_id: customerId(c.country, c.id), external_code: `MOCK-${c.code}`, name: `${c.name} (cliente final MOCK)`,
-    status: 'active', customer_type: 'TIENDA', created_at: created, updated_at: created,
+    status: 'active', customer_type: 'TIENDA', phone: flujo.phone(`${c.country}:${c.id}`, c.country), created_at: created, updated_at: created,
   })));
   add('tbl_stores', final.countries.map((c) => ({
     id: originStore(String(c.id)), organization_id: ORG, country_id: c.id, warehouse_id: warehouse(String(c.id)), name: `Bodega Central MOCK ${c.code}`,
-    code: `MOCK-CD-${c.code}`, address: 'Zona industrial (dato de demostración)', city: c.code === 'DCR' ? 'San José' : 'Caracas', status: 'active',
+    code: `MOCK-CD-${c.code}`, address: 'Zona industrial (dato de demostración)', ...flujo.storeGeo(String(c.id)), status: 'active',
     store_type: 'warehouse', is_origin: true, created_at: created, updated_at: created,
   })));
   add('tbl_zones', final.zones.map((z) => ({
@@ -78,9 +81,11 @@ export function exportar(
     contract_expiry: c.is_flota_propia ? null : (i === 2 ? '2026-08-31' : '2027-12-31'),
     contact_name: 'Contacto MOCK', created_at: created, updated_at: created,
   })));
+  // Usuarios de prueba (chofer y Devoluciones): van antes de los conductores y devoluciones porque estos los referencian.
+  for (const t of flujo.tablasUsuarios) add(t.table, t.rows);
   add('tbl_drivers', final.drivers.map((d, i) => ({
     id: d.id, organization_id: ORG, carrier_id: d.carrier_id, code: `MOCK-DRV-${String(i + 1).padStart(3, '0')}`, full_name: d.full_name, license_number: d.license_number ?? 'B1',
-    phone: d.phone ?? '+000 0000-0000', document: d.document ?? null, status: 'active', created_at: created, updated_at: created,
+    phone: d.phone ?? '+000 0000-0000', document: d.document ?? null, status: 'active', app_user_id: flujo.driverUser.get(String(d.id)) ?? null, created_at: created, updated_at: created,
   })));
   add('tbl_vehicles', final.vehicles.map((v) => ({
     id: v.id, organization_id: ORG, carrier_id: v.carrier_id, plate: `MOCK-${v.plate}`, vehicle_type: v.vehicle_type, capacity_weight: v.capacity_weight,
@@ -99,8 +104,9 @@ export function exportar(
     id: t.id, organization_id: ORG, store_id: originStore(String(t.country_id)), driver_id: t.driver_id ?? null, vehicle_id: t.vehicle_id ?? null,
     carrier_id: t.carrier_id ?? null, route_number: t.route_number, route_date: t.route_date,
     actual_start_time: t.actual_start_time ?? null, actual_end_time: t.actual_end_time ?? null, total_distance: t.total_distance, total_stops: t.total_stops,
-    completed_stops: t.completed_stops, total_weight: t.total_weight, total_volume: t.total_volume, status: ESTADO_VIAJE[String(t.status)] ?? t.status,
+    completed_stops: t.completed_stops, total_weight: t.total_weight, total_volume: t.total_volume, status: flujo.routeStatus(t) ?? ESTADO_VIAJE[String(t.status)] ?? t.status,
     notes: 'DATO MOCK (demostración del módulo de tarifas).', route_type_id: t.dest_zone_id ?? null, created_at: created, updated_at: created,
+    ...flujo.routeExtra(String(t.id)),
   })));
   add('tbl_orders', final.tripOrders.map((o) => {
     const country = tripCountry.get(String(o.route_id))!;
@@ -111,20 +117,18 @@ export function exportar(
       status: String(o.delivery_status) === 'delivered' ? 'delivered' : 'pending', warehouse_id: warehouse(country),
       branch_id: uuidOf(`branch:${country}:${o.customer_id}`), final_customer_id: uuidOf(`fc:${country}:${o.customer_id}`),
       route_type_id: trip.dest_zone_id ?? null, es_cliente_retira: false, delivery_date_change_count: 0, created_at: created, updated_at: created,
-      notes: 'DATO MOCK',
+      notes: 'DATO MOCK', ...flujo.orderExtra(String(o.order_id)),
     };
   }));
   add('tbl_dispatch_guides', final.tripOrders.map((o) => ({
     id: o.id, organization_id: ORG, route_id: o.route_id, order_id: o.order_id, guide_number: `MOCK-${o.guide_number}`, sequence_number: o.sequence_number,
     status: String(o.delivery_status) === 'delivered' ? 'completed' : 'pending', delivery_status: o.delivery_status, stop_type: 'delivery',
-    recipient_name: o.customer_name, created_at: created, updated_at: created,
+    recipient_name: o.customer_name, created_at: created, updated_at: created, ...flujo.guideExtra(String(o.id)),
   })));
-  add('tbl_returns', final.tripReturns.map((r) => ({
-    id: r.id, organization_id: ORG, dispatch_guide_id: guideByOldId.get(String(r.dispatch_guide_id)) ?? r.dispatch_guide_id, order_id: r.order_id,
-    return_number: r.return_number, return_type: r.return_type, return_date: iso(now - 15 * 86_400_000), reason: r.reason, product_code: r.product_code,
-    product_name: r.product_name, quantity: r.quantity, status: r.status, received_at: r.received_at ?? null, received_quantity: r.received_quantity ?? null,
-    received_condition: r.received_condition ?? null, notes: 'DATO MOCK', created_at: created, updated_at: created,
-  })));
+  add(flujo.tablaArticulos.table, flujo.tablaArticulos.rows);
+  add('tbl_returns', flujo.returnRows.map((r) => ({ ...r, dispatch_guide_id: guideByOldId.get(String(r.dispatch_guide_id)) ?? r.dispatch_guide_id })));
+  // Formularios de devolución y tracking (recorridos, visitas, eventos, presencia).
+  for (const t of flujo.tablasFlujo) add(t.table, t.rows);
 
   // ── Tablas propias del tarifador ──
   const own: [string, string][] = [
@@ -156,11 +160,13 @@ export function exportar(
   for (const t of out) if (t.table.startsWith('tbl_tarifas_')) t.rows = t.rows.map((r) => rename(r) as Row);
 
   // Contexto de la mock en la bitácora y las liquidaciones: nada que cambiar; las fechas ya son las simuladas.
-  const deleteOrder = [...out].reverse().map((t) => ({ table: t.table, ids: t.rows.map((r) => String(r.id)) }));
+  // Solo las tablas con columna `id`: el tracking y la presencia se borran por viaje/conductor (ver cargar.mjs).
+  const deleteOrder = [...out].reverse().filter((t) => t.rows.length > 0 && t.rows.every((r) => r.id !== undefined)).map((t) => ({ table: t.table, ids: t.rows.map((r) => String(r.id)) }));
   const meta = {
-    generado: iso(now), descripcion: 'DATA MOCK del módulo de tarifas (Liquidaciones, Proformas, reglas, tarifarios, costos). Dato de prueba: se borra.',
+    generado: iso(now), descripcion: 'DATA MOCK del tarifador y de su flujo con Devoluciones y Tracking (mismos viajes en los 3 módulos). Dato de prueba: se borra.',
     paises: final.countries.map((c) => ({ id: c.id, code: c.code, name: c.name, currency: c.currency })),
-    nota: 'organization_id vale "@ORG": cargar.mjs lo reemplaza por la organización de la BD.',
+    nota: 'organization_id vale "@ORG": cargar.mjs lo reemplaza por la organización de la BD. "@NOW-<n>m", "@TODAY" y "@ROLE:<rol>" se resuelven al cargar.',
+    usuarios: flujo.resumen,
   };
   const text = `${JSON.stringify({ meta, tables: Object.fromEntries(out.map((t) => [t.table, t.rows])), deleteOrder }, null, 1)}\n`;
   const resumen = out.map((t) => `${t.table}=${t.rows.length}`).join('\n');

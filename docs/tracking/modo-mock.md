@@ -22,7 +22,8 @@ Solo funciona en desarrollo: `MOCK_AUTH_ENABLED` exige `import.meta.env.DEV`, as
 - **Reloj propio**: velocidad 0,5× a 60× y pausa (controles arriba a la derecha). "Hace X" usa ese reloj.
 - **Camiones por calles**: al arrancar pide a OSRM la ruta hasta las paradas pendientes (y rehace por calles el tramo ya recorrido del escenario). Las peticiones van de a una (el OSRM público admite ~1/s). Si OSRM no responde, el camión va en línea recta: la simulación nunca se bloquea.
 - Al llegar a una parada la marca entregada con factura + firma; con la última, el camión se detiene y el viaje sigue activo ("Sin paradas pendientes"): en real lo termina Planificación. En el mock solo aparecen cerrados los escenarios completados del JSON.
-- Refresco cada 3 s (en real, 15 s).
+- Refresco cada 3 s (en real, 10 s).
+- Data mock compartida con Devoluciones y Liquidaciones (usuarios `chofer.mock-1/2@demo.tms.local`) es otra cosa: ver [docs/tarifador/demo-data/MOCK_FLUJO_3_MODULOS.md](../tarifador/demo-data/MOCK_FLUJO_3_MODULOS.md).
 - **Iniciar viaje (pruebas)**: inicia los planes de `planned` del JSON.
 - **Simular cierre de Planificación**: en el panel de un viaje activo, un recuadro "Pruebas (mock)" con *Completar* / *Cancelar* simula que Planificación termina el viaje (`mock/CierrePlanificacion.tsx` → `simPlanClose`). Sirve para ver cómo Tracking muestra un viaje terminado (sale de Activos, Completado/Anulado). En real no existe: se hace en Planificación.
 - Reiniciar (⟲) vuelve al estado inicial. El estado no persiste al recargar.

@@ -1,5 +1,7 @@
 # Data mock del módulo de tarifas (DEMO)
 
+> **Ahora la misma data alimenta Liquidaciones, Devoluciones y Tracking** (mismos viajes, usuarios de prueba, formularios y recorridos): ver [`MOCK_FLUJO_3_MODULOS.md`](MOCK_FLUJO_3_MODULOS.md).
+
 Dato de **prueba/demostración** para mostrar Liquidaciones y Proformas. Se borra después.
 
 - **JSON (fuente única):** `docs/tarifador/demo-data/mock-tarifas.json` (tablas reales de Aurora, `organization_id = "@ORG"`).
@@ -12,6 +14,7 @@ node --env-file=.env.local scripts/mock-tarifas/cargar.mjs --execute          # 
 node --env-file=.env.local scripts/mock-tarifas/cargar.mjs --estado           # qué hay cargado (solo lectura)
 node --env-file=.env.local scripts/mock-tarifas/cargar.mjs --reset            # simulación del borrado
 node --env-file=.env.local scripts/mock-tarifas/cargar.mjs --reset --execute  # borra la mock
+MOCK_USER_PASSWORD=... node --env-file=.env.local scripts/mock-tarifas/cargar.mjs --credenciales --execute  # clave de los usuarios de prueba
 ```
 
 ## Cómo está aislada

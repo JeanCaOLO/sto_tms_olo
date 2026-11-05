@@ -234,13 +234,26 @@ for (const [code, list, base] of [['HERNANDEZ', T.hernandez, 118000], ['LLANOS-V
 }
 
 // Devoluciones del módulo Devoluciones (informativas para el cálculo, pero con alguna SIN RECIBIR el viaje no se liquida).
+// El mismo registro lo ven los 3 módulos: Devoluciones (la recibe), Liquidaciones (la bloquea mientras esté abierta) y
+// Tracking (el chofer la registra en la parada: evento "return").
+const MOTIVOS = [
+  'Producto dañado en tránsito', 'Cliente rechazó la entrega', 'Error en el pedido (producto equivocado)',
+  'Producto próximo a vencer', 'Faltante en la entrega',
+];
+const PRODUCTOS: [string, string][] = [
+  ['7501055', 'Aceite vegetal 1 L'], ['7501100', 'Arroz blanco 1 kg'], ['7502210', 'Detergente líquido 2 L'], ['7503044', 'Galletas surtidas 400 g'], ['7504120', 'Leche entera 1 L'],
+];
 function returnFor(t: Trip, status: string, n: number, extra: Partial<Row> = {}): Row {
-  const guide = work.tripOrders.filter((o) => o.route_id === t.id).sort((a, b) => a.sequence_number - b.sequence_number)[0];
+  const guides = work.tripOrders.filter((o) => o.route_id === t.id).sort((a, b) => a.sequence_number - b.sequence_number);
+  const guide = guides[Number(extra.guideIdx ?? (n - 1)) % guides.length];
+  const [code, name] = PRODUCTOS[(n + Number(guide.sequence_number)) % PRODUCTOS.length];
+  const { guideIdx: _ignored, ...rest } = extra as Row;
+  void _ignored;
   const row: Row = {
     id: uuidOf(`ret:${t.id}:${n}`), route_id: t.id, dispatch_guide_id: guide.id, order_id: guide.order_id,
-    return_number: `MOCK-DEV-${String(t.route_number).replace(/\W/g, '')}-${n}`, return_type: 'partial',
-    reason: 'Mercadería dañada en tránsito', product_code: `PRD-${100 + n}`, product_name: 'Producto de prueba',
-    quantity: n + 1, status, ...extra,
+    return_number: `MOCK-DEV-${String(t.route_number).replace(/\W/g, '')}-${n}`, return_type: 'contracamion',
+    reason: MOTIVOS[(n + Number(guide.sequence_number)) % MOTIVOS.length], product_code: code, product_name: name,
+    quantity: n + 1, status, ...rest,
   };
   return row;
 }
@@ -396,17 +409,35 @@ async function main() {
     for (const o of lineas) o.value = (Number(o.value) * factor).toFixed(2);
   }
 
-  // ── Devoluciones (antes de sembrar la pasada 2) ──
+  // ── Devoluciones (antes de sembrar la pasada 2): los escenarios que recorren los 3 módulos ──
+  const ago = (d: number) => new Date(NOW - d * DAY).toISOString();
+  const RECEPTOR = 'RECEPTOR'; // → el usuario de Devoluciones de la mock (lo resuelve exportar.ts)
   work.tripReturns.push(
-    returnFor(T.olo[5], 'received', 1, { received_at: new Date(NOW - 12 * DAY).toISOString(), received_quantity: 2, received_condition: 'good' }),
-    returnFor(T.transosa[4], 'received', 1, { received_at: new Date(NOW - 9 * DAY).toISOString(), received_quantity: 2, received_condition: 'damaged' }),
+    // C: recibidas, con formulario → "Listo para liquidar" en Devoluciones y por liquidar en Liquidaciones.
+    returnFor(T.olo[5], 'received', 1, { received_at: ago(12), received_by: RECEPTOR, received_quantity: 2, received_condition: 'Bueno' }),
+    returnFor(T.olo[5], 'received', 2, { received_at: ago(12), received_by: RECEPTOR, received_quantity: 1, received_condition: 'Incompleto' }),
+    // D: recibida dañada.
+    returnFor(T.transosa[4], 'received', 1, { received_at: ago(9), received_by: RECEPTOR, received_quantity: 2, received_condition: 'Dañado' }),
+    // E: viajes YA liquidados cuya liquidación declara devoluciones (misma factura que la liquidación).
+    returnFor(T.olo[4], 'received', 1, { received_at: ago(14), received_by: RECEPTOR, received_quantity: 2, received_condition: 'Bueno', guideIdx: 0, invoice_number: 'FAC-88231' }),
+    returnFor(T.transosa[3], 'received', 1, { received_at: ago(13), received_by: RECEPTOR, received_quantity: 2, received_condition: 'Bueno', guideIdx: 0, invoice_number: 'FAC-90017' }),
+    // H: una rechazada (no bloquea ni cuenta como pendiente) y una recibida.
+    returnFor(T.acuna[1], 'rejected', 1, { notes: 'DATO MOCK: Atención al Cliente rechazó la devolución (fuera de plazo).' }),
+    returnFor(T.acuna[1], 'received', 2, { received_at: ago(11), received_by: RECEPTOR, received_quantity: 3, received_condition: 'Bueno' }),
   );
-  // Viajes por liquidar que hoy NO se pueden liquidar por devoluciones sin recibir (la regla del módulo Devoluciones).
+  // F: viajes EN RUTA con una devolución que el chofer registró desde la app (contracamión) y aún no se recibe.
+  for (const t of work.trips.filter((x) => x.status === 'in_progress')) {
+    work.tripReturns.push(returnFor(t, 'pending', 1, { guideIdx: 0, notes: 'DATO MOCK: registrada por el chofer en la parada.' }));
+  }
+  // A/B/G: viajes por liquidar que hoy NO se pueden liquidar por devoluciones sin recibir (la regla del módulo Devoluciones).
   const bloqueados = BLOQUEADOS;
   bloqueados.forEach((t, i) => {
-    work.tripReturns.push(returnFor(t, 'pending', 1), returnFor(t, i === 0 ? 'pending' : 'approved', 2));
-    const guides = work.tripOrders.filter((o) => o.route_id === t.id);
-    t.return_count = 2; void guides;
+    work.tripReturns.push(
+      returnFor(t, 'pending', 1),
+      // G: en el último viaje bloqueado la segunda es una RECOLECTA pedida por Atención al Cliente (parada "collection").
+      returnFor(t, i === 0 ? 'pending' : 'approved', 2, i === bloqueados.length - 1 ? { return_type: 'recolecta' } : {}),
+    );
+    t.return_count = 2;
   });
 
   // ── Pasada 2 (escribe): se vuelve a sembrar con los pedidos ya ajustados ──
