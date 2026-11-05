@@ -134,7 +134,7 @@ const QUEUE_SELECT = `
 // --- Panel del motor: columnas y helpers del embudo ---
 // Columnas mínimas de orders para derivar el embudo sin traer toda la fila.
 const PANEL_SELECT =
-  'priority,oms_score,prioritization_run_id,planning_run_id,oms_processed_at,wms_situation,dispatch_date,lead_time_days,numero_viaje,delivery_date,delivery_date_change_count,closed_at';
+  'priority,oms_score,prioritization_run_id,planning_run_id,oms_processed_at,wms_situation,dispatch_date,lead_time_days,numero_viaje,delivery_date,delivery_date_changes,closed_at';
 // Política del OMS (ADR-013): la ventana de liberación abre dispatch_date − N días.
 const DIAS_PREP_PICKING_DEFECTO = 1;
 // Acciones de negocio que forman el "Historial OMS" del panel (barrido automático
@@ -355,7 +355,7 @@ export const omsApi = {
       //    edición de fecha con aprobación; ver sql/56).
       sinFechaEntrega: rows.filter((r) => r.delivery_date == null).length,
       sinFechaSalida: rows.filter((r) => conPlan(r) && r.dispatch_date == null).length,
-      modificacionesFecha: rows.reduce((acc, r) => acc + (Number(r.delivery_date_change_count) || 0), 0),
+      modificacionesFecha: rows.reduce((acc, r) => acc + (Number(r.delivery_date_changes) || 0), 0),
     };
 
     // "Por liberar pronto": priorizados-no-liberados por fecha de salida del viaje.
