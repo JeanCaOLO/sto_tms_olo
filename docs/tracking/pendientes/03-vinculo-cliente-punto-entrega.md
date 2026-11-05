@@ -8,6 +8,7 @@
 - `user_scopes` solo llega a la compañía (`customer_id`): sin vínculo a nivel punto, el cliente vería todas las tiendas de EPA.
 
 ## Ejemplo de carga manual
+La tabla real es `tbl_tracking_client_access` y la vista `tracking_client_access` acepta el `insert` (ver [02](./02-aplicar-migraciones-y-prueba-e2e.md)). `app_users` y `delivery_points` también son vistas sobre `tbl_*`, pero se pueden consultar igual.
 ```sql
 insert into tracking_client_access (organization_id, app_user_id, delivery_point_id)
 select u.organization_id, u.id, dp.id

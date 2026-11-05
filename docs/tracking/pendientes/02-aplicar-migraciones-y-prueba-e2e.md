@@ -11,7 +11,7 @@
 
    Con `python scripts/migrate.py <archivo>` (dry-run por defecto; `--execute` aplica). Los despliega Intelix. Rollback en el encabezado de cada archivo.
 2. Si el backend de tracking se despliega antes que `m06`, el detalle del viaje falla (`GUIDES_SQL` hace `LEFT JOIN tracking_stop_visits`).
-3. Revisar contra datos reales la consulta `CLIENT_GUIDES_SQL` (`backend/tracking/src/tracking_sql.py`).
+3. `CLIENT_GUIDES_SQL` y `CLIENT_PLANNED_SQL` (`backend/tracking/src/tracking_sql.py`) **ya se ejecutaron contra Aurora** (consulta de solo lectura, sin errores). Falta verlas con datos: crear una fila en `tracking_client_access` para un usuario `Cliente` demo y abrir `/tracking` con ese usuario (escribe en la BD compartida: pedir confirmación).
 4. Correr `backend/mobile/scripts/simular_recorrido.py` (la tabla de visitas hoy está vacía) con un chofer demo y comprobar que `tracking_stop_visits` queda con llegada, salida y permanencia coherentes, y que la pantalla las muestra.
 
 ## Notas

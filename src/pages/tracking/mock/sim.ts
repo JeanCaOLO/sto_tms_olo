@@ -5,8 +5,8 @@
 // Reglas iguales a backend/tracking/src/tracking_logic.py. La consume solo fakeTrackingBackend.ts.
 import demo from '../data/viajes-demo.json';
 import type {
-  Evidence, ListMode, MapColor, Phase, Position, Resumen, Signal, Stop, StopState, StopType, TripAlert, Viaje, ViajeDetalle,
-  ViajePlanificado, ViajesPage,
+  EntregaCliente, Evidence, ListMode, MapColor, MisEntregasPage, Phase, Position, Resumen, Signal, Stop, StopState, StopType,
+  TripAlert, Viaje, ViajeDetalle, ViajePlanificado, ViajesPage,
 } from '../types';
 
 const MIN = 60_000;
@@ -422,6 +422,40 @@ export function simDetail(id: string): ViajeDetalle {
     departed_at: iso(trip.departedAt),
     stops: trip.stops.map((s, i) => toStop(trip, s, i, next)),
   };
+}
+
+/** Vista del rol Cliente: para un cliente simulado, la próxima parada del primer viaje en curso con GPS (en camino, con
+ * ETA y camión), una ya entregada si la hay (sin camión) y la primera parada de un viaje por salir (lista). Sin otros datos. */
+export function simMisEntregas(): MisEntregasPage {
+  const now = clock();
+  ensure(now);
+  const items: EntregaCliente[] = [];
+  const base = (s: Stop, over: Partial<EntregaCliente>): EntregaCliente => ({
+    id: s.id, status: 'listo', point_name: s.customer_name, order_number: s.order_number, address: s.address, city: s.city,
+    lat: s.lat, lng: s.lng, planned_arrival_at: s.planned_arrival_at, eta_at: null, distance_m: null, stops_ahead: null,
+    delivered_at: null, site_arrived_at: null, site_departed_at: null, dwell_seconds: null, truck: null, ...over,
+  });
+  for (const trip of trips.filter((t) => t.endedAt == null)) {
+    const detail = simDetail(trip.id);
+    const pending = detail.stops.filter((s) => s.state === 'pending').sort((a, b) => a.sequence - b.sequence);
+    if (detail.phase === 'por_salir' && pending[0] && !items.some((i) => i.status === 'listo')) {
+      items.push(base(pending[0], { status: 'listo', stops_ahead: 0 }));
+    }
+    if (detail.phase === 'en_ruta' && pending[0] && !items.some((i) => i.status === 'en_camino')) {
+      const next = pending[0];
+      items.push(base(next, {
+        status: 'en_camino', eta_at: next.eta_at, distance_m: next.distance_m, stops_ahead: 0,
+        truck: detail.position && detail.signal !== 'offline'
+          ? { lat: detail.position.lat, lng: detail.position.lng, recorded_at: detail.position.recorded_at, signal: detail.signal } : null,
+      }));
+    }
+    const done = detail.stops.find((s) => s.state === 'delivered');
+    if (done && !items.some((i) => i.status === 'entregado')) {
+      items.push(base(done, { status: 'entregado', delivered_at: done.arrived_at }));
+    }
+  }
+  const order = { en_camino: 0, listo: 1, entregado: 2, no_entregado: 3, cerrado: 4 };
+  return { view: 'client', items: items.sort((a, b) => order[a.status] - order[b.status]) };
 }
 
 export function simPlanned(country: string | null): ViajePlanificado[] {
