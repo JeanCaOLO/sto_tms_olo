@@ -324,12 +324,34 @@ Resources:
         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
       Target: !Sub integrations/${AdminApiIntegration}
 
-  ReturnsFormRoute:
+  ReturnsFormCreateRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId:
         Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
-      RouteKey: PUT /api/v1/devoluciones/viajes/{routeId}/formulario
+      RouteKey: POST /api/v1/devoluciones/viajes/{routeId}/formularios
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${AdminApiIntegration}
+
+  ReturnsFormGetRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/v1/devoluciones/formularios/{formId}
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${AdminApiIntegration}
+
+  ReturnsFormUpdateRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: PUT /api/v1/devoluciones/formularios/{formId}
       AuthorizationType: CUSTOM
       AuthorizerId:
         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId

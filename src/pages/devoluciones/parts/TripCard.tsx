@@ -1,11 +1,15 @@
-// Un viaje con devoluciones: resumen y progreso; al abrirlo muestra sus devoluciones por parada y las acciones de recepción.
-import { useState } from 'react';
+// Un viaje con devoluciones: resumen y progreso; al abrirlo muestra sus devoluciones por parada, las acciones de recepción,
+// las casillas para armar un formulario con las devoluciones elegidas y los formularios que el viaje ya tiene.
+import { useEffect, useState } from 'react';
 import Badge from '../../../components/base/Badge';
 import Button from '../../../components/base/Button';
 import Card from '../../../components/base/Card';
-import { defaultReceiveQuantity, groupBySection, isReadyToSettle, tripProgress } from '../../../lib/devoluciones/trips';
-import type { ReturnCondition, ReturnLine, ReturnTrip } from '../../../lib/devoluciones/types';
-import { receiveAll, receiveReturn } from '../api/devolucionesApi';
+import {
+  defaultReceiveQuantity, formatRouteDate, groupBySection, isReadyToSettle, newFormView, pruneSelection, toggleGroup,
+  toggleSelection, tripProgress,
+} from '../../../lib/devoluciones/trips';
+import type { FormView, ReturnCondition, ReturnLine, ReturnTrip } from '../../../lib/devoluciones/types';
+import { getForm, receiveAll, receiveReturn } from '../api/devolucionesApi';
 import ReceiveModal from '../components/ReceiveModal';
 import ReturnFormModal from '../components/ReturnFormModal';
 import { useTripDetail } from '../hooks/useTripDetail';
@@ -15,7 +19,7 @@ interface Props {
   trip: ReturnTrip;
   canEdit: boolean;
   canPrint: boolean;
-  /** El viaje cambió (se recibió algo): la página recarga el resumen y la lista. */
+  /** El viaje cambió (se recibió algo o se creó un formulario): la página recarga el resumen y la lista. */
   onChanged: () => void;
 }
 
@@ -24,10 +28,17 @@ type Receiving = { kind: 'line'; line: ReturnLine } | { kind: 'all' } | null;
 export default function TripCard({ trip, canEdit, canPrint, onChanged }: Props) {
   const [open, setOpen] = useState(false);
   const [receiving, setReceiving] = useState<Receiving>(null);
-  const [formOpen, setFormOpen] = useState(false);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [formView, setFormView] = useState<FormView | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const { detail, loading, error, reload } = useTripDetail(open ? trip.route_id : null);
   const progress = tripProgress(trip);
   const ready = isReadyToSettle(trip);
+
+  // Si otra persona le creó un formulario a una devolución marcada, deja de estar marcada.
+  useEffect(() => {
+    if (detail) setSelected((current) => pruneSelection(current, detail.returns));
+  }, [detail]);
 
   const changed = () => { reload(); onChanged(); };
 
@@ -36,6 +47,15 @@ export default function TripCard({ trip, canEdit, canPrint, onChanged }: Props) 
     else await receiveAll(trip.route_id, condition);
     setReceiving(null);
     changed();
+  };
+
+  const openForm = async (formId: string) => {
+    setFormError(null);
+    try {
+      setFormView(await getForm(formId));
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : 'No se pudo abrir el formulario.');
+    }
   };
 
   return (
@@ -47,12 +67,14 @@ export default function TripCard({ trip, canEdit, canPrint, onChanged }: Props) 
           <div>
             <div className="font-medium text-slate-900">Viaje {trip.route_number}</div>
             <div className="text-xs text-slate-500">
-              {trip.route_date}{trip.carrier_name ? ` · ${trip.carrier_name}` : ''}{trip.driver_name ? ` · ${trip.driver_name}` : ''}
+              {formatRouteDate(trip.route_date)}{trip.carrier_name ? ` · ${trip.carrier_name}` : ''}{trip.driver_name ? ` · ${trip.driver_name}` : ''}
             </div>
           </div>
         </button>
         <div className="flex items-center gap-3">
-          {trip.form_number && <span className="font-mono text-xs text-slate-500">{trip.form_number}</span>}
+          {trip.forms_count > 0 && (
+            <span className="text-xs text-slate-500">{trip.forms_count} {trip.forms_count === 1 ? 'formulario' : 'formularios'}</span>
+          )}
           <span className="text-sm text-slate-600">{progress.label} recibidas</span>
           {ready
             ? <Badge variant="success">Listo para liquidar</Badge>
@@ -66,18 +88,40 @@ export default function TripCard({ trip, canEdit, canPrint, onChanged }: Props) 
           {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
           {detail && (
             <>
-              <div className="flex flex-wrap justify-end gap-2">
-                <Button size="sm" variant="secondary" onClick={() => setFormOpen(true)}>
-                  <i className="ri-file-list-3-line" aria-hidden="true" />Formulario
-                </Button>
-                {canEdit && detail.trip.pending_returns > 0 && (
-                  <Button size="sm" variant="success" onClick={() => setReceiving({ kind: 'all' })}>
-                    <i className="ri-check-double-line" aria-hidden="true" />Recibir todas
-                  </Button>
-                )}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {detail.forms.map((form) => (
+                    <button key={form.id} type="button" onClick={() => openForm(form.id)}
+                      className="cursor-pointer rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                      title="Abrir el formulario">
+                      <i className="ri-file-list-3-line mr-1" aria-hidden="true" />
+                      {form.form_number} · {form.returns_count} {form.returns_count === 1 ? 'devolución' : 'devoluciones'}
+                    </button>
+                  ))}
+                  {detail.forms.length === 0 && <span className="text-xs text-slate-500">Sin formularios todavía.</span>}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {canEdit && (
+                    <Button size="sm" variant="secondary" disabled={selected.size === 0}
+                      onClick={() => setFormView(newFormView(detail, selected))}>
+                      <i className="ri-file-add-line" aria-hidden="true" />Crear formulario ({selected.size})
+                    </Button>
+                  )}
+                  {canEdit && detail.trip.pending_returns > 0 && (
+                    <Button size="sm" variant="success" onClick={() => setReceiving({ kind: 'all' })}>
+                      <i className="ri-check-double-line" aria-hidden="true" />Recibir todas
+                    </Button>
+                  )}
+                </div>
               </div>
+              {formError && <p role="alert" className="text-sm text-red-600">{formError}</p>}
               <ReturnLinesTable groups={groupBySection(detail.returns, detail.sections)} canReceive={canEdit}
-                onReceive={(line) => setReceiving({ kind: 'line', line })} />
+                onReceive={(line) => setReceiving({ kind: 'line', line })}
+                selection={canEdit ? {
+                  selected,
+                  onToggle: (line) => setSelected((current) => toggleSelection(current, line.id)),
+                  onToggleGroup: (lines) => setSelected((current) => toggleGroup(current, lines)),
+                } : undefined} />
               {ready && <p className="text-sm text-emerald-700">Todas las devoluciones están recibidas: el viaje ya puede liquidarse.</p>}
             </>
           )}
@@ -94,9 +138,14 @@ export default function TripCard({ trip, canEdit, canPrint, onChanged }: Props) 
         onClose={() => setReceiving(null)}
         onConfirm={confirm}
       />
-      {formOpen && detail && (
-        <ReturnFormModal detail={detail} canEdit={canEdit} canPrint={canPrint} onClose={() => setFormOpen(false)}
-          onSaved={() => { reload(); onChanged(); }} />
+      {formView && (
+        <ReturnFormModal detail={formView} canEdit={canEdit} canPrint={canPrint} onClose={() => setFormView(null)}
+          onSaved={(saved) => {
+            // Un formulario recién creado deja de estar "marcado" y pasa a la lista del viaje.
+            if (!formView.form) setSelected(new Set());
+            setFormView(saved);
+            changed();
+          }} />
       )}
     </Card>
   );

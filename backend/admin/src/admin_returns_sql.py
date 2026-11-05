@@ -1,4 +1,4 @@
-"""SQL del módulo Devoluciones (recepción por viaje + formulario). Un viaje = una ruta (`tbl_routes`)."""
+"""SQL del módulo Devoluciones (recepción por viaje + formularios). Un viaje = una ruta (`tbl_routes`)."""
 
 ORGANIZATION_SQL = "SELECT organization_id FROM tbl_app_users WHERE id = %s"
 
@@ -26,20 +26,52 @@ SELECT * FROM vw_return_trips
 WHERE route_id = %s AND organization_id = %s{scope}
 """
 
-RETURNS_SQL = """
+_RETURN_COLUMNS = """
 SELECT rt.id, rt.return_number, rt.return_type, rt.return_date, rt.reason, rt.product_code, rt.product_name,
        rt.quantity, rt.photo_url, rt.notes, COALESCE(rt.status, 'pending') AS status,
        rt.received_at, rt.received_by, rt.received_quantity, rt.received_condition,
-       g.id AS dispatch_guide_id, g.sequence_number, o.order_number, o.invoice_number
+       g.id AS dispatch_guide_id, g.sequence_number, o.order_number, o.invoice_number,
+       i.form_id, f.form_number
 FROM tbl_returns rt
 JOIN tbl_dispatch_guides g ON g.id = rt.dispatch_guide_id
 JOIN tbl_orders o ON o.id = rt.order_id
+LEFT JOIN tbl_return_form_items i ON i.return_id = rt.id
+LEFT JOIN tbl_return_forms f ON f.id = i.form_id
+"""
+
+# Devoluciones del viaje, con el formulario al que ya pertenecen (form_id NULL = todavía sin formulario).
+RETURNS_SQL = _RETURN_COLUMNS + """
 WHERE g.route_id = %s AND rt.organization_id = %s
 ORDER BY g.sequence_number, rt.return_number
 """
 
-# Lo capturado en el formulario manda; lo que falte se prellena con lo que ya sabe el tracking.
+# Devoluciones de UN formulario.
+FORM_RETURNS_SQL = _RETURN_COLUMNS + """
+WHERE i.form_id = %s AND rt.organization_id = %s
+ORDER BY g.sequence_number, rt.return_number
+"""
+
+# Cliente y factura de cada parada con devoluciones, tal como los sabe el tracking (borrador de un formulario nuevo).
 SECTIONS_SQL = """
+SELECT g.id AS dispatch_guide_id, g.sequence_number,
+       o.invoice_number AS invoice_number,
+       fc.external_code AS customer_code,
+       fc.name AS customer_name,
+       fc.phone AS phone,
+       o.delivery_address AS address,
+       r.route_number AS route_label,
+       NULL::text AS sellers
+FROM tbl_dispatch_guides g
+JOIN tbl_routes r ON r.id = g.route_id
+JOIN tbl_orders o ON o.id = g.order_id
+LEFT JOIN tbl_final_customers fc ON fc.id = o.final_customer_id
+WHERE g.route_id = %s AND r.organization_id = %s
+  AND EXISTS (SELECT 1 FROM tbl_returns rt WHERE rt.dispatch_guide_id = g.id)
+ORDER BY g.sequence_number
+"""
+
+# Lo capturado en el formulario manda; lo que falte se prellena con lo que ya sabe el tracking.
+FORM_SECTIONS_SQL = """
 SELECT g.id AS dispatch_guide_id, g.sequence_number,
        COALESCE(s.invoice_number, o.invoice_number) AS invoice_number,
        COALESCE(s.customer_code, fc.external_code) AS customer_code,
@@ -52,18 +84,38 @@ FROM tbl_dispatch_guides g
 JOIN tbl_routes r ON r.id = g.route_id
 JOIN tbl_orders o ON o.id = g.order_id
 LEFT JOIN tbl_final_customers fc ON fc.id = o.final_customer_id
-LEFT JOIN tbl_return_forms f ON f.route_id = r.id
-LEFT JOIN tbl_return_form_sections s ON s.form_id = f.id AND s.dispatch_guide_id = g.id
-WHERE g.route_id = %s AND r.organization_id = %s
-  AND EXISTS (SELECT 1 FROM tbl_returns rt WHERE rt.dispatch_guide_id = g.id)
+LEFT JOIN tbl_return_form_sections s ON s.form_id = %s AND s.dispatch_guide_id = g.id
+WHERE r.organization_id = %s
+  AND g.id IN (SELECT rt.dispatch_guide_id FROM tbl_return_form_items i
+               JOIN tbl_returns rt ON rt.id = i.return_id WHERE i.form_id = %s)
 ORDER BY g.sequence_number
 """
 
-FORM_SQL = "SELECT * FROM tbl_return_forms WHERE route_id = %s AND organization_id = %s"
+# Formularios del viaje (resumen).
+FORMS_SQL = """
+SELECT f.id, f.form_number, f.created_at, f.updated_at, count(i.return_id)::int AS returns_count
+FROM tbl_return_forms f
+LEFT JOIN tbl_return_form_items i ON i.form_id = f.id
+WHERE f.route_id = %s AND f.organization_id = %s
+GROUP BY f.id
+ORDER BY f.created_at, f.form_number
+"""
 
-GUIDE_IDS_SQL = """
-SELECT g.id FROM tbl_dispatch_guides g
-WHERE g.route_id = %s AND EXISTS (SELECT 1 FROM tbl_returns rt WHERE rt.dispatch_guide_id = g.id)
+FORM_BY_ID_SQL = "SELECT * FROM tbl_return_forms WHERE id = %s AND organization_id = %s"
+
+# Devoluciones elegidas para un formulario nuevo: del viaje, y con el formulario que ya las tenga (si alguno).
+SELECTED_RETURNS_SQL = """
+SELECT rt.id, rt.dispatch_guide_id, i.form_id
+FROM tbl_returns rt
+JOIN tbl_dispatch_guides g ON g.id = rt.dispatch_guide_id
+LEFT JOIN tbl_return_form_items i ON i.return_id = rt.id
+WHERE g.route_id = %s AND rt.organization_id = %s AND rt.id = ANY(%s::uuid[])
+"""
+
+FORM_GUIDE_IDS_SQL = """
+SELECT DISTINCT rt.dispatch_guide_id AS id
+FROM tbl_return_form_items i JOIN tbl_returns rt ON rt.id = i.return_id
+WHERE i.form_id = %s
 """
 
 NEXT_FORM_NUMBER_SQL = """
@@ -80,11 +132,13 @@ ON CONFLICT DO NOTHING
 RETURNING id, form_number
 """
 
+INSERT_ITEM_SQL = "INSERT INTO tbl_return_form_items (form_id, return_id) VALUES (%s, %s)"
+
 UPDATE_FORM_SQL = """
 UPDATE tbl_return_forms
 SET physical_receipt_number = %s, branch = %s, return_kind = %s, merchandise_for = %s, observations = %s,
     transport = %s, guide_number = %s, comments = %s, received_by_name = %s, received_date = %s, updated_at = now()
-WHERE route_id = %s AND organization_id = %s
+WHERE id = %s AND organization_id = %s
 RETURNING id, form_number
 """
 

@@ -23,7 +23,9 @@ class FakeDb:
                      "pending_returns": 2, "carrier_name": "Transportes S.A.", "driver_name": "Luis"}
         self.return_row: dict | None = {"id": RETURN, "quantity": 3, "status": "pending", "route_id": ROUTE}
         self.form: dict | None = None
+        self.forms_list: list = []
         self.guides = [{"id": GUIDE}]
+        self.selected = [{"id": RETURN, "dispatch_guide_id": GUIDE, "form_id": None}]
         self.next_number = 1
         self.received_all = [{"id": "a"}, {"id": "b"}]
 
@@ -42,9 +44,13 @@ class FakeDb:
             return [{"id": params[3], "status": "received", "received_quantity": params[1]}]
         if sql.lstrip().startswith("UPDATE tbl_returns rt"):
             return self.received_all
-        if "FROM tbl_return_forms WHERE route_id" in sql:
+        if sql.lstrip().startswith("SELECT * FROM tbl_return_forms WHERE id"):
             return [self.form] if self.form else []
-        if "FROM tbl_dispatch_guides g\nWHERE g.route_id" in sql:
+        if sql.lstrip().startswith("SELECT f.id, f.form_number, f.created_at"):
+            return self.forms_list
+        if sql.lstrip().startswith("SELECT rt.id, rt.dispatch_guide_id, i.form_id"):
+            return self.selected
+        if sql.lstrip().startswith("SELECT DISTINCT rt.dispatch_guide_id"):
             return self.guides
         if sql.lstrip().startswith("UPDATE tbl_return_forms"):
             return [{"id": "form-1", "form_number": self.form["form_number"]}] if self.form else []
@@ -111,10 +117,12 @@ def test_a_trip_outside_the_role_countries_is_not_found(app, db, caller_permissi
     assert call(app, "GET /api/v1/devoluciones/viajes/{routeId}", path={"routeId": ROUTE})["statusCode"] == 404
 
 
-def test_trip_detail_includes_returns_sections_form_and_default_transport(app, caller_permissions):
+def test_trip_detail_includes_returns_sections_forms_and_default_transport(app, db, caller_permissions):
     caller_permissions.set(READER)
+    db.forms_list = [{"id": "form-1", "form_number": "DEV-2026-11-0001", "returns_count": 2}]
     data = body_of(call(app, "GET /api/v1/devoluciones/viajes/{routeId}", path={"routeId": ROUTE}))["data"]
-    assert data["trip"]["route_id"] == ROUTE and data["form"] is None
+    assert data["trip"]["route_id"] == ROUTE and data["forms"][0]["form_number"] == "DEV-2026-11-0001"
+    assert "form" not in data
     assert data["defaults"]["transport"] == "Transportes S.A. - Luis"
 
 
@@ -180,33 +188,97 @@ def test_receive_all_marks_only_the_open_returns_of_the_trip(app, db, caller_per
     assert "IN ('pending', 'approved')" in sql
 
 
-def test_saving_the_form_for_the_first_time_generates_the_number_of_the_month(app, db, caller_permissions):
+def _create(app, body, route=ROUTE):
+    return call(app, "POST /api/v1/devoluciones/viajes/{routeId}/formularios", path={"routeId": route}, body=body)
+
+
+def test_creating_a_form_with_the_checked_returns_generates_the_number_of_the_month(app, db, caller_permissions, audit_calls):
     caller_permissions.set(RECEIVER)
     db.next_number = 7
-    body = {"return_kind": "devolucion", "observations": "Lámina dañada",
+    db.form = {"id": "form-1", "form_number": "DEV-X", "route_id": ROUTE}
+    body = {"return_ids": [RETURN], "return_kind": "devolucion", "observations": "Lámina dañada",
             "sections": [{"dispatch_guide_id": GUIDE, "invoice_number": "897062", "customer_name": "Cliente"}]}
-    assert call(app, "PUT /api/v1/devoluciones/viajes/{routeId}/formulario", path={"routeId": ROUTE},
-                body=body)["statusCode"] == 200
+    assert _create(app, body)["statusCode"] == 200
     created = writes(db, "INSERT INTO tbl_return_forms")[0]
     assert created[2] == f"DEV-{datetime.now(timezone.utc):%Y-%m}-0007" and created[1] == ROUTE
+    assert writes(db, "INSERT INTO tbl_return_form_items")[0] == ["form-1", RETURN]
     assert writes(db, "INSERT INTO tbl_return_form_sections")[0][1:3] == [GUIDE, 0]
+    assert any(c[0] == "record" and c[1] == "create" and c[2]["metadata"]["returns"] == 1 for c in audit_calls)
 
 
-def test_saving_an_existing_form_keeps_its_number(app, db, caller_permissions):
+def test_a_form_only_gets_the_checked_returns_not_the_whole_trip(app, db, caller_permissions):
     caller_permissions.set(RECEIVER)
-    db.form = {"id": "form-1", "form_number": "DEV-2026-10-0001"}
-    call(app, "PUT /api/v1/devoluciones/viajes/{routeId}/formulario", path={"routeId": ROUTE},
-         body={"comments": "ok"})
+    db.selected = [{"id": "r1", "dispatch_guide_id": GUIDE, "form_id": None}, {"id": "r2", "dispatch_guide_id": GUIDE, "form_id": None}]
+    db.form = {"id": "form-1", "form_number": "DEV-X", "route_id": ROUTE}
+    _create(app, {"return_ids": ["r1", "r2"]})
+    assert [p[1] for p in writes(db, "INSERT INTO tbl_return_form_items")] == ["r1", "r2"]
+
+
+@pytest.mark.parametrize("body", [{}, {"return_ids": []}, {"return_ids": "r1"}])
+def test_creating_a_form_requires_at_least_one_checked_return(app, db, caller_permissions, body):
+    caller_permissions.set(RECEIVER)
+    assert _create(app, body)["statusCode"] == 400 and not writes(db, "INSERT INTO tbl_return_forms")
+
+
+def test_a_return_that_is_not_of_the_trip_is_rejected(app, db, caller_permissions):
+    caller_permissions.set(RECEIVER)
+    assert _create(app, {"return_ids": [RETURN, "ajena"]})["statusCode"] == 400
+    assert not writes(db, "INSERT INTO tbl_return_forms")
+
+
+def test_a_return_that_is_already_in_another_form_is_rejected(app, db, caller_permissions):
+    caller_permissions.set(RECEIVER)
+    db.selected = [{"id": RETURN, "dispatch_guide_id": GUIDE, "form_id": "otro-form"}]
+    response = _create(app, {"return_ids": [RETURN]})
+    assert response["statusCode"] == 409 and "ya van en otro formulario" in body_of(response)["error"]["message"]
     assert not writes(db, "INSERT INTO tbl_return_forms")
 
 
 @pytest.mark.parametrize("body", [
-    {"return_kind": "regalo"},
-    {"sections": [{"dispatch_guide_id": "otra-parada"}]},
-    {"branch": "x" * 101},
-    {"received_date": "ayer"},
+    {"return_ids": [RETURN], "return_kind": "regalo"},
+    {"return_ids": [RETURN], "sections": [{"dispatch_guide_id": "otra-parada"}]},
+    {"return_ids": [RETURN], "branch": "x" * 101},
+    {"return_ids": [RETURN], "received_date": "ayer"},
 ])
-def test_saving_the_form_validates_its_input(app, db, caller_permissions, body):
+def test_creating_a_form_validates_its_input(app, db, caller_permissions, body):
     caller_permissions.set(RECEIVER)
-    response = call(app, "PUT /api/v1/devoluciones/viajes/{routeId}/formulario", path={"routeId": ROUTE}, body=body)
-    assert response["statusCode"] == 400 and not writes(db, "INSERT INTO tbl_return_forms")
+    assert _create(app, body)["statusCode"] == 400 and not writes(db, "INSERT INTO tbl_return_forms")
+
+
+def test_a_reader_cannot_create_a_form(app, db, caller_permissions):
+    caller_permissions.set(READER)
+    assert _create(app, {"return_ids": [RETURN]})["statusCode"] == 403 and not writes(db, "INSERT INTO tbl_return_forms")
+
+
+def test_reading_a_form_returns_it_with_its_returns_and_sections(app, db, caller_permissions):
+    caller_permissions.set(READER)
+    db.form = {"id": "form-1", "form_number": "DEV-2026-11-0001", "route_id": ROUTE}
+    data = body_of(call(app, "GET /api/v1/devoluciones/formularios/{formId}", path={"formId": "form-1"}))["data"]
+    assert data["form"]["form_number"] == "DEV-2026-11-0001" and data["trip"]["route_id"] == ROUTE
+
+
+def test_reading_an_unknown_form_is_a_404(app, caller_permissions):
+    caller_permissions.set(READER)
+    assert call(app, "GET /api/v1/devoluciones/formularios/{formId}", path={"formId": "x"})["statusCode"] == 404
+
+
+def test_updating_a_form_keeps_its_number_and_its_returns(app, db, caller_permissions):
+    caller_permissions.set(RECEIVER)
+    db.form = {"id": "form-1", "form_number": "DEV-2026-10-0001", "route_id": ROUTE}
+    body = {"comments": "ok", "sections": [{"dispatch_guide_id": GUIDE, "customer_name": "Cliente"}]}
+    response = call(app, "PUT /api/v1/devoluciones/formularios/{formId}", path={"formId": "form-1"}, body=body)
+    assert response["statusCode"] == 200
+    assert not writes(db, "INSERT INTO tbl_return_forms") and not writes(db, "INSERT INTO tbl_return_form_items")
+    assert writes(db, "UPDATE tbl_return_forms")[0][-2:] == ["form-1", ORG]
+
+
+def test_updating_a_form_rejects_a_section_of_a_stop_it_does_not_cover(app, db, caller_permissions):
+    caller_permissions.set(RECEIVER)
+    db.form = {"id": "form-1", "form_number": "DEV-X", "route_id": ROUTE}
+    body = {"sections": [{"dispatch_guide_id": "otra-parada"}]}
+    assert call(app, "PUT /api/v1/devoluciones/formularios/{formId}", path={"formId": "form-1"}, body=body)["statusCode"] == 400
+
+
+def test_updating_an_unknown_form_is_a_404(app, caller_permissions):
+    caller_permissions.set(RECEIVER)
+    assert call(app, "PUT /api/v1/devoluciones/formularios/{formId}", path={"formId": "x"}, body={})["statusCode"] == 404

@@ -1,7 +1,7 @@
 // Cliente de la API de devoluciones (backend/admin, /api/v1/devoluciones/*).
 import { apiFetch } from '../../../lib/api-client';
 import type {
-  FormDraft, ReturnCondition, ReturnSummary, ReturnTrip, TripDetail, TripFilter,
+  FormDraft, FormView, ReturnCondition, ReturnSummary, ReturnTrip, TripDetail, TripFilter,
 } from '../../../lib/devoluciones/types';
 
 const BASE = '/v1/devoluciones';
@@ -46,5 +46,11 @@ export const receiveReturn = (returnId: string, quantity: number, condition: Ret
 export const receiveAll = (routeId: string, condition: ReturnCondition) =>
   call<{ received: number; trip: ReturnTrip }>(`${BASE}/viajes/${routeId}/recibir-todas`, send('POST', { condition }));
 
-export const saveForm = (routeId: string, draft: FormDraft) =>
-  call<TripDetail>(`${BASE}/viajes/${routeId}/formulario`, send('PUT', draft));
+/** Formulario nuevo SOLO con las devoluciones marcadas. */
+export const createForm = (routeId: string, returnIds: string[], draft: FormDraft) =>
+  call<FormView>(`${BASE}/viajes/${routeId}/formularios`, send('POST', { ...draft, return_ids: returnIds }));
+
+export const getForm = (formId: string) => call<FormView>(`${BASE}/formularios/${formId}`);
+
+export const updateForm = (formId: string, draft: FormDraft) =>
+  call<FormView>(`${BASE}/formularios/${formId}`, send('PUT', draft));

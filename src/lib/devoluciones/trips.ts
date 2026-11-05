@@ -1,7 +1,7 @@
 // Lógica pura del módulo Devoluciones (sin React): estados, progreso del viaje y borrador del formulario.
 
 import type {
-  FormDraft, FormSection, ReturnCondition, ReturnKind, ReturnLine, ReturnStatus, ReturnTrip, SectionDraft, TripDetail,
+  FormDraft, FormSection, FormView, ReturnCondition, ReturnKind, ReturnLine, ReturnStatus, ReturnTrip, SectionDraft, TripDetail,
 } from './types';
 
 export const CONDITIONS: ReturnCondition[] = ['Bueno', 'Dañado', 'Incompleto'];
@@ -24,8 +24,9 @@ const STATUS_VARIANTS: Record<ReturnStatus, Variant> = {
 export const statusLabel = (status: string): string => STATUS_LABELS[status as ReturnStatus] ?? status;
 export const statusVariant = (status: string): Variant => STATUS_VARIANTS[status as ReturnStatus] ?? 'default';
 
-/** Una devolución abierta es la que falta recibir; solo ésas impiden liquidar el viaje (igual que el backend). */
-export const isOpen = (status: string): boolean => status === 'pending' || status === 'approved';
+/** Estados de una devolución que falta recibir. Solo ésas impiden liquidar el viaje (igual que el backend). */
+export const OPEN_STATUSES = ['pending', 'approved'];
+export const isOpen = (status: string): boolean => OPEN_STATUSES.includes(status);
 
 /** El viaje puede pasar a liquidación: tiene devoluciones y ya no queda ninguna por recibir. */
 export const isReadyToSettle = (trip: Pick<ReturnTrip, 'total_returns' | 'pending_returns'>): boolean =>
@@ -35,6 +36,12 @@ export function tripProgress(trip: Pick<ReturnTrip, 'total_returns' | 'received_
   const total = Math.max(0, trip.total_returns);
   const done = Math.min(Math.max(0, trip.received_returns), total);
   return { label: `${done}/${total}`, percent: total === 0 ? 0 : Math.round((done / total) * 100) };
+}
+
+/** Fecha del viaje como AAAA-MM-DD: la API puede mandarla con hora ("2026-11-02T00:00:00.000Z"). Sin fecha válida, vacío. */
+export function formatRouteDate(value: string | null | undefined): string {
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(value ?? '');
+  return match ? match[1] : '';
 }
 
 export interface SectionGroup {
@@ -78,7 +85,7 @@ function sectionDraft(section: FormSection): SectionDraft {
 }
 
 /** Borrador del formulario: lo guardado manda; lo que falte se prellena con lo que ya sabe el tracking. */
-export function draftFromDetail(detail: TripDetail): FormDraft {
+export function draftFromDetail(detail: FormView): FormDraft {
   const form = detail.form;
   return {
     physical_receipt_number: text(form?.physical_receipt_number),
@@ -126,4 +133,48 @@ export function parseQuantity(raw: string): number | null {
   if (!/^\d+$/.test(value)) return null;
   const quantity = Number(value);
   return Number.isSafeInteger(quantity) ? quantity : null;
+}
+
+// ── Selección de devoluciones para un formulario nuevo ─────────────────────────────────────────
+
+/** Solo se pueden marcar las devoluciones que todavía no van en ningún formulario. */
+export const isSelectable = (line: Pick<ReturnLine, 'form_id'>): boolean => line.form_id === null;
+
+/** Marca o desmarca una devolución (devuelve un conjunto nuevo). */
+export function toggleSelection(selected: ReadonlySet<string>, id: string): Set<string> {
+  const next = new Set(selected);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  return next;
+}
+
+/** Marca todas las seleccionables de un grupo; si ya estaban todas marcadas, las desmarca. */
+export function toggleGroup(selected: ReadonlySet<string>, lines: ReturnLine[]): Set<string> {
+  const ids = lines.filter(isSelectable).map((l) => l.id);
+  const allSelected = ids.length > 0 && ids.every((id) => selected.has(id));
+  const next = new Set(selected);
+  for (const id of ids) {
+    if (allSelected) next.delete(id);
+    else next.add(id);
+  }
+  return next;
+}
+
+/** Descarta de la selección lo que ya no es seleccionable (p. ej. otra persona le creó un formulario). */
+export function pruneSelection(selected: ReadonlySet<string>, lines: ReturnLine[]): Set<string> {
+  const valid = new Set(lines.filter(isSelectable).map((l) => l.id));
+  return new Set([...selected].filter((id) => valid.has(id)));
+}
+
+/** Formulario nuevo (sin guardar) con SOLO las devoluciones marcadas y las paradas que las tienen. */
+export function newFormView(detail: TripDetail, selected: ReadonlySet<string>): FormView {
+  const returns = detail.returns.filter((l) => selected.has(l.id) && isSelectable(l));
+  const guides = new Set(returns.map((l) => l.dispatch_guide_id));
+  return {
+    trip: detail.trip,
+    form: null,
+    returns,
+    sections: detail.sections.filter((s) => guides.has(s.dispatch_guide_id)),
+    defaults: detail.defaults,
+  };
 }

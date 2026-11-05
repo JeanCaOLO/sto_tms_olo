@@ -3,7 +3,7 @@
 // comentarios y las líneas de fecha/recibido. Es una cadena HTML con estilos en línea para imprimir en otra ventana.
 
 import { KIND_LABELS, groupBySection, reasonsOf, receivedQuantity } from './trips';
-import type { FormDraft, ReturnLine, SectionDraft, TripDetail } from './types';
+import type { FormDraft, FormView, ReturnLine, SectionDraft } from './types';
 
 const ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export const escapeHtml = (value: unknown): string => String(value ?? '').replace(/[&<>"']/g, (c) => ESCAPES[c]);
@@ -46,7 +46,7 @@ function sectionBlock(section: SectionDraft, lines: ReturnLine[], draft: FormDra
     </div>${linesTable(lines)}`;
 }
 
-export function formDocumentHtml(detail: TripDetail, draft: FormDraft, formNumber: string | null): string {
+export function formDocumentHtml(detail: FormView, draft: FormDraft, formNumber: string | null): string {
   const groups = groupBySection(detail.returns, detail.sections);
   const byGuide = new Map(draft.sections.map((s) => [s.dispatch_guide_id, s]));
   const blocks = groups.map(({ section, lines }) => sectionBlock(byGuide.get(section.dispatch_guide_id) ?? {

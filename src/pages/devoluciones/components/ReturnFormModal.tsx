@@ -7,15 +7,16 @@ import Modal from '../../../components/base/Modal';
 import Select from '../../../components/base/Select';
 import { formDocumentHtml, printFormDocument } from '../../../lib/devoluciones/formDocument';
 import { KIND_LABELS, draftFromDetail, groupBySection, reasonsOf, toFormPayload } from '../../../lib/devoluciones/trips';
-import type { FormDraft, ReturnKind, SectionDraft, TripDetail } from '../../../lib/devoluciones/types';
-import { saveForm } from '../api/devolucionesApi';
+import type { FormDraft, FormView, ReturnKind, SectionDraft } from '../../../lib/devoluciones/types';
+import { createForm, updateForm } from '../api/devolucionesApi';
 
 interface Props {
-  detail: TripDetail;
+  /** Formulario a mostrar: con `form` null es uno NUEVO que lleva solo las devoluciones de `returns`. */
+  detail: FormView;
   canEdit: boolean;
   canPrint: boolean;
   onClose: () => void;
-  onSaved: (detail: TripDetail) => void;
+  onSaved: (detail: FormView) => void;
 }
 
 const KIND_OPTIONS = (Object.keys(KIND_LABELS) as ReturnKind[]).map((k) => ({ value: k, label: KIND_LABELS[k] }));
@@ -35,7 +36,10 @@ export default function ReturnFormModal({ detail, canEdit, canPrint, onClose, on
     setSaving(true);
     setMessage(null);
     try {
-      const saved = await saveForm(current.trip.route_id, toFormPayload(draft));
+      const payload = toFormPayload(draft);
+      const saved = current.form
+        ? await updateForm(current.form.id, payload)
+        : await createForm(current.trip.route_id, current.returns.map((l) => l.id), payload);
       setCurrent(saved);
       setDraft(draftFromDetail(saved));
       onSaved(saved);
@@ -60,6 +64,7 @@ export default function ReturnFormModal({ detail, canEdit, canPrint, onClose, on
             <h3 className="text-lg font-semibold text-slate-900">Formulario de devolución</h3>
             <p className="text-sm text-slate-600">
               Viaje {current.trip.route_number} · {current.form ? current.form.form_number : 'sin guardar (el número se asigna al guardar)'}
+              {' · '}{current.returns.length} devolución(es)
             </p>
           </div>
           <Button variant="ghost" onClick={onClose} aria-label="Cerrar"><i className="ri-close-line" aria-hidden="true" /></Button>
