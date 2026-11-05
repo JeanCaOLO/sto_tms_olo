@@ -69,6 +69,47 @@ def sign_up(event: dict) -> dict:
     return json_response(200, {"data": {"user": {"id": user_id, "email": email}}, "error": None})
 
 
+ALLOWED_DOMAINS = ("ologistics.com", "intelix.biz")
+# Un solo tenant hoy (Transportes OLO): el usuario nuevo queda en la organización principal, sin rol.
+NEW_APP_USER_SQL = """INSERT INTO tbl_app_users (auth_user_id, email, full_name, organization_id)
+VALUES (%s, %s, %s, (SELECT id FROM tbl_organizations ORDER BY created_at LIMIT 1))"""
+GOOGLE_USER_SQL = """
+SELECT c.auth_user_id, c.email, u.id AS app_user_id, u.is_active
+FROM tbl_auth_credentials c LEFT JOIN tbl_app_users u ON u.auth_user_id = c.auth_user_id
+WHERE c.email = %s
+"""
+
+
+def google_login(request: dict) -> dict:
+    """Invocación directa desde la Lambda de Google (fuera de la VPC), con el correo ya
+    verificado por Google. Busca el usuario por correo o lo crea SIN ROL (no ve nada hasta
+    que un admin le asigne uno) y firma la sesión. Devuelve {status, body}."""
+    email, name = str(request.get("email") or "").lower(), str(request.get("name") or "")
+    if email.rsplit("@", 1)[-1] not in ALLOWED_DOMAINS:
+        return {"status": 403, "body": {"error": "domain_not_allowed", "message": "Dominio de correo no permitido."}}
+    event = {"requestContext": {}, "routeKey": "POST /api/auth/google"}
+    rows = pg.query(GOOGLE_USER_SQL, [email])
+    if rows and rows[0]["is_active"] is False:
+        audit.record(event, "login_blocked", email=email, auth_user_id=str(rows[0]["auth_user_id"]),
+                     metadata={"reason": "inactive_user", "method": "google"})
+        return {"status": 403, "body": {"error": "inactive_user", "message": "Tu usuario está desactivado."}}
+    if rows:
+        user_id = str(rows[0]["auth_user_id"])
+        if rows[0]["app_user_id"] is None:  # credencial sin app_user (alta a medias): se completa sin rol
+            pg.query(NEW_APP_USER_SQL, [user_id, email, name])
+    else:
+        user_id = str(uuid4())
+        # Sin contraseña utilizable: el hash de un uuid aleatorio que nadie conoce. Solo entra con Google.
+        pg.run_in_transaction(lambda run: (
+            run("INSERT INTO tbl_auth_credentials (auth_user_id, email, password_hash) VALUES (%s, %s, %s)",
+                [user_id, email, hash_password(str(uuid4()))]),
+            run(NEW_APP_USER_SQL, [user_id, email, name])))
+        audit.record(event, "signup", email=email, auth_user_id=user_id, metadata={"method": "google"})
+    session_data = sign_session(user_id, email, jwt_secret())
+    audit.record(event, "login", email=email, auth_user_id=user_id, metadata={"method": "google"})
+    return {"status": 200, "body": {"data": session_data, "error": None}}
+
+
 def session(event: dict) -> dict:
     return json_response(200, {"data": {"user": auth_user(event)}, "error": None})
 
@@ -86,4 +127,11 @@ ROUTES = {
     "POST /api/auth/logout": sign_out,
 }
 
-handler = tms_handler(ROUTES)
+_http_handler = tms_handler(ROUTES)
+
+
+def handler(event, context=None):
+    # La Lambda de Google invoca directo (sin API Gateway) con {"action": "google_login", ...}.
+    if isinstance(event, dict) and event.get("action") == "google_login":
+        return google_login(event)
+    return _http_handler(event, context)

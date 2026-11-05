@@ -181,7 +181,7 @@ ORDER BY code LIMIT 1
 """
 ZONE_SQL = "SELECT id FROM tbl_zones WHERE organization_id = %s AND (name = %s OR code = %s) LIMIT 1"
 PLAN_STOPS_SQL = """
-SELECT ps.order_id, COALESCE(o.delivery_latitude, ps.latitude) AS lat, COALESCE(o.delivery_longitude, ps.longitude) AS lng
+SELECT ps.order_id, ps.stop_type, ps.return_id, COALESCE(o.delivery_latitude, ps.latitude) AS lat, COALESCE(o.delivery_longitude, ps.longitude) AS lng
 FROM tbl_plan_stops ps LEFT JOIN tbl_orders o ON o.id = ps.order_id
 WHERE ps.trip_id = %s ORDER BY ps.stop_order
 """
@@ -197,9 +197,12 @@ RETURNING id
 
 INSERT_GUIDE_SQL = """
 INSERT INTO tbl_dispatch_guides (organization_id, route_id, order_id, guide_number, sequence_number, status,
-                             delivery_status, notes, planned_arrival_time)
-VALUES (%s, %s, %s, %s, %s, 'Pendiente', 'pending', %s, %s)
+                             delivery_status, notes, planned_arrival_time, stop_type)
+VALUES (%s, %s, %s, %s, %s, 'Pendiente', 'pending', %s, %s, %s)
+RETURNING id
 """
+# Una recolecta (stop_type collection, sql/60) queda amarrada a la guía que la ejecuta.
+LINK_RETURN_SQL = "UPDATE tbl_returns SET dispatch_guide_id = %s, updated_at = now() WHERE id = %s"
 
 INSERT_EVENT_SQL = """
 INSERT INTO tbl_tracking_events (organization_id, route_id, dispatch_guide_id, event_type, event_status,
