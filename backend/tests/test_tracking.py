@@ -432,7 +432,7 @@ def test_start_viaje_saves_planned_times_distance_and_capacity(tracking):
     app.handler(_event("POST /api/v1/tracking/viajes/{id}/iniciar", path={"id": TRIP}), None)
     route_params = db.wrote("INSERT INTO tbl_routes")[0][1]
     planned_end, km, capacity = route_params[-3:]
-    arrivals = [params[-1] for _, params in db.wrote("INSERT INTO tbl_dispatch_guides")]
+    arrivals = [params[-2] for _, params in db.wrote("INSERT INTO tbl_dispatch_guides")]
     assert arrivals[0] > NOW and arrivals[1] > arrivals[0] and planned_end == arrivals[1]
     assert km > 0 and capacity == 25.0
 
@@ -446,7 +446,7 @@ def test_start_viaje_without_origin_coordinates_leaves_planned_times_empty(track
     db.answer("INSERT INTO tbl_routes", [{"id": ROUTE}])
     app.handler(_event("POST /api/v1/tracking/viajes/{id}/iniciar", path={"id": TRIP}), None)
     assert db.wrote("INSERT INTO tbl_routes")[0][1][-3] is None
-    assert [params[-1] for _, params in db.wrote("INSERT INTO tbl_dispatch_guides")] == [None]
+    assert [params[-2] for _, params in db.wrote("INSERT INTO tbl_dispatch_guides")] == [None]
 
 
 def test_list_rejects_a_cursor_with_an_invalid_timestamp(tracking):

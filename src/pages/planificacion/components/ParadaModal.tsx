@@ -67,6 +67,14 @@ export default function ParadaModal({ parada, onClose }: Props) {
 
   return (
     <AdminModal title={t('planning.stopDetail')} onClose={onClose}>
+      {parada.stop_type === 'collection' && (
+        <div className="px-6 pt-4">
+          <span className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg bg-violet-100 text-violet-800 border border-violet-300">
+            <i className="ri-arrow-go-back-line"></i>{t('planning.collection')}
+            {parada.return_reason && <span className="font-normal"> · {parada.return_reason}</span>}
+          </span>
+        </div>
+      )}
       {parada.es_cliente_retira && (
         <div className="px-6 pt-4">
           <span className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg bg-amber-100 text-amber-800 border border-amber-300">

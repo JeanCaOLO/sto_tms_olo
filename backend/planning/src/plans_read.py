@@ -31,9 +31,11 @@ ORDER BY t.sequence_order
 _STOPS = """
 SELECT s.id, s.trip_id, s.order_id, s.stop_order, s.order_number, s.customer_name,
        s.delivery_city, s.delivery_zone, s.latitude, s.longitude, s.weight, s.volume,
-       s.es_cliente_retira, o.delivery_address, o.priority, o.eflow_id_compania, o.observaciones
+       s.es_cliente_retira, s.stop_type, s.return_id, r.reason AS return_reason,
+       o.delivery_address, o.priority, o.eflow_id_compania, COALESCE(r.notes, o.observaciones) AS observaciones
 FROM tbl_plan_stops s
 LEFT JOIN tbl_orders o ON o.id = s.order_id
+LEFT JOIN tbl_returns r ON r.id = s.return_id
 WHERE s.trip_id = ANY(%s)
 ORDER BY s.stop_order
 """
@@ -59,6 +61,7 @@ def _stop(r: dict) -> dict:
         "total_weight": _val(r["weight"]), "total_volume": _val(r["volume"]),
         "prioridad": r["priority"], "compania": r["eflow_id_compania"],
         "es_cliente_retira": bool(r["es_cliente_retira"]), "observaciones": r["observaciones"],
+        "stop_type": r["stop_type"], "return_id": _val(r["return_id"]), "return_reason": r["return_reason"],
     }
 
 

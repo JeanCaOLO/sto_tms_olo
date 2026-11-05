@@ -75,8 +75,11 @@ def start_trip(event: dict, driver: Driver) -> dict:
             plan["end"], plan["total_km"], capacity])
         route_id = route[0]["id"]
         for index, stop in enumerate(stops, start=1):
-            run(sql.INSERT_GUIDE_SQL, [driver.organization_id, route_id, stop["order_id"], f"{route_number}-{index}",
-                                       index, "Generada al iniciar el viaje desde la app.", plan["arrivals"][index - 1]])
+            guide = run(sql.INSERT_GUIDE_SQL, [driver.organization_id, route_id, stop["order_id"], f"{route_number}-{index}",
+                                               index, "Generada al iniciar el viaje desde la app.", plan["arrivals"][index - 1],
+                                               stop.get("stop_type") or "delivery"])
+            if stop.get("return_id"):
+                run(sql.LINK_RETURN_SQL, [guide[0]["id"], stop["return_id"]])
         run(sql.INSERT_EVENT_SQL, [driver.organization_id, route_id, None, "route_started", "info", now(), None, None,
                                    "Viaje iniciado por el chofer", driver.app_user_id, None])
         return {"route_id": str(route_id), "created": True, "route_number": route_number}

@@ -42,6 +42,10 @@ export interface PlanStop {
   // Prioridad de la expedición (EPA: -0 falla = 1 urgente, -1 regular = 2).
   // Numérica invertida (menor = más urgente). null/undefined = sin prioridad.
   prioridad?: number | null;
+  // collection = recolecta de una devolución (order_id = pedido original, order_number = nº de devolución).
+  stop_type?: 'delivery' | 'collection';
+  return_id?: string | null;
+  return_reason?: string | null;
 }
 
 // Un viaje = un camión dentro del plan (plan_trips).
