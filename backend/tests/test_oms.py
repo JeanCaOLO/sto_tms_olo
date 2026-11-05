@@ -184,7 +184,7 @@ def test_observaciones_degrada_sin_bloquear_si_clasificador_falla():
     assert r.puntos == 0.0  # no rompe la corrida
 
 
-# --- ColaCandidatos (polling de columna sobre public.orders, v4) --------------
+# --- ColaCandidatos (polling de columna sobre public.tbl_orders, v4) --------------
 
 def test_cola_live_filtra_por_planning_run_id_y_oms_processed_at(monkeypatch):
     cola = load_stack_module("oms", "cola_candidatos")
@@ -213,8 +213,8 @@ def test_cola_live_filtra_por_planning_run_id_y_oms_processed_at(monkeypatch):
     # Filtro de polling v4: la columna es la única fuente de verdad de activación.
     assert "planning_run_id IS NOT NULL" in sql
     assert "oms_processed_at IS NULL" in sql
-    # Lee de public.orders, no de EXPEDICIONESCABECERA; sin wms_trip_number / NUMEROVIAJEWMH.
-    assert "FROM orders" in sql
+    # Lee de public.tbl_orders, no de EXPEDICIONESCABECERA; sin wms_trip_number / NUMEROVIAJEWMH.
+    assert "FROM tbl_orders" in sql
     assert "EXPEDICIONESCABECERA" not in sql and "wms_trip_number" not in sql and "NUMEROVIAJEWMH" not in sql
     assert params == [50]
     assert len(pedidos) == 1
@@ -237,7 +237,7 @@ def test_cola_mock_refleja_el_modelo_v4():
 # --- HandoffPedidosOMS ADR-013: priorizar (deja DISP) vs. liberar (GENE + costura) ---
 
 def test_priorizar_live_deja_disp_y_no_estampa_oms_processed_at(monkeypatch):
-    """(a) Priorizar hace UPDATE orders SIN 'GENE' ni oms_processed_at y NO usa la costura."""
+    """(a) Priorizar hace UPDATE tbl_orders SIN 'GENE' ni oms_processed_at y NO usa la costura."""
     handoff = load_stack_module("oms", "handoff_pedidos")
     models = load_stack_module("oms", "models")
     from tms_common import pg
@@ -253,7 +253,7 @@ def test_priorizar_live_deja_disp_y_no_estampa_oms_processed_at(monkeypatch):
     # Una sola escritura (no hay costura en priorizar) a orders por la llave EFLOW.
     assert len(llamadas) == 1
     sql, params = llamadas[0]
-    assert "UPDATE orders" in sql and "eflow_id_expedicion" in sql
+    assert "UPDATE tbl_orders" in sql and "eflow_id_expedicion" in sql
     # Priorizar NO libera: no estampa oms_processed_at ni pone 'GENE'.
     assert "oms_processed_at" not in sql
     assert "wms_situation" not in sql
@@ -306,7 +306,7 @@ def test_liberar_completa_en_mock():
 
 
 def test_liberar_live_escribe_gene_y_estampa_oms_processed_at(monkeypatch):
-    """(b) Liberar: UPDATE orders con 'GENE' + oms_processed_at=now() y pasa por la costura."""
+    """(b) Liberar: UPDATE tbl_orders con 'GENE' + oms_processed_at=now() y pasa por la costura."""
     handoff = load_stack_module("oms", "handoff_pedidos")
     models = load_stack_module("oms", "models")
     from tms_common import pg
@@ -321,8 +321,8 @@ def test_liberar_live_escribe_gene_y_estampa_oms_processed_at(monkeypatch):
 
     assert estado == handoff.ESTADO_COMPLETADO
     sql, params = llamadas[0]
-    # Escritura 1: UPDATE orders con 'GENE' + oms_processed_at = now() (= LIBERADO).
-    assert "UPDATE orders" in sql and "eflow_id_expedicion" in sql
+    # Escritura 1: UPDATE tbl_orders con 'GENE' + oms_processed_at = now() (= LIBERADO).
+    assert "UPDATE tbl_orders" in sql and "eflow_id_expedicion" in sql
     assert "oms_processed_at = now()" in sql
     assert params == ["GENE", handoff.ESTADO_PENDIENTE, "0001", "0109", "0001", "P0002002260922"]
     # Escritura 2 fue a la costura (sim_expedicionescabecera), nunca a eFlow real.

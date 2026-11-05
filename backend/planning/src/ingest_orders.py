@@ -54,23 +54,23 @@ def _mapa(sql: str, params: list, clave: str, valor: str) -> dict:
 def _lookups(filas: list[dict]) -> tuple[dict, dict, dict]:
     """Precarga los FKs que resuelve el ingest (una query por catálogo)."""
     customers = _mapa(
-        "SELECT external_code, id FROM customers WHERE external_code = ANY(%s)",
+        "SELECT external_code, id FROM tbl_customers WHERE external_code = ANY(%s)",
         [sorted({str(r["IDCOMPANIA"]) for r in filas})], "external_code", "id")
     codigos = sorted({str(r["IDCLIENTE"]) for r in filas if r["IDCLIENTE"] is not None})
     finals = _mapa(
-        "SELECT external_code, id FROM final_customers WHERE external_code = ANY(%s)",
+        "SELECT external_code, id FROM tbl_final_customers WHERE external_code = ANY(%s)",
         [codigos], "external_code", "id")
     # branch por (customer_id, external_code): la misma sucursal '0001' existe por cliente.
     branches = {
         (str(r["customer_id"]), str(r["external_code"])): r["id"]
-        for r in pg.query("SELECT customer_id, external_code, id FROM branches")
+        for r in pg.query("SELECT customer_id, external_code, id FROM tbl_branches")
         if r["external_code"] is not None
     }
     return customers, finals, branches
 
 
 _UPSERT = """
-INSERT INTO orders (
+INSERT INTO tbl_orders AS orders (
   organization_id, customer_id, final_customer_id, branch_id, warehouse_id,
   order_number, order_date, delivery_date, delivery_date_eflow, planned_dispatch_at,
   total_weight, total_volume, total_items, total_amount, delivery_address, delivery_latitude, delivery_longitude,

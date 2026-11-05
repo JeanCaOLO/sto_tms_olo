@@ -101,10 +101,10 @@ def guide_for_visits(**over):
 
 
 def send(call, fake_db, rows, *points):
-    fake_db.answer("FROM routes r LEFT JOIN stores s", [{
+    fake_db.answer("FROM tbl_routes r LEFT JOIN tbl_stores s", [{
         "id": ROUTE, "status": "En tránsito", "vehicle_id": "v", "driver_id": "88888888-8888-4888-8888-888888888888",
         "departed_at": NOW, "actual_end_time": None, "origin_lat": None, "origin_lng": None}])
-    fake_db.answer("INSERT INTO tracking_positions", [{"client_id": p["client_id"]} for p in points])
+    fake_db.answer("INSERT INTO tbl_tracking_positions", [{"client_id": p["client_id"]} for p in points])
     fake_db.answer("LEFT JOIN tracking_stop_visits v", rows)
     body = {"positions": list(points)}
     return body_of(call("POST /api/mobile/v1/posiciones", body=body))["data"]
@@ -137,11 +137,11 @@ def test_ingest_ignores_mock_points_for_visits(call, fake_db):
 
 
 def test_delivery_marks_the_visit_as_completed(call, fake_db):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [{
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [{
         "id": GUIDE, "route_id": ROUTE, "organization_id": ORG, "order_id": ORDER, "order_number": "PED-001",
         "delivery_status": "pending", "notes": None, "route_status": "En tránsito", "driver_id": DRIVER,
         "stop_lat": None, "stop_lng": None, "evidence_kinds": ["photo_invoice", "signature"]}])
-    fake_db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 1}])
+    fake_db.answer("FROM tbl_dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 1}])
     response = call("POST /api/mobile/v1/paradas/{id}/transicion", path={"id": GUIDE},
                     body={"to": "delivered", "lat": 9.0, "lng": -84.0, "occurred_at": "2026-10-16T14:50:00Z"})
     assert response["statusCode"] == 200

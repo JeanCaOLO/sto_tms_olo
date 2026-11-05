@@ -18,20 +18,20 @@ class FakeDb:
 
     def query(self, sql, params=()):
         self.calls.append((sql, list(params)))
-        if "FROM app_users" in sql:
+        if "FROM tbl_app_users" in sql:
             return [{"id": "app-1", "organization_id": "org"}]
-        if "FROM user_scopes" in sql:
+        if "FROM tbl_user_scopes" in sql:
             return [{"id": "s", "role_id": None, "country_id": None, "warehouse_id": None, "customer_id": None,
                      **self.scope}]
-        if "FROM customers c LEFT JOIN warehouses" in sql:
+        if "FROM tbl_customers c LEFT JOIN tbl_warehouses" in sql:
             return [{"customer_id": "cust-1", "warehouse_id": "w-1", "country_id": "cr"}]
-        if "SELECT country_id FROM customers" in sql:
+        if "SELECT country_id FROM tbl_customers" in sql:
             return [{"country_id": "cr"}]
-        if "FROM final_customers WHERE customer_id" in sql:
+        if "FROM tbl_final_customers WHERE customer_id" in sql:
             return []
         if "RETURNING id" in sql:
             return [{"id": "new-id"}]
-        if "SELECT 1 FROM delivery_points" in sql:
+        if "SELECT 1 FROM tbl_delivery_points" in sql:
             return [{"?": 1}] if self.point_exists else []
         if "WHERE dp.id" in sql:
             return [POINT]
@@ -61,10 +61,10 @@ def test_create_writes_final_customer_address_and_point_in_one_transaction(setup
     app, db = setup()
     response = app.handler(http_event("POST /api/v1/delivery-points", body=VALID, user=USER), None)
     assert response["statusCode"] == 200 and db.committed
-    assert _sql(db, "INSERT INTO final_customers")[0] == ["cust-1", "T010", "Tienda nueva"]
-    address = _sql(db, "INSERT INTO addresses")[0]
+    assert _sql(db, "INSERT INTO tbl_final_customers")[0] == ["cust-1", "T010", "Tienda nueva"]
+    address = _sql(db, "INSERT INTO tbl_addresses")[0]
     assert address[:3] == ["cr", "Calle 1", None] and address[5:8] == [9.86, -83.92, "OK"]
-    assert _sql(db, "INSERT INTO delivery_points")
+    assert _sql(db, "INSERT INTO tbl_delivery_points")
 
 
 @pytest.mark.parametrize("override, status", [
@@ -96,8 +96,8 @@ def test_update_point_and_address_without_coordinates_is_pending(setup):
     body = {"name": "Renombrada", "active": False, "address": {"line1": "Otra", "city": "Heredia"}}
     response = app.handler(http_event("PATCH /api/v1/delivery-points/{id}", path={"id": "dp-1"}, body=body, user=USER), None)
     assert response["statusCode"] == 200
-    assert _sql(db, "UPDATE delivery_points SET")[0] == ["Renombrada", False, "dp-1"]
-    assert _sql(db, "UPDATE addresses")[0][6] == "PENDING"
+    assert _sql(db, "UPDATE tbl_delivery_points SET")[0] == ["Renombrada", False, "dp-1"]
+    assert _sql(db, "UPDATE tbl_addresses")[0][6] == "PENDING"
 
 
 def test_update_can_send_point_back_to_automatic_zone(setup):
@@ -105,7 +105,7 @@ def test_update_can_send_point_back_to_automatic_zone(setup):
     body = {"zone_source": "map"}
     response = app.handler(http_event("PATCH /api/v1/delivery-points/{id}", path={"id": "dp-1"}, body=body, user=USER), None)
     assert response["statusCode"] == 200
-    assert _sql(db, "UPDATE delivery_points SET zone_source")[0] == ["map", "dp-1"]
+    assert _sql(db, "UPDATE tbl_delivery_points SET zone_source")[0] == ["map", "dp-1"]
 
 
 @pytest.mark.parametrize("source", ["wms", "", "otra"])
@@ -113,7 +113,7 @@ def test_update_rejects_zone_sources_the_user_cannot_set(setup, source):
     app, db = setup()
     response = app.handler(http_event("PATCH /api/v1/delivery-points/{id}", path={"id": "dp-1"},
                                       body={"zone_source": source}, user=USER), None)
-    assert response["statusCode"] == 400 and not _sql(db, "UPDATE delivery_points")
+    assert response["statusCode"] == 400 and not _sql(db, "UPDATE tbl_delivery_points")
 
 
 def test_update_saves_contact_phone(setup):
@@ -121,7 +121,7 @@ def test_update_saves_contact_phone(setup):
     response = app.handler(http_event("PATCH /api/v1/delivery-points/{id}", path={"id": "dp-1"},
                                       body={"contact_phone": "+506 8888-0000"}, user=USER), None)
     assert response["statusCode"] == 200
-    assert _sql(db, "UPDATE delivery_points SET contact_phone")[0] == ["+506 8888-0000", "dp-1"]
+    assert _sql(db, "UPDATE tbl_delivery_points SET contact_phone")[0] == ["+506 8888-0000", "dp-1"]
 
 
 def test_saving_the_same_zone_keeps_its_origin(setup, monkeypatch):
@@ -131,7 +131,7 @@ def test_saving_the_same_zone_keeps_its_origin(setup, monkeypatch):
     app, db = setup()
     body = {"name": "Renombrada", "zone_id": "z-1", "zone_source": "manual"}
     app.handler(http_event("PATCH /api/v1/delivery-points/{id}", path={"id": "dp-1"}, body=body, user=USER), None)
-    assert _sql(db, "UPDATE delivery_points SET name = %s, updated_at")[0] == ["Renombrada", "dp-1"]
+    assert _sql(db, "UPDATE tbl_delivery_points SET name = %s, updated_at")[0] == ["Renombrada", "dp-1"]
 
 
 def test_choosing_another_zone_is_manual(setup, monkeypatch):
@@ -139,12 +139,12 @@ def test_choosing_another_zone_is_manual(setup, monkeypatch):
     app, db = setup()
     body = {"zone_id": "z-2", "zone_source": "manual"}
     app.handler(http_event("PATCH /api/v1/delivery-points/{id}", path={"id": "dp-1"}, body=body, user=USER), None)
-    assert _sql(db, "UPDATE delivery_points SET zone_id")[0] == ["z-2", "manual", "dp-1"]
+    assert _sql(db, "UPDATE tbl_delivery_points SET zone_id")[0] == ["z-2", "manual", "dp-1"]
 
 
 def test_delete_removes_point_and_its_address(setup):
     app, db = setup()
     response = app.handler(http_event("DELETE /api/v1/delivery-points/{id}", path={"id": "dp-1"}, user=USER), None)
     assert response["statusCode"] == 200 and db.committed
-    assert _sql(db, "DELETE FROM delivery_points") == [["dp-1"]]
-    assert _sql(db, "DELETE FROM addresses") == [["addr-1"]]
+    assert _sql(db, "DELETE FROM tbl_delivery_points") == [["dp-1"]]
+    assert _sql(db, "DELETE FROM tbl_addresses") == [["addr-1"]]

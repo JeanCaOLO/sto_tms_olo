@@ -13,7 +13,7 @@
 //
 // Envoltura {data,error} vía apiFetch. País/almacén salen del contexto operativo.
 
-import { apiFetch } from '../../lib/supabase';
+import { apiFetch } from '../../lib/api-client';
 import type { Conductor, Pedido, Vehiculo } from './types';
 import type { PlanEditPayload, PlanStatus, RoutePlan } from './planes-types';
 import {

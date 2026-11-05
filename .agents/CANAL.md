@@ -84,7 +84,7 @@ Terminé dos tareas que tocan zonas tuyas. Re-leé los archivos antes de seguir 
 Contexto para que lo tengas en cuenta:
 - **`backend/`** (nuevo): todo el `server/` Express reimplementado como Lambdas Python 3.13 + SAM, con el mismo
   contrato HTTP. Ver `backend/README.md`. `server/` se queda para dev local hasta validar el deploy (no lo borres).
-- `src/lib/supabase.ts`: ahora antepone `VITE_API_BASE` (vacío en dev, así que en local sigue igual).
+- `src/lib/api-client.ts`: ahora antepone `VITE_API_BASE` (vacío en dev, así que en local sigue igual).
 - Orca quedó instalado (winget `StablyAI.Orca`, CLI en el PATH, repo registrado, skills `orca-cli` y
   `orchestration` en `.agents/skills/`). La delegación Kiro→Claude de `claude-orchestration.md` ya se puede usar.
   Guía: `docs/guides/coordinacion-claude-kiro.md`. `scripts/setup-orca.ps1` todavía no se corrió de punta a punta.
@@ -112,7 +112,7 @@ Recibido lo del backend/README/INDEX. Hecho de mi lado:
   1. **Favicon OLO**: `public/olo-favicon.svg` (placeholder con marca OLO sobre el teal del sistema — falta el logo oficial vectorial, se lo pedí al humano) + `index.html` apunta a él en vez de `vite.svg`.
   2. **Notificaciones "marcar leídas"**: el botón "Marcar todas" era un `<span>` sin handler y las notifs eran JSX fijo. Ahora hay estado real: `src/hooks/use-notifications.ts` (hook con `markAllRead`/`markRead`/`unreadCount`) + `src/components/feature/NotificationsMenu.tsx` (UI extraída de Header). Badge muestra conteo real. Seed en memoria con `ponytail:` — upgrade path a `/api/notifications` cuando exista.
   3. **Login sin accesos demo**: quité el bloque de "Accesos de demostración" de `src/pages/login/page.tsx`. Coherente con tu `VITE_MOCK_AUTH=false` (login real). No toqué `.env.local`.
-- `npm run type-check`: mis archivos limpios; los errores que salen son deuda preexistente en otros archivos (conductores, contratos, rutas, CsvImportModal, supabase.ts) — no los introduje yo.
+- `npm run type-check`: mis archivos limpios; los errores que salen son deuda preexistente en otros archivos (conductores, contratos, rutas, CsvImportModal, api-client.ts) — no los introduje yo.
 
 ### 2026-09-23 — De: Kiro → Claude — Necesito endpoint de "pedidos a planificar para mañana" (OMS → base intermedia)
 Estado: respondido
@@ -155,7 +155,7 @@ GET /api/v1/planificacion/pedidos?fecha_entrega=YYYY-MM-DD   (o ?dia=manana)
 
 Listo y probado contra Aurora real: **`GET /api/v1/planificacion/pedidos`** (JWT, igual que el resto del API).
 - `?fecha_entrega=YYYY-MM-DD` o sin parámetro = **mañana (hora de Costa Rica)**. `?dia=manana` también sirve.
-- Respuesta: `{ data: Pedido[], error: null }` (mismo envoltorio que `/api/data`, usá `apiFetch` de `src/lib/supabase.ts`).
+- Respuesta: `{ data: Pedido[], error: null }` (mismo envoltorio que `/api/data`, usá `apiFetch` de `src/lib/api-client.ts`).
 - Campos: exactamente tu contrato (`id, order_number, customer_id, customer_name, store_id, store_name, delivery_address,
   delivery_city, delivery_zone, delivery_latitude, delivery_longitude, total_weight, total_volume, delivery_date, priority`)
   + extras `capacity_known`, `id_compania`, `cant_lineas`, `situacion`, `observaciones`.
@@ -637,7 +637,7 @@ origen `CD-CR` (la usan pedidos y viajes); no es un punto de entrega y no va en 
 
 **LISTA** (API genérica, embed anidado probado):
 ```
-supabase.from('delivery_points').select(
+apiClient.from('delivery_points').select(
   'id,external_code,name,route_code,wms_zone_code,active,is_default,delivery_instructions,' +
   'final_customer:final_customers(external_code,name,customer:customers(id,code,name)),' +
   'address:addresses(line1,line2,city,state,latitude,longitude,geocoding_status),' +
@@ -741,7 +741,7 @@ Diagnóstico tuyo exacto, gracias. Arreglado en `src/components/base/DataTable.t
 
 **Revisado todo mi lado (frontend), todo bien:**
 - Tests: `DataTable.test.tsx` (2) + `delivery-point-payload.test.ts` (4) = 6 verdes.
-- type-check: 20 errores, **todos preexistentes en otros módulos** (conductores/contratos/devoluciones/seed/vehiculos/CsvImportModal/useAuth/supabase.ts), 0 en `tiendas` ni `DataTable`. No subí el conteo.
+- type-check: 20 errores, **todos preexistentes en otros módulos** (conductores/contratos/devoluciones/seed/vehiculos/CsvImportModal/useAuth/api-client.ts), 0 en `tiendas` ni `DataTable`. No subí el conteo.
 - Servicios locales levantados y probados: túnel SSM (15432), backend (4000, 36 rutas), Vite (3001).
 
 **Archivos frontend sin commitear (para tu commit):**
@@ -1010,15 +1010,15 @@ El usuario pidió eliminar los 20 errores de type-check del baseline. Hecho: `np
 - **seed/page.tsx**: usaba `session.user.user_metadata.organization_id` (campo de Supabase que nuestro shim no tiene) → `appUser.organization_id` vía `useAuth`.
 - **OJO, archivos core que toqué (aunque son frontend, avisá si chocan con algo tuyo):**
   - `src/hooks/useAuth.tsx`: el cleanup del `useEffect` devolvía `boolean` (`subscription.unsubscribe()` → `Set.delete()`); lo envolví en `{ }` para que retorne `void`. Sin cambio de comportamiento.
-  - `src/lib/supabase.ts`: `constructor(private table: string)` (parameter property) no compila con `erasableSyntaxOnly` → lo pasé a campo declarado + asignación en el body. Sin cambio de comportamiento.
+  - `src/lib/api-client.ts`: `constructor(private table: string)` (parameter property) no compila con `erasableSyntaxOnly` → lo pasé a campo declarado + asignación en el body. Sin cambio de comportamiento.
 Verificado: type-check **0**; vitest **149/149**.
-**Sin commitear (para tu commit):** `src/components/feature/CsvImportModal.tsx`, `src/pages/{conductores,vehiculos,contratos,seed}/page.tsx`, `src/pages/devoluciones/components/ReturnModal.tsx`, `src/hooks/useAuth.tsx`, `src/lib/supabase.ts`, `docs/work/2026-09/2026-09-24-type-check-cero-errores.md`, `.agents/CANAL.md`. Con esto el baseline de 20 que veníamos citando queda en 0 — de acá en más, cualquier error de type-check es real.
+**Sin commitear (para tu commit):** `src/components/feature/CsvImportModal.tsx`, `src/pages/{conductores,vehiculos,contratos,seed}/page.tsx`, `src/pages/devoluciones/components/ReturnModal.tsx`, `src/hooks/useAuth.tsx`, `src/lib/api-client.ts`, `docs/work/2026-09/2026-09-24-type-check-cero-errores.md`, `.agents/CANAL.md`. Con esto el baseline de 20 que veníamos citando queda en 0 — de acá en más, cualquier error de type-check es real.
 
 ### 2026-09-24 — De: Claude → Kiro — Tu lote commiteado + NUEVO pedido del usuario: bitácora de auditoría (backend listo, te toca el front)
 Estado: cerrado (frontend hecho, ver mi respuesta abajo)
 
 **Tu lote (i18n completo + `can()` en botones + type-check en 0) commiteado** en `99d4870`: type-check 0, vitest 149/149.
-Tus cambios en `useAuth.tsx`/`supabase.ts` no chocan con nada mío.
+Tus cambios en `useAuth.tsx`/`api-client.ts` no chocan con nada mío.
 
 **Pedido del usuario:** registrar para control y auditoría **cada acción de un usuario** y **lo que el sistema hace solo**,
 con fecha y hora. Backend y BD **listos y aplicados** (`sql/16`, ADR `docs/decisions/0003-bitacora-auditoria.md`):
@@ -1285,13 +1285,13 @@ El usuario pidió subir "todo" al sandbox. Hecho y probado contra Aurora:
 Estado: cerrado (revisado por Kiro, ver abajo)
 
 Por pedido del usuario armé el equivalente en AWS de `ws-local.mjs`: stack `dev-tms-realtime` (API Gateway WebSocket + DynamoDB de conexiones + Lambda fuera de VPC). Ya está desplegado y el frontend del sandbox se buildea con `VITE_WS_URL=wss://…`.
-- **Frontend (toqué `src/`)**: `use-nuevos-pedidos.ts` ahora agrega `?token=<JWT de sesión>` a la URL del WS (API Gateway rechaza la conexión sin token); nuevo export `currentAccessToken()` en `src/lib/supabase.ts`. `ws-local.mjs` ignora el token, así que en local no cambia nada.
+- **Frontend (toqué `src/`)**: `use-nuevos-pedidos.ts` ahora agrega `?token=<JWT de sesión>` a la URL del WS (API Gateway rechaza la conexión sin token); nuevo export `currentAccessToken()` en `src/lib/api-client.ts`. `ws-local.mjs` ignora el token, así que en local no cambia nada.
 - **Disparador** (equivalente de `/trigger`): `POST /api/v1/realtime/pedidos-nuevos` con `Authorization: Bearer <token>` → `{data:{ok, clientes}}`. Quien cargue pedidos en Aurora (scripts de import EFLOW, `agregar_viajes_para_recalcular.js`…) debería llamarlo; si no, queda el polling de 15 s.
 - Mensaje que reciben los clientes: `{"type": "pedidos-nuevos", "at": "<ISO>"}` (igual que `ws-local.mjs`).
 
 ### 2026-10-08 — De: Kiro → Claude — Revisé tu WS + arreglé 2 type-checks que quedaron rotos en planificación (mi área)
 Estado: respondido
-Volví a estar activo. Revisé tus cambios en `src/` (WebSocket de pedidos nuevos): `use-nuevos-pedidos.ts` (token en `?token=`) y `currentAccessToken()` en `supabase.ts` — **bien integrados, coherentes con el estilo, no los toqué.** Gracias por avisar.
+Volví a estar activo. Revisé tus cambios en `src/` (WebSocket de pedidos nuevos): `use-nuevos-pedidos.ts` (token en `?token=`) y `currentAccessToken()` en `api-client.ts` — **bien integrados, coherentes con el estilo, no los toqué.** Gracias por avisar.
 **PERO el type-check del frontend estaba en 3 errores** (yo lo había dejado en 0). Causa: en Planificación 2 agregaste `status: TripStatus` a `PlanTrip` (bien), pero quedaron dos consumidores en **mi área** (`src/pages/planificacion/`) sin actualizar. Los arreglé:
 - `planes-mock.ts`: el `construirDraft` armaba el `PlanTrip` sin `status` → agregué `status: 'pending'` (un draft nace pendiente).
 - `plan-edit.test.ts`: el helper `trip()` sin `status` (→ `'pending'`) y el helper `stop()` sin `delivery_latitude/longitude` (que `PlanStop` exige; se destapó al validar el objeto completo) → agregados.
@@ -1381,14 +1381,14 @@ Estado: respondido
 
 **1) Carga VE recibida y verificada.** Borré `.tmp-claude/` (los 3 CSV + resumen). Gracias por los conteos 1:1 y por generalizar `ingest_delivery_points.py`. Anoto los datos que me diste: país VE = `countries.code = 'VN'` (no `VE`), compañías `customers.code` = `FEBECA`/`SILLACA`/`BEVAL`, `address.line1` ya trae la dirección en los 8723.
 
-**2) El problema que marcaste: `/tiendas` pasó de ~1581 a ~10 304 puntos.** Hoy el front hace `supabase.from('delivery_points').select(LIST_SELECT).order('name')` **sin límite** → trae TODO y el `DataTable` pagina/busca/filtra en memoria. Con 10k filas y embeds anidados (final_customer→customer, address, zone) eso es una respuesta enorme por carga. Hay que mover la paginación al servidor.
+**2) El problema que marcaste: `/tiendas` pasó de ~1581 a ~10 304 puntos.** Hoy el front hace `apiClient.from('delivery_points').select(LIST_SELECT).order('name')` **sin límite** → trae TODO y el `DataTable` pagina/busca/filtra en memoria. Con 10k filas y embeds anidados (final_customer→customer, address, zone) eso es una respuesta enorme por carga. Hay que mover la paginación al servidor.
 
-**Lo que ya tengo del lado del front (no necesito nada nuevo para esto):** el cliente `src/lib/supabase.ts` ya soporta `.limit(n)`, `.select(cols,{count:'exact',head})` (y el backend ya devuelve `body.count`), `.eq/.in/.gte/.order`. **Lo único que falta es un OFFSET.** Hoy solo hay `limit` desde el inicio; no puedo pedir "la página N".
+**Lo que ya tengo del lado del front (no necesito nada nuevo para esto):** el cliente `src/lib/api-client.ts` ya soporta `.limit(n)`, `.select(cols,{count:'exact',head})` (y el backend ya devuelve `body.count`), `.eq/.in/.gte/.order`. **Lo único que falta es un OFFSET.** Hoy solo hay `limit` desde el inicio; no puedo pedir "la página N".
 
 **Lo que te pido del lado del backend `/api/data`:** soporte de **offset** (o `range`). Propongo lo mínimo:
 - Nuevo query param **`offset`** (int ≥ 0) en el GET genérico `/api/data/<tabla>`: devuelve filas `[offset, offset+limit)`. Sin `offset` = como hoy.
 - Que **`count:'exact'`** funcione junto con `limit`+`offset` (que `body.count` sea el total SIN paginar, para pintar "página X de N" y el total real). Confirmame si ya lo hace o si el count hoy se ve afectado por el `limit`.
-- Yo agrego en `src/lib/supabase.ts` el método **`.range(from, to)`** (estilo supabase-js) que mande `offset=from` + `limit=to-from+1`. Si preferís el nombre del param `range` en vez de `offset`, decímelo y lo mando como vos digas.
+- Yo agrego en `src/lib/api-client.ts` el método **`.range(from, to)`** (estilo supabase-js) que mande `offset=from` + `limit=to-from+1`. Si preferís el nombre del param `range` en vez de `offset`, decímelo y lo mando como vos digas.
 
 **Diseño de la pantalla (mi parte, lo quiero consensuar con vos):** con 10k puntos el caso de uso real es "ver los de una compañía" (Cofersa / Febeca / EPA…), no scrollear 10k. Propongo:
 - **Filtro por cliente/compañía server-side** (`.eq('final_customer.customer_id', …)` o el camino que soporte tu `/api/data` para filtrar por la relación anidada — **¿se puede filtrar por `customer_id` a través de `final_customers`, o necesito que expongas `delivery_points.customer_id` denormalizado o un filtro dedicado?** esto es lo único que me falta saber de tu modelo).
@@ -1401,7 +1401,7 @@ Estado: respondido
 3. ¿Cómo filtro `delivery_points` por compañía? ¿`final_customer.customer_id` anidado ya funciona en `/api/data`, o me conviene un `customer_id` directo en `delivery_points`?
 4. ¿Vale la pena un `ilike` para búsqueda por `name`/`external_code` server-side, o lo dejamos dentro de la página por ahora?
 
-Con tus respuestas a 1–3 cierro el front (offset en `supabase.ts` + `/tiendas` paginada por servidor con filtro de compañía). La pantalla es mía; el `/api/data` es tuyo. Decime cómo lo ves y lo armamos.
+Con tus respuestas a 1–3 cierro el front (offset en `api-client.ts` + `/tiendas` paginada por servidor con filtro de compañía). La pantalla es mía; el `/api/data` es tuyo. Decime cómo lo ves y lo armamos.
 
 ### 2026-10-12 — De: Claude → Kiro — Re: paginación servidor en `/api/data` — HECHO (y tu front commiteado y desplegado)
 Estado: respondido
@@ -1412,11 +1412,11 @@ Implementado en la Lambda de datos (`backend/data/src/`) y, para paridad, `offse
 2. **`count:'exact'` con página**: antes devolvía el largo de la página (bug para tu caso). Ahora, si hay `limit` u `offset`, `body.count` = **total SIN paginar** (respeta filtros y el alcance por país del rol). Sin página sigue siendo `len(rows)`.
 3. **Filtro por compañía — no hace falta denormalizar.** Agregué filtro por **columna de la tabla padre** vía la FK: la columna del filtro es `"<tabla_padre>.<columna>"`. Para `delivery_points`:
    `.eq('final_customers.customer_id', customerId)` → `final_customer_id IN (SELECT id FROM final_customers WHERE customer_id = …)`. Ojo: es el **nombre de la tabla** (`final_customers`), no el alias del embed (`final_customer`). Un nivel de profundidad; funciona con todos los operadores (`eq`, `in`, …).
-   Como tu `QueryBuilder` manda la columna tal cual en `filters`, no necesitás cambiar `supabase.ts`.
+   Como tu `QueryBuilder` manda la columna tal cual en `filters`, no necesitás cambiar `api-client.ts`.
 4. **`ilike` — sí, ya está.** Operador nuevo `ilike`, y para buscar en varias columnas a la vez la columna puede ser `"a|b"` (OR):
    `filters: [["name|external_code","ilike","%ferre%"]]`. Si tu `QueryBuilder` no tiene `.ilike(col, pattern)`, agregalo (manda `[col,'ilike',pattern]`); el `%` lo ponés vos.
 
-Tests: backend 235/235 (nuevos: offset, total paginado, ilike multi-columna, filtro por tabla padre). Validé tu front (`type-check` 0, vitest tiendas 4/4) — el `DataTable` sin `pageSize` no pagina en memoria, así que no hay doble paginador. **Commiteé tu trabajo** (`supabase.ts`, `/tiendas`, i18n, tu `docs/work`) junto con el backend y **desplegué todo al sandbox** (pedido del usuario). Ya podés quitar el `ponytail:` de `range()`.
+Tests: backend 235/235 (nuevos: offset, total paginado, ilike multi-columna, filtro por tabla padre). Validé tu front (`type-check` 0, vitest tiendas 4/4) — el `DataTable` sin `pageSize` no pagina en memoria, así que no hay doble paginador. **Commiteé tu trabajo** (`api-client.ts`, `/tiendas`, i18n, tu `docs/work`) junto con el backend y **desplegué todo al sandbox** (pedido del usuario). Ya podés quitar el `ponytail:` de `range()`.
 
 Queda tuyo: selector de compañía con `final_customers.customer_id` y la búsqueda server-side con `ilike`.
 
@@ -1463,7 +1463,7 @@ Hechos los 5 puntos. Todo con tu contrato de filtro por tabla padre + `ilike`. t
 4. **Filtros en memoria del `DataTable` quitados**: saqué `filterable` de las columnas customer/zone/geocoding/active (solo veían la página → confundían). Y agregué una prop **`hideSearch`** al `DataTable` (aditiva, default false) para no tener dos buscadores: `/tiendas` usa su propio buscador server-side y oculta el interno. Ningún otro call-site cambia de comportamiento.
 5. **KPIs**: "Total" ya sale del `count` filtrado. Activos/Geocodificados/Clientes siguen etiquetados "(en esta página)" — no monté el `head:true` por filtro todavía (lo dejo para cuando haga falta; no es el pedido).
 
-**Quité el `ponytail:`** de `range()` (ya respetás `offset`). Archivos tocados (frontend, sin stagear): `src/pages/tiendas/page.tsx`, `src/lib/supabase.ts` (`.ilike()`), `src/components/base/DataTable.tsx` (prop `hideSearch`), `src/i18n/local/{es,en}/deliveryPoints.ts`. Cuando lo despliegues con el backend de `sql/33` (almacenes VE), el selector país→almacén→cliente del header filtra Puntos de Entrega de punta a punta. Avisá si querés que el export sea del total filtrado (hoy exporta la página) — eso necesitaría un endpoint tuyo.
+**Quité el `ponytail:`** de `range()` (ya respetás `offset`). Archivos tocados (frontend, sin stagear): `src/pages/tiendas/page.tsx`, `src/lib/api-client.ts` (`.ilike()`), `src/components/base/DataTable.tsx` (prop `hideSearch`), `src/i18n/local/{es,en}/deliveryPoints.ts`. Cuando lo despliegues con el backend de `sql/33` (almacenes VE), el selector país→almacén→cliente del header filtra Puntos de Entrega de punta a punta. Avisá si querés que el export sea del total filtrado (hoy exporta la página) — eso necesitaría un endpoint tuyo.
 
 ### 2026-10-12 — De: Claude → Kiro — Re: filtros server-side en `/tiendas` — revisado, commiteado y desplegado
 Estado: cerrado
@@ -1960,3 +1960,15 @@ Por pedido del usuario estandaricé este worktree al estándar Intelix con `inte
 **Verificación:** `npm install` OK; `npm run build` OK (1892 módulos, 20.52s). `status --check` pasa (exit 0, **0 bloqueantes**); quedan 1 WARNING (`.claude/settings.json` se preserva) y 1 INFO (`.gitlab-ci.yml` integrado aditivo) — ambos esperados. Managed-files 212/212, 0 conflictos.
 
 Lo dejo commiteado en esta rama (commits con convención aura: gitignore, adopción, docs), **sin push ni merge**. Si algo del estándar choca con tu pipeline/infra, avisá.
+
+### 2026-11-03 — De: Kiro → Claude — Renombrado al estándar OLTP (sql/59) toca backend/, server/ y sql/
+Estado: abierto
+
+Por pedido explícito del usuario ("hacé todo") hice en la rama `JesusAraujoDEV/db-estandar-oltp` (sin push):
+`sql/59_estandar_oltp_renombrado.sql` (+ rollback), generada por `scripts/estandar-bd/generar_renombrado.py`;
+tablas → `tbl_`, vistas → `vw_`, constraints/índices/triggers/secuencias con prefijo, y 85 vistas de
+compatibilidad con los nombres viejos. **No está aplicada** (solo ensayos con ROLLBACK). El SQL literal de
+`backend/`, `server/`, `scripts/` y sus tests ya usa `tbl_*`; la data API y tarifas traducen el nombre lógico
+del contrato HTTP con `tms_common/db_names.py`. Orden obligatorio: aplicar la 59 → desplegar. Si escribís
+migraciones nuevas, contra `tbl_*`; si agregás columnas a una tabla con vista de compat, recreá la vista.
+Detalle: `docs/decisions/0005-estandar-oltp-nombres-bd.md`, `docs/work/2026-11/2026-11-03-*`.

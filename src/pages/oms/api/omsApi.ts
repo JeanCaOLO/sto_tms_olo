@@ -5,7 +5,7 @@
 // auditoría) sigue en mock — todavía no tienen tabla real detrás.
 // Patrón §11: Page -> Controller -> Api.
 
-import { supabase } from '../../../lib/supabase';
+import { apiClient } from '../../../lib/api-client';
 import { calcularPrioridad } from '../engine/priorityEngine';
 import {
   auditEntries,
@@ -138,7 +138,7 @@ const TIERS: readonly PriorityTier[] = [1, 2, 3, 4];
 // --- Panel del motor: columnas y helpers del embudo ---
 // Columnas mínimas de orders para derivar el embudo sin traer toda la fila.
 const PANEL_SELECT =
-  'priority,oms_score,prioritization_run_id,planning_run_id,oms_processed_at,wms_situation,dispatch_date,lead_time_days,numero_viaje,delivery_date,closed_at';
+  'priority,oms_score,prioritization_run_id,planning_run_id,oms_processed_at,wms_situation,dispatch_date,lead_time_days,numero_viaje,delivery_date,delivery_date_change_count,closed_at';
 // Política del OMS (ADR-013): la ventana de liberación abre dispatch_date − N días.
 const DIAS_PREP_PICKING_DEFECTO = 1;
 // Acciones de negocio que forman el "Historial OMS" del panel (barrido automático
@@ -230,20 +230,23 @@ export const omsApi = {
     if (country === 'CR') {
       // Solo pedidos sin cierre en el WMS (EFLOW FECHACIERRE IS NULL), filtrados
       // por el contexto operativo del header (almacén / compañía / país).
-      let query = supabase.from('orders').select(QUEUE_SELECT).is('closed_at', null);
+      let query = apiClient.from('orders').select(QUEUE_SELECT).is('closed_at', null);
       if (scope.warehouseId) query = query.eq('warehouse_id', scope.warehouseId);
       else if (scope.warehouseIds && scope.warehouseIds.length > 0) query = query.in('warehouse_id', scope.warehouseIds);
       if (scope.customerId) query = query.eq('customer_id', scope.customerId);
       const { data, error } = await query;
       if (!error && data) {
-        // Datos REALES de orders (aunque vengan vacíos): es lo que pidió negocio,
-        // no mock. Solo un error de red/BD cae al mock de respaldo (abajo).
+        // Datos REALES de orders (aunque vengan vacíos): es lo que pidió negocio.
         const hoyIso = new Date().toISOString().slice(0, 10);
         return data
           .map((row: any) => mapOrderToQueueOrder(row, country, hoyIso))
           .sort((a, b) => b.score - a.score);
       }
-      console.warn('[OMS] orders no disponible, usando mock de respaldo:', error?.message);
+      // CR trabaja SOLO con datos reales: ante un error de BD mostramos la cola
+      // vacía (y el error en consola), NUNCA mock. El mock de abajo queda solo
+      // para países sin fuente real todavía (p. ej. VE).
+      console.error('[OMS] cola no disponible (orders):', error?.message);
+      return [];
     }
     const rows = queueOrders
       .filter((o) => o.country === country)
@@ -264,7 +267,7 @@ export const omsApi = {
   // de Aurora vía /api/data; si la tabla no existe/aún no hay backend que escriba,
   // devuelve lista vacía (no mock) para no inventar logs.
   async getOmsLogs(limit = 200): Promise<OmsLogEntry[]> {
-    const { data, error } = await supabase
+    const { data, error } = await apiClient
       .from('oms_logs')
       .select('*')
       .order('created_at', { ascending: false })
@@ -290,7 +293,7 @@ export const omsApi = {
   // alguno (si faltara el rango, se usa created_at >= época = todo). Devuelve
   // cuántas filas borró.
   async clearOmsLogs(range?: { fromIso?: string; toIso?: string }): Promise<number> {
-    let q = supabase.from('oms_logs').delete();
+    let q = apiClient.from('oms_logs').delete();
     if (range?.fromIso) q = q.gte('created_at', range.fromIso);
     if (range?.toIso) q = q.lt('created_at', range.toIso);
     if (!range?.fromIso && !range?.toIso) q = q.gte('created_at', '1900-01-01');
@@ -306,7 +309,7 @@ export const omsApi = {
   // es barato y evita filtros que el backend genérico no expone. El scope operativo
   // (almacén/compañía del header) ya lo aplica el backend por headers.
   async getPanelResumen(): Promise<{ pipeline: OmsPipeline; proximas: ProximaLiberacion[] }> {
-    const { data, error } = await supabase.from('orders').select(PANEL_SELECT).is('closed_at', null);
+    const { data, error } = await apiClient.from('orders').select(PANEL_SELECT).is('closed_at', null);
     if (error || !data) throw new Error(error?.message ?? 'No se pudo leer orders');
     const rows = data as any[];
     const hoyIso = new Date().toISOString().slice(0, 10);
@@ -320,6 +323,15 @@ export const omsApi = {
       enCola: rows.filter((r) => conPlan(r) && sinLiberar(r) && !priorizado(r)).length,
       priorizados: rows.filter((r) => conPlan(r) && sinLiberar(r) && priorizado(r)).length,
       liberadosHoy: rows.filter((r) => r.oms_processed_at != null && isoDay(r.oms_processed_at) === hoyIso).length,
+      // Indicadores de atención (reunión 2026-11-03):
+      //  - sin fecha de entrega: cualquier pedido abierto sin delivery_date (anomalía);
+      //  - sin fecha de salida: SOLO los ya planificados (planning_run_id) sin dispatch_date
+      //    (los de bandeja sin planificar legítimamente no la tienen → no son anomalía);
+      //  - modificaciones de fecha: suma del contador por pedido (0 hasta que exista la
+      //    edición de fecha con aprobación; ver sql/56).
+      sinFechaEntrega: rows.filter((r) => r.delivery_date == null).length,
+      sinFechaSalida: rows.filter((r) => conPlan(r) && r.dispatch_date == null).length,
+      modificacionesFecha: rows.reduce((acc, r) => acc + (Number(r.delivery_date_change_count) || 0), 0),
     };
 
     // "Por liberar pronto": priorizados-no-liberados por fecha de salida del viaje.
@@ -349,7 +361,7 @@ export const omsApi = {
   // de detail) + conteo de errores de las últimas 24 h. Si no hay backend/tabla,
   // devuelve vacío (no inventa corridas).
   async getMotorActividad(limit = 10): Promise<OmsMotorActividad> {
-    const { data, error } = await supabase
+    const { data, error } = await apiClient
       .from('oms_logs')
       .select('*')
       .order('created_at', { ascending: false })

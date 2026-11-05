@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../../../lib/supabase';
+import { apiClient } from '../../../lib/api-client';
 import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
@@ -69,10 +69,10 @@ const VehicleTypeModal = ({ isOpen, onClose, onSuccess, vehicleType, organizatio
       };
 
       if (vehicleType) {
-        const { error } = await supabase.from('vehicle_types').update(payload).eq('id', vehicleType.id);
+        const { error } = await apiClient.from('vehicle_types').update(payload).eq('id', vehicleType.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('vehicle_types').insert([payload]);
+        const { error } = await apiClient.from('vehicle_types').insert([payload]);
         if (error) throw error;
       }
 

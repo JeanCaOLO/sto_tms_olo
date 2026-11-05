@@ -1,7 +1,7 @@
 // Cliente de la bitácora de auditoría (backend/admin). Lectura por cursor +
 // registro de eventos del navegador. El registro es fire-and-forget: nunca
 // bloquea ni rompe la UI si falla.
-import { apiFetch } from '../../lib/supabase';
+import { apiFetch } from '../../lib/api-client';
 import { MOCK_AUTH_ENABLED } from '../../lib/mock-auth';
 
 export type AuditAction =

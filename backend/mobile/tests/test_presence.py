@@ -20,7 +20,7 @@ def frozen_clock(monkeypatch):
         monkeypatch.setattr(module, "now", lambda: NOW)
 
 
-def presence_writes(fake_db, table="driver_presence"):
+def presence_writes(fake_db, table="tbl_driver_presence"):
     return [c for c in fake_db.calls if f"INTO {table}" in c[0]]
 
 
@@ -89,7 +89,7 @@ def fast_password(monkeypatch):
 
 
 def test_login_marks_the_driver_online(fake_db, fast_password):
-    fake_db.answer("FROM auth_credentials c WHERE", [{"auth_user_id": "aaaaaaaa-0000-4000-8000-000000000001",
+    fake_db.answer("FROM tbl_auth_credentials c WHERE", [{"auth_user_id": "aaaaaaaa-0000-4000-8000-000000000001",
                                                        "email": "chofer@demo.tms.local", "password_hash": "h"}])
     response = routes.handler(event(LOGIN, body={"email": "chofer@demo.tms.local", "password": "x",
                                                   "device_id": "dev-9"}, token=None), None)
@@ -100,13 +100,13 @@ def test_login_marks_the_driver_online(fake_db, fast_password):
 
 def test_failed_login_does_not_touch_presence(fake_db, monkeypatch):
     monkeypatch.setattr(security, "verify_password", lambda password, hashed: False)
-    fake_db.answer("FROM auth_credentials c WHERE", [{"auth_user_id": "a", "email": "e", "password_hash": "h"}])
+    fake_db.answer("FROM tbl_auth_credentials c WHERE", [{"auth_user_id": "a", "email": "e", "password_hash": "h"}])
     routes.handler(event(LOGIN, body={"email": "e@x.com", "password": "mala"}, token=None), None)
     assert not presence_writes(fake_db)
 
 
 def test_logout_marks_offline_with_the_device_time(fake_db):
-    fake_db.answer("FROM mobile_refresh_tokens t", [{"id": "rt-1", "app_user_id": APP_USER}])
+    fake_db.answer("FROM tbl_mobile_refresh_tokens t", [{"id": "rt-1", "app_user_id": APP_USER}])
     queued = NOW - timedelta(minutes=3)
     response = routes.handler(event(LOGOUT, body={"refresh_token": "x", "occurred_at": queued.isoformat()},
                                     token=None), None)
@@ -116,7 +116,7 @@ def test_logout_marks_offline_with_the_device_time(fake_db):
 
 
 def test_logout_with_an_unknown_token_stays_idempotent_and_marks_nobody(fake_db):
-    fake_db.answer("FROM mobile_refresh_tokens t", [])
+    fake_db.answer("FROM tbl_mobile_refresh_tokens t", [])
     assert routes.handler(event(LOGOUT, body={"refresh_token": "?"}, token=None), None)["statusCode"] == 200
     assert not presence_writes(fake_db)
 
@@ -131,11 +131,11 @@ def _position(client_id=UUID1, **over):
 
 
 def _active_route(fake_db):
-    fake_db.answer("FROM routes r LEFT JOIN stores s", [{"id": ROUTE, "status": "En tránsito", "vehicle_id": None,
+    fake_db.answer("FROM tbl_routes r LEFT JOIN tbl_stores s", [{"id": ROUTE, "status": "En tránsito", "vehicle_id": None,
                                                          "driver_id": DRIVER, "departed_at": None,
                                                          "actual_end_time": None, "origin_lat": None,
                                                          "origin_lng": None}])
-    fake_db.answer("INSERT INTO tracking_positions", [{"client_id": UUID1}])
+    fake_db.answer("INSERT INTO tbl_tracking_positions", [{"client_id": UUID1}])
 
 
 def test_positions_refresh_presence_without_reactivating_a_logged_out_driver(call, fake_db):
@@ -151,7 +151,7 @@ def test_position_from_a_fast_clock_is_saved_instead_of_dropped(call, fake_db):
     result = body_of(call("POST /api/mobile/v1/posiciones",
                           body={"positions": [_position(recorded_at="2026-10-16T15:20:00Z")]}))["data"]
     assert result["accepted"] == 1 and result["rejected"] == []
-    stored = presence_writes(fake_db, "tracking_positions")[0][1]
+    stored = presence_writes(fake_db, "tbl_tracking_positions")[0][1]
     assert stored[-1] == NOW                                        # hora acotada a "ahora"
 
 
@@ -165,18 +165,18 @@ def test_an_absurd_recorded_at_is_still_rejected_alone(call, fake_db):
 # --- idempotencia de novedades y transiciones -------------------------------------------------------------------------
 
 def _guide(fake_db):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [{
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [{
         "id": GUIDE, "route_id": ROUTE, "organization_id": ORG, "order_id": None, "delivery_status": "pending",
         "notes": None, "route_status": "En tránsito", "driver_id": DRIVER, "stop_lat": None, "stop_lng": None}])
 
 
 def test_incident_with_client_id_is_created_once(call, fake_db):
     _guide(fake_db)
-    fake_db.answer("INSERT INTO tracking_events", [{"id": "e1"}])
+    fake_db.answer("INSERT INTO tbl_tracking_events", [{"id": "e1"}])
     first = call(INCIDENT, path={"id": GUIDE}, body={"description": "Cliente ausente", "client_id": UUID1})
     assert first["statusCode"] == 201 and body_of(first)["data"]["duplicate"] is False
-    assert fake_db.wrote("INSERT INTO tracking_events")[0][1][-1] == UUID1
-    fake_db.answer("INSERT INTO tracking_events", [])                # el reenvío choca con el índice único
+    assert fake_db.wrote("INSERT INTO tbl_tracking_events")[0][1][-1] == UUID1
+    fake_db.answer("INSERT INTO tbl_tracking_events", [])                # el reenvío choca con el índice único
     again = call(INCIDENT, path={"id": GUIDE}, body={"description": "Cliente ausente", "client_id": UUID1})
     assert again["statusCode"] == 200 and body_of(again)["data"]["duplicate"] is True
 
@@ -184,7 +184,7 @@ def test_incident_with_client_id_is_created_once(call, fake_db):
 def test_incident_without_client_id_keeps_the_old_behaviour(call, fake_db):
     _guide(fake_db)
     assert call(INCIDENT, path={"id": GUIDE}, body={"description": "x"})["statusCode"] == 201
-    assert "ON CONFLICT" not in fake_db.wrote("INSERT INTO tracking_events")[0][0]
+    assert "ON CONFLICT" not in fake_db.wrote("INSERT INTO tbl_tracking_events")[0][0]
 
 
 def test_invalid_client_id_is_400(call, fake_db):
@@ -195,8 +195,8 @@ def test_invalid_client_id_is_400(call, fake_db):
 
 def test_replayed_transition_does_not_duplicate_events(call, fake_db):
     _guide(fake_db)
-    fake_db.answer("INSERT INTO tracking_events", [])                # ya existía: sin evento nuevo
+    fake_db.answer("INSERT INTO tbl_tracking_events", [])                # ya existía: sin evento nuevo
     fake_db.answer("count(*) FILTER", [{"done": 0, "pending": 1}])
     response = call(TRANSITION, path={"id": GUIDE}, body={"to": "failed", "reason": "Ausente", "client_id": UUID1})
     assert response["statusCode"] == 200
-    assert len(fake_db.wrote("INSERT INTO tracking_events")) == 1
+    assert len(fake_db.wrote("INSERT INTO tbl_tracking_events")) == 1

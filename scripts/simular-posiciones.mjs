@@ -9,7 +9,7 @@
 //   ... --ruta-paradas --por-calles [--paso-m 150] [--osrm https://router.project-osrm.org]
 //        igual, pero siguiendo las calles (OSRM) con un punto cada --paso-m metros, como un camión real.
 //
-// El JWT sale de localStorage de la sesión web (clave de sesión de src/lib/supabase.ts) o de POST /api/auth/login.
+// El JWT sale de localStorage de la sesión web (clave de sesión de src/lib/api-client.ts) o de POST /api/auth/login.
 // El usuario necesita `tracking:create`. El viaje debe estar "En tránsito" (iniciado desde Tracking).
 import { randomUUID } from 'node:crypto';
 

@@ -1,4 +1,4 @@
-import { currentAccessToken, expireSession, isTokenRejected } from '../../lib/supabase';
+import { currentAccessToken, expireSession, isTokenRejected } from '../../lib/api-client';
 import type { Conductor, Pedido, RutaTipo, Transportista, Vehiculo, Viaje } from './types';
 import { getFallbackPedidos } from './fallback-pedidos';
 import { mockFallbackEnabled } from './mock-fallback';

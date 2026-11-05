@@ -25,7 +25,7 @@ async function main() {
     await client.query('BEGIN');
 
     const { rows } = await client.query(
-      `UPDATE carriers SET is_flota_propia = true, updated_at = now()
+      `UPDATE tbl_carriers SET is_flota_propia = true, updated_at = now()
        WHERE name = 'OLO' AND is_flota_propia = false
        RETURNING id, name`,
     );

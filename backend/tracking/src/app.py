@@ -603,7 +603,7 @@ def list_planificados(event: dict) -> dict:
     if raw:
         if not _PAIS.match(raw):
             raise HttpError(400, "pais inválido")
-        country += " AND rp.country_id IN (SELECT id FROM countries WHERE code = %s)"
+        country += " AND rp.country_id IN (SELECT id FROM tbl_countries WHERE code = %s)"
         params.append(raw)
     rows = pg.query(sql.PLANNED_SQL.format(country=country), params)
     return _ok([{"plan_trip_id": str(r["plan_trip_id"]), "plan_date": r["plan_date"].isoformat(),
@@ -668,7 +668,7 @@ def start_viaje(event: dict) -> dict:
     try:
         result = pg.run_in_transaction(work)
     except HttpError as err:
-        # Dos "iniciar" a la vez para el mismo plan: el índice único ux_routes_plan_trip gana y el otro
+        # Dos "iniciar" a la vez para el mismo plan: el índice único uidx_routes_plan_trip gana y el otro
         # recupera la ruta ya creada (idempotente, no es un error).
         if getattr(err, "code", None) != UNIQUE_VIOLATION:
             raise
@@ -706,7 +706,7 @@ def _ingest(run, org_id: str, valid: list[dict], device_id, now: datetime, mine:
                    pos["client_id"], pos["latitude"], pos["longitude"], pos["accuracy_m"], pos["speed_mps"],
                    pos["heading_deg"], pos["battery_pct"], pos["is_mock"], pos["recorded_at"]]
     stored = {str(r["client_id"]) for r in run(
-        f"INSERT INTO tracking_positions ({sql.POSITION_COLUMNS}) VALUES {', '.join(values)} "
+        f"INSERT INTO tbl_tracking_positions ({sql.POSITION_COLUMNS}) VALUES {', '.join(values)} "
         "ON CONFLICT (client_id) DO NOTHING RETURNING client_id", params)}
     fresh = [(pos, route) for pos, route in accepted if str(pos["client_id"]) in stored]
 

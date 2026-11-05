@@ -2,7 +2,7 @@
 // Crear/editar/borrar usuarios y roles pasa SIEMPRE por aquí: el backend lo
 // hace en una transacción y exige rol administrador. La API genérica
 // /api/data ya no permite escribir app_users, roles ni user_scopes.
-import { apiFetch } from '../../../lib/supabase';
+import { apiFetch } from '../../../lib/api-client';
 
 export type UserStatus = 'active' | 'inactive';
 

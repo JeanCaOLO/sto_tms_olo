@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api-client';
 import Button from '../../components/base/Button';
 import Badge from '../../components/base/Badge';
 import Select from '../../components/base/Select';
@@ -51,7 +51,7 @@ export default function ZonasPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const { data } = await supabase
+      const { data } = await apiClient
         .from('zones')
         .select('*, country:countries(name)')
         .eq('organization_id', appUser?.organization_id)
@@ -71,7 +71,7 @@ export default function ZonasPage() {
   const loadPointCounts = async (zs: Zona[]) => {
     const entries = await Promise.all(
       zs.map(async (z) => {
-        const { count } = await supabase
+        const { count } = await apiClient
           .from('delivery_points')
           .select('id', { count: 'exact', head: true })
           .eq('zone_id', z.id);
@@ -84,7 +84,7 @@ export default function ZonasPage() {
   const handleDelete = async () => {
     if (!toDelete) return;
     setDeleteError('');
-    const { error } = await supabase.from('zones').delete().eq('id', toDelete.id);
+    const { error } = await apiClient.from('zones').delete().eq('id', toDelete.id);
     if (error) {
       if (error.code === '23503' || (error as { status?: number }).status === 409) {
         setDeleteError(t('zones.errInUse'));

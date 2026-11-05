@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../../../lib/supabase';
+import { apiClient } from '../../../lib/api-client';
 import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
@@ -72,7 +72,7 @@ export default function DriverModal({ isOpen, onClose, driver, onSave }: DriverM
   }, [isOpen, driver]);
 
   const loadCarriers = async () => {
-    const { data } = await supabase
+    const { data } = await apiClient
       .from('carriers')
       .select('id, name, code')
       .eq('status', 'active')
@@ -82,7 +82,7 @@ export default function DriverModal({ isOpen, onClose, driver, onSave }: DriverM
   };
 
   const loadLicenseTypes = async () => {
-    const { data } = await supabase
+    const { data } = await apiClient
       .from('driver_license_types')
       .select('id, code, name')
       .eq('activo', true)
@@ -92,7 +92,7 @@ export default function DriverModal({ isOpen, onClose, driver, onSave }: DriverM
   };
 
   const generateCode = async () => {
-    const { count } = await supabase
+    const { count } = await apiClient
       .from('drivers')
       .select('*', { count: 'exact', head: true });
     
@@ -106,10 +106,10 @@ export default function DriverModal({ isOpen, onClose, driver, onSave }: DriverM
     setError('');
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await apiClient.auth.getUser();
       if (!user) throw new Error('No autenticado');
 
-      const { data: userData } = await supabase
+      const { data: userData } = await apiClient
         .from('app_users')
         .select('organization_id')
         .eq('id', user.id)
@@ -125,14 +125,14 @@ export default function DriverModal({ isOpen, onClose, driver, onSave }: DriverM
       };
 
       if (driver?.id) {
-        const { error: updateError } = await supabase
+        const { error: updateError } = await apiClient
           .from('drivers')
           .update(driverData)
           .eq('id', driver.id);
 
         if (updateError) throw updateError;
       } else {
-        const { error: insertError } = await supabase
+        const { error: insertError } = await apiClient
           .from('drivers')
           .insert([{ ...driverData, created_at: new Date().toISOString() }]);
 

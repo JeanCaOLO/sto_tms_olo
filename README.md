@@ -13,7 +13,7 @@ Es una suite de módulos (catálogos, planificación de rutas, liquidación/tari
 | Capa | Tecnología |
 |------|-----------|
 | Frontend | React 19 · TypeScript 5.8 · Vite 7 · Tailwind CSS 3 · React Router 7 |
-| Estado / datos | Hooks propios + `src/lib/supabase.ts` (**shim** con interfaz tipo supabase-js, habla con el backend Express — no es Supabase real) |
+| Estado / datos | Hooks propios + `src/lib/api-client.ts` (**shim** con interfaz tipo supabase-js, habla con el backend Express — no es Supabase real) |
 | Dinero / cálculo | `decimal.js` (nunca `number` de JS para montos) |
 | Mapas | Leaflet + React-Leaflet |
 | i18n | i18next + react-i18next |
@@ -23,7 +23,7 @@ Es una suite de módulos (catálogos, planificación de rutas, liquidación/tari
 | Deploy frontend | AWS Amplify (hosting SPA) |
 | Backend serverless (EFLOW) | Además existen Lambdas EFLOW en el repo `olo/tms/TMS-Backend` (se solapan con `backend/eflow`; pendiente definir la fuente única) |
 
-> **Nota de arquitectura:** el nombre `supabase.ts` es histórico. Hoy es un shim que traduce la interfaz encadenable (`.from().select().eq()...`) a llamadas HTTP contra el Express de `server/`, que a su vez consulta Aurora. **No hay una instancia de Supabase real en el sistema.** Detalle completo y verificado en [`docs/reference/analisis-sistema-tms.md`](docs/reference/analisis-sistema-tms.md).
+> **Nota de arquitectura:** el nombre `api-client.ts` es histórico. Hoy es un shim que traduce la interfaz encadenable (`.from().select().eq()...`) a llamadas HTTP contra el Express de `server/`, que a su vez consulta Aurora. **No hay una instancia de Supabase real en el sistema.** Detalle completo y verificado en [`docs/reference/analisis-sistema-tms.md`](docs/reference/analisis-sistema-tms.md).
 
 ---
 
@@ -146,7 +146,7 @@ El `server/` (Express) queda solo para desarrollo local hasta que el deploy de `
 
 ```
 ┌──────────────────────────┐
-│  React SPA (Vite)         │  src/pages/**  →  src/lib/supabase.ts (shim)
+│  React SPA (Vite)         │  src/pages/**  →  src/lib/api-client.ts (shim)
 └───────────┬──────────────┘
             │  /api/data/:table   (JWT)
             ▼

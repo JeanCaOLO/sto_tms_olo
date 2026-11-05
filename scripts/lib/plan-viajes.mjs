@@ -51,7 +51,7 @@ export async function loadPedidosAlistados(client, fechaEntrega, calcularPriorid
   const { rows } = await client.query(
     `SELECT id, expedicion, final_customer_id, cliente_code, ruta, fecha_planificada, fecha_expedicion,
             observaciones, nombre_cliente, cant_lineas, id_compania
-     FROM wms_expediciones
+     FROM tbl_wms_expediciones
      WHERE situacion = 'GENE' AND numero_viaje_wmh IS NULL AND fecha_planificada = $1::date`,
     [fechaEntrega],
   );

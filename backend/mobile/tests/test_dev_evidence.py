@@ -43,7 +43,7 @@ def local_store(monkeypatch, tmp_path):
 @pytest.fixture(autouse=True)
 def own_stop(fake_db):
     """La parada pertenece al chofer del token (guide_access real, BD falsa)."""
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [{
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [{
         "id": GUIDE, "route_id": ROUTE, "organization_id": ORG, "order_id": ORDER, "order_number": "PED-001",
         "delivery_status": "pending",
         "notes": None, "route_status": "En tránsito", "driver_id": DRIVER, "stop_lat": None, "stop_lng": None}])
@@ -67,18 +67,18 @@ def test_upload_then_confirm_stores_the_file_and_the_row(call, fake_db, local_st
     assert status == 204
     assert (local_store / form["key"]).read_bytes() == JPEG
 
-    fake_db.answer("INSERT INTO tracking_evidences", [{"id": "ev-1"}])
+    fake_db.answer("INSERT INTO tbl_tracking_evidences", [{"id": "ev-1"}])
     body = {"kind": "photo_invoice", "key": form["key"], "client_id": "3a50537a-530b-4dbc-86ef-317e64ef413e"}
     response = call(CONFIRM, path={"id": GUIDE}, body=body)
     assert response["statusCode"] == 201, response["body"]
-    inserted = fake_db.wrote("INSERT INTO tracking_evidences")[0][1]
+    inserted = fake_db.wrote("INSERT INTO tbl_tracking_evidences")[0][1]
     assert form["key"] in inserted and len(JPEG) in inserted and "image/jpeg" in inserted and APP_USER in inserted
 
 
 def test_confirm_without_upload_is_rejected(call, fake_db, local_store):
     form = ask_form(call)
     response = call(CONFIRM, path={"id": GUIDE}, body={"kind": "photo_invoice", "key": form["key"]})
-    assert response["statusCode"] == 400 and not fake_db.wrote("INSERT INTO tracking_evidences")
+    assert response["statusCode"] == 400 and not fake_db.wrote("INSERT INTO tbl_tracking_evidences")
 
 
 def test_upload_rejects_bad_signature_expired_form_and_big_or_missing_file(call, local_store):

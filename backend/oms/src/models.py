@@ -18,10 +18,10 @@ from datetime import datetime
 
 @dataclass(frozen=True)
 class PedidoCandidato:
-    """Proyección de LECTURA de un pedido de la cola del OMS (public.orders, Aurora).
+    """Proyección de LECTURA de un pedido de la cola del OMS (public.tbl_orders, Aurora).
 
     Es lo que `ColaCandidatos` devuelve: la cola de pedidos elegibles para
-    priorizar. La cola se resuelve HOY por POLLING de columna sobre public.orders
+    priorizar. La cola se resuelve HOY por POLLING de columna sobre public.tbl_orders
     (contrato v4, confirmado con negocio): un pedido está listo para que el OMS lo
     procese cuando `planning_run_id IS NOT NULL AND oms_processed_at IS NULL`. Esa
     columna es la ÚNICA fuente de verdad de activación (EventBridge = futuro no
@@ -31,7 +31,7 @@ class PedidoCandidato:
     Clave de negocio = la llave EFLOW (uq_order_eflow_key, sql/43), que es también
     la clave de idempotencia del handoff.
 
-    Campos (de public.orders, ver sql/43 y docs/reference/mapeo-pedidos-eflow-orders.md):
+    Campos (de public.tbl_orders, ver sql/43 y docs/reference/mapeo-pedidos-eflow-orders.md):
     - id_almacen/id_compania/id_sucursal/id_expedicion: llave EFLOW (orders.eflow_id_*).
       Son varchar en EFLOW (ceros a la izquierda: '0029'; expediciones con letras:
       'P0002002260922'), por eso `str` y no `int`.
@@ -137,7 +137,7 @@ class RegistroPrioridad:
 
 @dataclass(frozen=True)
 class PedidoOMS:
-    """Resultado del OMS para un pedido de public.orders (escritura 1 del handoff).
+    """Resultado del OMS para un pedido de public.tbl_orders (escritura 1 del handoff).
 
     Superficie de handoff que lee Planificación (NO el WMS). Ya no es una tabla
     propia (`oms.pedidos` quedó descartada el 2026-10-16): son columnas de

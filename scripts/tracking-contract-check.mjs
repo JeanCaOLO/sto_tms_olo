@@ -5,7 +5,7 @@
 // Uso:
 //   TMS_TOKEN=<jwt> node scripts/tracking-contract-check.mjs [--api http://localhost:4000] [--pais CR] [--veces 5]
 //
-// El JWT sale del localStorage de la sesión web (clave de sesión de src/lib/supabase.ts) o de POST /api/auth/login.
+// El JWT sale del localStorage de la sesión web (clave de sesión de src/lib/api-client.ts) o de POST /api/auth/login.
 // El usuario necesita `tracking:view`. Sale con código 1 si algún chequeo falla.
 
 function arg(name, fallback) {

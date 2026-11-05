@@ -26,21 +26,21 @@ class FakeDb:
 
     def query(self, sql, params=()):
         self.calls.append((sql, list(params)))
-        if "FROM app_users u LEFT JOIN roles r ON r.id = u.role_id\nWHERE u.auth_user_id" in sql:
+        if "FROM tbl_app_users u LEFT JOIN tbl_roles r ON r.id = u.role_id\nWHERE u.auth_user_id" in sql:
             return [{"id": "app-admin", "organization_id": ORG, "is_active": True, "role_name": self.caller_role}]
-        if "FROM auth_credentials WHERE email" in sql:
+        if "FROM tbl_auth_credentials WHERE email" in sql:
             return [{"?": 1}] if self.email_taken else []
-        if "SELECT name FROM roles WHERE id" in sql:
+        if "SELECT name FROM tbl_roles WHERE id" in sql:
             return [{"name": self.role_name}]
-        if "FROM carriers WHERE id" in sql:
+        if "FROM tbl_carriers WHERE id" in sql:
             return [{"?": 1}]
-        if "SELECT role_id, carrier_id FROM app_users" in sql:
+        if "SELECT role_id, carrier_id FROM tbl_app_users" in sql:
             return [self.current]
-        if "FROM roles WHERE id" in sql:
+        if "FROM tbl_roles WHERE id" in sql:
             return [{"?": 1}]
-        if sql.lstrip().startswith("INSERT INTO app_users"):
+        if sql.lstrip().startswith("INSERT INTO tbl_app_users"):
             return [{"id": "app-new"}]
-        if "FROM app_users WHERE id = %s AND organization_id" in sql:
+        if "FROM tbl_app_users WHERE id = %s AND organization_id" in sql:
             return [{"id": params[0], "auth_user_id": "auth-target"}]
         if "jsonb_agg" in sql:
             return [{"id": "app-new", "email": "ana@ologistics.com", "role_id": "role-ops", "scopes": []}]
@@ -76,10 +76,10 @@ def _sql(db, fragment):
 def test_create_user_is_atomic_and_writes_credential_user_and_global_scope(app, db):
     response = app.handler(http_event("POST /api/v1/admin/users", body=VALID_USER, user=ADMIN), None)
     assert response["statusCode"] == 200 and db.committed
-    credential = _sql(db, "INSERT INTO auth_credentials")[0]
+    credential = _sql(db, "INSERT INTO tbl_auth_credentials")[0]
     assert credential[1] == "ana@ologistics.com" and verify_password("Clave1234", credential[2])
-    assert _sql(db, "INSERT INTO app_users")[0][1:] == [ORG, "Ana Mora", "ana@ologistics.com", "role-ops", True, None]
-    assert _sql(db, "INSERT INTO user_scopes")[0] == ["app-new", "role-ops", None, None, None]
+    assert _sql(db, "INSERT INTO tbl_app_users")[0][1:] == [ORG, "Ana Mora", "ana@ologistics.com", "role-ops", True, None]
+    assert _sql(db, "INSERT INTO tbl_user_scopes")[0] == ["app-new", "role-ops", None, None, None]
 
 
 @pytest.mark.parametrize("override, message", [
@@ -110,8 +110,8 @@ def test_update_replaces_scopes_and_syncs_role(app, db):
     body = {"role_id": "role-x", "scopes": [{"country_id": "cr"}, {"country_id": "cr"}]}
     response = app.handler(http_event("PATCH /api/v1/admin/users/{id}", path={"id": "app-9"}, body=body, user=ADMIN), None)
     assert response["statusCode"] == 200
-    assert _sql(db, "DELETE FROM user_scopes") == [["app-9"]]
-    assert _sql(db, "INSERT INTO user_scopes") == [["app-9", "role-x", "cr", None, None]]
+    assert _sql(db, "DELETE FROM tbl_user_scopes") == [["app-9"]]
+    assert _sql(db, "INSERT INTO tbl_user_scopes") == [["app-9", "role-x", "cr", None, None]]
 
 
 def test_admin_cannot_delete_or_deactivate_self(app, db):
@@ -124,14 +124,14 @@ def test_admin_cannot_delete_or_deactivate_self(app, db):
 def test_delete_removes_scopes_user_and_credential(app, db):
     response = app.handler(http_event("DELETE /api/v1/admin/users/{id}", path={"id": "app-9"}, user=ADMIN), None)
     assert response["statusCode"] == 200 and db.committed
-    assert _sql(db, "DELETE FROM auth_credentials") == [["auth-target"]]
+    assert _sql(db, "DELETE FROM tbl_auth_credentials") == [["auth-target"]]
 
 
 def test_reset_password_hashes_new_password(app, db):
     event = http_event("POST /api/v1/admin/users/{id}/password", path={"id": "app-9"},
                        body={"password": "NuevaClave1"}, user=ADMIN)
     assert app.handler(event, None)["statusCode"] == 200
-    new_hash, auth_user_id = _sql(db, "UPDATE auth_credentials")[0]
+    new_hash, auth_user_id = _sql(db, "UPDATE tbl_auth_credentials")[0]
     assert auth_user_id == "auth-target" and verify_password("NuevaClave1", new_hash)
 
 
@@ -178,13 +178,13 @@ def test_rol_transportista_exige_empresa(app, db):
     db.role_name = "Transportista"
     assert _create(app)["statusCode"] == 400
     assert _create(app, carrier_id=CARRIER)["statusCode"] == 200
-    insert = next(p for s, p in db.calls if s.lstrip().startswith("INSERT INTO app_users"))
+    insert = next(p for s, p in db.calls if s.lstrip().startswith("INSERT INTO tbl_app_users"))
     assert insert[-1] == CARRIER
 
 
 def test_otro_rol_no_guarda_empresa(app, db):
     assert _create(app, carrier_id=CARRIER)["statusCode"] == 200
-    insert = next(p for s, p in db.calls if s.lstrip().startswith("INSERT INTO app_users"))
+    insert = next(p for s, p in db.calls if s.lstrip().startswith("INSERT INTO tbl_app_users"))
     assert insert[-1] is None
 
 
@@ -193,5 +193,5 @@ def test_cambiar_de_transportista_a_gerente_limpia_la_empresa(app, db):
     db.current = {"role_id": "role-t", "carrier_id": CARRIER}
     response = app.handler(http_event("PATCH /api/v1/admin/users/{id}", path={"id": "app-9"}, body={"role_id": "role-g"}, user=ADMIN), None)
     assert response["statusCode"] == 200
-    update = next(s for s, _ in db.calls if s.startswith("UPDATE app_users SET"))
+    update = next(s for s, _ in db.calls if s.startswith("UPDATE tbl_app_users SET"))
     assert "carrier_id = %s" in update

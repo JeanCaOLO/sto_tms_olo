@@ -147,7 +147,7 @@ def tracking(monkeypatch):
     monkeypatch.setattr(pg, "query", db.run)
     monkeypatch.setattr(pg, "run_in_transaction", lambda work, retries=0: work(db.run))
     monkeypatch.setenv("TRACKING_BUCKET", "dev-tms-tracking-1")
-    db.answer("FROM app_users", [{"organization_id": ORG}])
+    db.answer("FROM tbl_app_users", [{"organization_id": ORG}])
     app = load_stack_module("tracking")
     app._URL_CACHE.clear()
     app._SUMMARY_CACHE.clear()
@@ -196,35 +196,35 @@ def _plan_trip(**over):
 
 def test_start_viaje_bridges_plan_trip_into_route_and_guides(tracking):
     app, db = tracking
-    db.answer("FROM plan_trips pt", [_plan_trip()])
-    db.answer("FROM plan_stops", [{"order_id": "o1", "lat": 9.93, "lng": -84.08},
+    db.answer("FROM tbl_plan_trips pt", [_plan_trip()])
+    db.answer("FROM tbl_plan_stops", [{"order_id": "o1", "lat": 9.93, "lng": -84.08},
                                   {"order_id": "o2", "lat": 9.95, "lng": -84.10}])
-    db.answer("FROM stores", [{"id": "store-1", "latitude": 9.90, "longitude": -84.05}])
-    db.answer("INSERT INTO routes", [{"id": ROUTE}])
+    db.answer("FROM tbl_stores", [{"id": "store-1", "latitude": 9.90, "longitude": -84.05}])
+    db.answer("INSERT INTO tbl_routes", [{"id": ROUTE}])
     response = app.handler(_event("POST /api/v1/tracking/viajes/{id}/iniciar", path={"id": TRIP}), None)
     assert response["statusCode"] == 201
     assert body_of(response)["data"]["route_number"] == "VJ-20261016-33333333"
-    guides = db.wrote("INSERT INTO dispatch_guides")
+    guides = db.wrote("INSERT INTO tbl_dispatch_guides")
     assert [p[3:5] for _, p in guides] == [["VJ-20261016-33333333-1", 1], ["VJ-20261016-33333333-2", 2]]
-    assert db.wrote("INSERT INTO tracking_events")[0][1][3] == "route_started"
+    assert db.wrote("INSERT INTO tbl_tracking_events")[0][1][3] == "route_started"
 
 
 def test_start_viaje_is_idempotent(tracking):
     app, db = tracking
-    db.answer("FROM plan_trips pt", [_plan_trip()])
-    db.answer("SELECT id FROM routes WHERE plan_trip_id", [{"id": ROUTE}])
+    db.answer("FROM tbl_plan_trips pt", [_plan_trip()])
+    db.answer("SELECT id FROM tbl_routes WHERE plan_trip_id", [{"id": ROUTE}])
     response = app.handler(_event("POST /api/v1/tracking/viajes/{id}/iniciar", path={"id": TRIP}), None)
     assert response["statusCode"] == 200 and body_of(response)["data"] == {"route_id": ROUTE, "created": False}
-    assert not db.wrote("INSERT INTO routes")
+    assert not db.wrote("INSERT INTO tbl_routes")
 
 
 @pytest.mark.parametrize("override,status", [({"plan_status": "draft"}, 409), ({"status": "completed"}, 409),
                                              ({"organization_id": "otra-org"}, 404)])
 def test_start_viaje_guards(tracking, override, status):
     app, db = tracking
-    db.answer("FROM plan_trips pt", [_plan_trip(**override)])
+    db.answer("FROM tbl_plan_trips pt", [_plan_trip(**override)])
     response = app.handler(_event("POST /api/v1/tracking/viajes/{id}/iniciar", path={"id": TRIP}), None)
-    assert response["statusCode"] == status and not db.wrote("INSERT INTO routes")
+    assert response["statusCode"] == status and not db.wrote("INSERT INTO tbl_routes")
 
 
 def test_start_requires_create_permission(tracking, caller_permissions):
@@ -251,7 +251,7 @@ def _guide_row(**over):
 
 def test_transition_requires_reason_when_failed(tracking):
     app, db = tracking
-    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row()])
+    db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [_guide_row()])
     response = app.handler(_event("POST /api/v1/tracking/paradas/{id}/transicion", path={"id": GUIDE},
                                   body={"to": "failed"}), None)
     assert response["statusCode"] == 400
@@ -259,35 +259,35 @@ def test_transition_requires_reason_when_failed(tracking):
 
 def test_transition_updates_guide_counter_and_event_atomically(tracking):
     app, db = tracking
-    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row()])
-    db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 3, "pending": 1}])
+    db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [_guide_row()])
+    db.answer("FROM tbl_dispatch_guides g WHERE g.route_id", [{"done": 3, "pending": 1}])
     body = {"to": "delivered", "receiver_name": "Luis"}
     result = body_of(app.handler(_event("POST /api/v1/tracking/paradas/{id}/transicion", path={"id": GUIDE},
                                         body=body), None))["data"]
     assert result == {"stop_id": GUIDE, "state": "delivered", "done": 3, "pending": 1, "distance_m": None}
-    assert db.wrote("UPDATE dispatch_guides")[0][1][:2] == ["delivered", "Entregado"]
-    assert db.wrote("UPDATE routes SET completed_stops")[0][1] == [3, ROUTE]
-    assert db.wrote("INSERT INTO tracking_events")[0][1][3] == "delivery_completed"
+    assert db.wrote("UPDATE tbl_dispatch_guides")[0][1][:2] == ["delivered", "Entregado"]
+    assert db.wrote("UPDATE tbl_routes SET completed_stops")[0][1] == [3, ROUTE]
+    assert db.wrote("INSERT INTO tbl_tracking_events")[0][1][3] == "delivery_completed"
 
 
 def test_closing_the_last_stop_does_not_end_the_trip_nor_touch_planificacion(tracking):
     """Tracking solo monitorea: el viaje lo termina Planificación. Cerrar la última parada no escribe el cierre."""
     app, db = tracking
-    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row()])
-    db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 4, "pending": 0}])
+    db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [_guide_row()])
+    db.answer("FROM tbl_dispatch_guides g WHERE g.route_id", [{"done": 4, "pending": 0}])
     app.handler(_event("POST /api/v1/tracking/paradas/{id}/transicion", path={"id": GUIDE},
                        body={"to": "delivered"}), None)
-    assert not db.wrote("UPDATE routes SET status")
+    assert not db.wrote("UPDATE tbl_routes SET status")
     assert not any("plan_trips" in sql and sql.startswith(("UPDATE", "INSERT")) for sql, _ in db.calls)
 
 
 def test_trip_closed_in_planificacion_is_shown_closed_in_tracking(tracking):
     """Solo lectura de plan_trips: completado/cancelado en Planificación = cerrado en Tracking."""
     app, db = tracking
-    db.answer("FROM routes r", [])
+    db.answer("FROM tbl_routes r", [])
     app.handler(_event("GET /api/v1/tracking/viajes", query={"activos": "1", "include": "summary"}), None)
     listing = db.wrote("SELECT r.id")[0][0]
-    assert "LEFT JOIN plan_trips pt ON pt.id = r.plan_trip_id" in listing
+    assert "LEFT JOIN tbl_plan_trips pt ON pt.id = r.plan_trip_id" in listing
     assert "CASE pt.status WHEN 'completed' THEN 'Completada' WHEN 'cancelled' THEN 'Anulada' ELSE r.status END AS status" in listing
     assert "pt.status NOT IN ('completed', 'cancelled')" in listing  # "Activos" excluye lo terminado en Planificación
     today = [sql for sql, _ in db.calls if sql.startswith("SELECT count(*) AS n")][0]
@@ -297,7 +297,7 @@ def test_trip_closed_in_planificacion_is_shown_closed_in_tracking(tracking):
 def test_list_item_of_a_trip_closed_in_planificacion(tracking):
     app, db = tracking
     closed_at = NOW - timedelta(minutes=30)
-    db.answer("FROM routes r", [_row(status="Completada", actual_end_time=closed_at)])
+    db.answer("FROM tbl_routes r", [_row(status="Completada", actual_end_time=closed_at)])
     item = body_of(app.handler(_event("GET /api/v1/tracking/viajes"), None))["data"]["items"][0]
     assert item["state"] == "completed" and item["color"] == "blue" and item["ended_at"] == closed_at.isoformat()
     assert not any(a["code"] in ("late", "no_signal", "stopped") for a in item["alerts"])
@@ -311,7 +311,7 @@ def test_completar_and_revisar_endpoints_are_gone(tracking):
 
 def test_transition_needs_an_active_route(tracking):
     app, db = tracking
-    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row(route_status="Completada")])
+    db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [_guide_row(route_status="Completada")])
     response = app.handler(_event("POST /api/v1/tracking/paradas/{id}/transicion", path={"id": GUIDE},
                                   body={"to": "delivered"}), None)
     assert response["statusCode"] == 409
@@ -337,7 +337,7 @@ def test_evidence_upload_signs_only_small_images(tracking, monkeypatch):
     app, db = tracking
     s3 = FakeS3()
     monkeypatch.setattr(app, "s3", lambda: s3)
-    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row()])
+    db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [_guide_row()])
     body = {"kind": "signature", "mime_type": "image/png"}
     data = body_of(app.handler(_event("POST /api/v1/tracking/paradas/{id}/evidencias/upload-url",
                                       path={"id": GUIDE}, body=body), None))["data"]
@@ -351,24 +351,24 @@ def test_evidence_confirm_stores_key_and_links_guide(tracking, monkeypatch, logi
     app, db = tracking
     key = logic.new_evidence_key(ROUTE, GUIDE, "image/jpeg")
     monkeypatch.setattr(app, "s3", lambda: FakeS3({"ContentType": "image/jpeg", "ContentLength": 2048}))
-    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row()])
-    db.answer("INSERT INTO tracking_evidences", [{"id": "ev-1"}])
+    db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [_guide_row()])
+    db.answer("INSERT INTO tbl_tracking_evidences", [{"id": "ev-1"}])
     body = {"kind": "photo_invoice", "key": key}
     response = app.handler(_event("POST /api/v1/tracking/paradas/{id}/evidencias", path={"id": GUIDE}, body=body), None)
     assert response["statusCode"] == 201 and body_of(response)["data"]["evidence_id"] == "ev-1"
-    assert db.wrote("UPDATE dispatch_guides SET photo_url")[0][1] == [key, GUIDE]
+    assert db.wrote("UPDATE tbl_dispatch_guides SET photo_url")[0][1] == [key, GUIDE]
 
 
 def test_evidence_confirm_rejects_foreign_key_and_missing_upload(tracking, monkeypatch, logic):
     app, db = tracking
     monkeypatch.setattr(app, "s3", lambda: FakeS3(None))
-    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row()])
+    db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [_guide_row()])
     route = "POST /api/v1/tracking/paradas/{id}/evidencias"
     foreign = logic.new_evidence_key(ROUTE, ROUTE, "image/jpeg")
     assert app.handler(_event(route, path={"id": GUIDE}, body={"kind": "signature", "key": foreign}), None)["statusCode"] == 400
     own = logic.new_evidence_key(ROUTE, GUIDE, "image/jpeg")
     assert app.handler(_event(route, path={"id": GUIDE}, body={"kind": "signature", "key": own}), None)["statusCode"] == 400
-    assert not db.wrote("INSERT INTO tracking_evidences")
+    assert not db.wrote("INSERT INTO tbl_tracking_evidences")
 
 
 # --- ETA, retraso, alertas y semáforo (reglas puras) -----------------------------------------------
@@ -424,15 +424,15 @@ def _codes(logic, sig="online", failed=0, late=0, stopped=0):
 
 def test_start_viaje_saves_planned_times_distance_and_capacity(tracking):
     app, db = tracking
-    db.answer("FROM plan_trips pt", [_plan_trip(total_weight=250)])
-    db.answer("FROM plan_stops", [{"order_id": "o1", "lat": 9.93, "lng": -84.08},
+    db.answer("FROM tbl_plan_trips pt", [_plan_trip(total_weight=250)])
+    db.answer("FROM tbl_plan_stops", [{"order_id": "o1", "lat": 9.93, "lng": -84.08},
                                   {"order_id": "o2", "lat": 9.95, "lng": -84.10}])
-    db.answer("FROM stores", [{"id": "store-1", "latitude": 9.90, "longitude": -84.05}])
-    db.answer("INSERT INTO routes", [{"id": ROUTE}])
+    db.answer("FROM tbl_stores", [{"id": "store-1", "latitude": 9.90, "longitude": -84.05}])
+    db.answer("INSERT INTO tbl_routes", [{"id": ROUTE}])
     app.handler(_event("POST /api/v1/tracking/viajes/{id}/iniciar", path={"id": TRIP}), None)
-    route_params = db.wrote("INSERT INTO routes")[0][1]
+    route_params = db.wrote("INSERT INTO tbl_routes")[0][1]
     planned_end, km, capacity = route_params[-3:]
-    arrivals = [params[-1] for _, params in db.wrote("INSERT INTO dispatch_guides")]
+    arrivals = [params[-1] for _, params in db.wrote("INSERT INTO tbl_dispatch_guides")]
     assert arrivals[0] > NOW and arrivals[1] > arrivals[0] and planned_end == arrivals[1]
     assert km > 0 and capacity == 25.0
 
@@ -440,13 +440,13 @@ def test_start_viaje_saves_planned_times_distance_and_capacity(tracking):
 def test_start_viaje_without_origin_coordinates_leaves_planned_times_empty(tracking):
     """Sede sin lat/lng (p. ej. CD-CR): no hay primer tramo que estimar, así que no se inventan horas (sin falso retraso)."""
     app, db = tracking
-    db.answer("FROM plan_trips pt", [_plan_trip()])
-    db.answer("FROM plan_stops", [{"order_id": "o1", "lat": 9.93, "lng": -84.08}])
-    db.answer("FROM stores", [{"id": "store-1", "latitude": None, "longitude": None}])
-    db.answer("INSERT INTO routes", [{"id": ROUTE}])
+    db.answer("FROM tbl_plan_trips pt", [_plan_trip()])
+    db.answer("FROM tbl_plan_stops", [{"order_id": "o1", "lat": 9.93, "lng": -84.08}])
+    db.answer("FROM tbl_stores", [{"id": "store-1", "latitude": None, "longitude": None}])
+    db.answer("INSERT INTO tbl_routes", [{"id": ROUTE}])
     app.handler(_event("POST /api/v1/tracking/viajes/{id}/iniciar", path={"id": TRIP}), None)
-    assert db.wrote("INSERT INTO routes")[0][1][-3] is None
-    assert [params[-1] for _, params in db.wrote("INSERT INTO dispatch_guides")] == [None]
+    assert db.wrote("INSERT INTO tbl_routes")[0][1][-3] is None
+    assert [params[-1] for _, params in db.wrote("INSERT INTO tbl_dispatch_guides")] == [None]
 
 
 def test_list_rejects_a_cursor_with_an_invalid_timestamp(tracking):
@@ -472,7 +472,7 @@ def driver(tracking, caller_permissions):
     """Quien llama es un Chofer enlazado al conductor DRIVER."""
     app, db = tracking
     caller_permissions.set(_driver_permissions())
-    db.answer("FROM drivers WHERE app_user_id", [{"id": DRIVER}])
+    db.answer("FROM tbl_drivers WHERE app_user_id", [{"id": DRIVER}])
     return app, db
 
 
@@ -486,7 +486,7 @@ def test_driver_cannot_use_admin_endpoints(driver):
 
 def test_driver_cannot_read_a_trip_of_another_driver(driver):
     app, db = driver
-    db.answer("FROM routes r JOIN stores", [{"id": ROUTE, "organization_id": ORG, "status": "En tránsito",
+    db.answer("FROM tbl_routes r JOIN tbl_stores", [{"id": ROUTE, "organization_id": ORG, "status": "En tránsito",
                                               "driver_id": OTHER_DRIVER, "country_id": "cr"}])
     response = app.handler(_event("GET /api/v1/tracking/viajes/{id}", path={"id": ROUTE}), None)
     assert response["statusCode"] == 404
@@ -498,14 +498,14 @@ def test_driver_positions_of_another_trip_are_rejected_and_not_written(driver):
     db.answer("origin_lat, s.longitude AS origin_lng, co.code AS country", [_route_for_ingest(driver_id=OTHER_DRIVER)])
     result = body_of(app.handler(_event("POST /api/v1/tracking/posiciones", body={"positions": [_pos()]}), None))["data"]
     assert result["accepted"] == 0 and result["rejected"][0]["reason"] == "viaje no encontrado"
-    assert not db.wrote("INSERT INTO tracking_positions") and not db.wrote("INSERT INTO tracking_last_positions")
+    assert not db.wrote("INSERT INTO tbl_tracking_positions") and not db.wrote("INSERT INTO tbl_tracking_last_positions")
 
 
 def test_driver_can_write_positions_of_own_trip(driver):
     app, db = driver
     good = _pos()
     db.answer("origin_lat, s.longitude AS origin_lng, co.code AS country", [_route_for_ingest(driver_id=DRIVER)])
-    db.answer("INSERT INTO tracking_positions", [{"client_id": good["client_id"]}])
+    db.answer("INSERT INTO tbl_tracking_positions", [{"client_id": good["client_id"]}])
     result = body_of(app.handler(_event("POST /api/v1/tracking/posiciones", body={"positions": [good]}), None))["data"]
     assert result["accepted"] == 1 and result["rejected"] == []
 
@@ -514,18 +514,18 @@ def test_driver_without_linked_driver_gets_403(tracking, caller_permissions):
     app, db = tracking
     caller_permissions.set(_driver_permissions())      # sin fila en drivers.app_user_id
     assert app.handler(_event("GET /api/v1/tracking/mi-viaje"), None)["statusCode"] == 403
-    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row()])
+    db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [_guide_row()])
     assert app.handler(_event("POST /api/v1/tracking/paradas/{id}/transicion", path={"id": GUIDE},
                               body={"to": "delivered"}), None)["statusCode"] == 403
 
 
 def test_admin_is_not_restricted_by_driver_link(tracking):
     app, db = tracking
-    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row(driver_id=OTHER_DRIVER)])
-    db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 0}])
+    db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [_guide_row(driver_id=OTHER_DRIVER)])
+    db.answer("FROM tbl_dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 0}])
     response = app.handler(_event("POST /api/v1/tracking/paradas/{id}/transicion", path={"id": GUIDE},
                                   body={"to": "delivered"}), None)
-    assert response["statusCode"] == 200 and not db.wrote("SELECT id FROM drivers")
+    assert response["statusCode"] == 200 and not db.wrote("SELECT id FROM tbl_drivers")
 
 
 def _delivered(app, **body):
@@ -534,8 +534,8 @@ def _delivered(app, **body):
 
 
 def _stop_with_coords(db):
-    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row(stop_lat=STOP_LAT, stop_lng=STOP_LNG)])
-    db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 2}])
+    db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [_guide_row(stop_lat=STOP_LAT, stop_lng=STOP_LNG)])
+    db.answer("FROM tbl_dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 2}])
 
 
 def test_delivery_within_geofence_stores_distance(tracking):
@@ -543,7 +543,7 @@ def test_delivery_within_geofence_stores_distance(tracking):
     _stop_with_coords(db)
     result = body_of(_delivered(app, lat=STOP_LAT + 0.0005, lng=STOP_LNG))["data"]   # ~55 m
     assert 40 <= result["distance_m"] <= 70
-    event_row = db.wrote("INSERT INTO tracking_events")
+    event_row = db.wrote("INSERT INTO tbl_tracking_events")
     assert len(event_row) == 1 and event_row[0][1][10] == result["distance_m"]
 
 
@@ -552,31 +552,31 @@ def test_delivery_far_from_stop_requires_reason(tracking):
     _stop_with_coords(db)
     response = _delivered(app, lat=STOP_LAT + 0.01, lng=STOP_LNG)                      # ~1.1 km
     assert response["statusCode"] == 400 and "motivo" in body_of(response)["error"]["message"]
-    assert not db.wrote("UPDATE dispatch_guides")
+    assert not db.wrote("UPDATE tbl_dispatch_guides")
 
 
 def test_delivery_without_gps_or_stop_coordinates_is_still_accepted(tracking):
     app, db = tracking
     _stop_with_coords(db)
     assert body_of(_delivered(app))["data"]["distance_m"] is None                       # sin lat/lng del dispositivo
-    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row()])                   # parada sin coordenadas
+    db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [_guide_row()])                   # parada sin coordenadas
     assert _delivered(app, lat=9.0, lng=-84.0)["statusCode"] == 200
 
 
 def test_driver_cannot_revert_a_stop_on_the_web_api(driver):
     app, db = driver
-    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row(driver_id=DRIVER)])
+    db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [_guide_row(driver_id=DRIVER)])
     response = app.handler(_event("POST /api/v1/tracking/paradas/{id}/transicion", path={"id": GUIDE},
                                   body={"to": "pending"}), None)
-    assert response["statusCode"] == 403 and not db.wrote("UPDATE dispatch_guides")
+    assert response["statusCode"] == 403 and not db.wrote("UPDATE tbl_dispatch_guides")
 
 
 def test_driver_cannot_deliver_without_device_location_on_the_web_api(driver):
     app, db = driver
-    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row(driver_id=DRIVER)])
+    db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [_guide_row(driver_id=DRIVER)])
     for extra in ({}, {"reason": "GPS apagado"}, {"lat": 9.0}):
         assert _delivered(app, **extra)["statusCode"] == 400
-    assert not db.wrote("UPDATE dispatch_guides")
+    assert not db.wrote("UPDATE tbl_dispatch_guides")
 
 
 def test_admin_can_still_revert_a_stop(tracking):
@@ -591,12 +591,12 @@ def test_record_consent_is_idempotent_per_version(driver):
     app, db = driver
     route = "POST /api/v1/tracking/consentimiento-gps"
     assert app.handler(_event(route, body={}), None)["statusCode"] == 400
-    db.answer("INSERT INTO tracking_consents", [{"consented_at": NOW}])
+    db.answer("INSERT INTO tbl_tracking_consents", [{"consented_at": NOW}])
     first = app.handler(_event(route, body={"version": "2026-10", "device_id": "dev-1"}), None)
     assert first["statusCode"] == 201 and body_of(first)["data"]["duplicate"] is False
-    assert db.wrote("INSERT INTO tracking_consents")[0][1] == [ORG, "app-user", "2026-10", "dev-1"]
-    db.answer("INSERT INTO tracking_consents", [])
-    db.answer("FROM tracking_consents WHERE", [{"consented_at": NOW}])
+    assert db.wrote("INSERT INTO tbl_tracking_consents")[0][1] == [ORG, "app-user", "2026-10", "dev-1"]
+    db.answer("INSERT INTO tbl_tracking_consents", [])
+    db.answer("FROM tbl_tracking_consents WHERE", [{"consented_at": NOW}])
     again = app.handler(_event(route, body={"version": "2026-10"}), None)
     assert again["statusCode"] == 200 and body_of(again)["data"]["duplicate"] is True
 
@@ -635,10 +635,10 @@ def test_late_rule_is_the_same_in_list_and_detail(tracking):
     row = _row(driver_id=DRIVER)
     db.answer("GROUP BY g.route_id", [_progress(ROUTE)])
     db.answer("SELECT g.route_id, g.id, g.sequence_number", [_full_stop(1, planned=LATE_STOP)])
-    db.answer("FROM routes r", [row])
+    db.answer("FROM tbl_routes r", [row])
     item = body_of(app.handler(_event("GET /api/v1/tracking/viajes"), None))["data"]["items"][0]
     db.answer("COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,", [_full_stop(1, planned=LATE_STOP)])
-    db.answer("FROM routes r JOIN stores s", [row])
+    db.answer("FROM tbl_routes r JOIN tbl_stores s", [row])
     detail = body_of(app.handler(_event("GET /api/v1/tracking/viajes/{id}", path={"id": ROUTE}), None))["data"]
     assert item["delay_min"] == detail["delay_min"] and 45 <= item["delay_min"] <= 55
     # El retraso es por DÍA de entrega: ir 45 min tarde en una parada de hoy no es "retrasado".
@@ -655,11 +655,11 @@ def test_no_position_means_no_eta_and_no_late_alert(logic):
 def test_stopped_is_alerted_in_the_list_from_batched_positions(tracking):
     app, db = tracking
     db.answer("GROUP BY g.route_id", [_progress(ROUTE)])
-    db.answer("FROM routes r", [_row()])
-    db.answer("FROM tracking_positions p", [{"route_id": ROUTE, "since": NOW - timedelta(minutes=25)}])
+    db.answer("FROM tbl_routes r", [_row()])
+    db.answer("FROM tbl_tracking_positions p", [{"route_id": ROUTE, "since": NOW - timedelta(minutes=25)}])
     item = body_of(app.handler(_event("GET /api/v1/tracking/viajes"), None))["data"]["items"][0]
     assert {"code": "stopped", "count": 25} in item["alerts"]
-    stopped_query = next(c for c in db.calls if "FROM tracking_positions p" in c[0])
+    stopped_query = next(c for c in db.calls if "FROM tbl_tracking_positions p" in c[0])
     assert "NOT p.is_mock" in stopped_query[0] and "accuracy_m <= 200" in stopped_query[0]
     assert "interval '60 minutes'" in stopped_query[0] and "> 75" in stopped_query[0]
 
@@ -668,7 +668,7 @@ def test_list_page_uses_a_fixed_number_of_queries(tracking):
     app, db = tracking
     rows = [_row(id=f"00000000-0000-4000-8000-00000000001{i}") for i in range(5)]
     db.answer("GROUP BY g.route_id", [])
-    db.answer("FROM routes r", rows)
+    db.answer("FROM tbl_routes r", rows)
     app.handler(_event("GET /api/v1/tracking/viajes"), None)
     assert len(db.wrote("SELECT g.route_id, g.id, g.sequence_number")) == 1  # una consulta para las 5 rutas
     assert len([sql for sql, _ in db.calls if "GROUP BY g.route_id" in sql]) == 1
@@ -677,20 +677,20 @@ def test_list_page_uses_a_fixed_number_of_queries(tracking):
 def test_pais_filter_joins_countries_and_intersects_with_the_role(tracking, caller_permissions):
     app, db = tracking
     caller_permissions.set(make_permissions({"tracking": ["view"]}, countries=("cr-id",)))
-    db.answer("FROM routes r", [])
+    db.answer("FROM tbl_routes r", [])
     app.handler(_event("GET /api/v1/tracking/viajes", query={"pais": "cr"}), None)
     sql, params = db.wrote("SELECT r.id")[0]
-    assert "JOIN countries co ON co.id = s.country_id" in sql and "co.code = 'CR'" in sql
+    assert "JOIN tbl_countries co ON co.id = s.country_id" in sql and "co.code = 'CR'" in sql
     assert "s.country_id = ANY(ARRAY['cr-id']" in sql  # el rol nunca se amplía
 
 
 def test_planificados_filters_by_pais_within_the_role(tracking, caller_permissions):
     app, db = tracking
     caller_permissions.set(make_permissions({"tracking": ["view"]}, countries=("cr-id",)))
-    db.answer("FROM plan_trips pt", [])
+    db.answer("FROM tbl_plan_trips pt", [])
     assert app.handler(_event("GET /api/v1/tracking/planificados", query={"pais": "vn"}), None)["statusCode"] == 200
-    sql, params = [c for c in db.calls if "FROM plan_trips pt" in c[0]][0]
-    assert "rp.country_id = ANY(" in sql and "FROM countries WHERE code" in sql
+    sql, params = [c for c in db.calls if "FROM tbl_plan_trips pt" in c[0]][0]
+    assert "rp.country_id = ANY(" in sql and "FROM tbl_countries WHERE code" in sql
     assert "VN" in str(params) or "'VN'" in sql
     assert app.handler(_event("GET /api/v1/tracking/planificados", query={"pais": "V1"}), None)["statusCode"] == 400
 
@@ -699,7 +699,7 @@ def test_pais_outside_the_role_is_still_restricted_and_invalid_codes_are_400(tra
     app, db = tracking
     assert app.handler(_event("GET /api/v1/tracking/viajes", query={"pais": "C1"}), None)["statusCode"] == 400
     caller_permissions.set(make_permissions({"tracking": ["view"]}, countries=("cr-id",)))
-    db.answer("FROM routes r", [])
+    db.answer("FROM tbl_routes r", [])
     body = body_of(app.handler(_event("GET /api/v1/tracking/viajes", query={"pais": "VN"}), None))
     assert body["data"]["items"] == [] and "s.country_id = ANY(ARRAY['cr-id']" in db.wrote("SELECT r.id")[0][0]
 
@@ -714,7 +714,7 @@ def test_include_summary_counts_all_active_trips_with_one_query_set(tracking):
     db.answer("count(*) AS n", [{"n": 4}])
     db.answer("GROUP BY g.route_id", [])
     db.answer("SELECT g.route_id, g.id, g.sequence_number", [_full_stop(1, planned=LATE_STOP)])
-    db.answer("FROM routes r", rows)
+    db.answer("FROM tbl_routes r", rows)
     body = body_of(app.handler(_event("GET /api/v1/tracking/viajes", query={"activos": "1", "limit": "1",
                                                                              "include": "summary"}), None))["data"]
     assert len(body["items"]) == 1 and body["next_cursor"]
@@ -733,7 +733,7 @@ def test_summary_reuses_the_list_when_the_page_holds_every_active_trip(tracking)
     db.answer("count(*) AS n", [{"n": 4}])
     db.answer("GROUP BY g.route_id", [])
     db.answer("SELECT g.route_id, g.id, g.sequence_number", [_full_stop(1, planned=LATE_STOP)])
-    db.answer("FROM routes r", rows)
+    db.answer("FROM tbl_routes r", rows)
     body = body_of(app.handler(_event("GET /api/v1/tracking/viajes", query={"activos": "1", "include": "summary"}),
                                None))["data"]
     assert body["next_cursor"] is None
@@ -745,7 +745,7 @@ def test_summary_reuses_the_list_when_the_page_holds_every_active_trip(tracking)
 
 def test_include_summary_only_on_the_first_page(tracking):
     app, db = tracking
-    db.answer("FROM routes r", [])
+    db.answer("FROM tbl_routes r", [])
     body = body_of(app.handler(_event("GET /api/v1/tracking/viajes",
                                       query={"include": "summary", "cursor": f"2026-10-16T00:00:00+00:00|{ROUTE}"}),
                                None))["data"]
@@ -755,9 +755,9 @@ def test_include_summary_only_on_the_first_page(tracking):
 def test_detail_has_contract_fields_and_no_event_or_trail_queries(tracking, monkeypatch):
     app, db = tracking
     monkeypatch.setattr(app, "s3", lambda: FakeS3())
-    db.answer("FROM routes r JOIN stores s", [_row(origin_lat=9.9, origin_lng=-84.1, departed_at=NOW - timedelta(hours=1))])
+    db.answer("FROM tbl_routes r JOIN tbl_stores s", [_row(origin_lat=9.9, origin_lng=-84.1, departed_at=NOW - timedelta(hours=1))])
     db.answer("COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,", [_full_stop(1, planned=LATE_STOP)])
-    db.answer("FROM tracking_evidences WHERE route_id", [
+    db.answer("FROM tbl_tracking_evidences WHERE route_id", [
         {"id": "ev-1", "dispatch_guide_id": "00000000-0000-4000-8000-000000000001", "kind": "photo_invoice",
          "storage_key": "k1", "mime_type": "image/jpeg", "captured_at": NOW}])
     data = body_of(app.handler(_event("GET /api/v1/tracking/viajes/{id}", path={"id": ROUTE}), None))["data"]
@@ -779,8 +779,8 @@ def test_signed_urls_are_cached_and_resigned_near_expiry(tracking, monkeypatch):
     monkeypatch.setattr(app, "s3", lambda: s3)
     clock = [1_000_000.0]
     monkeypatch.setattr(app, "time", SimpleNamespace(time=lambda: clock[0]))
-    db.answer("FROM routes r JOIN stores s", [_row()])
-    db.answer("FROM tracking_evidences WHERE route_id", [
+    db.answer("FROM tbl_routes r JOIN tbl_stores s", [_row()])
+    db.answer("FROM tbl_tracking_evidences WHERE route_id", [
         {"id": "ev-1", "dispatch_guide_id": GUIDE, "kind": "signature", "storage_key": "k-stable",
          "mime_type": "image/png", "captured_at": NOW}])
     db.answer("COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,", [_full_stop(1)])
@@ -797,8 +797,8 @@ def test_driver_detail_never_signs_evidence_urls(driver, monkeypatch):
     app, db = driver
     s3 = FakeS3()
     monkeypatch.setattr(app, "s3", lambda: s3)
-    db.answer("FROM routes r JOIN stores s", [_row(driver_id=DRIVER)])
-    db.answer("FROM tracking_evidences WHERE route_id", [
+    db.answer("FROM tbl_routes r JOIN tbl_stores s", [_row(driver_id=DRIVER)])
+    db.answer("FROM tbl_tracking_evidences WHERE route_id", [
         {"id": "ev-1", "dispatch_guide_id": "00000000-0000-4000-8000-000000000001", "kind": "signature", "storage_key": "k",
          "mime_type": "image/png", "captured_at": NOW}])
     db.answer("COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,", [_full_stop(1)])
@@ -814,8 +814,8 @@ def test_detail_still_returns_stops_when_signing_an_evidence_fails(tracking, mon
             raise RuntimeError("s3 caído")
 
     monkeypatch.setattr(app, "s3", lambda: BrokenS3())
-    db.answer("FROM routes r JOIN stores s", [_row()])
-    db.answer("FROM tracking_evidences WHERE route_id", [
+    db.answer("FROM tbl_routes r JOIN tbl_stores s", [_row()])
+    db.answer("FROM tbl_tracking_evidences WHERE route_id", [
         {"id": "ev-1", "dispatch_guide_id": "00000000-0000-4000-8000-000000000001", "kind": "signature", "storage_key": "k-broken",
          "mime_type": "image/png", "captured_at": NOW}])
     db.answer("COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,", [_full_stop(1)])
@@ -825,7 +825,7 @@ def test_detail_still_returns_stops_when_signing_an_evidence_fails(tracking, mon
 
 def test_detail_stops_query_keeps_guides_without_order():
     import tracking_sql
-    assert "LEFT JOIN orders o ON o.id = g.order_id" in tracking_sql.GUIDES_SQL
+    assert "LEFT JOIN tbl_orders o ON o.id = g.order_id" in tracking_sql.GUIDES_SQL
 
 
 def test_stopped_by_route_groups_per_route(logic):
@@ -844,7 +844,7 @@ def test_stopped_from_since_turns_the_db_answer_into_minutes(logic):
 def test_summary_is_cached_for_a_few_seconds_per_scope(tracking, monkeypatch):
     app, db = tracking
     db.answer("count(*) AS n", [{"n": 2}])
-    db.answer("FROM routes r", [_row()])
+    db.answer("FROM tbl_routes r", [_row()])
     first = body_of(app.handler(_event("GET /api/v1/tracking/viajes", query={"include": "summary"}), None))
     calls = len(db.calls)
     second = body_of(app.handler(_event("GET /api/v1/tracking/viajes", query={"include": "summary", "limit": "5"}), None))
@@ -860,7 +860,7 @@ def test_offline_signal_gives_no_eta_nor_late_alert(tracking):
     app, db = tracking
     old = _row(last_position_at=NOW - timedelta(days=2))
     db.answer("GROUP BY g.route_id", [_progress(ROUTE)])
-    db.answer("FROM routes r", [old])
+    db.answer("FROM tbl_routes r", [old])
     db.answer("SELECT g.route_id, g.id, g.sequence_number", [_full_stop(1, planned=LATE_STOP)])
     item = body_of(app.handler(_event("GET /api/v1/tracking/viajes"), None))["data"]["items"][0]
     codes = [a["code"] for a in item["alerts"]]
@@ -892,7 +892,7 @@ def test_ingest_stores_rejected_routes_and_moves_last_position_once(tracking):
     app, db = tracking
     good = _pos()
     db.answer("origin_lat, s.longitude AS origin_lng, co.code AS country", [_route_for_ingest()])
-    db.answer("INSERT INTO tracking_positions", _ids(good["client_id"]))
+    db.answer("INSERT INTO tbl_tracking_positions", _ids(good["client_id"]))
     body = {"device_id": "dev-1", "positions": [
         good,
         _pos(client_id="66666666-6666-4666-8666-666666666666", lat=200),
@@ -901,17 +901,17 @@ def test_ingest_stores_rejected_routes_and_moves_last_position_once(tracking):
     result = body_of(app.handler(_event("POST /api/v1/tracking/posiciones", body=body), None))["data"]
     assert result["accepted"] == 1 and result["duplicates"] == 0
     assert {r["reason"] for r in result["rejected"]} == {"lat fuera de rango", "viaje no encontrado"}
-    assert len(db.wrote("INSERT INTO tracking_last_positions")) == 1
+    assert len(db.wrote("INSERT INTO tbl_tracking_last_positions")) == 1
 
 
 def test_ingest_grace_stores_late_points_without_moving_last_position(tracking):
     app, db = tracking
     closed = _route_for_ingest(status="Completada", actual_end_time=NOW - timedelta(hours=1))
     db.answer("origin_lat, s.longitude AS origin_lng, co.code AS country", [closed])
-    db.answer("INSERT INTO tracking_positions", _ids(_pos()["client_id"]))
+    db.answer("INSERT INTO tbl_tracking_positions", _ids(_pos()["client_id"]))
     result = body_of(app.handler(_event("POST /api/v1/tracking/posiciones", body={"positions": [_pos()]}), None))["data"]
     assert result["accepted"] == 1
-    assert not db.wrote("INSERT INTO tracking_last_positions")
+    assert not db.wrote("INSERT INTO tbl_tracking_last_positions")
 
 
 def test_ingest_rejects_points_after_the_grace_window(tracking):
@@ -920,7 +920,7 @@ def test_ingest_rejects_points_after_the_grace_window(tracking):
     db.answer("origin_lat, s.longitude AS origin_lng, co.code AS country", [old])
     result = body_of(app.handler(_event("POST /api/v1/tracking/posiciones", body={"positions": [_pos()]}), None))["data"]
     assert result["accepted"] == 0 and result["rejected"][0]["reason"] == "viaje no activo"
-    assert not db.wrote("INSERT INTO tracking_positions")
+    assert not db.wrote("INSERT INTO tbl_tracking_positions")
 
 
 def test_ingest_batches_last_positions_into_one_statement(tracking):
@@ -930,10 +930,10 @@ def test_ingest_batches_last_positions_into_one_statement(tracking):
               [_route_for_ingest(), _route_for_ingest(id=r2)])
     batch = [_pos(client_id=f"aaaaaaaa-aaaa-4aaa-8aaa-00000000000{i}", route_id=r1 if i < 2 else r2,
                   recorded_at=f"2026-10-16T14:5{i}:00Z") for i in range(4)]
-    db.answer("INSERT INTO tracking_positions", _ids(*[p["client_id"] for p in batch]))
+    db.answer("INSERT INTO tbl_tracking_positions", _ids(*[p["client_id"] for p in batch]))
     result = body_of(app.handler(_event("POST /api/v1/tracking/posiciones", body={"positions": batch}), None))["data"]
     assert result["accepted"] == 4
-    upserts = db.wrote("INSERT INTO tracking_last_positions")
+    upserts = db.wrote("INSERT INTO tbl_tracking_last_positions")
     assert len(upserts) == 1 and len(upserts[0][1]) == 16        # 2 viajes x 8 columnas, una sentencia
     assert upserts[0][1][0] == r1 and upserts[0][1][8] == r2   # un viaje por bloque de 8 columnas
 
@@ -943,12 +943,12 @@ def test_ingest_mock_and_low_accuracy_points_are_stored_but_do_not_move_position
     db.answer("origin_lat, s.longitude AS origin_lng, co.code AS country", [_route_for_ingest()])
     mock = _pos(is_mock=True)
     poor = _pos(client_id="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", accuracy_m=500)
-    db.answer("INSERT INTO tracking_positions", _ids(mock["client_id"], poor["client_id"]))
+    db.answer("INSERT INTO tbl_tracking_positions", _ids(mock["client_id"], poor["client_id"]))
     result = body_of(app.handler(_event("POST /api/v1/tracking/posiciones", body={"positions": [mock, poor]}), None))["data"]
     assert result["accepted"] == 2
-    stored = db.wrote("INSERT INTO tracking_positions")[0][1]
+    stored = db.wrote("INSERT INTO tbl_tracking_positions")[0][1]
     assert stored.count(True) == 1                                 # is_mock queda marcado en la fila
-    assert not db.wrote("INSERT INTO tracking_last_positions")
+    assert not db.wrote("INSERT INTO tbl_tracking_last_positions")
 
 
 def test_ingest_sets_departed_at_on_first_point_far_from_the_store(tracking):
@@ -957,9 +957,9 @@ def test_ingest_sets_departed_at_on_first_point_far_from_the_store(tracking):
     db.answer("origin_lat, s.longitude AS origin_lng, co.code AS country", [route])
     near = _pos(lat=9.9001, lng=-84.0501, recorded_at="2026-10-16T14:50:00Z")
     far = _pos(client_id="cccccccc-cccc-4ccc-8ccc-cccccccccccc", lat=9.95, lng=-84.05, recorded_at="2026-10-16T14:55:00Z")
-    db.answer("INSERT INTO tracking_positions", _ids(near["client_id"], far["client_id"]))
+    db.answer("INSERT INTO tbl_tracking_positions", _ids(near["client_id"], far["client_id"]))
     app.handler(_event("POST /api/v1/tracking/posiciones", body={"positions": [far, near]}), None)
-    departed = db.wrote("UPDATE routes SET departed_at")
+    departed = db.wrote("UPDATE tbl_routes SET departed_at")
     assert len(departed) == 1 and departed[0][1][1] == ROUTE
     assert departed[0][1][0].isoformat() == "2026-10-16T14:55:00+00:00"
 
@@ -968,9 +968,9 @@ def test_ingest_does_not_overwrite_an_existing_departure(tracking):
     app, db = tracking
     route = _route_for_ingest(origin_lat=9.90, origin_lng=-84.05, departed_at=NOW - timedelta(hours=1))
     db.answer("origin_lat, s.longitude AS origin_lng, co.code AS country", [route])
-    db.answer("INSERT INTO tracking_positions", _ids(_pos()["client_id"]))
+    db.answer("INSERT INTO tbl_tracking_positions", _ids(_pos()["client_id"]))
     app.handler(_event("POST /api/v1/tracking/posiciones", body={"positions": [_pos(lat=9.95)]}), None)
-    assert not db.wrote("UPDATE routes SET departed_at")
+    assert not db.wrote("UPDATE tbl_routes SET departed_at")
 
 
 def test_start_viaje_concurrent_duplicate_returns_the_existing_route(tracking, monkeypatch):
@@ -981,7 +981,7 @@ def test_start_viaje_concurrent_duplicate_returns_the_existing_route(tracking, m
         raise HttpError(409, "duplicate key value violates unique constraint", code="23505")
 
     monkeypatch.setattr(pg, "run_in_transaction", lost_race)
-    db.answer("SELECT id FROM routes WHERE plan_trip_id", [{"id": ROUTE}])
+    db.answer("SELECT id FROM tbl_routes WHERE plan_trip_id", [{"id": ROUTE}])
     response = app.handler(_event("POST /api/v1/tracking/viajes/{id}/iniciar", path={"id": TRIP}), None)
     assert response["statusCode"] == 200 and body_of(response)["data"] == {"route_id": ROUTE, "created": False}
 
@@ -994,7 +994,7 @@ def test_start_viaje_other_conflicts_are_not_swallowed(tracking, monkeypatch):
         raise HttpError(409, "otra restricción", code="23503")
 
     monkeypatch.setattr(pg, "run_in_transaction", other)
-    db.answer("SELECT id FROM routes WHERE plan_trip_id", [])
+    db.answer("SELECT id FROM tbl_routes WHERE plan_trip_id", [])
     assert app.handler(_event("POST /api/v1/tracking/viajes/{id}/iniciar", path={"id": TRIP}), None)["statusCode"] == 409
 
 
@@ -1005,7 +1005,7 @@ def test_geofence_outside_is_recorded_as_geofence_out_not_incident(tracking):
     _stop_with_coords(db)
     response = _delivered(app, lat=STOP_LAT + 0.01, lng=STOP_LNG, reason="No se podía estacionar")
     assert response["statusCode"] == 200
-    events = db.wrote("INSERT INTO tracking_events")
+    events = db.wrote("INSERT INTO tbl_tracking_events")
     assert [e[1][3] for e in events] == ["delivery_completed", "geofence_out"]
     assert "incident" not in [e[1][3] for e in events]
 
@@ -1027,21 +1027,21 @@ def test_removed_endpoints_are_gone():
 
 def test_driver_cannot_close_a_stop_of_another_driver(driver):
     app, db = driver
-    db.answer("FROM dispatch_guides g JOIN routes r", [_guide_row(driver_id=OTHER_DRIVER)])
+    db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [_guide_row(driver_id=OTHER_DRIVER)])
     response = app.handler(_event("POST /api/v1/tracking/paradas/{id}/transicion", path={"id": GUIDE},
                                   body={"to": "delivered"}), None)
     assert response["statusCode"] == 404
-    assert not db.wrote("UPDATE dispatch_guides") and not db.wrote("INSERT INTO tracking_events")
+    assert not db.wrote("UPDATE tbl_dispatch_guides") and not db.wrote("INSERT INTO tbl_tracking_events")
 
 
 def test_mi_viaje_keeps_contact_for_the_driver_and_lists_planned_trips(driver):
     app, db = driver
     db.answer("WHERE r.organization_id = %s AND r.driver_id", [_row(driver_id=DRIVER)])
-    db.answer("FROM routes r JOIN stores s", [_row(driver_id=DRIVER)])
-    db.answer("FROM plan_trips pt", [{"plan_trip_id": TRIP, "plan_date": date(2026, 10, 16), "delivery_zone": "GAM",
+    db.answer("FROM tbl_routes r JOIN tbl_stores s", [_row(driver_id=DRIVER)])
+    db.answer("FROM tbl_plan_trips pt", [{"plan_trip_id": TRIP, "plan_date": date(2026, 10, 16), "delivery_zone": "GAM",
                                       "plate": "XYZ789", "driver_name": "Ana", "total_weight": 10,
                                       "sequence_order": 1}])
-    db.answer("FROM plan_stops ps JOIN orders o", [{
+    db.answer("FROM tbl_plan_stops ps JOIN tbl_orders o", [{
         "trip_id": TRIP, "stop_order": 1, "order_id": ORDER, "order_number": "P-1", "invoice_number": "F-1",
         "total_items": 3, "total_weight": 5, "delivery_address": "Calle 1", "delivery_city": "San José",
         "latitude": STOP_LAT, "longitude": STOP_LNG, "customer_name": "Cliente", "customer_phone": "2222-0000"}])
@@ -1062,7 +1062,7 @@ def test_gzip_only_when_accepted_and_large_enough(tracking):
     import gzip
     import json as jsonlib
     app, db = tracking
-    db.answer("FROM routes r", [_row(id=f"00000000-0000-4000-8000-00000000001{i}") for i in range(12)])
+    db.answer("FROM tbl_routes r", [_row(id=f"00000000-0000-4000-8000-00000000001{i}") for i in range(12)])
     event = _event("GET /api/v1/tracking/viajes")
     plain = app.handler(event, None)
     assert "Content-Encoding" not in plain["headers"] and "isBase64Encoded" not in plain
@@ -1110,7 +1110,7 @@ def test_trip_past_its_delivery_day_is_late_in_list_detail_and_kpi(tracking):
     old = _row(due_date=date(2026, 10, 2), assigned_at=NOW - timedelta(days=15))
     db.answer("count(*) AS n", [{"n": 0}])
     db.answer("GROUP BY g.route_id", [_progress(ROUTE)])
-    db.answer("FROM routes r", [old])
+    db.answer("FROM tbl_routes r", [old])
     item = body_of(app.handler(_event("GET /api/v1/tracking/viajes", query={"include": "summary"}), None))["data"]
     trip = item["items"][0]
     assert trip["due_date"] == "2026-10-02" and trip["days_late"] == 14 and trip["assigned_at"].startswith("2026-10-01")
@@ -1145,7 +1145,7 @@ def test_list_marks_the_trip_offline_after_an_explicit_logout(tracking):
     app, db = tracking
     row = _row(driver_id=DRIVER, presence_status="offline", presence_seen_at=NOW - timedelta(seconds=5))
     db.answer("GROUP BY g.route_id", [_progress(ROUTE)])
-    db.answer("FROM routes r", [row])
+    db.answer("FROM tbl_routes r", [row])
     item = body_of(app.handler(_event("GET /api/v1/tracking/viajes"), None))["data"]["items"][0]
     assert item["signal"] == "offline" and item["color"] == "gray"
     assert "no_signal" in [a["code"] for a in item["alerts"]]
@@ -1157,7 +1157,7 @@ def test_list_keeps_the_trip_online_with_a_fresh_heartbeat(tracking):
     row = _row(driver_id=DRIVER, last_position_at=NOW - timedelta(minutes=12),
                presence_status="online", presence_seen_at=NOW - timedelta(seconds=20))
     db.answer("GROUP BY g.route_id", [_progress(ROUTE)])
-    db.answer("FROM routes r", [row])
+    db.answer("FROM tbl_routes r", [row])
     item = body_of(app.handler(_event("GET /api/v1/tracking/viajes"), None))["data"]["items"][0]
     assert item["signal"] == "online" and item["color"] == "green"
     assert item["position"]["recorded_at"] == (NOW - timedelta(minutes=12)).isoformat()   # la posición sigue siendo la real
@@ -1166,22 +1166,22 @@ def test_list_keeps_the_trip_online_with_a_fresh_heartbeat(tracking):
 def test_list_without_presence_is_unchanged(tracking):
     app, db = tracking
     db.answer("GROUP BY g.route_id", [_progress(ROUTE)])
-    db.answer("FROM routes r", [_row()])
+    db.answer("FROM tbl_routes r", [_row()])
     item = body_of(app.handler(_event("GET /api/v1/tracking/viajes"), None))["data"]["items"][0]
     assert item["presence"] is None and item["signal"] == "online"
 
 
 def test_trip_queries_join_driver_presence(tracking):
     app, db = tracking
-    db.answer("FROM routes r", [_row()])
+    db.answer("FROM tbl_routes r", [_row()])
     app.handler(_event("GET /api/v1/tracking/viajes"), None)
-    listing = next(c for c in db.calls if "FROM routes r" in c[0] and "ORDER BY sort_at" in c[0])
-    assert "LEFT JOIN driver_presence dp ON dp.driver_id = r.driver_id" in listing[0]
+    listing = next(c for c in db.calls if "FROM tbl_routes r" in c[0] and "ORDER BY sort_at" in c[0])
+    assert "LEFT JOIN tbl_driver_presence dp ON dp.driver_id = r.driver_id" in listing[0]
 
 
 def test_choferes_lists_online_drivers_with_and_without_a_trip(tracking):
     app, db = tracking
-    db.answer("FROM driver_presence dp", [
+    db.answer("FROM tbl_driver_presence dp", [
         {"id": DRIVER, "full_name": "Ana", "status": "online", "last_seen_at": NOW - timedelta(seconds=30),
          "battery_pct": 71, "country": "CR", "route_id": ROUTE},
         {"id": "99999999-9999-4999-8999-999999999999", "full_name": "Beto", "status": "offline",
@@ -1201,7 +1201,7 @@ def test_choferes_is_admin_only_and_scoped_by_country(tracking, caller_permissio
     assert app.handler(_event("GET /api/v1/tracking/choferes"), None)["statusCode"] == 403
     caller_permissions.set(make_permissions({"tracking": ["view"]}, countries=("cr-id",)))
     assert app.handler(_event("GET /api/v1/tracking/choferes", query={"pais": "CR"}), None)["statusCode"] == 200
-    query, params = next(c for c in db.calls if "FROM driver_presence dp" in c[0])
+    query, params = next(c for c in db.calls if "FROM tbl_driver_presence dp" in c[0])
     assert "ca.country_id = ANY(%s::uuid[])" in query and "co.code = %s" in query
     assert params[-2:] == [["cr-id"], "CR"]
     assert app.handler(_event("GET /api/v1/tracking/choferes", query={"pais": "x;drop"}), None)["statusCode"] == 400
@@ -1223,7 +1223,7 @@ def test_origin_coords_prefers_company_then_store_then_country(logic):
 
 def test_detail_origin_uses_the_fixed_company_site(tracking):
     app, db = tracking
-    db.answer("FROM routes r JOIN stores s", [_row(country="VN", customer_code="FEBECA", origin_lat=10.4575, origin_lng=-66.9419)])
+    db.answer("FROM tbl_routes r JOIN tbl_stores s", [_row(country="VN", customer_code="FEBECA", origin_lat=10.4575, origin_lng=-66.9419)])
     db.answer("COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,", [_full_stop(1)])
     data = body_of(app.handler(_event("GET /api/v1/tracking/viajes/{id}", path={"id": ROUTE}), None))["data"]
     assert data["origin"]["lat"] == 10.1897571 and data["origin"]["lng"] == -67.9507191
@@ -1242,8 +1242,8 @@ def test_stop_name_comes_from_delivery_point_not_from_the_company():
     import tracking_sql
     for sql in (tracking_sql.GUIDES_SQL, tracking_sql.MY_PLANNED_STOPS_SQL):
         assert "COALESCE(dp.name, fc.name) AS customer_name" in sql and "cu.name AS company_name" in sql
-        assert "JOIN final_customers fc ON fc.id = o.final_customer_id" in sql
-        assert "JOIN delivery_points dp ON dp.id = o.delivery_point_id" in sql
+        assert "JOIN tbl_final_customers fc ON fc.id = o.final_customer_id" in sql
+        assert "JOIN tbl_delivery_points dp ON dp.id = o.delivery_point_id" in sql
 
 
 def test_stop_view_exposes_the_time_on_site_detected_by_gps():
@@ -1260,9 +1260,9 @@ def test_stop_view_exposes_the_time_on_site_detected_by_gps():
 
 # --- vista del cliente (rol Cliente): solo SU entrega ----------------------------------------------------
 
-CLIENT_GUIDES = ("FROM dispatch_guides g JOIN routes r ON r.id = g.route_id JOIN orders o ON o.id = g.order_id "
+CLIENT_GUIDES = ("FROM tbl_dispatch_guides g JOIN tbl_routes r ON r.id = g.route_id JOIN tbl_orders o ON o.id = g.order_id "
                  "JOIN tracking_client_access")
-CLIENT_PLANNED = "FROM plan_stops ps JOIN orders o ON o.id = ps.order_id JOIN tracking_client_access"
+CLIENT_PLANNED = "FROM tbl_plan_stops ps JOIN tbl_orders o ON o.id = ps.order_id JOIN tracking_client_access"
 ALL_GUIDES = "COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,"
 MINE = "00000000-0000-4000-8000-000000000002"
 MY_ENTREGAS = "GET /api/v1/tracking/mis-entregas"

@@ -44,7 +44,7 @@ Planificación tras el pivote: el backend real (Python/Lambdas/SAM) en
 profundidad —cada `app.py` de módulo, templates SAM, Layer `tms_common`,
 scopes/permisos, planning— y el frontend en los ejes que tocan al OMS
 (`src/pages/oms/`, `src/pages/planificacion/`, `src/lib/tarifas/`, shim
-`src/lib/supabase.ts`). Verificó las decisiones C1 (backend Python/SAM), C3
+`src/lib/api-client.ts`). Verificó las decisiones C1 (backend Python/SAM), C3
 (multi-tenancy por scope, no Lambda por compañía) y C2 (no hay motor de reglas en
 backend; el motor vive en TS de frontend). El `server/` Express legacy no se
 analizó en detalle (declarado referencia de contrato).
@@ -72,7 +72,7 @@ analyzed:
     - backend/README.md
     - backend/pytest.ini
     - backend/requirements-dev.txt
-    - src/lib/supabase.ts
+    - src/lib/api-client.ts
     - src/lib/tarifas/
     - src/pages/oms/
     - src/pages/oms/engine/

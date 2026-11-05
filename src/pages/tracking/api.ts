@@ -1,7 +1,7 @@
 // Cliente de /api/v1/tracking/*. Siempre habla el contrato del backend (backend/tracking). En modo mock (solo
 // DEV, sin túnel a Aurora) `mock/installTrackingMock.ts` cambia el transporte por un backend simulado que
 // responde ese mismo contrato, igual que el tarifador (ver src/lib/tarifas/data/memory/installMock.ts).
-import { apiFetch } from '../../lib/supabase';
+import { apiFetch } from '../../lib/api-client';
 import type { ChoferEnLinea, ListMode, MisEntregasPage, ViajeDetalle, ViajePlanificado, ViajesPage } from './types';
 
 export class TrackingApiError extends Error {

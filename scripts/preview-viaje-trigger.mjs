@@ -31,10 +31,10 @@ async function main() {
     // día (el script de ejecución sí). Parejas sin repetir vehículo: armarFlota.
     const { rows: drivers } = await client.query(
       `SELECT d.id AS conductor_id, d.full_name, d.carrier_id, c.is_flota_propia, c.name AS carrier_name
-       FROM drivers d JOIN carriers c ON c.id = d.carrier_id`,
+       FROM tbl_drivers d JOIN tbl_carriers c ON c.id = d.carrier_id`,
     );
     const { rows: vehicles } = await client.query(
-      `SELECT id, plate, vehicle_type, capacity_weight, capacity_volume FROM vehicles ORDER BY id`,
+      `SELECT id, plate, vehicle_type, capacity_weight, capacity_volume FROM tbl_vehicles ORDER BY id`,
     );
     const slots = armarFlota(drivers, vehicles);
 

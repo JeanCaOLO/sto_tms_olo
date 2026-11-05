@@ -17,12 +17,12 @@ ACTIONS = ("view", "create", "edit", "delete", "export")
 CALLER_SQL = """
 SELECT u.id, COALESCE(u.is_active, true) AS is_active, r.id AS role_id, r.name AS role_name,
        COALESCE(r.all_countries, true) AS all_countries, u.carrier_id
-FROM app_users u LEFT JOIN roles r ON r.id = u.role_id
+FROM tbl_app_users u LEFT JOIN tbl_roles r ON r.id = u.role_id
 WHERE u.auth_user_id = %s
 """
-MODULES_SQL = "SELECT key FROM app_modules ORDER BY sort_order"
-ROLE_PERMISSIONS_SQL = "SELECT module_key, action FROM role_permissions WHERE role_id = %s"
-ROLE_COUNTRIES_SQL = "SELECT country_id FROM role_countries WHERE role_id = %s"
+MODULES_SQL = "SELECT key FROM tbl_app_modules ORDER BY sort_order"
+ROLE_PERMISSIONS_SQL = "SELECT module_key, action FROM tbl_role_permissions WHERE role_id = %s"
+ROLE_COUNTRIES_SQL = "SELECT country_id FROM tbl_role_countries WHERE role_id = %s"
 
 
 @dataclass(frozen=True)

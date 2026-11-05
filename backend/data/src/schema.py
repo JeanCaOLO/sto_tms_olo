@@ -8,6 +8,7 @@ Se carga una vez por contenedor (cold start) desde information_schema.
 from typing import Callable
 
 from tms_common import pg
+from tms_common.db_names import logical, physical
 from tms_common.errors import HttpError
 
 from relations import is_known_table
@@ -26,7 +27,7 @@ def load_columns(run: Callable[[str], list[dict]] = pg.query) -> dict[str, set[s
     global _columns
     columns: dict[str, set[str]] = {}
     for row in run(COLUMNS_SQL):
-        columns.setdefault(row["table_name"], set()).add(row["column_name"])
+        columns.setdefault(logical(row["table_name"]), set()).add(row["column_name"])
     _columns = columns
     return columns
 
@@ -54,3 +55,8 @@ def assert_column(table: str, column: str) -> str:
 def quote(identifier: str) -> str:
     """Comillas dobles de identificador. Solo sobre valores ya validados."""
     return '"' + str(identifier).replace('"', '""') + '"'
+
+
+def table_ref(table: str) -> str:
+    """Tabla para el SQL: nombre FÍSICO (tbl_x) entre comillas. Solo sobre nombres ya validados."""
+    return quote(physical(table))

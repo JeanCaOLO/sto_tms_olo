@@ -22,73 +22,73 @@ OUT = ROOT / "docs" / "reference" / "diccionario-datos-tms-olo.md"
 # así que la descripción se escribe aquí; cuando la base sí trae comentario, se muestra también.
 DOMINIOS = [
     ("Organización, países y almacenes", {
-        "public.organizations": "Organización dueña de los datos (hoy una sola: OLO). Casi todas las tablas cuelgan de ella.",
-        "public.countries": "Países donde opera la organización (CR, VE) con moneda, zona horaria, idioma y formatos.",
-        "public.warehouses": "Almacenes/CEDIS por país. Nivel de la jerarquía entre país y cliente.",
-        "public.stores": "Tiendas y puntos de origen. `is_origin = true` marca los orígenes de despacho; las tiendas EPA pasaron a `delivery_points` (`sql/13`).",
-        "public.zones": "Zonas / tipos de ruta por país. Antes se llamaba `route_types` (renombrada en `sql/09`).",
+        "public.tbl_organizations": "Organización dueña de los datos (hoy una sola: OLO). Casi todas las tablas cuelgan de ella.",
+        "public.tbl_countries": "Países donde opera la organización (CR, VE) con moneda, zona horaria, idioma y formatos.",
+        "public.tbl_warehouses": "Almacenes/CEDIS por país. Nivel de la jerarquía entre país y cliente.",
+        "public.tbl_stores": "Tiendas y puntos de origen. `is_origin = true` marca los orígenes de despacho; las tiendas EPA pasaron a `delivery_points` (`sql/13`).",
+        "public.tbl_zones": "Zonas / tipos de ruta por país. Antes se llamaba `route_types` (renombrada en `sql/09`).",
     }),
     ("Clientes y puntos de entrega", {
-        "public.customers": "Compañías clientes de OLO (Cofersa, EPA…) = EFLOW COMPANIA; código EFLOW en `external_code` (`sql/40`).",
-        "public.branches": "Sucursales de cada compañía = EFLOW SUCURSAL (sobrante, garantías, crossdock…) (`sql/40`).",
-        "public.final_customers": "Clientes destino = EFLOW CLIENTES: tiendas EPA (`TIENDA`) y clientes de mayoreo (`MAYOREO`) (`sql/41`–`42`).",
-        "public.delivery_points": "Puntos de entrega de un cliente final, con dirección, ventana horaria, zona y códigos de ruta/zona WMS.",
-        "public.addresses": "Direcciones geocodificables, referenciadas por los puntos de entrega.",
-        "public.contacts": "Contactos de un cliente final o de un punto de entrega.",
+        "public.tbl_customers": "Compañías clientes de OLO (Cofersa, EPA…) = EFLOW COMPANIA; código EFLOW en `external_code` (`sql/40`).",
+        "public.tbl_branches": "Sucursales de cada compañía = EFLOW SUCURSAL (sobrante, garantías, crossdock…) (`sql/40`).",
+        "public.tbl_final_customers": "Clientes destino = EFLOW CLIENTES: tiendas EPA (`TIENDA`) y clientes de mayoreo (`MAYOREO`) (`sql/41`–`42`).",
+        "public.tbl_delivery_points": "Puntos de entrega de un cliente final, con dirección, ventana horaria, zona y códigos de ruta/zona WMS.",
+        "public.tbl_addresses": "Direcciones geocodificables, referenciadas por los puntos de entrega.",
+        "public.tbl_contacts": "Contactos de un cliente final o de un punto de entrega.",
     }),
     ("Transportistas y flota", {
-        "public.carriers": "Transportistas (terceros y flota propia) por país.",
-        "public.drivers": "Conductores de cada transportista.",
-        "public.driver_license_types": "Catálogo de tipos de licencia de conducir por país.",
-        "public.driver_licenses": "Licencias de un conductor (N:M). Tabla creada pero aún no es la fuente de verdad: lo sigue siendo `drivers.license_type_id`.",
-        "public.vehicles": "Vehículos de cada transportista, con capacidad en peso, volumen y tarimas.",
-        "public.vehicle_types": "Catálogo de tipos de vehículo.",
+        "public.tbl_carriers": "Transportistas (terceros y flota propia) por país.",
+        "public.tbl_drivers": "Conductores de cada transportista.",
+        "public.tbl_driver_license_types": "Catálogo de tipos de licencia de conducir por país.",
+        "public.tbl_driver_licenses": "Licencias de un conductor (N:M). Tabla creada pero aún no es la fuente de verdad: lo sigue siendo `drivers.license_type_id`.",
+        "public.tbl_vehicles": "Vehículos de cada transportista, con capacidad en peso, volumen y tarimas.",
+        "public.tbl_vehicle_types": "Catálogo de tipos de vehículo.",
     }),
     ("Pedidos y WMS", {
-        "public.orders": "Pedidos = EFLOW EXPEDICIONESCABECERA (`sql/43`): almacén, sucursal, cliente destino, llave EFLOW, datos del WMS y resultado del OMS.",
-        "public.order_items": "Líneas del pedido = EFLOW EXPEDICIONESDETALLE (`sql/44`).",
-        "public.wms_expediciones": "Staging de expediciones del WMS/EFLOW (`sql/07`). EN RETIRO: la reemplaza `orders` (`sql/43`); falta migrar a Planificación.",
+        "public.tbl_orders": "Pedidos = EFLOW EXPEDICIONESCABECERA (`sql/43`): almacén, sucursal, cliente destino, llave EFLOW, datos del WMS y resultado del OMS.",
+        "public.tbl_order_items": "Líneas del pedido = EFLOW EXPEDICIONESDETALLE (`sql/44`).",
+        "public.tbl_wms_expediciones": "Staging de expediciones del WMS/EFLOW (`sql/07`). EN RETIRO: la reemplaza `orders` (`sql/43`); falta migrar a Planificación.",
     }),
     ("Planificación y ejecución de rutas", {
-        "public.route_plans": "Plan de rutas de un día para un país/almacén.",
-        "public.plan_trips": "Viajes de un plan: vehículo, conductor, zona y carga total.",
-        "public.plan_stops": "Paradas de un viaje planificado (pedido y orden de visita).",
-        "public.routes": "Rutas en ejecución: conductor, vehículo, transportista, horarios reales y avance.",
-        "public.dispatch_guides": "Guías de despacho: un pedido dentro de una ruta, con horarios, estado de entrega y evidencia (firma, foto).",
-        "public.tracking_events": "Eventos de seguimiento de una ruta o guía (con ubicación).",
-        "public.returns": "Devoluciones asociadas a una guía o pedido.",
+        "public.tbl_route_plans": "Plan de rutas de un día para un país/almacén.",
+        "public.tbl_plan_trips": "Viajes de un plan: vehículo, conductor, zona y carga total.",
+        "public.tbl_plan_stops": "Paradas de un viaje planificado (pedido y orden de visita).",
+        "public.tbl_routes": "Rutas en ejecución: conductor, vehículo, transportista, horarios reales y avance.",
+        "public.tbl_dispatch_guides": "Guías de despacho: un pedido dentro de una ruta, con horarios, estado de entrega y evidencia (firma, foto).",
+        "public.tbl_tracking_events": "Eventos de seguimiento de una ruta o guía (con ubicación).",
+        "public.tbl_returns": "Devoluciones asociadas a una guía o pedido.",
     }),
     ("Tarifas, contratos y liquidaciones", {
-        "public.rates": "Tarifas de cada transportista por país, zona y tipo de tarifa.",
-        "public.tariff_types": "Catálogo de tipos de tarifa (km, unidad, fija, volumen, tendering).",
-        "public.contracts": "Contratos con transportistas u otras entidades: vigencia, valor y renovación.",
-        "public.contract_documents": "Documentos adjuntos a un contrato.",
-        "public.settlements": "Liquidaciones (pagos) a transportistas y conductores por ruta.",
+        "public.tbl_rates": "Tarifas de cada transportista por país, zona y tipo de tarifa.",
+        "public.tbl_tariff_types": "Catálogo de tipos de tarifa (km, unidad, fija, volumen, tendering).",
+        "public.tbl_contracts": "Contratos con transportistas u otras entidades: vigencia, valor y renovación.",
+        "public.tbl_contract_documents": "Documentos adjuntos a un contrato.",
+        "public.tbl_settlements": "Liquidaciones (pagos) a transportistas y conductores por ruta.",
     }),
     ("Costeo de transporte", {
-        "public.tipos_camion": "Tipos de camión del costeo (capacidad, rendimiento km/litro). Datos del estudio de costos CR (`sql/04`).",
-        "public.costos_fijos": "Costos fijos mensuales por categoría (conductor, ayudante, otros).",
-        "public.costos_variables": "Los 40 componentes de costo variable, con frecuencia y costo por tipo de camión (T1, T3, T5).",
-        "public.depreciacion": "Depreciación mensual por tipo de camión.",
-        "public.parametros_globales": "Parámetros del costeo (diésel, tipo de cambio, días operativos…).",
-        "public.rutas_costeo": "Rutas costeadas por un usuario en la calculadora de costos.",
-        "public.sku_cotizaciones": "Cotizaciones por SKU sobre una ruta costeada (peso facturable, unidades máximas).",
-        "public.v_costo_fijo_mensual": "Vista: costo fijo mensual por tipo de camión, con y sin ayudante.",
-        "public.v_costo_variable_por_km": "Vista: costo variable por km por componente y tipo de camión.",
+        "public.tbl_tipos_camion": "Tipos de camión del costeo (capacidad, rendimiento km/litro). Datos del estudio de costos CR (`sql/04`).",
+        "public.tbl_costos_fijos": "Costos fijos mensuales por categoría (conductor, ayudante, otros).",
+        "public.tbl_costos_variables": "Los 40 componentes de costo variable, con frecuencia y costo por tipo de camión (T1, T3, T5).",
+        "public.tbl_depreciacion": "Depreciación mensual por tipo de camión.",
+        "public.tbl_parametros_globales": "Parámetros del costeo (diésel, tipo de cambio, días operativos…).",
+        "public.tbl_rutas_costeo": "Rutas costeadas por un usuario en la calculadora de costos.",
+        "public.tbl_sku_cotizaciones": "Cotizaciones por SKU sobre una ruta costeada (peso facturable, unidades máximas).",
+        "public.vw_costo_fijo_mensual": "Vista: costo fijo mensual por tipo de camión, con y sin ayudante.",
+        "public.vw_costo_variable_por_km": "Vista: costo variable por km por componente y tipo de camión.",
     }),
     ("Seguridad y acceso", {
-        "public.app_users": "Usuarios de la aplicación, con rol y organización.",
-        "public.auth_credentials": "Credenciales de inicio de sesión (hash de contraseña) del login propio.",
-        "public.roles": "Roles de la aplicación. `all_countries` da acceso a todos los países.",
-        "public.role_permissions": "Matriz de permisos: qué acción puede hacer cada rol en cada módulo (`sql/15`).",
-        "public.role_countries": "Países a los que tiene acceso un rol cuando no tiene `all_countries`.",
-        "public.app_modules": "Catálogo de módulos/pantallas de la aplicación (llave de los permisos).",
-        "public.user_scopes": "Alcance de datos de un usuario: país, almacén y cliente que puede ver.",
+        "public.tbl_app_users": "Usuarios de la aplicación, con rol y organización.",
+        "public.tbl_auth_credentials": "Credenciales de inicio de sesión (hash de contraseña) del login propio.",
+        "public.tbl_roles": "Roles de la aplicación. `all_countries` da acceso a todos los países.",
+        "public.tbl_role_permissions": "Matriz de permisos: qué acción puede hacer cada rol en cada módulo (`sql/15`).",
+        "public.tbl_role_countries": "Países a los que tiene acceso un rol cuando no tiene `all_countries`.",
+        "public.tbl_app_modules": "Catálogo de módulos/pantallas de la aplicación (llave de los permisos).",
+        "public.tbl_user_scopes": "Alcance de datos de un usuario: país, almacén y cliente que puede ver.",
     }),
     ("Sistema y auditoría", {
         "public.schema_migrations": "Registro de migraciones `sql/NN_*.sql` aplicadas por `scripts/run-migration.mjs`.",
-        "audit.events": "Bitácora de auditoría (`sql/16`–`17`, ADR 0003): quién cambió qué, con antes/después. Particionada por mes e inmutable.",
-        "audit.tracked_tables": "Tablas que la bitácora audita, con las columnas que se enmascaran.",
+        "audit.tbl_events": "Bitácora de auditoría (`sql/16`–`17`, ADR 0003): quién cambió qué, con antes/después. Particionada por mes e inmutable.",
+        "audit.tbl_tracked_tables": "Tablas que la bitácora audita, con las columnas que se enmascaran.",
     }),
 ]
 
@@ -105,11 +105,11 @@ OBSERVACIONES = """## Observaciones (revisión 2026-09-30)
 - **Tablas vacías (0 filas):** `contacts`, `contracts`, `contract_documents`, `driver_licenses`, `rates`, `returns`,
   `role_countries`, `rutas_costeo`, `settlements`, `sku_cotizaciones`, `tracking_events`.
 - **El OMS no tiene esquema propio** (decidido el 2026-10-16; reemplaza los esquemas `OMS`/`TMS` del 2026-09-15):
-  todo vive en `public`. El OMS lee y escribe sus pedidos en `public.orders`; sus tablas propias (simulaciones,
+  todo vive en `public`. El OMS lee y escribe sus pedidos en `public.tbl_orders`; sus tablas propias (simulaciones,
   etc.) todavía no existen y se crearán también en `public`.
 - **Casi sin `COMMENT ON`:** solo 3 tablas y 6 columnas tienen comentario en la base; las descripciones de este
   documento se escribieron a partir de los nombres, las columnas y los scripts `sql/`.
-- **Permisos de `tms_app`:** no puede leer `public.schema_migrations` ni `audit.tracked_tables`, por eso no se cuentan
+- **Permisos de `tms_app`:** no puede leer `public.schema_migrations` ni `audit.tbl_tracked_tables`, por eso no se cuentan
   sus filas. Es coherente con `sql/18` (la app no necesita esas tablas).
 """
 
@@ -314,7 +314,7 @@ def render(d):
             if any("set_updated_at" in f for f in funcs):
                 extra.append("- Trigger: `updated_at` se actualiza solo (`set_updated_at()`).")
             if any("capture_row_change" in f for f in funcs):
-                extra.append("- Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.events`.")
+                extra.append("- Trigger: auditada — cada INSERT/UPDATE/DELETE queda en `audit.tbl_events`.")
             if any("forbid_change" in f for f in funcs):
                 extra.append("- Trigger: inmutable — UPDATE y DELETE están prohibidos (`audit.forbid_change()`).")
             otros = [t for t in trg.get(fq, []) if not re.search(r"set_updated_at|capture_row_change|forbid_change", t["definition"])]

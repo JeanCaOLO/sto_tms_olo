@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api-client';
 
 // Mapa código de zona (zones.code, = orders.delivery_zone / ruta del WMS) → nombre
 // de zona. Planificación agrupa por el CÓDIGO (delivery_zone), pero para mostrar
@@ -9,7 +9,7 @@ export function useZonasNombre() {
   const [porCodigo, setPorCodigo] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    supabase
+    apiClient
       .from('zones')
       .select('code, name')
       .then(({ data }) => {

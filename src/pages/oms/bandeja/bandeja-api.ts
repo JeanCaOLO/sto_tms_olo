@@ -5,7 +5,7 @@
 // delivery = pedidos DISP/DISP de eFlow ya guardados en orders; pickup = devoluciones
 // abiertas (creadas en el TMS o en la app) que hay que pasar a recoger. El scope
 // (almacén/compañía) lo adjunta apiFetch como headers desde el contexto operativo.
-import { apiFetch } from '../../../lib/supabase';
+import { apiFetch } from '../../../lib/api-client';
 import type { QueueOrder } from '../types';
 
 export type BandejaKind = 'delivery' | 'pickup';
@@ -32,7 +32,7 @@ interface BandejaRow {
   wms_status: string | null;
   wms_situation: string | null;
   delivery_date_eflow: string | null;
-  delivery_date_changes: number | null;
+  delivery_date_change_count: number | null;
   liberado: boolean | null;
 }
 
@@ -79,7 +79,7 @@ function toBandejaOrder(r: BandejaRow): BandejaOrder {
     returnNumber: r.return_number ?? '',
     returnReason: r.return_reason ?? '',
     eflowDate: (r.delivery_date_eflow ?? '').slice(0, 10),
-    dateChanges: r.delivery_date_changes ?? 0,
+    dateChanges: r.delivery_date_change_count ?? 0,
     released: Boolean(r.liberado),
   };
 }

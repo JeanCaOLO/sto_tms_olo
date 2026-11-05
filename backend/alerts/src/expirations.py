@@ -17,17 +17,17 @@ WITH today AS (SELECT (now() AT TIME ZONE '{TIME_ZONE}')::date AS d),
 items AS (
   SELECT '{CONTRACT}' AS type, c.id AS entity_id, c.name, c.code, c.contract_expiry AS expiry_date,
          c.country_id, NULL::text AS carrier_name, NULL::text AS license_number
-  FROM carriers c
+  FROM tbl_carriers c
   WHERE c.contract_expiry IS NOT NULL AND coalesce(c.status, 'active') <> 'inactive'
   UNION ALL
   SELECT '{LICENSE}', d.id, d.full_name, d.code, d.license_expiry, c.country_id, c.name, d.license_number
-  FROM drivers d LEFT JOIN carriers c ON c.id = d.carrier_id
+  FROM tbl_drivers d LEFT JOIN tbl_carriers c ON c.id = d.carrier_id
   WHERE d.license_expiry IS NOT NULL AND coalesce(d.status, 'active') <> 'inactive'
   UNION ALL
   SELECT '{LICENSE}', d.id, d.full_name, d.code, dl.expiry_date, c.country_id, c.name, dl.license_number
-  FROM driver_licenses dl
-  JOIN drivers d ON d.id = dl.driver_id
-  LEFT JOIN carriers c ON c.id = d.carrier_id
+  FROM tbl_driver_licenses dl
+  JOIN tbl_drivers d ON d.id = dl.driver_id
+  LEFT JOIN tbl_carriers c ON c.id = d.carrier_id
   WHERE dl.expiry_date IS NOT NULL AND coalesce(d.status, 'active') <> 'inactive'
 )
 SELECT DISTINCT i.type, i.entity_id, i.name, i.code, i.expiry_date, i.country_id, i.carrier_name, i.license_number,

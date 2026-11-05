@@ -1,7 +1,7 @@
 # 2026-10-21 — OMS: cableado de la UI a `orders` real, catálogo de reglas, logs y limpieza
 
 Rama `oms`. Lote de cambios de UI/datos sobre el sandbox de OLO, pedidos por negocio.
-El frontend NO usa Supabase: `src/lib/supabase.ts` es un cliente propio (fetch+JWT)
+El frontend NO usa Supabase: `src/lib/api-client.ts` es un cliente propio (fetch+JWT)
 contra `/api/data` (server/tms-*.mjs) → Aurora `tms_olo` (misma BD que el backend).
 
 ## Hecho

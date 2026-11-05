@@ -13,10 +13,10 @@ SELECT e.id, e.expedicion AS order_number,
        NULL::float AS total_weight, NULL::float AS total_volume, false AS capacity_known,
        e.fecha_planificada AS delivery_date, e.prioridad AS priority,
        e.id_compania, e.cant_lineas, e.situacion, e.observaciones
-FROM wms_expediciones e
+FROM tbl_wms_expediciones e
 LEFT JOIN LATERAL (
   SELECT a.line1, a.line2, a.city, a.latitude, a.longitude
-  FROM delivery_points p LEFT JOIN addresses a ON a.id = p.address_id
+  FROM tbl_delivery_points p LEFT JOIN tbl_addresses a ON a.id = p.address_id
   WHERE p.final_customer_id = e.final_customer_id AND p.active = true
   ORDER BY p.is_default DESC, p.name
   LIMIT 1

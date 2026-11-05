@@ -117,7 +117,7 @@ def _update_fields(run: pg.Runner, user_id: str, body: dict) -> str | None:
         fields["carrier_id"] = _carrier_for_role(run, role, carrier)
     if fields:
         assignments = ", ".join(f"{column} = %s" for column in fields)
-        run(f"UPDATE app_users SET {assignments}, updated_at = now() WHERE id = %s", [*fields.values(), user_id])
+        run(f"UPDATE tbl_app_users SET {assignments}, updated_at = now() WHERE id = %s", [*fields.values(), user_id])
     return fields.get("role_id")  # type: ignore[return-value]
 
 

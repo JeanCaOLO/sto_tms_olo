@@ -26,8 +26,8 @@ from contract_files import (MAX_PDF_BYTES, PDF_CONTENT_TYPE, URL_TTL_SECONDS, do
                             new_contract_key, require_contract_key, require_uploaded_pdf)
 
 MODULE = "transportistas"
-CARRIER_SQL = "SELECT id, code, name, country_id, contract_file_key FROM carriers WHERE id = %s"
-SET_CONTRACT_SQL = "UPDATE carriers SET contract_file_key = %s, updated_at = now() WHERE id = %s"
+CARRIER_SQL = "SELECT id, code, name, country_id, contract_file_key FROM tbl_carriers WHERE id = %s"
+SET_CONTRACT_SQL = "UPDATE tbl_carriers SET contract_file_key = %s, updated_at = now() WHERE id = %s"
 
 _s3 = None
 

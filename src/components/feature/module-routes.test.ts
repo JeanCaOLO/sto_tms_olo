@@ -31,6 +31,16 @@ describe('permKeyForPath', () => {
   });
 });
 
+describe('Devoluciones', () => {
+  it('el módulo nuevo usa el permiso devoluciones', () => {
+    expect(permKeyForPath('/devoluciones')).toBe('devoluciones');
+  });
+
+  it('la pantalla anterior (/devoluciones/legacy) ya no existe como ruta con permiso propio', () => {
+    expect(permKeyForPath('/devoluciones/legacy')).toBeUndefined();
+  });
+});
+
 describe('Costos Flota', () => {
   it('exige tarifas.config en la ruta consolidada', () => {
     expect(permKeyForPath('/tarifas/costos-flota')).toBe('tarifas.config');

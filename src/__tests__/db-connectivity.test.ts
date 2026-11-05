@@ -23,7 +23,7 @@ try {
   // pueden venir igual del entorno del shell; si no, dbAvailable quedará en false.
 }
 
-// Todas las tablas que el frontend referencia hoy vía `supabase.from('<tabla>')`
+// Todas las tablas que el frontend referencia hoy vía `apiClient.from('<tabla>')`
 // (barrido exhaustivo de src/pages/**, ver docs/reference/analisis-sistema-tms.md §5.4).
 // Se listan agrupadas por módulo para que un fallo señale el módulo afectado.
 const TABLES_BY_MODULE: Record<string, string[]> = {
@@ -125,7 +125,7 @@ describe.skipIf(!dbAvailable)('Catálogo de Zonas: tabla "zones"', () => {
   // `country_id` es NOT NULL. Este test invierte el anterior, que documentaba la
   // ausencia de la tabla (rotura §5.3 ya resuelta).
   it('existe y country_id es NOT NULL', async () => {
-    const { rows } = await pool.query("SELECT to_regclass('public.zones') AS reg");
+    const { rows } = await pool.query("SELECT to_regclass('public.tbl_zones') AS reg");
     expect(rows[0].reg).not.toBeNull();
 
     const { rows: cols } = await pool.query(

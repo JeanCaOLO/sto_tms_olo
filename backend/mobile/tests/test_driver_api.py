@@ -56,11 +56,11 @@ def pos(**over):
 # --- mi-viaje ------------------------------------------------------------------------------------------------
 
 def test_mi_viaje_lists_active_and_planned_trips_of_the_driver(call, fake_db):
-    fake_db.answer("FROM routes r LEFT JOIN stores s", [route_row()])
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_item(1), guide_item(2, delivery_status="delivered")])
-    fake_db.answer("FROM plan_trips pt", [{"plan_trip_id": TRIP, "plan_date": date(2026, 10, 16), "assigned_at": NOW, "delivery_zone": "GAM",
+    fake_db.answer("FROM tbl_routes r LEFT JOIN tbl_stores s", [route_row()])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_item(1), guide_item(2, delivery_status="delivered")])
+    fake_db.answer("FROM tbl_plan_trips pt", [{"plan_trip_id": TRIP, "plan_date": date(2026, 10, 16), "assigned_at": NOW, "delivery_zone": "GAM",
                                            "plate": "XYZ789", "driver_name": "Ana"}])
-    fake_db.answer("FROM plan_stops ps JOIN orders o", [{
+    fake_db.answer("FROM tbl_plan_stops ps JOIN tbl_orders o", [{
         "trip_id": TRIP, "stop_order": 1, "order_id": ORDER, "order_number": "P-9", "invoice_number": "F-9",
         "total_items": 3, "total_weight": 5, "delivery_address": "Calle 9", "delivery_city": "Heredia",
         "latitude": STOP_LAT, "longitude": STOP_LNG, "customer_name": "Cliente 9", "customer_phone": "2222-9999"}])
@@ -83,21 +83,21 @@ def test_mi_viaje_empty_agenda(call):
 
 
 def test_trip_without_position_is_still_por_salir(call, fake_db):
-    fake_db.answer("FROM routes r LEFT JOIN stores s", [route_row(last_lat=None, last_lng=None, last_position_at=None)])
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_item(1)])
+    fake_db.answer("FROM tbl_routes r LEFT JOIN tbl_stores s", [route_row(last_lat=None, last_lng=None, last_position_at=None)])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_item(1)])
     item = body_of(call("GET /api/mobile/v1/mi-viaje"))["data"]["items"][0]
     assert item["phase"] == "por_salir" and item["position"] is None and item["stops"][0]["distance_m"] is None
 
 
 def test_mi_viaje_keeps_guides_and_trips_whose_order_or_store_is_missing(call, fake_db):
     """Un pedido o tienda faltante no debe ocultarle paradas ni el viaje al chofer: el TMS sí las cuenta."""
-    fake_db.answer("FROM routes r LEFT JOIN stores s", [route_row(origin_lat=None, origin_lng=None)])
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_item(1, order_number=None, invoice_number=None, customer_name=None)])
+    fake_db.answer("FROM tbl_routes r LEFT JOIN tbl_stores s", [route_row(origin_lat=None, origin_lng=None)])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_item(1, order_number=None, invoice_number=None, customer_name=None)])
     item = body_of(call("GET /api/mobile/v1/mi-viaje"))["data"]["items"][0]
     assert item["progress"]["total"] == 1 and item["stops"][0]["order_number"] is None
     sql = {c[0] for c in fake_db.calls}
-    assert any("LEFT JOIN orders o ON o.id = g.order_id" in q for q in sql)
-    assert any("LEFT JOIN stores s ON s.id = r.store_id" in q for q in sql)
+    assert any("LEFT JOIN tbl_orders o ON o.id = g.order_id" in q for q in sql)
+    assert any("LEFT JOIN tbl_stores s ON s.id = r.store_id" in q for q in sql)
 
 
 def test_mi_viaje_and_unfinished_check_ignore_trips_closed_by_planning(call, fake_db):
@@ -106,7 +106,7 @@ def test_mi_viaje_and_unfinished_check_ignore_trips_closed_by_planning(call, fak
     mine = [c[0] for c in fake_db.calls if "r.driver_id = %s" in c[0]][0]
     assert "pt.status NOT IN ('completed', 'cancelled')" in mine
     from mobile_api import sql
-    assert "LEFT JOIN plan_trips pt" in sql.UNFINISHED_ROUTE_SQL
+    assert "LEFT JOIN tbl_plan_trips pt" in sql.UNFINISHED_ROUTE_SQL
     assert "pt.status NOT IN ('completed', 'cancelled')" in sql.UNFINISHED_ROUTE_SQL
 
 
@@ -120,45 +120,45 @@ def test_mi_viaje_and_unfinished_check_ignore_trips_closed_by_planning(call, fak
     ("POST /api/mobile/v1/paradas/{id}/evidencias", {"kind": "signature", "key": "x"}),
 ])
 def test_a_driver_cannot_touch_another_drivers_stop(call, fake_db, route, body):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row(driver_id=OTHER_DRIVER)])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row(driver_id=OTHER_DRIVER)])
     assert call(route, path={"id": GUIDE}, body=body)["statusCode"] == 404
-    assert not fake_db.wrote("UPDATE dispatch_guides") and not fake_db.wrote("INSERT INTO tracking_events")
-    assert not fake_db.wrote("INSERT INTO returns") and not fake_db.wrote("INSERT INTO tracking_evidences")
+    assert not fake_db.wrote("UPDATE tbl_dispatch_guides") and not fake_db.wrote("INSERT INTO tbl_tracking_events")
+    assert not fake_db.wrote("INSERT INTO tbl_returns") and not fake_db.wrote("INSERT INTO tbl_tracking_evidences")
 
 
 def test_stop_of_another_organization_or_unknown_is_404(call, fake_db):
     route = "POST /api/mobile/v1/paradas/{id}/transicion"
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row(organization_id="otra-org")])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row(organization_id="otra-org")])
     assert call(route, path={"id": GUIDE}, body={"to": "delivered"})["statusCode"] == 404
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [])
     assert call(route, path={"id": GUIDE}, body={"to": "delivered"})["statusCode"] == 404
     assert call(route, path={"id": "no-es-uuid"}, body={"to": "delivered"})["statusCode"] == 404
 
 
 def test_positions_of_another_drivers_trip_are_rejected_and_not_written(call, fake_db):
-    fake_db.answer("FROM routes r LEFT JOIN stores s", [])          # la consulta ya filtra por conductor
+    fake_db.answer("FROM tbl_routes r LEFT JOIN tbl_stores s", [])          # la consulta ya filtra por conductor
     result = body_of(call("POST /api/mobile/v1/posiciones", body={"positions": [pos()]}))["data"]
     assert result["accepted"] == 0 and result["rejected"][0]["reason"] == "viaje no encontrado"
-    assert not fake_db.wrote("INSERT INTO tracking_positions") and not fake_db.wrote("INSERT INTO tracking_last_positions")
-    assert [c for c in fake_db.calls if "driver_id = %s" in c[0] and "FROM routes r" in c[0]][0][1][:2] == [ORG, DRIVER]
+    assert not fake_db.wrote("INSERT INTO tbl_tracking_positions") and not fake_db.wrote("INSERT INTO tbl_tracking_last_positions")
+    assert [c for c in fake_db.calls if "driver_id = %s" in c[0] and "FROM tbl_routes r" in c[0]][0][1][:2] == [ORG, DRIVER]
 
 
 # --- posiciones ------------------------------------------------------------------------------------------------------
 
 def test_positions_reject_bad_dedupe_and_update_last_position(call, fake_db):
-    fake_db.answer("FROM routes r LEFT JOIN stores s", [{"id": ROUTE, "status": "En tránsito", "vehicle_id": "v", "driver_id": DRIVER}])
-    fake_db.answer("INSERT INTO tracking_positions", [{"client_id": UUID1}])
+    fake_db.answer("FROM tbl_routes r LEFT JOIN tbl_stores s", [{"id": ROUTE, "status": "En tránsito", "vehicle_id": "v", "driver_id": DRIVER}])
+    fake_db.answer("INSERT INTO tbl_tracking_positions", [{"client_id": UUID1}])
     body = {"device_id": "dev-1", "positions": [
         pos(), pos(client_id="66666666-6666-4666-8666-666666666666", lat=200),
         pos(client_id="77777777-7777-4777-8777-777777777777", route_id="99999999-9999-4999-8999-999999999999")]}
     result = body_of(call("POST /api/mobile/v1/posiciones", body=body))["data"]
     assert result["accepted"] == 1 and result["duplicates"] == 0
     assert {r["reason"] for r in result["rejected"]} == {"lat fuera de rango", "viaje no encontrado"}
-    assert len(fake_db.wrote("INSERT INTO tracking_last_positions")) == 1
+    assert len(fake_db.wrote("INSERT INTO tbl_tracking_last_positions")) == 1
 
 
 def test_positions_of_a_closed_trip_are_not_active(call, fake_db):
-    fake_db.answer("FROM routes r LEFT JOIN stores s", [{"id": ROUTE, "status": "Completada", "vehicle_id": None, "driver_id": DRIVER}])
+    fake_db.answer("FROM tbl_routes r LEFT JOIN tbl_stores s", [{"id": ROUTE, "status": "Completada", "vehicle_id": None, "driver_id": DRIVER}])
     result = body_of(call("POST /api/mobile/v1/posiciones", body={"positions": [pos()]}))["data"]
     assert result["accepted"] == 0 and result["rejected"][0]["reason"] == "viaje no activo"
 
@@ -174,48 +174,48 @@ def route_for_positions(**over):
 
 
 def test_first_position_far_from_origin_sets_departed_at_once(call, fake_db):
-    fake_db.answer("FROM routes r LEFT JOIN stores s", [route_for_positions()])
-    fake_db.answer("INSERT INTO tracking_positions", [{"client_id": UUID1}])
+    fake_db.answer("FROM tbl_routes r LEFT JOIN tbl_stores s", [route_for_positions()])
+    fake_db.answer("INSERT INTO tbl_tracking_positions", [{"client_id": UUID1}])
     call(POSITIONS, body={"positions": [pos(lat=9.99, lng=-84.08)]})        # ~6.6 km de la sede
-    sets = fake_db.wrote("UPDATE routes SET departed_at")
+    sets = fake_db.wrote("UPDATE tbl_routes SET departed_at")
     assert len(sets) == 1 and sets[0][1][1] == ROUTE
 
 
 def test_position_near_origin_or_already_departed_does_not_set_departed_at(call, fake_db):
-    fake_db.answer("INSERT INTO tracking_positions", [{"client_id": UUID1}])
-    fake_db.answer("FROM routes r LEFT JOIN stores s", [route_for_positions()])
+    fake_db.answer("INSERT INTO tbl_tracking_positions", [{"client_id": UUID1}])
+    fake_db.answer("FROM tbl_routes r LEFT JOIN tbl_stores s", [route_for_positions()])
     call(POSITIONS, body={"positions": [pos(lat=9.9301, lng=-84.0801)]})    # dentro de 300 m
-    fake_db.answer("FROM routes r LEFT JOIN stores s", [route_for_positions(departed_at=NOW)])
+    fake_db.answer("FROM tbl_routes r LEFT JOIN tbl_stores s", [route_for_positions(departed_at=NOW)])
     call(POSITIONS, body={"positions": [pos(lat=9.99)]})
-    assert not fake_db.wrote("UPDATE routes SET departed_at")
+    assert not fake_db.wrote("UPDATE tbl_routes SET departed_at")
 
 
 def test_mock_or_inaccurate_points_are_stored_but_do_not_move_last_position_nor_depart(call, fake_db):
-    fake_db.answer("FROM routes r LEFT JOIN stores s", [route_for_positions()])
-    fake_db.answer("INSERT INTO tracking_positions", [{"client_id": UUID1}])
+    fake_db.answer("FROM tbl_routes r LEFT JOIN tbl_stores s", [route_for_positions()])
+    fake_db.answer("INSERT INTO tbl_tracking_positions", [{"client_id": UUID1}])
     call(POSITIONS, body={"positions": [pos(lat=9.99, is_mock=True)]})
-    fake_db.answer("INSERT INTO tracking_positions", [{"client_id": UUID1}])
+    fake_db.answer("INSERT INTO tbl_tracking_positions", [{"client_id": UUID1}])
     call(POSITIONS, body={"positions": [pos(lat=9.99, accuracy_m=500)]})
-    assert len(fake_db.wrote("INSERT INTO tracking_positions")) == 2
-    assert not fake_db.wrote("INSERT INTO tracking_last_positions") and not fake_db.wrote("UPDATE routes SET departed_at")
+    assert len(fake_db.wrote("INSERT INTO tbl_tracking_positions")) == 2
+    assert not fake_db.wrote("INSERT INTO tbl_tracking_last_positions") and not fake_db.wrote("UPDATE tbl_routes SET departed_at")
 
 
 def test_duplicate_points_do_not_touch_last_position(call, fake_db):
-    fake_db.answer("FROM routes r LEFT JOIN stores s", [route_for_positions()])
-    fake_db.answer("INSERT INTO tracking_positions", [])                    # ON CONFLICT DO NOTHING: ya existían
+    fake_db.answer("FROM tbl_routes r LEFT JOIN tbl_stores s", [route_for_positions()])
+    fake_db.answer("INSERT INTO tbl_tracking_positions", [])                    # ON CONFLICT DO NOTHING: ya existían
     result = body_of(call(POSITIONS, body={"positions": [pos()]}))["data"]
     assert result["accepted"] == 0 and result["duplicates"] == 1
-    assert not fake_db.wrote("INSERT INTO tracking_last_positions")
+    assert not fake_db.wrote("INSERT INTO tbl_tracking_last_positions")
 
 
 def test_late_points_within_grace_are_stored_but_do_not_move_last_position(call, fake_db):
-    fake_db.answer("FROM routes r LEFT JOIN stores s", [route_for_positions(
+    fake_db.answer("FROM tbl_routes r LEFT JOIN tbl_stores s", [route_for_positions(
         status="Completada", actual_end_time=NOW - timedelta(minutes=30))])
-    fake_db.answer("INSERT INTO tracking_positions", [{"client_id": UUID1}])
+    fake_db.answer("INSERT INTO tbl_tracking_positions", [{"client_id": UUID1}])
     result = body_of(call(POSITIONS, body={"positions": [pos()]}))["data"]
     assert result["accepted"] == 1
-    assert not fake_db.wrote("INSERT INTO tracking_last_positions")
-    fake_db.answer("FROM routes r LEFT JOIN stores s", [route_for_positions(
+    assert not fake_db.wrote("INSERT INTO tbl_tracking_last_positions")
+    fake_db.answer("FROM tbl_routes r LEFT JOIN tbl_stores s", [route_for_positions(
         status="Completada", actual_end_time=NOW - timedelta(hours=3))])
     assert body_of(call(POSITIONS, body={"positions": [pos()]}))["data"]["rejected"][0]["reason"] == "viaje no activo"
 
@@ -223,8 +223,8 @@ def test_late_points_within_grace_are_stored_but_do_not_move_last_position(call,
 def test_position_writes_run_in_one_transaction(call, fake_db, monkeypatch):
     opened = []
     monkeypatch.setattr(db_module, "run_in_transaction", lambda work, retries=0: opened.append(1) or work(fake_db.run))
-    fake_db.answer("FROM routes r LEFT JOIN stores s", [route_for_positions()])
-    fake_db.answer("INSERT INTO tracking_positions", [{"client_id": UUID1}])
+    fake_db.answer("FROM tbl_routes r LEFT JOIN tbl_stores s", [route_for_positions()])
+    fake_db.answer("INSERT INTO tbl_tracking_positions", [{"client_id": UUID1}])
     call(POSITIONS, body={"positions": [pos()]})
     assert opened == [1]
 
@@ -247,37 +247,37 @@ def delivered(call, **body):
 
 
 def stop_with_coords(fake_db):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row(stop_lat=STOP_LAT, stop_lng=STOP_LNG)])
-    fake_db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 2}])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row(stop_lat=STOP_LAT, stop_lng=STOP_LNG)])
+    fake_db.answer("FROM tbl_dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 2}])
 
 
 def test_transition_updates_guide_counter_and_event_atomically(call, fake_db):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row()])
-    fake_db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 3, "pending": 1}])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row()])
+    fake_db.answer("FROM tbl_dispatch_guides g WHERE g.route_id", [{"done": 3, "pending": 1}])
     result = body_of(delivered(call))["data"]
     assert result == {"stop_id": GUIDE, "state": "delivered", "done": 3, "pending": 1, "distance_m": None,
                       "route_closed": False}
-    assert fake_db.wrote("UPDATE dispatch_guides")[0][1][:2] == ["delivered", "Entregado"]
-    assert fake_db.wrote("UPDATE routes SET completed_stops")[0][1] == [3, ROUTE]
-    event_params = fake_db.wrote("INSERT INTO tracking_events")[0][1]
+    assert fake_db.wrote("UPDATE tbl_dispatch_guides")[0][1][:2] == ["delivered", "Entregado"]
+    assert fake_db.wrote("UPDATE tbl_routes SET completed_stops")[0][1] == [3, ROUTE]
+    event_params = fake_db.wrote("INSERT INTO tbl_tracking_events")[0][1]
     assert event_params[3] == "delivery_completed" and event_params[9] == APP_USER
 
 
 def test_failed_needs_reason_and_records_it(call, fake_db):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row()])
-    fake_db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 0}])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row()])
+    fake_db.answer("FROM tbl_dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 0}])
     assert call(TRANSITION, path={"id": GUIDE}, body={"to": "failed"})["statusCode"] == 400
     assert call(TRANSITION, path={"id": GUIDE}, body={"to": "failed", "reason": "Local cerrado"})["statusCode"] == 200
-    assert "Fallo: Local cerrado" in fake_db.wrote("UPDATE dispatch_guides")[0][1][4]
+    assert "Fallo: Local cerrado" in fake_db.wrote("UPDATE tbl_dispatch_guides")[0][1][4]
 
 
 def test_transition_needs_an_active_trip(call, fake_db):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row(route_status="Completada")])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row(route_status="Completada")])
     assert delivered(call)["statusCode"] == 409
 
 
 def test_invalid_target_and_time(call, fake_db):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row()])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row()])
     assert call(TRANSITION, path={"id": GUIDE}, body={"to": "lost"})["statusCode"] == 400
     assert delivered(call, occurred_at="ayer")["statusCode"] == 400
     assert delivered(call, lat=999, lng=0)["statusCode"] == 400
@@ -285,13 +285,13 @@ def test_invalid_target_and_time(call, fake_db):
 
 def test_delivery_requires_invoice_photo_and_signature(call, fake_db):
     for kinds in ([], ["photo_invoice"], ["signature"]):
-        fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row(evidence_kinds=kinds)])
+        fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row(evidence_kinds=kinds)])
         response = delivered(call)
         assert response["statusCode"] == 400 and "evidence_required" in response["body"]
-    assert not fake_db.wrote("UPDATE dispatch_guides")
+    assert not fake_db.wrote("UPDATE tbl_dispatch_guides")
     # No entregar y volver a pendiente no piden evidencias.
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row(evidence_kinds=[])])
-    fake_db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 2}])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row(evidence_kinds=[])])
+    fake_db.answer("FROM tbl_dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 2}])
     assert call(TRANSITION, path={"id": GUIDE}, body={"to": "failed", "reason": "Ausente"})["statusCode"] == 200
 
 
@@ -299,7 +299,7 @@ def test_delivery_within_geofence_stores_distance(call, fake_db):
     stop_with_coords(fake_db)
     result = body_of(delivered(call, lat=STOP_LAT + 0.0005, lng=STOP_LNG))["data"]       # ~55 m
     assert 40 <= result["distance_m"] <= 70
-    events = fake_db.wrote("INSERT INTO tracking_events")
+    events = fake_db.wrote("INSERT INTO tbl_tracking_events")
     assert len(events) == 1 and events[0][1][10] == result["distance_m"]
 
 
@@ -307,7 +307,7 @@ def test_delivery_far_from_stop_requires_reason(call, fake_db):
     stop_with_coords(fake_db)
     response = delivered(call, lat=STOP_LAT + 0.01, lng=STOP_LNG)                          # ~1,1 km
     assert response["statusCode"] == 400 and body_of(response)["error"]["code"] == "outside_geofence"
-    assert not fake_db.wrote("UPDATE dispatch_guides")
+    assert not fake_db.wrote("UPDATE tbl_dispatch_guides")
 
 
 def test_delivery_far_with_reason_is_saved_with_an_incident(call, fake_db):
@@ -315,10 +315,10 @@ def test_delivery_far_with_reason_is_saved_with_an_incident(call, fake_db):
     response = delivered(call, lat=STOP_LAT + 0.01, lng=STOP_LNG, reason="No se podía estacionar")
     data = body_of(response)["data"]
     assert response["statusCode"] == 200 and data["distance_m"] > logic.GEOFENCE_M
-    events = fake_db.wrote("INSERT INTO tracking_events")
+    events = fake_db.wrote("INSERT INTO tbl_tracking_events")
     assert [e[1][3] for e in events] == ["delivery_completed", "geofence_out"]
     assert "No se podía estacionar" in events[1][1][8] and events[0][1][10] == data["distance_m"]
-    assert "Fallo" not in (fake_db.wrote("UPDATE dispatch_guides")[0][1][4] or "")
+    assert "Fallo" not in (fake_db.wrote("UPDATE tbl_dispatch_guides")[0][1][4] or "")
 
 
 @pytest.mark.parametrize("with_stop_coords", [True, False])
@@ -326,68 +326,68 @@ def test_delivery_without_device_location_is_rejected_even_with_a_reason(call, f
     if with_stop_coords:
         stop_with_coords(fake_db)
     else:
-        fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row()])
+        fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row()])
     for extra in ({"lat": None, "lng": None}, {"lat": None, "lng": None, "reason": "GPS apagado"}):
         response = delivered(call, **extra)
         assert response["statusCode"] == 400 and body_of(response)["error"]["code"] == "location_required"
     response = delivered(call, lat=9.0, lng=None, reason="GPS apagado")                      # a medias tampoco vale
     assert response["statusCode"] == 400 and body_of(response)["error"]["code"] == "location_required"
-    assert not fake_db.wrote("UPDATE dispatch_guides")
+    assert not fake_db.wrote("UPDATE tbl_dispatch_guides")
 
 
 def test_stop_without_coordinates_has_nothing_to_measure(call, fake_db):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row()])
-    fake_db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 2}])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row()])
+    fake_db.answer("FROM tbl_dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 2}])
     assert body_of(delivered(call))["data"]["distance_m"] is None
-    assert len(fake_db.wrote("INSERT INTO tracking_events")) == 1                             # sin incidentes
+    assert len(fake_db.wrote("INSERT INTO tbl_tracking_events")) == 1                             # sin incidentes
 
 
 def test_driver_cannot_revert_a_stop(call, fake_db):
     stop_with_coords(fake_db)
     response = call(TRANSITION, path={"id": GUIDE}, body={"to": "pending", "lat": 0, "lng": 0})
     assert response["statusCode"] == 403 and body_of(response)["error"]["code"] == "revert_not_allowed"
-    assert not fake_db.wrote("UPDATE dispatch_guides") and not fake_db.wrote("INSERT INTO tracking_events")
+    assert not fake_db.wrote("UPDATE tbl_dispatch_guides") and not fake_db.wrote("INSERT INTO tbl_tracking_events")
 
 
 # --- novedades, devoluciones -------------------------------------------------------------------------------------------
 
 def test_incident_accepts_pickup_and_rejects_other_kinds(call, fake_db):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row()])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row()])
     route = "POST /api/mobile/v1/paradas/{id}/novedades"
     assert call(route, path={"id": GUIDE}, body={})["statusCode"] == 400
     assert call(route, path={"id": GUIDE}, body={"description": "x", "kind": "otro"})["statusCode"] == 400
     ok = call(route, path={"id": GUIDE}, body={"description": "Recolecta de envases", "kind": "pickup"})
-    assert ok["statusCode"] == 201 and fake_db.wrote("INSERT INTO tracking_events")[0][1][3] == "pickup"
+    assert ok["statusCode"] == 201 and fake_db.wrote("INSERT INTO tbl_tracking_events")[0][1][3] == "pickup"
 
 
 def test_return_requires_fields_and_active_trip(call, fake_db):
     route = "POST /api/mobile/v1/paradas/{id}/devoluciones"
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row()])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row()])
     for body in [{"reason": "x", "quantity": 1}, {"product_name": "a", "quantity": 1},
                  {"product_name": "a", "reason": "x", "quantity": 0}, {"product_name": "a", "reason": "x", "quantity": "2"},
                  {"product_name": "a", "reason": "x", "quantity": 1, "client_id": "no-uuid"},
                  {"product_name": "a", "reason": "x", "quantity": 1, "photo_key": "tracking/otra/llave.jpg"}]:
         assert call(route, path={"id": GUIDE}, body=body)["statusCode"] == 400, body
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row(route_status="Completada")])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row(route_status="Completada")])
     assert call(route, path={"id": GUIDE}, body={"product_name": "a", "reason": "x", "quantity": 1})["statusCode"] == 409
-    assert not fake_db.wrote("INSERT INTO returns")
+    assert not fake_db.wrote("INSERT INTO tbl_returns")
 
 
 def test_return_is_inserted_with_guide_and_order_and_is_idempotent(call, fake_db):
     route = "POST /api/mobile/v1/paradas/{id}/devoluciones"
     client_id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
     body = {"product_name": "Pintura 4L", "quantity": 2, "reason": "Empaque dañado", "client_id": client_id}
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row()])
-    fake_db.answer("INSERT INTO returns", [{"id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"}])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row()])
+    fake_db.answer("INSERT INTO tbl_returns", [{"id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"}])
     first = call(route, path={"id": GUIDE}, body=body)
     assert first["statusCode"] == 201 and body_of(first)["data"]["duplicate"] is False
-    params = fake_db.wrote("INSERT INTO returns")[0][1]
+    params = fake_db.wrote("INSERT INTO tbl_returns")[0][1]
     assert params[:4] == [ORG, GUIDE, ORDER, f"DV-{client_id}"] and params[6] == "Pintura 4L" and params[7] == 2
-    assert fake_db.wrote("INSERT INTO tracking_events")[0][1][3] == "return"
-    fake_db.answer("INSERT INTO returns", [])
+    assert fake_db.wrote("INSERT INTO tbl_tracking_events")[0][1][3] == "return"
+    fake_db.answer("INSERT INTO tbl_returns", [])
     again = call(route, path={"id": GUIDE}, body=body)
     assert again["statusCode"] == 200 and body_of(again)["data"]["duplicate"] is True
-    assert len(fake_db.wrote("INSERT INTO tracking_events")) == 1
+    assert len(fake_db.wrote("INSERT INTO tbl_tracking_events")) == 1
 
 
 # --- consentimiento --------------------------------------------------------------------------------------------------
@@ -395,12 +395,12 @@ def test_return_is_inserted_with_guide_and_order_and_is_idempotent(call, fake_db
 def test_consent_is_idempotent_per_version(call, fake_db):
     route = "POST /api/mobile/v1/consentimiento-gps"
     assert call(route, body={})["statusCode"] == 400
-    fake_db.answer("INSERT INTO tracking_consents", [{"consented_at": NOW}])
+    fake_db.answer("INSERT INTO tbl_tracking_consents", [{"consented_at": NOW}])
     first = call(route, body={"version": "2026-10", "device_id": "dev-1"})
     assert first["statusCode"] == 201 and body_of(first)["data"]["duplicate"] is False
-    assert fake_db.wrote("INSERT INTO tracking_consents")[0][1] == [ORG, APP_USER, "2026-10", "dev-1"]
-    fake_db.answer("INSERT INTO tracking_consents", [])
-    fake_db.answer("FROM tracking_consents WHERE", [{"consented_at": NOW}])
+    assert fake_db.wrote("INSERT INTO tbl_tracking_consents")[0][1] == [ORG, APP_USER, "2026-10", "dev-1"]
+    fake_db.answer("INSERT INTO tbl_tracking_consents", [])
+    fake_db.answer("FROM tbl_tracking_consents WHERE", [{"consented_at": NOW}])
     again = call(route, body={"version": "2026-10"})
     assert again["statusCode"] == 200 and body_of(again)["data"]["duplicate"] is True
 
@@ -431,7 +431,7 @@ def s3(monkeypatch):
 
 
 def test_upload_url_signs_only_small_images_for_own_stop(call, fake_db, s3):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row()])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row()])
     route = "POST /api/mobile/v1/paradas/{id}/evidencias/upload-url"
     data = body_of(call(route, path={"id": GUIDE}, body={"kind": "photo_invoice", "mime_type": "image/jpeg"}))["data"]
     assert data["key"].startswith(f"{FOLDER}photo_invoice-") and data["key"].endswith(".jpg")
@@ -446,7 +446,7 @@ def test_upload_url_signs_only_small_images_for_own_stop(call, fake_db, s3):
 
 def test_upload_url_with_client_id_gives_the_same_key_on_every_retry(call, fake_db, s3):
     """Reintentar la subida (timeout, URL vencida) sobrescribe el mismo objeto: no quedan huérfanos en S3."""
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row()])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row()])
     route = "POST /api/mobile/v1/paradas/{id}/evidencias/upload-url"
     body = {"kind": "signature", "mime_type": "image/png", "client_id": UUID1.upper()}
     first = body_of(call(route, path={"id": GUIDE}, body=body))["data"]["key"]
@@ -461,26 +461,26 @@ def test_upload_url_with_client_id_gives_the_same_key_on_every_retry(call, fake_
 
 
 def test_confirm_stores_key_and_links_the_guide(call, fake_db, s3):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row()])
-    fake_db.answer("INSERT INTO tracking_evidences", [{"id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc"}])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row()])
+    fake_db.answer("INSERT INTO tbl_tracking_evidences", [{"id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc"}])
     key = f"{FOLDER}signature-{'a' * 8}-aaaa-4aaa-8aaa-{'a' * 12}.jpg"
     route = "POST /api/mobile/v1/paradas/{id}/evidencias"
     response = call(route, path={"id": GUIDE}, body={"kind": "signature", "key": key, "client_id": UUID1})
     assert response["statusCode"] == 201 and body_of(response)["data"]["duplicate"] is False
-    assert fake_db.wrote("UPDATE dispatch_guides SET signature_url")[0][1] == [key, GUIDE]
-    assert not fake_db.wrote("UPDATE dispatch_guides SET photo_url")
+    assert fake_db.wrote("UPDATE tbl_dispatch_guides SET signature_url")[0][1] == [key, GUIDE]
+    assert not fake_db.wrote("UPDATE tbl_dispatch_guides SET photo_url")
     # La fila identifica el pedido (id y número) y el bucket donde quedó el archivo.
-    inserted = fake_db.wrote("INSERT INTO tracking_evidences")[0][1]
+    inserted = fake_db.wrote("INSERT INTO tbl_tracking_evidences")[0][1]
     assert inserted[-3:] == [ORDER, "PED-001", "bucket-de-prueba"]
     photo = key.replace("signature-", "photo_invoice-")
     call(route, path={"id": GUIDE}, body={"kind": "photo_invoice", "key": photo})
-    assert fake_db.wrote("UPDATE dispatch_guides SET photo_url")[0][1] == [photo, GUIDE]
+    assert fake_db.wrote("UPDATE tbl_dispatch_guides SET photo_url")[0][1] == [photo, GUIDE]
     # Una firma no se puede confirmar como foto de factura (ni al revés).
     assert call(route, path={"id": GUIDE}, body={"kind": "photo_invoice", "key": key})["statusCode"] == 400
 
 
 def test_confirm_rejects_foreign_key_missing_upload_and_big_files(call, fake_db, s3):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row()])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row()])
     route = "POST /api/mobile/v1/paradas/{id}/evidencias"
     foreign = f"pedidos/OTRO-002/99999999-9999-4999-8999-999999999999/signature-{'a' * 36}.jpg"
     assert call(route, path={"id": GUIDE}, body={"kind": "signature", "key": foreign})["statusCode"] == 400
@@ -493,14 +493,14 @@ def test_confirm_rejects_foreign_key_missing_upload_and_big_files(call, fake_db,
     assert call(route, path={"id": GUIDE}, body={"kind": "signature", "key": key})["statusCode"] == 400
     s3.head = {"ContentType": "application/pdf", "ContentLength": 10}
     assert call(route, path={"id": GUIDE}, body={"kind": "signature", "key": key})["statusCode"] == 400
-    assert not fake_db.wrote("INSERT INTO tracking_evidences")
+    assert not fake_db.wrote("INSERT INTO tbl_tracking_evidences")
 
 
 # --- ejecución general -----------------------------------------------------------------------------------------------
 
 def test_writes_set_the_audit_actor_local_to_the_transaction(call, fake_db):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row()])
-    fake_db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 0}])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row()])
+    fake_db.answer("FROM tbl_dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 0}])
     delivered(call)
     actors = [(sql, params) for sql, params in fake_db.calls if "set_config" in sql]
     # Una sola vez, LOCAL (true): se borra con el COMMIT, sin un viaje extra para limpiarlo.
@@ -548,17 +548,17 @@ def test_aws_proxy_event_is_resolved_to_the_real_route_and_path_params():
 
 
 def test_incident_on_a_closed_route_is_409(call, fake_db):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row(route_status="Completada")])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row(route_status="Completada")])
     response = call("POST /api/mobile/v1/paradas/{id}/novedades", path={"id": GUIDE}, body={"description": "tarde"})
     assert response["statusCode"] == 409
     assert not fake_db.wrote("INSERT INTO route_events")
 
 
 def test_mi_viaje_returns_only_todays_plan_and_planned_filter_is_today(call, fake_db):
-    fake_db.answer("FROM plan_trips pt", [
+    fake_db.answer("FROM tbl_plan_trips pt", [
         {"plan_trip_id": TRIP, "plan_date": date(2026, 10, 16), "assigned_at": NOW, "delivery_zone": "GAM", "plate": "A", "driver_name": "Ana"},
         {"plan_trip_id": "other", "plan_date": date(2026, 10, 16), "assigned_at": NOW, "delivery_zone": "GAM", "plate": "B", "driver_name": "Ana"}])
-    fake_db.answer("FROM plan_stops ps JOIN orders o", [
+    fake_db.answer("FROM tbl_plan_stops ps JOIN tbl_orders o", [
         {"trip_id": tid, "stop_order": 1, "order_id": ORDER, "order_number": "P", "invoice_number": "F", "total_items": 1,
          "total_weight": 1, "delivery_address": "x", "delivery_city": "y", "latitude": STOP_LAT, "longitude": STOP_LNG,
          "customer_name": "c", "customer_phone": None} for tid in (TRIP, "other")])
@@ -585,8 +585,8 @@ def test_reason_code_otro_needs_text_and_unknown_code_rejected(call):
 def test_mi_viaje_hides_next_trips_until_current_is_fully_done(call, fake_db):
     first = route_row(id="r-a", route_number="VJ-A")
     second = route_row(id="r-b", route_number="VJ-B")
-    fake_db.answer("FROM routes r LEFT JOIN stores s", [first, second])
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [
+    fake_db.answer("FROM tbl_routes r LEFT JOIN tbl_stores s", [first, second])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [
         {**guide_item(1), "route_id": "r-a"}, {**guide_item(2, delivery_status="delivered"), "route_id": "r-a"},
         {**guide_item(3), "route_id": "r-b"}])
     items = body_of(call("GET /api/mobile/v1/mi-viaje"))["data"]["items"]
@@ -594,8 +594,8 @@ def test_mi_viaje_hides_next_trips_until_current_is_fully_done(call, fake_db):
 
 
 def test_mi_viaje_shows_next_trip_once_current_is_done(call, fake_db):
-    fake_db.answer("FROM routes r LEFT JOIN stores s", [route_row(id="r-a", route_number="VJ-A"), route_row(id="r-b", route_number="VJ-B")])
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [
+    fake_db.answer("FROM tbl_routes r LEFT JOIN tbl_stores s", [route_row(id="r-a", route_number="VJ-A"), route_row(id="r-b", route_number="VJ-B")])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [
         {**guide_item(1, delivery_status="delivered"), "route_id": "r-a"},
         {**guide_item(2, delivery_status="failed"), "route_id": "r-a"}, {**guide_item(3), "route_id": "r-b"}])
     items = body_of(call("GET /api/mobile/v1/mi-viaje"))["data"]["items"]
@@ -603,8 +603,8 @@ def test_mi_viaje_shows_next_trip_once_current_is_done(call, fake_db):
 
 
 def test_mi_viaje_all_done_keeps_last_trip_summary(call, fake_db):
-    fake_db.answer("FROM routes r LEFT JOIN stores s", [route_row(id="r-a", route_number="VJ-A")])
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [{**guide_item(1, delivery_status="delivered"), "route_id": "r-a"}])
+    fake_db.answer("FROM tbl_routes r LEFT JOIN tbl_stores s", [route_row(id="r-a", route_number="VJ-A")])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [{**guide_item(1, delivery_status="delivered"), "route_id": "r-a"}])
     items = body_of(call("GET /api/mobile/v1/mi-viaje"))["data"]["items"]
     assert [i["route_number"] for i in items] == ["VJ-A"] and items[0]["progress"]["remaining"] == 0
 
@@ -612,21 +612,21 @@ def test_mi_viaje_all_done_keeps_last_trip_summary(call, fake_db):
 # --- cierre automático del viaje ------------------------------------------------------------------------------
 
 def test_last_stop_closes_the_trip_and_sends_it_to_liquidaciones(call, fake_db):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row()])
-    fake_db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 5, "pending": 0}])
-    fake_db.answer("UPDATE routes SET status = 'Completada'", [{"id": ROUTE}])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row()])
+    fake_db.answer("FROM tbl_dispatch_guides g WHERE g.route_id", [{"done": 5, "pending": 0}])
+    fake_db.answer("UPDATE tbl_routes SET status = 'Completada'", [{"id": ROUTE}])
     result = body_of(delivered(call))["data"]
     assert result["route_closed"] is True and result["pending"] == 0
-    close = fake_db.wrote("UPDATE routes SET status = 'Completada'")
+    close = fake_db.wrote("UPDATE tbl_routes SET status = 'Completada'")
     assert close and close[0][1][1] == 5 and close[0][1][2] == ROUTE           # estado Completada, 5 paradas hechas
-    assert fake_db.wrote("UPDATE plan_trips SET status = 'completed'")          # y su viaje planificado
-    assert [c for c in fake_db.wrote("INSERT INTO tracking_events") if c[1][3] == "route_completed"]
+    assert fake_db.wrote("UPDATE tbl_plan_trips SET status = 'completed'")          # y su viaje planificado
+    assert [c for c in fake_db.wrote("INSERT INTO tbl_tracking_events") if c[1][3] == "route_completed"]
 
 
 def test_a_failed_last_stop_also_closes_the_trip(call, fake_db):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row()])
-    fake_db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 2, "pending": 0}])
-    fake_db.answer("UPDATE routes SET status = 'Completada'", [{"id": ROUTE}])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row()])
+    fake_db.answer("FROM tbl_dispatch_guides g WHERE g.route_id", [{"done": 2, "pending": 0}])
+    fake_db.answer("UPDATE tbl_routes SET status = 'Completada'", [{"id": ROUTE}])
     result = body_of(call(TRANSITION, path={"id": GUIDE}, body={"to": "failed", "reason": "Cliente ausente"}))["data"]
     assert result["route_closed"] is True
 
@@ -634,29 +634,29 @@ def test_a_failed_last_stop_also_closes_the_trip(call, fake_db):
 def test_trip_stays_open_while_stops_are_pending(call, fake_db):
     stop_with_coords(fake_db)
     result = body_of(delivered(call, lat=STOP_LAT, lng=STOP_LNG))["data"]
-    assert result["route_closed"] is False and not fake_db.wrote("UPDATE routes SET status = 'Completada'")
+    assert result["route_closed"] is False and not fake_db.wrote("UPDATE tbl_routes SET status = 'Completada'")
 
 
 def test_resending_the_last_stop_after_the_trip_closed_is_not_an_error(call, fake_db):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row(route_status="Completada", delivery_status="delivered")])
-    fake_db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 5, "pending": 0}])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row(route_status="Completada", delivery_status="delivered")])
+    fake_db.answer("FROM tbl_dispatch_guides g WHERE g.route_id", [{"done": 5, "pending": 0}])
     response = delivered(call)
     assert response["statusCode"] == 200 and body_of(response)["data"]["route_closed"] is True
 
 
 def test_a_closed_trip_cannot_be_reopened_by_the_driver(call, fake_db):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row(route_status="Completada", delivery_status="delivered")])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row(route_status="Completada", delivery_status="delivered")])
     response = call(TRANSITION, path={"id": GUIDE}, body={"to": "pending"})
     assert response["statusCode"] == 403 and body_of(response)["error"]["code"] == "revert_not_allowed"
-    assert not fake_db.wrote("UPDATE routes SET status = 'En tránsito'")
+    assert not fake_db.wrote("UPDATE tbl_routes SET status = 'En tránsito'")
 
 
 # --- recolectas (type = collection) ------------------------------------------------------------------------------
 
 
 def test_mi_viaje_exposes_the_stop_type_assigned_by_planning(call, fake_db):
-    fake_db.answer("FROM routes r LEFT JOIN stores s", [route_row()])
-    fake_db.answer("FROM dispatch_guides g JOIN routes r",
+    fake_db.answer("FROM tbl_routes r LEFT JOIN tbl_stores s", [route_row()])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r",
                    [guide_item(1, stop_type="collection"), guide_item(2, stop_type="delivery"), guide_item(3)])
     stops = body_of(call("GET /api/mobile/v1/mi-viaje"))["data"]["items"][0]["stops"]
     assert [s["type"] for s in stops] == ["collection", "delivery", "delivery"]   # sin dato = entrega
@@ -664,27 +664,27 @@ def test_mi_viaje_exposes_the_stop_type_assigned_by_planning(call, fake_db):
 
 def test_collection_requires_product_photo_and_signature(call, fake_db):
     for kinds in ([], ["photo_product"], ["signature"], ["photo_invoice", "signature"]):
-        fake_db.answer("FROM dispatch_guides g JOIN routes r",
+        fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r",
                        [guide_row(stop_type="collection", evidence_kinds=kinds)])
         response = delivered(call)
         assert response["statusCode"] == 400 and "evidence_required" in response["body"]
         assert "foto del producto" in response["body"]
-    assert not fake_db.wrote("UPDATE dispatch_guides")
-    fake_db.answer("FROM dispatch_guides g JOIN routes r",
+    assert not fake_db.wrote("UPDATE tbl_dispatch_guides")
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r",
                    [guide_row(stop_type="collection", evidence_kinds=["photo_product", "signature"])])
-    fake_db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 2}])
+    fake_db.answer("FROM tbl_dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 2}])
     assert delivered(call)["statusCode"] == 200
 
 
 def test_delivery_still_requires_invoice_photo_even_with_product_photo(call, fake_db):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r",
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r",
                    [guide_row(stop_type="delivery", evidence_kinds=["photo_product", "signature"])])
     assert delivered(call)["statusCode"] == 400
 
 
 def test_failed_collection_needs_only_a_reason(call, fake_db):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row(stop_type="collection", evidence_kinds=[])])
-    fake_db.answer("FROM dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 2}])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row(stop_type="collection", evidence_kinds=[])])
+    fake_db.answer("FROM tbl_dispatch_guides g WHERE g.route_id", [{"done": 1, "pending": 2}])
     no_reason = call(TRANSITION, path={"id": GUIDE}, body={"to": "failed", "type": "collection"})
     assert no_reason["statusCode"] == 400
     ok_response = call(TRANSITION, path={"id": GUIDE}, body={"to": "failed", "type": "collection", "reason": "No estaba"})
@@ -692,25 +692,25 @@ def test_failed_collection_needs_only_a_reason(call, fake_db):
 
 
 def test_transition_rejects_unknown_type_and_trusts_the_server_over_the_client(call, fake_db):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row(stop_type="delivery")])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row(stop_type="delivery")])
     assert delivered(call, type="otra")["statusCode"] == 400
     # El cliente dice "collection" pero la parada es entrega: manda el servidor (pide factura).
-    fake_db.answer("FROM dispatch_guides g JOIN routes r",
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r",
                    [guide_row(stop_type="delivery", evidence_kinds=["photo_product", "signature"])])
     assert delivered(call, type="collection")["statusCode"] == 400
 
 
 def test_product_photo_evidence_is_accepted_and_linked_to_the_guide(call, fake_db, s3):
-    fake_db.answer("FROM dispatch_guides g JOIN routes r", [guide_row(stop_type="collection")])
-    fake_db.answer("INSERT INTO tracking_evidences", [{"id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc"}])
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row(stop_type="collection")])
+    fake_db.answer("INSERT INTO tbl_tracking_evidences", [{"id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc"}])
     upload = "POST /api/mobile/v1/paradas/{id}/evidencias/upload-url"
     data = body_of(call(upload, path={"id": GUIDE}, body={"kind": "photo_product", "mime_type": "image/jpeg"}))["data"]
     assert data["key"].startswith(f"{FOLDER}photo_product-") and data["kind"] == "photo_product"
     confirm = call("POST /api/mobile/v1/paradas/{id}/evidencias", path={"id": GUIDE},
                    body={"kind": "photo_product", "key": data["key"]})
     assert confirm["statusCode"] == 201
-    assert fake_db.wrote("INSERT INTO tracking_evidences")[0][1][3] == "photo_product"
-    assert fake_db.wrote("UPDATE dispatch_guides SET photo_url")[0][1] == [data["key"], GUIDE]
+    assert fake_db.wrote("INSERT INTO tbl_tracking_evidences")[0][1][3] == "photo_product"
+    assert fake_db.wrote("UPDATE tbl_dispatch_guides SET photo_url")[0][1] == [data["key"], GUIDE]
     # Una foto de factura no se confirma como foto de producto.
     invoice_key = data["key"].replace("photo_product-", "photo_invoice-")
     bad = call("POST /api/mobile/v1/paradas/{id}/evidencias", path={"id": GUIDE},

@@ -1,7 +1,7 @@
 // Decidir una fase de la proforma (aprobar, rechazar, quitar, reenviar) o anularla.
 // Va por el endpoint del servidor: ahí se valida quién puede decidir. El navegador no escribe fases ni estado.
 
-import { apiFetch } from '../../supabase';
+import { apiFetch } from '../../api-client';
 
 export type DecisionAction = 'approve' | 'reject' | 'skip' | 'resubmit' | 'annul' | 'appeal' | 'restart';
 

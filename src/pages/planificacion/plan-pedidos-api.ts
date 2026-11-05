@@ -11,7 +11,7 @@
 // llegan null (capacity_known=false) hasta que EFLOW pase a live. Sin backend,
 // en desarrollo cae al pool mock; en producción lanza (ver mock-fallback.ts).
 
-import { apiFetch } from '../../lib/supabase';
+import { apiFetch } from '../../lib/api-client';
 import { getFallbackPedidosParaPlanificar, offsetDayIso } from './fallback-pedidos';
 import { mockFallbackEnabled } from './mock-fallback';
 import type { Articulo, Pedido } from './types';

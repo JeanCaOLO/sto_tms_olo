@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api-client';
 import Card from '../../components/base/Card';
 import Button from '../../components/base/Button';
 import Input from '../../components/base/Input';
@@ -58,7 +58,7 @@ export default function ConfiguracionPage() {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await apiClient
         .from('organizations')
         .select('*')
         .eq('id', appUser.organization_id)
@@ -78,7 +78,7 @@ export default function ConfiguracionPage() {
     setSaving(true);
     setMessage(null);
 
-    const { error } = await supabase
+    const { error } = await apiClient
       .from('organizations')
       .update({
         name: organization.name,

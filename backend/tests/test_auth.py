@@ -43,7 +43,7 @@ def auth_app(monkeypatch):
     rows = {"credentials": []}
 
     def fake_query(sql, params=()):
-        if "FROM auth_credentials c" in sql:
+        if "FROM tbl_auth_credentials c" in sql:
             return rows["credentials"]
         if sql.startswith("SELECT 1"):
             return [{"?column?": 1}] if rows["credentials"] else []

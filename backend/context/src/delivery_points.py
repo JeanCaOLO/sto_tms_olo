@@ -122,7 +122,7 @@ def update_point(event: dict) -> dict:
     with pg.transaction() as run:
         if fields:
             assignments = ", ".join(f"{column} = %s" for column in fields)
-            run(f"UPDATE delivery_points SET {assignments}, updated_at = now() WHERE id = %s",
+            run(f"UPDATE tbl_delivery_points SET {assignments}, updated_at = now() WHERE id = %s",
                 [*fields.values(), point["id"]])
         if isinstance(body.get("address"), dict) and point["address_id"]:
             run(sql.UPDATE_ADDRESS_SQL, [*_address_values(body["address"]), point["address_id"]])
