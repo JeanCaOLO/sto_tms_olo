@@ -82,6 +82,9 @@ interface DataTableProps<T> {
   initialColumnFilters?: Record<string, string[]>;
   // Opcional: activa la selección de filas (casillas + barra de acciones). Sin ella la tabla no cambia.
   selection?: RowSelection<T>;
+  // Opcional: orden inicial de la tabla (clave de columna + dirección). Sin él la tabla muestra las filas
+  // en el orden en que llegan. El usuario puede re-ordenar desde el encabezado como siempre.
+  defaultSort?: { key: string; direction: 'asc' | 'desc' };
 }
 
 export interface ColumnLayout {
@@ -261,11 +264,12 @@ export default function DataTable<T>({
   maxVisibleRows,
   initialColumnFilters,
   selection,
+  defaultSort,
 }: DataTableProps<T>) {
   const { t } = useTranslation();
   const location = useLocation();
   const [search, setSearch] = useState('');
-  const [sort, setSort] = useState<{ key: string; direction: SortDirection } | null>(null);
+  const [sort, setSort] = useState<{ key: string; direction: SortDirection } | null>(defaultSort ?? null);
   const [columnFilters, setColumnFilters] = useState<Record<string, Set<string> | null>>(() =>
     Object.fromEntries(Object.entries(initialColumnFilters ?? {}).map(([key, values]) => [key, new Set(values)])),
   );
