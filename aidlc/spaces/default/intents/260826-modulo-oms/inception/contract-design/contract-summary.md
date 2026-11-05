@@ -121,6 +121,23 @@ shared-schema:
 idempotente por llave EFLOW). El OMS **no** escribe el número de viaje ni toca el
 picking.
 
+> **Refinamiento v4.3 (2026-11-04) — dos verbos de la escritura 2 (costura
+> `EscritorSituacion`) = dos endpoints EPRAC**:
+>
+> - **`actualizar_prioridad(pk, prioridad)`** — UPDATE de **solo el número** de
+>   prioridad; la situación **permanece `DISP`**. Se usa en la **pasada de
+>   priorización** (write-on-delta: solo si el número cambió vs. `orders.priority`),
+>   **solo para Cofersa**. SUPERSEDE PARCIAL de ADR-013 (antes la priorización no
+>   tocaba la costura).
+> - **`marcar_generada(pk, prioridad)`** — número + **`TPEXSI = GENE`**. Se usa en la
+>   **pasada de liberación** (la que estampa `oms_processed_at`).
+>
+> **EPA es pass-through**: no se le sincroniza el número intermedio; su prioridad
+> (1 o 2) solo se escribe al liberar, con su valor de origen. `GENE` y
+> `oms_processed_at` siguen siendo exclusivos de la liberación. eFlow sigue
+> READ-ONLY; hoy ambos verbos escriben a `sim_expedicionescabecera` y mañana a los
+> endpoints EPRAC, sin tocar el motor.
+
 **Escritura 1 — `public.orders` (Aurora), resultado del OMS:**
 
 ```yaml
@@ -203,7 +220,8 @@ shared-schema:
 
 - `aidlc/spaces/default/intents/260826-modulo-oms/inception/units-generation/unit-of-work.md`.
 - `aidlc/spaces/default/intents/260826-modulo-oms/inception/units-generation/unit-of-work-dependency.md` (DAG U2→U1).
-- `aidlc/spaces/default/intents/260826-modulo-oms/inception/domain-design/components.md` (v4) y `decisions.md` (ADR-007, ADR-008, ADR-010).
+- `aidlc/spaces/default/intents/260826-modulo-oms/inception/domain-design/components.md` (v4) y `decisions.md` (ADR-007, ADR-008, ADR-010, ADR-013).
+- `docs/work/2026-11/2026-11-04-sync-prioridad-eflow-y-liberacion-manual.md` (v4.3: dos verbos de la costura; EPA pass-through).
 - `aidlc/spaces/default/intents/260826-modulo-oms/inception/requirements-analysis/requirements.md` (v4: FR0, FR1, FR2, FR8).
 - `docs/reference/mapeo-pedidos-eflow-orders.md` (EFLOW → public.orders).
 

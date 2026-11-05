@@ -57,7 +57,7 @@ _ORDERS = """
 SELECT o.id, o.order_number, o.delivery_city, o.delivery_zone,
        o.delivery_latitude::float AS lat, o.delivery_longitude::float AS lng,
        o.total_weight::float AS weight, o.total_volume::float AS volume, o.priority,
-       fc.name AS customer_name, o.es_cliente_retira,
+       fc.name AS customer_name, fc.customer_type, o.es_cliente_retira,
        o.eflow_id_compania, o.eflow_id_almacen, o.eflow_id_sucursal, o.eflow_id_expedicion
 FROM tbl_orders o
 LEFT JOIN tbl_final_customers fc ON fc.id = o.final_customer_id
@@ -102,9 +102,12 @@ def _empacar(pedidos: list[dict], flota: list[dict], vi: int) -> tuple[list[dict
 
 
 def _agrupar_por_zona(pedidos: list[dict]) -> dict:
+    """Mayoreo (Cofersa) se consolida por zona; una TIENDA (EPA) va en viaje directo,
+    camión lleno a una sola tienda, así que su grupo es la tienda (reunión 2026-11-03)."""
     zonas: dict = {}
     for o in pedidos:
-        zonas.setdefault(o["delivery_zone"] or "S/R", []).append(o)
+        clave = o["customer_name"] if o.get("customer_type") == "TIENDA" else (o["delivery_zone"] or "S/R")
+        zonas.setdefault(clave, []).append(o)
     return zonas
 
 
@@ -167,7 +170,10 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
         raise HttpError(409, "No hay flota propia activa para planificar")
 
     run_id = str(uuid.uuid4())
-    fecha_compact = fecha.replace("-", "")
+    # Nº de viaje = fecha-compañía-secuencia: cada compañía numera su plan desde 001, y sin la
+    # compañía Cofersa y EPA repetían el mismo nº el mismo día (el OMS libera por nº de viaje).
+    cia = pg.query("SELECT external_code FROM tbl_customers WHERE id = %s", [customer])[0]["external_code"]
+    prefijo = f"{fecha.replace('-', '')}-{cia or '0000'}"  # ponytail: '0000' si la compañía no tiene código eFlow (VE aún no)
 
     def trabajo(run):
         viajes_liberados.borrar_no_liberado(run, org, warehouse, customer, fecha)
@@ -181,10 +187,10 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
             viajes, vi = _empacar(ped_zona, flota, vi)
             for viaje in viajes:
                 seq += 1
-                _persistir_viaje(run, plan_id, zona, seq, viaje, run_id, f"{fecha_compact}-{seq:03d}")
+                _persistir_viaje(run, plan_id, zona, seq, viaje, run_id, f"{prefijo}-{seq:03d}")
         if retira:  # grupo de cliente-retira: zona RETIRA, sin camión
             seq += 1
-            _persistir_viaje(run, plan_id, ZONA_RETIRA, seq, _viaje_retira(retira), run_id, f"{fecha_compact}-{seq:03d}")
+            _persistir_viaje(run, plan_id, ZONA_RETIRA, seq, _viaje_retira(retira), run_id, f"{prefijo}-{seq:03d}")
         return plan_id
 
     return str(pg.run_in_transaction(trabajo))

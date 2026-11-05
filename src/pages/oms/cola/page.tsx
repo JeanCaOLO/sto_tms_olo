@@ -4,7 +4,7 @@ import Button from '../../../components/base/Button';
 import Select from '../../../components/base/Select';
 import DataTable, { type DataTableColumn } from '../../../components/base/DataTable';
 import PriorityBadge from '../components/PriorityBadge';
-import { TIER_LABEL, type PriorityTier, type QueueOrder } from '../types';
+import { priorityLabel, type QueueOrder } from '../types';
 import OrderDetailModal from './OrderDetailModal';
 import OverrideModal from './OverrideModal';
 import { useColaController } from './useColaController';
@@ -36,7 +36,7 @@ export default function OmsColaPage() {
   ];
 
   const columns: DataTableColumn<QueueOrder>[] = [
-    { key: 'tier', header: t('omsQueue.colPriority'), accessor: (o) => (o.prioritized ? o.tier : 99), sortable: true, render: (o) => (o.prioritized ? <PriorityBadge tier={o.tier} /> : <span className="text-slate-400 italic">{t('omsQueue.notPrioritized')}</span>) },
+    { key: 'priority', header: t('omsQueue.colPriority'), accessor: (o) => (o.priority != null ? o.priority : Number.MAX_SAFE_INTEGER), sortable: true, render: (o) => (o.priority != null ? <PriorityBadge priority={o.priority} /> : <span className="text-slate-400 italic">{t('omsQueue.notPrioritized')}</span>) },
     { key: 'ref', header: t('omsQueue.colOrder'), accessor: (o) => o.ref, sortable: true, render: (o) => <span className="font-medium text-slate-900">{o.ref}</span> },
     { key: 'warehouseId', header: t('omsQueue.colWarehouseId'), accessor: (o) => o.warehouseId, sortable: true, filterable: true },
     { key: 'companyId', header: t('omsQueue.colCompanyId'), accessor: (o) => o.companyId, sortable: true, filterable: true },
@@ -59,7 +59,7 @@ export default function OmsColaPage() {
     { key: 'createdDate', header: t('omsQueue.colCreatedDate'), accessor: (o) => o.createdDate, sortable: true, render: (o) => soloFecha(o.createdDate) },
     { key: 'status', header: t('omsQueue.colStatus'), accessor: (o) => o.status, filterable: true },
     { key: 'situation', header: t('omsQueue.colSituation'), accessor: (o) => o.situation, filterable: true },
-    { key: 'score', header: t('omsQueue.colScore'), accessor: (o) => o.score, sortable: true, align: 'right', render: (o) => <span className="font-semibold text-slate-900">{o.score}</span> },
+    { key: 'score', header: t('omsQueue.colScore'), accessor: (o) => o.score, sortable: true, align: 'right', render: (o) => (o.prioritized ? <span className="font-semibold text-slate-900">{o.score}</span> : <span className="text-slate-400">—</span>) },
   ];
 
   return (
@@ -82,7 +82,7 @@ export default function OmsColaPage() {
               label={t('omsQueue.priority')}
               value={filters.tier}
               onChange={(e) => setFilter('tier', e.target.value)}
-              options={[{ value: 'todos', label: t('omsQueue.allFem') }, ...options.tiers.map((tier) => ({ value: tier, label: TIER_LABEL[Number(tier) as PriorityTier] }))]}
+              options={[{ value: 'todos', label: t('omsQueue.allFem') }, ...options.tiers.map((tier) => ({ value: tier, label: priorityLabel(Number(tier)) }))]}
             />
           </div>
           {filtersActive && (
@@ -125,7 +125,7 @@ export default function OmsColaPage() {
       {overrideOpen && selected && (
         <OverrideModal
           orderId={selected.ref}
-          currentTier={selected.tier}
+          currentPriority={selected.priority}
           onConfirm={applyOverride}
           onCancel={() => setOverrideOpen(false)}
         />

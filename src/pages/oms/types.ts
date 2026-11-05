@@ -18,28 +18,25 @@ export const WEEK_DAY_LABELS: Record<WeekDay, string> = {
   D: 'Domingo',
 };
 
-// Nivel numérico de prioridad. 1 = más urgente (convención: menor número = más
-// prioridad; coherente con "EPA prioridad 1 / cross docking 0" del flujo actual).
-// El número exacto de niveles sigue abierto (OQ-1) — el prototipo usa 1..4.
-export type PriorityTier = 1 | 2 | 3 | 4;
+// Prioridad del OMS: escala numérica 0..n (menor = más urgente), tal cual la
+// calcula el motor (DECIDED 2026-10-29). 0 = liberado/inmediato; la cola siempre
+// es >= 1. Cofersa usa `dias_hasta_salida`; EPA trae la suya de EFLOW (1 ó 2). Ya
+// NO es el modelo viejo de 4 "tiers": el número se muestra tal cual, sin inventar.
+// `null` = el pedido aún no fue priorizado por el OMS (no mostrar un número falso).
 
-export const TIER_LEVELS: PriorityTier[] = [1, 2, 3, 4];
+// Etiqueta legible de una prioridad numérica.
+export function priorityLabel(p: number): string {
+  return `Prioridad ${p}`;
+}
 
-export const TIER_LABEL: Record<PriorityTier, string> = {
-  1: 'Prioridad 1',
-  2: 'Prioridad 2',
-  3: 'Prioridad 3',
-  4: 'Prioridad 4',
-};
-
-// Mapeo tier -> variante de Badge del design system (design-system-mapping.md).
-// 1 (más urgente) = danger; escala descendente hasta default.
-export const TIER_BADGE: Record<PriorityTier, 'danger' | 'warning' | 'info' | 'default'> = {
-  1: 'danger',
-  2: 'warning',
-  3: 'info',
-  4: 'default',
-};
+// Variante de Badge del design system por urgencia (menor número = más urgente).
+// 0/1 = danger; 2 = warning; 3 = info; 4+ = default. Soporta cualquier n >= 0.
+export function priorityBadgeVariant(p: number): 'danger' | 'warning' | 'info' | 'default' {
+  if (p <= 1) return 'danger';
+  if (p === 2) return 'warning';
+  if (p === 3) return 'info';
+  return 'default';
+}
 
 export type RouteType = 'Rural' | 'GAM';
 
@@ -67,8 +64,8 @@ export interface QueueOrder {
   customer: string;
   route: string;
   country: Country;
-  tier: PriorityTier;
-  score: number;
+  priority: number | null; // prioridad numérica del OMS (0..n, menor = más urgente). null = aún sin priorizar
+  score: number;           // score del motor; solo es válido si `prioritized` (si no, la UI lo muestra como —)
   totalAmount: number;     // Monto Total
   weight: number;          // Peso (kg)
   volume: number;          // Volumen (m³)
@@ -86,7 +83,7 @@ export interface QueueOrder {
   released?: boolean;
   intakeTime: string;
   appliedRules: { name: string; weight: number }[];
-  history: { at: string; from: PriorityTier | 'sin asignar'; to: PriorityTier; type: 'automatico' | 'manual'; reason?: string }[];
+  history: { at: string; from: number | 'sin asignar'; to: number; type: 'automatico' | 'manual'; reason?: string }[];
 }
 
 // FR4 — alerta del Panel OMS.
@@ -138,8 +135,8 @@ export interface AuditEntry {
   orderId: string;
   country: Country;
   changeType: 'automatico' | 'manual';
-  tierFrom: PriorityTier | 'sin asignar';
-  tierTo: PriorityTier;
+  tierFrom: number | 'sin asignar';
+  tierTo: number;
   scoreFrom: number | null;
   scoreTo: number;
   actor: string;

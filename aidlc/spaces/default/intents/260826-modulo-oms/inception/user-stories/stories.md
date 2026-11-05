@@ -42,6 +42,14 @@
 >   (EPA = 1 y 2; OQ-EPA-VAL — CERRADA 2026-10-30: EPA = 1 y 2, confirmado por
 >   Eduardo; fuente 2026-09-01). Abiertas: OQ-PRIO-A (aparcada), OQ-PRIO-B,
 >   OQ-PRIO-C.
+> - **Refinamiento v4.3 (liberación manual + sync de prioridad, 2026-11-04)** —
+>   fuente: `docs/work/2026-11/2026-11-04-sync-prioridad-eflow-y-liberacion-manual.md`.
+>   La **única interacción manual del Responsable** pasa a ser **liberar el pedido**
+>   (prioridad `0` + `GENE` + eFlow), no alterar la prioridad: **E4** pasa a
+>   "Liberación manual", **US14** = "Liberar un pedido" (grano pedido), **US15b** =
+>   "Liberar sin anular"; IDs sin renumerar. Supera el DECIDED de la Adenda 2026-08-26.
+>   Además, para **Cofersa** el OMS sincroniza el número de prioridad a eFlow desde que
+>   prioriza y en cada cambio (US9/US9b, FR8.5; EPA pass-through).
 
 ## Story map (épicas)
 
@@ -52,7 +60,7 @@
 | E2 — Motor de priorización (automático) | US7–US11b (incl. **US9b, US9c, US10b**) | FR2, FR3, FR6, FR8 |
 | **E2b — EPA (prioridad pre-asignada)** | **US-EPA** | **FR6b** |
 | E3 — Análisis de observaciones con IA | US12–US13 | FR6.3, FR7 **(futuro, D11)** |
-| E4 — Override manual | US14–US15 | FR4 |
+| E4 — Liberación manual | US14–US15b | FR4 |
 | E5 — Motor de Reglas (catálogo) | US16–US18 | FR5, FR6 |
 | E6 — Simulador (configurador) | US19–US24 | FR9 |
 | E7 — Panel y Auditoría | US25–US27 | FR11 |
@@ -141,7 +149,7 @@ porque el WMS trae muchas columnas.
 Como **Responsable del OMS**, quiero abrir el detalle de un pedido en un modal,
 para que la tabla use todo el ancho.
 - Given un pedido en la cola, When lo selecciono, Then se abre un modal con su
-  detalle y, si tengo permiso, el botón de override.
+  detalle y, si tengo permiso, el botón de **liberar el pedido** (v4.3).
 - **UX/accesibilidad**: Given el modal abierto, When se muestra, Then el foco
   entra y queda atrapado en el modal, `Esc` lo cierra, y al cerrarse el foco
   vuelve a la fila de origen (WCAG 2.1.2 / 2.4.3).
@@ -383,38 +391,49 @@ Como **Sistema/Motor OMS**, identifico los pedidos "cliente retira" por su **zon
 
 ---
 
-## E4 — Override manual
+## E4 — Liberación manual
 
-### US14 — Alterar la prioridad de un pedido puntual `[1ª entrega]` (FR4.1, FR4.2)
-Como **Responsable del OMS** (rol autorizado), quiero cambiar la prioridad de un
-pedido puntual con un motivo, para casos extraordinarios.
-- Given un pedido en la cola, When ejecuto un override con un nuevo valor y un
-  **motivo obligatorio**, Then la prioridad cambia y queda registrado en la
-  Auditoría como cambio **manual**.
-- Given un override **sin motivo** (o con valor fuera de rango), When intento
-  guardarlo, Then se rechaza (criterio negativo).
-- **UX (prevención de error)**: Given el formulario de override, When el motivo
-  está vacío o el valor es inválido, Then el botón Aplicar está deshabilitado y
-  el requisito se muestra antes de intentar guardar, no como alerta posterior.
+> **v4.3 (2026-11-04)**: la única interacción manual del Responsable pasa a ser
+> **liberar el pedido** (prioridad `0` + `GENE` + eFlow), **no** alterar la prioridad
+> a un número arbitrario (la prioridad va atada a la fecha de salida y el OMS no
+> escribe fechas). **US14** se reescribe a "Liberar un pedido" (grano **pedido**;
+> complementa la liberación **por viaje** de **US9c**); **US15b** pasa de "cambiar la
+> prioridad sin anular" a "liberar sin anular". Los IDs **no** se renumeran.
 
-### US15 — Impedir override sin permiso `[1ª entrega]` (FR4.3, FR14)
-Como responsable de seguridad, quiero que solo roles autorizados hagan override,
-para proteger el cálculo.
-- Given un usuario sin permiso de override, When intenta alterar la prioridad,
-  Then la acción se deniega.
-- **UX**: Given un usuario sin permiso, When ve el detalle, Then las acciones sin
-  permiso se **ocultan o deshabilitan con tooltip** (no se ofrecen para luego
-  rebotar).
+### US14 — Liberar un pedido de la cola `[1ª entrega]` (FR4.1, FR4.2, FR4.5, D14/ADR-013)
+Como **Responsable del OMS** (rol autorizado), quiero **liberar** un pedido de la
+cola (adelantar su alistamiento) para casos extraordinarios, sin alterar su
+prioridad a un número arbitrario.
+- Given un pedido en la cola, When lo **libero**, Then para **Cofersa** su prioridad
+  pasa a **0** y para **EPA** conserva su prioridad de origen (pass-through); la
+  situación pasa a **`GENE`**, se envía a eFlow, se estampa `oms_processed_at` y el
+  pedido **sale de la cola**.
+- Given la liberación, When ocurre, Then usa la **misma pasada de liberación** que
+  US9b/US9c (costura `EscritorSituacion`) **filtrada por ese pedido**, ignorando la
+  ventana temporal; admite un **motivo opcional** y queda registrada en la Auditoría
+  como acción **manual** (coherente con US33).
+- Given un **motivo** (opcional), When libero, Then el formulario lo acepta vacío; ya
+  **no** se pide un nuevo valor de prioridad (la prioridad no se altera a mano).
+- **UX**: Given el modal "Liberar pedido", When se muestra, Then confirma la acción
+  (no hay campo de prioridad editable); el foco entra y queda atrapado, `Esc` cierra.
 
-### US15b — Cambiar la prioridad sin anular (reenviar registro) `[1ª entrega]` (FR4.4, D12)
-Como **Sistema/Motor OMS**, cambio la prioridad reenviando el registro mientras el
-pedido esté disponible o disponible/generada, para no tener que anular.
-- Given un pedido en situación **disponible** o **disponible/generada**, When
-  cambia su prioridad, Then se **reenvía el registro** con la nueva prioridad (no
-  se anula ni se revierte el pedido).
-- Given tareas **ya generadas**, When cambia una prioridad, Then el OMS **no las
+### US15 — Impedir la liberación manual sin permiso `[1ª entrega]` (FR4.3, FR14)
+Como responsable de seguridad, quiero que solo roles autorizados liberen pedidos,
+para proteger el flujo.
+- Given un usuario sin permiso (`("oms","edit")`), When intenta liberar un pedido,
+  Then la acción se **deniega** (fail-closed, también en backend, no solo en UI).
+- **UX**: Given un usuario sin permiso, When ve el detalle, Then la acción de liberar
+  se **oculta o deshabilita con tooltip** (no se ofrece para luego rebotar).
+
+### US15b — Liberar sin anular (reenviar registro) `[1ª entrega]` (FR4.4, D12)
+Como **Sistema/Motor OMS**, libero el pedido reenviando el registro mientras esté
+disponible o disponible/generada, para no tener que anular.
+- Given un pedido en situación **disponible** o **disponible/generada**, When se
+  **libera**, Then se **reenvía el registro** con prioridad `0` + `GENE` (no se anula
+  ni se revierte el pedido).
+- Given tareas **ya generadas**, When se libera un pedido, Then el OMS **no las
   reordena** (el cambio aplica hacia adelante, no reescribe lo ya ejecutado).
-- Given un cambio de **fecha de entrega** (no de prioridad), When ocurre, Then
+- Given un cambio de **fecha de entrega** (no una liberación), When ocurre, Then
   **pasa por Planificación** (replanifica), no por el OMS.
 
 ---
@@ -684,7 +703,7 @@ Aportes de diseño del mob (a aterrizar en refined-mockups):
   explicativo** ("el manejo de rutas se trasladó a Planificación"), no a un 404;
   retirar el ítem de navegación.
 - **(D-2)** El detalle del pedido (US6) debe mostrar, **solo lectura**, la regla
-  de ruta/corte aplicada (US7/US8) para que el override (US14) sea informado — sin
+  de ruta/corte aplicada (US7/US8) para que la liberación manual (US14) sea informada — sin
   reintroducir el calendario.
 - **(D-4)** Selector de scope jerárquico: breadcrumb/pills del scope activo,
   herencia implícita visible, scope de un solo nivel como pill de solo lectura,

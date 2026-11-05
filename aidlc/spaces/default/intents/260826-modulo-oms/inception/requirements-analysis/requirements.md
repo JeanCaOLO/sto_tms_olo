@@ -7,6 +7,19 @@
 > **Nomenclatura (vigente)**: el WMS es **EFLOW**; el módulo que asigna la
 > prioridad de los pedidos de EPA (1 o 2) es **EPRAC**. (No "IPRAC" ni "IFLOW".)
 >
+> **Refinamiento v4.3 (liberación manual + sync de prioridad a eFlow, 2026-11-04)** —
+> reunión de negocio 2026-11-04 (fuente:
+> `docs/work/2026-11/2026-11-04-sync-prioridad-eflow-y-liberacion-manual.md`):
+>
+> - La **única interacción manual del Responsable del OMS** pasa a ser **liberar el
+>   pedido** (prioridad `0` + situación `GENE` + enviar a eFlow), **no** alterar la
+>   prioridad a un número arbitrario: la prioridad va atada a la fecha de salida y el
+>   OMS no escribe fechas. **Supera** el DECIDED *"la única intervención humana es que
+>   el Responsable altere la prioridad de un pedido puntual"* (Adenda 2026-08-26). FR4
+>   reescrito.
+> - Para **Cofersa** (EPA NO, pass-through), el OMS **sincroniza el número de prioridad
+>   a eFlow desde que prioriza y en cada cambio** (no solo al liberar). FR8 (handoff).
+>
 > **Refinamiento v4.2 (prioridad Cofersa, 2026-10-29)** — reuniones de negocio
 > 2026-10-27/28/29 (fuente: `docs/work/2026-10/2026-10-29-prioridad-cofersa-dias-hasta-salida.md`):
 >
@@ -174,14 +187,16 @@ El OMS **no** modifica el WMH ni lee las tablas intermedias.
 |---|---|
 | **Administrador de Módulo** | Configura el **catálogo de reglas** (activar/desactivar, peso/score, parámetros) por scope; superusuario del módulo (no del TMS completo). |
 | **Jefe de Almacén** | Visibilidad y reportería del módulo; acceso a la planificación. **No bloquea ni aprueba** el flujo. |
-| **Responsable del OMS** | Monitorea el motor automatizado; ejerce el **override manual** (única intervención humana sobre el cálculo) y decide aplicar simulaciones. |
+| **Responsable del OMS** | Monitorea el motor automatizado; ejerce la **liberación manual** de un pedido (única intervención humana: prioridad `0` + `GENE` + eFlow, v4.3) y decide aplicar simulaciones. |
 
 > El rol **Operador de Despacho** que en v2 mantenía el "calendario de rutas del
 > OMS" se retira de este alcance junto con FR12 (D5): las rutas ya no son fijas.
 >
 > El cálculo de prioridad es **100 % automático**; **no existe** paso de
 > aprobación humana antes del alistamiento (Adenda 2026-08-26). La única
-> intervención humana es el **override manual** por un rol autorizado.
+> intervención humana es la **liberación manual** de un pedido por un rol autorizado
+> (v4.3): la prioridad va atada a la fecha de salida y el OMS no escribe fechas, así
+> que ya **no** se altera la prioridad a un número arbitrario.
 
 ## Glosario
 
@@ -397,9 +412,9 @@ entrega. Aplica a Cofersa/mayoreo; NO aplica a EPA (ver FR6b).**
 - **FR3.7 (0 = liberado; piso de cola)** El `0` significa **pedido ya liberado / en
   proceso** (situación generada). **Nunca aparece en la cola de priorización**:
   mientras el pedido está en la cola su número es **≥ piso de cola** (default 1).
-  Hoy el código garantiza que la cola nunca muestra 0; que la **liberación escriba
-  0** al WMS es un **follow-up de construcción** (decisión tomada, falta
-  implementarlo). **Precisión (2026-10-30)**: "0 = liberado" es convención de la
+  La cola nunca muestra 0 y la **liberación ya escribe 0** al WMS para Cofersa
+  (**implementado**, 2026-11-04): el `CHECK` de la tabla permite `priority >= 0`
+  (`sql/57`). **Precisión (2026-10-30)**: "0 = liberado" es convención de la
   estrategia `dias_hasta_salida` de Cofersa (piso de cola 1), no un invariante
   global de `orders.priority`. EPA usa 1 y 2 (nunca 0), así que no hay roce
   (FR6b.4).
@@ -433,24 +448,37 @@ entrega. Aplica a Cofersa/mayoreo; NO aplica a EPA (ver FR6b).**
 - Given una compañía sin `estrategia` en su config (o con un nombre desconocido),
   When corre el barrido, Then se usa `escala_lineal` (comportamiento previo).
 
-### FR4 — Override manual de prioridad
+### FR4 — Liberación manual de un pedido
 
-Como **Responsable del OMS** (rol autorizado), quiero alterar la prioridad de un
-pedido puntual, para casos extraordinarios (camión accidentado, urgencia).
+Como **Responsable del OMS** (rol autorizado), quiero **liberar** un pedido de la
+cola (adelantar su alistamiento) para casos extraordinarios (camión accidentado,
+urgencia), sin alterar la prioridad a un número arbitrario.
 
-- **FR4.1** Un rol autorizado puede cambiar la prioridad de un pedido; exige un
-  **motivo obligatorio** y queda registrado en la Auditoría como cambio
-  **manual**.
-- **FR4.2** El override es la **única** intervención humana sobre el cálculo; no
-  hay aprobación de lote.
-- **FR4.3** Un usuario sin permiso de override no puede alterar la prioridad
-  (acción denegada). El permiso se resuelve por la matriz de permisos módulo ×
-  acción y el scope del usuario.
-- **FR4.4 (cambio sin anular, D12)** Mientras el pedido esté **disponible** o
-  **disponible/generada**, la prioridad se **modifica reenviando el registro** — no
-  hace falta anular ni revertir. El OMS **no reordena tareas ya generadas**. **Solo
-  el cambio de la fecha de entrega pasa por Planificación** (replanifica), no por
-  el OMS.
+> **v4.3 (2026-11-04)**: la prioridad va atada a la fecha de salida y el OMS **no
+> escribe fechas**, así que "alterar la prioridad a un número arbitrario" desaparece
+> (no tendría respaldo en una fecha). La **única** interacción manual pasa a ser
+> **liberar el pedido**. **Supera** el DECIDED *"la única intervención humana es que
+> el Responsable altere la prioridad de un pedido puntual"* (Adenda 2026-08-26).
+
+- **FR4.1** Un rol autorizado puede **liberar** un pedido de la cola: prioridad `0`
+  (Cofersa / compañía priorizada) o su prioridad de origen (EPA, pass-through),
+  situación `GENE` y envío a eFlow. Admite un **motivo opcional** y queda registrado
+  en la Auditoría como acción **manual**.
+- **FR4.2** La liberación manual es la **única** intervención humana sobre el flujo;
+  no hay aprobación de lote.
+- **FR4.3** Un usuario sin permiso no puede liberar el pedido (acción denegada,
+  fail-closed). El permiso se resuelve por la matriz de permisos módulo × acción
+  (`("oms","edit")`) y el scope del usuario.
+- **FR4.4 (liberación sin anular, D12)** La liberación **reenvía el registro** con la
+  prioridad `0` + `GENE` — no hace falta anular ni revertir. El OMS **no reordena
+  tareas ya generadas**. **Solo el cambio de la fecha de entrega pasa por
+  Planificación** (replanifica), no por el OMS.
+- **FR4.5 (grano pedido y viaje)** La liberación manual existe **por viaje**
+  (`POST /api/v1/oms/viajes/{numero_viaje}/procesar`, ya implementada) y **por
+  pedido** (la cola es a grano pedido; ruta análoga p. ej.
+  `POST /api/v1/oms/pedidos/liberar`, **diseño — aún no implementada**). Ambas reusan
+  la misma pasada de liberación (costura `EscritorSituacion`) ignorando la ventana
+  temporal.
 
 ### FR5 — Motor de Reglas (catálogo semi-configurable)
 
@@ -585,6 +613,16 @@ Como sistema, el OMS deja el pedido "alistado" con **dos escrituras** (D7/D8).
   `handoff_status = disparo_pendiente` y se **reintenta idempotente** por la llave
   EFLOW (re-correr no duplica ni re-dispara). (`ponytail:` dos stores, orden +
   reintento; upgrade = outbox/reconciliación.)
+- **FR8.5 (sync del número de prioridad a eFlow, v4.3 — SUPERSEDE PARCIAL de
+  ADR-013)** Para **Cofersa** (EPA **no**, es pass-through), el OMS **sincroniza el
+  número de prioridad a eFlow desde que prioriza y en cada cambio** (3 → 2 → … → 0),
+  no solo al liberar, porque para eFlow importa cualquier cambio de prioridad. La
+  costura queda con **dos verbos** = dos endpoints EPRAC: **`actualizar_prioridad`**
+  (manda SOLO el número; la situación **permanece `DISP`**) y **`marcar_generada`**
+  (liberación: número + `TPEXSI = GENE`). Es **write-on-delta** (solo sincroniza si
+  el número cambió respecto a `orders.priority`). `GENE` y `oms_processed_at` siguen
+  siendo **exclusivos de la liberación** (FR8.1/FR8.2); la pasada de priorización no
+  los toca.
 
 > **(D7/D8 SUPERSEDE de D6)**: ya no existe "tabla propia del OMS en esquema OMS";
 > la escritura 1 es un **UPDATE a `public.orders`**, y la escritura 2 va a **EFLOW
@@ -636,8 +674,8 @@ priorización, manual o automáticamente.
   guarda en una tabla `User Preference` (campo JSON).
 - **FR10.5** El **detalle del pedido** se muestra en un **modal** (no panel
   lateral), para que la tabla use todo el ancho.
-- **FR10.6** Desde el detalle, un rol autorizado puede ejecutar el **override
-  manual** (FR4).
+- **FR10.6** Desde el detalle, un rol autorizado puede **liberar el pedido**
+  (FR4, v4.3): prioridad `0` + `GENE` + eFlow, con motivo opcional.
 
 ### FR11 — Panel OMS y Auditoría
 
@@ -681,7 +719,7 @@ priorización, manual o automáticamente.
 
 - **FR14.1** El OMS diferencia niveles de acceso por la **matriz de permisos
   módulo × acción** (`view/create/edit/delete/export`) más el **scope** del
-  usuario: visualización, operación (override, consulta de auditoría) y
+  usuario: visualización, operación (liberación manual, consulta de auditoría) y
   administración (catálogo de reglas, configuración de simulaciones).
 - **FR14.2** Delega autenticación y tokens a la capa de seguridad transversal del
   TMS (authorizer JWT de `common-services`); resuelve la autorización validando el

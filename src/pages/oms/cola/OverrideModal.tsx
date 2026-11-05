@@ -1,20 +1,22 @@
 import { useState } from 'react';
 import Button from '../../../components/base/Button';
-import Select from '../../../components/base/Select';
-import { TIER_LABEL, TIER_LEVELS, type PriorityTier } from '../types';
 
 interface OverrideModalProps {
   orderId: string;
-  currentTier: PriorityTier;
-  onConfirm: (tier: PriorityTier, reason: string) => void;
+  currentPriority: number | null;
+  onConfirm: (priority: number, reason: string) => void;
   onCancel: () => void;
 }
 
-// FR3.4 — modal de override: nuevo tier + motivo obligatorio (≥10 chars).
-export default function OverrideModal({ orderId, currentTier, onConfirm, onCancel }: OverrideModalProps) {
-  const [tier, setTier] = useState<PriorityTier>(currentTier);
+// FR3.4 — modal de override: nueva prioridad numérica (0..n, menor = más urgente)
+// + motivo obligatorio (≥10 chars). La escala es la del OMS (DECIDED 2026-10-29):
+// 0 = liberar de inmediato; la cola normalmente es >= 1.
+export default function OverrideModal({ orderId, currentPriority, onConfirm, onCancel }: OverrideModalProps) {
+  const [priority, setPriority] = useState<string>(currentPriority != null ? String(currentPriority) : '1');
   const [reason, setReason] = useState('');
-  const valid = reason.trim().length >= 10;
+  const n = Number(priority);
+  const priorityValid = priority.trim() !== '' && Number.isInteger(n) && n >= 0;
+  const valid = priorityValid && reason.trim().length >= 10;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40" role="dialog" aria-modal="true" aria-label="Alterar prioridad">
@@ -27,12 +29,20 @@ export default function OverrideModal({ orderId, currentTier, onConfirm, onCance
         </div>
 
         <div className="space-y-4">
-          <Select
-            label="Nuevo nivel de prioridad"
-            value={String(tier)}
-            onChange={(e) => setTier(Number(e.target.value) as PriorityTier)}
-            options={TIER_LEVELS.map((t) => ({ value: String(t), label: TIER_LABEL[t] }))}
-          />
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Nueva prioridad (número, menor = más urgente)</label>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={priority}
+              onChange={(e) => setPriority(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
+            />
+            {!priorityValid && priority.length > 0 && (
+              <p className="mt-1 text-sm text-red-600">La prioridad debe ser un entero ≥ 0.</p>
+            )}
+          </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">Motivo (obligatorio, mín. 10 caracteres)</label>
             <textarea
@@ -42,7 +52,7 @@ export default function OverrideModal({ orderId, currentTier, onConfirm, onCance
               className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
               placeholder="Ej.: viaje extra pagado por el cliente"
             />
-            {!valid && reason.length > 0 && (
+            {reason.length > 0 && reason.trim().length < 10 && (
               <p className="mt-1 text-sm text-red-600">El motivo debe tener al menos 10 caracteres.</p>
             )}
           </div>
@@ -54,7 +64,7 @@ export default function OverrideModal({ orderId, currentTier, onConfirm, onCance
 
         <div className="flex justify-end gap-2 mt-6">
           <Button variant="secondary" onClick={onCancel}>Cancelar</Button>
-          <Button variant="primary" disabled={!valid} onClick={() => onConfirm(tier, reason.trim())}>
+          <Button variant="primary" disabled={!valid} onClick={() => onConfirm(n, reason.trim())}>
             Confirmar override
           </Button>
         </div>

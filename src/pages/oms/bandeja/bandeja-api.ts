@@ -48,8 +48,8 @@ export interface BandejaOrder extends QueueOrder {
   released: boolean;
 }
 
-// La bandeja no prioriza: tier/score/estado-OMS van en neutro (esas columnas se
-// quitaron de la vista). Solo se llenan los campos que la tabla y el modal muestran.
+// La bandeja no prioriza: prioridad/score/estado-OMS van en neutro (esas columnas
+// se quitaron de la vista). Solo se llenan los campos que la tabla y el modal muestran.
 function toBandejaOrder(r: BandejaRow): BandejaOrder {
   return {
     id: r.id,
@@ -61,7 +61,7 @@ function toBandejaOrder(r: BandejaRow): BandejaOrder {
     customer: r.final_customer_name ?? '',
     route: r.delivery_zone || '(sin zona)',
     country: 'CR',
-    tier: 1,
+    priority: null,
     score: 0,
     totalAmount: Number(r.total_amount ?? 0),
     weight: Number(r.total_weight ?? 0),

@@ -57,9 +57,11 @@ def _lookups(filas: list[dict]) -> tuple[dict, dict, dict]:
         "SELECT external_code, id FROM tbl_customers WHERE external_code = ANY(%s)",
         [sorted({str(r["IDCOMPANIA"]) for r in filas})], "external_code", "id")
     codigos = sorted({str(r["IDCLIENTE"]) for r in filas if r["IDCLIENTE"] is not None})
-    finals = _mapa(
-        "SELECT external_code, id FROM tbl_final_customers WHERE external_code = ANY(%s)",
-        [codigos], "external_code", "id")
+    # final por (customer_id, external_code): el código '008' es T008 de EPA y también un cliente de Cofersa.
+    finals = {
+        (str(r["customer_id"]), str(r["external_code"])): r["id"]
+        for r in pg.query("SELECT customer_id, external_code, id FROM tbl_final_customers WHERE external_code = ANY(%s)", [codigos])
+    }
     # branch por (customer_id, external_code): la misma sucursal '0001' existe por cliente.
     branches = {
         (str(r["customer_id"]), str(r["external_code"])): r["id"]
@@ -118,7 +120,7 @@ def ingest_cr(limite: int = 500, dry_run: bool = False) -> dict:
     faltantes: list[str] = []
     for r in filas:
         customer_id = customers.get(str(r["IDCOMPANIA"]))
-        final_id = finals.get(str(r["IDCLIENTE"])) if r["IDCLIENTE"] is not None else None
+        final_id = finals.get((str(customer_id), str(r["IDCLIENTE"]))) if r["IDCLIENTE"] is not None else None
         branch_id = branches.get((str(customer_id), str(r["IDSUCURSAL"])))
         if not (customer_id and final_id and branch_id):
             faltantes.append(f'{r["IDEXPEDICION"]} (cust={bool(customer_id)} final={bool(final_id)} branch={bool(branch_id)})')

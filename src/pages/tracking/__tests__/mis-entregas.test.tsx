@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setTrackingTransport, type TrackingTransport } from '../api';
 import type { EntregaCliente } from '../types';
 
-vi.mock('../../../lib/supabase', () => ({ apiFetch: vi.fn() }));
+vi.mock('../../../lib/api-client', () => ({ apiFetch: vi.fn() }));
 vi.mock('../../../hooks/use-module-permissions', () => ({
   useModulePermissions: () => ({ canCreate: false, canEdit: false, canDelete: false, canExport: false }),
 }));

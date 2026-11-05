@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { omsApi } from '../api/omsApi';
 import { useOperationalContext } from '../../../hooks/useOperationalContext';
-import type { PriorityTier, QueueOrder } from '../types';
+import type { QueueOrder } from '../types';
 
 const ALL = 'todos';
 
@@ -24,7 +24,9 @@ const EMPTY_FILTERS: ColaFilters = {
 // liberados (DISP/GENE) salen de la cola. El "estado OMS" sigue siendo relevante
 // para esta lógica, solo que ya no se filtra ni se muestra como columna.
 export function esCola(o: QueueOrder): boolean {
-  return o.prioritized && !o.released;
+  // Está en la cola si tiene una prioridad que mostrar (Cofersa priorizada por el OMS,
+  // o EPA con su prioridad de EFLOW) y aún no fue liberado a eFlow.
+  return o.priority != null && !o.released;
 }
 
 // Ventana de la Cola: solo se muestran los pedidos cuya fecha de ENTREGA está a lo
@@ -96,7 +98,8 @@ export function useColaController() {
     return {
       branches: uniq(orders.map((o) => o.branchId)),
       routes: uniq(orders.map((o) => o.route)),
-      tiers: uniq(orders.map((o) => String(o.tier))),
+      // Prioridades presentes en la cola (solo las realmente priorizadas tienen número).
+      tiers: uniq(orders.filter((o) => o.priority != null).map((o) => String(o.priority))),
     };
   }, [orders]);
 
@@ -124,7 +127,7 @@ export function useColaController() {
     return orders.filter((o) => {
       if (filters.branch !== ALL && o.branchId !== filters.branch) return false;
       if (filters.route !== ALL && o.route !== filters.route) return false;
-      if (filters.tier !== ALL && String(o.tier) !== filters.tier) return false;
+      if (filters.tier !== ALL && String(o.priority ?? '') !== filters.tier) return false;
       if (q && !`${o.id} ${o.ref} ${o.customer} ${o.route} ${o.observations}`.toLowerCase().includes(q)) return false;
       return true;
     });
@@ -139,22 +142,23 @@ export function useColaController() {
 
   const selected = orders.find((o) => o.id === selectedId) ?? null;
 
-  const scoreForTier: Record<PriorityTier, number> = { 1: 950, 2: 650, 3: 350, 4: 50 };
-
-  // Override manual local (FR3.4/FR3.5): recalcula score, reordena y registra
-  // en el historial del pedido. Mock: no persiste fuera de la sesión.
-  const applyOverride = (tier: PriorityTier, reason: string) => {
+  // Override manual local (FR3.4/FR3.5): fija una nueva prioridad numérica (0..n),
+  // reordena y registra en el historial del pedido. Mock: no persiste fuera de la
+  // sesión. El score es ilustrativo (menor prioridad = más urgente = mayor score).
+  const applyOverride = (priority: number, reason: string) => {
     if (!selected) return;
     const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
+    const score = Math.max(0, 1000 - priority * 50);
     setOrders((prev) =>
       prev
         .map((o) =>
           o.id === selected.id
             ? {
                 ...o,
-                tier,
-                score: scoreForTier[tier],
-                history: [...o.history, { at: now, from: o.tier, to: tier, type: 'manual' as const, reason }],
+                priority,
+                score,
+                prioritized: true,
+                history: [...o.history, { at: now, from: o.priority ?? ('sin asignar' as const), to: priority, type: 'manual' as const, reason }],
               }
             : o,
         )
