@@ -9,6 +9,7 @@ La app del chofer debe ser simple: pocos toques, una mano, sin teclear de más. 
 | # | Hallazgo | Qué se hizo |
 |---|---|---|
 | 1 | Sin auto-arribo | Con viaje en tránsito la pantalla principal lee la ubicación cada 20 s; a ≤ 150 m (`GEOFENCE_M`) de una parada pendiente muestra «Llegaste a X» con «Abrir parada» y vibra una vez (`lib/arrival.ts`, `useHere(pollMs)`). Se limita a la app abierta: ver «Falta del auto-arribo». |
+| 2 (parcial) | «Iniciar viaje» se busca entre las paradas | El botón queda fijo abajo (`app/index.tsx`), al alcance del pulgar, solo para plan de hoy y con red. **No** inicia solo con el primer movimiento: crea el viaje en el servidor y un inicio por error es caro; decidir con operación si se quiere. |
 | 3 | Entregar son 3 pasos con «Siguiente» a mano | Tras guardar la foto se abre la firma solo, y al volver de la firma se pasa al paso 3 (`parada/[id].tsx`). «Siguiente» sigue ahí por si ya había evidencia. |
 | 4 | El receptor se teclea siempre | Se propone el nombre de la parada; se puede editar (`parada/[id].tsx`). |
 | 5 | Motivo de falla: chip y además campo de texto | El campo solo sale con el chip «Otro». |
@@ -35,7 +36,6 @@ Ordenado por impacto. Esfuerzo: S pequeño, M medio, L grande.
 |---|---|---|---|---|
 | 7 | **Sin ubicación no se entrega, ni con motivo** (bloqueo duro dentro de un almacén) | `lib/geo.ts:19`, `parada/[id].tsx:95` | Permitir entregar sin coordenadas y marcar «sin ubicación» para revisión. **Requiere decisión de negocio.** | M |
 | 20 | **Actualización manual** del APK por GitHub Actions | `DEPLOY.md` §2 | OTA con `expo-updates` (EAS Update) o pantalla «Hay nueva versión» con versión mínima del servidor. | L |
-| 2 | «Iniciar viaje» se toca a mano | `app/index.tsx:132-165` | Botón fijo y grande al abrir si hay un solo plan; o iniciar al primer movimiento. | S |
 | 12 | Sesión vencida saca al chofer sin explicar | `auth/session.ts:179-190`, `api/http.ts:84-93` | Mensaje «Tu sesión venció» y conservar el email; agenda en solo lectura. | M |
 | 15 | La pantalla se apaga durante la entrega | `parada/[id]`, `firma` | `expo-keep-awake`. **Es módulo nativo: pide APK nuevo**; no está instalado. | S |
 | 16 | Batería baja solo muestra texto | `lib/battery.ts`, `app/index.tsx` | Vibración una sola vez o modo ahorro explícito. | S |
