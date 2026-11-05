@@ -14,9 +14,9 @@ SELECT o.id, 'delivery' AS kind, NULL AS return_number, NULL AS return_reason, N
        fc.name AS final_customer_name,
        o.delivery_zone, o.total_amount, o.total_weight, o.total_volume, o.total_items,
        o.observaciones, o.delivery_date, o.order_date, o.wms_status, o.wms_situation,
-       o.delivery_date_eflow, o.delivery_date_changes, o.oms_processed_at IS NOT NULL AS liberado
-FROM orders o
-LEFT JOIN final_customers fc ON fc.id = o.final_customer_id
+       o.delivery_date_eflow, o.delivery_date_change_count, o.oms_processed_at IS NOT NULL AS liberado
+FROM tbl_orders o
+LEFT JOIN tbl_final_customers fc ON fc.id = o.final_customer_id
 WHERE o.organization_id = %s
   AND o.wms_status = 'DISP' AND o.wms_situation = 'DISP'
   AND o.eflow_id_expedicion IS NOT NULL{scope}"""
@@ -28,10 +28,10 @@ SELECT r.id, 'pickup' AS kind, r.return_number, r.reason AS return_reason, r.sta
        o.delivery_zone, NULL::numeric AS total_amount, NULL::numeric AS total_weight, NULL::numeric AS total_volume,
        r.quantity AS total_items, r.notes AS observaciones, r.created_at::date AS delivery_date,
        r.created_at::date AS order_date, o.wms_status, o.wms_situation,
-       NULL::date AS delivery_date_eflow, 0 AS delivery_date_changes, false AS liberado
-FROM returns r
-JOIN orders o ON o.id = r.order_id
-LEFT JOIN final_customers fc ON fc.id = o.final_customer_id
+       NULL::date AS delivery_date_eflow, 0 AS delivery_date_change_count, false AS liberado
+FROM tbl_returns r
+JOIN tbl_orders o ON o.id = r.order_id
+LEFT JOIN tbl_final_customers fc ON fc.id = o.final_customer_id
 WHERE r.organization_id = %s AND COALESCE(r.status, 'pending') IN ('pending', 'approved'){scope}"""
 
 

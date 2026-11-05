@@ -21,7 +21,7 @@ import { HttpError } from "../../tms-schema.mjs";
  */
 export async function resolveOperationalContext(authUser) {
   const { rows: users } = await tmsQuery(
-    `SELECT id, organization_id FROM app_users WHERE auth_user_id = $1`,
+    `SELECT id, organization_id FROM tbl_app_users WHERE auth_user_id = $1`,
     [authUser.id]
   );
   const appUser = users[0];
@@ -31,7 +31,7 @@ export async function resolveOperationalContext(authUser) {
 
   const { rows: scopeRows } = await tmsQuery(
     `SELECT id, role_id, country_id, warehouse_id, customer_id
-     FROM user_scopes WHERE app_user_id = $1`,
+     FROM tbl_user_scopes WHERE app_user_id = $1`,
     [appUser.id]
   );
 

@@ -1,5 +1,15 @@
 # 2026-11-05 — Corrida de prueba del flujo OMS + fix de bandeja (rename de columna)
 
+> **NOTA (SUPERSEDED en el merge con `main`):** la reconciliación del contador que se
+> describe abajo (renombrar a `delivery_date_changes` vía `sql/58_orders_rename_...`)
+> quedó REVERTIDA al mergear `main`. `main` (commit 6551778, Planificación) ya había
+> unificado el contador en **`delivery_date_change_count`** (eliminando el duplicado
+> `delivery_date_changes`) con su `sql/58_orders_unificar_contador_cambio_fecha.sql`.
+> En el merge cedimos a ese nombre: se descartó nuestro `sql/58_rename`, `omsApi.ts`/
+> `types.ts` volvieron a `delivery_date_change_count`, y bandeja/cambio_fecha son los de
+> main. PENDIENTE: reconciliar la Aurora del sandbox (hoy tiene `delivery_date_changes`
+> por nuestro rename ya aplicado) de vuelta a `delivery_date_change_count`.
+
 ## Corrida de prueba end-to-end (en vivo, Aurora por el túnel)
 
 `scripts/prueba_flujo_oms.py todo` con `hoy=2026-11-04`:

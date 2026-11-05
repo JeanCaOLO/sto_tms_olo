@@ -21,6 +21,7 @@ import json
 import secrets
 import time
 
+from tms_common.db_names import physical
 from tms_common.errors import HttpError
 
 from tarifas_schema import Table, quote
@@ -196,7 +197,7 @@ def build_find(table: Table, options: dict | None, countries: tuple[str, ...] | 
     where, params = build_where(table, options.get("where"), countries, options.get("after"), options.get("orderBy"), scope)
     limit = min(_int(options.get("limit"), "limit", MAX_ROWS), MAX_ROWS)
     offset = _int(options.get("offset"), "offset", 0)
-    sql = f"SELECT {_select_list(table, options.get('columns'))} FROM {quote(table.name)} WHERE {where}{_order(table, options.get('orderBy'))} LIMIT {limit} OFFSET {offset}"
+    sql = f"SELECT {_select_list(table, options.get('columns'))} FROM {quote(physical(table.name))} WHERE {where}{_order(table, options.get('orderBy'))} LIMIT {limit} OFFSET {offset}"
     return sql, params
 
 
@@ -204,7 +205,7 @@ def build_get(table: Table, row_id: str, countries: tuple[str, ...] | None,
               scope: tuple[str, list] | None = None) -> tuple[str, list]:
     pk = table.primary_key
     where, params = build_where(table, [{"column": pk, "op": "eq", "value": row_id}], countries, scope=scope)
-    return f"SELECT * FROM {quote(table.name)} WHERE {where} LIMIT 1", params
+    return f"SELECT * FROM {quote(physical(table.name))} WHERE {where} LIMIT 1", params
 
 
 # ── Escrituras ─────────────────────────────────────────────────────────────────────────────────
@@ -239,7 +240,7 @@ def build_insert(table: Table, values) -> tuple[str, list]:
     column_list = ", ".join(quote(c) for c in columns)
     placeholders = ", ".join(placeholder(table, c) for c in columns)
     params = [param(table, c, row[c]) for c in columns]
-    return f"INSERT INTO {quote(table.name)} ({column_list}) VALUES ({placeholders}) RETURNING *", params
+    return f"INSERT INTO {quote(physical(table.name))} ({column_list}) VALUES ({placeholders}) RETURNING *", params
 
 
 def build_insert_many(table: Table, rows) -> list[tuple[str, list]]:
@@ -275,7 +276,7 @@ def build_insert_many(table: Table, rows) -> list[tuple[str, list]]:
         one = "(" + ", ".join(placeholder(table, c) for c in columns) + ")"
         params = [param(table, c, row[c]) for row in chunk for c in columns]
         statements.append((
-            f"INSERT INTO {quote(table.name)} ({column_list}) VALUES {', '.join([one] * len(chunk))} RETURNING *",
+            f"INSERT INTO {quote(physical(table.name))} ({column_list}) VALUES {', '.join([one] * len(chunk))} RETURNING *",
             params,
         ))
         start = end
@@ -331,10 +332,10 @@ def build_update(table: Table, row_id: str, values, countries: tuple[str, ...] |
         where = f"{where} AND {extra[0]}"
         where_params = where_params + extra[1]
     params = [param(table, c, v) for c, v in fields.items()] + where_params
-    return f"UPDATE {quote(table.name)} SET {set_clause} WHERE {where} RETURNING *", params
+    return f"UPDATE {quote(physical(table.name))} SET {set_clause} WHERE {where} RETURNING *", params
 
 
 def build_delete(table: Table, row_id: str, countries: tuple[str, ...] | None) -> tuple[str, list]:
     pk = table.primary_key
     where, params = build_where(table, [{"column": pk, "op": "eq", "value": row_id}], countries)
-    return f"DELETE FROM {quote(table.name)} WHERE {where} RETURNING {quote(pk)}", params
+    return f"DELETE FROM {quote(physical(table.name))} WHERE {where} RETURNING {quote(pk)}", params

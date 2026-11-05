@@ -18,10 +18,10 @@ LOTE = 500  # IDEXPEDICION por query a SQL Server (tope de parámetros: 2100)
 _DESTINO = """
 SELECT o.id::text AS order_id, o.eflow_id_compania AS comp, o.eflow_id_almacen AS alm,
        o.eflow_id_sucursal AS suc, o.eflow_id_expedicion AS exp
-FROM orders o
+FROM tbl_orders o
 WHERE o.organization_id = %s AND o.eflow_id_expedicion IS NOT NULL
   AND ((o.eflow_id_expedicion = ANY(%s) AND o.oms_processed_at IS NULL)
-       OR NOT EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id))"""
+       OR NOT EXISTS (SELECT 1 FROM tbl_order_items i WHERE i.order_id = o.id))"""
 
 _COLS = ("order_id uuid, line_number int, product_code text, product_name text, presentation text, lot text,"
          " quantity int, quantity_prepared int, quantity_loaded int, quantity_cancelled int,"
@@ -30,7 +30,7 @@ _CAMPOS = [c.split()[0] for c in _COLS.split(",")]
 _ACTUALIZABLES = [c for c in _CAMPOS if c not in ("order_id", "line_number")]
 
 _UPSERT = f"""
-INSERT INTO order_items ({", ".join(_CAMPOS)})
+INSERT INTO tbl_order_items AS order_items ({", ".join(_CAMPOS)})
 SELECT {", ".join(_CAMPOS)} FROM jsonb_to_recordset(%s::jsonb) AS x({_COLS})
 ON CONFLICT (order_id, line_number) DO UPDATE SET {", ".join(f"{c} = EXCLUDED.{c}" for c in _ACTUALIZABLES)}
 WHERE ({", ".join(f"order_items.{c}" for c in _ACTUALIZABLES)})
@@ -38,7 +38,7 @@ WHERE ({", ".join(f"order_items.{c}" for c in _ACTUALIZABLES)})
 
 _BORRAR_SOBRANTES = """
 WITH nuevas AS (SELECT * FROM jsonb_to_recordset(%s::jsonb) AS x(order_id uuid, line_number int))
-DELETE FROM order_items oi WHERE oi.order_id IN (SELECT order_id FROM nuevas)
+DELETE FROM tbl_order_items oi WHERE oi.order_id IN (SELECT order_id FROM nuevas)
   AND NOT EXISTS (SELECT 1 FROM nuevas n WHERE n.order_id = oi.order_id AND n.line_number = oi.line_number)"""
 
 

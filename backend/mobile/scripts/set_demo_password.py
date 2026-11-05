@@ -40,18 +40,18 @@ def main(argv: list[str]) -> int:
     cursor = connection.cursor()
     try:
         cursor.execute(
-            "SELECT c.auth_user_id FROM auth_credentials c JOIN app_users u ON u.auth_user_id = c.auth_user_id "
-            "JOIN roles r ON r.id = u.role_id WHERE c.email = %s AND r.name = %s", [emails[0], config.driver_role_name()])
+            "SELECT c.auth_user_id FROM tbl_auth_credentials c JOIN tbl_app_users u ON u.auth_user_id = c.auth_user_id "
+            "JOIN tbl_roles r ON r.id = u.role_id WHERE c.email = %s AND r.name = %s", [emails[0], config.driver_role_name()])
         rows = cursor.fetchall()
         if len(rows) != 1:
             print(f"{emails[0]}: no existe o no es un usuario con rol Chofer. No se cambia nada.")
             connection.rollback()
             return 1
         hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=10)).decode()
-        cursor.execute("UPDATE auth_credentials SET password_hash = %s WHERE auth_user_id = %s", [hashed, rows[0][0]])
+        cursor.execute("UPDATE tbl_auth_credentials SET password_hash = %s WHERE auth_user_id = %s", [hashed, rows[0][0]])
         # Las sesiones abiertas con la clave anterior dejan de renovarse.
-        cursor.execute("UPDATE mobile_refresh_tokens SET revoked_at = now() WHERE revoked_at IS NULL AND app_user_id IN "
-                       "(SELECT id FROM app_users WHERE auth_user_id = %s)", [rows[0][0]])
+        cursor.execute("UPDATE tbl_mobile_refresh_tokens SET revoked_at = now() WHERE revoked_at IS NULL AND app_user_id IN "
+                       "(SELECT id FROM tbl_app_users WHERE auth_user_id = %s)", [rows[0][0]])
         if execute:
             connection.commit()
             print(f"CLAVE CAMBIADA para {emails[0]}.")

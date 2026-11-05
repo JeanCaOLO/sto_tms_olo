@@ -67,7 +67,7 @@ describe.skipIf(!enabled)('Liquidador contra Aurora (transacción revertida)', {
       ssl: { rejectUnauthorized: false },
     });
     await client.connect();
-    countBefore = Number((await client.query('select count(*) from tarifas_settlements')).rows[0].count);
+    countBefore = Number((await client.query('select count(*) from tbl_tarifas_settlements')).rows[0].count);
     await client.query('BEGIN');
     setDataSource(new PgDataSource(client));
 
@@ -99,7 +99,7 @@ describe.skipIf(!enabled)('Liquidador contra Aurora (transacción revertida)', {
     setDataSource(null);
     if (client) {
       await client.query('ROLLBACK');
-      const countAfter = Number((await client.query('select count(*) from tarifas_settlements')).rows[0].count);
+      const countAfter = Number((await client.query('select count(*) from tbl_tarifas_settlements')).rows[0].count);
       expect(countAfter).toBe(countBefore); // la base quedó como estaba
       await client.end();
     }

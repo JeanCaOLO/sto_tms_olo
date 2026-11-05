@@ -5,7 +5,7 @@ Contrato (US1, v4 — confirmado con negocio):
 - Salida: lista de PedidoCandidato elegibles para priorizar (la "cola").
 - Errores: propaga HttpError si Aurora falla; el mock no falla.
 
-Activación por POLLING de columna sobre `public.orders` (Aurora tms_olo). La cola
+Activación por POLLING de columna sobre `public.tbl_orders` (Aurora tms_olo). La cola
 es exactamente los pedidos que Planificación ya corrió y el OMS todavía no procesó:
 
     WHERE planning_run_id IS NOT NULL     -- Planificación ya los corrió
@@ -16,7 +16,7 @@ como mejora futura con infra; NO es requisito de v1 y no bloquea. El OMS ya NO l
 de EXPEDICIONESCABECERA con TPEXES/TPEXSI='DISP' ni filtra por NUMEROVIAJEWMH:
 ese filtro viejo quedó eliminado del contrato.
 
-El número de viaje es `orders.numero_viaje` (formato 'YYYYMMDD-NNN'), NO
+El número de viaje es `orders.numero_viaje` (formato 'YYYYMMDD-CCCC-NNN', CCCC = compañía eFlow), NO
 wms_trip_number (columna eliminada, ADR-0004 de Planificación).
 
 Modo mock vs live (patrón del backend): OMS_SOURCE=live consulta Aurora real (vía
@@ -31,7 +31,7 @@ from datetime import datetime, timezone
 
 from models import PedidoCandidato
 
-# SQL de la cola v4: polling de columna sobre public.orders. Expone la llave EFLOW,
+# SQL de la cola v4: polling de columna sobre public.tbl_orders. Expone la llave EFLOW,
 # numero_viaje, lead_time_days (dinámico), delivery_date, observaciones, scope.
 COLA_SQL = """
 SELECT o.eflow_id_almacen,
@@ -52,8 +52,8 @@ SELECT o.eflow_id_almacen,
        o.warehouse_id,
        o.customer_id,
        o.priority
-FROM orders o
-LEFT JOIN final_customers fc ON fc.id = o.final_customer_id
+FROM tbl_orders o
+LEFT JOIN tbl_final_customers fc ON fc.id = o.final_customer_id
 WHERE o.planning_run_id IS NOT NULL
   AND o.oms_processed_at IS NULL
 ORDER BY o.delivery_date NULLS LAST
@@ -68,7 +68,7 @@ def _modo_live() -> bool:
 def candidatos(*, limite: int = 100) -> list[PedidoCandidato]:
     """Devuelve la cola de pedidos candidatos a priorizar.
 
-    En modo mock (default) sirve un dataset fijo; en `live` consulta public.orders
+    En modo mock (default) sirve un dataset fijo; en `live` consulta public.tbl_orders
     con el filtro de polling (planning_run_id IS NOT NULL AND oms_processed_at IS NULL).
     """
     if _modo_live():
@@ -80,7 +80,7 @@ def candidatos(*, limite: int = 100) -> list[PedidoCandidato]:
 
 
 def _desde_fila(fila: dict) -> PedidoCandidato:
-    """Mapea una fila de public.orders a PedidoCandidato (la llave EFLOW es la PK)."""
+    """Mapea una fila de public.tbl_orders a PedidoCandidato (la llave EFLOW es la PK)."""
     return PedidoCandidato(
         id_almacen=fila["eflow_id_almacen"],
         id_compania=fila["eflow_id_compania"],

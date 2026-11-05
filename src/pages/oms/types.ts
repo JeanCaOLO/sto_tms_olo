@@ -173,7 +173,7 @@ export interface OmsPipeline {
   // Indicadores de atención (reunión 2026-11-03):
   sinFechaEntrega: number;   // pedidos abiertos sin delivery_date (anomalía: EFLOW siempre debería mandarla)
   sinFechaSalida: number;    // pedidos YA planificados (planning_run_id) pero sin dispatch_date (p. ej. EPA sin coordenadas)
-  modificacionesFecha: number; // total de modificaciones de fecha de entrega (suma de delivery_date_changes) sobre los pedidos abiertos
+  modificacionesFecha: number; // total de modificaciones de fecha de entrega (suma de delivery_date_change_count) sobre los pedidos abiertos
 }
 
 // Una fila de "por liberar pronto": pedidos priorizados-no-liberados agrupados por

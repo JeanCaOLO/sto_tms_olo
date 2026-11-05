@@ -52,7 +52,7 @@ def test_record_inserts_the_event(monkeypatch, audit_calls):
     audit_calls.real["record"](_event("POST /api/v1/audit/events"), "export", module_key="clientes",
                                metadata={"rows": 12})
     sql, params = calls[0]
-    assert "INSERT INTO audit.events" in sql
+    assert "INSERT INTO audit.tbl_events" in sql
     assert params == ["user", USER["email"], "api-local POST /api/v1/audit/events", "export", "clientes", None,
                       None, "req-9", "10.0.0.1", "UA", '{"rows": 12}', USER["id"]]
 
@@ -103,7 +103,7 @@ def admin_app(monkeypatch):
 
     def fake_query(sql, params=()):
         calls.append((sql, list(params)))
-        if sql == "SELECT 1 FROM app_modules WHERE key = %s":
+        if sql == "SELECT 1 FROM tbl_app_modules WHERE key = %s":
             return [{"?": 1}] if state["module_exists"] else []
         return state["rows"]
 

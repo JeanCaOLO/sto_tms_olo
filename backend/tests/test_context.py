@@ -18,11 +18,11 @@ def context_app(monkeypatch):
 
     def fake_query(sql, params=()):
         state["calls"].append((sql, list(params)))
-        if "FROM app_users" in sql:
+        if "FROM tbl_app_users" in sql:
             return [{"id": "app-1", "organization_id": "org"}]
-        if "FROM user_scopes" in sql:
+        if "FROM tbl_user_scopes" in sql:
             return state["scopes"]
-        if "FROM warehouses WHERE id" in sql:
+        if "FROM tbl_warehouses WHERE id" in sql:
             return [{"id": WAREHOUSE, "country_id": COUNTRY_CR}]
         return [{"id": "row"}]
 

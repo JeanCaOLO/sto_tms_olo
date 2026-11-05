@@ -40,7 +40,7 @@ const enabled = process.env.TARIFAS_CR_LOAD === '1' && existsSync(SQL_FILE);
 /** Tipo de camión del catálogo de vehículos que corresponde a cada columna de la planilla. */
 function readSource() {
   const sql = readFileSync(SQL_FILE, 'utf8');
-  const start = sql.indexOf('insert into costos_variables');
+  const start = sql.indexOf('insert into tbl_costos_variables');
   const block = sql.slice(start, sql.indexOf(';', start));
   const rows = [...block.matchAll(
     /\('((?:[^']|'')*)',\s*'(km|year|month)',\s*'((?:[^']|'')*)',\s*([\d.]+),\s*([\d.]+),\s*([\d.]+),\s*([\d.]+),\s*([\d.]+),\s*([\d.]+),\s*\d+\)/g,

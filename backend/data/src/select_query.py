@@ -6,7 +6,7 @@ from typing import Any, Iterator
 from tms_common.errors import HttpError
 
 from relations import find_foreign_key
-from schema import assert_column, quote, table_columns
+from schema import assert_column, quote, table_columns, table_ref
 from select_parser import STAR, SelectNode, parse_select
 
 FILTER_OPS = {"eq": "=", "neq": "<>", "gt": ">", "gte": ">=", "lt": "<", "lte": "<=", "ilike": "ILIKE"}
@@ -21,7 +21,7 @@ def _embed(table: str, node: SelectNode, alias: str, aliases: Iterator[int]) -> 
     inner = build_field_list(node.name, node.children or [STAR], sub, aliases)
     return (
         f"(SELECT to_jsonb({sub}) FROM (SELECT {', '.join(inner)} "
-        f"FROM {quote(node.name)} {sub} WHERE {sub}.{quote('id')} = {alias}.{quote(fk_column)}) {sub}) "
+        f"FROM {table_ref(node.name)} {sub} WHERE {sub}.{quote('id')} = {alias}.{quote(fk_column)}) {sub}) "
         f"AS {quote(node.alias)}"
     )
 
@@ -78,7 +78,7 @@ def _parent_clause(table: str, prefix: str, column: str, op: str, value: Any, pa
     else:
         assert_column(parent, rest)
         inner = _filter_clause(f"{alias}.", rest, op, value, params)
-    return f"{prefix}{quote(fk_column)} IN (SELECT {alias}.{quote('id')} FROM {quote(parent)} {alias} WHERE {inner})"
+    return f"{prefix}{quote(fk_column)} IN (SELECT {alias}.{quote('id')} FROM {table_ref(parent)} {alias} WHERE {inner})"
 
 
 def build_where(table: str, alias: str | None, filters: list | None) -> tuple[str, list]:
@@ -142,7 +142,7 @@ def build_list_query(table: str, select: str | None, filters: list | None,
                      country_ids: tuple[str, ...] | None = None, offset: Any = None) -> tuple[str, list]:
     fields = build_field_list(table, parse_select(select), ROOT_ALIAS, count())
     clause, params = _scoped_where(table, filters, country_ids)
-    sql = f"SELECT {', '.join(fields)} FROM {quote(table)} {ROOT_ALIAS}"
+    sql = f"SELECT {', '.join(fields)} FROM {table_ref(table)} {ROOT_ALIAS}"
     if clause:
         sql += f" WHERE {clause}"
     if order and order.get("column"):
@@ -159,7 +159,7 @@ def build_list_query(table: str, select: str | None, filters: list | None,
 def build_count_query(table: str, filters: list | None,
                       country_ids: tuple[str, ...] | None = None) -> tuple[str, list]:
     clause, params = _scoped_where(table, filters, country_ids)
-    sql = f"SELECT count(*)::int AS count FROM {quote(table)} {ROOT_ALIAS}"
+    sql = f"SELECT count(*)::int AS count FROM {table_ref(table)} {ROOT_ALIAS}"
     if clause:
         sql += f" WHERE {clause}"
     return sql, params

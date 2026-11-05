@@ -38,7 +38,7 @@ from motor_reglas import ResolverConfig
 SELECT_ACTIVAS = """
 SELECT scope_type, customer_id, warehouse_id, country_id, priorizar, reglas, dias_prep_picking,
        escala_prioridad, estrategia, ancla_fecha, prioridad_piso
-FROM oms_rule_configs
+FROM tbl_oms_rule_configs
 WHERE activo = true
 """
 

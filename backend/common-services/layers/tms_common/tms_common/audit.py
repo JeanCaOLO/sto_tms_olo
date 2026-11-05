@@ -1,4 +1,4 @@
-"""Bitácora de auditoría (sql/16, tabla audit.events).
+"""Bitácora de auditoría (sql/16, tabla audit.tbl_events).
 
 Dos caminos, uno por tipo de acción:
 - Cambios de filas: los captura el trigger de BD. Aquí solo se le dice QUIÉN
@@ -18,12 +18,12 @@ from .event import route_key
 WRITE_METHODS = frozenset({"POST", "PATCH", "PUT", "DELETE"})
 SET_ACTOR_SQL = "SELECT set_config('tms.audit_actor', %s, false)"
 INSERT_EVENT_SQL = """
-INSERT INTO audit.events (actor_type, auth_user_id, app_user_id, actor_email, role_name, source, action,
+INSERT INTO audit.tbl_events (actor_type, auth_user_id, app_user_id, actor_email, role_name, source, action,
                           module_key, entity_table, entity_id, request_id, ip, user_agent, metadata)
 SELECT %s, au.auth_user_id, au.id, %s, r.name, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb
 FROM (SELECT %s::uuid AS auth_user_id) caller
-LEFT JOIN app_users au ON au.auth_user_id = caller.auth_user_id
-LEFT JOIN roles r ON r.id = au.role_id
+LEFT JOIN tbl_app_users au ON au.auth_user_id = caller.auth_user_id
+LEFT JOIN tbl_roles r ON r.id = au.role_id
 """
 
 

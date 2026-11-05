@@ -23,12 +23,12 @@ def plan_trip(**over):
 
 def prepare(fake_db, trip=None, existing=None, stops=2, store=True):
     fake_db.answer("WHERE pt.id = %s", [trip or plan_trip()])
-    fake_db.answer("SELECT id FROM routes WHERE plan_trip_id", existing or [])
-    fake_db.answer("FROM plan_stops ps LEFT JOIN orders", [
+    fake_db.answer("SELECT id FROM tbl_routes WHERE plan_trip_id", existing or [])
+    fake_db.answer("FROM tbl_plan_stops ps LEFT JOIN tbl_orders", [
         {"order_id": ORDER, "lat": 9.94 + 0.01 * i, "lng": -84.08} for i in range(stops)])
-    fake_db.answer("FROM stores WHERE organization_id", [{"id": "s", "latitude": 9.93, "longitude": -84.08}] if store else [])
-    fake_db.answer("FROM zones", [{"id": "z"}])
-    fake_db.answer("INSERT INTO routes", [{"id": ROUTE}])
+    fake_db.answer("FROM tbl_stores WHERE organization_id", [{"id": "s", "latitude": 9.93, "longitude": -84.08}] if store else [])
+    fake_db.answer("FROM tbl_zones", [{"id": "z"}])
+    fake_db.answer("INSERT INTO tbl_routes", [{"id": ROUTE}])
 
 
 def test_driver_starts_own_planned_trip(call, fake_db):
@@ -36,17 +36,17 @@ def test_driver_starts_own_planned_trip(call, fake_db):
     response = call(START, path={"id": TRIP})
     data = body_of(response)["data"]
     assert response["statusCode"] == 201 and data["created"] is True and data["route_number"] == "VJ-20261016-33333333"
-    assert len(fake_db.wrote("INSERT INTO dispatch_guides")) == 2
-    event = fake_db.wrote("INSERT INTO tracking_events")[0][1]
+    assert len(fake_db.wrote("INSERT INTO tbl_dispatch_guides")) == 2
+    event = fake_db.wrote("INSERT INTO tbl_tracking_events")[0][1]
     assert event[3] == "route_started" and event[9] == "bbbbbbbb-0000-4000-8000-000000000001"
-    route_params = fake_db.wrote("INSERT INTO routes")[0][1]
+    route_params = fake_db.wrote("INSERT INTO tbl_routes")[0][1]
     assert route_params[2] == DRIVER and route_params[13] is not None       # planned_end_time calculado
 
 
 def test_first_guide_is_planned_after_the_drive_from_the_origin(call, fake_db):
     prepare(fake_db)
     call(START, path={"id": TRIP})
-    first, second = (g[1][-1] for g in fake_db.wrote("INSERT INTO dispatch_guides"))
+    first, second = (g[1][-1] for g in fake_db.wrote("INSERT INTO tbl_dispatch_guides"))
     assert first > NOW and second > first                                       # llegada 1 > ahora; 2 después de 5 min de servicio
 
 
@@ -54,7 +54,7 @@ def test_second_start_returns_the_same_route_without_writing(call, fake_db):
     prepare(fake_db, existing=[{"id": ROUTE}])
     response = call(START, path={"id": TRIP})
     assert response["statusCode"] == 200 and body_of(response)["data"] == {"route_id": ROUTE, "created": False}
-    assert not fake_db.wrote("INSERT INTO routes") and not fake_db.wrote("INSERT INTO dispatch_guides")
+    assert not fake_db.wrote("INSERT INTO tbl_routes") and not fake_db.wrote("INSERT INTO tbl_dispatch_guides")
 
 
 def test_trip_of_another_driver_or_org_is_not_found(call, fake_db):
@@ -63,7 +63,7 @@ def test_trip_of_another_driver_or_org_is_not_found(call, fake_db):
     prepare(fake_db, trip=plan_trip(organization_id="otra-org"))
     assert call(START, path={"id": TRIP})["statusCode"] == 404
     assert call(START, path={"id": "no-es-uuid"})["statusCode"] == 404
-    assert not fake_db.wrote("INSERT INTO routes")
+    assert not fake_db.wrote("INSERT INTO tbl_routes")
 
 
 @pytest.mark.parametrize("trip,stops,store", [
@@ -72,22 +72,22 @@ def test_trip_of_another_driver_or_org_is_not_found(call, fake_db):
 def test_start_conflicts(call, fake_db, trip, stops, store):
     prepare(fake_db, trip=trip, stops=stops, store=store)
     assert call(START, path={"id": TRIP})["statusCode"] == 409
-    assert not fake_db.wrote("INSERT INTO routes")
+    assert not fake_db.wrote("INSERT INTO tbl_routes")
 
 
 def test_start_without_origin_coordinates_has_no_planned_times(call, fake_db):
     prepare(fake_db)
-    fake_db.answer("FROM stores WHERE organization_id", [{"id": "s", "latitude": None, "longitude": None}])
+    fake_db.answer("FROM tbl_stores WHERE organization_id", [{"id": "s", "latitude": None, "longitude": None}])
     call(START, path={"id": TRIP})
-    assert all(g[1][-1] is None for g in fake_db.wrote("INSERT INTO dispatch_guides"))
+    assert all(g[1][-1] is None for g in fake_db.wrote("INSERT INTO tbl_dispatch_guides"))
 
 
 def test_cannot_start_another_trip_while_current_has_pending_stops(call, fake_db):
     prepare(fake_db)
-    fake_db.answer("SELECT r.id FROM routes r", [{"id": "otra-ruta"}])
+    fake_db.answer("SELECT r.id FROM tbl_routes r", [{"id": "otra-ruta"}])
     response = call(START, path={"id": TRIP})
     assert response["statusCode"] == 409 and body_of(response)["error"]["code"] == "trip_in_progress"
-    assert not fake_db.wrote("INSERT INTO routes")
+    assert not fake_db.wrote("INSERT INTO tbl_routes")
 
 
 def test_can_start_when_previous_trip_is_fully_done(call, fake_db):
@@ -99,4 +99,4 @@ def test_cannot_start_a_trip_without_a_carrier(call, fake_db):
     prepare(fake_db, trip=plan_trip(carrier_id=None))
     response = call(START, path={"id": TRIP})
     assert response["statusCode"] == 409 and body_of(response)["error"]["code"] == "no_carrier"
-    assert not fake_db.wrote("INSERT INTO routes")
+    assert not fake_db.wrote("INSERT INTO tbl_routes")

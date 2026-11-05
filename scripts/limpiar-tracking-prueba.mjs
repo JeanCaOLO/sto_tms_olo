@@ -55,7 +55,7 @@ async function main() {
   try {
     await client.query('BEGIN');
     const { rows: routes } = await client.query(
-      'SELECT id, route_number, status FROM routes WHERE route_number = ANY($1::text[])',
+      'SELECT id, route_number, status FROM tbl_routes WHERE route_number = ANY($1::text[])',
       [ROUTE_NUMBERS],
     );
     if (!routes.length) {
@@ -64,7 +64,7 @@ async function main() {
       return;
     }
     const routeIds = routes.map((r) => r.id);
-    const { rows: guides } = await client.query('SELECT id FROM dispatch_guides WHERE route_id = ANY($1::uuid[])', [routeIds]);
+    const { rows: guides } = await client.query('SELECT id FROM tbl_dispatch_guides WHERE route_id = ANY($1::uuid[])', [routeIds]);
     const guideIds = guides.map((g) => g.id);
     console.log('Rutas:', routes.map((r) => `${r.route_number} (${r.status})`).join(', '));
 

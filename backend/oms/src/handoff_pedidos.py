@@ -1,11 +1,11 @@
 """HandoffPedidosOMS — adaptador de ESCRITURA del handoff (esqueleto, ADR-013).
 
 ADR-013 DESACOPLA priorización y liberación en DOS PASADAS de un único barrido
-sobre `public.orders` (grano pedido). Antes se priorizaba y liberaba en un paso;
+sobre `public.tbl_orders` (grano pedido). Antes se priorizaba y liberaba en un paso;
 ahora son dos funciones públicas separables:
 
   PASADA 1 — priorizar_pedido() (PrioritizadorPass):
-    UPDATE de `public.orders` con priority, oms_score, prioritization_run_id y
+    UPDATE de `public.tbl_orders` con priority, oms_score, prioritization_run_id y
     handoff_status='priorizado'. DEJA `wms_situation = DISP`, NO escribe 'GENE' y
     NO estampa `oms_processed_at`. Es idempotente por la llave EFLOW: el barrido la
     re-aplica en cada corrida sobre lo no liberado, absorbiendo los cambios de
@@ -22,7 +22,7 @@ ahora son dos funciones públicas separables:
     siendo exclusivos de la liberación. EPA (pass-through) NO se sincroniza.
 
   PASADA 2 — liberar_pedido() (LiberadorPass), DOS ESCRITURAS, DOS PROPÓSITOS:
-    Escritura 1 (Aurora, `public.orders`): UPDATE con wms_situation='GENE',
+    Escritura 1 (Aurora, `public.tbl_orders`): UPDATE con wms_situation='GENE',
       handoff_status y `oms_processed_at = now()`. `oms_processed_at` = LIBERADO a
       eFlow (ADR-013 precisa la lectura de ADR-007: NO es "priorizado"); saca el
       pedido de la cola de polling (ver cola_candidatos). El pedido ya está en
@@ -76,7 +76,7 @@ from models import ConfiguracionReglas, PedidoCandidato, PedidoPK, RegistroPrior
 # wms_situation (queda DISP) NI oms_processed_at: priorizar NO libera (ADR-013).
 # status (del TMS) tampoco se toca. RETURNING para detectar pedidos no ingeridos.
 PRIORIZAR_PEDIDO_SQL = """
-UPDATE orders
+UPDATE tbl_orders
 SET priority = %s, oms_score = %s, handoff_status = %s,
     prioritization_run_id = %s, updated_at = now()
 WHERE eflow_id_almacen = %s AND eflow_id_compania = %s
@@ -88,7 +88,7 @@ RETURNING id
 # wms_situation='GENE' + oms_processed_at = now() (= LIBERADO, saca de la cola de
 # polling). status NO se toca. RETURNING para detectar pedidos no ingeridos.
 LIBERAR_PEDIDO_SQL = """
-UPDATE orders
+UPDATE tbl_orders
 SET wms_situation = %s, handoff_status = %s,
     oms_processed_at = now(), updated_at = now()
 WHERE eflow_id_almacen = %s AND eflow_id_compania = %s
@@ -100,7 +100,7 @@ RETURNING id
 # por el OMS (Cofersa): al liberar, su prioridad pasa a 0 ("ya se va", DECIDED 0..n).
 # EPA (pass-through) NO usa esta variante: conserva su prioridad de EFLOW.
 LIBERAR_PEDIDO_CON_PRIORIDAD_SQL = """
-UPDATE orders
+UPDATE tbl_orders
 SET wms_situation = %s, handoff_status = %s, priority = %s,
     oms_processed_at = now(), updated_at = now()
 WHERE eflow_id_almacen = %s AND eflow_id_compania = %s
@@ -217,14 +217,14 @@ def _escritor_por_defecto() -> EscritorSituacion:
 # re-corre la costura por la llave EFLOW y, si pasa, lo deja 'completado'. Idempotente.
 RECONCILIAR_SQL = """
 SELECT eflow_id_almacen, eflow_id_compania, eflow_id_sucursal, eflow_id_expedicion, priority
-FROM orders
+FROM tbl_orders
 WHERE handoff_status = 'disparo_pendiente'
 ORDER BY oms_processed_at NULLS FIRST
 LIMIT %s
 """
 
 _COMPLETAR_SQL = """
-UPDATE orders SET handoff_status = 'completado', updated_at = now()
+UPDATE tbl_orders SET handoff_status = 'completado', updated_at = now()
 WHERE eflow_id_almacen = %s AND eflow_id_compania = %s
   AND eflow_id_sucursal = %s AND eflow_id_expedicion = %s
 """
@@ -374,7 +374,7 @@ def liberar_pedido(
     # si no, la de origen (EPA conserva su prioridad de EFLOW).
     prioridad_eflow = prioridad_liberacion if prioridad_liberacion is not None else registro.prioridad
 
-    # --- Escritura 1: public.orders (Aurora). Idempotente por la llave EFLOW. ---
+    # --- Escritura 1: public.tbl_orders (Aurora). Idempotente por la llave EFLOW. ---
     _liberar_orders(pedido, ESTADO_PENDIENTE, prioridad_liberacion)
 
     # --- Escritura 2: fijar la situación del WMS vía la costura. Sin 2PC. ---
