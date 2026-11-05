@@ -104,10 +104,14 @@ def _coord(v) -> float | None:
 
 
 def _prioridad(v) -> int | None:
-    # orders exige priority >= 1 (o NULL). eFlow manda 0 cuando no hay prioridad.
+    # Se CONSERVA la prioridad que manda eFlow tal cual (incluido 0): el OMS debe
+    # devolverle ese mismo valor a eFlow. Para las compañías pass-through (EPA) es la
+    # única prioridad que tienen (el OMS no las re-prioriza) y se mantiene end-to-end.
+    # `orders.priority` admite `>= 0` (ck_order_priority, sql/57). Solo valores
+    # negativos/no numéricos caen a NULL (no deberían venir de eFlow).
     try:
         n = int(v)
-        return n if n >= 1 else None
+        return n if n >= 0 else None
     except (TypeError, ValueError):
         return None
 
