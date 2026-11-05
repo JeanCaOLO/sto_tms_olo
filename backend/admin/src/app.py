@@ -9,6 +9,7 @@ from tms_common.handler import tms_handler
 
 import admin_audit as audit_log
 import admin_permissions as permissions
+import admin_returns as returns
 import admin_roles as roles
 import admin_users as users
 
@@ -29,6 +30,12 @@ ROUTES = {
     "GET /api/v1/admin/audit": audit_log.list_events,
     "GET /api/v1/admin/audit/{id}": audit_log.get_event,
     "POST /api/v1/audit/events": audit_log.record_client_event,
+    "GET /api/v1/devoluciones/resumen": returns.summary,
+    "GET /api/v1/devoluciones/viajes": returns.list_trips,
+    "GET /api/v1/devoluciones/viajes/{routeId}": returns.get_trip,
+    "PUT /api/v1/devoluciones/viajes/{routeId}/formulario": returns.save_form,
+    "POST /api/v1/devoluciones/viajes/{routeId}/recibir-todas": returns.receive_all,
+    "POST /api/v1/devoluciones/{returnId}/recibir": returns.receive_return,
 }
 
 handler = tms_handler(ROUTES)
