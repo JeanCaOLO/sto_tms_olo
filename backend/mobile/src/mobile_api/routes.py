@@ -86,6 +86,15 @@ def dispatch(event: dict) -> dict:
 
 
 def handler(event: dict, _context: object = None) -> dict:
+    response = _respond(event)
+    http = (event.get("requestContext") or {}).get("http") or {}
+    # Una línea por petición (sin cuerpo ni token): permite ver en CloudWatch qué llega desde los teléfonos y con qué estado.
+    logger.info("req %s %s -> %s ua=%s", http.get("method"), http.get("path") or event.get("rawPath"),
+                response.get("statusCode"), str(http.get("userAgent", ""))[:40])
+    return response
+
+
+def _respond(event: dict) -> dict:
     try:
         return dispatch(event)
     except HttpError as err:
