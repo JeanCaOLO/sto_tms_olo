@@ -40,7 +40,8 @@ def borrar_no_liberado(run, org: str, warehouse: str, customer: str, fecha: str)
         p + [f"{fecha.replace('-', '')}-%"])
 
 
-_ULTIMO = f"""SELECT pl.id, max(split_part(t.numero_viaje, '-', 2)::int) AS ultimo
+# La secuencia es el último tramo: vale para 'YYYYMMDD-NNN' (congelados viejos) y 'YYYYMMDD-CCCC-NNN'.
+_ULTIMO = f"""SELECT pl.id, max(split_part(t.numero_viaje, '-', -1)::int) AS ultimo
 FROM tbl_route_plans pl JOIN tbl_plan_trips t ON t.plan_id = pl.id
 WHERE pl.id IN ({_PLANES_DEL_DIA}) GROUP BY pl.id ORDER BY ultimo DESC NULLS LAST LIMIT 1"""
 
