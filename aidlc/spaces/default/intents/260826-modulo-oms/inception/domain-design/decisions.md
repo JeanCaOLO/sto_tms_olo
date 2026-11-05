@@ -14,6 +14,16 @@
 > Precisa **ADR-005** (la prioridad sale de una estrategia elegida por config) y
 > **ADR-011** (cliente-retira = piso de cola). Fuente:
 > `docs/work/2026-10/2026-10-29-prioridad-cofersa-dias-hasta-salida.md`.
+>
+> **Refinamiento v4.3 (sync de prioridad a eFlow + liberación manual, 2026-11-04)**:
+> **ADR-013 SUPERSEDE PARCIAL** (la priorización sincroniza el número a eFlow para
+> Cofersa; dos verbos de la costura `actualizar_prioridad`/`marcar_generada`) y
+> **ADR-008 matizado** (escritura "solo número" en la priorización). La **liberación
+> manual** es la única interacción humana (por viaje implementada, por pedido en
+> diseño). La **prioridad 0 al liberar ya está implementada** (`CHECK priority >= 0`,
+> `sql/57`). Nota de infraestructura: `public.orders` es ahora una **VISTA** sobre
+> `public.tbl_orders` (ver ADR-008). Fuente:
+> `docs/work/2026-11/2026-11-04-sync-prioridad-eflow-y-liberacion-manual.md`.
 
 ## ADR-001: Motor de reglas del OMS propio y nuevo (C2 RESUELTO)
 
@@ -291,6 +301,12 @@
   (esquema único `public`), ya con llave EFLOW en texto, `priority` entero y las
   columnas del WMS/OMS. Además negocio confirmó que la **prioridad sí se escribe en
   EFLOW**.
+  **Nota de infraestructura de datos (v4.3, 2026-11-04)**: tras un refactor de
+  esquema, la **tabla real** es ahora **`public.tbl_orders`** y **`public.orders` es
+  una VISTA** auto-actualizable sobre ella (convención `tbl_`). Esto **no cambia la
+  lógica del OMS**: el DML del app sigue por la vista `orders` (lectura y escritura);
+  solo el **DDL** (p. ej. el `CHECK` de `sql/57`) va a `tbl_orders`. Es un hecho de
+  infraestructura, no un ADR nuevo.
 - **Decisión (REFINADA 2026-10-16 — eFlow read-only, escritura 2 por costura)**:
   `HandoffPedidosOMS` hace **escritura 1 = UPDATE a `public.orders`** (por la llave
   EFLOW: `priority`, `oms_score`, `wms_situation='GENE'`, `handoff_status`,
@@ -301,9 +317,16 @@
   `sim_expedicionescabecera`** (tabla ya creada en Aurora). Se diseña detrás de una
   **costura/interface** cuyo destino hoy es `sim_expedicionescabecera` y mañana se
   intercambia por el endpoint EPRAC **sin tocar el motor**. **Momento de la escritura
-  2 (ADR-013)**: ocurre en la **pasada de LIBERACIÓN**
-  (`now() >= dispatch_date − dias_prep_picking`), **no al priorizar** (la priorización
-  deja el pedido en `DISP`). **`GENE` lo pone SOLO el
+  2 (ADR-013)**: la escritura de **`GENE` + prioridad** (verbo `marcar_generada` de
+  la costura) ocurre en la **pasada de LIBERACIÓN**
+  (`now() >= dispatch_date − dias_prep_picking`), **no al priorizar**. **Matiz v4.3
+  (2026-11-04)**: la costura tiene ahora **dos verbos** — además de `marcar_generada`,
+  la priorización usa **`actualizar_prioridad`** para mandar **solo el número** de
+  prioridad (Cofersa; EPA no), dejando la situación en `DISP`. Así, la pasada de
+  priorización **sí** escribe por la costura, pero **solo el número** (write-on-delta);
+  **`GENE` y `oms_processed_at` siguen siendo de la liberación**. eFlow sigue
+  **READ-ONLY** y la costura intercambiable (hoy `sim_expedicionescabecera`, mañana el
+  endpoint EPRAC) no cambia. (La priorización deja el pedido en `DISP`.) **`GENE` lo pone SOLO el
   OMS** (Planificación deja los pedidos en `DISP`; el OMS es el único que sube a
   `GENE`; no hay riesgo de pisar un `GENE` porque Planificación nunca lo escribe y
   `oms_processed_at` saca el pedido de la cola). El OMS **no escribe el número de
@@ -426,6 +449,17 @@
 > (semántica de `oms_processed_at` y diferimiento de `GENE`) y ADR-008 (la
 > escritura 2 ocurre en la LIBERACIÓN, no al priorizar). No los supersede: los
 > refina.
+>
+> **SUPERSEDE PARCIAL (v4.3, 2026-11-04)**: este ADR decía que la pasada de
+> priorización **no** tocaba la costura `EscritorSituacion`. Ahora **sí** la toca,
+> pero **solo para el número de prioridad** (Cofersa; EPA es pass-through y **no** se
+> sincroniza): la priorización refleja en eFlow el número desde que prioriza y en cada
+> cambio (3 → 2 → … → 0), vía el verbo **`actualizar_prioridad`** de la costura (manda
+> SOLO el número; la situación **permanece `DISP`**). **`GENE` y `oms_processed_at`
+> siguen siendo exclusivos de la liberación** (verbo **`marcar_generada`**: número +
+> `TPEXSI = GENE`). Es **write-on-delta** (solo sincroniza si el número cambió respecto
+> a `orders.priority`). La costura queda así con **dos verbos** = dos endpoints EPRAC.
+> Fuente: `docs/work/2026-11/2026-11-04-sync-prioridad-eflow-y-liberacion-manual.md`.
 
 - **Contexto**: El negocio (reuniones 2026-10-19/20) pidió **no** mandar los
   pedidos a eFlow apenas se priorizan, sino **el día antes de la salida del viaje**.
@@ -450,6 +484,12 @@
        queda `DISP`; **no escribe `GENE`**. Es **idempotente**: re-prioriza lo no
        liberado en cada barrido, absorbiendo los cambios de replan (nuevo
        `dispatch_date`/`lead_time_days`).
+     - **Sincronizar (pasada 1b, v4.3 — SUPERSEDE PARCIAL, SOLO Cofersa)**: de lo
+       priorizado-no-liberado cuyo número de prioridad **cambió** respecto a
+       `orders.priority` (write-on-delta), refleja ese número en eFlow por el verbo
+       `actualizar_prioridad` de la costura (`TPEXSI` queda `DISP`). **No** estampa
+       `oms_processed_at` ni saca el pedido de la cola. EPA (pass-through) **no** se
+       sincroniza.
      - **Liberar**: de lo priorizado-no-liberado, los que
        `now() >= dispatch_date − dias_prep_picking` (`dias_prep_picking = 1` por
        defecto; **política del OMS**, parametrizable por compañía a futuro) →
@@ -464,7 +504,15 @@
   4. **Acción manual "Procesar a Eflow"** (nombre temporal, **gated por rol**):
      misma lógica de **Liberar** filtrada por `numero_viaje` (+ subconjunto opcional
      de pedidos), para **adelantar** la liberación de un viaje cuando picking/packing
-     está ocioso.
+     está ocioso. **v4.3 (2026-11-04)**: la liberación manual es **la única
+     interacción humana** del flujo (supera "la única intervención es alterar la
+     prioridad", Adenda 2026-08-26). Existe **por viaje** (`procesar_viaje`,
+     `POST /api/v1/oms/viajes/{numero_viaje}/procesar`, implementada) y, como la cola
+     es a grano pedido, **por pedido** (ruta análoga p. ej.
+     `POST /api/v1/oms/pedidos/liberar`, gated por `("oms","edit")`, **diseño — aún no
+     implementada**). Ambas reusan `liberar_pedido` ignorando la ventana; estampan
+     `0` si la compañía es priorizada por el OMS (Cofersa) y la prioridad de origen si
+     no (EPA).
   5. **Idempotencia de replan**: la re-priorización por barrido mantiene la
      prioridad alineada al último plan; `oms_processed_at` es del OMS y **no se
      limpia automáticamente**; Planificación pone
@@ -565,8 +613,11 @@
   - (−) Para Cofersa el score ponderado ya no define el número; queda como dato
     auditable (`oms_score`). Si más adelante otras reglas deben reordenar dentro del
     día (OQ-PRIO-A), hay que evolucionar `dias_hasta_salida`.
-  - (−) Hoy la estrategia solo garantiza que la cola nunca muestra 0; que la
-    **liberación escriba 0** al WMS es un follow-up de construcción.
+  - (=) La estrategia garantiza que la cola nunca muestra 0; la **liberación ya
+    escribe 0** al WMS para Cofersa (**implementado**, v4.3 2026-11-04:
+    `liberar_pedido` con `LIBERAR_PEDIDO_CON_PRIORIDAD_SQL`) y el `CHECK` de la tabla
+    permite `priority >= 0` (`sql/57`). (Antes era un follow-up de construcción; ya
+    no lo es.)
   - (=) **EPA sin roce (2026-10-30)**: "0 = liberado" es convención de la
     estrategia `dias_hasta_salida` de Cofersa (piso de cola 1), no un invariante
     global de `orders.priority`. EPA usa 1 y 2 (nunca 0), así que no hay roce

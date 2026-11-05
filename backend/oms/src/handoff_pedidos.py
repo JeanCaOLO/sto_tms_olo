@@ -11,6 +11,16 @@ ahora son dos funciones públicas separables:
     re-aplica en cada corrida sobre lo no liberado, absorbiendo los cambios de
     replan (nuevo dispatch_date/lead_time_days) sin duplicar. NO toca la costura.
 
+  PASADA 1b — sincronizar_prioridad() (aclaración 2026-11-04, SOLO Cofersa):
+    refleja en eFlow el NÚMERO de prioridad del pedido priorizado-no-liberado por la
+    costura `actualizar_prioridad`, SIN cambiar la situación (queda DISP) ni estampar
+    `oms_processed_at` (sigue en la cola). Para eFlow es relevante CADA cambio de
+    prioridad, así que el barrido la llama la primera vez y cada vez que el número
+    cambia (comparación contra la prioridad previa en `app.correr`, para no escribir
+    de más). SUPERSEDE PARCIAL del ADR-013 original: la priorización ahora SÍ toca la
+    costura, pero SOLO para el número de prioridad; 'GENE' y `oms_processed_at` siguen
+    siendo exclusivos de la liberación. EPA (pass-through) NO se sincroniza.
+
   PASADA 2 — liberar_pedido() (LiberadorPass), DOS ESCRITURAS, DOS PROPÓSITOS:
     Escritura 1 (Aurora, `public.tbl_orders`): UPDATE con wms_situation='GENE',
       handoff_status y `oms_processed_at = now()`. `oms_processed_at` = LIBERADO a
@@ -86,6 +96,18 @@ WHERE eflow_id_almacen = %s AND eflow_id_compania = %s
 RETURNING id
 """
 
+# Variante que ADEMÁS fija orders.priority al liberar. La usa una compañía PRIORIZADA
+# por el OMS (Cofersa): al liberar, su prioridad pasa a 0 ("ya se va", DECIDED 0..n).
+# EPA (pass-through) NO usa esta variante: conserva su prioridad de EFLOW.
+LIBERAR_PEDIDO_CON_PRIORIDAD_SQL = """
+UPDATE tbl_orders
+SET wms_situation = %s, handoff_status = %s, priority = %s,
+    oms_processed_at = now(), updated_at = now()
+WHERE eflow_id_almacen = %s AND eflow_id_compania = %s
+  AND eflow_id_sucursal = %s AND eflow_id_expedicion = %s
+RETURNING id
+"""
+
 # Escritura 2 (SIMULADA, temporal): sim_expedicionescabecera en Aurora. TPEXSI='GENE'
 # + PRIORIDAD; TPEXES NO se toca (permanece 'DISP'). Es la costura que mañana se
 # reemplaza por el endpoint EPRAC. UPSERT por la llave EFLOW (pk_sim_expedicionescabecera,
@@ -97,6 +119,21 @@ INSERT INTO sim_expedicionescabecera
 VALUES (%s, %s, %s, %s, 'GENE', %s)
 ON CONFLICT ("IDALMACEN", "IDCOMPANIA", "IDSUCURSAL", "IDEXPEDICION")
 DO UPDATE SET "TPEXSI" = excluded."TPEXSI", "PRIORIDAD" = excluded."PRIORIDAD", escrito_en = now()
+"""
+
+# Costura de la PASADA 1b: ACTUALIZAR solo la PRIORIDAD de una expedición, sin tocar
+# la situación (TPEXSI). Es el verbo "cambió la prioridad" (Cofersa), distinto de la
+# liberación. En prod, con el endpoint EPRAC, esto es un UPDATE puro: el registro YA
+# existe en eFlow, NO hay "primera escritura". Aquí (tabla de prueba) hacemos upsert
+# solo porque la fila podría no existir todavía: el INSERT nace en 'DISP' (nunca
+# 'GENE') y el DO UPDATE toca ÚNICAMENTE "PRIORIDAD" (jamás "TPEXSI", para no pisar un
+# 'GENE' ya liberado). Ese upsert es un artificio de la simulación, no del contrato.
+SIM_PRIORIDAD_SQL = """
+INSERT INTO sim_expedicionescabecera
+    ("IDALMACEN", "IDCOMPANIA", "IDSUCURSAL", "IDEXPEDICION", "TPEXSI", "PRIORIDAD")
+VALUES (%s, %s, %s, %s, 'DISP', %s)
+ON CONFLICT ("IDALMACEN", "IDCOMPANIA", "IDSUCURSAL", "IDEXPEDICION")
+DO UPDATE SET "PRIORIDAD" = excluded."PRIORIDAD", escrito_en = now()
 """
 
 # Estado tras la pasada de priorización: ya priorizado, aún NO liberado a eFlow.
@@ -119,12 +156,21 @@ def _modo_live() -> bool:
 # --- Costura de la escritura 2 (destino intercambiable) -----------------------
 
 class EscritorSituacion(Protocol):
-    """Interface de la escritura 2: fija la situación del WMS a 'GENE' + PRIORIDAD.
+    """Interface de la escritura a eFlow. DOS verbos, que mañana serán dos endpoints EPRAC:
+
+    - `actualizar_prioridad(pk, prioridad)`: cambió la prioridad → manda SOLO el número,
+      la situación NO cambia (queda DISP). (PASADA 1b, Cofersa.)
+    - `marcar_generada(pk, prioridad)`: liberación → manda el número Y pone TPEXSI='GENE'.
 
     El OMS NUNCA escribe a eFlow real (read-only). Esta costura aísla el DESTINO:
     - hoy: `SimExpedicionesWriter` → tabla sim_expedicionescabecera (Aurora, temporal).
-    - mañana: `EpracEndpointWriter` → endpoint que proveerá EPRAC, sin tocar el motor.
+    - mañana: `EpracEndpointWriter` → los endpoints que proveerá EPRAC, sin tocar el motor.
     """
+
+    def actualizar_prioridad(self, pk: PedidoPK, prioridad: int) -> None:
+        """Actualiza SOLO la PRIORIDAD de la expedición en eFlow; la situación NO cambia
+        (queda DISP). Idempotente por la llave EFLOW."""
+        ...
 
     def marcar_generada(self, pk: PedidoPK, prioridad: int) -> None:
         """Deja el pedido en TPEXSI='GENE' + PRIORIDAD. Idempotente por la llave EFLOW."""
@@ -137,6 +183,14 @@ class SimExpedicionesWriter:
     Simula la escritura a eFlow hasta que exista el endpoint EPRAC. En mock no toca
     DB (no-op observable). NO escribe a eFlow real.
     """
+
+    def actualizar_prioridad(self, pk: PedidoPK, prioridad: int) -> None:
+        if _modo_live():
+            from tms_common import pg  # import local: el esqueleto corre sin el Layer en tests
+
+            pg.query(SIM_PRIORIDAD_SQL,
+                     [pk.id_almacen, pk.id_compania, pk.id_sucursal, pk.id_expedicion, prioridad])
+        # En mock: no-op (cubierto por los tests que inyectan un escritor fake).
 
     def marcar_generada(self, pk: PedidoPK, prioridad: int) -> None:
         if _modo_live():
@@ -256,12 +310,38 @@ def priorizar_pedido(
     _update_orders(PRIORIZAR_PEDIDO_SQL, params, pedido)
 
 
+# --- Pasada 1b: sincronizar el número de prioridad a eFlow (sin liberar) -------
+
+def sincronizar_prioridad(
+    pedido: PedidoCandidato,
+    registro: RegistroPrioridad,
+    *,
+    escritor: EscritorSituacion | None = None,
+) -> None:
+    """Pasada 1b (aclaración 2026-11-04, SOLO Cofersa): refleja en eFlow el NÚMERO de
+    prioridad de un pedido priorizado-no-liberado, por la costura `actualizar_prioridad`.
+
+    NO cambia la situación (queda DISP), NO estampa `oms_processed_at` y NO saca el
+    pedido de la cola: solo sincroniza el número para que eFlow lo vea bajar hacia la
+    salida. El llamador (`app.correr`) decide CUÁNDO llamarla: la primera vez y cada vez
+    que la prioridad cambia (comparando contra la previa), nunca para EPA (pass-through).
+
+    En vivo escribe hoy a sim_expedicionescabecera; mañana al endpoint EPRAC (UPDATE
+    puro, el registro ya existe). En mock es un no-op observable. La costura se inyecta
+    para tests (default SimExpedicionesWriter). Propaga el error de la costura: el barrido
+    lo captura best-effort por pedido y lo reintenta en una corrida posterior.
+    """
+    escritor = escritor or _escritor_por_defecto()
+    escritor.actualizar_prioridad(pedido.pk, registro.prioridad)
+
+
 # --- Pasada 2: liberar (GENE + oms_processed_at + costura) ---------------------
 
 def liberar_pedido(
     pedido: PedidoCandidato,
     registro: RegistroPrioridad,
     *,
+    prioridad_liberacion: int | None = None,
     escritor: EscritorSituacion | None = None,
 ) -> str:
     """Pasada de LIBERACIÓN (ADR-013): las dos escrituras del handoff a eFlow.
@@ -271,40 +351,58 @@ def liberar_pedido(
     la costura `EscritorSituacion` (hoy sim_expedicionescabecera). Orden fijo 1→2,
     sin 2PC; si la 2 falla, deja 'disparo_pendiente' para reconciliar (no lanza).
 
+    `prioridad_liberacion` (DECIDED 0..n, aclaración 2026-11-04): prioridad a ESTAMPAR
+    al liberar. Para una compañía priorizada por el OMS (Cofersa) el barrido pasa 0
+    ("ya se va"): se escribe en orders.priority y se manda a eFlow. Para EPA
+    (pass-through) el barrido pasa None → NO se toca orders.priority y la costura
+    recibe la prioridad de origen (su prioridad de EFLOW, intacta).
+
     ponytail: OQ-REL1 (abierta, no bloquea v1, sin reconciliación aquí) — un pedido
     ya liberado (oms_processed_at sellado) que un replan mueva a otro viaje/fecha
     queda potencialmente stale; `oms_processed_at` NO se limpia automáticamente.
     Upgrade path: reconciliación cuando el negocio lo pida.
 
-    Entradas: el candidato (llave EFLOW), el resultado del motor (prioridad para la
-    costura) y la costura de la escritura 2 (inyectable para tests; default
-    SimExpedicionesWriter → sim_expedicionescabecera; mañana EpracEndpointWriter).
+    Entradas: el candidato (llave EFLOW), el resultado del motor, la prioridad de
+    liberación (opcional) y la costura de la escritura 2 (inyectable para tests;
+    default SimExpedicionesWriter → sim_expedicionescabecera; mañana EpracEndpointWriter).
     Salida: 'completado' si ambas ok; 'disparo_pendiente' si la 1 ok pero la 2 falló.
     Errores: la escritura 1 propaga HttpError (vía pg) y PedidoNoIngerido si el
       pedido no está en orders; un fallo en la escritura 2 NO lanza.
     """
     escritor = escritor or _escritor_por_defecto()
+    # Prioridad que se manda a eFlow: la de liberación si se indicó (Cofersa → 0),
+    # si no, la de origen (EPA conserva su prioridad de EFLOW).
+    prioridad_eflow = prioridad_liberacion if prioridad_liberacion is not None else registro.prioridad
 
     # --- Escritura 1: public.tbl_orders (Aurora). Idempotente por la llave EFLOW. ---
-    _liberar_orders(pedido, ESTADO_PENDIENTE)
+    _liberar_orders(pedido, ESTADO_PENDIENTE, prioridad_liberacion)
 
     # --- Escritura 2: fijar la situación del WMS vía la costura. Sin 2PC. ---
     try:
-        escritor.marcar_generada(pedido.pk, registro.prioridad)
+        escritor.marcar_generada(pedido.pk, prioridad_eflow)
     except Exception:  # noqa: BLE001 — no romper: queda pendiente para reconciliar
         return ESTADO_PENDIENTE
 
     # Confirmar: el pedido pasa a handoff_status='completado'.
-    _liberar_orders(pedido, ESTADO_COMPLETADO)
+    _liberar_orders(pedido, ESTADO_COMPLETADO, prioridad_liberacion)
     return ESTADO_COMPLETADO
 
 
-def _liberar_orders(pedido: PedidoCandidato, estado: str) -> None:
-    params = [
-        SITUACION_GENERADA, estado,
-        pedido.id_almacen, pedido.id_compania, pedido.id_sucursal, pedido.id_expedicion,
-    ]
-    _update_orders(LIBERAR_PEDIDO_SQL, params, pedido)
+def _liberar_orders(pedido: PedidoCandidato, estado: str, prioridad: int | None = None) -> None:
+    # Sin prioridad → no se toca orders.priority (EPA). Con prioridad → se estampa
+    # (Cofersa al liberar: 0). Idempotente al repetir la escritura con el mismo valor.
+    if prioridad is None:
+        params = [
+            SITUACION_GENERADA, estado,
+            pedido.id_almacen, pedido.id_compania, pedido.id_sucursal, pedido.id_expedicion,
+        ]
+        _update_orders(LIBERAR_PEDIDO_SQL, params, pedido)
+    else:
+        params = [
+            SITUACION_GENERADA, estado, prioridad,
+            pedido.id_almacen, pedido.id_compania, pedido.id_sucursal, pedido.id_expedicion,
+        ]
+        _update_orders(LIBERAR_PEDIDO_CON_PRIORIDAD_SQL, params, pedido)
 
 
 def _update_orders(sql: str, params: list, pedido: PedidoCandidato) -> None:

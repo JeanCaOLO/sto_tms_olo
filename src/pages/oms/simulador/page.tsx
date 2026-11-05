@@ -220,7 +220,7 @@ export default function OmsSimuladorPage() {
                   <tbody>
                     {previewPg.pageItems.map((o) => (
                       <tr key={o.id} className="border-b border-slate-100">
-                        <td className="py-3 px-4"><PriorityBadge tier={o.tier} /></td>
+                        <td className="py-3 px-4">{o.priority != null ? <PriorityBadge priority={o.priority} /> : <span className="text-slate-400 italic text-xs">Sin priorizar</span>}</td>
                         <td className="py-3 px-4 text-sm font-medium text-slate-900">{o.id}</td>
                         <td className="py-3 px-4 text-sm text-slate-700">{o.warehouseId}</td>
                         <td className="py-3 px-4 text-sm text-slate-700">{o.companyId}</td>
@@ -252,7 +252,7 @@ export default function OmsSimuladorPage() {
                   <div key={o.id} className="rounded-lg border border-slate-200 p-4">
                     <div className="flex items-center justify-between gap-2 mb-3">
                       <span className="font-semibold text-slate-900">{o.id}</span>
-                      <PriorityBadge tier={o.tier} />
+                      {o.priority != null ? <PriorityBadge priority={o.priority} /> : <span className="text-slate-400 italic text-xs">Sin priorizar</span>}
                     </div>
                     <div className="text-sm space-y-1.5">
                       <div className="flex justify-between gap-3"><span className="text-slate-500">{t('omsSimulator.colCustomer')}</span><span className="text-slate-900 text-right truncate">{o.customer}</span></div>

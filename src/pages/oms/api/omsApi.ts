@@ -6,7 +6,6 @@
 // Patrón §11: Page -> Controller -> Api.
 
 import { supabase } from '../../../lib/supabase';
-import { calcularPrioridad } from '../engine/priorityEngine';
 import {
   auditEntries,
   cofersaRoutes,
@@ -25,7 +24,6 @@ import type {
   OmsLogLevel,
   OmsMotorActividad,
   OmsPipeline,
-  PriorityTier,
   ProximaLiberacion,
   QueueOrder,
   Simulation,
@@ -133,8 +131,6 @@ const QUEUE_SELECT = `
   final_customer:final_customers(external_code, name)
 `;
 
-const TIERS: readonly PriorityTier[] = [1, 2, 3, 4];
-
 // --- Panel del motor: columnas y helpers del embudo ---
 // Columnas mínimas de orders para derivar el embudo sin traer toda la fila.
 const PANEL_SELECT =
@@ -169,18 +165,23 @@ function parseDetail(d: unknown): Record<string, unknown> {
 
 // Mapea un pedido de orders a QueueOrder. La llave EFLOW manda cuando el pedido
 // vino de EFLOW; si no (pedidos de prueba), se usan los códigos de los maestros.
-// Si el OMS ya persistió prioridad/score (orders.priority / oms_score) se muestran
-// esos; si no, se calculan con el Motor de Prioridad del front.
-function mapOrderToQueueOrder(row: any, country: Country, hoyIso: string): QueueOrder {
-  const prioridad = calcularPrioridad(
-    {
-      fechaPlanificada: row.delivery_date ?? null,
-      fechaExpedicion: row.order_date ?? null,
-      observaciones: row.observaciones ?? null,
-    },
-    hoyIso,
-  );
-  const tierPersistido = TIERS.find((t) => t === row.priority);
+//
+// Qué prioridad se muestra depende de si la compañía la PRIORIZA el OMS o es
+// PASS-THROUGH (config `oms_rule_configs.priorizar`):
+//  - Pass-through (priorizar=false, p. ej. EPA): conserva su prioridad de EFLOW
+//    (orders.priority). Es su prioridad REAL y no cambia (el OMS NO la recalcula ni
+//    la pone en 0 al liberar). Siempre se muestra tal cual.
+//  - Priorizada por el OMS (Cofersa, escala 0..n): la prioridad SOLO es válida
+//    cuando el OMS ya priorizó (prioritization_run_id). Si no, prioridad = null y la
+//    UI muestra "Sin priorizar" — NO se muestra el valor heredado de EFLOW, que no
+//    pertenece a la escala del OMS.
+// `score` es del OMS: solo existe cuando el OMS priorizó (EPA no tiene score).
+function mapOrderToQueueOrder(row: any, country: Country, passThrough: Set<string>): QueueOrder {
+  const priorizadoOms = row.prioritization_run_id != null;
+  const esPassThrough = passThrough.has(row.customer_id);
+  const priority = esPassThrough
+    ? (row.priority != null ? Number(row.priority) : null)
+    : (priorizadoOms && row.priority != null ? Number(row.priority) : null);
   return {
     id: row.id,
     ref: row.eflow_id_expedicion ?? row.order_number,
@@ -191,8 +192,8 @@ function mapOrderToQueueOrder(row: any, country: Country, hoyIso: string): Queue
     customer: row.final_customer?.name ?? '',
     route: row.delivery_zone || '(sin zona)',
     country,
-    tier: tierPersistido ?? prioridad.tier,
-    score: row.oms_score != null ? Number(row.oms_score) : prioridad.score,
+    priority,
+    score: priorizadoOms && row.oms_score != null ? Number(row.oms_score) : 0,
     totalAmount: Number(row.total_amount ?? 0),
     weight: Number(row.total_weight ?? 0),
     volume: Number(row.total_volume ?? 0),
@@ -203,14 +204,37 @@ function mapOrderToQueueOrder(row: any, country: Country, hoyIso: string): Queue
     createdDate: row.wms_created_at ?? row.created_at ?? '',
     status: row.wms_status ?? row.status ?? '',
     situation: row.wms_situation ?? '',
-    // Estado OMS (ADR-013): priorizado = el OMS ya escribió prioridad/score;
-    // liberado = ya lo mandó a eFlow (oms_processed_at sellado o situación GENE).
-    prioritized: row.priority != null || row.oms_score != null || row.prioritization_run_id != null,
+    // `prioritized` = el OMS calculó score para el pedido (gobierna la columna Score).
+    // Las compañías pass-through (EPA) son false: tienen prioridad pero no score del OMS.
+    // La pertenencia a la cola y el badge de prioridad se rigen por `priority != null`.
+    prioritized: priorizadoOms,
     released: row.oms_processed_at != null || row.wms_situation === 'GENE',
     intakeTime: row.created_at ?? '',
-    appliedRules: prioridad.appliedRules,
+    appliedRules: [],
     history: [],
   };
+}
+
+// Compañías PASS-THROUGH (customer_id con priorizar=false en oms_rule_configs):
+// conservan su prioridad de EFLOW; el OMS no la recalcula (p. ej. EPA). Se consulta
+// la config real (no se hardcodea la compañía) y se cachea por sesión. Si la lectura
+// falla, se degrada a "ninguna pass-through" (no cachea el fallo → reintenta luego).
+let _passThroughCache: Set<string> | null = null;
+async function passThroughCustomers(): Promise<Set<string>> {
+  if (_passThroughCache) return _passThroughCache;
+  const { data, error } = await supabase
+    .from('oms_rule_configs')
+    .select('customer_id')
+    .eq('scope_type', 'customer')
+    .eq('priorizar', false);
+  if (error || !data) {
+    console.warn('[OMS] oms_rule_configs (pass-through) no disponible:', error?.message);
+    return new Set<string>();
+  }
+  const set = new Set<string>();
+  for (const r of data as any[]) if (r.customer_id) set.add(r.customer_id);
+  _passThroughCache = set;
+  return set;
 }
 
 export const omsApi = {
@@ -237,9 +261,9 @@ export const omsApi = {
       const { data, error } = await query;
       if (!error && data) {
         // Datos REALES de orders (aunque vengan vacíos): es lo que pidió negocio.
-        const hoyIso = new Date().toISOString().slice(0, 10);
+        const passThrough = await passThroughCustomers();
         return data
-          .map((row: any) => mapOrderToQueueOrder(row, country, hoyIso))
+          .map((row: any) => mapOrderToQueueOrder(row, country, passThrough))
           .sort((a, b) => b.score - a.score);
       }
       // CR trabaja SOLO con datos reales: ante un error de BD mostramos la cola
