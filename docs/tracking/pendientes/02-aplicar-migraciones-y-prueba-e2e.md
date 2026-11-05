@@ -10,6 +10,8 @@ Con el viaje demo `VJ-DEMO-REC-20261102-W12`: `record_visits` leyó las 3 parada
 ## Prueba por el API con un chofer demo (2026-11-05, **sí persistió**)
 `simular_recorrido.py` con el chofer demo `chofer.drv-eflow-12@demo.tms.local` (viaje `VJ-DEMO-REC-20261102-W12`) contra una instancia local del API móvil con el código nuevo: 4 lotes de 5 posiciones aceptados, el reenvío del último lote quedó como duplicado (idempotente) y la parada 3 registró **llegada con la hora de la posición** (14:31 UTC, a 0 m) sin salida. La pantalla `/tracking` mostró "En sitio desde las 08:31 (5 min)". **Quedaron en la BD** 100 posiciones nuevas de ese viaje demo y la visita abierta de la parada 3. Para limpiar: `scripts/limpiar-tracking-prueba.mjs` o borrar de `tbl_tracking_stop_visits` y `tbl_tracking_positions` por `route_id`.
 
+**Salida por el API (misma fecha):** se enviaron 3 puntos alejándose de la parada 3 (a 120, 450 y 900 m). El de 120 m **no** cerró la visita (dentro del margen de 200 m) y el de 450 m sí: `departed_at` = 14:55:25 UTC y `dwell_seconds` = 1444 (24 min). La visita quedó cerrada en la BD de desarrollo.
+
 > El servidor local del API móvil (`backend/mobile/local/serve.py`, puerto 4100) **carga el código al arrancar**: hay que reiniciarlo para que use `record_visits`. Lo mismo vale para `backend/local/serve.py` (puerto 4000, API web).
 
 ## Qué falta
@@ -20,8 +22,7 @@ Con el viaje demo `VJ-DEMO-REC-20261102-W12`: `record_visits` leyó las 3 parada
    Con `python scripts/migrate.py <archivo>` (dry-run por defecto; `--execute` aplica). Los despliega Intelix. Rollback en el encabezado de cada archivo.
 2. Si el backend de tracking se despliega antes que `m06`, el detalle del viaje falla (`GUIDES_SQL` hace `LEFT JOIN tracking_stop_visits`).
 3. `CLIENT_GUIDES_SQL` y `CLIENT_PLANNED_SQL` (`backend/tracking/src/tracking_sql.py`) **ya se ejecutaron contra Aurora** (consulta de solo lectura, sin errores). Falta verlas con datos: crear una fila en `tracking_client_access` para un usuario `Cliente` demo y abrir `/tracking` con ese usuario (escribe en la BD compartida: pedir confirmación).
-4. Probar la **salida** de una parada por el API (la simulación termina dentro del radio): enviar después puntos a más de 200 m y comprobar `departed_at` y `dwell_seconds`; la lógica y el SQL ya están probados con datos reales dentro de una transacción revertida.
-5. Abrir `/tracking` con un usuario `Cliente` real vinculado en `tracking_client_access` (persiste una fila en la BD compartida: pedir confirmación) y ver la tarjeta de su entrega.
+4. Abrir `/tracking` con un usuario `Cliente` real vinculado en `tracking_client_access` (persiste una fila en la BD compartida: pedir confirmación) y ver la tarjeta de su entrega.
 
 ## Notas
 - Aurora solo está disponible de lunes a viernes, 5:00 a 17:00 (hora de Costa Rica).
