@@ -13,7 +13,7 @@ Al documentar la app móvil se encontraron contradicciones entre docs previos y 
 | 3 | `.test/blueprint/.../02-flujo-del-chofer.md` | La app solo ejecuta paradas y no inicia viaje | `start.py`: el chofer inicia su viaje |
 | 4 | `docs/tracking/decisiones.md`, `TRACKING_TMS/DEPLOY.md` | Lotes «20 puntos o 60 s»; «108 passed / 2 skipped»; «jest 78 passed» | `policy.ts`: 150 s o 20 puntos; ~151 pruebas de backend; 18 archivos Jest |
 | 5 | `backend/mobile/README.md`, `DEPLOY.md` | Ruta `mobile\backend` | Vigente: `sto_tms_olo/backend/mobile` |
-| 6 | `docs/tracking/README.md:13` | 97 pruebas con fakes (`backend/tests/test_tracking.py`) | Verificar la cifra actual |
+| 6 | `docs/tracking/README.md:13` | 97 pruebas con fakes (`backend/tests/test_tracking.py`) | El archivo tiene 107 funciones `test_*` (conteo 2026-11-05) |
 
 La diferencia de precisión GPS (100 m en la app, 200 m en el servidor) **es intencional**; no corregir, solo documentada.
 

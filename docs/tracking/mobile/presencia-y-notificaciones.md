@@ -32,6 +32,7 @@ Mismos umbrales que la señal de posición del monitor web (`tracking_logic.py`)
 
 Se piden **en cadena con un solo toque** (`requestAllPermissions`, `lib/permissions.ts`; guarda en `lib/use-permissions-gate.ts`), en este orden: cámara → ubicación «mientras se usa» → notificaciones (solo Android 13+, sin él el servicio corre pero el chofer no ve la notificación) → ubicación «siempre» al final (en Android 11+ abre Ajustes).
 
+- La guarda (`usePermissionsGate`) corre **una vez por apertura de la app**: si falta el consentimiento o algún permiso básico, lleva a `/consentimiento`. Con «Ahora no» no se insiste (queda el aviso del viaje); si no puede leer el estado, no bloquea al chofer.
 - Mínimo para trabajar (`permissionsReady`): cámara + ubicación. «Siempre» es deseable pero **no obliga**: sin él el GPS queda `foreground_only`.
 - `blocked = true` cuando Android ya no vuelve a mostrar el diálogo (cámara o ubicación con `canAskAgain=false`): solo se arregla en Ajustes.
 
