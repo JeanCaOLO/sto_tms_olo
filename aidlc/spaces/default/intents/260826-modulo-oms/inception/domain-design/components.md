@@ -178,9 +178,19 @@ components:
       ponderado. El EFECTO (poner el pedido en `wms_situation = GENE` con esa
       prioridad) lo aplica el flujo normal de MotorReglasOMS→HandoffPedidosOMS. Es
       una regla/rama propia, no un caso del motor de fecha.
+      **Pass-through end-to-end (v4.3, 2026-11-04)**: EPA es igual que las demás
+      compañías en TODO salvo que el OMS no la prioriza; conserva su prioridad de
+      eFlow de punta a punta. (a) La **ingesta NO anula** su prioridad (aunque venga
+      0 de eFlow se respeta). (b) EPA **entra a la ventana de liberación por fecha
+      igual que Cofersa** (ADR-013); lo único que no se hace es calcularle la
+      prioridad. (c) Al **LIBERAR conserva su número original** (1 o 2) y ese mismo
+      número va a eFlow; **nunca pasa por 0** (as-built `app._liberar`:
+      `prioridad_liberacion = None` para `priorizar=false` → no se toca
+      `orders.priority`), a diferencia de Cofersa, que al liberar escribe 0.
     responsibilities:
       - Detectar pedidos EPA (customer_type=TIENDA) y cortocircuitar fecha/score
       - Tomar la prioridad pre-asignada por EPRAC (1 o 2) sin recalcular
+      - Pass-through end-to-end: ingesta no anula, libera por fecha conservando el número (nunca 0)
     depends_on: []
     dependents:
       - component: MotorReglasOMS
