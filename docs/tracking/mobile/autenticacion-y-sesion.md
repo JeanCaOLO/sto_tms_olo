@@ -33,9 +33,11 @@ Revoca el refresh del dispositivo y marca **offline** con la hora `occurred_at` 
 
 ## En el teléfono (`TRACKING_TMS/frontend`)
 
-- `src/auth/session.ts` (Zustand) guarda `tms.access`, `tms.refresh`, etc. en **SecureStore**; estado `loading | in | out`.
-- `src/api/http.ts` hace el refresh automático ante `token_expired`.
-- Si entra **otro chofer** distinto al anterior, se **borran** las colas (`position_queue`, `outbox`) del anterior para no enviar sus datos con la sesión nueva (`db/reset.ts`).
+- `src/auth/session.ts` (Zustand), estado `loading | in | out` (`loading` evita parpadear el login). Claves en **SecureStore**: `tms.access`, `tms.refresh`, `tms.email`, `tms.driver_name`, `tms.user` (id del último chofer), `tms.last_email` (sobrevive al cierre para precargar el login) y `tms.pending_logout`. En **web** (solo desarrollo) no hay almacén seguro: la sesión vive en memoria.
+- `bindHttpToSession` conecta el cliente HTTP con la sesión: manda el token, renueva al vencer (`renew`) y cierra sesión si el servidor rechaza el refresh (`onUnauthorized`).
+- `renew` distingue: `ok`; `rejected` (4xx no reintentable → se pierde la sesión); `network` (sin red o 5xx → **la sesión sigue** y no se pierde la cola local).
+- Si entra un chofer **distinto** al último de este teléfono (`tms.user`), `wipeUserData` borra colas y agenda del anterior (`wipeIfOtherUser`). **Cerrar sesión por sí solo NO borra las colas**: solo la sesión y la agenda en caché; las acciones pendientes se reenvían al volver a entrar.
+- **Cierre de sesión sin red:** `signOut` guarda `{refresh_token, occurred_at}` en una lista (`tms.pending_logout`) **antes** de borrar los tokens y la entrega al servidor (`flushPendingLogout`) al volver la red o al abrir la app, en orden; salir dos veces sin red no deja el primer token sin revocar. Un rechazo del servidor no se reintenta para siempre.
 - Las tareas de fondo (outbox, GPS) hidratan la sesión del almacén seguro si la app arranca sin pantallas (`outbox.flush`).
 - Un 401 en el outbox **no** marca la acción como fallida: se reintenta tras refrescar (`outbox.ts`).
 

@@ -6,9 +6,18 @@ Antes de rastrear, el chofer acepta el consentimiento (`src/app/consentimiento.t
 
 ## Captura en el teléfono
 
-- Tarea de fondo `tms-gps` (`src/gps/task.ts`, `expo-task-manager` + `expo-location`), con `activityType: AutomotiveNavigation`, `pausesUpdatesAutomatically: false` y servicio en primer plano con la notificación «Viaje en curso» (`gps.notificationTitle`). En Expo Go y web corre en modo foreground.
-- Arranca al iniciar el viaje, con el `route_id`; se detiene al cerrar el viaje o al cerrar sesión.
-- Cada punto lleva `accuracy_m`, `speed_mps`, `heading_deg`, `battery_pct` e `is_mock` (ubicación simulada).
+Dos modos (`src/gps/task.ts`):
+
+| Modo | Cuándo | Cómo |
+|---|---|---|
+| **Segundo plano** | Build propio (dev client o app publicada) con permiso de ubicación «siempre» | Tarea `tms-gps` (`expo-task-manager` + `expo-location`) con servicio en primer plano («Viaje en curso», color `#0D9488`), `activityType: AutomotiveNavigation`, `pausesUpdatesAutomatically: false`, indicador de ubicación en segundo plano. Sigue con la pantalla apagada. Se define al cargar el bundle (`_layout.tsx`) porque Android puede despertar la app sin pantallas solo para entregar puntos. |
+| **Foreground** | Expo Go, web, o el chofer dio «solo mientras se usa» | `watchPositionAsync` mientras la app está abierta, con la misma cola, filtros y lotes. |
+
+- Disponibilidad (`gpsAvailability`): `ok` (siempre + segundo plano), `foreground_only`, `no_permission`, `unsupported`. `startTracking` solo arranca la tarea con `ok`; si no, la pantalla cae al modo foreground (`startForegroundTracking`).
+- Precisión pedida: `High` en movimiento, `Balanced` en detenido/batería baja. **Cambiar de modo** = volver a registrar la tarea con otras opciones (el SO no permite cambiarlas en caliente).
+- `setRoute` fija el viaje al que van los puntos; antes de cambiarlo envía lo pendiente del anterior (`flushPositions(true)`).
+- `stopTracking` detiene todo, limpia `route_id` y envía lo que quede en la cola.
+- Cada punto lleva `accuracy_m`, `speed_mps`, `heading_deg`, `battery_pct` e `is_mock` (`location.mocked`); `client_id` es un UUID nuevo por punto (`expo-crypto`).
 
 ## Reglas puras (`src/gps/policy.ts`)
 
@@ -42,11 +51,15 @@ La web pinta «en línea» si el último punto tiene ≤ 300 s. Con lote cada ~1
 
 ## Envío (`src/gps/sync.ts`)
 
-1. Los puntos filtrados van a `position_queue` (SQLite; PK `client_id` UUID).
-2. Se envían en lotes (`shouldSend`: hay pendientes y pasaron 150 s, o ya hay 20).
-3. Reintentos con espera exponencial con jitter: 1 s, 2 s, 4 s… hasta 5 min (`backoffMs`).
-4. Un 400 de lote malformado se **parte a la mitad** hasta aislar el punto malo.
-5. «viaje no activo» / «viaje no encontrado» limpia el `route_id` local.
+1. Los puntos filtrados van a `position_queue` (SQLite; PK `client_id` UUID) y se persiste el último punto aceptado, la hora del último movimiento y el modo (`gps/state.ts`).
+2. Se envían en lotes (`shouldSend`: hay pendientes y pasaron 150 s, o ya hay 20). `flushPositions(true)` fuerza el envío.
+3. El primer envío con sesión manda también el **consentimiento pendiente** (`sendConsentIfPending`).
+4. Reintentos con espera exponencial con jitter: 1 s, 2 s, 4 s… hasta 5 min (`backoffMs`); `attempt`, `next_try_at` y `last_error` (`HTTP <status>` o `network`) se guardan en el estado GPS.
+5. Un **400** de lote malformado se **parte a la mitad** recursivamente hasta aislar el punto malo; solo ese se descarta (queda `last_error`). Otros errores no parten el lote.
+6. Un 2xx saca de la cola todos los puntos del lote (aceptados, duplicados o rechazados para siempre).
+7. Si `rejected` trae «viaje no activo» o «viaje no encontrado» para el `route_id` actual, se limpia `route_id` y se deja de encolar; la tarea se detiene al refrescar la agenda.
+8. Sin sesión la cola se conserva y se envía al volver a entrar.
+9. Cada despertar del GPS aprovecha para vaciar también el **outbox** (`flushOutbox`).
 
 ## Reglas del servidor (`positions.py`, `logic.py`)
 

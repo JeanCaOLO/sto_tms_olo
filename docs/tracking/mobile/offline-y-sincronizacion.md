@@ -29,7 +29,9 @@ Tipos de acción (`kind`): `transition`, `incident`, `return`, `evidence`.
 
 ## Reconexión (`src/sync/connectivity.ts`)
 
-Al volver la red se salta la espera de reintento (`retryOutboxNow` → `resetOutboxBackoff`) y se vacían de inmediato el outbox y la cola GPS.
+`startConnectivity` escucha `expo-network`; `onReconnect` avisa solo en la transición **sin internet → con internet**. Un `undefined` del sistema cuenta como conectado: solo un «no» explícito es sin red. Al reconectar se salta la espera de reintento (`retryOutboxNow` → `resetOutboxBackoff`) y se vacían de inmediato el outbox, la cola GPS y el cierre de sesión pendiente.
+
+A propósito **no** se conecta con `onlineManager` de TanStack Query: con la red caída pausaría las consultas y la agenda guardada en el teléfono (`my-trips.ts`) no llegaría a mostrarse.
 
 ## Presencia
 

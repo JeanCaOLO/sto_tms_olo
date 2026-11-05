@@ -8,6 +8,8 @@
 
 **Fuentes leídas:** `backend/mobile/src/mobile_api/{logic,routes,stops,auth,positions,start,evidence,presence,trips,security,config}.py`, `backend/mobile/sql/m01–m08`, `TRACKING_TMS/frontend/src/{gps/policy,sync/outbox,sync/presence,lib/arrival,config,db/kv}.ts`, `TRACKING_TMS/DEPLOY.md`.
 
-**No verificado leyendo el código** (viene del barrido de exploración): `gps/task.ts`, `gps/sync.ts`, `sync/connectivity.ts`, `auth/session.ts`, `lib/permissions.ts`, columnas exactas de las tablas y el estado de las migraciones `m04`–`m08` en Aurora.
+**Verificado en una segunda pasada** (y docs corregidos): `gps/task.ts`, `gps/sync.ts`, `sync/connectivity.ts`, `auth/session.ts`, `lib/permissions.ts`.
+
+**No verificado** (viene del barrido de exploración): `lib/use-permissions-gate.ts`, `api/http.ts`, columnas exactas de las tablas y el estado de las migraciones `m04`–`m08` en Aurora.
 
 **Hallazgos:** contradicciones entre el contrato v2 / blueprints y el código (cierre automático del viaje, login propio, chofer inicia viaje, cifras de pruebas) → `docs/tracking/mobile/pendientes/01`.
