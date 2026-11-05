@@ -324,9 +324,23 @@ RETURNING id
 INSERT_RETURN_SQL = """
 INSERT INTO tbl_returns (organization_id, dispatch_guide_id, order_id, return_number, return_type, reason,
                      product_code, product_name, quantity, photo_url, notes)
-VALUES (%s, %s, %s, %s, 'devolucion', %s, %s, %s, %s, %s, %s)
+VALUES (%s, %s, %s, %s, 'contracamion', %s, %s, %s, %s, %s, %s)
 ON CONFLICT (organization_id, return_number) DO NOTHING
 RETURNING id
+"""
+
+# Llave S3 de la foto de la devolución, por el `client_id` con que la app la subió (la devolución sale después en el outbox).
+RETURN_PHOTO_SQL = """
+SELECT storage_key FROM tbl_tracking_evidences
+WHERE dispatch_guide_id = %s AND kind = 'photo_return' AND client_id = %s
+"""
+
+# Artículos del pedido de la parada: lo que el chofer elige al registrar una devolución contracamión.
+ORDER_ITEMS_SQL = """
+SELECT i.line_number, i.product_code, i.product_name, i.quantity
+FROM tbl_order_items i
+WHERE i.order_id = %s
+ORDER BY i.line_number
 """
 
 INSERT_EVIDENCE_SQL = """

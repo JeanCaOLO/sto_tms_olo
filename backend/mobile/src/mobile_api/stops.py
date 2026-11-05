@@ -150,19 +150,55 @@ def add_incident(event: dict, driver: Driver) -> dict:
     return ok({"stop_id": guide_id, "duplicate": not created}, 201 if created else 200)
 
 
+def _text(value) -> str:
+    return value.strip() if isinstance(value, str) else ""
+
+
+def return_items(body: dict) -> tuple[list[dict], bool]:
+    """Líneas de la devolución validadas. `items: [{product_code?, product_name, quantity}]` (varios artículos de la
+    parada) o, por compatibilidad, el payload plano de un solo producto. Devuelve (líneas, vino_como_items)."""
+    raw = body.get("items")
+    as_items = raw is not None
+    if not as_items:
+        raw = [{"product_name": body.get("product_name"), "product_code": body.get("product_code"),
+                "quantity": body.get("quantity")}]
+    if not isinstance(raw, list) or not 0 < len(raw) <= logic.MAX_RETURN_ITEMS:
+        raise HttpError(400, f"items debe traer de 1 a {logic.MAX_RETURN_ITEMS} artículos")
+    lines = []
+    for item in raw:
+        item = item if isinstance(item, dict) else {}
+        code = _text(item.get("product_code")) or None
+        name = _text(item.get("product_name"))
+        if not name and not code:
+            raise HttpError(400, "La devolución requiere el producto")
+        quantity = item.get("quantity")
+        if isinstance(quantity, bool) or not isinstance(quantity, int) or not 0 < quantity <= 100000:
+            raise HttpError(400, "quantity debe ser un entero mayor que 0")
+        lines.append({"code": code, "name": name or code, "quantity": quantity})
+    return lines, as_items
+
+
+def list_items(event: dict, driver: Driver) -> dict:
+    """Artículos del pedido de la parada, para elegirlos al registrar una devolución."""
+    guide = guide_access(driver, path_param(event, "id"))
+    if logic.route_state(guide["route_status"]) != "active":
+        raise HttpError(409, "El viaje no está en tránsito.")
+    rows = db.query(sql.ORDER_ITEMS_SQL, [guide["order_id"]]) if guide.get("order_id") else []
+    return ok({"stop_id": str(guide["id"]), "items": [
+        {"line_number": r["line_number"], "product_code": r["product_code"] or None,
+         "product_name": r["product_name"] or r["product_code"], "quantity": int(r["quantity"] or 0)}
+        for r in rows]})
+
+
 def add_return(event: dict, driver: Driver) -> dict:
-    """Devolución del chofer en la parada (alimenta `returns`, que la web del TMS ya lee). Idempotente por client_id."""
+    """Devolución contracamión del chofer en la parada (alimenta `tbl_returns`, que la web de Devoluciones lee): una
+    fila por artículo, con una sola foto (`photo_key` o `photo_client_id`) y motivo para todas. Idempotente por client_id (y número de línea)."""
     guide_id = path_param(event, "id")
     body = body_dict(event)
-    product = (body.get("product_name") or "").strip() if isinstance(body.get("product_name"), str) else ""
-    reason = (body.get("reason") or "").strip() if isinstance(body.get("reason"), str) else ""
-    if not product:
-        raise HttpError(400, "La devolución requiere el producto")
+    reason = _text(body.get("reason"))
     if not reason:
         raise HttpError(400, "La devolución requiere un motivo")
-    quantity = body.get("quantity")
-    if isinstance(quantity, bool) or not isinstance(quantity, int) or not 0 < quantity <= 100000:
-        raise HttpError(400, "quantity debe ser un entero mayor que 0")
+    lines, as_items = return_items(body)
     client_id = body.get("client_id")
     if client_id is not None and not logic.is_uuid(client_id):
         raise HttpError(400, "client_id inválido")
@@ -172,17 +208,31 @@ def add_return(event: dict, driver: Driver) -> dict:
     photo = body.get("photo_key")
     if photo is not None:
         photo = logic.require_evidence_key(guide, photo)
-    code = (body.get("product_code") or "").strip() or None if isinstance(body.get("product_code"), str) else None
-    notes = (body.get("notes") or "").strip() or None if isinstance(body.get("notes"), str) else None
-    number = f"DV-{client_id or uuid.uuid4()}"   # reenviar la misma devolución no la duplica
+    photo_client_id = body.get("photo_client_id")
+    if photo_client_id is not None:
+        # La app sube la foto por el outbox ANTES de la devolución y la liga por su `client_id`: la llave la conoce el servidor.
+        if photo is not None or not logic.is_uuid(photo_client_id):
+            raise HttpError(400, "photo_client_id inválido")
+        found = db.query(sql.RETURN_PHOTO_SQL, [guide_id, photo_client_id.lower()])
+        if not found:
+            raise HttpError(400, "La foto de la devolución aún no se confirmó")
+        photo = found[0]["storage_key"]
+    notes = _text(body.get("notes")) or None
+    base = f"DV-{client_id or uuid.uuid4()}"   # reenviar la misma devolución no la duplica
+    numbers = [f"{base}-{n}" if as_items else base for n in range(1, len(lines) + 1)]
 
     def work(run):
-        created = run(sql.INSERT_RETURN_SQL, [driver.organization_id, guide_id, guide["order_id"], number, reason,
-                                              code, product, quantity, photo, notes])
-        if created:
-            add_event(run, driver, guide["route_id"], guide_id, "return", "warning",
-                      f"Devolución: {quantity} x {product} ({reason})")
-        return {"return_id": str(created[0]["id"]) if created else None, "duplicate": not created}
+        ids, duplicate = [], True
+        for number, line in zip(numbers, lines):
+            created = run(sql.INSERT_RETURN_SQL, [driver.organization_id, guide_id, guide["order_id"], number, reason,
+                                                  line["code"], line["name"], line["quantity"], photo, notes])
+            if created:
+                duplicate = False
+                ids.append(str(created[0]["id"]))
+        if not duplicate:
+            summary = ", ".join(f"{line['quantity']} x {line['name']}" for line in lines)
+            add_event(run, driver, guide["route_id"], guide_id, "return", "warning", f"Devolución: {summary} ({reason})")
+        return {"return_id": ids[0] if ids else None, "return_ids": ids, "duplicate": duplicate}
 
     result = db.run_in_transaction(work)
     return ok(result, 200 if result["duplicate"] else 201)

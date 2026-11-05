@@ -29,6 +29,7 @@ PRIVATE = {
     f"POST {PREFIX}/presencia/heartbeat": presence.heartbeat,
     f"POST {PREFIX}/paradas/{{id}}/transicion": stops.transition_stop,
     f"POST {PREFIX}/paradas/{{id}}/novedades": stops.add_incident,
+    f"GET {PREFIX}/paradas/{{id}}/articulos": stops.list_items,
     f"POST {PREFIX}/paradas/{{id}}/devoluciones": stops.add_return,
     f"POST {PREFIX}/paradas/{{id}}/evidencias/upload-url": evidence.upload_url,
     f"POST {PREFIX}/paradas/{{id}}/evidencias": evidence.confirm,

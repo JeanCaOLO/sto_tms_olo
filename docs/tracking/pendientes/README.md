@@ -4,7 +4,7 @@ Todo lo de esta carpeta está **pendiente por implementar** (o por verificar). C
 
 > **Regla para todas las sesiones de Claude:** al alterar un módulo, lo que quede sin hacer y los planes posibles se anotan en `docs/{módulo}/pendientes/*.md` (un archivo por tema). Ver [`.claude/rules/pendientes-por-modulo.md`](../../../.claude/rules/pendientes-por-modulo.md).
 
-Última actualización: 2026-11-05 (cambios: nombre de parada, tiempos por parada, vista del cliente, mock del cliente y nota de la empresa en la app del chofer).
+Última actualización: 2026-11-05 (cambios: devolución contracamión en la app (09); nombre de parada, tiempos por parada, vista del cliente, mock del cliente y nota de la empresa en la app del chofer).
 
 Ya resueltos y quitados de aquí: modo mock de la vista del cliente y nota de la empresa en la app del chofer.
 
@@ -16,3 +16,4 @@ Ya resueltos y quitados de aquí: modo mock de la vista del cliente y nota de la
 | 04 | [Datos del punto de entrega en los pedidos](./04-datos-punto-entrega-en-pedidos.md) | Pendiente por verificar / implementar |
 | 07 | [Registro en el task tracker](./07-registro-task-tracker.md) | Pendiente (el skill no está en el repo) |
 | 08 | [Mejoras posibles](./08-mejoras-posibles.md) | Ideas / planes posibles |
+| 09 | [App del chofer: verificar la devolución contracamión](./09-app-devolucion-contracamion.md) | Pendiente por verificar |

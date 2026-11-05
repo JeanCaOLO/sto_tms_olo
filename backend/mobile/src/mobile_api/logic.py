@@ -41,7 +41,9 @@ MAX_FUTURE_SKEW = timedelta(days=1)   # un reloj adelantado se acota a "ahora"; 
 PRESENCE_ONLINE_SECONDS = 300         # mismos umbrales que la señal de la web (tracking_logic.py)
 PRESENCE_STALE_SECONDS = 1800
 MAX_EVIDENCE_BYTES = 5 * 1024 * 1024
-EVIDENCE_KINDS = ("photo_invoice", "signature", "photo_product")   # la web no muestra photo_other (se rechaza allá)
+EVIDENCE_KINDS = ("photo_invoice", "signature", "photo_product", "photo_return")   # la web no muestra photo_other (se rechaza allá)
+RETURN_TYPE = "contracamion"   # devolución registrada por el chofer desde la app (la «recolecta» la planifica la web)
+MAX_RETURN_ITEMS = 50
 STOP_TYPES = ("delivery", "collection")
 # Evidencias que exige cada tipo de parada para marcarla "Entregada/Recolectada".
 REQUIRED_EVIDENCE = {"delivery": ("photo_invoice", "signature"), "collection": ("photo_product", "signature")}

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { escapeHtml, formDocumentHtml } from './formDocument';
 import {
   defaultReceiveQuantity, draftFromDetail, groupBySection, isOpen, isReadyToSettle, parseQuantity, reasonsOf, receivedQuantity,
-  statusLabel, statusVariant, toFormPayload, tripProgress,
+  returnTypeLabel, statusLabel, statusVariant, toFormPayload, tripProgress,
 } from './trips';
 import type { FormSection, ReturnLine, ReturnTrip, TripDetail } from './types';
 
@@ -123,5 +123,14 @@ describe('documento imprimible', () => {
     const d = detail();
     const draft = { ...draftFromDetail(d), comments: '<script>alert(1)</script>' };
     expect(formDocumentHtml(d, draft, null)).not.toContain('<script>alert(1)</script>');
+  });
+});
+
+describe('returnTypeLabel', () => {
+  it('nombra el origen de la devolución y conserva lo desconocido', () => {
+    expect(returnTypeLabel('contracamion')).toBe('Contracamión');
+    expect(returnTypeLabel('recolecta')).toBe('Recolecta');
+    expect(returnTypeLabel('rara')).toBe('rara');
+    expect(returnTypeLabel(null)).toBe('-');
   });
 });

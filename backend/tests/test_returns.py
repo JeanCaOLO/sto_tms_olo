@@ -118,6 +118,28 @@ def test_trip_detail_includes_returns_sections_form_and_default_transport(app, c
     assert data["defaults"]["transport"] == "Transportes S.A. - Luis"
 
 
+def test_trip_detail_signs_the_photo_of_each_return(app, db, caller_permissions, monkeypatch):
+    import admin_media
+    key = f"pedidos/PED-1/{'a' * 8}-aaaa-4aaa-8aaa-{'a' * 12}/photo_return-{'b' * 8}-bbbb-4bbb-8bbb-{'b' * 12}.jpg"
+    lines = [{"id": RETURN, "return_type": "contracamion", "photo_url": key}, {"id": "r2", "photo_url": None}]
+    real = db.query
+    monkeypatch.setattr(pg, "query", lambda sql, params=(): lines if "SELECT rt.id, rt.return_number" in sql
+                        else real(sql, params))
+    monkeypatch.setattr(admin_media, "signed_photo_url", lambda k: f"https://s3/signed?k={k}" if k else None)
+    caller_permissions.set(READER)
+    data = body_of(call(app, "GET /api/v1/devoluciones/viajes/{routeId}", path={"routeId": ROUTE}))["data"]
+    assert data["returns"][0]["photo_url"] == f"https://s3/signed?k={key}" and data["returns"][0]["return_type"] == "contracamion"
+    assert data["returns"][1]["photo_url"] is None
+
+
+def test_signed_photo_url_ignores_foreign_keys_and_a_missing_bucket(monkeypatch):
+    import admin_media
+    monkeypatch.delenv("MOBILE_EVIDENCE_BUCKET", raising=False)
+    assert admin_media.signed_photo_url("pedidos/x/y/z.jpg") is None
+    monkeypatch.setenv("MOBILE_EVIDENCE_BUCKET", "bucket")
+    assert admin_media.signed_photo_url("../secreto.jpg") is None and admin_media.signed_photo_url(None) is None
+
+
 def test_receiving_a_return_defaults_to_the_reported_quantity_and_is_audited(app, db, caller_permissions, audit_calls):
     caller_permissions.set(RECEIVER)
     response = call(app, "POST /api/v1/devoluciones/{returnId}/recibir", path={"returnId": RETURN}, body={})

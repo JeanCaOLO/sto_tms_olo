@@ -1,7 +1,7 @@
 // Devoluciones de un viaje agrupadas por parada (cliente / factura), con el botón "Recibido" por línea.
 import Badge from '../../../components/base/Badge';
 import Button from '../../../components/base/Button';
-import { isOpen, receivedQuantity, statusLabel, statusVariant, type SectionGroup } from '../../../lib/devoluciones/trips';
+import { isOpen, receivedQuantity, returnTypeLabel, statusLabel, statusVariant, type SectionGroup } from '../../../lib/devoluciones/trips';
 import type { ReturnLine } from '../../../lib/devoluciones/types';
 
 interface Props {
@@ -25,6 +25,7 @@ export default function ReturnLinesTable({ groups, canReceive, onReceive }: Prop
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
                 <th className="px-4 py-2">Devolución</th>
+                <th className="px-2 py-2">Tipo</th>
                 <th className="px-2 py-2">Producto</th>
                 <th className="px-2 py-2">Motivo</th>
                 <th className="px-2 py-2 text-right">Cant.</th>
@@ -37,9 +38,17 @@ export default function ReturnLinesTable({ groups, canReceive, onReceive }: Prop
               {lines.map((line) => (
                 <tr key={line.id} className="border-t border-slate-100">
                   <td className="px-4 py-2 font-mono text-xs text-slate-600">{line.return_number}</td>
+                  <td className="px-2 py-2">
+                    <Badge size="sm" variant={line.return_type === 'recolecta' ? 'warning' : 'blue'}>{returnTypeLabel(line.return_type)}</Badge>
+                  </td>
                   <td className="px-2 py-2 text-slate-800">
                     {line.product_name ?? '-'}
                     {line.product_code && <span className="ml-1 text-xs text-slate-500">({line.product_code})</span>}
+                    {line.photo_url && (
+                      <a href={line.photo_url} target="_blank" rel="noopener noreferrer" className="ml-2 text-xs text-teal-700 hover:underline">
+                        <i className="ri-image-line" aria-hidden="true" /> Ver foto
+                      </a>
+                    )}
                   </td>
                   <td className="px-2 py-2 text-slate-600">{line.reason}</td>
                   <td className="px-2 py-2 text-right">{line.quantity ?? '-'}</td>

@@ -24,6 +24,11 @@ const STATUS_VARIANTS: Record<ReturnStatus, Variant> = {
 export const statusLabel = (status: string): string => STATUS_LABELS[status as ReturnStatus] ?? status;
 export const statusVariant = (status: string): Variant => STATUS_VARIANTS[status as ReturnStatus] ?? 'default';
 
+const TYPE_LABELS: Record<string, string> = { contracamion: 'Contracamión', recolecta: 'Recolecta', devolucion: 'Devolución' };
+
+/** Origen de la devolución: `contracamion` (la registra el chofer en la app), `recolecta` (la pide Atención al Cliente). */
+export const returnTypeLabel = (type: string | null | undefined): string => TYPE_LABELS[type ?? ''] ?? type ?? '-';
+
 /** Una devolución abierta es la que falta recibir; solo ésas impiden liquidar el viaje (igual que el backend). */
 export const isOpen = (status: string): boolean => status === 'pending' || status === 'approved';
 

@@ -390,6 +390,64 @@ def test_return_is_inserted_with_guide_and_order_and_is_idempotent(call, fake_db
     assert len(fake_db.wrote("INSERT INTO tbl_tracking_events")) == 1
 
 
+def test_return_with_several_items_writes_one_row_each_with_photo_and_type(call, fake_db):
+    route = "POST /api/mobile/v1/paradas/{id}/devoluciones"
+    client_id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    photo = f"{FOLDER}photo_return-{'b' * 36}.jpg"
+    body = {"items": [{"product_code": "A-1", "product_name": "Pintura 4L", "quantity": 2},
+                      {"product_name": "Rodillo", "quantity": 1}],
+            "reason": "Empaque dañado", "client_id": client_id, "photo_key": photo, "notes": "golpeado"}
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row()])
+    fake_db.answer("INSERT INTO tbl_returns", lambda params: [{"id": f"id-{params[3]}"}])
+    res = call(route, path={"id": GUIDE}, body=body)
+    assert res["statusCode"] == 201 and len(body_of(res)["data"]["return_ids"]) == 2
+    rows = fake_db.wrote("INSERT INTO tbl_returns")
+    assert "'contracamion'" in rows[0][0]
+    assert [r[1][3] for r in rows] == [f"DV-{client_id}-1", f"DV-{client_id}-2"]
+    assert rows[0][1][5:8] == ["A-1", "Pintura 4L", 2] and rows[1][1][5] is None
+    assert all(r[1][8] == photo and r[1][9] == "golpeado" for r in rows)
+    assert len(fake_db.wrote("INSERT INTO tbl_tracking_events")) == 1
+
+
+def test_return_photo_is_resolved_from_the_evidence_client_id(call, fake_db):
+    route = "POST /api/mobile/v1/paradas/{id}/devoluciones"
+    photo_id = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+    key = f"{FOLDER}photo_return-{photo_id}.jpg"
+    body = {"items": [{"product_name": "Pintura", "quantity": 1}], "reason": "x", "photo_client_id": photo_id}
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row()])
+    assert call(route, path={"id": GUIDE}, body=body)["statusCode"] == 400   # la foto no está confirmada
+    assert not fake_db.wrote("INSERT INTO tbl_returns")
+    fake_db.answer("FROM tbl_tracking_evidences", [{"storage_key": key}])
+    fake_db.answer("INSERT INTO tbl_returns", [{"id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"}])
+    assert call(route, path={"id": GUIDE}, body=body)["statusCode"] == 201
+    assert fake_db.wrote("INSERT INTO tbl_returns")[0][1][8] == key
+    assert call(route, path={"id": GUIDE}, body={**body, "photo_client_id": "no-uuid"})["statusCode"] == 400
+
+
+def test_return_items_are_validated(call, fake_db):
+    route = "POST /api/mobile/v1/paradas/{id}/devoluciones"
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row()])
+    for items in [[], "x", [{"quantity": 1}], [{"product_name": "a", "quantity": 0}], [{"product_name": "a"}]]:
+        assert call(route, path={"id": GUIDE}, body={"items": items, "reason": "x"})["statusCode"] == 400, items
+    assert not fake_db.wrote("INSERT INTO tbl_returns")
+
+
+def test_stop_items_lists_order_lines_only_while_active(call, fake_db):
+    route = "GET /api/mobile/v1/paradas/{id}/articulos"
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row()])
+    fake_db.answer("FROM tbl_order_items", [
+        {"line_number": 1, "product_code": "A-1", "product_name": "Pintura 4L", "quantity": 3},
+        {"line_number": 2, "product_code": "B-2", "product_name": None, "quantity": 1}])
+    res = call(route, path={"id": GUIDE})
+    assert res["statusCode"] == 200
+    items = body_of(res)["data"]["items"]
+    assert items[0] == {"line_number": 1, "product_code": "A-1", "product_name": "Pintura 4L", "quantity": 3}
+    assert items[1]["product_name"] == "B-2"
+    assert fake_db.wrote("SELECT i.line_number")[0][1] == [ORDER]
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row(route_status="Completada")])
+    assert call(route, path={"id": GUIDE})["statusCode"] == 409
+
+
 # --- consentimiento --------------------------------------------------------------------------------------------------
 
 def test_consent_is_idempotent_per_version(call, fake_db):
