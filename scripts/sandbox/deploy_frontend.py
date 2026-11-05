@@ -54,10 +54,19 @@ def ws_url() -> str:
     return "" if value == "None" else value
 
 
+def google_client_id() -> str:
+    """ID del cliente OAuth del login con Google: el mismo parámetro SSM que usa el stack de auth
+    (vacío si no existe: el botón de Google no se muestra)."""
+    result = aws("ssm", "get-parameter", "--name", "/dev/tms/google-client-id", "--query", "Parameter.Value",
+                 "--output", "text", check=False)
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
 def build(api_base: str) -> None:
-    ws = ws_url()
-    step(f"Build (VITE_API_BASE={api_base}, VITE_WS_URL={ws or '(sin WebSocket)'})")
-    env = {**os.environ, "VITE_API_BASE": api_base, "VITE_MOCK_AUTH": "false", "VITE_WS_URL": ws}
+    ws, google = ws_url(), google_client_id()
+    step(f"Build (VITE_API_BASE={api_base}, VITE_WS_URL={ws or '(sin WebSocket)'}, login Google {'sí' if google else 'no'})")
+    env = {**os.environ, "VITE_API_BASE": api_base, "VITE_MOCK_AUTH": "false", "VITE_WS_URL": ws,
+           "VITE_GOOGLE_CLIENT_ID": google}
     subprocess.run("npm run build", cwd=ROOT, env=env, shell=True, check=True)
 
 
