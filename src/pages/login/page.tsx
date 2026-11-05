@@ -1,6 +1,7 @@
 import { useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import GoogleLoginButton from './components/GoogleLoginButton';
 
 export default function Login() {
   const { signIn } = useAuth();
@@ -173,7 +174,6 @@ export default function Login() {
               </div>
             </div>
 
-            {/* Error */}
             {error && (
               <div className="flex items-start gap-3 p-3 bg-red-50 border border-red-200 rounded-lg">
                 <div className="w-4 h-4 flex items-center justify-center mt-0.5 shrink-0">
@@ -183,7 +183,6 @@ export default function Login() {
               </div>
             )}
 
-            {/* Botón */}
             <button
               type="submit"
               disabled={loading}
@@ -202,6 +201,7 @@ export default function Login() {
               )}
             </button>
           </form>
+          <GoogleLoginButton onError={setError} />
         </div>
       </div>
     </div>
