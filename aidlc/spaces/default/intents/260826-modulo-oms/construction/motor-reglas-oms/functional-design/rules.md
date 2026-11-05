@@ -115,6 +115,20 @@ rules:
       1b del barrido (app._sincronizar_prioridades, handoff_pedidos.sincronizar_prioridad,
       SQL SIM_PRIORIDAD_SQL); el resumen del barrido suma 'sincronizados'.
     traces_to: [FR8, US9, US9b]
+  - id: BR6.4
+    name: Número que se manda a eFlow al LIBERAR depende de la compañía
+    statement: >
+      v4.3 (2026-11-04): al LIBERAR un pedido (por ventana o acción manual), el
+      número de PRIORIDAD que se escribe a eFlow depende del scope. Cofersa
+      (priorizada, config.priorizar=true) pasa a 0 ("ya se va") y ese 0 es el número
+      que va a eFlow (CHECK priority>=0, sql/57). EPA (pass-through,
+      priorizar=false) NO se pone en 0: conserva su prioridad de origen (1 o 2) y ese
+      mismo número se devuelve a eFlow; EPA nunca pasa por 0. As-built app._liberar:
+      prioridad_liberacion = PRIORIDAD_LIBERADO (0) solo si config.priorizar, None en
+      caso contrario (None => no se toca orders.priority, conserva la de EPA).
+      Criterio de LIBERACIÓN, complementa BR4.1 (EPA sin recálculo) y BR3.2 (0 =
+      liberado, convención de Cofersa).
+    traces_to: [FR3, FR4, FR6b, US9b, US9c, US14, US-EPA]
 ```
 
 ## Sources

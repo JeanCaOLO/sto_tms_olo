@@ -185,7 +185,7 @@ El OMS **no** modifica el WMH ni lee las tablas intermedias.
 
 | Rol | Responsabilidad en el OMS |
 |---|---|
-| **Administrador de Módulo** | Configura el **catálogo de reglas** (activar/desactivar, peso/score, parámetros) por scope; superusuario del módulo (no del TMS completo). |
+| **Administrador de Módulo** | **Consulta el catálogo de reglas (solo lectura)** por scope; superusuario del módulo (no del TMS completo). El set de reglas es fijo en código (v4.4, 2026-11-05): ya **no** activa/desactiva reglas ni edita peso/score desde la UI. |
 | **Jefe de Almacén** | Visibilidad y reportería del módulo; acceso a la planificación. **No bloquea ni aprueba** el flujo. |
 | **Responsable del OMS** | Monitorea el motor automatizado; ejerce la **liberación manual** de un pedido (única intervención humana: prioridad `0` + `GENE` + eFlow, v4.3) y decide aplicar simulaciones. |
 
@@ -256,8 +256,10 @@ El OMS **no** modifica el WMH ni lee las tablas intermedias.
 - **observaciones**: texto libre del vendedor (dirección, urgencia, cita…). Su
   interpretación por IA (Bedrock) queda **a futuro** (D11); ya no es la fuente de
   "cliente retira".
-- **Motor de Reglas**: catálogo de reglas implementadas (lógica en código); la
-  UI solo permite activar/desactivar, ajustar peso y parámetros.
+- **Motor de Reglas**: catálogo **informativo de solo lectura** de las reglas
+  implementadas (lógica en código). El set de reglas es **fijo en código**; la UI
+  **no** permite activar/desactivar, editar peso/score ni parámetros (v4.4,
+  2026-11-05 — SUPERSEDE del catálogo semi-configurable).
 - **Simulación**: entidad persistida (bitácora) que aplica un subconjunto de
   reglas activas a un conjunto de pedidos; estados `simulada` / `aplicada`.
 - **scope**: ámbito jerárquico **país → almacén → cliente** con el que se aíslan
@@ -273,6 +275,8 @@ El OMS **no** modifica el WMH ni lee las tablas intermedias.
 ## Requerimientos funcionales
 
 ### FR0 — Activación del OMS por Planificación (lambda de activación)
+
+> **Estado:** Implementado
 
 Como **Planificación**, quiero activar al OMS pasándole el lote a priorizar, para
 que el OMS priorice **después** de que yo asigné los viajes.
@@ -312,15 +316,28 @@ que el OMS priorice **después** de que yo asigné los viajes.
 > `orders.lead_time_days`, `plan_trips.lead_time_days`) van en el PR de tablas del
 > dueño de Planificación.
 
-### FR1 — Lectura de la cola de priorización desde `public.orders`
+### FR1 — Lectura de la cola (pedidos planificados y no liberados) desde `public.orders`
+
+> **Estado:** Implementado
 
 Como sistema, el OMS obtiene de **`public.orders`** los pedidos del lote que
-Planificación ya procesó (ya con viaje) para priorizarlos. **(Cambio D7: el OMS ya
-no lee de EFLOW `EXPEDICIONESCABECERA`; lee de `orders`.)**
+Planificación ya procesó (ya con viaje) y que **aún no se han liberado**, para
+**procesarlos** (priorizar los de Cofersa; liberar por fecha los de EPA, que ya
+traen su prioridad). **(Cambio D7: el OMS ya no lee de EFLOW
+`EXPEDICIONESCABECERA`; lee de `orders`.)**
+
+> **Precisión v4.3 (2026-11-04)**: la cola es de **pedidos planificados y no
+> liberados**, no solo de "pedidos a priorizar". Incluye tanto los de **Cofersa**
+> (por priorizar) como los de **EPA** ya con su prioridad de origen (que el OMS no
+> prioriza pero **sí libera por fecha**). El filtro técnico ya los incluía
+> (`planning_run_id`/`wms_trip_number IS NOT NULL AND oms_processed_at IS NULL`); la
+> corrección es **redaccional**.
 
 - **FR1.1** La cola se resuelve sobre **`public.orders`** por **pull por columna**
-  (FR0.2): **`wms_trip_number IS NOT NULL AND oms_processed_at IS NULL`** — pedidos
-  que Planificación dejó con viaje y aún no procesados por el OMS. **Ya no** se lee
+  (FR0.2): **`wms_trip_number IS NOT NULL AND oms_processed_at IS NULL`** —
+  **pedidos planificados (con viaje) y aún no liberados** (`oms_processed_at IS
+  NULL`), de **cualquier compañía**: Cofersa (se priorizan) y EPA (ya traen
+  prioridad, se liberan por fecha). **Ya no** se lee
   de `EXPEDICIONESCABECERA` ni se filtra por el anti-join con
   `ALMACENMOVIMIENTOS_CARCAM` (eso era el modelo pre-inversión). La misma consulta
   sirve para la señal de la lambda y para el barrido periódico (red de seguridad).
@@ -342,6 +359,8 @@ no lee de EFLOW `EXPEDICIONESCABECERA`; lee de `orders`.)**
   es parte del lote que el OMS prioriza (lo activa Planificación, no el OMS).
 
 ### FR2 — Cálculo de prioridad por fecha (Regla 1 — T − duración logística)
+
+> **Estado:** Implementado
 
 Como sistema, el OMS decide automáticamente cuándo preparar cada pedido según su
 fecha de entrega, para alistar en el momento correcto. **Regla de la primera
@@ -379,6 +398,8 @@ entrega. Aplica a Cofersa/mayoreo; NO aplica a EPA (ver FR6b).**
 
 ### FR3 — Modelo de prioridad numérica y score
 
+> **Estado:** Implementado
+
 - **FR3.1** La prioridad es **numérica e invertida**: menor número = mayor
   urgencia. Debe hacer *match* con el esquema del WMS. **No** hay niveles nombrados
   (crítico/alto/medio/bajo, `priority_tier`). Cómo se numera lo decide la
@@ -414,7 +435,10 @@ entrega. Aplica a Cofersa/mayoreo; NO aplica a EPA (ver FR6b).**
   mientras el pedido está en la cola su número es **≥ piso de cola** (default 1).
   La cola nunca muestra 0 y la **liberación ya escribe 0** al WMS para Cofersa
   (**implementado**, 2026-11-04): el `CHECK` de la tabla permite `priority >= 0`
-  (`sql/57`). **Precisión (2026-10-30)**: "0 = liberado" es convención de la
+  (`sql/57`). **Al liberar un pedido de Cofersa, `0` es el número que se manda a
+  eFlow** (es la prioridad de la liberación, FR4.1/FR8.2). **EPA no usa 0 en ningún
+  momento** (conserva su prioridad de origen al liberar, FR6b.5). **Precisión
+  (2026-10-30)**: "0 = liberado" es convención de la
   estrategia `dias_hasta_salida` de Cofersa (piso de cola 1), no un invariante
   global de `orders.priority`. EPA usa 1 y 2 (nunca 0), así que no hay roce
   (FR6b.4).
@@ -450,6 +474,12 @@ entrega. Aplica a Cofersa/mayoreo; NO aplica a EPA (ver FR6b).**
 
 ### FR4 — Liberación manual de un pedido
 
+> **Estado:** Implementado (con nota)
+>
+> *(La liberación **por viaje** `POST /api/v1/oms/viajes/{numero_viaje}/procesar`
+> ya existe (implementada); la liberación manual **por pedido** es diseño aún no
+> implementado — FR4.5.)*
+
 Como **Responsable del OMS** (rol autorizado), quiero **liberar** un pedido de la
 cola (adelantar su alistamiento) para casos extraordinarios (camión accidentado,
 urgencia), sin alterar la prioridad a un número arbitrario.
@@ -460,10 +490,18 @@ urgencia), sin alterar la prioridad a un número arbitrario.
 > **liberar el pedido**. **Supera** el DECIDED *"la única intervención humana es que
 > el Responsable altere la prioridad de un pedido puntual"* (Adenda 2026-08-26).
 
-- **FR4.1** Un rol autorizado puede **liberar** un pedido de la cola: prioridad `0`
-  (Cofersa / compañía priorizada) o su prioridad de origen (EPA, pass-through),
-  situación `GENE` y envío a eFlow. Admite un **motivo opcional** y queda registrado
-  en la Auditoría como acción **manual**.
+- **FR4.1** Un rol autorizado puede **liberar** un pedido de la cola: situación
+  `GENE` y envío a eFlow. El **número de prioridad que se manda a eFlow al liberar
+  depende de la compañía** (verificado contra `app._liberar`:
+  `prioridad_liberacion = 0` solo si `config.priorizar`, `None` en caso contrario):
+  - **Cofersa (priorizada)**: la prioridad pasa a **`0`** ("ya se va") y **ese `0`
+    es el número que se envía a eFlow** (`CHECK priority >= 0`, `sql/57`).
+  - **EPA (pass-through)**: **no** se pone en `0`; **conserva su prioridad original
+    de eFlow (1 o 2)** y **ese mismo número original es el que se devuelve a eFlow**.
+    EPA **nunca** pasa por `0` (FR6b.5).
+
+  Admite un **motivo opcional** y queda registrado en la Auditoría como acción
+  **manual**.
 - **FR4.2** La liberación manual es la **única** intervención humana sobre el flujo;
   no hay aprobación de lote.
 - **FR4.3** Un usuario sin permiso no puede liberar el pedido (acción denegada,
@@ -480,30 +518,48 @@ urgencia), sin alterar la prioridad a un número arbitrario.
   la misma pasada de liberación (costura `EscritorSituacion`) ignorando la ventana
   temporal.
 
-### FR5 — Motor de Reglas (catálogo semi-configurable)
+### FR5 — Motor de Reglas (catálogo informativo, solo lectura)
 
-Como **Administrador de Módulo**, quiero un catálogo de las reglas implementadas
-que pueda activar/desactivar y parametrizar, para el rollout por etapas — **sin
-crear reglas nuevas desde la UI** (su lógica vive en código).
+> **Estado:** Implementado (con nota) *(las reglas corren en código; la vista Motor
+> de Reglas es un catálogo de solo lectura y la configurabilidad quedó descartada)*
 
-- **FR5.1** El Motor de Reglas es un **catálogo** de las reglas implementadas;
-  por cada regla se muestra nombre, descripción, estado (toggle
-  activar/desactivar), peso/score (editable) y parámetros editables. **No** es un
-  constructor dinámico de reglas.
-- **FR5.2** Parámetros editables por regla, según la regla: días de T-1, horas
-  de corte, umbral de inyección, patrón/prioridad/ventana de cliente retira. Por
-  scope, además, la **estrategia de prioridad** y sus parámetros (`estrategia`,
-  `ancla_fecha`, `prioridad_piso`, FR3.9); hoy se fijan por config/migración
-  (`sql/55`), su edición desde la UI es posterior.
-- **FR5.3** El catálogo y sus reglas se resuelven **por scope**
-  (CUSTOMER → WAREHOUSE → COUNTRY → GLOBAL): un selector de scope (país/almacén/
-  cliente) cambia qué reglas y parámetros aplican. La especificidad por compañía
+Como **Administrador de Módulo** (o cualquier rol con acceso), quiero **ver** el
+catálogo de las reglas implementadas (solo lectura), para conocer qué reglas
+aplican y con qué scope — **sin** poder activarlas/desactivarlas ni editar sus
+pesos o parámetros desde la UI (el set de reglas es fijo en código).
+
+> **v4.4 (2026-11-05): SUPERSEDE del DECIDED 2026-09-10 (catálogo
+> semi-configurable); el set es fijo, la vista es solo lectura.** El conjunto de
+> reglas es **fijo en código**; el catálogo configurable queda **DESCARTADO** (no
+> diferido, no propuesta). La vista Motor de Reglas se conserva solo como catálogo
+> **informativo de solo lectura**.
+
+- **FR5.1** El Motor de Reglas es un **catálogo de solo lectura** de las reglas
+  implementadas; por cada regla se muestra nombre, descripción, estado
+  **informativo** y scope. **No** hay toggle activar/desactivar, **no** se edita
+  peso/score y **no** se editan parámetros desde la UI. **No** es un constructor
+  dinámico de reglas.
+- **FR5.2 — DESCARTADO** (parámetros editables por regla). El set de reglas es
+  **fijo en código**; la UI no edita parámetros. La **estrategia de prioridad** y
+  sus parámetros por scope (`estrategia`, `ancla_fecha`, `prioridad_piso`, FR3.9)
+  se fijan por **config/migración** (`sql/55`), **no** por edición de reglas desde
+  la UI.
+- **FR5.3** El catálogo se resuelve **por scope** (CUSTOMER → WAREHOUSE → COUNTRY
+  → GLOBAL): un selector de scope (país/almacén/cliente) cambia qué reglas y
+  parámetros se **muestran/aplican** (no se editan). La especificidad por compañía
   se logra con una regla de scope=CUSTOMER (Cofersa/EPA son clientes), no con una
   Lambda por compañía (C3-SUPERSEDE).
 - **FR5.4** La lógica de cada regla y, cuando aplica, su **prompt de IA**, viven
   en el código (Lambda Python); **no** son editables desde la UI.
 
 ### FR6 — Las macro-reglas
+
+> **Estado:** Implementado
+>
+> *(De las 5 macro-reglas, las de 1ª entrega están implementadas: Regla 1 (fecha,
+> FR6.1) y cliente-retira por zona (FR6.2). Observaciones IA (FR6.3) = Futuro
+> (D11); viaje/bajada (FR6.4) = Fuera de alcance (Planificación); inventario /
+> backorder (FR6.5/FR6c) = Propuesta (D13).)*
 
 - **FR6.1 (Regla 1 — cálculo de fecha, T − duración)**: ver FR2. **Primera
   entrega.** Aplica a Cofersa/mayoreo; **no a EPA** (FR6b).
@@ -526,6 +582,8 @@ crear reglas nuevas desde la UI** (su lógica vive en código).
 
 ### FR6b — EPA: prioridad pre-asignada por EPRAC (sin cálculo)
 
+> **Estado:** Implementado
+
 Como sistema, para los pedidos de **EPA** el OMS **no calcula** la prioridad:
 viene **pre-asignada** y el OMS solo libera. **Primera entrega.**
 
@@ -544,8 +602,28 @@ viene **pre-asignada** y el OMS solo libera. **Primera entrega.**
   superó para Cofersa. "0 = liberado" es convención de la estrategia
   `dias_hasta_salida` de Cofersa (piso de cola 1), no un invariante global de
   `orders.priority`. EPA usa 1 y 2 (nunca 0), así que no hay roce.
+- **FR6b.5 (v4.3 — EPA conserva su número al LIBERAR)** Cuando el OMS **libera** un
+  pedido de EPA (por fecha o por acción manual), **no** lo pone en `0`: **conserva
+  su prioridad original** (**1 o 2**) y **ese mismo número es el que se devuelve a
+  eFlow**. EPA **nunca** pasa por `0` en ningún momento. Es criterio de la
+  **liberación**, no solo del cálculo (verificado contra `app._liberar`:
+  `prioridad_liberacion = None` cuando `priorizar=false` → no se toca
+  `orders.priority`). Contrasta con Cofersa, que al liberar sí escribe `0` (FR4.1,
+  FR3.7).
+- **FR6b.6 (v4.3 — EPA pass-through end-to-end)** EPA es **igual que las demás
+  compañías en todo** salvo que el OMS **no la prioriza**: conserva su prioridad de
+  eFlow **de punta a punta**. En concreto:
+  - **(a) Ingesta — no se anula.** La prioridad de EPA **no se anula en la ingesta**:
+    aunque venga `0` de eFlow, se respeta (el OMS no recalcula ni sobrescribe).
+  - **(b) Ventana de liberación — entra como cualquiera.** EPA **entra a la ventana
+    de liberación por fecha igual que Cofersa** (misma regla de ventana de
+    ADR-013); lo único que no hace el OMS es **calcularle** la prioridad.
+  - **(c) Liberación — conserva su número.** Al liberar conserva su número original
+    (FR6b.5); no pasa por `0`.
 
 ### FR6c — Backorder / inventario (nueva responsabilidad del OMS, D13)
+
+> **Estado:** Propuesta *(futuro, D13; bloqueado por OQ-BO1/OQ-BO2/OQ-BO3)*
 
 Como sistema, el OMS re-genera automáticamente las líneas que quedaron en falta
 por inventario cuando entra stock, para no depender de que alguien lo haga a mano.
@@ -572,6 +650,8 @@ inventar):*
 
 ### FR7 — Análisis de observaciones con IA (Amazon Bedrock) — **FUTURO (D11)**
 
+> **Estado:** Propuesta *(futuro, D11)*
+
 > **Desprioritizado (D11, 2026-10-16).** Negocio decidió modelar "cliente retira"
 > como una **zona** (FR6.2), no interpretando el texto libre de observaciones. El
 > análisis de observaciones con IA/Bedrock **no entra en esta entrega**; se
@@ -588,6 +668,8 @@ inventar):*
 - **FR7.5 (futuro)** Degradaría sin bloquear ante fallo/timeout.
 
 ### FR8 — Escritura del pedido priorizado (dos escrituras, flujo invertido D7/D8)
+
+> **Estado:** Implementado
 
 Como sistema, el OMS deja el pedido "alistado" con **dos escrituras** (D7/D8).
 
@@ -631,6 +713,13 @@ Como sistema, el OMS deja el pedido "alistado" con **dos escrituras** (D7/D8).
 
 ### FR9 — Simulador (configurador de simulaciones)
 
+> **Estado:** Fuera de alcance
+
+> **Nota (v4.4, 2026-11-05)**: Fuera de alcance; además, pendiente **quitar la
+> vista Simulador del frontend** (sin reglas configurables no tiene sentido, al
+> descartarse el catálogo configurable de FR5). Pendiente de front — no se
+> implementa aquí.
+
 Como **Developer**, quiero configurar, previsualizar y aplicar simulaciones de
 priorización, manual o automáticamente.
 
@@ -663,8 +752,14 @@ priorización, manual o automáticamente.
 
 ### FR10 — Cola de Priorización (pantalla operativa)
 
-- **FR10.1** La Cola entra por defecto filtrada en `situación = DISP` (+
-  `fecha_de_cierre IS NULL`); el usuario puede cambiar a otras situaciones.
+> **Estado:** Implementado *(la cola operativa existe; partes de UX avanzada
+> —selector de scope, columnas configurables— son `[siguiente]`)*
+
+- **FR10.1** La Cola lista los **pedidos planificados y no liberados** (no solo
+  los "priorizados"): entra por defecto filtrada en `situación = DISP` (+
+  `fecha_de_cierre IS NULL`) e **incluye los EPA planificados aún no liberados**
+  —aunque el OMS no les calcule prioridad, los libera por fecha, y se muestran con
+  su prioridad de origen (1 o 2). El usuario puede cambiar a otras situaciones.
 - **FR10.2** Se **mantiene el filtro de almacén** y se ofrece un **selector de
   scope país/almacén/cliente** dentro de la vista (no por perfil). Un mismo
   perfil ve los scopes que su RBAC permite (Cofersa/EPA como clientes).
@@ -679,6 +774,10 @@ priorización, manual o automáticamente.
 
 ### FR11 — Panel OMS y Auditoría
 
+> **Estado:** Implementado (con nota) *(existe trabajo de panel —p. ej. dashboard de fecha,
+> `sql/56`— y la bitácora de auditoría por trigger; el Panel/Auditoría completos
+> del OMS aún no están construidos como pantallas)*
+
 - **FR11.1** El Panel muestra la salud del motor e indicadores operativos.
 - **FR11.2** El indicador **% de override manual** usa una **ventana temporal
   configurable** (24 h / 12 h / semana), no fija. Los datos de métricas se
@@ -690,6 +789,8 @@ priorización, manual o automáticamente.
 
 ### FR12 — (RETIRADO por D5 — ver "Fuera de alcance")
 
+> **Estado:** Descartado
+
 > **FR12 (Calendario de rutas y días de despacho) queda RETIRADO** de los
 > requerimientos activos del OMS. Con el ruteo dinámico multi-fuente ("la ruta
 > manda", D5 + mandato de Jean Carlo), las rutas dejan de ser fijas, así que no
@@ -698,6 +799,8 @@ priorización, manual o automáticamente.
 > completo y su épica (E8/US28–US29) se retiran. Ver "Fuera de alcance".
 
 ### FR13 — Multi-país y multi-compañía (por scope)
+
+> **Estado:** Implementado
 
 - **FR13.1** Las reglas específicas se resuelven **por scope**
   (CUSTOMER → WAREHOUSE → COUNTRY → GLOBAL) en **Lambdas compartidas por
@@ -716,6 +819,8 @@ priorización, manual o automáticamente.
   resuelve con un **maestro**, no consultando EFLOW en cada lectura.
 
 ### FR14 — Seguridad y control de acceso
+
+> **Estado:** Implementado
 
 - **FR14.1** El OMS diferencia niveles de acceso por la **matriz de permisos
   módulo × acción** (`view/create/edit/delete/export`) más el **scope** del
@@ -847,6 +952,17 @@ priorización, manual o automáticamente.
   dias_prep_picking`).
 - **OQ-EPA-VAL — CERRADA 2026-10-30: EPA = 1 y 2 (confirmado por Eduardo; fuente
   2026-09-01)**. Afina FR6b.
+- **OQ-VENCIDOS (ABIERTA, v4.3 — pendiente de negocio)** — Pedidos "vencidos" fuera
+  de la ventana de planificación. **Hecho**: Planificación solo planifica la ventana
+  **(hoy, hoy+3]** (excluye hoy y el pasado), así que los pedidos con **entrega hoy
+  o pasada nunca se planifican** (`planning_run_id` queda `NULL`) y quedan **clavados
+  en `DISP`**, fuera de la cola del OMS (la cola exige `planning_run_id`/
+  `wms_trip_number IS NOT NULL`, FR1.1). **Pregunta a negocio** (Antonio): ¿qué regla
+  aplica a esos pedidos? ¿**se liberan igual**? ¿**se alertan**? ¿**se auditan**? No
+  inventar la solución: no se crea FR ni historia cerrada — es pendiente de negocio.
+  *Nota de dependencia*: en el sandbox la **ingesta de eFlow no es automática** (la
+  Lambda no alcanza eFlow; depende de la **réplica pendiente**, OQ-2), lo que acota
+  cómo se observará este caso; es nota de contexto, no un requerimiento.
 
 ## Sources
 
@@ -876,7 +992,7 @@ priorización, manual o automáticamente.
 ## Assumptions & Open Questions
 
 Ver **Supuestos** (A1–A5) y **Open Questions** (OQ-1 a OQ-8, OQ-PRIO-A/B/C,
-OQ-EPA-VAL — CERRADA 2026-10-30: EPA = 1 y 2). El supersede del DECIDED del 2026-09-02 ("EPA y Cofersa usan 2
+OQ-VENCIDOS — ABIERTA, OQ-EPA-VAL — CERRADA 2026-10-30: EPA = 1 y 2). El supersede del DECIDED del 2026-09-02 ("EPA y Cofersa usan 2
 prioridades") solo para Cofersa (EPA mantiene 1 y 2) se registra por el ritual de learnings, no editando
 `project.md` a mano. Lo abierto depende
 de datos/arquitectura/cliente (BD, réplica, fecha de Cofersa, tabla de

@@ -61,7 +61,7 @@
 | **E2b — EPA (prioridad pre-asignada)** | **US-EPA** | **FR6b** |
 | E3 — Análisis de observaciones con IA | US12–US13 | FR6.3, FR7 **(futuro, D11)** |
 | E4 — Liberación manual | US14–US15b | FR4 |
-| E5 — Motor de Reglas (catálogo) | US16–US18 | FR5, FR6 |
+| E5 — Motor de Reglas (catálogo informativo, solo lectura) | US16 (solo lectura); ~~US17, US18~~ **DESCARTADAS (v4.4)** | FR5, FR6 |
 | E6 — Simulador (configurador) | US19–US24 | FR9 |
 | E7 — Panel y Auditoría | US25–US27 | FR11 |
 | E8 — Calendario de rutas | ~~US28–US29~~ **RETIRADA (D5)** | ~~FR12~~ |
@@ -74,7 +74,8 @@
 
 ### US0 — Activar el OMS tras asignar el viaje `[1ª entrega]` (FR0)
 Como **Planificación**, quiero avisar al OMS cuando dejo un lote con viaje, para
-que el OMS priorice **después** de que asigné los viajes.
+que el OMS **procese** el lote **después** de que asigné los viajes (**prioriza**
+los de Cofersa y **libera por fecha** los de EPA, que ya traen su prioridad).
 - Given un lote con viaje asignado y `oms_processed_at IS NULL`, When **aviso al
   OMS** por la **lambda/evento asíncrono** (señal; puede llevar IDs +
   `planning_run_id` para correlación), Then el OMS **resuelve de `public.orders`**
@@ -95,15 +96,20 @@ que el OMS priorice **después** de que asigné los viajes.
 
 ## E1 — Cola de Priorización
 
-### US1 — Ver la cola de pedidos a priorizar `[1ª entrega]` (FR1, FR10)
-Como **Responsable del OMS**, quiero ver los pedidos candidatos a priorizar,
-para gestionar el alistamiento del día.
+### US1 — Ver la cola de pedidos planificados y no liberados `[1ª entrega]` (FR1, FR10)
+Como **Responsable del OMS**, quiero ver los pedidos **planificados y no
+liberados** (Cofersa por priorizar + EPA ya con su prioridad), para gestionar el
+alistamiento del día.
 - Given pedidos en **`public.orders`** con **`planning_run_id IS NOT NULL AND
   oms_processed_at IS NULL`** (lote que Planificación dejó con viaje, aún no
   liberado por el OMS), When abro la Cola / corre el motor, Then veo/proceso esos
   pedidos. **(D7: el OMS ya no lee de `EXPEDICIONESCABECERA` ni usa el anti-join;
   pull por columna, contrato resuelto 2026-10-16. ADR-013: la priorización deja
   `wms_situation = DISP`; `oms_processed_at` marca "liberado", no "priorizado".)**
+- Given un pedido **EPA** planificado (`planning_run_id` presente,
+  `oms_processed_at IS NULL`), When abro la Cola, Then **aparece aunque el OMS no le
+  calcule prioridad** (se muestra su **prioridad de origen**, 1 o 2): la cola es de
+  "planificados y no liberados", no solo de "priorizados" (v4.3).
 - Given un pedido sin viaje asignado, When Planificación aún no lo procesó, Then
   **no** aparece en la cola del OMS (lo activa Planificación, no el OMS).
 - Given la Cola recién abierta, When carga, Then el filtro de situación entra
@@ -236,6 +242,12 @@ y todos los pedidos del viaje se liberen **juntos**.
   **`TPEXSI = 'GENE'` + `PRIORIDAD`** por la costura `EscritorSituacion` (hoy →
   `sim_expedicionescabecera`; `TPEXES` permanece `DISP`) y **estampa
   `oms_processed_at = now()`** (los saca de la cola).
+- **Número liberado por compañía (v4.3)**: Given un pedido de **Cofersa**
+  (priorizada), When se libera, Then su prioridad pasa a **`0`** y **ese `0` es el
+  número que va a eFlow**. Given un pedido de **EPA** (pass-through), When se libera,
+  Then **conserva su prioridad original (1 o 2)** y **ese mismo número va a eFlow**;
+  **EPA nunca pasa por 0**. (Verificado contra `app._liberar`: `prioridad_liberacion
+  = 0` solo si `config.priorizar`, `None` → conserva `orders.priority`.)
 - Given que `dispatch_date` es **igual para todos los pedidos de un `numero_viaje`**,
   When un viaje cruza la ventana, Then **todos sus pedidos se liberan juntos** sin
   navegar `plan_trips`/`routes` (se lee **solo `orders`**).
@@ -350,6 +362,17 @@ pre-asignada **EPRAC** y yo solo la libero, porque EPA cortocircuita el score.
   `oms_processed_at`) y la **liberación** usa US9b/US9c (EFLOW `TPEXSI='GENE'` +
   `PRIORIDAD` por la costura, estampa `oms_processed_at`), sin número de viaje, con
   la prioridad que trae (1 o 2).
+- **v4.3 — EPA conserva su número al LIBERAR**: Given un pedido de EPA, When el OMS
+  lo **libera** (por ventana US9b o manual US9c/US14), Then **no** lo pone en 0:
+  **conserva su prioridad original (1 o 2)** y ese mismo número es el que se devuelve
+  a eFlow; EPA **nunca** pasa por 0. (Verificado contra `app._liberar`:
+  `prioridad_liberacion = None` para `priorizar=false` → no se toca
+  `orders.priority`.)
+- **v4.3 — pass-through end-to-end**: Given un pedido de EPA, Then el OMS lo trata
+  **igual que a las demás compañías en todo salvo el cálculo**: (a) la **ingesta no
+  anula** su prioridad (aunque venga 0 de eFlow se respeta); (b) **entra a la ventana
+  de liberación por fecha igual que Cofersa**; (c) al liberar **conserva su número
+  original**. Lo único que el OMS no hace con EPA es **calcularle** la prioridad.
 - **v4.2 — sin cambio**: Given el cambio de escala de Cofersa (US10/US10b), When el
   motor procesa EPA, Then **nada cambia** para EPA (`priorizar=false`; no se le
   aplica `dias_hasta_salida`).
@@ -438,24 +461,36 @@ disponible o disponible/generada, para no tener que anular.
 
 ---
 
-## E5 — Motor de Reglas (catálogo semi-configurable)
+## E5 — Motor de Reglas (catálogo informativo, solo lectura)
 
-### US16 — Ver el catálogo de reglas por compañía `[siguiente]` (FR5.1, FR5.3)
-Como **Administrador de Módulo**, quiero ver las reglas implementadas de una
-compañía, para gestionarlas.
-- Given una compañía seleccionada, When abro el Motor de Reglas, Then veo sus
-  reglas (nombre, descripción, estado, peso, parámetros); al cambiar de compañía
-  cambia la lista.
-- Given la vista, When la uso, Then **no** puedo crear reglas nuevas (la lógica
-  vive en código).
+> **v4.4 (2026-11-05)**: el set de reglas es **fijo en código**; el catálogo
+> configurable queda **DESCARTADO** (SUPERSEDE del DECIDED 2026-09-10 "catálogo
+> semi-configurable"). La vista Motor de Reglas se conserva solo como catálogo
+> **informativo de solo lectura**. **US16** se re-enmarca como solo lectura;
+> **US17** y **US18** quedan **DESCARTADAS** (fuera de alcance; sin edición desde
+> la UI). Las historias no se borran: se marcan.
 
-### US17 — Activar/desactivar y ajustar peso de una regla `[siguiente]` (FR5.1)
+### US16 — Ver el catálogo de reglas (solo lectura) `[1ª entrega]` (FR5.1, FR5.3)
+Como **Administrador de Módulo** (o rol con acceso), quiero **ver** las reglas
+implementadas y su scope, sin poder modificarlas.
+- Given una compañía/scope seleccionado, When abro el Motor de Reglas, Then veo
+  sus reglas (nombre, descripción, estado **informativo**, scope); al cambiar de
+  scope cambia la lista — **solo lectura**.
+- Given la vista, When la uso, Then **no** puedo crear, activar/desactivar, editar
+  peso ni parámetros de reglas (el set es fijo en código); la vista es
+  **informativa**.
+
+### US17 — ~~Activar/desactivar y ajustar peso de una regla~~ `[DESCARTADA]` (FR5.1)
+> **DESCARTADA (v4.4, 2026-11-05)**: set de reglas fijo en código; sin edición
+> desde UI. Ver "Fuera de alcance".
 Como **Administrador de Módulo**, quiero activar/desactivar una regla y ajustar
 su peso, para el rollout por etapas.
 - Given una regla, When la desactivo, Then deja de aplicar en el cálculo.
 - Given una regla, When cambio su peso, Then el nuevo peso se usa en el score.
 
-### US18 — Editar los parámetros de una regla `[siguiente]` (FR5.2)
+### US18 — ~~Editar los parámetros de una regla~~ `[DESCARTADA]` (FR5.2)
+> **DESCARTADA (v4.4, 2026-11-05)**: set de reglas fijo en código; sin edición
+> desde UI. Ver "Fuera de alcance".
 Como **Administrador de Módulo**, quiero editar los parámetros de una regla
 (días de T-1, horas de corte, umbral de inyección, patrón/prioridad/ventana de
 cliente retira), sin tocar su lógica.
@@ -473,6 +508,11 @@ cliente retira), sin tocar su lógica.
 > conservan solo como registro (opcional/futuro, no 1ª entrega); no trazan a trabajo
 > de construcción de U1. La restricción de acceso a `Developer` (FR9.0/FR14.4) sigue
 > vigente **si** alguna vez se construye.
+>
+> **v4.4 (2026-11-05)**: como el Simulador depende de reglas configurables (que se
+> descartaron en FR5/E5), queda pendiente **quitar la vista Simulador del frontend**
+> (sin reglas configurables no tiene sentido). Pendiente de front; no se crea
+> historia.
 
 ### US19 — Configurar una corrida en el modal previo `[siguiente]` (FR9.1, FR9.2)
 Como **Developer**, quiero elegir qué reglas activas y qué pedidos
@@ -650,6 +690,15 @@ Estas Open Questions del `requirements.md` condicionan varias historias pero
   (`oms_processed_at` estampado) que un **replan** mueva a otro viaje/fecha queda
   potencialmente stale. Afina US9b; **no bloquea** v1 (se acepta hasta cerrar con
   negocio si hay reconciliación/alerta).
+- **OQ-VENCIDOS (ABIERTA, v4.3 — pendiente de negocio)** → pedidos "vencidos" fuera
+  de la ventana de planificación. **Hecho**: Planificación solo planifica la ventana
+  **(hoy, hoy+3]** (excluye hoy y el pasado), así que los pedidos con **entrega hoy
+  o pasada nunca se planifican** (`planning_run_id` queda `NULL`) y quedan **clavados
+  en `DISP`**, fuera de la cola del OMS (US1/FR1.1). **Pregunta a negocio**
+  (Antonio): ¿**se liberan igual**? ¿**se alertan**? ¿**se auditan**? **No** se crea
+  historia ni FR cerrado: es pendiente de negocio; no inventar la solución. *Nota*:
+  en el sandbox la **ingesta de eFlow no es automática** (la Lambda no alcanza eFlow;
+  depende de la **réplica pendiente**, OQ-2) — contexto, no requerimiento.
 
 ---
 
@@ -684,7 +733,13 @@ mano.
 - **E6 — Simulador (US19–US24/US24b), FUERA DE ALCANCE (2026-10-19/20, §13).**
   Desarrollo **opcional**, visible solo para rol `Developer`. Supera el `DECIDED`
   "Simulador = configurador" (2026-09-15). No entra en el diseño ni la construcción
-  de U1; se conserva solo como registro para un posible futuro.
+  de U1; se conserva solo como registro para un posible futuro. **v4.4
+  (2026-11-05)**: pendiente **quitar la vista Simulador del frontend** (sin reglas
+  configurables no tiene sentido tras descartar el catálogo configurable de FR5).
+- **US17 y US18 (E5 — Motor de Reglas), DESCARTADAS (v4.4, 2026-11-05).** El set de
+  reglas es **fijo en código**; sin edición desde la UI (activar/desactivar, peso,
+  parámetros). La vista Motor de Reglas queda como catálogo **informativo de solo
+  lectura** (US16). SUPERSEDE del DECIDED 2026-09-10 "catálogo semi-configurable".
 
 ### Nota: refined-mockups debe re-correrse alineado al modelo v4
 
