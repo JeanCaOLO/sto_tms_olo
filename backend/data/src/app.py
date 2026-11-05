@@ -1,7 +1,7 @@
 """API genérica de tablas: /api/data/{table} (GET, POST, PATCH, DELETE).
 
-Equivalente reducido a supabase.from(table)... — mismo contrato que
-server/tms-routes.mjs, consumido por src/lib/supabase.ts. Requiere el JWT
+Equivalente reducido a apiClient.from(table)... — mismo contrato que
+server/tms-routes.mjs, consumido por src/lib/api-client.ts. Requiere el JWT
 (Lambda authorizer de common-services).
 """
 

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createFakeTrackingBackend } from '../mock/fakeTrackingBackend';
 import { driveMinutes, getSimulation, haversineM, resetSimulation, setRoadProvider, setSimulation, simNow, simPlanClose } from '../mock/sim';
-import type { ViajeDetalle, ViajesPage } from '../types';
+import type { MisEntregasPage, ViajeDetalle, ViajesPage } from '../types';
 
 const backend = createFakeTrackingBackend({ latencyMs: 0 });
 const get = async <T>(path: string) => {
@@ -135,5 +135,20 @@ describe('backend simulado del tracking (contrato v2)', () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(simNow()).toBe(t0);
     expect(getSimulation().paused).toBe(true);
+  });
+});
+
+describe('mis-entregas (vista del rol Cliente)', () => {
+  it('devuelve solo paradas propias: en camino con ETA y camión, entregada sin camión', async () => {
+    const { view, items } = await get<MisEntregasPage>('/mis-entregas');
+    expect(view).toBe('client');
+    const onTheWay = items.find((i) => i.status === 'en_camino');
+    expect(onTheWay?.truck).not.toBeNull();
+    expect(onTheWay?.stops_ahead).toBe(0);
+    const delivered = items.find((i) => i.status === 'entregado');
+    expect(delivered?.truck).toBeNull();
+    expect(delivered?.eta_at).toBeNull();
+    expect(items.length).toBeLessThanOrEqual(3);
+    expect(JSON.stringify(items)).not.toMatch(/driver|plate|phone/i);
   });
 });

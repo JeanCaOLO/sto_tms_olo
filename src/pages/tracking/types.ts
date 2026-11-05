@@ -99,12 +99,19 @@ export interface Stop {
   type?: StopType;
   order_number: string;
   invoice_number: string | null;
+  /** Punto de entrega (o cliente destino): lo que se muestra como nombre de la parada. */
   customer_name: string | null;
+  /** Empresa dueña del pedido (EPA, Cofersa…): va como nota, no como nombre. Opcional en respuestas anteriores. */
+  company_name?: string | null;
   address: string | null;
   city: string | null;
   lat: number | null;
   lng: number | null;
   arrived_at: string | null;
+  /** Tiempo en el sitio detectado por GPS (radio de 150 m). Opcionales: respuestas anteriores no los traen. */
+  site_arrived_at?: string | null;
+  site_departed_at?: string | null;
+  dwell_seconds?: number | null;
   recipient_name: string | null;
   evidences: Evidence[];
   planned_arrival_at: string | null;
@@ -146,4 +153,36 @@ export interface ViajesPage {
   items: Viaje[];
   next_cursor: string | null;
   summary?: Resumen;
+}
+
+// --- vista del cliente (rol Cliente): solo SU entrega, sin chofer, placa ni otras paradas ---
+
+export type EntregaStatus = 'listo' | 'en_camino' | 'entregado' | 'no_entregado' | 'cerrado';
+
+export interface EntregaCliente {
+  id: string;
+  status: EntregaStatus;
+  point_name: string | null;
+  order_number: string;
+  address: string | null;
+  city: string | null;
+  lat: number | null;
+  lng: number | null;
+  planned_arrival_at: string | null;
+  /** Solo en camino: hora estimada de llegada y distancia en línea recta. */
+  eta_at: string | null;
+  distance_m: number | null;
+  /** Paradas pendientes de otros antes de la suya (no se dice cuáles). */
+  stops_ahead: number | null;
+  delivered_at: string | null;
+  site_arrived_at: string | null;
+  site_departed_at: string | null;
+  dwell_seconds: number | null;
+  /** Solo mientras viene hacia ella; tras la entrega, null. */
+  truck: { lat: number; lng: number; recorded_at: string | null; signal: Signal } | null;
+}
+
+export interface MisEntregasPage {
+  view: 'client';
+  items: EntregaCliente[];
 }

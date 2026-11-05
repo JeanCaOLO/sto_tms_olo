@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../../../lib/supabase';
+import { apiClient } from '../../../lib/api-client';
 import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
@@ -99,14 +99,14 @@ export default function CustomerModal({ customer, countries, onClose, onSave }: 
       };
 
       if (customer) {
-        const { error } = await supabase
+        const { error } = await apiClient
           .from('customers')
           .update(dataToSave)
           .eq('id', customer.id);
 
         if (error) throw error;
       } else {
-        const { error } = await supabase
+        const { error } = await apiClient
           .from('customers')
           .insert([dataToSave]);
 

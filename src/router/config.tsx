@@ -1,5 +1,6 @@
 import { lazy } from 'react';
 import { Navigate, RouteObject } from 'react-router-dom';
+import LandingRedirect from '../components/feature/LandingRedirect';
 import TarifadorHints from '../components/tarifas/TarifadorHints';
 import RedirectKeepingQuery from './RedirectKeepingQuery';
 
@@ -25,8 +26,7 @@ const AuditoriaPage = lazy(() => import('../pages/auditoria/page'));
 // página del bundle y `/seed` cae al 404.
 const SeedPage = import.meta.env.DEV ? lazy(() => import('../pages/seed/page')) : null;
 const NotFoundPage = lazy(() => import('../pages/NotFound'));
-const DevolucionesPage = lazy(() => import('../pages/devoluciones/page'));
-const GuiasPage = lazy(() => import('../pages/guias/page'));
+const DevolucionesPage = lazy(() => import('../pages/devoluciones/page'));const GuiasPage = lazy(() => import('../pages/guias/page'));
 const TrackingPage = lazy(() => import('../pages/tracking/page'));
 // Contratos y Reportes están "Coming Soon": la ruta muestra el placeholder en
 // vez del módulo (las páginas reales siguen en el repo para cuando se habiliten).
@@ -41,7 +41,7 @@ const routes: RouteObject[] = [
   // La entrada principal pasa por /dashboard para que el permiso de ese módulo también se aplique a "/".
   {
     path: '/',
-    element: <Navigate to="/dashboard" replace />
+    element: <LandingRedirect />
   },
   {
     path: '/login',

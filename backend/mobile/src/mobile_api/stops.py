@@ -49,6 +49,9 @@ def transition_stop(event: dict, driver: Driver) -> dict:
     target = body.get("to")
     if target not in logic.GUIDE_STATUS_TEXT:
         raise HttpError(400, "to debe ser pending, delivered o failed")
+    if target == logic.GUIDE_PENDING:
+        # El chofer no deshace entregas: solo la web de administración puede revertir una parada.
+        raise HttpError(403, "El chofer no puede deshacer una entrega.", code="revert_not_allowed")
     if body.get("type") is not None and body["type"] not in logic.STOP_TYPES:
         raise HttpError(400, "type debe ser delivery o collection")
     reason = (body.get("reason") or "").strip() or None
@@ -69,19 +72,9 @@ def transition_stop(event: dict, driver: Driver) -> dict:
     lat, lng = logic.coords(body)
     client_id = optional_client_id(body)
     guide = guide_access(driver, guide_id)
-    reopen = False
     if logic.route_state(guide["route_status"]) != "active":
-        closed = logic.route_state(guide["route_status"]) == "completed"
-        # Deshacer el cierre: "volver a pendiente" una parada de un viaje recién cerrado y todavía no liquidado.
-        if closed and target == logic.GUIDE_PENDING and guide.get("route_ended_at") is not None:
-            if now() - logic.aware(guide["route_ended_at"]) > logic.REOPEN_WINDOW:
-                raise HttpError(409, "Pasó el tiempo para deshacer: el viaje ya está cerrado.", code="reopen_expired")
-            if int(guide.get("settlements") or 0) > 0:
-                raise HttpError(409, "El viaje ya fue liquidado y no se puede reabrir.", code="already_settled")
-            reopen = True
-    if logic.route_state(guide["route_status"]) != "active" and not reopen:
         # Reenvío de la última parada ya registrada: el viaje se cerró solo y la repetición no es un error.
-        if (logic.route_state(guide["route_status"]) == "completed" and target != logic.GUIDE_PENDING
+        if (logic.route_state(guide["route_status"]) == "completed"
                 and logic.guide_state(guide.get("delivery_status"), guide.get("status")) == target):
             counts = db.query(sql.COUNT_DONE_SQL, [str(guide["route_id"])])[0]
             return ok({"stop_id": guide_id, "state": target, "done": int(counts["done"]),
@@ -93,51 +86,43 @@ def transition_stop(event: dict, driver: Driver) -> dict:
 
     # Geocerca: distancia del dispositivo al punto. Si la parada tiene coordenadas, "Entregado" exige estar a
     # ≤ 150 m, o un motivo (fuera de rango, o sin ubicación por GPS caído); con motivo queda además el evento `geofence_out` (el mismo que escribe la web).
-    distance_m = None if target == logic.GUIDE_PENDING else logic.distance_to_stop_m(
-        lat, lng, guide["stop_lat"], guide["stop_lng"])
+    distance_m = logic.distance_to_stop_m(lat, lng, guide["stop_lat"], guide["stop_lng"])
     delivering = target == logic.GUIDE_DELIVERED
+    if delivering and (lat is None or lng is None):
+        raise HttpError(400, "No se puede entregar sin la ubicación del dispositivo (lat/lng).",
+                        code="location_required")
     outside = delivering and distance_m is not None and distance_m > logic.GEOFENCE_M
-    unlocated = delivering and distance_m is None and guide["stop_lat"] is not None and guide["stop_lng"] is not None
     if outside and not reason:
         raise HttpError(400, f"Estás a {distance_m} m del punto de entrega (máximo {logic.GEOFENCE_M} m): "
                              "indica el motivo.", code="outside_geofence")
-    if unlocated and not reason:
-        raise HttpError(400, "No hay ubicación del dispositivo: envía lat/lng o indica el motivo.",
-                        code="no_location")
     # Entrega: foto de la factura + firma. Recolecta: foto del producto + firma (de quien lo entrega). La app las sube
     # antes de la transición (outbox en orden). El tipo lo decide el servidor, no el cliente.
     kind_of_stop = logic.stop_type(guide.get("stop_type"))
     if delivering and not set(logic.REQUIRED_EVIDENCE[kind_of_stop]) <= set(guide.get("evidence_kinds") or []):
         raise HttpError(400, logic.EVIDENCE_REQUIRED_TEXT[kind_of_stop], code="evidence_required")
-    event_type = {"delivered": "delivery_completed", "failed": "delivery_failed", "pending": "stop_reverted"}[target]
-    event_status = {"delivered": "success", "failed": "error", "pending": "info"}[target]
+    event_type = {"delivered": "delivery_completed", "failed": "delivery_failed"}[target]
+    event_status = {"delivered": "success", "failed": "error"}[target]
 
     def work(run):
-        run(sql.UPDATE_GUIDE_SQL, [target, logic.GUIDE_STATUS_TEXT[target], None if target == "pending" else when,
-                                   receiver, note, guide_id])
+        run(sql.UPDATE_GUIDE_SQL, [target, logic.GUIDE_STATUS_TEXT[target], when, receiver, note, guide_id])
+        run(sql.COMPLETE_VISIT_SQL, [when, guide_id])   # separa «tiempo en el sitio» de «tiempo hasta cerrar»
         counts = run(sql.COUNT_DONE_SQL, [route_id])[0]
         run(sql.SET_COMPLETED_STOPS_SQL, [int(counts["done"]), route_id])
-        if reopen and run(sql.REOPEN_ROUTE_SQL, [route_id, logic.COMPLETED_STATUS_SQL_VALUES]):
-            run(sql.REOPEN_PLAN_TRIP_SQL, [route_id])
-            add_event(run, driver, route_id, guide_id, "route_reopened", "info",
-                      "Cierre deshecho por el chofer dentro de la ventana de corrección.", lat, lng, when)
         first_time = add_event(run, driver, route_id, guide_id, event_type, event_status, reason, lat, lng, when,
                                distance_m, client_id)
-        if (outside or unlocated) and first_time:
-            detail = f"fuera de la geocerca ({distance_m} m)" if outside else "sin ubicación del dispositivo"
-            add_event(run, driver, route_id, guide_id, "geofence_out", "warning", f"Entrega {detail}: {reason}",
-                      lat, lng, when)
+        if outside and first_time:
+            add_event(run, driver, route_id, guide_id, "geofence_out", "warning",
+                      f"Entrega fuera de la geocerca ({distance_m} m): {reason}", lat, lng, when)
         closed = False
         # Última parada del viaje (entregada o no entregada): el viaje se cierra solo y pasa a Liquidaciones.
-        if target != logic.GUIDE_PENDING and first_time and int(counts["pending"]) == 0:
+        if first_time and int(counts["pending"]) == 0:
             closed = bool(run(sql.CLOSE_ROUTE_SQL, [when, int(counts["done"]), route_id, logic.ACTIVE_STATUS_SQL_VALUES]))
             if closed:
                 run(sql.CLOSE_PLAN_TRIP_SQL, [route_id])
                 add_event(run, driver, route_id, None, "route_completed", "success",
                           "Viaje cerrado automáticamente al registrar la última parada.", lat, lng, when)
         return {"stop_id": guide_id, "state": target, "done": int(counts["done"]),
-                "pending": int(counts["pending"]), "distance_m": distance_m, "route_closed": closed,
-                "route_reopened": reopen}
+                "pending": int(counts["pending"]), "distance_m": distance_m, "route_closed": closed}
 
     return ok(db.run_in_transaction(work))
 
@@ -165,19 +150,55 @@ def add_incident(event: dict, driver: Driver) -> dict:
     return ok({"stop_id": guide_id, "duplicate": not created}, 201 if created else 200)
 
 
+def _text(value) -> str:
+    return value.strip() if isinstance(value, str) else ""
+
+
+def return_items(body: dict) -> tuple[list[dict], bool]:
+    """Líneas de la devolución validadas. `items: [{product_code?, product_name, quantity}]` (varios artículos de la
+    parada) o, por compatibilidad, el payload plano de un solo producto. Devuelve (líneas, vino_como_items)."""
+    raw = body.get("items")
+    as_items = raw is not None
+    if not as_items:
+        raw = [{"product_name": body.get("product_name"), "product_code": body.get("product_code"),
+                "quantity": body.get("quantity")}]
+    if not isinstance(raw, list) or not 0 < len(raw) <= logic.MAX_RETURN_ITEMS:
+        raise HttpError(400, f"items debe traer de 1 a {logic.MAX_RETURN_ITEMS} artículos")
+    lines = []
+    for item in raw:
+        item = item if isinstance(item, dict) else {}
+        code = _text(item.get("product_code")) or None
+        name = _text(item.get("product_name"))
+        if not name and not code:
+            raise HttpError(400, "La devolución requiere el producto")
+        quantity = item.get("quantity")
+        if isinstance(quantity, bool) or not isinstance(quantity, int) or not 0 < quantity <= 100000:
+            raise HttpError(400, "quantity debe ser un entero mayor que 0")
+        lines.append({"code": code, "name": name or code, "quantity": quantity})
+    return lines, as_items
+
+
+def list_items(event: dict, driver: Driver) -> dict:
+    """Artículos del pedido de la parada, para elegirlos al registrar una devolución."""
+    guide = guide_access(driver, path_param(event, "id"))
+    if logic.route_state(guide["route_status"]) != "active":
+        raise HttpError(409, "El viaje no está en tránsito.")
+    rows = db.query(sql.ORDER_ITEMS_SQL, [guide["order_id"]]) if guide.get("order_id") else []
+    return ok({"stop_id": str(guide["id"]), "items": [
+        {"line_number": r["line_number"], "product_code": r["product_code"] or None,
+         "product_name": r["product_name"] or r["product_code"], "quantity": int(r["quantity"] or 0)}
+        for r in rows]})
+
+
 def add_return(event: dict, driver: Driver) -> dict:
-    """Devolución del chofer en la parada (alimenta `returns`, que la web del TMS ya lee). Idempotente por client_id."""
+    """Devolución contracamión del chofer en la parada (alimenta `tbl_returns`, que la web de Devoluciones lee): una
+    fila por artículo, con una sola foto (`photo_key` o `photo_client_id`) y motivo para todas. Idempotente por client_id (y número de línea)."""
     guide_id = path_param(event, "id")
     body = body_dict(event)
-    product = (body.get("product_name") or "").strip() if isinstance(body.get("product_name"), str) else ""
-    reason = (body.get("reason") or "").strip() if isinstance(body.get("reason"), str) else ""
-    if not product:
-        raise HttpError(400, "La devolución requiere el producto")
+    reason = _text(body.get("reason"))
     if not reason:
         raise HttpError(400, "La devolución requiere un motivo")
-    quantity = body.get("quantity")
-    if isinstance(quantity, bool) or not isinstance(quantity, int) or not 0 < quantity <= 100000:
-        raise HttpError(400, "quantity debe ser un entero mayor que 0")
+    lines, as_items = return_items(body)
     client_id = body.get("client_id")
     if client_id is not None and not logic.is_uuid(client_id):
         raise HttpError(400, "client_id inválido")
@@ -187,17 +208,31 @@ def add_return(event: dict, driver: Driver) -> dict:
     photo = body.get("photo_key")
     if photo is not None:
         photo = logic.require_evidence_key(guide, photo)
-    code = (body.get("product_code") or "").strip() or None if isinstance(body.get("product_code"), str) else None
-    notes = (body.get("notes") or "").strip() or None if isinstance(body.get("notes"), str) else None
-    number = f"DV-{client_id or uuid.uuid4()}"   # reenviar la misma devolución no la duplica
+    photo_client_id = body.get("photo_client_id")
+    if photo_client_id is not None:
+        # La app sube la foto por el outbox ANTES de la devolución y la liga por su `client_id`: la llave la conoce el servidor.
+        if photo is not None or not logic.is_uuid(photo_client_id):
+            raise HttpError(400, "photo_client_id inválido")
+        found = db.query(sql.RETURN_PHOTO_SQL, [guide_id, photo_client_id.lower()])
+        if not found:
+            raise HttpError(400, "La foto de la devolución aún no se confirmó")
+        photo = found[0]["storage_key"]
+    notes = _text(body.get("notes")) or None
+    base = f"DV-{client_id or uuid.uuid4()}"   # reenviar la misma devolución no la duplica
+    numbers = [f"{base}-{n}" if as_items else base for n in range(1, len(lines) + 1)]
 
     def work(run):
-        created = run(sql.INSERT_RETURN_SQL, [driver.organization_id, guide_id, guide["order_id"], number, reason,
-                                              code, product, quantity, photo, notes])
-        if created:
-            add_event(run, driver, guide["route_id"], guide_id, "return", "warning",
-                      f"Devolución: {quantity} x {product} ({reason})")
-        return {"return_id": str(created[0]["id"]) if created else None, "duplicate": not created}
+        ids, duplicate = [], True
+        for number, line in zip(numbers, lines):
+            created = run(sql.INSERT_RETURN_SQL, [driver.organization_id, guide_id, guide["order_id"], number, reason,
+                                                  line["code"], line["name"], line["quantity"], photo, notes])
+            if created:
+                duplicate = False
+                ids.append(str(created[0]["id"]))
+        if not duplicate:
+            summary = ", ".join(f"{line['quantity']} x {line['name']}" for line in lines)
+            add_event(run, driver, guide["route_id"], guide_id, "return", "warning", f"Devolución: {summary} ({reason})")
+        return {"return_id": ids[0] if ids else None, "return_ids": ids, "duplicate": duplicate}
 
     result = db.run_in_transaction(work)
     return ok(result, 200 if result["duplicate"] else 201)

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../../../lib/supabase';
+import { apiClient } from '../../../lib/api-client';
 import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
@@ -86,7 +86,7 @@ export default function CarrierModal({ isOpen, onClose, carrier, onSave }: Carri
   }, [isOpen, carrier]);
 
   const loadCountries = async () => {
-    const { data } = await supabase
+    const { data } = await apiClient
       .from('countries')
       .select('id, name, code')
       .eq('status', 'active')
@@ -96,7 +96,7 @@ export default function CarrierModal({ isOpen, onClose, carrier, onSave }: Carri
   };
 
   const generateCode = async () => {
-    const { count } = await supabase
+    const { count } = await apiClient
       .from('carriers')
       .select('*', { count: 'exact', head: true });
     
@@ -110,10 +110,10 @@ export default function CarrierModal({ isOpen, onClose, carrier, onSave }: Carri
     setError('');
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await apiClient.auth.getUser();
       if (!user) throw new Error('No autenticado');
 
-      const { data: userData } = await supabase
+      const { data: userData } = await apiClient
         .from('app_users')
         .select('organization_id')
         .eq('id', user.id)
@@ -137,14 +137,14 @@ export default function CarrierModal({ isOpen, onClose, carrier, onSave }: Carri
 
       let carrierId = carrier?.id ?? null;
       if (carrier?.id) {
-        const { error: updateError } = await supabase
+        const { error: updateError } = await apiClient
           .from('carriers')
           .update(carrierData)
           .eq('id', carrier.id);
 
         if (updateError) throw updateError;
       } else {
-        const { data: inserted, error: insertError } = await supabase
+        const { data: inserted, error: insertError } = await apiClient
           .from('carriers')
           .insert([{ ...carrierData, created_at: new Date().toISOString() }])
           .select('id')

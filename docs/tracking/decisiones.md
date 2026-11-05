@@ -8,11 +8,11 @@ Hay **dos tramos**, y conviene no mezclarlos:
 
 | Tramo | Cómo es hoy | ¿WebSocket? |
 |---|---|---|
-| App del chofer → backend | `POST /posiciones` en lotes (cada 20 puntos o 60 s), con cola offline idempotente (`client_id`) | **No.** Un socket necesita conexión estable; con cobertura irregular se cae, hay que reconectar y lo enviado durante el corte se pierde o se duplica. El POST por lotes con reintento es lo correcto para zonas sin señal. **No se cambia.** |
-| Backend → pantalla web | La web consulta cada 15 s (1 llamada lista + KPIs; +1 si hay un viaje abierto) | Evaluado y **descartado por ahora** (abajo). |
+| App del chofer → backend | `POST /posiciones` en lotes (cada 20 puntos o 150 s, `gps/policy.ts:11-12`), con cola offline idempotente (`client_id`) | **No.** Un socket necesita conexión estable; con cobertura irregular se cae, hay que reconectar y lo enviado durante el corte se pierde o se duplica. El POST por lotes con reintento es lo correcto para zonas sin señal. **No se cambia.** |
+| Backend → pantalla web | La web consulta cada 10 s (1 llamada lista + KPIs; +1 si hay un viaje abierto) | Evaluado y **descartado por ahora** (abajo). |
 
 **Por qué el polling de la web es la mejor opción hoy:**
-- **Frescura:** el camión manda su posición cada 30–60 s. Consultar cada 15 s suma ~7 s de demora en promedio. Un WebSocket empujaría el dato al instante, pero el dato ya tiene hasta 60 s: la mejora real es mínima (objetivo del blueprint: ≤ 15 s).
+- **Frescura:** el camión manda su posición cada 30–60 s. Consultar cada 10 s suma ~5 s de demora en promedio. Un WebSocket empujaría el dato al instante, pero el dato ya puede tener hasta 150 s (la app envía cada 150 s o 20 puntos): la mejora real es mínima (objetivo del blueprint: ≤ 15 s).
 - **Costo:** el polling depende de **cuántas pantallas** hay abiertas, no de cuántos camiones. Con 10 supervisores son ~40–80 invocaciones/min (≈ 1,3 M/mes en horario laboral): centavos en Lambda. Un WebSocket depende de **camiones × supervisores**: 200 camiones con lote/min × 10 pantallas ≈ 2 000 mensajes/min (≈ 30 M/mes), más la Lambda que reparte y las lecturas de conexiones en DynamoDB. A esta escala, el WebSocket es más caro y más complejo.
 - **Robustez:** si una consulta falla, la siguiente se recupera sola (con espera creciente). Un socket caído deja la pantalla congelada hasta reconectar y obliga a re-sincronizar.
 - **Simplicidad:** un solo contrato (GET) para web, mock y pruebas.
@@ -29,13 +29,13 @@ Con muchos camiones cerca (p. ej. todos en el GAM) y el mapa alejado, los ícono
 
 - Tracking **solo monitorea**: `POST /viajes/{id}/completar` y `/revisar` se eliminaron (detalle en [contrato-api-v2.md](./contrato-api-v2.md#retirado-en-v2)). `tracking_reviews` se conserva sin uso.
 - **El viaje se termina desde Planificación** (completar/cancelar, FR7). Tracking **lee** `plan_trips.status` (solo lectura) y muestra el viaje como completado/anulado, fuera de "Activos". No escribe en Planificación ni Planificación escribe en Tracking.
-- Cerrar la última parada no cierra el viaje (queda "Sin paradas pendientes · se cierra desde Planificación").
-- **Pendiente** (requiere tocar otros módulos o acordarlo): cierre automático con la última parada y sincronizar `routes.status` con Planificación — ver [pendientes-tunel.md](./pendientes-tunel.md#pendiente-cierre-automático-y-sincronización-entre-módulos).
+- En la web, cerrar la última parada no cierra el viaje (queda "Sin paradas pendientes · se cierra desde Planificación").
+- **Cierre automático** con la última parada: implementado en la app del chofer (`backend/mobile/src/mobile_api/stops.py:116-123`). **Pendiente:** verificar su despliegue y sincronizar con Planificación y Liquidaciones (requiere acuerdo) — ver [pendientes-tunel.md](./pendientes-tunel.md#pendiente-cierre-automático-y-sincronización-entre-módulos).
 
 ### Efecto en otros módulos
 Ninguno: Tracking solo agregó una **lectura** de `plan_trips` (un `LEFT JOIN`). No escribe en `plan_trips`, y Planificación quedó sin cambios.
 
-Consecuencia a tener en cuenta: como `routes.status` ya no lo cambia nadie (antes lo hacía "Completar viaje" de la web), los módulos que leen `routes` directamente —**Liquidaciones** (`tarifas_v_viajes`), Dashboard y Reportes— no ven como completado un viaje terminado en Planificación. Resolverlo es parte del pendiente de sincronización.
+Consecuencia a tener en cuenta: la web ya no cambia `routes.status`; lo cambia la app del chofer al cerrar la última parada (`stops.py:116-123`), así que un viaje terminado solo en Planificación sigue en `En tránsito` en `routes`, los módulos que leen `routes` directamente —**Liquidaciones** (`tarifas_v_viajes`), Dashboard y Reportes— no ven como completado un viaje terminado en Planificación. Resolverlo es parte del pendiente de sincronización.
 
 ## 4. OSRM y proveedor de mapas — DECIDIDO 2026-10-17: se mantienen como están
 

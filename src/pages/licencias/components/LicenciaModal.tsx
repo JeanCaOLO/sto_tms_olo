@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
-import { supabase } from '../../../lib/supabase';
+import { apiClient } from '../../../lib/api-client';
 import { useAuth } from '../../../hooks/useAuth';
 
 interface Pais {
@@ -41,7 +41,7 @@ export default function LicenciaModal({ isOpen, onClose, onSuccess, licencia }: 
 
   const loadPaises = async () => {
     if (!appUser?.organization_id) return;
-    const { data } = await supabase
+    const { data } = await apiClient
       .from('countries')
       .select('id, name')
       .eq('organization_id', appUser.organization_id)
@@ -62,10 +62,10 @@ export default function LicenciaModal({ isOpen, onClose, onSuccess, licencia }: 
         activo: formData.activo,
       };
       if (licencia) {
-        const { error } = await supabase.from('driver_license_types').update(payload).eq('id', licencia.id);
+        const { error } = await apiClient.from('driver_license_types').update(payload).eq('id', licencia.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('driver_license_types').insert(payload);
+        const { error } = await apiClient.from('driver_license_types').insert(payload);
         if (error) throw error;
       }
       onSuccess();

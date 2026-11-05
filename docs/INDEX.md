@@ -12,6 +12,7 @@ Entry point for all project documentation. If a question maps to a row below, go
 | Read the development standards (must follow when writing code) | [`standards/`](standards/README.md) |
 | Work on / deploy the backend (Python Lambdas + SAM) | [`../backend/README.md`](../backend/README.md) |
 | Work on the Tracking module (monitoring, API contract, mock mode, tunnel-pending tasks) | [`tracking/`](tracking/README.md) |
+| Work on the driver mobile app / `/api/mobile/v1` (GPS, offline sync, stops, evidence, presence) | [`tracking/mobile/`](tracking/mobile/README.md) |
 | Coordinate Kiro ↔ Claude Code (shared channel, Orca setup) | [`guides/coordinacion-claude-kiro.md`](guides/coordinacion-claude-kiro.md) |
 | Understand the delivery process (intent → closure) | [`guides/delivery-circuit.md`](guides/delivery-circuit.md) |
 | Validate an initiative with a non-technical sponsor | [`briefs/`](briefs/README.md) |

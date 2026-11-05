@@ -2,7 +2,7 @@
 
 > **⚠️ PARCIALMENTE DESACTUALIZADO (rama `jesus-planificacion`, agosto 2026).** Este documento
 > describe el estado mock cuando el backend se asumía Supabase. La arquitectura real vigente es
-> **Express + AWS Aurora** (con `src/lib/supabase.ts` como shim, no Supabase real) — ver la fuente
+> **Express + AWS Aurora** (con `src/lib/api-client.ts` como shim, no Supabase real) — ver la fuente
 > de verdad actual en [`../reference/analisis-sistema-tms.md`](../reference/analisis-sistema-tms.md)
 > (2026-09-21). Sigue siendo útil como catálogo de qué está mockeado en Planificación y cómo
 > quitarlo, pero contrastá cada afirmación de "Supabase/RLS/pnpm/puerto 3000" con ese análisis.

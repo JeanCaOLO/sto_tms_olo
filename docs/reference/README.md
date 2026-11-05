@@ -5,7 +5,7 @@ Documentos de referencia de larga vida: contexto del proyecto, planes de módulo
 | Documento | Qué es |
 |-----------|--------|
 | [`contexto-proyecto-tms.md`](contexto-proyecto-tms.md) | **Contexto de negocio del proyecto** (kickoff): módulos, equipo, reglas de negocio, diferencias CR/VE. El resto de documentos de esta carpeta lo citan como base. |
-| [`analisis-sistema-tms.md`](analisis-sistema-tms.md) | **Fuente de verdad del estado actual del sistema** (2026-09-21): arquitectura real (Express + AWS Aurora, `supabase.ts` como shim), mapa de módulos por ruta, alcance de integración WMS/EFLOW y ERP/EPRAC, roturas de flujo conocidas. |
+| [`analisis-sistema-tms.md`](analisis-sistema-tms.md) | **Fuente de verdad del estado actual del sistema** (2026-09-21): arquitectura real (Express + AWS Aurora, `api-client.ts` como shim), mapa de módulos por ruta, alcance de integración WMS/EFLOW y ERP/EPRAC, roturas de flujo conocidas. |
 | [`aws-inventario-tms.md`](aws-inventario-tms.md) | **Inventario vivo de AWS del TMS** + diagrama de arquitectura: qué existe (Aurora, red, bastión, secretos, IAM), qué se crea al desplegar al sandbox y qué hay en la cuenta que NO es del TMS. Todo recurso nuevo se registra ahí. |
 | [`diccionario-datos-tms-olo.md`](diccionario-datos-tms-olo.md) | **Diccionario de datos de la base real** `tms_olo` (Aurora): cada tabla con columnas, tipos, llaves, índices, triggers, conteo de filas y diagramas ER por dominio. Generado con `scripts/diccionario-datos.py`; no se edita a mano. |
 | [`mapeo-pedidos-eflow-orders.md`](mapeo-pedidos-eflow-orders.md) | Mapeo campo por campo de los pedidos: `EXPEDICIONESCABECERA` (EFLOW) → `orders` (Aurora) → columnas de la Cola del OMS, con lo que ya existe, lo que hay que ajustar y lo que falta agregar. |

@@ -9,7 +9,7 @@ const alertsBody = {
     { type: 'driver_license', entity_id: 'd1', name: 'José Ramírez', carrier_name: 'Andino', license_number: 'A-9', expiry_date: '2026-10-05', days_left: -7, status: 'expired' },
   ],
 };
-vi.mock('../lib/supabase', () => ({
+vi.mock('../lib/api-client', () => ({
   apiFetch: vi.fn(async () => ({ ok: true, status: 200, body: alertsBody })),
 }));
 
