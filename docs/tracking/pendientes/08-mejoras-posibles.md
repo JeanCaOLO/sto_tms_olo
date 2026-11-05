@@ -9,3 +9,4 @@
 - **Reporte de permanencias:** promedio de tiempo en parada por punto, cliente o chofer (sale de `tracking_stop_visits`).
 - **Vista del cliente:** historial de entregas pasadas, varias entregas del mismo viaje agrupadas, y "ver como Cliente" para administradores.
 - **Notificaciones push** a la app del chofer o al cliente, además del correo.
+- **Fricción de uso en la app del chofer** (auto-arribo, entregar sin ubicación, OTA, etc.): ver [10](./10-auditoria-friccion-app-chofer.md).

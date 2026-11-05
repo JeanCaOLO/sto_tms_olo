@@ -1,0 +1,42 @@
+# 10 — Auditoría de fricción de la app del chofer
+
+**Estado:** parcial. Auditoría hecha el 2026-11-05 por lectura de código (`TRACKING_TMS/frontend/src`). Se implementaron los hallazgos rápidos (tabla «Hecho»); el resto sigue pendiente por implementar.
+
+## Por qué
+La app del chofer debe ser simple: pocos toques, una mano, sin teclear de más. Esta auditoría lista los lugares donde el chofer hace pasos manuales evitables o que se pueden automatizar. No incluye lo del servidor que ya está en [08](./08-mejoras-posibles.md) (ETA, eventos `stop_arrived`/`stop_departed`, push).
+
+## Hecho (2026-11-05)
+| # | Hallazgo | Qué se hizo |
+|---|---|---|
+| 3 | Entregar son 3 pasos con «Siguiente» a mano | Tras guardar la foto se abre la firma solo, y al volver de la firma se pasa al paso 3 (`parada/[id].tsx`). «Siguiente» sigue ahí por si ya había evidencia. |
+| 4 | El receptor se teclea siempre | Se propone el nombre de la parada; se puede editar (`parada/[id].tsx`). |
+| 5 | Motivo de falla: chip y además campo de texto | El campo solo sale con el chip «Otro». |
+| 8 | La agenda solo se refresca al tirar | Se vuelve a pedir al volver la app al frente (`focusManager` en `_layout.tsx`) y cada 3 min (`api/my-trips.ts`). |
+| 9 | Acción rechazada: solo se podía descartar | Botón «Reintentar» (`retryOutboxItem`); reactiva las que dependían de ella. |
+| 10 | Aviso de pendientes con texto técnico | Mensaje claro «Se reintenta solo» (`index.tsx`). |
+| 12 (parcial) | «Salir» cierra sesión sin confirmar | Pide confirmación. Queda el mensaje claro cuando vence la sesión (ver abajo). |
+| 14 | Permisos con pantalla extra al iniciar viaje | Resuelto en [11](./11-permisos-primer-uso-verificar.md). |
+| 13 (parcial) | Cámara negada sin camino a Ajustes | Abre Ajustes directo si Android ya no muestra el diálogo (`lib/capture.ts`). |
+
+## Pendiente por implementar
+Ordenado por impacto. Esfuerzo: S pequeño, M medio, L grande.
+
+| # | Hallazgo | Dónde | Propuesta | Esf. |
+|---|---|---|---|---|
+| 1 | **Sin auto-arribo**: el chofer abre la lista, toca la parada y «Entregar» aunque ya esté a menos de 150 m | `app/index.tsx:226`, `parada/[id].tsx` | Con el GPS a menos de 150 m de la próxima pendiente, aviso «Llegaste a X» que abre la parada. | M |
+| 7 | **Sin ubicación no se entrega, ni con motivo** (bloqueo duro dentro de un almacén) | `lib/geo.ts:19`, `parada/[id].tsx:95` | Permitir entregar sin coordenadas y marcar «sin ubicación» para revisión. **Requiere decisión de negocio.** | M |
+| 20 | **Actualización manual** del APK por GitHub Actions | `DEPLOY.md` §2 | OTA con `expo-updates` (EAS Update) o pantalla «Hay nueva versión» con versión mínima del servidor. | L |
+| 2 | «Iniciar viaje» se toca a mano | `app/index.tsx:132-165` | Botón fijo y grande al abrir si hay un solo plan; o iniciar al primer movimiento. | S |
+| 6 | Fuera de geocerca pide motivo aunque un reintento de GPS lo resuelve | `parada/[id].tsx:94-96` | Refrescar la posición al abrir la parada y en el paso 3 (3 intentos a 5 s) antes de exigir motivo. | S |
+| 11 | Login sin ayudas de teclado ni email recordado | `app/login.tsx` | Precargar el último email (`EMAIL_KEY`), encadenar foco, `textContentType`, biometría. | S |
+| 12 | Sesión vencida saca al chofer sin explicar | `auth/session.ts:179-190`, `api/http.ts:84-93` | Mensaje «Tu sesión venció» y conservar el email; agenda en solo lectura. | M |
+| 13 | Foto: `quality: 1` antes de comprimir, permiso pedido en cada toma, sin reintento directo | `lib/capture.ts:20-36` | Bajar calidad de captura (~0.7), botón de reintento en el error. | S |
+| 15 | La pantalla se apaga durante la entrega | `parada/[id]`, `firma` | `expo-keep-awake`. **Es módulo nativo: pide APK nuevo**; no está instalado. | S |
+| 16 | Batería baja solo muestra texto | `lib/battery.ts`, `app/index.tsx` | Vibración una sola vez o modo ahorro explícito. | S |
+| 17 | Navegación: Waze y Google separados, WhatsApp no existe | `app/index.tsx:222-227`, `parada/[id].tsx:135-141` | Recordar la app preferida, un solo botón «Ir»; botón WhatsApp (`wa.me`) junto a «Llamar». | S |
+| 18 | Al terminar el viaje no hay cierre | `app/index.tsx:210-213` | Pantalla de cierre con resumen y GPS detenido visible. | S |
+| 19 | Tema fijo (`StatusBar` siempre oscuro), sin alto contraste | `app/_layout.tsx`, `theme.ts` | Modo luz solar y modo noche. | M |
+| 3b | «Siguiente» sigue siendo un toque cuando ya hay evidencia previa | `parada/[id].tsx` | Saltar pasos ya completos al abrir «Entregar». | S |
+
+## Cómo
+Una cosa por vez, con su prueba en `frontend/src/__tests__`. Antes de tocar #7 hablar con negocio; #1 y #20 conviene diseñarlos aparte. Lo que añada una dependencia nativa (#15, #20) pide APK nuevo: coordinarlo con quien publica.
