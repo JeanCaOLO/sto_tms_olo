@@ -10,7 +10,7 @@
 flowchart TB
     subgraph Browser["Navegador — React SPA (Vite)"]
         UI["src/pages/** (24 rutas)"]
-        Shim["src/lib/supabase.ts\n(shim propio, NO Supabase real)"]
+        Shim["src/lib/api-client.ts\n(shim propio, NO Supabase real)"]
         UI --> Shim
     end
 
@@ -123,7 +123,7 @@ flowchart LR
 | EPRAC (ERP) | — | **Cero código.** Solo mencionado en documentación de negocio como fuente de una fecha que el OMS lee |
 | Softland | — | **Cero código.** `carriers.payment_account`/`softland_code` son columnas de datos, no hay conector |
 | Proveedor de mapas | — | No hay abstracción; cualquier geocoding/ETA hoy es manual o no existe |
-| Supabase | — | **No existe.** `src/lib/supabase.ts` es un shim propio con la misma interfaz encadenable, contra el backend Express de este repo |
+| Supabase | — | **No existe.** `src/lib/api-client.ts` es un shim propio con la misma interfaz encadenable, contra el backend Express de este repo |
 
 ## 5. Deuda técnica identificada (para priorizar en el roadmap)
 

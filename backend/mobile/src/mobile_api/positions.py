@@ -17,6 +17,33 @@ def now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def record_visits(run, driver: Driver, fresh: list) -> None:
+    """Llegada y salida de cada parada con la hora de cada posición nueva y usable (ver `logic.detect_visits`)."""
+    by_route: dict[str, list] = {}
+    for pos, _route in fresh:
+        if logic.positions_usable(pos["is_mock"], pos["accuracy_m"]):
+            by_route.setdefault(pos["route_id"], []).append(pos)
+    if not by_route:
+        return
+    stops: dict[str, list] = {route_id: [] for route_id in by_route}
+    for row in run(sql.VISIT_STOPS_SQL, [sorted(by_route)]):
+        completed = logic.guide_state(row["delivery_status"], row["status"]) != logic.GUIDE_PENDING
+        stops[str(row["route_id"])].append({
+            "id": str(row["id"]), "state": logic.guide_state(row["delivery_status"], row["status"]),
+            "lat": row["latitude"], "lng": row["longitude"], "arrived_at": row["arrived_at"],
+            "departed_at": row["departed_at"], "completed_at": row["actual_arrival_time"] if completed else None})
+    for route_id, points in by_route.items():
+        points.sort(key=lambda p: p["recorded_at"])
+        found = logic.detect_visits(points, stops[route_id])
+        completed_at = {s["id"]: s["completed_at"] for s in stops[route_id]}
+        for visit in found["upserts"]:
+            run(sql.UPSERT_VISIT_SQL, [driver.organization_id, route_id, visit["id"], visit["arrived_at"],
+                                       visit["departed_at"], visit["dwell_seconds"], visit["distance_m"],
+                                       completed_at[visit["id"]]])
+        for guide_id in found["deletes"]:
+            run(sql.DELETE_VISIT_SQL, [guide_id])
+
+
 def ingest_positions(event: dict, driver: Driver) -> dict:
     body = body_dict(event)
     positions = body.get("positions")
@@ -90,6 +117,7 @@ def ingest_positions(event: dict, driver: Driver) -> dict:
             departed = logic.first_departure(points, origin)
             if departed is not None:
                 run(sql.SET_DEPARTED_SQL, [departed, route_id])
+        record_visits(run, driver, fresh)
         return len(stored)
 
     inserted = db.run_in_transaction(write)

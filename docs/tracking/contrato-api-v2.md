@@ -76,10 +76,10 @@ La web **no** tiene umbrales propios: pinta `signal`, `color` y `alerts` tal com
 - `status` del viaje = `Completada` si `plan_trips.status = 'completed'`, `Anulada` si `'cancelled'`; si no, el de `routes`.
 - `ended_at` = `routes.actual_end_time` o, si lo cerró Planificación, `plan_trips.updated_at`.
 - "Activos" y los KPIs excluyen los viajes terminados en Planificación; "Completados hoy" los cuenta.
-- Cerrar la última parada **no** cierra el viaje: queda "Sin paradas pendientes · se cierra desde Planificación".
+- En la web, cerrar la última parada **no** cierra el viaje: queda "Sin paradas pendientes · se cierra desde Planificación".
 - La app puede seguir enviando posiciones y cerrando paradas de un viaje ya terminado en Planificación (no se pierden datos); simplemente ya no se muestra como activo.
 
-El cierre automático (con la última parada) y la sincronización de estados entre módulos quedan **pendientes**: ver [pendientes-tunel.md](./pendientes-tunel.md#pendiente-cierre-automático-y-sincronización-entre-módulos).
+El cierre automático con la última parada existe en la app del chofer (`backend/mobile`, `stops.py:116-123`); la sincronización de estados con Planificación y Liquidaciones sigue **pendiente**: ver [pendientes-tunel.md](./pendientes-tunel.md#pendiente-cierre-automático-y-sincronización-entre-módulos).
 
 ## Retirado en v2
 `POST /paradas/{id}/novedades`, `POST /paradas/{id}/devoluciones`, filtro `por_revisar`, campos `review`, `incidents`, `status_raw`, `carrier_name`, `capacity_percentage`, `total_distance_km`, `events`, `trail`. `GET /resumen` queda deprecado (devuelve la forma de `summary`; la web no lo usa).

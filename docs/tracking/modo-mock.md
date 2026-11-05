@@ -22,10 +22,12 @@ Solo funciona en desarrollo: `MOCK_AUTH_ENABLED` exige `import.meta.env.DEV`, as
 - **Reloj propio**: velocidad 0,5× a 60× y pausa (controles arriba a la derecha). "Hace X" usa ese reloj.
 - **Camiones por calles**: al arrancar pide a OSRM la ruta hasta las paradas pendientes (y rehace por calles el tramo ya recorrido del escenario). Las peticiones van de a una (el OSRM público admite ~1/s). Si OSRM no responde, el camión va en línea recta: la simulación nunca se bloquea.
 - Al llegar a una parada la marca entregada con factura + firma; con la última, el camión se detiene y el viaje sigue activo ("Sin paradas pendientes"): en real lo termina Planificación. En el mock solo aparecen cerrados los escenarios completados del JSON.
-- Refresco cada 3 s (en real, 15 s).
+- Refresco cada 3 s (en real, 10 s).
+- Data mock compartida con Devoluciones y Liquidaciones (usuarios `chofer.mock-1/2@demo.tms.local`) es otra cosa: ver [docs/tarifador/demo-data/MOCK_FLUJO_3_MODULOS.md](../tarifador/demo-data/MOCK_FLUJO_3_MODULOS.md).
 - **Iniciar viaje (pruebas)**: inicia los planes de `planned` del JSON.
 - **Simular cierre de Planificación**: en el panel de un viaje activo, un recuadro "Pruebas (mock)" con *Completar* / *Cancelar* simula que Planificación termina el viaje (`mock/CierrePlanificacion.tsx` → `simPlanClose`). Sirve para ver cómo Tracking muestra un viaje terminado (sale de Activos, Completado/Anulado). En real no existe: se hace en Planificación.
 - Reiniciar (⟲) vuelve al estado inicial. El estado no persiste al recargar.
+- **Vista del cliente** (`GET /v1/tracking/mis-entregas`, `simMisEntregas` en `mock/sim.ts`): simula a un cliente con una parada del primer viaje en ruta (en camino, con ETA y camión), una ya entregada (sin camión) y la primera de un viaje por salir (lista). Para verla con el rol `Cliente` hay que entrar con ese rol (con `VITE_MOCK_AUTH` el usuario mock es superusuario: el rol se cambia a mano en `src/lib/mock-auth.ts`).
 
 ## Escenarios de `viajes-demo.json`
 
@@ -49,6 +51,7 @@ Campos de un escenario (`TripDef` en `sim.ts`): `startedMinAgo`, `lastSignalMinA
 ## Pruebas
 
 - `__tests__/mock-backend.test.ts`: el backend simulado cumple el contrato (forma, KPIs, país, cursor, 404/400, sin GPS, calles).
+- `__tests__/mock-backend.test.ts` también cubre `mis-entregas` (solo paradas propias, camión solo mientras viene, sin chofer/placa/teléfono).
 - `__tests__/api.test.ts`: el cliente arma bien las URLs y traduce errores.
 - `__tests__/page.test.tsx`: la página entera sobre el backend simulado (cambiar de viaje sin ver el detalle anterior, una sola llamada lista + KPIs, nunca `/viajes/null`, filtro por KPI, cierre simulado de Planificación).
 - **E2E** `e2e/tracking.spec.ts` (Playwright, navegador real): KPIs y lista, panel de solo lectura con factura + firma, filtro por KPI, agrupación de camiones y cierre simulado. Requiere la app en `http://localhost:3000` en modo mock (`VITE_MOCK_AUTH=true npm run dev`) y país Costa Rica en el selector; correr con `npx playwright test e2e/tracking.spec.ts`. No depende de OSRM.

@@ -24,7 +24,7 @@ type-check en cero, cualquier error futuro es señal real.
   este proyecto no tiene) → `appUser.organization_id` vía `useAuth`.
 - **useAuth:** el cleanup de `useEffect` devolvía un `boolean` (por `Set.delete()`);
   envuelto en bloque para retornar `void`.
-- **lib/supabase.ts:** `constructor(private table)` (parameter property) no permitido
+- **lib/api-client.ts:** `constructor(private table)` (parameter property) no permitido
   con `erasableSyntaxOnly` → campo declarado explícito.
 
 ## Promoted knowledge

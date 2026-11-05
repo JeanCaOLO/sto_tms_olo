@@ -1,6 +1,7 @@
 // Consultas de viajes.
 
 import { db, findMany, type Condition, type FindRequest, type Row } from '../data';
+import { OPEN_STATUSES } from '../../devoluciones/trips';
 import { isLiquidable, toTripRecord } from '../tripContext';
 import type { TripRecord } from '../types';
 
@@ -65,11 +66,38 @@ function applyFlags(trips: TripRecord[], flags: SettlementFlags): TripRecord[] {
 }
 
 /**
- * Completa `settlementId` con la liquidación VIGENTE de cada viaje, leída de las liquidaciones.
+ * Cuántas devoluciones SIN RECIBIR (pending/approved) tiene cada viaje; solo aparecen los que tienen alguna.
+ *
+ * Si la consulta falla se devuelve vacío: la pantalla no se cae por esto, y quien decide de verdad es el backend,
+ * que rechaza liquidar un viaje con devoluciones sin recibir (backend/tarifas, returns_gate.py).
+ */
+export async function openReturnCounts(tripIds: string[]): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (tripIds.length === 0) return counts;
+  try {
+    const rows = await db().find('tripReturn', {
+      where: [{ column: 'route_id', op: 'in', value: tripIds }, { column: 'status', op: 'in', value: OPEN_STATUSES }],
+      columns: ['id', 'route_id'],
+    });
+    for (const r of rows) counts.set(String(r.route_id), (counts.get(String(r.route_id)) ?? 0) + 1);
+  } catch (error) {
+    console.warn('No se pudieron leer las devoluciones sin recibir del viaje:', error);
+  }
+  return counts;
+}
+
+const withOpenReturns = (trips: TripRecord[], counts: Map<string, number>): TripRecord[] =>
+  trips.map((t) => ({ ...t, openReturns: counts.get(t.id) ?? 0 }));
+
+/**
+ * Completa `settlementId` con la liquidación VIGENTE de cada viaje, leída de las liquidaciones, y `openReturns`
+ * con sus devoluciones sin recibir.
  */
 export async function withVigentes(trips: TripRecord[]): Promise<TripRecord[]> {
   if (trips.length === 0) return trips;
-  return applyFlags(trips, await settlementFlags(trips.map((t) => t.id)));
+  const ids = trips.map((t) => t.id);
+  const [flags, open] = await Promise.all([settlementFlags(ids), openReturnCounts(ids)]);
+  return withOpenReturns(applyFlags(trips, flags), open);
 }
 
 export const ORDEN = [
@@ -125,7 +153,8 @@ export async function getTrip(id: string): Promise<TripRecord | null> {
     flagsRequest([id]),
   ]);
   if (!rows[0]) return null;
-  return applyFlags([toTripRecord(rows[0])], toFlags(settlements))[0];
+  const trip = applyFlags([toTripRecord(rows[0])], toFlags(settlements))[0];
+  return withOpenReturns([trip], await openReturnCounts([id]))[0];
 }
 
 /** Paradas del viaje (guías), en orden de visita. Solo para mostrar el detalle. */

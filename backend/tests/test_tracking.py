@@ -563,6 +563,30 @@ def test_delivery_without_gps_or_stop_coordinates_is_still_accepted(tracking):
     assert _delivered(app, lat=9.0, lng=-84.0)["statusCode"] == 200
 
 
+def test_driver_cannot_revert_a_stop_on_the_web_api(driver):
+    app, db = driver
+    db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [_guide_row(driver_id=DRIVER)])
+    response = app.handler(_event("POST /api/v1/tracking/paradas/{id}/transicion", path={"id": GUIDE},
+                                  body={"to": "pending"}), None)
+    assert response["statusCode"] == 403 and not db.wrote("UPDATE tbl_dispatch_guides")
+
+
+def test_driver_cannot_deliver_without_device_location_on_the_web_api(driver):
+    app, db = driver
+    db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [_guide_row(driver_id=DRIVER)])
+    for extra in ({}, {"reason": "GPS apagado"}, {"lat": 9.0}):
+        assert _delivered(app, **extra)["statusCode"] == 400
+    assert not db.wrote("UPDATE tbl_dispatch_guides")
+
+
+def test_admin_can_still_revert_a_stop(tracking):
+    app, db = tracking
+    _stop_with_coords(db)
+    response = app.handler(_event("POST /api/v1/tracking/paradas/{id}/transicion", path={"id": GUIDE},
+                                  body={"to": "pending"}), None)
+    assert response["statusCode"] == 200 and body_of(response)["data"]["state"] == "pending"
+
+
 def test_record_consent_is_idempotent_per_version(driver):
     app, db = driver
     route = "POST /api/v1/tracking/consentimiento-gps"
@@ -613,7 +637,7 @@ def test_late_rule_is_the_same_in_list_and_detail(tracking):
     db.answer("SELECT g.route_id, g.id, g.sequence_number", [_full_stop(1, planned=LATE_STOP)])
     db.answer("FROM tbl_routes r", [row])
     item = body_of(app.handler(_event("GET /api/v1/tracking/viajes"), None))["data"]["items"][0]
-    db.answer("cu.phone AS customer_phone", [_full_stop(1, planned=LATE_STOP)])
+    db.answer("COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,", [_full_stop(1, planned=LATE_STOP)])
     db.answer("FROM tbl_routes r JOIN tbl_stores s", [row])
     detail = body_of(app.handler(_event("GET /api/v1/tracking/viajes/{id}", path={"id": ROUTE}), None))["data"]
     assert item["delay_min"] == detail["delay_min"] and 45 <= item["delay_min"] <= 55
@@ -732,7 +756,7 @@ def test_detail_has_contract_fields_and_no_event_or_trail_queries(tracking, monk
     app, db = tracking
     monkeypatch.setattr(app, "s3", lambda: FakeS3())
     db.answer("FROM tbl_routes r JOIN tbl_stores s", [_row(origin_lat=9.9, origin_lng=-84.1, departed_at=NOW - timedelta(hours=1))])
-    db.answer("cu.phone AS customer_phone", [_full_stop(1, planned=LATE_STOP)])
+    db.answer("COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,", [_full_stop(1, planned=LATE_STOP)])
     db.answer("FROM tbl_tracking_evidences WHERE route_id", [
         {"id": "ev-1", "dispatch_guide_id": "00000000-0000-4000-8000-000000000001", "kind": "photo_invoice",
          "storage_key": "k1", "mime_type": "image/jpeg", "captured_at": NOW}])
@@ -759,7 +783,7 @@ def test_signed_urls_are_cached_and_resigned_near_expiry(tracking, monkeypatch):
     db.answer("FROM tbl_tracking_evidences WHERE route_id", [
         {"id": "ev-1", "dispatch_guide_id": GUIDE, "kind": "signature", "storage_key": "k-stable",
          "mime_type": "image/png", "captured_at": NOW}])
-    db.answer("cu.phone AS customer_phone", [_full_stop(1)])
+    db.answer("COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,", [_full_stop(1)])
     get = "GET /api/v1/tracking/viajes/{id}"
     app.handler(_event(get, path={"id": ROUTE}), None)
     app.handler(_event(get, path={"id": ROUTE}), None)
@@ -777,7 +801,7 @@ def test_driver_detail_never_signs_evidence_urls(driver, monkeypatch):
     db.answer("FROM tbl_tracking_evidences WHERE route_id", [
         {"id": "ev-1", "dispatch_guide_id": "00000000-0000-4000-8000-000000000001", "kind": "signature", "storage_key": "k",
          "mime_type": "image/png", "captured_at": NOW}])
-    db.answer("cu.phone AS customer_phone", [_full_stop(1)])
+    db.answer("COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,", [_full_stop(1)])
     data = body_of(app.handler(_event("GET /api/v1/tracking/viajes/{id}", path={"id": ROUTE}), None))["data"]
     assert s3.signed == [] and data["stops"][0]["evidences"][0]["url"] is None
 
@@ -794,7 +818,7 @@ def test_detail_still_returns_stops_when_signing_an_evidence_fails(tracking, mon
     db.answer("FROM tbl_tracking_evidences WHERE route_id", [
         {"id": "ev-1", "dispatch_guide_id": "00000000-0000-4000-8000-000000000001", "kind": "signature", "storage_key": "k-broken",
          "mime_type": "image/png", "captured_at": NOW}])
-    db.answer("cu.phone AS customer_phone", [_full_stop(1)])
+    db.answer("COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,", [_full_stop(1)])
     data = body_of(app.handler(_event("GET /api/v1/tracking/viajes/{id}", path={"id": ROUTE}), None))["data"]
     assert len(data["stops"]) == 1 and data["stops"][0]["evidences"][0]["url"] is None
 
@@ -1021,7 +1045,7 @@ def test_mi_viaje_keeps_contact_for_the_driver_and_lists_planned_trips(driver):
         "trip_id": TRIP, "stop_order": 1, "order_id": ORDER, "order_number": "P-1", "invoice_number": "F-1",
         "total_items": 3, "total_weight": 5, "delivery_address": "Calle 1", "delivery_city": "San José",
         "latitude": STOP_LAT, "longitude": STOP_LNG, "customer_name": "Cliente", "customer_phone": "2222-0000"}])
-    db.answer("cu.phone AS customer_phone", [_full_stop(1)])
+    db.answer("COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,", [_full_stop(1)])
     result = body_of(app.handler(_event("GET /api/v1/tracking/mi-viaje"), None))["data"]
     assert [item["kind"] for item in result["items"]] == ["route", "planned"]
     route_item = result["items"][0]
@@ -1200,7 +1224,7 @@ def test_origin_coords_prefers_company_then_store_then_country(logic):
 def test_detail_origin_uses_the_fixed_company_site(tracking):
     app, db = tracking
     db.answer("FROM tbl_routes r JOIN tbl_stores s", [_row(country="VN", customer_code="FEBECA", origin_lat=10.4575, origin_lng=-66.9419)])
-    db.answer("cu.phone AS customer_phone", [_full_stop(1)])
+    db.answer("COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,", [_full_stop(1)])
     data = body_of(app.handler(_event("GET /api/v1/tracking/viajes/{id}", path={"id": ROUTE}), None))["data"]
     assert data["origin"]["lat"] == 10.1897571 and data["origin"]["lng"] == -67.9507191
 
@@ -1212,3 +1236,116 @@ def test_evidence_from_the_driver_app_is_signed_in_its_own_bucket(tracking, monk
     assert app.evidence_bucket("dev-tms-mobile-evidencias-1") == "dev-tms-mobile-evidencias-1"
     assert app.evidence_bucket(None) == "dev-tms-tracking-1"
     assert app.evidence_bucket("bucket-ajeno") == "dev-tms-tracking-1"
+
+
+def test_stop_name_comes_from_delivery_point_not_from_the_company():
+    import tracking_sql
+    for sql in (tracking_sql.GUIDES_SQL, tracking_sql.MY_PLANNED_STOPS_SQL):
+        assert "COALESCE(dp.name, fc.name) AS customer_name" in sql and "cu.name AS company_name" in sql
+        assert "JOIN tbl_final_customers fc ON fc.id = o.final_customer_id" in sql
+        assert "JOIN tbl_delivery_points dp ON dp.id = o.delivery_point_id" in sql
+
+
+def test_stop_view_exposes_the_time_on_site_detected_by_gps():
+    app = load_stack_module("tracking")
+    arrived, left = datetime(2026, 10, 16, 15, 0, tzinfo=timezone.utc), datetime(2026, 10, 16, 15, 20, tzinfo=timezone.utc)
+    row = {**_full_stop(1), "site_arrived_at": arrived, "site_departed_at": left, "dwell_seconds": 1200}
+    stop = app._stop_view(row, {"by_stop": {}}, {}, False)
+    assert stop["site_arrived_at"].startswith("2026-10-16T15:00") and stop["dwell_seconds"] == 1200
+    assert stop["site_departed_at"].startswith("2026-10-16T15:20")
+    # Sin visita (aún no llegó o sin GPS) los tres quedan en null y el resto del contrato no cambia.
+    bare = app._stop_view(_full_stop(1), {"by_stop": {}}, {}, False)
+    assert bare["site_arrived_at"] is None and bare["site_departed_at"] is None and bare["dwell_seconds"] is None
+
+
+# --- vista del cliente (rol Cliente): solo SU entrega ----------------------------------------------------
+
+CLIENT_GUIDES = ("FROM tbl_dispatch_guides g JOIN tbl_routes r ON r.id = g.route_id JOIN tbl_orders o ON o.id = g.order_id "
+                 "JOIN tracking_client_access")
+CLIENT_PLANNED = "FROM tbl_plan_stops ps JOIN tbl_orders o ON o.id = ps.order_id JOIN tracking_client_access"
+ALL_GUIDES = "COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,"
+MINE = "00000000-0000-4000-8000-000000000002"
+MY_ENTREGAS = "GET /api/v1/tracking/mis-entregas"
+
+
+def _client_permissions():
+    from tms_common.permissions import Permissions
+    return Permissions("app-user", "role-client", "Cliente", False, {"tracking": frozenset({"view"})}, True, ())
+
+
+def _client_row(**over):
+    base = {"id": MINE, "route_id": ROUTE, "sequence_number": 2, "delivery_status": None, "status": None,
+            "actual_arrival_time": None, "planned_arrival_time": None, "order_number": "P-2",
+            "delivery_address": "Calle 2", "delivery_city": "Heredia", "point_name": "EPA Heredia",
+            "latitude": 9.95, "longitude": -84.05, "route_status": "En tránsito", "departed_at": NOW - timedelta(hours=1),
+            "actual_end_time": None, "last_lat": 9.9, "last_lng": -84.1, "last_position_at": NOW - timedelta(seconds=30),
+            "site_arrived_at": None, "site_departed_at": None, "dwell_seconds": None}
+    base.update(over)
+    return base
+
+
+@pytest.fixture
+def client(tracking, caller_permissions):
+    app, db = tracking
+    caller_permissions.set(_client_permissions())
+    return app, db
+
+
+def test_client_cannot_use_the_general_tracking_endpoints(client):
+    app, _ = client
+    for route, path in [("GET /api/v1/tracking/viajes", None), ("GET /api/v1/tracking/viajes/{id}", {"id": ROUTE}),
+                        ("GET /api/v1/tracking/choferes", None), ("GET /api/v1/tracking/planificados", None),
+                        ("GET /api/v1/tracking/resumen", None), ("GET /api/v1/tracking/mi-viaje", None)]:
+        assert app.handler(_event(route, path=path), None)["statusCode"] == 403, route
+
+
+def test_my_deliveries_is_only_for_the_client_role(tracking):
+    app, _ = tracking   # por defecto, administrador
+    assert app.handler(_event(MY_ENTREGAS), None)["statusCode"] == 403
+
+
+def test_client_without_access_sees_nothing(client):
+    app, _ = client
+    assert body_of(app.handler(_event(MY_ENTREGAS), None))["data"] == {"view": "client", "items": []}
+
+
+def test_client_sees_only_its_stop_with_eta_and_truck(client):
+    app, db = client
+    db.answer(CLIENT_GUIDES, [_client_row()])
+    db.answer(ALL_GUIDES, [_full_stop(1, planned=None), _full_stop(2)])   # la parada 1 es de OTRO cliente
+    data = body_of(app.handler(_event(MY_ENTREGAS), None))["data"]
+    assert data["view"] == "client" and len(data["items"]) == 1
+    item = data["items"][0]
+    assert item["status"] == "en_camino" and item["point_name"] == "EPA Heredia" and item["stops_ahead"] == 1
+    assert item["eta_at"] is not None and item["truck"]["lat"] == 9.9
+    flat = repr(data)
+    for leaked in ("Ana", "ABC123", "G-1", "P-1", "2222-0000", "driver", "plate", "customer_phone"):
+        assert leaked not in flat, leaked
+    assert any("'app-user'" in sql for sql, _ in db.calls if "tracking_client_access" in sql)   # filtrado por usuario
+
+
+def test_client_stops_seeing_the_truck_once_delivered(client):
+    app, db = client
+    db.answer(CLIENT_GUIDES, [_client_row(delivery_status="delivered", actual_arrival_time=NOW,
+                                          site_arrived_at=NOW - timedelta(minutes=10), site_departed_at=NOW,
+                                          dwell_seconds=600)])
+    db.answer(ALL_GUIDES, [_full_stop(1, state="delivered"), _full_stop(2, state="delivered")])
+    item = body_of(app.handler(_event(MY_ENTREGAS), None))["data"]["items"][0]
+    assert item["status"] == "entregado" and item["truck"] is None and item["eta_at"] is None
+    assert item["delivered_at"] is not None and item["dwell_seconds"] == 600
+
+
+def test_client_sees_a_not_yet_departed_trip_as_ready(client):
+    app, db = client
+    db.answer(CLIENT_GUIDES, [_client_row(departed_at=None)])
+    db.answer(ALL_GUIDES, [_full_stop(1), _full_stop(2)])
+    item = body_of(app.handler(_event(MY_ENTREGAS), None))["data"]["items"][0]
+    assert item["status"] == "listo" and item["eta_at"] is None
+
+
+def test_client_sees_todays_planned_delivery_as_ready(client):
+    app, db = client
+    db.answer(CLIENT_PLANNED, [{"trip_id": TRIP, "stop_order": 3, "order_number": "P-9", "delivery_address": "Calle 9",
+                                "delivery_city": "Cartago", "point_name": "EPA Cartago", "plan_date": date(2026, 10, 16)}])
+    item = body_of(app.handler(_event(MY_ENTREGAS), None))["data"]["items"][0]
+    assert item["status"] == "listo" and item["point_name"] == "EPA Cartago" and item["truck"] is None

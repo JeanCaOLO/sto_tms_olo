@@ -266,3 +266,19 @@ describe('ResumenBar: entregas y fallidas', () => {
     expect(screen.getByTestId('deliveries-progress').textContent).toBe('Paradas gestionadas: 8 de 10 · faltan 2');
   });
 });
+
+describe('ParadaItem: nombre del punto de entrega y empresa como nota', () => {
+  it('muestra el punto como nombre y la empresa dueña del pedido en la nota', async () => {
+    const { default: ParadaItem } = await import('../components/ParadaItem');
+    render(<ul><ParadaItem stop={stop({ state: 'pending', customer_name: 'EPA Heredia', company_name: 'Cofersa' })} isNext={false} timezone={null} /></ul>);
+    expect(screen.getByText('EPA Heredia')).toBeTruthy();
+    expect(screen.getByText(/Pedido PED-1 de Cofersa/)).toBeTruthy();
+    expect(screen.queryByText('Cofersa')).toBeNull();   // la empresa NO es el nombre de la parada
+  });
+
+  it('el encabezado "Rumbo a" usa el punto, o la dirección si no hay punto', () => {
+    const next = stop({ state: 'pending', customer_name: null, company_name: 'Cofersa', address: 'Calle 7' });
+    render(<ViajeDetallePanel viaje={viaje()} detail={detail([next], { next_stop_id: 's1' })} error={false} now={NOW} onClose={vi.fn()} />);
+    expect(screen.getByText(/Rumbo a 1\. Calle 7/)).toBeTruthy();
+  });
+});

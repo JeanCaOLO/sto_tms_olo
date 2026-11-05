@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api-client';
 import { useAuth } from '../../hooks/useAuth';
 import Button from '../../components/base/Button';
 import Badge from '../../components/base/Badge';
@@ -54,7 +54,7 @@ export default function TransportistasPage() {
   const loadCarriers = async () => {
     setLoading(true);
     try {
-      const { data } = await supabase
+      const { data } = await apiClient
         .from('carriers')
         .select(`
           *,
@@ -68,12 +68,12 @@ export default function TransportistasPage() {
       if (data) {
         const carriersWithCounts = await Promise.all(
           data.map(async (carrier) => {
-            const { count: driverCount } = await supabase
+            const { count: driverCount } = await apiClient
               .from('drivers')
               .select('*', { count: 'exact', head: true })
               .eq('carrier_id', carrier.id);
 
-            const { count: vehicleCount } = await supabase
+            const { count: vehicleCount } = await apiClient
               .from('vehicles')
               .select('*', { count: 'exact', head: true })
               .eq('carrier_id', carrier.id);
@@ -95,7 +95,7 @@ export default function TransportistasPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('¿Estás seguro de eliminar este transportista? Esto puede afectar a conductores y vehículos asociados.')) return;
 
-    const { error } = await supabase
+    const { error } = await apiClient
       .from('carriers')
       .delete()
       .eq('id', id);
@@ -352,7 +352,7 @@ export default function TransportistasPage() {
         ]}
         transformRow={async (row, organizationId) => {
           // Resolver country_code -> country_id
-          const { data: country } = await supabase
+          const { data: country } = await apiClient
             .from('countries')
             .select('id')
             .eq('code', row.country_code)

@@ -119,6 +119,14 @@ export function formatDistance(meters: number | null | undefined): string | null
   return meters < 1000 ? `${Math.round(meters)} m` : `${(meters / 1000).toFixed(1)} km`;
 }
 
+/** "45 s" / "12 min" / "1 h 05 min" para una permanencia; null si no hay dato. */
+export function formatDwell(seconds: number | null | undefined): string | null {
+  if (seconds == null || seconds < 0) return null;
+  if (seconds < 60) return `${Math.round(seconds)} s`;
+  const minutes = Math.round(seconds / 60);
+  return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')} min`;
+}
+
 /** Hora "HH:MM" de un ISO en la zona del viaje (la del país); sin zona, la del navegador. null si no es válido. */
 export function formatClock(iso: string | null | undefined, timezone?: string | null): string | null {
   if (!iso) return null;

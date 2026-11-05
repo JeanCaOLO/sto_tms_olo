@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { supabase, apiFetch } from '../../lib/supabase';
+import { apiClient, apiFetch } from '../../lib/api-client';
 import { useOperationalContext } from '../../hooks/useOperationalContext';
 import Button from '../../components/base/Button';
 import Badge from '../../components/base/Badge';
@@ -80,7 +80,7 @@ export default function TiendasPage() {
 
   // Zonas para el filtro (se recargan al cambiar de país del contexto).
   useEffect(() => {
-    let q = supabase.from('zones').select('id,code,name').eq('status', 'active').order('name');
+    let q = apiClient.from('zones').select('id,code,name').eq('status', 'active').order('name');
     if (selectedCountryId) q = q.eq('country_id', selectedCountryId);
     q.then(({ data }) => setZones(data || []));
   }, [selectedCountryId]);
@@ -117,7 +117,7 @@ export default function TiendasPage() {
     const from = (page - 1) * pageSize;
     // Columnas de filtro por tabla padre (contrato de Claude, canal 2026-10-12):
     // usan el NOMBRE de la tabla, no el alias del embed.
-    let q = supabase
+    let q = apiClient
       .from('delivery_points')
       .select(LIST_SELECT, { count: 'exact' })
       .order('name', { ascending: true });

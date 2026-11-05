@@ -1,4 +1,4 @@
-import type { AuthSession as Session, AuthUser as User } from './supabase';
+import type { AuthSession as Session, AuthUser as User } from './api-client';
 import { MOCK_COUNTRY_IDS } from './tarifas/data/memory/mockIds';
 
 export interface Role {

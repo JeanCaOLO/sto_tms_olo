@@ -151,7 +151,7 @@ class ApiHandler(BaseHTTPRequestHandler):
         self._send(response["statusCode"], body, response.get("headers"))
         return None
 
-    do_GET = do_POST = do_PATCH = do_DELETE = _dispatch
+    do_GET = do_POST = do_PUT = do_PATCH = do_DELETE = _dispatch
 
 
 def main() -> None:

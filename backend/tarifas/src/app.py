@@ -42,6 +42,7 @@ import tarifas_carrier
 import tarifas_db
 import tarifas_metrics
 import proformas_api
+import returns_gate
 import tarifas_perms
 from tarifas_schema import Table, table as table_def
 from tarifas_sql import MAX_ROWS, build_delete, build_find, build_get, build_insert, build_insert_many, build_update
@@ -224,6 +225,7 @@ def insert_row(event: dict) -> dict:
     values = _stamp_actor(caller, event, table, _body(event))
     proformas_api.check_direct_write(table.name, "insert", values)
     _require_country(caller, table, values, creating=True)
+    returns_gate.check(table.name, values)
     return json_response(200, tarifas_db.query(*build_insert(table, values))[0])
 
 
@@ -266,10 +268,12 @@ def _planned(caller: permissions.Permissions, op: object, event: dict) -> list[t
             rows = [_stamp_actor(caller, event, table, row) for row in rows]
         for row in rows if isinstance(rows, list) else []:
             _require_country(caller, table, row, creating=True)
+        returns_gate.check(table.name, rows)
         return [(kind, statement) for statement in build_insert_many(table, rows)]
     values = _stamp_actor(caller, event, table, op.get("values"))
     _require_country(caller, table, values, creating=(kind == "insert"))
     if kind == "insert":
+        returns_gate.check(table.name, values)
         return [(kind, build_insert(table, values))]
     row_id = op.get("id")
     if not row_id:

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api-client';
 import { useAuth } from '../../hooks/useAuth';
 import Card from '../../components/base/Card';
 import Button from '../../components/base/Button';
@@ -102,7 +102,7 @@ export default function SeedPage() {
         }
       ];
 
-      const { data, error } = await supabase.from('countries').insert(paises).select();
+      const { data, error } = await apiClient.from('countries').insert(paises).select();
       if (error) throw error;
 
       updateResult('Países', 'success', 'Países insertados correctamente', paises.length);
@@ -174,7 +174,7 @@ export default function SeedPage() {
         }
       ];
 
-      const { data, error } = await supabase.from('carriers').insert(transportistas).select();
+      const { data, error } = await apiClient.from('carriers').insert(transportistas).select();
       if (error) throw error;
 
       updateResult('Transportistas', 'success', 'Transportistas insertados correctamente', transportistas.length);
@@ -295,7 +295,7 @@ export default function SeedPage() {
         }
       ];
 
-      const { error } = await supabase.from('vehicles').insert(vehiculos);
+      const { error } = await apiClient.from('vehicles').insert(vehiculos);
       if (error) throw error;
 
       updateResult('Vehículos', 'success', 'Vehículos insertados correctamente', vehiculos.length);
@@ -416,7 +416,7 @@ export default function SeedPage() {
         }
       ];
 
-      const { error } = await supabase.from('drivers').insert(conductores);
+      const { error } = await apiClient.from('drivers').insert(conductores);
       if (error) throw error;
 
       updateResult('Conductores', 'success', 'Conductores insertados correctamente', conductores.length);
@@ -641,7 +641,7 @@ export default function SeedPage() {
         }
       ];
 
-      const { data, error } = await supabase.from('stores').insert(tiendas).select();
+      const { data, error } = await apiClient.from('stores').insert(tiendas).select();
       if (error) throw error;
 
       updateResult('Tiendas', 'success', 'Tiendas insertadas correctamente', tiendas.length);
@@ -722,7 +722,7 @@ export default function SeedPage() {
         }
       ];
 
-      const { error } = await supabase.from('routes').insert(rutas);
+      const { error } = await apiClient.from('routes').insert(rutas);
       if (error) throw error;
 
       updateResult('Rutas', 'success', 'Rutas insertadas correctamente', rutas.length);

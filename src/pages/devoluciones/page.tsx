@@ -1,267 +1,76 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+// Devoluciones: lo que los conductores devolvieron desde tracking, por viaje. Quien recibe en bodega marca cada
+// devolución como "Recibido"; cuando todas las de un viaje están recibidas el viaje queda listo para liquidar
+// (Liquidaciones no deja liquidar un viaje con devoluciones sin recibir). Cada viaje tiene su formulario imprimible.
+import { useState } from 'react';
+import Card from '../../components/base/Card';
+import TabBar from '../../components/base/TabBar';
+import { tabPanelProps } from '../../components/base/tabPanelProps';
+import DateRangeFilter from '../../components/feature/DateRangeFilter';
 import StatCard from '../../components/feature/StatCard';
-import Badge from '../../components/base/Badge';
-import Button from '../../components/base/Button';
-import Input from '../../components/base/Input';
-import DataTable, { type DataTableColumn } from '../../components/base/DataTable';
-import ReturnModal from './components/ReturnModal';
 import { useModulePermissions } from '../../hooks/use-module-permissions';
+import type { DateRange } from '../../lib/tarifas/proformas/dateRange';
+import { rangeFor } from '../../lib/tarifas/proformas/dateRange';
+import type { TripFilter } from '../../lib/devoluciones/types';
+import { useReturnTrips } from './hooks/useReturnTrips';
+import TripCard from './parts/TripCard';
 
-interface Return {
-  id: string;
-  return_number: string;
-  order_id: string;
-  return_type: string;
-  return_date: string;
-  reason: string;
-  product_name: string;
-  quantity: number;
-  status: string;
-  created_at: string;
-  order?: {
-    order_number: string;
-    customer?: {
-      name: string;
-    };
-  };
-}
-
-const statusVariants: Record<string, 'warning' | 'success' | 'danger' | 'info'> = {
-  pending: 'warning',
-  approved: 'success',
-  rejected: 'danger',
-  completed: 'info'
+const TABS: { key: TripFilter; label: string }[] = [
+  { key: 'pendientes', label: 'Por recibir' },
+  { key: 'recibidos', label: 'Listos para liquidar' },
+  { key: 'todos', label: 'Todos' },
+];
+const EMPTY: Record<TripFilter, string> = {
+  pendientes: 'No hay viajes con devoluciones por recibir.',
+  recibidos: 'Ningún viaje tiene todas sus devoluciones recibidas en este periodo.',
+  todos: 'No hay viajes con devoluciones en este periodo.',
 };
 
-const statusLabels: Record<string, string> = {
-  pending: 'Pendiente',
-  approved: 'Aprobada',
-  rejected: 'Rechazada',
-  completed: 'Completada'
-};
+const tabClass = (active: boolean) =>
+  `px-4 py-2 text-sm font-medium border-b-2 cursor-pointer ${active ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`;
 
 export default function DevolucionesPage() {
-  const [returns, setReturns] = useState<Return[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [dateFilter, setDateFilter] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedReturn, setSelectedReturn] = useState<Return | null>(null);
-  const { canCreate, canEdit } = useModulePermissions('devoluciones');
-
-  const [stats, setStats] = useState({
-    total: 0,
-    pending: 0,
-    approved: 0,
-    rejected: 0
-  });
-
-  useEffect(() => {
-    fetchReturns();
-  }, []);
-
-  const fetchReturns = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('returns')
-        .select(`
-          *,
-          order:orders(
-            order_number,
-            customer:customers(name)
-          )
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      setReturns(data || []);
-      calculateStats(data || []);
-    } catch (error) {
-      console.error('Error al cargar devoluciones:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const calculateStats = (data: Return[]) => {
-    setStats({
-      total: data.length,
-      pending: data.filter(r => r.status === 'pending').length,
-      approved: data.filter(r => r.status === 'approved').length,
-      rejected: data.filter(r => r.status === 'rejected').length
-    });
-  };
-
-  const dateFilteredReturns = returns.filter((ret) => {
-    if (!dateFilter) return true;
-    const returnDate = new Date(ret.return_date || ret.created_at).toISOString().split('T')[0];
-    return returnDate === dateFilter;
-  });
-
-  const handleStatusChange = async (returnId: string, newStatus: string) => {
-    try {
-      const { error } = await supabase
-        .from('returns')
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
-        .eq('id', returnId);
-
-      if (error) throw error;
-
-      await fetchReturns();
-    } catch (error) {
-      console.error('Error al actualizar estado:', error);
-    }
-  };
-
-  const handleViewDetail = (returnItem: Return) => {
-    setSelectedReturn(returnItem);
-    setIsModalOpen(true);
-  };
-
-  const columns: DataTableColumn<Return>[] = [
-    {
-      key: 'return_number',
-      header: 'Número',
-      accessor: (r) => r.return_number,
-      sortable: true,
-      render: (r) => <span className="text-sm font-medium text-gray-900">{r.return_number}</span>,
-    },
-    { key: 'order', header: 'Pedido', accessor: (r) => r.order?.order_number ?? '', sortable: true },
-    { key: 'customer', header: 'Cliente', accessor: (r) => r.order?.customer?.name ?? '', sortable: true, filterable: true },
-    {
-      key: 'product',
-      header: 'Producto',
-      accessor: (r) => r.product_name ?? '',
-      render: (r) => (
-        <>
-          <div className="text-sm text-gray-900">{r.product_name || '-'}</div>
-          <div className="text-xs text-gray-500">Cant: {r.quantity || 0}</div>
-        </>
-      ),
-    },
-    { key: 'reason', header: 'Motivo', accessor: (r) => r.reason ?? '' },
-    {
-      key: 'return_date',
-      header: 'Fecha',
-      accessor: (r) => r.return_date || r.created_at,
-      sortable: true,
-      render: (r) => new Date(r.return_date || r.created_at).toLocaleDateString('es-ES'),
-    },
-    {
-      key: 'status',
-      header: 'Estado',
-      accessor: (r) => statusLabels[r.status] || r.status,
-      filterable: true,
-      render: (r) => <Badge variant={statusVariants[r.status] || 'default'}>{statusLabels[r.status] || r.status}</Badge>,
-    },
-  ];
+  const { canEdit, canExport } = useModulePermissions('devoluciones');
+  const [tab, setTab] = useState<TripFilter>('pendientes');
+  // Por defecto sin límite de fechas: una devolución pendiente de hace semanas no puede quedar oculta.
+  const [range, setRange] = useState<DateRange>(() => rangeFor('all'));
+  const { summary, trips, loading, error, reload } = useReturnTrips(tab, range.from, range.to);
 
   return (
     <div className="space-y-6">
-      {/* Encabezado */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Devoluciones</h1>
-          <p className="text-sm text-gray-600 mt-1">Gestiona las devoluciones de productos y pedidos</p>
-        </div>
-        {canCreate && (
-          <Button onClick={() => { setSelectedReturn(null); setIsModalOpen(true); }}>
-            <i className="ri-add-line mr-2"></i>
-            Nueva Devolución
-          </Button>
-        )}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Devoluciones</h1>
+        <p className="mt-1 text-sm text-gray-600">
+          Recibe en bodega la mercadería devuelta por los conductores. Un viaje se liquida cuando todas sus devoluciones están recibidas.
+        </p>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <StatCard title="Total Devoluciones" value={stats.total.toString()} icon="ri-arrow-go-back-line" />
-          <StatCard title="Pendientes" value={stats.pending.toString()} icon="ri-time-line" />
-          <StatCard title="Aprobadas" value={stats.approved.toString()} icon="ri-checkbox-circle-line" />
-          <StatCard title="Rechazadas" value={stats.rejected.toString()} icon="ri-close-circle-line" />
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
+        <StatCard title="Viajes con devoluciones" value={summary?.trips ?? '-'} icon="ri-route-line" />
+        <StatCard title="Viajes por recibir" value={summary?.trips_pending ?? '-'} icon="ri-time-line" color="amber" />
+        <StatCard title="Listos para liquidar" value={summary?.trips_ready ?? '-'} icon="ri-checkbox-circle-line" color="emerald" />
+        <StatCard title="Devoluciones por recibir" value={summary?.returns_pending ?? '-'} icon="ri-arrow-go-back-line" color="blue" />
+      </div>
+
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <TabBar<TripFilter> tabs={TABS} value={tab} onChange={setTab} ariaLabel="Estado de los viajes" idBase="devoluciones"
+            tabClassName={tabClass} className="flex gap-1 border-b border-slate-200" />
+          <DateRangeFilter value={range} onChange={setRange} />
         </div>
+      </Card>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6 flex items-center gap-3">
-          <div className="w-48">
-            <Input
-              type="date"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              label="Filtrar por fecha exacta"
-            />
-          </div>
-          {dateFilter && (
-            <Button variant="secondary" onClick={() => setDateFilter('')} className="mt-6">
-              <i className="ri-close-line mr-2"></i>
-              Limpiar fecha
-            </Button>
-          )}
-        </div>
-
-        <DataTable
-          data={dateFilteredReturns}
-          columns={columns}
-          getRowId={(r) => r.id}
-          loading={loading}
-          searchPlaceholder="Buscar por número de devolución, pedido o cliente..."
-          exportFileName="devoluciones"
-          emptyMessage="No hay devoluciones"
-          actions={(returnItem) => (
-            <>
-              <button
-                onClick={() => handleViewDetail(returnItem)}
-                className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-teal-600 hover:bg-teal-50 rounded-md transition-colors"
-                title="Ver detalle"
-              >
-                <i className="ri-eye-line text-base"></i>
-              </button>
-              {canEdit && returnItem.status === 'pending' && (
-                <>
-                  <button
-                    onClick={() => handleStatusChange(returnItem.id, 'approved')}
-                    className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors"
-                    title="Aprobar"
-                  >
-                    <i className="ri-checkbox-circle-line text-base"></i>
-                  </button>
-                  <button
-                    onClick={() => handleStatusChange(returnItem.id, 'rejected')}
-                    className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                    title="Rechazar"
-                  >
-                    <i className="ri-close-circle-line text-base"></i>
-                  </button>
-                </>
-              )}
-              {canEdit && returnItem.status === 'approved' && (
-                <button
-                  onClick={() => handleStatusChange(returnItem.id, 'completed')}
-                  className="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-teal-600 hover:bg-teal-50 rounded-md transition-colors"
-                  title="Completar"
-                >
-                  <i className="ri-check-double-line text-base"></i>
-                </button>
-              )}
-            </>
-          )}
-        />
-
-      {/* Modal */}
-      {isModalOpen && (
-        <ReturnModal
-          returnItem={selectedReturn}
-          onClose={() => {
-            setIsModalOpen(false);
-            setSelectedReturn(null);
-          }}
-          onSave={() => {
-            fetchReturns();
-            setIsModalOpen(false);
-            setSelectedReturn(null);
-          }}
-        />
-      )}
+      <div {...tabPanelProps('devoluciones', tab)} className="space-y-3">
+        {error && (
+          <p role="alert" className="text-sm text-red-600">
+            {error} <button type="button" className="underline cursor-pointer" onClick={reload}>Reintentar</button>
+          </p>
+        )}
+        {loading && trips.length === 0 && <p role="status" className="text-sm text-slate-500">Cargando…</p>}
+        {!loading && !error && trips.length === 0 && <p className="text-sm text-slate-500">{EMPTY[tab]}</p>}
+        {trips.map((trip) => (
+          <TripCard key={trip.route_id} trip={trip} canEdit={canEdit} canPrint={canExport} onChanged={reload} />
+        ))}
+      </div>
     </div>
   );
 }

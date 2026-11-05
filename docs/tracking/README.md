@@ -16,15 +16,25 @@
 
 Todo lo que necesita el túnel a Aurora está en **[pendientes-tunel.md](./pendientes-tunel.md)**, con pasos para hacerlo.
 
+**Agregados de 2026-11 (sin probar contra Aurora ni desplegados):**
+- La parada muestra el **punto de entrega** como nombre y la empresa del pedido como nota (`company_name`).
+- **Tiempo en cada parada:** llegada (≤ 150 m), salida (> 200 m) y permanencia, detectados en el servidor con la hora de cada posición (`tracking_stop_visits`, migración `m06`).
+- **Vista del cliente** (rol `Cliente`): `GET /api/v1/tracking/mis-entregas` y pantalla `MisEntregas`; solo ve su entrega (`tracking_client_access`, migración `m07`). El rol Cliente recibe 403 en los demás endpoints de tracking.
+
+Lo que falta de esto está en **[pendientes/](./pendientes/README.md)** (pendiente por implementar).
+
 ## Documentos
 
 | Archivo | Para qué |
 |---|---|
+| [MODULO_TRACKING.md](./MODULO_TRACKING.md) | Documento completo del módulo, verificado contra el código: flujo, endpoints, reglas, cierre del viaje, app del chofer y mapa de archivos. |
 | [contrato-api-v2.md](./contrato-api-v2.md) | Endpoints, campos, reglas de alertas y KPIs. Fuente única para backend, mock y app. |
 | [modo-mock.md](./modo-mock.md) | Cómo correr la pantalla sin túnel, escenarios de prueba y cómo agregar otros. |
 | [pendientes-tunel.md](./pendientes-tunel.md) | Lo que falta y requiere túnel/AWS, con el cómo paso a paso. |
+| [mobile/](./mobile/README.md) | App del chofer y su backend `/api/mobile/v1`: arquitectura, contrato, GPS, offline, paradas, evidencias, presencia, datos, despliegue, pruebas. |
+| [pendientes/](./pendientes/README.md) | Pendiente por implementar: correo de aviso, migraciones, vínculo del cliente, mock, app del chofer y mejoras posibles. |
 | [alternativas-mapas.md](./alternativas-mapas.md) | 14 proveedores pagos de mapas/rutas/geocoding, costo mensual estimado y pendientes para decidir. |
-| [decisiones.md](./decisiones.md) | Decisiones tomadas: POST + polling (no WebSocket), agrupación de camiones, el viaje lo termina Planificación (Tracking solo lo lee), mapas como están. |
+| [decisiones.md](./decisiones.md) | Decisiones tomadas: POST + polling (no WebSocket), agrupación de camiones, el cierre del viaje lo hace la app del chofer con la última parada o Planificación (Tracking solo lo lee), mapas como están. |
 | `docs/work/2026-10/2026-10-17-tracking-saneamiento-monitoreo.md` | Bitácora del cambio a "solo monitoreo" + optimización. |
 
 ## Cómo se ve la pantalla

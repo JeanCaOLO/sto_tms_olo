@@ -6,15 +6,16 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 import { setTrackingTransport, type TrackingTransport } from '../api';
 import type { Resumen, Viaje, ViajesPage } from '../types';
 
-vi.mock('../../../lib/supabase', () => ({ apiFetch: vi.fn() }));
+vi.mock('../../../lib/api-client', () => ({ apiFetch: vi.fn() }));
 vi.mock('../../../hooks/use-module-permissions', () => ({
   useModulePermissions: () => ({ canCreate: false, canEdit: false, canDelete: false, canExport: false }),
 }));
+vi.mock('../../../hooks/useAuth', () => ({ useAuth: () => ({ appUser: { role: { name: 'Operaciones' } } }) }));
 vi.mock('../hooks/useTrackingCountry', () => ({ useTrackingCountry: () => null }));
 vi.mock('../components/FlotaMapa', () => ({ default: () => <div data-testid="mapa" /> }));
 
 import TrackingPage from '../page';
-import { apiFetch } from '../../../lib/supabase';
+import { apiFetch } from '../../../lib/api-client';
 
 // Dibujar 30 a 100 tarjetas por consulta es lento con toda la suite corriendo en paralelo: más margen que el 1 s por defecto.
 configure({ asyncUtilTimeout: 8_000 });

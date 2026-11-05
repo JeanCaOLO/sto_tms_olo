@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api-client';
 import Button from '../../components/base/Button';
 import Badge from '../../components/base/Badge';
 import DataTable, { type DataTableColumn } from '../../components/base/DataTable';
@@ -40,7 +40,7 @@ export default function LicenciasPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const { data } = await supabase
+      const { data } = await apiClient
         .from('driver_license_types')
         .select('*, country:countries(name)')
         .order('orden');
@@ -53,7 +53,7 @@ export default function LicenciasPage() {
   const handleDelete = async () => {
     if (!toDelete) return;
     setDeleteError('');
-    const { error } = await supabase.from('driver_license_types').delete().eq('id', toDelete.id);
+    const { error } = await apiClient.from('driver_license_types').delete().eq('id', toDelete.id);
     if (error) {
       if (error.code === '23503') {
         setDeleteError('No se puede eliminar esta licencia porque hay conductores que la usan. Reasigná esos conductores primero.');

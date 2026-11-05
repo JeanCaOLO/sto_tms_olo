@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../../../lib/supabase';
+import { apiClient } from '../../../lib/api-client';
 import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
@@ -84,7 +84,7 @@ const VehicleModal = ({ isOpen, onClose, onSuccess, vehicle, organizationId, veh
   }, [isOpen, vehicle]);
 
   const loadCarriers = async () => {
-    const { data } = await supabase
+    const { data } = await apiClient
       .from('carriers')
       .select('*')
       .eq('organization_id', organizationId)
@@ -119,10 +119,10 @@ const VehicleModal = ({ isOpen, onClose, onSuccess, vehicle, organizationId, veh
       };
 
       if (vehicle) {
-        const { error } = await supabase.from('vehicles').update(vehicleData).eq('id', vehicle.id);
+        const { error } = await apiClient.from('vehicles').update(vehicleData).eq('id', vehicle.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('vehicles').insert([vehicleData]);
+        const { error } = await apiClient.from('vehicles').insert([vehicleData]);
         if (error) throw error;
       }
 

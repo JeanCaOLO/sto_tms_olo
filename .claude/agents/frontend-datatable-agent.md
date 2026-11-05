@@ -150,7 +150,7 @@ general escape hatch.
 1. Look at an already-converted sibling page for the closest pattern (e.g.
    `src/pages/transportistas/page.tsx`, `src/pages/contratos/page.tsx`, or
    `src/pages/oms/cola/page.tsx` for a paginated, business-filtered case).
-2. Fetch data as usual (via `src/lib/supabase.ts`'s client or the module's
+2. Fetch data as usual (via `src/lib/api-client.ts`'s client or the module's
    own controller hook), keep loading/error state as the surrounding
    convention does.
 3. Define `columns`, wire `<DataTable>`, remove any manual search/sort/

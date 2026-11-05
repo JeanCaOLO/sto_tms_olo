@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { supabase, type AuthSession as Session, type AuthUser as User } from '../lib/supabase';
+import { apiClient, type AuthSession as Session, type AuthUser as User } from '../lib/api-client';
 import { MOCK_AUTH_ENABLED, mockAppUser, mockSession, mockUser, rememberMockActor, type AppUser } from '../lib/mock-auth';
 
 interface AuthContextType {
@@ -26,7 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // siempre si esto nunca se resuelve (ver docs/reference/analisis-sistema-tms.md y el
   // reporte de paginas colgadas de esta sesion).
   const fetchAppUser = async (authUserId: string, attempt = 1): Promise<void> => {
-    const { data, error } = await supabase
+    const { data, error } = await apiClient
       .from('app_users')
       .select('*, role:roles(id, name)')
       .eq('auth_user_id', authUserId)
@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Siempre intentamos primero la sesión REAL. Si hay una guardada y válida,
     // se entra con esa (el login real manda). Si no hay, se muestra el login
     // normal — NO auto-logueamos como mock aquí, para no tapar el login real.
-    supabase.auth
+    apiClient.auth
       .getSession()
       .then(({ data: { session: s } }) => {
         setSession(s);
@@ -78,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
       });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+    const { data: { subscription } } = apiClient.auth.onAuthStateChange((_event, s) => {
       setSession(s);
       setUser(s?.user ?? null);
       if (s?.user) {
@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string): Promise<{ error: string | null }> => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await apiClient.auth.signInWithPassword({ email, password });
       if (!error) return { error: null }; // login real OK -> manda el real
       // El backend respondió con error (p. ej. credenciales inválidas).
       if (MOCK_AUTH_ENABLED) return enterMock();
@@ -111,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     // Sirve tanto para sesión real como para la mock: cerramos contra el
     // backend (si hay) y limpiamos el estado local de todas formas.
-    await supabase.auth.signOut().catch(() => null);
+    await apiClient.auth.signOut().catch(() => null);
     setSession(null);
     setUser(null);
     setAppUser(null);

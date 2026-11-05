@@ -290,7 +290,7 @@ re-consultan eflow. Migraciones `003_plan_snapshots.sql`, `004_plan_trip_status.
 El país/almacén/compañía salen del contexto operativo del headbar, no de un selector de la
 página. `apiFetch` adjunta `x-warehouse-id` / `x-customer-id` en cada request; al cambiar el
 contexto, las vistas (lista de planes y pedidos del día) se re-consultan en vivo sin recargar.
-Fuente: `hooks/useOperationalContext.tsx`, `lib/supabase.ts`, `use-planes-list.ts`,
+Fuente: `hooks/useOperationalContext.tsx`, `lib/api-client.ts`, `use-planes-list.ts`,
 `use-pedidos-dia.ts`; backend `wiring._warehouse_id()` / `_customer_id()` (headers
 case-insensitive vía `event.header`).
 

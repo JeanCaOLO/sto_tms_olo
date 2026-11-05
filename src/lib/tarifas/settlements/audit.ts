@@ -3,7 +3,7 @@
 import { eventoToRow, registrarEventoSeguro, type EventoAuditoria } from '../../liquidador/auditLog';
 import { getActorRole } from '../actor';
 
-/** Correo del usuario logueado (sesión del TMS, misma clave que `src/lib/supabase.ts`). */
+/** Correo del usuario logueado (sesión del TMS, misma clave que `src/lib/api-client.ts`). */
 export function usuarioActual(): string {
   try {
     const raw = localStorage.getItem('tms_session');

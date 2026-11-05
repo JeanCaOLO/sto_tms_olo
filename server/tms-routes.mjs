@@ -35,7 +35,7 @@ tmsRouter.post("/auth/signup", requireAuth, wrap(signUp));
 tmsRouter.get("/auth/session", requireAuth, wrap(session));
 tmsRouter.post("/auth/logout", requireAuth, wrap(signOut));
 
-// --- Generic table API (equivalente reducido a supabase.from(table)...) ---
+// --- Generic table API (equivalente reducido a apiClient.from(table)...) ---
 tmsRouter.get(
   "/data/:table",
   requireAuth,
