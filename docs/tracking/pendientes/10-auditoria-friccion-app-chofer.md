@@ -16,6 +16,9 @@ La app del chofer debe ser simple: pocos toques, una mano, sin teclear de más. 
 | 9 | Acción rechazada: solo se podía descartar | Botón «Reintentar» (`retryOutboxItem`); reactiva las que dependían de ella. |
 | 10 | Aviso de pendientes con texto técnico | Mensaje claro «Se reintenta solo» (`index.tsx`). |
 | 12 (parcial) | «Salir» cierra sesión sin confirmar | Pide confirmación. Queda el mensaje claro cuando vence la sesión (ver abajo). |
+| 6 | Fuera de geocerca pide motivo aunque un reintento de GPS lo resuelve | En el último paso, si falta ubicación o se está lejos, se vuelve a leer sola 3 veces cada 5 s (`parada/[id].tsx`). Sigue siendo obligatorio el motivo si el GPS no mejora; con sin ubicación sigue sin poder entregar (#7). |
+| 11 | Login sin ayudas de teclado ni email recordado | El último correo viene escrito (`readLastEmail`, sobrevive al cierre de sesión), «siguiente» pasa a la contraseña y «ir» la envía. Falta biometría (módulo nativo). |
+| 13 (parcial) | Foto con `quality: 1` | La toma baja a 0.85 (`CAPTURE_QUALITY`); se vuelve a comprimir a 0.75 de todos modos. Falta botón de reintento directo en el error. |
 | 14 | Permisos con pantalla extra al iniciar viaje | Resuelto en [11](./11-permisos-primer-uso-verificar.md). |
 | 13 (parcial) | Cámara negada sin camino a Ajustes | Abre Ajustes directo si Android ya no muestra el diálogo (`lib/capture.ts`). |
 
@@ -33,10 +36,7 @@ Ordenado por impacto. Esfuerzo: S pequeño, M medio, L grande.
 | 7 | **Sin ubicación no se entrega, ni con motivo** (bloqueo duro dentro de un almacén) | `lib/geo.ts:19`, `parada/[id].tsx:95` | Permitir entregar sin coordenadas y marcar «sin ubicación» para revisión. **Requiere decisión de negocio.** | M |
 | 20 | **Actualización manual** del APK por GitHub Actions | `DEPLOY.md` §2 | OTA con `expo-updates` (EAS Update) o pantalla «Hay nueva versión» con versión mínima del servidor. | L |
 | 2 | «Iniciar viaje» se toca a mano | `app/index.tsx:132-165` | Botón fijo y grande al abrir si hay un solo plan; o iniciar al primer movimiento. | S |
-| 6 | Fuera de geocerca pide motivo aunque un reintento de GPS lo resuelve | `parada/[id].tsx:94-96` | Refrescar la posición al abrir la parada y en el paso 3 (3 intentos a 5 s) antes de exigir motivo. | S |
-| 11 | Login sin ayudas de teclado ni email recordado | `app/login.tsx` | Precargar el último email (`EMAIL_KEY`), encadenar foco, `textContentType`, biometría. | S |
 | 12 | Sesión vencida saca al chofer sin explicar | `auth/session.ts:179-190`, `api/http.ts:84-93` | Mensaje «Tu sesión venció» y conservar el email; agenda en solo lectura. | M |
-| 13 | Foto: `quality: 1` antes de comprimir, permiso pedido en cada toma, sin reintento directo | `lib/capture.ts:20-36` | Bajar calidad de captura (~0.7), botón de reintento en el error. | S |
 | 15 | La pantalla se apaga durante la entrega | `parada/[id]`, `firma` | `expo-keep-awake`. **Es módulo nativo: pide APK nuevo**; no está instalado. | S |
 | 16 | Batería baja solo muestra texto | `lib/battery.ts`, `app/index.tsx` | Vibración una sola vez o modo ahorro explícito. | S |
 | 17 | Navegación: Waze y Google separados, WhatsApp no existe | `app/index.tsx:222-227`, `parada/[id].tsx:135-141` | Recordar la app preferida, un solo botón «Ir»; botón WhatsApp (`wa.me`) junto a «Llamar». | S |
