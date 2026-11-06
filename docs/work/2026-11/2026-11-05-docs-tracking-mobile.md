@@ -12,6 +12,8 @@
 
 **Tercera pasada:** `api/http.ts` y `lib/use-permissions-gate.ts` verificados; conteo de pruebas confirmado (151 funciones en `backend/mobile/tests`; 107 en `backend/tests/test_tracking.py`, no 97).
 
-**No verificado:** columnas exactas de las tablas y el estado de las migraciones `m04`–`m08` en Aurora (requiere acceso a la BD).
+**Migraciones (2026-11-05, tras el deploy):** con `backend/mobile/scripts/migrate.py` contra Aurora, `m04`–`m07` ya constaban en `mobile_migrations`; `m08` pasó dry-run y se aplicó con `--execute`. Se borró `pendientes/03`.
+
+**No verificado:** columnas exactas de las tablas.
 
 **Hallazgos:** contradicciones entre el contrato v2 / blueprints y el código (cierre automático del viaje, login propio, chofer inicia viaje, cifras de pruebas) → `docs/tracking/mobile/pendientes/01`.
