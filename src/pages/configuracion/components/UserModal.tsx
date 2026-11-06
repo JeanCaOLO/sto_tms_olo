@@ -12,6 +12,8 @@ import ScopeEditor from './ScopeEditor';
 const MIN_PASSWORD = 8;
 // Los usuarios de este rol pertenecen a una empresa transportista y solo ven sus proformas.
 const CARRIER_ROLE = 'transportista';
+// Los usuarios de este rol son clientes externos: solicitan devoluciones a nombre de una empresa (compañía).
+const CUSTOMER_ROLE = 'cliente';
 
 interface UserModalProps {
   user: AdminUser | null;
@@ -28,18 +30,20 @@ interface FormState {
   status: UserStatus;
   scopes: ScopeInput[];
   carrier_id: string;
+  customer_id: string;
 }
 
 function initialForm(user: AdminUser | null, roles: AdminRole[]): FormState {
-  if (!user) return { full_name: '', email: '', password: '', role_id: roles[0]?.id ?? '', status: 'active', scopes: [{}], carrier_id: '' };
+  if (!user) return { full_name: '', email: '', password: '', role_id: roles[0]?.id ?? '', status: 'active', scopes: [{}], carrier_id: '', customer_id: '' };
   const scopes = user.scopes.map(({ country_id, warehouse_id, customer_id }) => ({ country_id, warehouse_id, customer_id }));
-  return { full_name: user.full_name, email: user.email, password: '', role_id: user.role_id ?? '', status: user.status, scopes, carrier_id: user.carrier_id ?? '' };
+  return { full_name: user.full_name, email: user.email, password: '', role_id: user.role_id ?? '', status: user.status, scopes, carrier_id: user.carrier_id ?? '', customer_id: user.customer_id ?? '' };
 }
 
-function payloadOf(form: FormState, isNew: boolean, isCarrierRole: boolean): UserPayload {
+function payloadOf(form: FormState, isNew: boolean, isCarrierRole: boolean, isCustomerRole: boolean): UserPayload {
   const base = {
     full_name: form.full_name.trim(), role_id: form.role_id, status: form.status, scopes: form.scopes,
     carrier_id: isCarrierRole ? form.carrier_id : null,
+    customer_id: isCustomerRole ? form.customer_id : null,
   };
   return isNew ? { ...base, email: form.email.trim(), password: form.password } : base;
 }
@@ -51,19 +55,27 @@ export default function UserModal({ user, roles, onClose, onSaved }: UserModalPr
   const [error, setError] = useState('');
   const set = (patch: Partial<FormState>) => setForm((prev) => ({ ...prev, ...patch }));
   const [carriers, setCarriers] = useState<{ id: string; name: string }[]>([]);
-  const isCarrierRole = roles.find((r) => r.id === form.role_id)?.name.trim().toLowerCase() === CARRIER_ROLE;
+  const [customers, setCustomers] = useState<{ id: string; name: string }[]>([]);
+  const roleName = roles.find((r) => r.id === form.role_id)?.name.trim().toLowerCase();
+  const isCarrierRole = roleName === CARRIER_ROLE;
+  const isCustomerRole = roleName === CUSTOMER_ROLE;
 
   useEffect(() => {
     if (!isCarrierRole || carriers.length > 0) return;
     void apiClient.from('carriers').select('id, name').order('name').then(({ data }) => { if (data) setCarriers(data); });
   }, [isCarrierRole, carriers.length]);
 
+  useEffect(() => {
+    if (!isCustomerRole || customers.length > 0) return;
+    void apiClient.from('customers').select('id, name').order('name').then(({ data }) => { if (data) setCustomers(data); });
+  }, [isCustomerRole, customers.length]);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setError('');
     try {
-      await (isNew ? createUser(payloadOf(form, true, isCarrierRole)) : updateUser(user.id, payloadOf(form, false, isCarrierRole)));
+      await (isNew ? createUser(payloadOf(form, true, isCarrierRole, isCustomerRole)) : updateUser(user.id, payloadOf(form, false, isCarrierRole, isCustomerRole)));
       onSaved(isNew ? 'Usuario creado correctamente' : 'Usuario actualizado correctamente');
     } catch (err) {
       setError((err as Error).message);
@@ -115,6 +127,15 @@ export default function UserModal({ user, roles, onClose, onSaved }: UserModalPr
               value={form.carrier_id}
               onChange={(e) => set({ carrier_id: e.target.value })}
               options={[{ value: '', label: 'Seleccionar empresa' }, ...carriers.map((c) => ({ value: c.id, label: c.name }))]}
+              required
+            />
+          )}
+          {isCustomerRole && (
+            <Select
+              label="Empresa del cliente *"
+              value={form.customer_id}
+              onChange={(e) => set({ customer_id: e.target.value })}
+              options={[{ value: '', label: 'Seleccionar empresa' }, ...customers.map((c) => ({ value: c.id, label: c.name }))]}
               required
             />
           )}

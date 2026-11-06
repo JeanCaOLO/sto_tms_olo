@@ -22,7 +22,7 @@ class FakeDb:
         self.email_taken = False
         self.committed = False
         self.role_name = "Operaciones"
-        self.current = {"role_id": "role-ops", "carrier_id": None}
+        self.current = {"role_id": "role-ops", "carrier_id": None, "customer_id": None}
 
     def query(self, sql, params=()):
         self.calls.append((sql, list(params)))
@@ -32,9 +32,9 @@ class FakeDb:
             return [{"?": 1}] if self.email_taken else []
         if "SELECT name FROM tbl_roles WHERE id" in sql:
             return [{"name": self.role_name}]
-        if "FROM tbl_carriers WHERE id" in sql:
+        if "FROM tbl_carriers WHERE id" in sql or "FROM tbl_customers WHERE id" in sql:
             return [{"?": 1}]
-        if "SELECT role_id, carrier_id FROM tbl_app_users" in sql:
+        if "SELECT role_id, carrier_id, customer_id FROM tbl_app_users" in sql:
             return [self.current]
         if "FROM tbl_roles WHERE id" in sql:
             return [{"?": 1}]
@@ -78,7 +78,7 @@ def test_create_user_is_atomic_and_writes_credential_user_and_global_scope(app, 
     assert response["statusCode"] == 200 and db.committed
     credential = _sql(db, "INSERT INTO tbl_auth_credentials")[0]
     assert credential[1] == "ana@ologistics.com" and verify_password("Clave1234", credential[2])
-    assert _sql(db, "INSERT INTO tbl_app_users")[0][1:] == [ORG, "Ana Mora", "ana@ologistics.com", "role-ops", True, None]
+    assert _sql(db, "INSERT INTO tbl_app_users")[0][1:] == [ORG, "Ana Mora", "ana@ologistics.com", "role-ops", True, None, None]
     assert _sql(db, "INSERT INTO tbl_user_scopes")[0] == ["app-new", "role-ops", None, None, None]
 
 
@@ -179,13 +179,13 @@ def test_rol_transportista_exige_empresa(app, db):
     assert _create(app)["statusCode"] == 400
     assert _create(app, carrier_id=CARRIER)["statusCode"] == 200
     insert = next(p for s, p in db.calls if s.lstrip().startswith("INSERT INTO tbl_app_users"))
-    assert insert[-1] == CARRIER
+    assert insert[-2] == CARRIER and insert[-1] is None
 
 
 def test_otro_rol_no_guarda_empresa(app, db):
     assert _create(app, carrier_id=CARRIER)["statusCode"] == 200
     insert = next(p for s, p in db.calls if s.lstrip().startswith("INSERT INTO tbl_app_users"))
-    assert insert[-1] is None
+    assert insert[-2] is None and insert[-1] is None
 
 
 def test_cambiar_de_transportista_a_gerente_limpia_la_empresa(app, db):
@@ -195,3 +195,20 @@ def test_cambiar_de_transportista_a_gerente_limpia_la_empresa(app, db):
     assert response["statusCode"] == 200
     update = next(s for s, _ in db.calls if s.startswith("UPDATE tbl_app_users SET"))
     assert "carrier_id = %s" in update
+
+
+CUSTOMER = "44444444-4444-4444-4444-444444444441"
+
+
+def test_rol_cliente_exige_empresa_y_la_guarda(app, db):
+    db.role_name = "Cliente"
+    assert _create(app)["statusCode"] == 400
+    assert _create(app, customer_id=CUSTOMER)["statusCode"] == 200
+    insert = next(p for s, p in db.calls if s.lstrip().startswith("INSERT INTO tbl_app_users"))
+    assert insert[-1] == CUSTOMER and insert[-2] is None
+
+
+def test_otro_rol_no_guarda_customer_id(app, db):
+    assert _create(app, customer_id=CUSTOMER)["statusCode"] == 200
+    insert = next(p for s, p in db.calls if s.lstrip().startswith("INSERT INTO tbl_app_users"))
+    assert insert[-1] is None
