@@ -1,4 +1,4 @@
-import { apiFetch, STORAGE_KEY } from './supabase';
+import { apiFetch, STORAGE_KEY } from './api-client';
 
 /**
  * Canjea el ID token de Google por la sesión del TMS (POST /api/auth/google) y la guarda
