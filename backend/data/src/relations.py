@@ -81,7 +81,7 @@ FOREIGN_KEYS: tuple[tuple[str, str, str], ...] = (
     # Zonas (sql/09): route_types se renombró a zones (la vista de compatibilidad se retiró en sql/11).
     ("zones", "organization_id", "organizations"),
     ("zones", "country_id", "countries"),
-    ("orders", "route_type_id", "zones"),
+    ("orders", "tms_zone_id", "zones"),  # sql/64: zona TMS calculada por geocerca
     ("routes", "route_type_id", "zones"),
     ("delivery_points", "zone_id", "zones"),  # sql/12
     # Maestros EFLOW (sql/40-43). orders.destination_warehouse_id NO se registra: sería una 2.ª FK

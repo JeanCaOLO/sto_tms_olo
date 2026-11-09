@@ -41,7 +41,7 @@ de prueba con datos. La referencia `FRx` remite al
 | [009](#009--mantener-el-plan-al-día-sin-romper-lo-liberado) | Mantener el plan al día sin romper lo liberado | Delivered | FR6 | 004, 008 |
 | [010](#010--recoger-las-devoluciones-en-viajes-que-ya-pasan-por-el-cliente) | Recoger las devoluciones en viajes que ya pasan por el cliente | Delivered | FR8 | 004 |
 | [011](#011--consultar-los-viajes-en-el-calendario) | Consultar los viajes en el calendario | Delivered | FR9 | 004 |
-| [012](#012--días-de-anticipo-por-zona) | Días de anticipo por zona | Draft | OQ-2 | 007 |
+| [012](#012--días-de-anticipo-por-zona) | Días de anticipo por zona | Partial | OQ-2 | 007 |
 | [013](#013--bandeja-solo-con-pedidos-sin-planificar) | Bandeja solo con pedidos sin planificar | Draft (decisión pendiente) | OQ-1 | 002 |
 | [014](#014--iniciar-sesión-con-google) | Iniciar sesión con Google (transversal) | Delivered | FR10 | — |
 
@@ -377,19 +377,30 @@ reparto y responder consultas.
 
 ## 012 — Días de anticipo por zona
 
-- **Status:** Draft · **Date:** 2026-11-05 · **Ref:** OQ-2 (reunión 2026-11-05)
+- **Status:** Partial · **Date:** 2026-11-06 · **Ref:** OQ-2 (reuniones 2026-11-05 y 2026-11-06)
 
 ### Narrative
 
-Como coordinador, quiero que cada zona diga si es cercana o lejana y con cuántos días de anticipo se
+Como coordinador, quiero que cada zona diga si es corta o larga y con cuántos días de anticipo se
 alista, para que las zonas lejanas se preparen con tiempo.
 
-### Acceptance criteria (propuestos)
+### Reparto (reunión 2026-11-06)
 
-1. **Given** una zona del catálogo marcada lejana con 2 días de anticipo, **When** se arma un viaje de
-   esa zona, **Then** `lead_time_days` = 2 y la salida es la entrega menos 2.
-2. **Given** una zona sin configurar, **When** se arma, **Then** usa 1 día (el default actual).
-3. **Given** el catálogo, **When** un admin lo edita, **Then** el valor es por compañía y país.
+- **Planificación** (entregado, `sql/64`): cada pedido guarda su zona TMS (`tms_zone_id`), la zona de
+  `tbl_zones` cuya geocerca contiene la coordenada de entrega. Si varias la contienen, gana la más chica.
+  El `delivery_zone` de eFlow no se toca.
+- **OMS** (pendiente, Eduardo): días de anticipo (default 1) y tipo de zona en `tbl_zones`; lee los días
+  desde la zona TMS del pedido.
+
+### Acceptance criteria
+
+1. **Given** un pedido con coordenada dentro de la geocerca de la zona 05, **When** entra o cambia su
+   coordenada, **Then** `tms_zone_id` = zona 05. ✔
+2. **Given** un pedido sin coordenada o fuera de toda geocerca de su país, **When** entra, **Then**
+   `tms_zone_id` queda nulo y el OMS usa 1 día. ✔
+3. **Given** una zona marcada larga con 2 días, **When** el OMS prioriza un pedido de esa zona TMS,
+   **Then** lo libera 2 días antes de la salida. (OMS)
+4. **Given** el catálogo, **When** se configura, **Then** el valor es por país (sin compañía). (OMS)
 
 ---
 

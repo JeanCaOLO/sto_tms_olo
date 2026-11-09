@@ -417,8 +417,11 @@ que todos los módulos la escriban y la mantengan igual. Lo ejecutó el equipo d
   hora todo lo que está dentro de los próximos 3 días, y el cambio de fecha (FR3) se hace desde la
   bandeja. Si se ocultan los planificados, no se le puede cambiar la fecha a un pedido de mañana.
   Owner: líder de proyecto y Chus.
-- **OQ-2 — Días de anticipo por zona:** se decidió (2026-11-05) que el catálogo de zonas tenga
-  cercana/lejana y días de anticipo, por compañía y país, en lugar del cálculo por km. Falta construirlo.
+- **OQ-2 — Días de anticipo por zona (cerrada 2026-11-06):** `tbl_zones` gana días de anticipo
+  (default 1) y tipo de zona corta/larga, por país y sin compañía (lo agrega el OMS). Planificación
+  guarda en cada pedido la **zona TMS** (`tbl_orders.tms_zone_id`, `sql/64`): la zona cuya geocerca
+  contiene la coordenada de entrega, sin tocar el `delivery_zone` de eFlow. El OMS lee de ahí los días;
+  pedido sin zona TMS = 1 día. Pendiente: geocercas de las rutas 17–39 y de Venezuela (app de zonas).
 - **OQ-3 — Coordenadas de las tiendas EPA:** eFlow no trae lat/long (`CLIENTES.LATITUD`), así que el
   lead time de EPA queda siempre en el piso de 1 día.
 - **OQ-4 — Cierre de pedidos desde eFlow:** el TMS no recibe cuándo se cierra un pedido (`closed_at`).
@@ -442,7 +445,7 @@ que todos los módulos la escriban y la mantengan igual. Lo ejecutó el equipo d
 | R006 | Bandeja con devoluciones + cambio de fecha (admin) | Delivered | R001 |
 | R007 | Recolectas como paradas `collection` (`sql/60`) | Delivered | R002 |
 | R008 | Estándar OLTP en la base (`sql/59`, retiro de las vistas `sql/61–63`) | Delivered | — |
-| R009 | Días de anticipo por zona (catálogo de zonas) | Draft | R003 |
+| R009 | Zona TMS del pedido por geocerca (`sql/64`); días de anticipo en `tbl_zones` (OMS) | Partial | R003 |
 | R010 | Write-back real a eFlow vía APIs de EPRAC | Blocked (EPRAC) | R003 |
 | R011 | Sincronizar el cierre de pedidos desde eFlow | Draft | R001 |
 | R012 | Capacidad de las recolectas y rutas solo de recolección | Draft | R007 |
@@ -468,7 +471,7 @@ que todos los módulos la escriban y la mantengan igual. Lo ejecutó el equipo d
 - Bitácoras: `docs/work/2026-10/` y `docs/work/2026-11/` (replan, bandeja, EPA, número de viaje, recolectas).
 - Reuniones: 2026-10-10 (Carlos, flujo), 2026-10-15 (Antonio, viaje y T-1), 2026-10-19/20 (zonas y
   envío un día antes), 2026-10-21 (APIs EPRAC), 2026-11-03 (bandeja, EPA y fines de semana), 2026-11-04
-  (fechas de cierre), 2026-11-05 (recolectas y anticipo por zona).
+  (fechas de cierre), 2026-11-05 (recolectas y anticipo por zona), 2026-11-06 (zona TMS calculada).
 
 ## Review
 
