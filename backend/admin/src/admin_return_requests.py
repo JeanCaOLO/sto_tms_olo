@@ -18,6 +18,7 @@ from tms_common.errors import HttpError
 from tms_common.event import json_body
 from tms_common.responses import json_response
 
+import admin_media
 import admin_return_requests_sql as sql
 
 MODULE = "devoluciones_solicitud"
@@ -208,6 +209,39 @@ def create_request(event: dict) -> dict:
                 "status": created[0]["status"]}, 201)
 
 
+def _with_items(requests: list[dict], org: str) -> list[dict]:
+    """Agrega a cada solicitud sus artículos y los archivos con URL temporal de lectura. Nunca expone la llave S3."""
+    if not requests:
+        return requests
+    items = pg.query(sql.ITEMS_SQL, [[str(r["id"]) for r in requests]])
+    files = pg.query(sql.FILES_SQL, [[str(i["id"]) for i in items]]) if items else []
+    files_by_item: dict[str, list[dict]] = {}
+    for file in files:
+        files_by_item.setdefault(str(file["item_id"]), []).append({
+            "kind": file["kind"], "mime_type": file["mime_type"], "size_bytes": file["size_bytes"],
+            "url": admin_media.signed_request_file_url(file["s3_key"], org)})
+    items_by_request: dict[str, list[dict]] = {}
+    for item in items:
+        items_by_request.setdefault(str(item["request_id"]), []).append({
+            **{key: item[key] for key in ("id", "line_number", "product_code", "product_name", "quantity",
+                                           "reason_code", "description")},
+            "files": files_by_item.get(str(item["id"]), [])})
+    return [{**request, "items": items_by_request.get(str(request["id"]), [])} for request in requests]
+
+
 def list_mine(event: dict) -> dict:
+    """Solicitudes del propio usuario Cliente, con sus fotos y videos."""
     caller, org, customer = _caller(event, "view")
-    return _ok(pg.query(sql.MINE_SQL, [org, customer, caller.app_user_id]))
+    return _ok(_with_items(pg.query(sql.MINE_SQL, [org, customer, caller.app_user_id]), org))
+
+
+def list_all(event: dict) -> dict:
+    """Solo lectura para el rol Devoluciones: solicitudes de todos los clientes de la organización con sus fotos y
+    videos. Requiere el permiso `devoluciones` view (el rol Cliente no lo tiene)."""
+    caller = permissions.for_event(event)
+    caller.require("devoluciones", "view")
+    rows = pg.query(sql.CUSTOMER_SQL, [caller.app_user_id])
+    if not rows:
+        raise HttpError(401, "No existe app_user para este usuario autenticado.")
+    org = str(rows[0]["organization_id"])
+    return _ok(_with_items(pg.query(sql.ALL_SQL, [org]), org))

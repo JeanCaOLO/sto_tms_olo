@@ -42,6 +42,7 @@ ROUTES = {
     "POST /api/v1/solicitudes-devolucion": return_requests.create_request,
     "POST /api/v1/solicitudes-devolucion/archivos/url": return_requests.upload_url,
     "GET /api/v1/solicitudes-devolucion/mias": return_requests.list_mine,
+    "GET /api/v1/solicitudes-devolucion": return_requests.list_all,
 }
 
 handler = tms_handler(ROUTES)
