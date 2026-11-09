@@ -1,0 +1,306 @@
+{
+  "proyecto": {
+    "nombre": "sto_tms_olo",
+    "ruta": "C:\\Users\\emedina\\Desktop\\Dev\\sto-olo\\sto_tms_olo",
+    "fecha": "2026-11-09",
+    "exposicion": "publica",
+    "alcance": "estandares",
+    "idioma": "es",
+    "perfil_tecnico": "aws-web-sam-react"
+  },
+  "inventario": {
+    "tiene_iac_sam": true,
+    "tiene_docker": false,
+    "tiene_ci": true,
+    "tiene_backend_node": true,
+    "tiene_backend_python": true,
+    "tiene_tests": true,
+    "tiene_amplify": true
+  },
+  "aplicabilidad": {
+    "status": "supported",
+    "enabledDomains": [
+      "aws-web-sam-react",
+      "transversal-security",
+      "devops"
+    ],
+    "unavailableDomains": [],
+    "reason": "El perfil declara infraestructura AWS cubierta por el motor vigente."
+  },
+  "dictamen": {
+    "puntuacion_total": 62,
+    "dictamen": "NO APTO PARA QA",
+    "motivo": "Hay hallazgos críticos abiertos en este desarrollo. El dictamen es No apto para calidad.",
+    "categorias": {
+      "infraestructura": {
+        "peso": 30,
+        "porcentaje": 100,
+        "evaluados": 5,
+        "critico_abierto": false
+      },
+      "codigo": {
+        "peso": 25,
+        "porcentaje": 100,
+        "evaluados": 3,
+        "critico_abierto": false
+      },
+      "seguridad": {
+        "peso": 35,
+        "porcentaje": 0,
+        "evaluados": 10,
+        "critico_abierto": true
+      },
+      "devops": {
+        "peso": 10,
+        "porcentaje": 70,
+        "evaluados": 4,
+        "critico_abierto": false
+      }
+    },
+    "critico_abierto": true
+  },
+  "hallazgos": [
+    {
+      "id": "INFRA1",
+      "categoria": "infraestructura",
+      "nombre": "Infraestructura como codigo en SAM (template unico)",
+      "estado": "cumplido",
+      "criticidad": "Critico",
+      "evidencia": "Template SAM/CloudFormation en backend\\admin\\template.yaml",
+      "recomendacion": "-"
+    },
+    {
+      "id": "INFRA2",
+      "categoria": "infraestructura",
+      "nombre": "Serverless-first (Lambda por defecto)",
+      "estado": "cumplido",
+      "criticidad": "Alto",
+      "evidencia": "Recursos Lambda detectados; sin ECS/Fargate.",
+      "recomendacion": "-"
+    },
+    {
+      "id": "INFRA3",
+      "categoria": "infraestructura",
+      "nombre": "SQS con los 4 controles de resiliencia",
+      "estado": "na-justificado",
+      "criticidad": "Critico",
+      "evidencia": "El proyecto no usa colas SQS.",
+      "recomendacion": "-"
+    },
+    {
+      "id": "INFRA4",
+      "categoria": "infraestructura",
+      "nombre": "IAM de minimo privilegio",
+      "estado": "cumplido",
+      "criticidad": "Critico",
+      "evidencia": "No se detectan comodines Action:* ni Resource:* en el template.",
+      "recomendacion": "-"
+    },
+    {
+      "id": "INFRA5",
+      "categoria": "infraestructura",
+      "nombre": "Ambientes parametrizados (samconfig.toml dev/qa/prod)",
+      "estado": "cumplido",
+      "criticidad": "Medio",
+      "evidencia": "samconfig.toml con secciones: dev, qa, prod.",
+      "recomendacion": "-"
+    },
+    {
+      "id": "INFRA6",
+      "categoria": "infraestructura",
+      "nombre": "Secretos en gestor de secretos (no en codigo ni variables planas)",
+      "estado": "cumplido",
+      "criticidad": "Alto",
+      "evidencia": "Se referencia Secrets Manager / SSM Parameter Store.",
+      "recomendacion": "-"
+    },
+    {
+      "id": "COD1",
+      "categoria": "codigo",
+      "nombre": "Backend Python con arquitectura hexagonal",
+      "estado": "cumplido",
+      "criticidad": "Alto",
+      "evidencia": "Backend Python con estructura hexagonal (2 carpetas de capas).",
+      "recomendacion": "-"
+    },
+    {
+      "id": "COD2",
+      "categoria": "codigo",
+      "nombre": "Frontend React (framework oficial)",
+      "estado": "cumplido",
+      "criticidad": "Critico",
+      "evidencia": "Frontend usa React (react en dependencias).",
+      "recomendacion": "-"
+    },
+    {
+      "id": "COD3",
+      "categoria": "codigo",
+      "nombre": "Reuso del Design System",
+      "estado": "cumplido",
+      "criticidad": "Alto",
+      "evidencia": "Se detectan referencias a un Design System.",
+      "recomendacion": "-"
+    },
+    {
+      "id": "COD6",
+      "categoria": "codigo",
+      "nombre": "Pruebas unitarias con cobertura >= 80%",
+      "estado": "na-justificado",
+      "criticidad": "Alto",
+      "evidencia": "Fuera de alcance: certificacion de estandares (desarrollo/arquitectura/BD/seguridad). Las pruebas se exigen con --alcance completo (puerta a produccion).",
+      "recomendacion": "Para promover a produccion, re-certificar con --alcance completo y cumplir cobertura >= 80%."
+    },
+    {
+      "id": "R1",
+      "categoria": "seguridad",
+      "nombre": "Gestion de secretos (sin secretos embebidos)",
+      "estado": "no-cumplido",
+      "criticidad": "Critico",
+      "hard_stop": true,
+      "evidencia": "Posibles secretos embebidos: .claude/tools/aidlc-directive.ts:1329; .kiro/tools/aidlc-directive.ts:1327; backend/mobile/tests/test_auth.py:119; backend/tests/test_realtime.py:9; backend/tests/test_realtime.py:69.",
+      "recomendacion": "Mover secretos a Secrets Manager/SSM o variables de entorno; nunca en codigo."
+    },
+    {
+      "id": "R2",
+      "categoria": "seguridad",
+      "nombre": "Validacion de entradas y consultas parametrizadas",
+      "estado": "cumplido",
+      "criticidad": "Alto",
+      "hard_stop": false,
+      "evidencia": "Se usa query builder / consultas parametrizadas (knex/sequelize/orm/placeholders).",
+      "recomendacion": "-"
+    },
+    {
+      "id": "R3",
+      "categoria": "seguridad",
+      "nombre": "Autenticacion y autorizacion de endpoints",
+      "estado": "no-cumplido",
+      "criticidad": "Critico",
+      "hard_stop": true,
+      "evidencia": "AuthorizationType: NONE en endpoints (backend\\tarifas-mail\\template.yaml).",
+      "recomendacion": "Prohibido AuthorizationType: NONE en endpoints protegidos."
+    },
+    {
+      "id": "R4",
+      "categoria": "seguridad",
+      "nombre": "IAM de minimo privilegio",
+      "estado": "no-cumplido",
+      "criticidad": "Alto",
+      "hard_stop": false,
+      "evidencia": "Comodin IAM (Action/Resource: *) en backend/alerts/template.yaml.",
+      "recomendacion": "Usar acciones y ARNs concretos."
+    },
+    {
+      "id": "R5",
+      "categoria": "seguridad",
+      "nombre": "SAST y escaneo de dependencias / CVE",
+      "estado": "no-cumplido",
+      "criticidad": "Alto",
+      "hard_stop": true,
+      "evidencia": "El pipeline CI no incluye SAST ni escaneo de dependencias.",
+      "recomendacion": "Agregar SAST + escaneo de dependencias/CVE + secret-scan al pipeline."
+    },
+    {
+      "id": "R6",
+      "categoria": "seguridad",
+      "nombre": "Perimetro: CORS estricto y headers de seguridad",
+      "estado": "no-cumplido",
+      "criticidad": "Critico",
+      "hard_stop": false,
+      "evidencia": "CORS abierto en ws-local.mjs [CRITICO por exposicion publica]",
+      "recomendacion": "CORS estricto por lista de dominios (jamas reflejar cualquiera con credentials); habilitar CSP."
+    },
+    {
+      "id": "R7",
+      "categoria": "seguridad",
+      "nombre": "Evidencia y logs sin datos sensibles",
+      "estado": "no-cumplido",
+      "criticidad": "Medio",
+      "hard_stop": false,
+      "evidencia": "Posible log de datos sensibles en backend/common-services/src/authorizer/app.py.",
+      "recomendacion": "No registrar secretos ni PII (costos/salarios/personal) en logs."
+    },
+    {
+      "id": "P1",
+      "categoria": "seguridad",
+      "nombre": "WAF activo (OWASP Managed Rules + rate limiting)",
+      "estado": "diferido-piloto",
+      "criticidad": "Alto",
+      "evidencia": "App publica sin WAF en IaC, pero se detecta AWS Amplify (amplify.yml). El WAF del frontend se integra desde Amplify.",
+      "recomendacion": "Verificar en la consola de AWS Amplify que el WAF del frontend este activo (OWASP Managed Rules + rate limiting)."
+    },
+    {
+      "id": "P2",
+      "categoria": "seguridad",
+      "nombre": "HTTPS/TLS forzado y cookies secure",
+      "estado": "no-cumplido",
+      "criticidad": "Critico",
+      "evidencia": "Cookies con secure=false (COOKIE_SECURE=false) en app que sera publica.",
+      "recomendacion": "App publica: forzar HTTPS/TLS (ALB+ACM) y cookies secure=true."
+    },
+    {
+      "id": "P3",
+      "categoria": "seguridad",
+      "nombre": "CORS estricto por lista de dominios",
+      "estado": "no-cumplido",
+      "criticidad": "Critico",
+      "evidencia": "CORS refleja cualquier origen (ws-local.mjs) en app publica.",
+      "recomendacion": "App publica: CORS por lista blanca de dominios; jamas reflejar cualquiera con credentials."
+    },
+    {
+      "id": "P4",
+      "categoria": "seguridad",
+      "nombre": "Identidad gestionada (Cognito/MFA) para acceso publico",
+      "estado": "cumplido",
+      "criticidad": "Alto",
+      "evidencia": "IdP gestionado / MFA usado en codigo o IaC.",
+      "recomendacion": "App publica: usar IdP gestionado con MFA para el acceso externo (menciones en documentacion no cuentan)."
+    },
+    {
+      "id": "DEVOPS1",
+      "categoria": "devops",
+      "nombre": "Pipeline CI/CD con etapas de seguridad",
+      "estado": "parcial",
+      "criticidad": "Alto",
+      "evidencia": "Pipeline presente pero sin etapas de seguridad detectadas.",
+      "recomendacion": "Agregar SAST + escaneo de dependencias + secret-scan."
+    },
+    {
+      "id": "DEVOPS2",
+      "categoria": "devops",
+      "nombre": "Despliegue parametrizado por ambiente",
+      "estado": "cumplido",
+      "criticidad": "Medio",
+      "evidencia": "samconfig.toml habilita despliegue parametrizado por ambiente.",
+      "recomendacion": "-"
+    },
+    {
+      "id": "DEVOPS3",
+      "categoria": "devops",
+      "nombre": "Health check disponible",
+      "estado": "cumplido",
+      "criticidad": "Medio",
+      "evidencia": "Health check detectado en .claude/tools/aidlc-audit.ts.",
+      "recomendacion": "-"
+    },
+    {
+      "id": "DEP1",
+      "categoria": "devops",
+      "nombre": "Dependencias pinneadas",
+      "estado": "parcial",
+      "criticidad": "Medio",
+      "evidencia": "Dependencias con rangos (^/~) pero con lockfile (builds reproducibles con install determinista).",
+      "recomendacion": "Considerar pinneo exacto; el lockfile mitiga parcialmente."
+    }
+  ],
+  "diferidos_piloto": [
+    "R3-tenant-idor",
+    "R6-waf",
+    "R6-cors-runtime",
+    "cognito-mfa",
+    "s3-politicas",
+    "bedrock-guardrails",
+    "dast-pentest",
+    "monitoreo-post-deploy"
+  ]
+}

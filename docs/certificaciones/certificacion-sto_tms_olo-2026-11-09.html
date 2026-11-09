@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Informe ejecutivo de certificación — tms_olo</title>
+<style>
+:root{
+  --navy:#0A1F44; --blue:#1E5AE8; --cyan:#00C2D1;
+  --paper:#F5F7FB; --line:#E2E8F4; --muted:#6B7A99; --muted-2:#9AA7BF;
+  --font:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;
+  --mono:Consolas,'SF Mono','Roboto Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--paper);color:var(--navy);line-height:1.45}
+.wrap{max-width:980px;margin:0 auto;padding:28px 20px 48px}
+header{
+  background:#fff;color:#fff;border-radius:18px;margin-bottom:18px;overflow:hidden;
+  box-shadow:0 10px 40px -12px rgba(10,31,68,.28)
+}
+.cuerpo{
+  background:linear-gradient(152deg,#100e0c 0%,#0c1830 26%,#0a3a72 56%,#0d78b0 78%,#18c8c4 100%);
+  padding:22px 32px 24px
+}
+.logo-banda{background:#fff;padding:16px 28px 14px}
+.logo-banda img{height:34px;width:auto;display:block}
+.kicker{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#b7e7ee;font-weight:700}
+header h1{font-size:32px;font-weight:800;letter-spacing:-.4px;margin:8px 0 6px;line-height:1.15}
+.meta{color:#d5e4f5;font-size:14px}
+.dictamen{
+  background:#fff;border:1px solid var(--line);border-left:6px solid #E5484D;
+  border-radius:14px;padding:18px 22px;margin-bottom:18px;
+  box-shadow:0 4px 20px -8px rgba(10,31,68,.18)
+}
+.dictamen .codigo{font-size:22px;font-weight:800;color:#E5484D;letter-spacing:.02em}
+.dictamen .num{font-family:var(--mono);font-size:40px;font-weight:800;color:var(--navy);letter-spacing:-1px;margin:4px 0}
+.dictamen p{font-size:16px;max-width:70ch}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:10px}
+.cat{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 14px 12px;box-shadow:0 4px 20px -8px rgba(10,31,68,.18)}
+.cat h3{font-size:13px;color:var(--muted);font-weight:700}
+.cat .pct{font-size:28px;font-weight:800;font-family:var(--mono);letter-spacing:-.5px;margin:4px 0}
+.bar{height:6px;background:#EEF2FA;border-radius:99px;overflow:hidden}
+.bar span{display:block;height:100%;border-radius:99px}
+.cat .peso{font-size:12px;color:var(--muted-2);margin-top:6px}
+h2{font-size:18px;font-weight:800;margin:26px 0 10px;letter-spacing:-.2px}
+h3{font-size:15px;font-weight:800;margin:16px 0 8px}
+h3.dom{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--blue);margin:16px 0 8px}
+.ruta{font-size:13px;color:var(--muted);margin:0 0 12px;font-weight:600}
+table.exec{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:0 0 14px;font-size:13.5px;box-shadow:0 4px 20px -12px rgba(10,31,68,.18)}
+table.exec th{background:#EEF2FA;text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:9px 12px;font-weight:700}
+table.exec td{padding:9px 12px;border-top:1px solid var(--line);vertical-align:top}
+table.exec td:first-child{font-weight:600}
+.id{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--navy);background:#EEF2FA;padding:2px 7px;border-radius:6px;white-space:nowrap}
+.pill{display:inline-block;font-size:12px;font-weight:700;padding:3px 11px;border-radius:100px}
+.pill.ok{background:#E3F8EF;color:#0C7C57}
+.pill.obs{background:#FDF1DC;color:#9C6410}
+.pill.no{background:#FCE7E8;color:#B5262B}
+.pill.info{background:#E7F0FF;color:#1949B8}
+.pill.na{background:#EEF2FA;color:#3D4C6A}
+.tarjeta{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px 6px;margin-bottom:12px;box-shadow:0 4px 20px -12px rgba(10,31,68,.2)}
+.tarjeta header{background:transparent;color:var(--navy);border-radius:0;padding:0;margin:0 0 8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tarjeta h4{font-size:15px;font-weight:700;flex:1 1 220px}
+.tarjeta table.exec{box-shadow:none;margin-bottom:10px}
+.vacio{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;color:var(--muted)}
+footer{margin-top:28px;font-size:12px;color:var(--muted-2)}
+@media (max-width:720px){
+  .grid{grid-template-columns:1fr 1fr}
+  header h1{font-size:26px}
+  .logo-banda img{height:28px}
+  table.exec{display:block;overflow-x:auto}
+}
+@media print{
+  body{background:#fff}
+  header{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="logo-banda"><img src="data:image/png;base64,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" alt="beconsult INTELIX"></div>
+  <div class="cuerpo">
+    <div class="kicker">Certificación de estándares</div>
+    <h1>tms_olo</h1>
+    <p class="meta">2026-11-09 · Pública (expuesta a Internet) · Estándares (desarrollo, arquitectura, base de datos y seguridad)</p>
+  </div>
+</header>
+
+<h2>1. Encabezado y ficha técnica</h2>
+<table class="exec"><thead><tr><th>Campo</th><th>Valor</th></tr></thead><tbody><tr><td>Proyecto</td><td>tms_olo</td></tr><tr><td>Fecha de evaluación</td><td>2026-11-09</td></tr><tr><td>Estado del dictamen</td><td>🛑 <b>NO APTO PARA QA</b></td></tr><tr><td>Calificación global</td><td>62 % / 100 %</td></tr></tbody></table>
+
+<h2>2. Resumen ejecutivo y dictamen de calidad</h2>
+<section class="dictamen">
+  <div class="codigo">🛑 NO APTO PARA QA</div>
+  <div class="num">62%</div>
+  <p>El dictamen es No apto para calidad. Este desarrollo no se promueve a calidad.</p>
+</section>
+<h3>Fortalezas del sistema evaluado</h3>
+<table class="exec"><thead><tr><th>Estándar evaluado</th><th>Ref</th><th>Evidencia</th></tr></thead><tbody><tr><td>Infraestructura como codigo en SAM (template unico)</td><td><span class="id">INFRA1</span></td><td>Template SAM/CloudFormation en backend\admin\template.yaml</td></tr><tr><td>IAM de minimo privilegio</td><td><span class="id">INFRA4</span></td><td>No se detectan comodines Action:* ni Resource:* en el template.</td></tr><tr><td>Serverless-first (Lambda por defecto)</td><td><span class="id">INFRA2</span></td><td>Recursos Lambda detectados; sin ECS/Fargate.</td></tr><tr><td>Secretos en gestor de secretos (no en codigo ni variables planas)</td><td><span class="id">INFRA6</span></td><td>Se referencia Secrets Manager / SSM Parameter Store.</td></tr><tr><td>Ambientes parametrizados (samconfig.toml dev/qa/prod)</td><td><span class="id">INFRA5</span></td><td>samconfig.toml con secciones: dev, qa, prod.</td></tr><tr><td>Frontend React (framework oficial)</td><td><span class="id">COD2</span></td><td>Frontend usa React (react en dependencias).</td></tr><tr><td>Backend Python con arquitectura hexagonal</td><td><span class="id">COD1</span></td><td>Backend Python con estructura hexagonal (2 carpetas de capas).</td></tr><tr><td>Reuso del Design System</td><td><span class="id">COD3</span></td><td>Se detectan referencias a un Design System.</td></tr><tr><td>Validacion de entradas y consultas parametrizadas</td><td><span class="id">R2</span></td><td>Se usa query builder / consultas parametrizadas (knex/sequelize/orm/placeholders).</td></tr><tr><td>Identidad gestionada (Cognito/MFA) para acceso publico</td><td><span class="id">P4</span></td><td>IdP gestionado / MFA usado en codigo o IaC.</td></tr><tr><td>Despliegue parametrizado por ambiente</td><td><span class="id">DEVOPS2</span></td><td>samconfig.toml habilita despliegue parametrizado por ambiente.</td></tr><tr><td>Health check disponible</td><td><span class="id">DEVOPS3</span></td><td>Health check detectado en .claude/tools/aidlc-audit.ts.</td></tr></tbody></table>
+<h3>Puntos clave de cierre</h3>
+<table class="exec"><thead><tr><th>Estándar evaluado</th><th>Ref</th><th>Prioridad</th><th>Evidencia</th></tr></thead><tbody><tr><td>Gestion de secretos (sin secretos embebidos)</td><td><span class="id">R1</span></td><td><span class="pill no">Crítico</span></td><td>Posibles secretos embebidos: .claude/tools/aidlc-directive.ts:1329; .kiro/tools/aidlc-directive.ts:1327; backend/mobile/tests/test_auth.py:119; backend/tests/test_realtime.py:9; backend/tests/test_realtime.py:69.</td></tr><tr><td>Autenticacion y autorizacion de endpoints</td><td><span class="id">R3</span></td><td><span class="pill no">Crítico</span></td><td>AuthorizationType: NONE en endpoints (backend\tarifas-mail\template.yaml).</td></tr><tr><td>Perimetro: CORS estricto y headers de seguridad</td><td><span class="id">R6</span></td><td><span class="pill no">Crítico</span></td><td>CORS abierto en ws-local.mjs [CRITICO por exposicion publica]</td></tr><tr><td>HTTPS/TLS forzado y cookies secure</td><td><span class="id">P2</span></td><td><span class="pill no">Crítico</span></td><td>Cookies con secure=false (COOKIE_SECURE=false) en app que sera publica.</td></tr><tr><td>CORS estricto por lista de dominios</td><td><span class="id">P3</span></td><td><span class="pill no">Crítico</span></td><td>CORS refleja cualquier origen (ws-local.mjs) en app publica.</td></tr><tr><td>IAM de minimo privilegio</td><td><span class="id">R4</span></td><td><span class="pill obs">Alto</span></td><td>Comodin IAM (Action/Resource: *) en backend/alerts/template.yaml.</td></tr><tr><td>SAST y escaneo de dependencias / CVE</td><td><span class="id">R5</span></td><td><span class="pill obs">Alto</span></td><td>El pipeline CI no incluye SAST ni escaneo de dependencias.</td></tr><tr><td>Pipeline CI/CD con etapas de seguridad</td><td><span class="id">DEVOPS1</span></td><td><span class="pill obs">Alto</span></td><td>Pipeline presente pero sin etapas de seguridad detectadas.</td></tr><tr><td>Evidencia y logs sin datos sensibles</td><td><span class="id">R7</span></td><td><span class="pill info">Medio</span></td><td>Posible log de datos sensibles en backend/common-services/src/authorizer/app.py.</td></tr><tr><td>Dependencias pinneadas</td><td><span class="id">DEP1</span></td><td><span class="pill info">Medio</span></td><td>Dependencias con rangos (^/~) pero con lockfile (builds reproducibles con install determinista).</td></tr></tbody></table>
+
+<h2>3. Evaluación por dominio técnico</h2>
+<section class="grid"><article class="cat">
+      <h3>Infraestructura</h3>
+      <div class="pct" style="color:#12B886">100%</div>
+      <div class="bar"><span style="width:100%;background:#12B886"></span></div>
+      <div class="peso">Peso ponderado 30% · Bajo · Abierta</div>
+    </article><article class="cat">
+      <h3>Código</h3>
+      <div class="pct" style="color:#12B886">100%</div>
+      <div class="bar"><span style="width:100%;background:#12B886"></span></div>
+      <div class="peso">Peso ponderado 25% · Bajo · Abierta</div>
+    </article><article class="cat">
+      <h3>Seguridad</h3>
+      <div class="pct" style="color:#E5484D">0%</div>
+      <div class="bar"><span style="width:0%;background:#E5484D"></span></div>
+      <div class="peso">Peso ponderado 35% · Crítico · Cerrada</div>
+    </article><article class="cat">
+      <h3>DevOps</h3>
+      <div class="pct" style="color:#F5A524">70%</div>
+      <div class="bar"><span style="width:70%;background:#F5A524"></span></div>
+      <div class="peso">Peso ponderado 10% · Medio · Condicionada</div>
+    </article></section>
+
+<h2>4. Hallazgos críticos y bloqueadores (Prioridad 1 - Inmediata)</h2>
+
+      <article class="tarjeta">
+        <header>
+          <span class="id">R1</span>
+          <h4>4.1. Gestion de secretos (sin secretos embebidos)</h4>
+          <span class="pill no">Crítico</span>
+        </header>
+        <table class="exec"><thead><tr><th>Campo</th><th>Valor</th></tr></thead><tbody><tr><td>Brecha / Evidencia</td><td>Posibles secretos embebidos: .claude/tools/aidlc-directive.ts:1329; .kiro/tools/aidlc-directive.ts:1327; backend/mobile/tests/test_auth.py:119; backend/tests/test_realtime.py:9; backend/tests/test_realtime.py:69.</td></tr><tr><td>Riesgo e impacto</td><td>Crítico</td></tr><tr><td>Solución recomendada</td><td>Mover secretos a Secrets Manager/SSM o variables de entorno; nunca en codigo.</td></tr></tbody></table>
+      </article>
+      <article class="tarjeta">
+        <header>
+          <span class="id">R3</span>
+          <h4>4.2. Autenticacion y autorizacion de endpoints</h4>
+          <span class="pill no">Crítico</span>
+        </header>
+        <table class="exec"><thead><tr><th>Campo</th><th>Valor</th></tr></thead><tbody><tr><td>Brecha / Evidencia</td><td>AuthorizationType: NONE en endpoints (backend\tarifas-mail\template.yaml).</td></tr><tr><td>Riesgo e impacto</td><td>Crítico</td></tr><tr><td>Solución recomendada</td><td>Prohibido AuthorizationType: NONE en endpoints protegidos.</td></tr></tbody></table>
+      </article>
+      <article class="tarjeta">
+        <header>
+          <span class="id">R6</span>
+          <h4>4.3. Perimetro: CORS estricto y headers de seguridad</h4>
+          <span class="pill no">Crítico</span>
+        </header>
+        <table class="exec"><thead><tr><th>Campo</th><th>Valor</th></tr></thead><tbody><tr><td>Brecha / Evidencia</td><td>CORS abierto en ws-local.mjs [CRITICO por exposicion publica]</td></tr><tr><td>Riesgo e impacto</td><td>Crítico</td></tr><tr><td>Solución recomendada</td><td>CORS estricto por lista de dominios (jamas reflejar cualquiera con credentials); habilitar CSP.</td></tr></tbody></table>
+      </article>
+      <article class="tarjeta">
+        <header>
+          <span class="id">P2</span>
+          <h4>4.4. HTTPS/TLS forzado y cookies secure</h4>
+          <span class="pill no">Crítico</span>
+        </header>
+        <table class="exec"><thead><tr><th>Campo</th><th>Valor</th></tr></thead><tbody><tr><td>Brecha / Evidencia</td><td>Cookies con secure=false (COOKIE_SECURE=false) en app que sera publica.</td></tr><tr><td>Riesgo e impacto</td><td>Crítico</td></tr><tr><td>Solución recomendada</td><td>App publica: forzar HTTPS/TLS (ALB+ACM) y cookies secure=true.</td></tr></tbody></table>
+      </article>
+      <article class="tarjeta">
+        <header>
+          <span class="id">P3</span>
+          <h4>4.5. CORS estricto por lista de dominios</h4>
+          <span class="pill no">Crítico</span>
+        </header>
+        <table class="exec"><thead><tr><th>Campo</th><th>Valor</th></tr></thead><tbody><tr><td>Brecha / Evidencia</td><td>CORS refleja cualquier origen (ws-local.mjs) en app publica.</td></tr><tr><td>Riesgo e impacto</td><td>Crítico</td></tr><tr><td>Solución recomendada</td><td>App publica: CORS por lista blanca de dominios; jamas reflejar cualquiera con credentials.</td></tr></tbody></table>
+      </article>
+
+<h2>5. Hallazgos de riesgo alto y medio (Prioridad 2 - Requerido antes de producción)</h2>
+
+      <h3 class="dom">Seguridad</h3>
+      <table class="exec"><thead><tr><th>Estándar evaluado</th><th>Ref</th><th>Prioridad</th><th>Brecha / Evidencia</th><th>Solución recomendada</th></tr></thead><tbody><tr><td>IAM de minimo privilegio</td><td><span class="id">R4</span></td><td><span class="pill obs">Alto</span></td><td>Comodin IAM (Action/Resource: *) en backend/alerts/template.yaml.</td><td>Usar acciones y ARNs concretos.</td></tr><tr><td>SAST y escaneo de dependencias / CVE</td><td><span class="id">R5</span></td><td><span class="pill obs">Alto</span></td><td>El pipeline CI no incluye SAST ni escaneo de dependencias.</td><td>Agregar SAST + escaneo de dependencias/CVE + secret-scan al pipeline.</td></tr><tr><td>Evidencia y logs sin datos sensibles</td><td><span class="id">R7</span></td><td><span class="pill info">Medio</span></td><td>Posible log de datos sensibles en backend/common-services/src/authorizer/app.py.</td><td>No registrar secretos ni PII (costos/salarios/personal) en logs.</td></tr></tbody></table>
+    
+      <h3 class="dom">DevOps</h3>
+      <table class="exec"><thead><tr><th>Estándar evaluado</th><th>Ref</th><th>Prioridad</th><th>Brecha / Evidencia</th><th>Solución recomendada</th></tr></thead><tbody><tr><td>Pipeline CI/CD con etapas de seguridad</td><td><span class="id">DEVOPS1</span></td><td><span class="pill obs">Alto</span></td><td>Pipeline presente pero sin etapas de seguridad detectadas.</td><td>Agregar SAST + escaneo de dependencias + secret-scan.</td></tr><tr><td>Dependencias pinneadas</td><td><span class="id">DEP1</span></td><td><span class="pill info">Medio</span></td><td>Dependencias con rangos (^/~) pero con lockfile (builds reproducibles con install determinista).</td><td>Considerar pinneo exacto; el lockfile mitiga parcialmente.</td></tr></tbody></table>
+    
+
+<h2>6. Estado de controles validados y conformidad</h2>
+<h3>Controles cumplidos</h3>
+<table class="exec"><thead><tr><th>Ref</th><th>Estándar evaluado</th><th>Evidencia</th></tr></thead><tbody><tr><td><span class="id">INFRA1</span></td><td>Infraestructura como codigo en SAM (template unico)</td><td>Template SAM/CloudFormation en backend\admin\template.yaml</td></tr><tr><td><span class="id">INFRA4</span></td><td>IAM de minimo privilegio</td><td>No se detectan comodines Action:* ni Resource:* en el template.</td></tr><tr><td><span class="id">INFRA2</span></td><td>Serverless-first (Lambda por defecto)</td><td>Recursos Lambda detectados; sin ECS/Fargate.</td></tr><tr><td><span class="id">INFRA6</span></td><td>Secretos en gestor de secretos (no en codigo ni variables planas)</td><td>Se referencia Secrets Manager / SSM Parameter Store.</td></tr><tr><td><span class="id">INFRA5</span></td><td>Ambientes parametrizados (samconfig.toml dev/qa/prod)</td><td>samconfig.toml con secciones: dev, qa, prod.</td></tr><tr><td><span class="id">COD2</span></td><td>Frontend React (framework oficial)</td><td>Frontend usa React (react en dependencias).</td></tr><tr><td><span class="id">COD1</span></td><td>Backend Python con arquitectura hexagonal</td><td>Backend Python con estructura hexagonal (2 carpetas de capas).</td></tr><tr><td><span class="id">COD3</span></td><td>Reuso del Design System</td><td>Se detectan referencias a un Design System.</td></tr><tr><td><span class="id">R2</span></td><td>Validacion de entradas y consultas parametrizadas</td><td>Se usa query builder / consultas parametrizadas (knex/sequelize/orm/placeholders).</td></tr><tr><td><span class="id">P4</span></td><td>Identidad gestionada (Cognito/MFA) para acceso publico</td><td>IdP gestionado / MFA usado en codigo o IaC.</td></tr><tr><td><span class="id">DEVOPS2</span></td><td>Despliegue parametrizado por ambiente</td><td>samconfig.toml habilita despliegue parametrizado por ambiente.</td></tr><tr><td><span class="id">DEVOPS3</span></td><td>Health check disponible</td><td>Health check detectado en .claude/tools/aidlc-audit.ts.</td></tr></tbody></table>
+<h3>Controles no verificables, N/A o diferidos</h3>
+<table class="exec"><thead><tr><th>Ref</th><th>Estándar evaluado</th><th>Estado actual</th><th>Evidencia</th></tr></thead><tbody><tr><td><span class="id">INFRA3</span></td><td>SQS con los 4 controles de resiliencia</td><td><span class="pill na">N/A justificado</span></td><td>El proyecto no usa colas SQS.</td></tr><tr><td><span class="id">COD6</span></td><td>Pruebas unitarias con cobertura &gt;= 80%</td><td><span class="pill na">N/A justificado</span></td><td>Fuera de alcance: certificacion de estandares (desarrollo/arquitectura/BD/seguridad). Las pruebas se exigen con --alcance completo (puerta a produccion).</td></tr><tr><td><span class="id">P1</span></td><td>WAF activo (OWASP Managed Rules + rate limiting)</td><td><span class="pill na">Diferido al piloto</span></td><td>App publica sin WAF en IaC, pero se detecta AWS Amplify (amplify.yml). El WAF del frontend se integra desde Amplify.</td></tr></tbody></table>
+
+<h2>7. Plan recomendado de remediación</h2>
+<p class="ruta">[ Fase 1: Remediación crítica ] ──► [ Fase 2: Robustecimiento ] ──► [ Fase 3: Re-certificación ]</p>
+<table class="exec"><thead><tr><th>Fase</th><th>Alcance</th><th>Controles</th></tr></thead><tbody><tr><td>1. Remediación crítica</td><td>Inmediata. Cierra los bloqueadores de la puerta de calidad.</td><td>R1, R3, R6, P2, P3</td></tr><tr><td>2. Robustecimiento</td><td>Requerido antes de producción.</td><td>R4, R5, R7, DEVOPS1, DEP1</td></tr><tr><td>3. Re-certificación</td><td>Volver a certificar este desarrollo cuando las fases anteriores queden cerradas.</td><td>—</td></tr></tbody></table>
+
+<h2>8. Anexo: leyenda y matriz de trazabilidad técnica</h2>
+<table class="exec"><thead><tr><th>Código de control</th><th>Dominio técnico</th><th>Descripción del estándar evaluado</th><th>Estado actual</th></tr></thead><tbody><tr><td><span class="id">INFRA1</span></td><td>Infraestructura</td><td>Infraestructura como codigo en SAM (template unico)</td><td><span class="pill ok">Cumplido</span></td></tr><tr><td><span class="id">INFRA3</span></td><td>Infraestructura</td><td>SQS con los 4 controles de resiliencia</td><td><span class="pill na">N/A justificado</span></td></tr><tr><td><span class="id">INFRA4</span></td><td>Infraestructura</td><td>IAM de minimo privilegio</td><td><span class="pill ok">Cumplido</span></td></tr><tr><td><span class="id">INFRA2</span></td><td>Infraestructura</td><td>Serverless-first (Lambda por defecto)</td><td><span class="pill ok">Cumplido</span></td></tr><tr><td><span class="id">INFRA6</span></td><td>Infraestructura</td><td>Secretos en gestor de secretos (no en codigo ni variables planas)</td><td><span class="pill ok">Cumplido</span></td></tr><tr><td><span class="id">INFRA5</span></td><td>Infraestructura</td><td>Ambientes parametrizados (samconfig.toml dev/qa/prod)</td><td><span class="pill ok">Cumplido</span></td></tr><tr><td><span class="id">COD2</span></td><td>Código</td><td>Frontend React (framework oficial)</td><td><span class="pill ok">Cumplido</span></td></tr><tr><td><span class="id">COD1</span></td><td>Código</td><td>Backend Python con arquitectura hexagonal</td><td><span class="pill ok">Cumplido</span></td></tr><tr><td><span class="id">COD3</span></td><td>Código</td><td>Reuso del Design System</td><td><span class="pill ok">Cumplido</span></td></tr><tr><td><span class="id">COD6</span></td><td>Código</td><td>Pruebas unitarias con cobertura &gt;= 80%</td><td><span class="pill na">N/A justificado</span></td></tr><tr><td><span class="id">R1</span></td><td>Seguridad</td><td>Gestion de secretos (sin secretos embebidos)</td><td><span class="pill no">No cumplido</span></td></tr><tr><td><span class="id">R3</span></td><td>Seguridad</td><td>Autenticacion y autorizacion de endpoints</td><td><span class="pill no">No cumplido</span></td></tr><tr><td><span class="id">R6</span></td><td>Seguridad</td><td>Perimetro: CORS estricto y headers de seguridad</td><td><span class="pill no">No cumplido</span></td></tr><tr><td><span class="id">P2</span></td><td>Seguridad</td><td>HTTPS/TLS forzado y cookies secure</td><td><span class="pill no">No cumplido</span></td></tr><tr><td><span class="id">P3</span></td><td>Seguridad</td><td>CORS estricto por lista de dominios</td><td><span class="pill no">No cumplido</span></td></tr><tr><td><span class="id">R2</span></td><td>Seguridad</td><td>Validacion de entradas y consultas parametrizadas</td><td><span class="pill ok">Cumplido</span></td></tr><tr><td><span class="id">R4</span></td><td>Seguridad</td><td>IAM de minimo privilegio</td><td><span class="pill no">No cumplido</span></td></tr><tr><td><span class="id">R5</span></td><td>Seguridad</td><td>SAST y escaneo de dependencias / CVE</td><td><span class="pill no">No cumplido</span></td></tr><tr><td><span class="id">P1</span></td><td>Seguridad</td><td>WAF activo (OWASP Managed Rules + rate limiting)</td><td><span class="pill na">Diferido al piloto</span></td></tr><tr><td><span class="id">P4</span></td><td>Seguridad</td><td>Identidad gestionada (Cognito/MFA) para acceso publico</td><td><span class="pill ok">Cumplido</span></td></tr><tr><td><span class="id">R7</span></td><td>Seguridad</td><td>Evidencia y logs sin datos sensibles</td><td><span class="pill no">No cumplido</span></td></tr><tr><td><span class="id">DEVOPS1</span></td><td>DevOps</td><td>Pipeline CI/CD con etapas de seguridad</td><td><span class="pill obs">Parcial</span></td></tr><tr><td><span class="id">DEVOPS2</span></td><td>DevOps</td><td>Despliegue parametrizado por ambiente</td><td><span class="pill ok">Cumplido</span></td></tr><tr><td><span class="id">DEVOPS3</span></td><td>DevOps</td><td>Health check disponible</td><td><span class="pill ok">Cumplido</span></td></tr><tr><td><span class="id">DEP1</span></td><td>DevOps</td><td>Dependencias pinneadas</td><td><span class="pill obs">Parcial</span></td></tr></tbody></table>
+
+<footer>INTELIX · Análisis estático de solo lectura · El dictamen lo fija el motor de verificación</footer>
+</div>
+</body>
+</html>

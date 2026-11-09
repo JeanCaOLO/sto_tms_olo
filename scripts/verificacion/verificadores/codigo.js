@@ -11,11 +11,15 @@ export function verificarCodigo (raiz, ingesta, def, alcance = 'estandares') {
   }
 
   // Leer package.json (si hay) para inspeccionar frontend/deps
-  let pkg = null
-  if (a.package_json.length > 0) {
-    try { pkg = JSON.parse(leerTextoSeguro(raiz, a.package_json[0]) || '{}') } catch { pkg = null }
+  // PARCHE LOCAL (pendiente upstream en template_base): combinar TODOS los package.json,
+  // no solo el primero (p. ej. .intelix/cli/*/package.json ocultaba el package.json de la app).
+  const deps = {}
+  for (const p of a.package_json) {
+    try {
+      const pkg = JSON.parse(leerTextoSeguro(raiz, p) || '{}')
+      Object.assign(deps, pkg.dependencies || {}, pkg.devDependencies || {})
+    } catch { /* noop */ }
   }
-  const deps = pkg ? { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) } : {}
 
   // COD1 — backend Python hexagonal
   if (ingesta.presencia.tiene_backend_python) {

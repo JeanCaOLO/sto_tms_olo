@@ -52,11 +52,12 @@ export function verificarDevops (raiz, ingesta, def) {
   // DEP1 — dependencias pinneadas / lockfile
   const lockfiles = buscarArchivos(archivos, [/package-lock\.json$/i, /yarn\.lock$/i, /pnpm-lock\.yaml$/i, /poetry\.lock$/i, /Pipfile\.lock$/i, /requirements\.txt$/i])
   let rangos = false
-  if (a.package_json.length > 0) {
+  // PARCHE LOCAL (pendiente upstream en template_base): revisar TODOS los package.json, no solo el primero.
+  for (const p of a.package_json) {
     try {
-      const pkg = JSON.parse(leerTextoSeguro(raiz, a.package_json[0]) || '{}')
+      const pkg = JSON.parse(leerTextoSeguro(raiz, p) || '{}')
       const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) }
-      rangos = Object.values(deps).some(v => /^[\^~]/.test(String(v)))
+      if (Object.values(deps).some(v => /^[\^~]/.test(String(v)))) rangos = true
     } catch { /* noop */ }
   }
   if (lockfiles.length > 0 && !rangos) push('DEP1', 'cumplido', 'Lockfile presente y versiones sin rangos abiertos.', '-')
