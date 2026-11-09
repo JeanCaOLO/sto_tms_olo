@@ -123,3 +123,61 @@ export function toPayloadItem(item: DraftItem, files: UploadedFile[]): RequestIt
     files,
   };
 }
+
+// ── Solicitudes ya enviadas (lectura) ─────────────────────────────────────────────────────────
+// Forma de la respuesta de GET /solicitudes-devolucion (rol Devoluciones, todas las del cliente) y de
+// GET /solicitudes-devolucion/mias (rol Cliente, solo las suyas). `url` es una URL temporal de lectura (1 h);
+// es null si el servidor no pudo firmarla (la pantalla lo avisa y sigue).
+
+export interface RequestFileView {
+  kind: 'photo' | 'video';
+  mime_type: string;
+  size_bytes: number;
+  url: string | null;
+}
+
+export interface RequestItemView {
+  id: string;
+  line_number: number;
+  product_code: string;
+  product_name: string | null;
+  quantity: number;
+  reason_code: ReasonCode;
+  description: string | null;
+  files: RequestFileView[];
+}
+
+export interface RequestView {
+  id: string;
+  request_number: string;
+  status: string;
+  created_at: string;
+  /** Solo en la vista interna (rol Devoluciones). */
+  customer_name?: string | null;
+  requested_by_name?: string | null;
+  items: RequestItemView[];
+}
+
+export const reasonLabel = (code: string): string => REASONS.find((r) => r.code === code)?.label ?? code;
+
+const STATUS_LABELS: Record<string, string> = { pendiente_asignacion: 'En proceso' };
+export const requestStatusLabel = (status: string): string => STATUS_LABELS[status] ?? status;
+
+/** Cantidad de fotos y de videos de toda la solicitud. */
+export function countFiles(request: Pick<RequestView, 'items'>): { photos: number; videos: number } {
+  let photos = 0;
+  let videos = 0;
+  for (const item of request.items) {
+    for (const file of item.files) {
+      if (file.kind === 'video') videos += 1;
+      else photos += 1;
+    }
+  }
+  return { photos, videos };
+}
+
+/** "AAAA-MM-DD" de la fecha de creación (la API manda ISO con hora). Sin fecha válida, vacío. */
+export function requestDate(value: string | null | undefined): string {
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(value ?? '');
+  return match ? match[1] : '';
+}
