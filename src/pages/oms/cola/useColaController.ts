@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { omsApi } from '../api/omsApi';
 import { useOperationalContext } from '../../../hooks/useOperationalContext';
 import type { QueueOrder } from '../types';

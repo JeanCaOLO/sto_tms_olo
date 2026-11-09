@@ -1,4 +1,4 @@
-﻿import { useTranslation } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 import Card from '../../../components/base/Card';
 import Button from '../../../components/base/Button';
 import Select from '../../../components/base/Select';
