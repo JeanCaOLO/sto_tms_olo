@@ -4,13 +4,13 @@ import type { QueueOrder } from '../types';
 
 interface OrderDetailModalProps {
   order: QueueOrder;
-  onOverride: () => void;
+  onLiberar: () => void;
   onClose: () => void;
 }
 
 // FR3.6 — detalle del pedido en modal (reemplaza el panel lateral). Incluye el
-// desglose de reglas (suma = score, FR5.5) y el botón de alterar prioridad.
-export default function OrderDetailModal({ order, onOverride, onClose }: OrderDetailModalProps) {
+// desglose de reglas (suma = score, FR5.5) y el botón "Liberar pedido".
+export default function OrderDetailModal({ order, onLiberar, onClose }: OrderDetailModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40" role="dialog" aria-modal="true" aria-label={`Detalle del pedido ${order.ref}`}>
       <div className="bg-white rounded-lg shadow-xl w-full max-w-xl p-6 max-h-[90vh] overflow-y-auto scrollbar-hide">
@@ -83,7 +83,7 @@ export default function OrderDetailModal({ order, onOverride, onClose }: OrderDe
 
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={onClose}>Cerrar</Button>
-          <Button variant="primary" icon={<i className="ri-edit-line"></i>} onClick={onOverride}>Alterar prioridad</Button>
+          <Button variant="primary" icon={<i className="ri-send-plane-line"></i>} onClick={onLiberar}>Liberar pedido</Button>
         </div>
       </div>
     </div>

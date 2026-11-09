@@ -149,6 +149,19 @@ Resources:
         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
       Target: !Sub integrations/${OmsApiIntegration}
 
+  # Accion manual "Liberar pedido" (por pedido, DECIDED 2026-11-04). Gated por rol en el
+  # codigo (permissions.require("oms","edit") en liberar_pedidos), igual que la de viaje.
+  OmsLiberarPedidosRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/v1/oms/pedidos/liberar
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${OmsApiIntegration}
+
   # W3 - Escritura a sim_expedicionescabecera (destino de la costura EscritorSituacion
   # mientras no exista el endpoint EPRAC; eFlow real = read-only). NO es un permiso IAM
   # a nivel de tabla: la Lambda autentica a Aurora con el secreto del Layer

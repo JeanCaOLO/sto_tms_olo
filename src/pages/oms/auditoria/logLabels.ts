@@ -5,7 +5,7 @@
 const ACTION_LABELS: Record<string, string> = {
   barrido: 'Ejecución automática',
   procesar_viaje: 'Procesar a Eflow',
-  override_manual: 'Override manual',
+  liberar_pedido: 'Liberar pedido',
 };
 
 export function actionLabel(action: string): string {

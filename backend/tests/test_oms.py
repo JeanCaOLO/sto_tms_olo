@@ -688,6 +688,70 @@ def test_procesar_viaje_manual_requiere_permiso(monkeypatch, caller_permissions)
     assert exc.value.status == 403
 
 
+def _liberar_pedidos_con(monkeypatch, app, *, priorizar: bool, body: dict):
+    """Ejecuta `liberar_pedidos` con config fija; devuelve (resp, kw de liberar, logs)."""
+    models = load_stack_module("oms", "models")
+    config = models.ConfiguracionReglas(pesos={}, priorizar=priorizar)
+    monkeypatch.setattr(app.reglas_config, "cargar_resolver", lambda: (lambda _p: config))
+    capturado, logs = [], []
+    monkeypatch.setattr(app.handoff_pedidos, "liberar_pedido",
+                        lambda pedido, registro, **kw: capturado.append((pedido.id_expedicion, registro.prioridad, kw))
+                        or app.handoff_pedidos.ESTADO_COMPLETADO)
+    monkeypatch.setattr(app.oms_log, "registrar", lambda *a, **kw: logs.append((a, kw)))
+    event = http_event("POST /api/v1/oms/pedidos/liberar", body=body)
+    return app.liberar_pedidos(event), capturado, logs
+
+
+def test_liberar_pedidos_cofersa_estampa_cero_y_audita_manual(monkeypatch):
+    """Cofersa (priorizar=true): prioridad 0 (+GENE vía liberar_pedido), ignora la ventana,
+    y el motivo queda en el log con actor='manual'."""
+    app = load_stack_module("oms", "app")
+    resp, capturado, logs = _liberar_pedidos_con(
+        monkeypatch, app, priorizar=True,
+        body={"id_expediciones": ["1002"], "motivo": "cliente urgente"})
+    data = body_of(resp)["data"]
+    assert data["total"] == 1 and data["liberados"] == 1 and data["no_encontrados"] == []
+    assert [c[0] for c in capturado] == ["1002"]
+    assert capturado[0][2]["prioridad_liberacion"] == 0
+    assert data["prioridades"][0]["prioridad"] == 0
+    (_args, kw) = logs[-1]
+    assert kw["actor"] == "manual" and kw["detail"]["motivo"] == "cliente urgente"
+
+
+def test_liberar_pedidos_epa_conserva_prioridad_de_origen(monkeypatch):
+    """EPA (pass-through): NUNCA 0; conserva la prioridad de origen (1/2) y no recalcula."""
+    app = load_stack_module("oms", "app")
+    resp, capturado, _logs = _liberar_pedidos_con(
+        monkeypatch, app, priorizar=False, body={"id_expediciones": ["1002"]})
+    data = body_of(resp)["data"]
+    assert data["liberados"] == 1
+    assert capturado[0][2]["prioridad_liberacion"] is None
+    assert data["prioridades"][0]["prioridad"] == capturado[0][1] != 0
+
+
+def test_liberar_pedidos_reporta_no_encontrados_y_valida_body(monkeypatch):
+    from tms_common.errors import HttpError
+
+    app = load_stack_module("oms", "app")
+    resp, capturado, _ = _liberar_pedidos_con(
+        monkeypatch, app, priorizar=True, body={"id_expediciones": ["9999"]})
+    assert body_of(resp)["data"]["no_encontrados"] == ["9999"] and capturado == []
+    with pytest.raises(HttpError) as exc:
+        app.liberar_pedidos(http_event("POST /api/v1/oms/pedidos/liberar", body={"id_expediciones": []}))
+    assert exc.value.status == 400
+
+
+def test_liberar_pedidos_requiere_permiso(caller_permissions):
+    from tms_common.errors import HttpError
+
+    app = load_stack_module("oms", "app")
+    caller_permissions.set(make_permissions({"oms": ("view",)}))
+    with pytest.raises(HttpError) as exc:
+        app.liberar_pedidos(http_event("POST /api/v1/oms/pedidos/liberar",
+                                       body={"id_expediciones": ["1002"]}))
+    assert exc.value.status == 403
+
+
 def test_reprioriza_idempotente_sin_duplicar_el_no_liberado():
     """(f/idempotencia) Un pedido priorizado-no-liberado se re-prioriza en otro barrido
     sin duplicar: dos corridas con el mismo `hoy` dan el mismo conteo liberado."""

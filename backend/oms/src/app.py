@@ -17,6 +17,9 @@ Rutas (esqueleto):
                                        Eflow" (gated por rol): libera los pedidos de
                                        un viaje IGNORANDO la ventana (adelanta la
                                        salida cuando picking/packing está ocioso).
+- POST /api/v1/oms/pedidos/liberar                    → acción manual "Liberar pedido"
+                                       (gated por rol): igual que la de viaje pero por
+                                       `id_expediciones` (+ `motivo` opcional al log).
 
 ADR-013 desacopla PRIORIZAR (no escribe 'GENE', no estampa oms_processed_at) de
 LIBERAR (escribe 'GENE' por la costura + oms_processed_at = now()). La liberación
@@ -35,6 +38,7 @@ from dataclasses import asdict
 from datetime import date, datetime, timezone
 
 from tms_common import permissions
+from tms_common.errors import HttpError
 from tms_common.event import json_body, path_param
 from tms_common.handler import tms_handler
 from tms_common.responses import json_response
@@ -299,6 +303,62 @@ def procesar_viaje(event: dict) -> dict:
     })
 
 
+def liberar_pedidos(event: dict) -> dict:
+    """Acción manual "Liberar pedido" (gated por rol): libera pedidos puntuales de la cola.
+
+    Análogo por PEDIDO de `procesar_viaje` (DECIDED 2026-11-04: la única interacción
+    manual del Responsable OMS es liberar). Body: `{"id_expediciones": [...], "motivo": "opcional"}`.
+    Cofersa (priorizar=true): prioridad 0 + GENE + eFlow. EPA (pass-through): conserva su
+    prioridad de origen. Ignora la ventana temporal. Reusa `_resolver_registros` y `_liberar`.
+    """
+    permissions.for_event(event).require(*PERMISO_PROCESAR)
+    cuerpo = json_body(event) or {}
+    ids = cuerpo.get("id_expediciones")
+    if not isinstance(ids, list) or not ids or not all(isinstance(i, str) and i for i in ids):
+        raise HttpError(400, "id_expediciones debe ser una lista no vacía de textos")
+    motivo = (cuerpo.get("motivo") or "").strip() or None
+    solicitados = set(ids)
+
+    hoy = datetime.now(timezone.utc).date()
+    corrida_id = _corrida_id(hoy)
+    resolver_config = reglas_config.cargar_resolver()
+    try:
+        pedidos = [p for p in cola_candidatos.candidatos() if p.id_expedicion in solicitados]
+        resueltos = _resolver_registros(pedidos, resolver_config, hoy)
+        for pedido, config, registro in resueltos:
+            if config.priorizar:
+                handoff_pedidos.priorizar_pedido(pedido, registro, corrida_id)
+        liberados, pendientes, prioridades = _liberar(resueltos)
+    except Exception as exc:  # noqa: BLE001 — registra el fallo y re-lanza
+        oms_log.registrar("liberar_pedido", f"Liberar pedidos FALLÓ: {exc}",
+                          level="error", corrida_id=corrida_id, actor="manual",
+                          detail={"id_expediciones": sorted(solicitados), "motivo": motivo,
+                                  "error": str(exc)})
+        raise
+
+    encontrados = {p.id_expedicion for p in pedidos}
+    no_encontrados = sorted(solicitados - encontrados)
+    oms_log.registrar(
+        "liberar_pedido",
+        f'"Liberar pedido": {len(pedidos)} pedidos, {liberados} liberados, {pendientes} pendientes',
+        level="warn" if pendientes else "info",
+        corrida_id=corrida_id,
+        actor="manual",
+        detail={"id_expediciones": sorted(solicitados), "motivo": motivo, "total": len(pedidos),
+                "liberados": liberados, "pendientes": pendientes, "no_encontrados": no_encontrados},
+    )
+
+    return _ok({
+        "corrida": corrida_id,
+        "modo": _modo(),
+        "total": len(pedidos),
+        "liberados": liberados,
+        "pendientes": pendientes,
+        "no_encontrados": no_encontrados,
+        "prioridades": prioridades,
+    })
+
+
 def health(_event: dict) -> dict:
     return _ok({"ok": True, "modo": _modo(), "motor": "oms-reglas"})
 
@@ -311,6 +371,7 @@ ROUTES = {
     "GET /api/v1/oms/health": health,
     "POST /api/v1/oms/corridas": ejecutar_corrida,
     "POST /api/v1/oms/viajes/{numero_viaje}/procesar": procesar_viaje,
+    "POST /api/v1/oms/pedidos/liberar": liberar_pedidos,
 }
 
 _http_handler = tms_handler(ROUTES)
