@@ -115,7 +115,7 @@ export default function TripCard({ trip, canEdit, canPrint, onChanged }: Props) 
                 </div>
               </div>
               {formError && <p role="alert" className="text-sm text-red-600">{formError}</p>}
-              <ReturnLinesTable groups={groupBySection(detail.returns, detail.sections)} canReceive={canEdit}
+              <ReturnLinesTable groups={groupBySection(detail.returns, detail.sections)} canReceive={canEdit} onReloadPhotos={reload}
                 onReceive={(line) => setReceiving({ kind: 'line', line })}
                 selection={canEdit ? {
                   selected,
