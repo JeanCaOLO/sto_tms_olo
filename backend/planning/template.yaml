@@ -63,12 +63,25 @@ Resources:
           # Ingesta de pedidos y artículos del pedido leen eFlow en vivo (eflow_db).
           EFLOW_SECRET_NAME:
             Fn::ImportValue: !Sub ${CommonStackName}-EflowSecretName
+      # Sin reintentos async: una ingesta fallida (eFlow sin credenciales) no se repite
+      # 3 veces; la siguiente corrida de 10 min es el reintento.
+      EventInvokeConfig:
+        MaximumRetryAttempts: 0
       Events:
+        IngestaBandeja:
+          Type: ScheduleV2
+          Properties:
+            Name: !Sub ${AWS::StackName}-ingesta-bandeja
+            Description: Actualiza la bandeja desde eFlow cada 10 min, L-V 05:00-16:50 CR
+            # Falla (y queda en el historial) mientras el secreto de eFlow esté vacío.
+            ScheduleExpression: cron(0/10 5-16 ? * MON-FRI *)
+            ScheduleExpressionTimezone: America/Costa_Rica
+            Input: '{"accion": "ingesta_bandeja"}'
         ReplanHorario:
           Type: ScheduleV2
           Properties:
             Name: !Sub ${AWS::StackName}-replan-horario
-            Description: Replan automático cada hora, L-V 05:00-16:00 CR
+            Description: Replan automático cada hora (sin ingesta), L-V 05:00-16:00 CR
             # Hasta 16:00 y no 17:00: Aurora se apaga a las 17:00 (infra/horarios).
             ScheduleExpression: cron(0 5-16 ? * MON-FRI *)
             ScheduleExpressionTimezone: America/Costa_Rica

@@ -74,14 +74,24 @@ FROM tbl_orders o JOIN tbl_warehouses w ON w.id = o.warehouse_id
 WHERE o.eflow_id_expedicion IS NOT NULL AND o.wms_status = 'DISP' AND o.wms_situation = 'DISP'"""
 
 
-def replanificar_programado() -> dict:
-    """Corrida horaria (EventBridge Scheduler, ver template): ingesta eFlow y replanifica
-    cada almacén con cola."""
+def ingestar_programado() -> dict:
+    """Actualización de la bandeja (Scheduler cada 10 min, o backend/local/ingesta_bandeja.py):
+    trae la cola DISP/DISP de eFlow a Aurora. Deja su fila en el historial y, si eFlow falla,
+    LANZA para que la invocación quede como fallida (sin credenciales en el despliegue)."""
     ingesta, error = bitacora.ingestar(ingest_orders.ingest_cr)
+    bitacora.registrar_ingesta(ingesta, error, "system")
+    if error:
+        raise RuntimeError(f"Actualizar bandeja: {error}")
+    return ingesta
+
+
+def replanificar_programado() -> dict:
+    """Corrida horaria (EventBridge Scheduler, ver template): replanifica cada almacén con
+    cola sobre lo ya ingestado. La ingesta de eFlow va aparte (ingestar_programado)."""
     almacenes = pg.query(_ALMACENES, [os.environ.get("REPLAN_APP_USER_ID") or None])
     res = {a["wh"]: replanificar_todo(a["org"], a["country"], a["wh"], a["autor"]) for a in almacenes}
     logging.getLogger().info("replan programado: %s", res)
-    bitacora.registrar_corrida("planif_replan_programado", "Replan programado", ingesta, error,
+    bitacora.registrar_corrida("planif_replan_programado", "Replan programado", None, None,
                                [d for r in res.values() for d in r["planificados"]],
                                [d for r in res.values() for d in r["bloqueados"]], "system")
     return res

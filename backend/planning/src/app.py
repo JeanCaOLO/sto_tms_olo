@@ -168,10 +168,13 @@ ROUTES = {
 
 _http_handler = tms_handler(ROUTES)
 REPLAN_PROGRAMADO = "replan_programado"  # Input del Scheduler en template.yaml
+INGESTA_BANDEJA = "ingesta_bandeja"  # Input del Scheduler en template.yaml
 
 
 def handler(event: dict, context: object) -> dict:
-    """EventBridge Scheduler (replan horario) o API Gateway (rutas HTTP)."""
+    """EventBridge Scheduler (bandeja cada 10 min, replan horario) o API Gateway (rutas HTTP)."""
+    if isinstance(event, dict) and event.get("accion") == INGESTA_BANDEJA:
+        return replan.ingestar_programado()
     if isinstance(event, dict) and event.get("accion") == REPLAN_PROGRAMADO:
         return replan.replanificar_programado()
     return _http_handler(event, context)

@@ -2,6 +2,13 @@
 
 **Estado:** pendiente por implementar
 
+## Decisión (2026-11-10)
+
+La cuenta del sandbox no es de Intelix: **no** se cargan credenciales en `/dev/tms/eflow`. La bandeja
+se actualiza con un Scheduler propio cada 10 min (`ingesta_bandeja`), separado del replan horario
+(que ya no ingesta). En el despliegue esa corrida **falla a propósito** y queda en el historial en
+rojo; la ingesta real se corre desde una PC con `python backend/local/ingesta_bandeja.py`.
+
 ## Qué falta
 
 El replan programado (`dev-tms-planning-replan-horario`, cada hora L-V 05:00–16:00 CR) corre, pero

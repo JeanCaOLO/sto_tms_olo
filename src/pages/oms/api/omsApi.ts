@@ -110,7 +110,7 @@ const DIAS_PREP_PICKING_DEFECTO = 1;
 // que escriben en la misma bitácora: el panel las muestra con Tipo = Planificación.
 const HISTORIAL_ACTIONS = new Set([
   'barrido', 'procesar_viaje', 'override_manual',
-  'planif_replan_programado', 'planif_replan_manual', 'planif_plan_dia',
+  'planif_ingesta_bandeja', 'planif_replan_programado', 'planif_replan_manual', 'planif_plan_dia',
 ]);
 
 // Día ISO (YYYY-MM-DD) de un timestamp/fecha; null si viene vacío.

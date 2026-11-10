@@ -45,10 +45,23 @@ def registrar_corrida(action: str, titulo: str, ingesta: dict | None, error: str
         partes.append(f"{ingesta.get('leidos', 0)} pedidos leídos de eFlow")
         if ingesta.get("salidos"):
             partes.append(f"{ingesta['salidos']} salieron de la cola")
-    else:
+    elif error:
         partes.append(f"eFlow no disponible ({error})")
-    registrar(action, f"{titulo}: " + ", ".join(partes), level="info" if ingesta else "warn",
+    registrar(action, f"{titulo}: " + ", ".join(partes), level="warn" if error else "info",
               detail={"total": ingesta.get("leidos") if ingesta else None,
                       "salidos": ingesta.get("salidos") if ingesta else None,
                       "planificados": planificados, "bloqueados": bloqueados, "error_ingesta": error},
               actor=actor)
+
+
+def registrar_ingesta(ingesta: dict | None, error: str | None, actor: str) -> None:
+    """Una fila por actualización de la bandeja (ingesta eFlow → Aurora); error si eFlow falla."""
+    if error:
+        registrar("planif_ingesta_bandeja", f"Actualizar bandeja FALLÓ: eFlow no disponible ({error})",
+                  level="error", detail={"error_ingesta": error}, actor=actor)
+        return
+    partes = [f"{ingesta.get('leidos', 0)} pedidos leídos de eFlow"]
+    if ingesta.get("salidos"):
+        partes.append(f"{ingesta['salidos']} salieron de la cola")
+    registrar("planif_ingesta_bandeja", "Actualizar bandeja: " + ", ".join(partes),
+              detail={"total": ingesta.get("leidos"), "salidos": ingesta.get("salidos")}, actor=actor)
