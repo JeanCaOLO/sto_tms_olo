@@ -1,20 +1,100 @@
-# Pipeline raíz para proyectos nuevos configurados con INTELIX.
+# Pipeline del TMS (frontend). Basado en `.gitlab-ci.yml.reference` de la plantilla INTELIX.
 #
-# Los jobs administrados viven en un fragmento separado para que un proyecto existente pueda
-# incorporarlos sin reemplazar su pipeline. Si este archivo ya existe, intelix-cli lo preserva y
-# muestra la instrucción necesaria para activar el include manualmente.
+# - Jobs administrados por INTELIX: `.gitlab/intelix-ci.yml` (stages .pre/.post). No tocar aquí.
+# - Propios: verificar en cada commit y MR; desplegar a Amplify al integrar en `main`.
+#
+# Mapeo rama -> ambiente: main -> DEV = Amplify `tms-frontend-dev` (d200vkxzilg7v5, rama `dev`)
+# en la cuenta AWS de INTELIX (us-east-1). Consume el backend desplegado en el sandbox
+# (dev-tms-common-services, us-east-2), el mismo que usa el frontend del sandbox.
+# QA/PROD: cuando existan las ramas `qa`/`master` y sus apps (docs/guides/ci-cd-amplify.md).
+#
+# RUNNER TIPO SHELL (igual que la plantilla): sin `image:`; usa node/npm, python3 y aws del
+# servidor. Si falta una herramienta, el job falla con un mensaje claro (no se despliega a medias).
+#
+# Variables CI/CD requeridas (Settings > CI/CD > Variables, Protected + Masked), solo para deploy:
+#   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY  -> usuario IAM de despliegue en la cuenta de INTELIX
+#   (política mínima en docs/guides/ci-cd-amplify.md).
+#   VITE_GOOGLE_CLIENT_ID (opcional, no secreto) -> sin él no se muestra el botón de Google.
+
 include:
   - local: .gitlab/intelix-ci.yml
 
-# GitLab no inicia pipelines formados exclusivamente por jobs en `.pre` y `.post`.
-# Este ancla solo pertenece al pipeline mínimo de proyectos nuevos; un repositorio existente
-# conserva sus propios jobs y no recibe cambios automáticos en este archivo.
-intelix_pipeline_anchor:
-  stage: test
-  allow_failure: true
+stages:
+  - verify
+  - deploy
+
+variables:
+  AWS_DEFAULT_REGION: us-east-1
+  npm_config_cache: "$CI_PROJECT_DIR/.npm"
+
+.requiere: &requiere
+  - |
+    for t in $REQUIERE; do
+      command -v "$t" >/dev/null 2>&1 || { echo "[ERROR] falta '$t' en el runner"; exit 1; }
+    done
+
+# ---------------------------------------------------------------------------
+# VERIFY — tipos + pruebas del frontend. Gate de MR y de cada commit.
+# ---------------------------------------------------------------------------
+verificar:
+  stage: verify
+  variables:
+    REQUIERE: "node npm"
+  cache:
+    key:
+      files: [package-lock.json]
+    paths: [.npm/]
   script:
-    - echo "Fragmento CI INTELIX cargado."
+    - *requiere
+    - npm ci --no-audit --no-fund
+    - npx tsc --noEmit -p tsconfig.app.json
+    - npm test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+# Dependencias con vulnerabilidades altas: aviso, no bloquea (estándar DevOps: escaneo de
+# dependencias). Endurecer a bloqueante cuando el árbol esté limpio.
+dependencias:
+  stage: verify
+  allow_failure: true
+  variables:
+    REQUIERE: "npm"
+  script:
+    - *requiere
+    - npm audit --omit=dev --audit-level=high
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-    - if: $CI_PIPELINE_SOURCE == "schedule"
+
+# ---------------------------------------------------------------------------
+# DEPLOY DEV — automático al integrar en main: build con el API del sandbox y publicación del zip
+# en Amplify (scripts/ci/deploy_amplify.py).
+# ---------------------------------------------------------------------------
+deploy-dev:
+  stage: deploy
+  needs: [verificar]
+  resource_group: amplify-dev   # un deploy a la vez
+  environment:
+    name: dev
+    url: https://dev.d200vkxzilg7v5.amplifyapp.com
+  variables:
+    REQUIERE: "node npm python3 aws"
+    AMPLIFY_APP_ID: d200vkxzilg7v5
+    AMPLIFY_BRANCH: dev
+    VITE_API_BASE: https://pmc95jqekl.execute-api.us-east-2.amazonaws.com/dev
+    VITE_WS_URL: wss://8f3g64dx4a.execute-api.us-east-2.amazonaws.com/dev
+    VITE_MOCK_AUTH: "false"
+  cache:
+    key:
+      files: [package-lock.json]
+    paths: [.npm/]
+    policy: pull
+  script:
+    - *requiere
+    - test -n "$AWS_ACCESS_KEY_ID" || { echo "[ERROR] faltan las credenciales AWS en variables CI/CD"; exit 1; }
+    - npm ci --no-audit --no-fund
+    - npm run build
+    - python3 scripts/ci/deploy_amplify.py
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "push"
