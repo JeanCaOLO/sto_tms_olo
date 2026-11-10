@@ -126,10 +126,10 @@ export default function OmsPanelPage() {
           </p>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Bloque 2 — Historial OMS (corridas automáticas + acciones manuales). */}
+            {/* Bloque 2 — Historial de ejecuciones: OMS (corridas + acciones manuales) y Planificación. */}
             <Card className="lg:col-span-2">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-slate-900">Historial OMS</h2>
+                <h2 className="text-lg font-semibold text-slate-900">Historial de ejecuciones</h2>
                 {actividad?.ultima && (
                   <span className="text-xs text-slate-500">
                     Última ejecución {haceCuanto(actividad.ultima.createdAt)}
@@ -161,6 +161,7 @@ export default function OmsPanelPage() {
                     <thead>
                       <tr className="text-left text-xs text-slate-500 border-b border-slate-200">
                         <th className="py-2 pr-3 font-medium">Fecha</th>
+                        <th className="py-2 px-3 font-medium">Tipo</th>
                         <th className="py-2 px-3 font-medium">Acción</th>
                         <th className="py-2 px-3 font-medium text-right">Prior.</th>
                         <th className="py-2 px-3 font-medium text-right">Liber.</th>
@@ -177,7 +178,17 @@ export default function OmsPanelPage() {
                               <span className="text-slate-500">{formatFechaHora(c.createdAt, timeZone)}</span>
                             </div>
                           </td>
-                          <td className="py-2 px-3">{actionLabel(c.action)}</td>
+                          <td className="py-2 px-3">
+                            <Badge variant={c.tipo === 'planificacion' ? 'info' : 'default'} size="sm">
+                              {c.tipo === 'planificacion' ? 'Planificación' : 'OMS'}
+                            </Badge>
+                          </td>
+                          <td className="py-2 px-3">
+                            {actionLabel(c.action)}
+                            {c.tipo === 'planificacion' && c.message && (
+                              <p className="text-xs text-slate-500">{c.message.replace(/^[^:]*:\s*/, '')}</p>
+                            )}
+                          </td>
                           <td className="py-2 px-3 text-right tabular-nums">{n(c.priorizados)}</td>
                           <td className="py-2 px-3 text-right tabular-nums font-medium text-emerald-700">{n(c.liberados)}</td>
                           <td className={`py-2 px-3 text-right tabular-nums ${(c.pendientes ?? 0) > 0 ? 'text-amber-600 font-medium' : ''}`}>{n(c.pendientes)}</td>

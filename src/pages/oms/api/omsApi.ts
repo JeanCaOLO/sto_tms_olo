@@ -106,7 +106,12 @@ const PANEL_SELECT =
 const DIAS_PREP_PICKING_DEFECTO = 1;
 // Acciones de negocio que forman el "Historial OMS" del panel (barrido automático
 // + acciones manuales). Los logs internos/por pedido quedan fuera del historial.
-const HISTORIAL_ACTIONS = new Set(['barrido', 'procesar_viaje', 'override_manual']);
+// Incluye las corridas de Planificación (prefijo `planif_`, backend/planning/src/bitacora.py),
+// que escriben en la misma bitácora: el panel las muestra con Tipo = Planificación.
+const HISTORIAL_ACTIONS = new Set([
+  'barrido', 'procesar_viaje', 'override_manual',
+  'planif_replan_programado', 'planif_replan_manual', 'planif_plan_dia',
+]);
 
 // Día ISO (YYYY-MM-DD) de un timestamp/fecha; null si viene vacío.
 function isoDay(value: unknown): string | null {
@@ -372,6 +377,7 @@ export const omsApi = {
         actor: r.actor ?? 'system',
         level: (r.level ?? 'info') as OmsLogLevel,
         action: r.action ?? '',
+        tipo: String(r.action ?? '').startsWith('planif_') ? 'planificacion' : 'oms',
         total: num('total'),
         priorizados: num('priorizados'),
         liberados: num('liberados'),

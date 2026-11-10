@@ -9,6 +9,7 @@ día. NO toca días que ya tienen viajes despachados (completed/cancelled).
 import logging
 import os
 
+import bitacora
 import ingest_orders
 import plan_builder
 from tms_common import pg
@@ -76,11 +77,11 @@ WHERE o.eflow_id_expedicion IS NOT NULL AND o.wms_status = 'DISP' AND o.wms_situ
 def replanificar_programado() -> dict:
     """Corrida horaria (EventBridge Scheduler, ver template): ingesta eFlow y replanifica
     cada almacén con cola."""
-    try:
-        ingest_orders.ingest_cr()
-    except Exception:  # noqa: BLE001 - frontera: no bloquear por eFlow
-        logging.getLogger().warning("ingest eFlow no disponible; se replanifica sobre lo ya ingestado")
+    ingesta, error = bitacora.ingestar(ingest_orders.ingest_cr)
     almacenes = pg.query(_ALMACENES, [os.environ.get("REPLAN_APP_USER_ID") or None])
     res = {a["wh"]: replanificar_todo(a["org"], a["country"], a["wh"], a["autor"]) for a in almacenes}
     logging.getLogger().info("replan programado: %s", res)
+    bitacora.registrar_corrida("planif_replan_programado", "Replan programado", ingesta, error,
+                               [d for r in res.values() for d in r["planificados"]],
+                               [d for r in res.values() for d in r["bloqueados"]], "system")
     return res

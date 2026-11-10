@@ -6,6 +6,9 @@ const ACTION_LABELS: Record<string, string> = {
   barrido: 'Ejecución automática',
   procesar_viaje: 'Procesar a Eflow',
   override_manual: 'Override manual',
+  planif_replan_programado: 'Replan programado',
+  planif_replan_manual: 'Replanificar',
+  planif_plan_dia: 'Planificar día',
 };
 
 export function actionLabel(action: string): string {
