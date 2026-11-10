@@ -39,8 +39,7 @@ const OMS_GROUP: MenuGroup = {
     { icon: 'ri-inbox-line', label: 'Pedidos en Bandeja', i18nKey: 'menu.omsBandeja', path: '/oms/bandeja', permKey: 'oms.cola' },
     { icon: 'ri-stack-line', label: 'Cola de Priorización', i18nKey: 'menu.omsCola', path: '/oms/cola', permKey: 'oms.cola' },
     { icon: 'ri-map-pin-add-line', label: 'Planificación', i18nKey: 'menu.planificacion', path: '/oms/planificacion', permKey: 'planificacion' },
-    { icon: 'ri-settings-3-line', label: 'Motor de Reglas', i18nKey: 'menu.omsReglas', path: '/oms/reglas', permKey: 'oms.reglas' },
-    { icon: 'ri-flask-line', label: 'Simulador', i18nKey: 'menu.omsSimulador', path: '/oms/simulador', permKey: 'oms.simulador' },
+    { icon: 'ri-settings-3-line', label: 'Reglas OMS', i18nKey: 'menu.omsReglas', path: '/oms/reglas', permKey: 'oms.reglas' },
     { icon: 'ri-history-line', label: 'Auditoría', i18nKey: 'menu.omsAuditoria', path: '/oms/auditoria', permKey: 'oms.auditoria' },
   ],
 };

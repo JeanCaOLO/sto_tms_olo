@@ -26,7 +26,8 @@ SELECT r.id, 'pickup' AS kind, r.return_number, r.reason AS return_reason, r.sta
        o.eflow_id_expedicion, o.eflow_id_almacen, o.eflow_id_compania, o.eflow_id_sucursal,
        fc.name AS final_customer_name,
        o.delivery_zone, NULL::numeric AS total_amount, NULL::numeric AS total_weight, NULL::numeric AS total_volume,
-       r.quantity AS total_items, r.notes AS observaciones, r.created_at::date AS delivery_date,
+       r.quantity AS total_items, r.notes AS observaciones,
+       COALESCE(r.pickup_date, r.created_at::date) AS delivery_date,  -- agendada por el planificador (sql/60)
        r.created_at::date AS order_date, o.wms_status, o.wms_situation,
        NULL::date AS delivery_date_eflow, 0 AS delivery_date_change_count, false AS liberado
 FROM tbl_returns r

@@ -15,7 +15,7 @@ Hoy el frontend usa servicios abiertos sin garantía:
 
 El propio código lo advierte (`osrm-config.ts`): el OSRM público no tiene SLA, tiene límite de tasa y puede caerse. Los tiles de OSM tampoco están pensados para uso comercial intensivo. La empresa quiere un proveedor pago con soporte y continuidad.
 
-El polling de Tracking (cada 15 s) lo atiende el backend propio: **no llama a ninguna API de mapas y no genera costo**.
+El polling de Tracking (cada 10 s) lo atiende el backend propio: **no llama a ninguna API de mapas y no genera costo**.
 
 ## Nota sobre «grok»
 

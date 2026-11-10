@@ -1,16 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { escapeHtml, formDocumentHtml } from './formDocument';
 import {
-  defaultReceiveQuantity, draftFromDetail, groupBySection, isOpen, isReadyToSettle, parseQuantity, reasonsOf, receivedQuantity,
-  returnTypeLabel, statusLabel, statusVariant, toFormPayload, tripProgress,
+  defaultReceiveQuantity, draftFromDetail, formatRouteDate, groupBySection, isOpen, isReadyToSettle, isSelectable, newFormView,
+  parseQuantity, pruneSelection, reasonsOf, receivedQuantity, returnTypeLabel, statusLabel, statusVariant, toFormPayload, toggleGroup,
+  toggleSelection, tripProgress,
 } from './trips';
-import type { FormSection, ReturnLine, ReturnTrip, TripDetail } from './types';
+import type { FormSection, FormView, ReturnLine, ReturnTrip, TripDetail } from './types';
 
 const line = (over: Partial<ReturnLine> = {}): ReturnLine => ({
   id: 'r1', return_number: 'DV-1', return_type: 'devolucion', return_date: null, reason: 'Producto dañado', product_code: '9054404',
   product_name: 'Lámina', quantity: 2, photo_url: null, notes: null, status: 'pending', received_at: null, received_by: null,
   received_quantity: null, received_condition: null, dispatch_guide_id: 'g1', sequence_number: 1, order_number: 'P-1',
-  invoice_number: '897062', ...over,
+  invoice_number: '897062', form_id: null, form_number: null, ...over,
 });
 const section = (over: Partial<FormSection> = {}): FormSection => ({
   dispatch_guide_id: 'g1', sequence_number: 1, invoice_number: '897062', customer_code: '2041', customer_name: 'Inversiones S.A.',
@@ -19,10 +20,14 @@ const section = (over: Partial<FormSection> = {}): FormSection => ({
 const trip = (over: Partial<ReturnTrip> = {}): ReturnTrip => ({
   route_id: 'route-1', route_number: 'R-1', route_date: '2026-10-29', plan_trip_id: null, route_status: 'completed', driver_name: 'Luis',
   carrier_name: 'Transportes', country_id: 'cr', total_returns: 2, received_returns: 1, pending_returns: 1, last_return_at: null,
-  form_id: null, form_number: null, ...over,
+  forms_count: 0, ...over,
 });
-const detail = (over: Partial<TripDetail> = {}): TripDetail => ({
-  trip: trip(), returns: [line()], sections: [section()], form: null, defaults: { transport: 'Transportes - Luis' }, ...over,
+// Lo que muestra un formulario (con `form` null = nuevo, sin guardar).
+const detail = (over: Partial<FormView> = {}): FormView => ({
+  trip: trip(), form: null, returns: [line()], sections: [section()], defaults: { transport: 'Transportes - Luis' }, ...over,
+});
+const tripDetail = (over: Partial<TripDetail> = {}): TripDetail => ({
+  trip: trip(), returns: [line()], sections: [section()], forms: [], defaults: { transport: 'Transportes - Luis' }, ...over,
 });
 
 describe('estados', () => {
@@ -48,6 +53,18 @@ describe('viaje', () => {
     expect(tripProgress({ total_returns: 4, received_returns: 1 })).toEqual({ label: '1/4', percent: 25 });
     expect(tripProgress({ total_returns: 0, received_returns: 0 })).toEqual({ label: '0/0', percent: 0 });
     expect(tripProgress({ total_returns: 2, received_returns: 5 })).toEqual({ label: '2/2', percent: 100 });
+  });
+});
+
+describe('formatRouteDate', () => {
+  it.each([
+    ['2026-11-02T00:00:00.000Z', '2026-11-02'],
+    ['2026-11-02', '2026-11-02'],
+    ['', ''],
+    [null, ''],
+    ['no es fecha', ''],
+  ])('formatRouteDate(%j)', (value, expected) => {
+    expect(formatRouteDate(value)).toBe(expected);
   });
 });
 
@@ -123,6 +140,51 @@ describe('documento imprimible', () => {
     const d = detail();
     const draft = { ...draftFromDetail(d), comments: '<script>alert(1)</script>' };
     expect(formDocumentHtml(d, draft, null)).not.toContain('<script>alert(1)</script>');
+  });
+});
+
+describe('selección de devoluciones para un formulario', () => {
+  const a = line({ id: 'a' });
+  const b = line({ id: 'b', dispatch_guide_id: 'g2', sequence_number: 2 });
+  const inForm = line({ id: 'c', form_id: 'f1', form_number: 'DEV-2026-11-0001' });
+
+  it('solo se pueden marcar las que no van en ningún formulario', () => {
+    expect(isSelectable(a)).toBe(true);
+    expect(isSelectable(inForm)).toBe(false);
+  });
+
+  it('marcar y desmarcar de una en una, sin mutar el conjunto original', () => {
+    const original = new Set<string>();
+    const marked = toggleSelection(original, 'a');
+    expect([...marked]).toEqual(['a']);
+    expect(original.size).toBe(0);
+    expect(toggleSelection(marked, 'a').size).toBe(0);
+  });
+
+  it('marcar un grupo toma solo las seleccionables y, con todas marcadas, las desmarca', () => {
+    const marked = toggleGroup(new Set(), [a, inForm]);
+    expect([...marked]).toEqual(['a']);
+    expect(toggleGroup(marked, [a, inForm]).size).toBe(0);
+  });
+
+  it('un grupo sin devoluciones seleccionables no cambia la selección', () => {
+    expect(toggleGroup(new Set(['x']), [inForm])).toEqual(new Set(['x']));
+  });
+
+  it('descarta lo marcado que ya no es seleccionable o ya no existe', () => {
+    const pruned = pruneSelection(new Set(['a', 'c', 'zzz']), [a, inForm]);
+    expect([...pruned]).toEqual(['a']);
+  });
+
+  it('el formulario nuevo lleva SOLO las devoluciones marcadas y las paradas que las tienen', () => {
+    const view = newFormView(
+      tripDetail({ returns: [a, b, inForm], sections: [section(), section({ dispatch_guide_id: 'g2', sequence_number: 2 })] }),
+      new Set(['b', 'c']),
+    );
+    expect(view.form).toBeNull();
+    expect(view.returns.map((l) => l.id)).toEqual(['b']);
+    expect(view.sections.map((s) => s.dispatch_guide_id)).toEqual(['g2']);
+    expect(view.defaults.transport).toBe('Transportes - Luis');
   });
 });
 

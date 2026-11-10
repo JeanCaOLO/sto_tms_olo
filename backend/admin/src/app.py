@@ -33,7 +33,9 @@ ROUTES = {
     "GET /api/v1/devoluciones/resumen": returns.summary,
     "GET /api/v1/devoluciones/viajes": returns.list_trips,
     "GET /api/v1/devoluciones/viajes/{routeId}": returns.get_trip,
-    "PUT /api/v1/devoluciones/viajes/{routeId}/formulario": returns.save_form,
+    "POST /api/v1/devoluciones/viajes/{routeId}/formularios": returns.create_form,
+    "GET /api/v1/devoluciones/formularios/{formId}": returns.get_form,
+    "PUT /api/v1/devoluciones/formularios/{formId}": returns.update_form,
     "POST /api/v1/devoluciones/viajes/{routeId}/recibir-todas": returns.receive_all,
     "POST /api/v1/devoluciones/{returnId}/recibir": returns.receive_return,
 }

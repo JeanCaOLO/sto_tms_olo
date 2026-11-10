@@ -46,7 +46,7 @@ def test_driver_starts_own_planned_trip(call, fake_db):
 def test_first_guide_is_planned_after_the_drive_from_the_origin(call, fake_db):
     prepare(fake_db)
     call(START, path={"id": TRIP})
-    first, second = (g[1][-1] for g in fake_db.wrote("INSERT INTO tbl_dispatch_guides"))
+    first, second = (g[1][-2] for g in fake_db.wrote("INSERT INTO tbl_dispatch_guides"))
     assert first > NOW and second > first                                       # llegada 1 > ahora; 2 después de 5 min de servicio
 
 
@@ -79,7 +79,7 @@ def test_start_without_origin_coordinates_has_no_planned_times(call, fake_db):
     prepare(fake_db)
     fake_db.answer("FROM tbl_stores WHERE organization_id", [{"id": "s", "latitude": None, "longitude": None}])
     call(START, path={"id": TRIP})
-    assert all(g[1][-1] is None for g in fake_db.wrote("INSERT INTO tbl_dispatch_guides"))
+    assert all(g[1][-2] is None for g in fake_db.wrote("INSERT INTO tbl_dispatch_guides"))
 
 
 def test_cannot_start_another_trip_while_current_has_pending_stops(call, fake_db):

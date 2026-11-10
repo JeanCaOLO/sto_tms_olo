@@ -11,9 +11,10 @@ _PLANES_DEL_DIA = f"SELECT id FROM tbl_route_plans WHERE {_DIA}"
 
 
 def _liberado(trip: str) -> str:
-    """El viaje `trip` tiene al menos un pedido ya liberado a eFlow."""
+    """El viaje `trip` tiene al menos un pedido ya liberado a eFlow. Solo cuentan las entregas:
+    una recolecta apunta al pedido original, que se liberó hace tiempo."""
     return f"""EXISTS (SELECT 1 FROM tbl_plan_stops s2 JOIN tbl_orders o2 ON o2.id = s2.order_id
-              WHERE s2.trip_id = {trip} AND o2.oms_processed_at IS NOT NULL)"""
+              WHERE s2.trip_id = {trip} AND s2.stop_type = 'delivery' AND o2.oms_processed_at IS NOT NULL)"""
 
 
 def fuera_de_congelados(order: str) -> str:

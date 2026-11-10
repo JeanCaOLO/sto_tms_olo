@@ -26,8 +26,8 @@ export interface ReturnTrip {
   received_returns: number;
   pending_returns: number;
   last_return_at: string | null;
-  form_id: string | null;
-  form_number: string | null;
+  /** Formularios que ya tiene el viaje (puede ser más de uno). */
+  forms_count: number;
 }
 
 export interface ReturnLine {
@@ -50,6 +50,9 @@ export interface ReturnLine {
   sequence_number: number | null;
   order_number: string | null;
   invoice_number: string | null;
+  /** Formulario que ya la lleva; null = todavía sin formulario (se puede marcar para uno nuevo). */
+  form_id: string | null;
+  form_number: string | null;
 }
 
 /** Una parada del viaje con devoluciones: cliente y factura. Lo capturado manda sobre lo que sabe el tracking. */
@@ -67,6 +70,7 @@ export interface FormSection {
 
 export interface ReturnForm {
   id: string;
+  route_id?: string;
   form_number: string;
   physical_receipt_number: string | null;
   branch: string | null;
@@ -82,11 +86,29 @@ export interface ReturnForm {
   updated_at: string;
 }
 
+export interface FormSummary {
+  id: string;
+  form_number: string;
+  created_at: string;
+  updated_at: string;
+  returns_count: number;
+}
+
+/** Un viaje con sus devoluciones, el borrador de secciones desde tracking y sus formularios. */
 export interface TripDetail {
   trip: ReturnTrip;
   returns: ReturnLine[];
   sections: FormSection[];
+  forms: FormSummary[];
+  defaults: { transport: string | null };
+}
+
+/** Lo que muestra el formulario: solo las devoluciones que lleva. `form` null = formulario nuevo, sin guardar. */
+export interface FormView {
+  trip: ReturnTrip;
   form: ReturnForm | null;
+  returns: ReturnLine[];
+  sections: FormSection[];
   defaults: { transport: string | null };
 }
 

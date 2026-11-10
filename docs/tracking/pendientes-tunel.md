@@ -177,9 +177,9 @@ Hoy crece sin límite (~360 000 filas/día con 200 camiones según el blueprint)
 
 ## Pendiente: cierre automático y sincronización entre módulos
 
-Diseñado y probado el 2026-10-17, **retirado** por la restricción de no alterar otros módulos. Queda para cuando se acuerde con los dueños de Planificación y Liquidaciones.
+Diseñado y probado el 2026-10-17, **retirado** por la restricción de no alterar otros módulos. Después se implementó el cierre en la app del chofer (`backend/mobile`), que sí escribe en `routes` y `plan_trips`; lo pendiente es la sincronización con Planificación y Liquidaciones, a acordar con sus dueños.
 
-**Situación actual:** el viaje lo termina Planificación (`plan_trips`) y Tracking lo refleja leyendo ese estado. `routes.status` queda "En tránsito", así que Liquidaciones (`tarifas_v_viajes`), Dashboard y Reportes no lo ven completado.
+**Situación actual (verificada en código):** la app del chofer cierra el viaje al registrar la última parada (`backend/mobile/src/mobile_api/stops.py:116-123`: `routes.status = 'Completada'` y `plan_trips.status = 'completed'`); la web no cierra. Despliegue en Aurora: no verificado. Un viaje terminado solo en Planificación queda con `routes.status` "En tránsito", y Liquidaciones (`tarifas_v_viajes`), Dashboard y Reportes no lo ven completado.
 
 **Qué se propuso (y cómo implementarlo):**
 1. **Cierre automático en Tracking:** en `POST /paradas/{id}/transicion` (`backend/tracking/src/app.py`, función `transition_stop`), dentro de la misma transacción, si quedan 0 paradas pendientes y la transición no es a `pending`:
@@ -223,7 +223,7 @@ Pedido del usuario: el retraso es **pasarse del día de entrega**, y la interfaz
 
 ## Sedes de salida fijas en Tracking (2026-10-19) — A DISCUTIR CON JEAN
 
-Datos dados por el usuario, **fijos en código solo para pruebas** (`backend/tracking/src/tracking_logic.py`: `CUSTOMER_ORIGINS`, `COUNTRY_ORIGINS`, función `origin_coords`). No se escribió nada en la BD.
+Datos dados por el usuario, **fijos en código solo para pruebas** (`backend/tracking/src/tracking_logic.py`: `CUSTOMER_ORIGINS`, `COUNTRY_ORIGINS`, función `origin_coords`); duplicadas en `backend/mobile/src/mobile_api/logic.py:167-182`. No se escribió nada en la BD.
 
 | Sede | Coordenadas | Aplica a |
 |---|---|---|

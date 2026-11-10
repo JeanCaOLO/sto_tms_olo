@@ -10,10 +10,10 @@ y **impide liquidar un viaje con devoluciones sin recibir**. Si se despliega en 
 
 | # | Pieza | Dónde | Qué cambió |
 |---|---|---|---|
-| 1 | Migraciones de BD | `sql/60_devoluciones_recepcion.sql`, `sql/61_devoluciones_estado_completed.sql` | Columnas de recepción en `tbl_returns`, tablas del formulario, vista `vw_return_trips`, rol "Devoluciones" |
-| 2 | Backend `admin` | `backend/admin` (stack `dev-tms-admin`) | 6 rutas nuevas `/api/v1/devoluciones/*` (`admin_returns.py`, `admin_returns_sql.py`) |
+| 1 | Migraciones de BD | `sql/60_devoluciones_recepcion.sql`, `sql/61_devoluciones_estado_completed.sql`, `sql/62_devoluciones_formularios_por_seleccion.sql` | Columnas de recepción en `tbl_returns`, tablas del formulario, vista `vw_return_trips`, rol "Devoluciones"; la 62 permite varios formularios por viaje (tabla `tbl_return_form_items`) |
+| 2 | Backend `admin` | `backend/admin` (stack `dev-tms-admin`) | 8 rutas nuevas `/api/v1/devoluciones/*` (`admin_returns.py`, `admin_returns_sql.py`) |
 | 3 | Backend `tarifas` | `backend/tarifas` (stack `dev-tms-tarifas`) | Bloqueo de liquidación (`returns_gate.py`) y variable `TMS_RETURNS_GATE` |
-| 4 | Frontend | raíz del repo (Amplify) | Pantalla `/devoluciones` nueva, aterrizaje por rol (`/`), se elimina `/devoluciones/legacy` |
+| 4 | Frontend | raíz del repo (Amplify) | Pantalla `/devoluciones` nueva (con casillas para armar formularios), aterrizaje por rol (`/`), mensaje de devoluciones sin recibir en Liquidaciones, se elimina `/devoluciones/legacy` |
 
 No cambia la layer común `tms_common`, ni `backend/mobile`, ni la app del chofer.
 
@@ -34,11 +34,15 @@ node --env-file=.env.local scripts/run-migration.mjs sql/60_devoluciones_recepci
 node --env-file=.env.local scripts/run-migration.mjs sql/60_devoluciones_recepcion.sql --execute   # aplicar
 node --env-file=.env.local scripts/run-migration.mjs sql/61_devoluciones_estado_completed.sql
 node --env-file=.env.local scripts/run-migration.mjs sql/61_devoluciones_estado_completed.sql --execute
+node --env-file=.env.local scripts/run-migration.mjs sql/62_devoluciones_formularios_por_seleccion.sql
+node --env-file=.env.local scripts/run-migration.mjs sql/62_devoluciones_formularios_por_seleccion.sql --execute
 ```
 
-Corre la simulación y el `--execute` en comandos separados. Son aditivas e idempotentes. Rollbacks:
-`sql/61_devoluciones_estado_completed_rollback.sql` y `sql/60_devoluciones_recepcion_rollback.sql` (en ese orden; el
-60 guarda una copia de lo capturado en tablas `*_bak` antes de quitar columnas).
+Corre la simulación y el `--execute` en comandos separados. Son idempotentes. La 62 **recrea la vista `vw_return_trips`**
+(deja de traer `form_id`/`form_number` y trae `forms_count`) y quita la restricción de un formulario por viaje, así que
+va **antes** del backend `admin` nuevo. Rollbacks, en este orden: `sql/62_devoluciones_formularios_por_seleccion_rollback.sql`,
+`sql/61_devoluciones_estado_completed_rollback.sql` y `sql/60_devoluciones_recepcion_rollback.sql` (el 62 y el 60 copian lo
+capturado a tablas `*_bak` antes de quitar columnas o formularios).
 
 El rol de la aplicación `tms_app` necesita permisos sobre las tablas nuevas; la migración 60 los otorga. Comprobar:
 
@@ -57,8 +61,8 @@ python scripts/sandbox/deploy_backend.py admin
 
 o con SAM, como el resto de los stacks: `cd backend/admin && sam deploy --config-env <dev|qa|prod>`.
 
-`backend/admin/template.yaml` agrega 6 rutas de API Gateway (`ReturnsSummaryRoute`, `ReturnsTripsRoute`, `ReturnsTripRoute`,
-`ReturnsFormRoute`, `ReturnsReceiveAllRoute`, `ReturnsReceiveRoute`). Las rutas **solo existen** si se despliega este
+`backend/admin/template.yaml` agrega 8 rutas de API Gateway (`ReturnsSummaryRoute`, `ReturnsTripsRoute`, `ReturnsTripRoute`,
+`ReturnsFormCreateRoute`, `ReturnsFormGetRoute`, `ReturnsFormUpdateRoute`, `ReturnsReceiveAllRoute`, `ReturnsReceiveRoute`). Las rutas **solo existen** si se despliega este
 template: un `ROUTES` nuevo sin `RouteKey` da 404 de API Gateway.
 
 ### 3. Verificación (antes de tarifas)
@@ -126,9 +130,11 @@ Para dar el rol: Configuración → Usuarios. Si el rol debe limitarse a un paí
 
 1. Con el rol Devoluciones: `/` lleva a `/devoluciones`; el menú muestra solo ese módulo.
 2. Un viaje con 2 devoluciones: recibir una → "1/2 recibidas", sigue "por recibir"; recibir la otra → "Listo para liquidar".
-3. En Liquidaciones, intentar liquidar un viaje con una devolución sin recibir → rechazo con mensaje legible.
+3. En Liquidaciones, un viaje con una devolución sin recibir muestra "No se puede liquidar el viaje X porque tiene N devolución(es)
+   sin recibir…" y no se puede liquidar; si se intenta por la API directa, el backend responde 409.
 4. Recibirla y liquidar → se liquida. Un viaje sin devoluciones se liquida igual que antes.
-5. Formulario del viaje: guardar (toma número `DEV-AAAA-MM-####`), reabrir e imprimir.
+5. Formularios: marcar 2 de las devoluciones de un viaje → "Crear formulario (2)" → guardar (toma número `DEV-AAAA-MM-####`). El viaje lista
+   ese formulario con 2 devoluciones; las marcadas ya no se pueden elegir de nuevo. Crear otro con las demás, reabrir e imprimir.
 6. Un usuario con otro rol que no tiene `devoluciones` no ve el módulo (403 en la API, "sin acceso" en la pantalla).
 
 ## Pendientes conocidos (no bloquean el despliegue)

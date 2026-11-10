@@ -244,6 +244,17 @@
   2026-09-01)** (ADR-009). "0 = liberado" es convención de la estrategia
   `dias_hasta_salida` de Cofersa (piso de cola 1), no un invariante global de
   `orders.priority`. EPA usa 1 y 2 (nunca 0), así que no hay roce.
+- **OQ-VENCIDOS (ABIERTA, v4.3, 2026-11-04 — pendiente de negocio)**: pedidos
+  "vencidos" fuera de la ventana de planificación. **Hecho**: Planificación solo
+  planifica la ventana **(hoy, hoy+3]** (excluye hoy y el pasado), así que los
+  pedidos con **entrega hoy o pasada nunca se planifican** (`planning_run_id` queda
+  `NULL`) y quedan **clavados en `DISP`**, fuera de la cola del OMS (`planning_run_id
+  IS NOT NULL AND oms_processed_at IS NULL`, ADR-013/ADR-007). Falta la **regla de
+  negocio**: ¿**se liberan igual**? ¿**se alertan**? ¿**se auditan**? No se diseña
+  solución ni se crea componente: es pendiente de negocio (Antonio). *Nota de
+  dependencia*: en el sandbox la **ingesta de eFlow no es automática** (la Lambda no
+  alcanza eFlow; depende de la **réplica pendiente**, OQ-2) — contexto, no
+  requerimiento.
 
 
 ---
@@ -363,6 +374,16 @@
   `priorizar=false`). "0 = liberado" es convención de la estrategia
   `dias_hasta_salida` de Cofersa (piso de cola 1), no un invariante global de
   `orders.priority`. EPA usa 1 y 2 (nunca 0), así que no hay roce.
+- **Nota v4.3 (2026-11-04) — pass-through end-to-end**: EPA es **igual que las
+  demás compañías en todo salvo que el OMS no la prioriza**; conserva su prioridad
+  de eFlow **de punta a punta**. En concreto: (a) **la ingesta no anula** su
+  prioridad (aunque venga 0 de eFlow se respeta); (b) **entra a la ventana de
+  liberación por fecha igual que Cofersa** (ADR-013), lo único que el OMS no hace es
+  calcularle la prioridad; (c) **al LIBERAR conserva su número original (1 o 2) y
+  ese mismo número va a eFlow** — **nunca** pasa por 0, a diferencia de Cofersa, que
+  al liberar escribe 0 (ADR-013/ADR-014). Verificado contra `app._liberar`:
+  `prioridad_liberacion = 0` solo si `config.priorizar`; para EPA (`priorizar=false`)
+  es `None`, por lo que no se toca `orders.priority`.
 - **Nota de corrección (2026-10-30)**: la versión anterior de este ADR afirmaba que
   EPRAC parte el pedido de EPA en dos expediciones "guion-0" (falla ⇒ prioridad 0)
   y "guion-1" (regular ⇒ prioridad 1), liberadas juntas. Es un error de origen: el
@@ -494,7 +515,12 @@
        `now() >= dispatch_date − dias_prep_picking` (`dias_prep_picking = 1` por
        defecto; **política del OMS**, parametrizable por compañía a futuro) →
        escribe `GENE`+`PRIORIDAD` por la costura `EscritorSituacion` (→
-       `sim_expedicionescabecera`) y estampa `oms_processed_at = now()`.
+       `sim_expedicionescabecera`) y estampa `oms_processed_at = now()`. **El número
+       de `PRIORIDAD` que va a eFlow al liberar depende de la compañía (v4.3)**:
+       **Cofersa** (priorizada) pasa a **`0`** ("ya se va") y **ese `0`** es el que
+       se manda; **EPA** (pass-through) **conserva su prioridad de origen (1 o 2)** —
+       **nunca** pasa por 0. (Verificado contra `app._liberar`: `prioridad_liberacion
+       = 0` solo si `config.priorizar`, `None` → conserva `orders.priority`.)
   2. La **liberación es por viaje gratis**: como `dispatch_date` es igual para todos
      los pedidos de un `numero_viaje`, todos cruzan la ventana juntos. **No se
      navega `plan_trips`/`routes`/`route_plans`**; se lee **solo `orders`**.

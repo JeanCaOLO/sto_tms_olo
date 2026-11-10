@@ -57,6 +57,8 @@ export interface TripRecord {
   /** Guías (una por pedido) ya entregadas. */
   deliveredGuides: number;
   returnCount: number;
+  /** Devoluciones SIN RECIBIR (pending/approved): con alguna, el viaje no se puede liquidar. Ver Devoluciones. */
+  openReturns?: number;
   /** Novedades (incidentes) y recolectas del chofer; 0 si la vista aún no las trae. */
   novedadCount: number;
   pickupCount: number;

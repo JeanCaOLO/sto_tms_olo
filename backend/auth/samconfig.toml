@@ -12,7 +12,8 @@ parameter_overrides = [
   "CommonStackName=dev-tms-common-services",
   "CommonLayerArn=/dev/tms/common-layer-arn",
   "SubnetIds=/dev/tms/network/subnets",
-  "SecurityGroupId=/dev/tms/network/lambda-sg"
+  "SecurityGroupId=/dev/tms/network/lambda-sg",
+  "GoogleClientId=/dev/tms/google-client-id"
 ]
 tags = ["Project=TMS", "Environment=DEV", "Name=dev-tms-auth"]
 
@@ -27,7 +28,8 @@ parameter_overrides = [
   "CommonStackName=qa-tms-common-services",
   "CommonLayerArn=/qa/tms/common-layer-arn",
   "SubnetIds=/qa/tms/network/subnets",
-  "SecurityGroupId=/qa/tms/network/lambda-sg"
+  "SecurityGroupId=/qa/tms/network/lambda-sg",
+  "GoogleClientId=/qa/tms/google-client-id"
 ]
 tags = ["Project=TMS", "Environment=QA", "Name=qa-tms-auth"]
 
@@ -42,7 +44,8 @@ parameter_overrides = [
   "CommonStackName=prod-tms-common-services",
   "CommonLayerArn=/prod/tms/common-layer-arn",
   "SubnetIds=/prod/tms/network/subnets",
-  "SecurityGroupId=/prod/tms/network/lambda-sg"
+  "SecurityGroupId=/prod/tms/network/lambda-sg",
+  "GoogleClientId=/prod/tms/google-client-id"
 ]
 tags = ["Project=TMS", "Environment=PROD", "Name=prod-tms-auth"]
 
