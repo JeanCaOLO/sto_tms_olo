@@ -417,17 +417,6 @@ Resources:
         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
       Target: !Sub integrations/${AdminApiIntegration}
 
-  ReturnRequestListRoute:
-    Type: AWS::ApiGatewayV2::Route
-    Properties:
-      ApiId:
-        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
-      RouteKey: GET /api/v1/solicitudes-devolucion
-      AuthorizationType: CUSTOM
-      AuthorizerId:
-        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
-      Target: !Sub integrations/${AdminApiIntegration}
-
 Outputs:
   AdminApiFunctionArn:
     Value: !GetAtt AdminApiFunction.Arn
