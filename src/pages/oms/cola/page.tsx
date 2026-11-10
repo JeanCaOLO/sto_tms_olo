@@ -105,6 +105,7 @@ export default function OmsColaPage() {
           columns={columns}
           getRowId={(o) => o.id}
           loading={loading}
+          defaultSort={{ key: 'priority', direction: 'asc' }}
           pageSize={10}
           selectedRowId={selectedId}
           onRowClick={(o) => { setSelectedId(o.id); setDetailOpen(true); }}

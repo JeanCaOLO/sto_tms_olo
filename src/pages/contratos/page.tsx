@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/hooks/useAuth';
 import Button from '@/components/base/Button';
 import Badge from '@/components/base/Badge';
@@ -65,7 +65,7 @@ export default function ContratosPage() {
   const fetchContracts = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      const { data, error } = await apiClient
         .from('contracts')
         .select('*')
         .eq('organization_id', appUser!.organization_id)

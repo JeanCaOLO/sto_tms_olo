@@ -70,7 +70,7 @@ export default function ViajeDetallePanel({ viaje, detail, error, now, onClose, 
             {viaje.phase === 'por_salir'
               ? t('tracking.phaseDeparting')
               : next
-                ? t('tracking.nowHeading', { stop: `${next.sequence}. ${next.customer_name ?? next.order_number}` })
+                ? t('tracking.nowHeading', { stop: `${next.sequence}. ${next.customer_name ?? next.address ?? next.order_number}` })
                 : t('tracking.nowDone')}
             {next && viaje.phase !== 'por_salir' && (
               <span className="text-slate-500">

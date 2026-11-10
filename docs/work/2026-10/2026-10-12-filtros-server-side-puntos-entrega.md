@@ -13,7 +13,7 @@
   global `useOperationalContext()` (país → almacén → cliente) + búsqueda
   server-side con debounce. Vuelve a página 1 al cambiar cualquier
   filtro/contexto/búsqueda. Se quitaron los filtros de columna en memoria.
-- `src/lib/supabase.ts`: nuevo `.ilike(column, pattern)` (admite `"a|b"` para OR
+- `src/lib/api-client.ts`: nuevo `.ilike(column, pattern)` (admite `"a|b"` para OR
   entre columnas, contrato de Claude). Se quitó el `ponytail:` de `range()`
   (el backend ya respeta `offset`).
 - `src/components/base/DataTable.tsx`: nueva prop `hideSearch` (aditiva, default

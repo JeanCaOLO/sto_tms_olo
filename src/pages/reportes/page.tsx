@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api-client';
 import { StatCard } from '../../components/feature/StatCard';
 import Select from '../../components/base/Select';
 import Button from '../../components/base/Button';
@@ -110,7 +110,7 @@ export default function ReportesPage() {
 
   const fetchOrderStats = async (start: string, end: string) => {
     try {
-      const { data: orders, error } = await supabase
+      const { data: orders, error } = await apiClient
         .from('orders')
         .select('order_date, status')
         .gte('order_date', start)
@@ -155,7 +155,7 @@ export default function ReportesPage() {
 
   const fetchRouteStats = async (start: string, end: string) => {
     try {
-      const { data: routes, error } = await supabase
+      const { data: routes, error } = await apiClient
         .from('routes')
         .select('route_date, status, route_number, total_stops, completed_stops')
         .gte('route_date', start)
@@ -223,7 +223,7 @@ export default function ReportesPage() {
 
   const fetchDriverStats = async (start: string, end: string) => {
     try {
-      const { data: routes, error } = await supabase
+      const { data: routes, error } = await apiClient
         .from('routes')
         .select(`
           driver_id,
@@ -289,7 +289,7 @@ export default function ReportesPage() {
 
   const fetchReturnStats = async (start: string, end: string) => {
     try {
-      const { data: returns, error } = await supabase
+      const { data: returns, error } = await apiClient
         .from('returns')
         .select('reason')
         .gte('return_date', start)

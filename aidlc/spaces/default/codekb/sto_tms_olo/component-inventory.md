@@ -62,7 +62,7 @@
 - **Responsabilidad**: 6 áreas (panel, cola, reglas, simulador, rutas-despacho,
   auditoría) + **`engine/priorityEngine.ts`** (motor de priorización, con test) +
   `api/`, `components/`, `types.ts`, `useOmsView.ts`.
-- **Depende de**: design-system, `src/lib/supabase.ts` (shim API).
+- **Depende de**: design-system, `src/lib/api-client.ts` (shim API).
 - **Nota**: `rutas-despacho` (Calendario de Rutas) queda ELIMINADO por el pivote
   (D5) — las rutas se generan dinámicamente.
 

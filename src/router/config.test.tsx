@@ -34,12 +34,13 @@ describe('rutas de entrada y redirecciones', () => {
   };
 
   // `/` no tenía permiso propio: mostraba el Dashboard a quien `/dashboard` le habría dicho "Sin acceso".
-  it('"/" redirige a /dashboard, que sí pasa por el permiso del módulo', async () => {
+  // `LandingRedirect` manda a /dashboard a quien lo ve y, si no (rol Devoluciones), a su primer módulo; en ambos casos
+  // el destino pasa por RouteGuard (ver src/lib/landing.test.ts para la elección del destino).
+  it('"/" entra por LandingRedirect, que solo redirige a rutas con permiso de módulo', async () => {
     const element = (await route('/'))?.element;
     expect(isValidElement(element)).toBe(true);
-    // Se compara por nombre: tras resetModules `Navigate` es otra instancia del módulo.
-    expect((element as { type: { name: string } }).type.name).toBe('Navigate');
-    expect((element as { props: { to: string } }).props.to).toBe('/dashboard');
+    // Se compara por nombre: tras resetModules el componente es otra instancia del módulo.
+    expect((element as { type: { name: string } }).type.name).toBe('LandingRedirect');
   });
 
   it('las rutas antiguas redirigen conservando los parámetros', async () => {

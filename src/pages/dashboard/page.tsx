@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api-client';
 import StatCard from '../../components/feature/StatCard';
 import Card from '../../components/base/Card';
 import Badge from '../../components/base/Badge';
@@ -23,11 +23,11 @@ export default function Dashboard() {
   const loadDashboardData = async () => {
     try {
       const [ordersRes, routesRes, guidesRes, returnsRes, recentRoutesRes] = await Promise.all([
-        supabase.from('orders').select('*', { count: 'exact', head: true }),
-        supabase.from('routes').select('*', { count: 'exact', head: true }).eq('status', 'in_progress'),
-        supabase.from('dispatch_guides').select('*', { count: 'exact', head: true }).eq('delivery_status', 'delivered'),
-        supabase.from('returns').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-        supabase.from('routes')
+        apiClient.from('orders').select('*', { count: 'exact', head: true }),
+        apiClient.from('routes').select('*', { count: 'exact', head: true }).eq('status', 'in_progress'),
+        apiClient.from('dispatch_guides').select('*', { count: 'exact', head: true }).eq('delivery_status', 'delivered'),
+        apiClient.from('returns').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+        apiClient.from('routes')
           .select(`
             *,
             driver:drivers(full_name),

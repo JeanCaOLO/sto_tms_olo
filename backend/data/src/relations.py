@@ -105,6 +105,7 @@ TABLES = frozenset({
     "zones",  # ex route_types (sql/09)
     "branches",  # sucursales EFLOW (sql/40)
     "oms_logs",  # bitácora del OMS (sql/49)
+    "oms_rule_configs",  # config de reglas por scope del OMS (sql/52); la cola la lee para saber qué compañías son pass-through (EPA)
 })
 
 

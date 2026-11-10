@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api-client';
 import Button from '@/components/base/Button';
 import Input from '@/components/base/Input';
 import Select from '@/components/base/Select';
@@ -102,10 +102,10 @@ export default function ContractModal({ contract, organizationId, onClose }: Pro
       };
 
       if (isEdit) {
-        const { error: err } = await supabase.from('contracts').update(payload).eq('id', contract.id);
+        const { error: err } = await apiClient.from('contracts').update(payload).eq('id', contract.id);
         if (err) throw err;
       } else {
-        const { error: err } = await supabase.from('contracts').insert(payload);
+        const { error: err } = await apiClient.from('contracts').insert(payload);
         if (err) throw err;
       }
       onClose();

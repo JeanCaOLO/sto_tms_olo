@@ -20,7 +20,7 @@ export default {
   'menu.omsPanel': 'Panel OMS',
   'menu.omsBandeja': 'Pedidos en Bandeja',
   'menu.omsCola': 'Cola de Priorización',
-  'menu.omsReglas': 'Motor de Reglas',
+  'menu.omsReglas': 'Reglas OMS',
   'menu.omsSimulador': 'Simulador',
   'menu.omsAuditoria': 'Auditoría',
   'menu.catalogos': 'Catálogos',

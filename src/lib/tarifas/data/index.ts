@@ -11,7 +11,7 @@
 // prueba en la app. Las pruebas inyectan un almacén en memoria con `setDataSource`
 // (`data/memory`).
 
-import { STORAGE_KEY, currentAccessToken, expireSession, isTokenRejected } from '../../supabase';
+import { STORAGE_KEY, currentAccessToken, expireSession, isTokenRejected } from '../../api-client';
 import type { DataSource } from './datasource';
 import { HttpDataSource } from './http-datasource';
 

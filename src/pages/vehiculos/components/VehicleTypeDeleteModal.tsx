@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { supabase } from '../../../lib/supabase';
+import { apiClient } from '../../../lib/api-client';
 import Button from '../../../components/base/Button';
 
 interface VehicleTypeDeleteModalProps {
@@ -15,7 +15,7 @@ const VehicleTypeDeleteModal = ({ isOpen, onClose, onSuccess, vehicleType }: Veh
   const handleDelete = async () => {
     setLoading(true);
     try {
-      const { error } = await supabase
+      const { error } = await apiClient
         .from('vehicle_types')
         .delete()
         .eq('id', vehicleType.id);

@@ -97,11 +97,14 @@ export function TripsTable({
         const motivo = notLiquidableReason(t);
         const parcial = !tripProgress(t).complete;
         return (
+          // Con motivo el botón se ve apagado pero se puede pulsar: así el motivo (p. ej. devoluciones sin recibir)
+          // aparece como aviso en pantalla y no solo como tooltip.
           <Button
             size="sm"
             variant={parcial ? 'secondary' : 'primary'}
-            disabled={!!motivo}
-            onClick={() => onLiquidar(t)}
+            aria-disabled={!!motivo}
+            className={motivo ? 'opacity-50 cursor-not-allowed' : ''}
+            onClick={() => (motivo ? notify(motivo, 'error') : onLiquidar(t))}
             {...prefetchProps(t, !!motivo)}
             title={motivo ?? (parcial ? 'Tiene pedidos sin entregar: puedes anularlos o dejarlos para después' : 'Liquidar este viaje')}
           >

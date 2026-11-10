@@ -51,4 +51,44 @@ describe('CarrierGroupsTable · decisión en lote', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Aprobar seleccionados' }));
     expect(within(screen.getByRole('dialog')).getByText(/1 proforma de 1 transportista/)).toBeTruthy();
   });
+
+  it('marcar proformas sueltas decide solo esas, sin tocar el resto del transportista', () => {
+    render(
+      <MemoryRouter>
+        <CarrierGroupsTable rows={rows} mode="approve" loading={false} onOpen={vi.fn()} onChanged={vi.fn()} />
+      </MemoryRouter>,
+    );
+    screen.getAllByRole('button', { name: 'Extender' }).forEach((b) => fireEvent.click(b));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Seleccionar proforma PF-1' }));
+    expect(screen.getByText('1 proforma marcada')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Aprobar marcadas' }));
+    expect(within(screen.getByRole('dialog')).getByText(/1 proforma de 1 transportista \(Transportes Alfa\)/)).toBeTruthy();
+  });
+
+  it('marcar el transportista marca sus proformas; desmarcar una lo deja sin marcar', () => {
+    render(
+      <MemoryRouter>
+        <CarrierGroupsTable rows={rows} mode="approve" loading={false} onOpen={vi.fn()} onChanged={vi.fn()} />
+      </MemoryRouter>,
+    );
+    screen.getAllByRole('button', { name: 'Extender' }).forEach((b) => fireEvent.click(b));
+    const check = (n: string) => screen.getByRole('checkbox', { name: `Seleccionar proforma ${n}` }) as HTMLInputElement;
+    fireEvent.click(screen.getAllByRole('checkbox', { name: /^Marcar/ }).find((c) => (c as HTMLInputElement).closest('tr')?.textContent?.includes('Transportes Alfa'))!);
+    expect(check('PF-1').checked && check('PF-2').checked).toBe(true);
+    expect(check('PF-3').checked).toBe(false);
+    fireEvent.click(check('PF-2'));
+    expect(screen.getByText('1 proforma marcada')).toBeTruthy();
+  });
+
+  it('con proformas sueltas de un transportista, las de otro quedan bloqueadas', () => {
+    render(
+      <MemoryRouter>
+        <CarrierGroupsTable rows={rows} mode="approve" loading={false} onOpen={vi.fn()} onChanged={vi.fn()} />
+      </MemoryRouter>,
+    );
+    screen.getAllByRole('button', { name: 'Extender' }).forEach((b) => fireEvent.click(b));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Seleccionar proforma PF-1' }));
+    expect((screen.getByRole('checkbox', { name: 'Seleccionar proforma PF-3' }) as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByRole('checkbox', { name: 'Seleccionar proforma PF-2' }) as HTMLInputElement).disabled).toBe(false);
+  });
 });

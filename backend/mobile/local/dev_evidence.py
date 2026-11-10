@@ -24,7 +24,7 @@ from mobile_api.stops import guide_access
 UPLOAD_PATH = f"{routes.PREFIX}/_dev/evidencias"
 DEFAULT_DIR = Path(__file__).resolve().parent / "_evidencias"
 UPLOAD_URL_KEY = f"POST {routes.PREFIX}/paradas/{{id}}/evidencias/upload-url"
-_KEY_RE = re.compile(r"^pedidos/[A-Za-z0-9_.-]+/[0-9a-f-]{36}/(photo_invoice|photo_product|signature)-[0-9a-f-]{36}\.(jpg|png)$")
+_KEY_RE = re.compile(r"^pedidos/[A-Za-z0-9_.-]+/[0-9a-f-]{36}/(photo_invoice|photo_product|photo_return|signature)-[0-9a-f-]{36}\.(jpg|png)$")
 _MIME_BY_EXT = {ext: mime for mime, ext in logic.EVIDENCE_MIME.items()}
 
 _directory = DEFAULT_DIR

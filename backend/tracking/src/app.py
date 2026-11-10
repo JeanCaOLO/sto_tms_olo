@@ -138,11 +138,14 @@ def _ok(data: object, status: int = 200) -> dict:
     return json_response(status, {"data": data, "error": None})
 
 
-def _caller(event: dict, action: str, *, driver_ok: bool = False):
+def _caller(event: dict, action: str, *, driver_ok: bool = False, client_ok: bool = False):
     caller = permissions.for_event(event)
     caller.require(MODULE, action)
     if caller.role_name == logic.DRIVER_ROLE and not driver_ok:
         raise HttpError(403, "Esta acción es del administrador.")
+    # El rol Cliente solo ve SU entrega (`mis-entregas`): la lista y el detalle general muestran todos los viajes.
+    if caller.role_name == logic.CLIENT_ROLE and not client_ok:
+        raise HttpError(403, "Esta vista es solo de tu entrega.")
     rows = _rq(sql.ORG_SQL, [caller.app_user_id])
     if not rows or rows[0]["organization_id"] is None:
         raise HttpError(403, "Tu usuario no pertenece a una organización.")
@@ -441,9 +444,13 @@ def _stop_view(g: dict, live: dict, evidences: dict, driver: bool) -> dict:
         "state": logic.guide_state(g["delivery_status"], g["status"]),
         "type": g.get("stop_type") if g.get("stop_type") in ("delivery", "collection") else "delivery",
         "order_number": g["order_number"], "invoice_number": g["invoice_number"],
-        "customer_name": g["customer_name"], "address": g["delivery_address"], "city": g["delivery_city"],
+        "customer_name": g["customer_name"], "company_name": g.get("company_name"),
+        "address": g["delivery_address"], "city": g["delivery_city"],
         "lat": _float(g["latitude"]), "lng": _float(g["longitude"]),
         "arrived_at": _iso(g["actual_arrival_time"]), "recipient_name": g["recipient_name"],
+        # Tiempo en el sitio detectado por GPS (radio de 150 m); null mientras no haya llegado o si no hay GPS.
+        "site_arrived_at": _iso(g.get("site_arrived_at")), "site_departed_at": _iso(g.get("site_departed_at")),
+        "dwell_seconds": g.get("dwell_seconds"),
         "evidences": evidences.get(sid, []),
         "planned_arrival_at": _iso(g["planned_arrival_time"]),
         "distance_m": metrics["distance_m"] if metrics else None,
@@ -484,6 +491,74 @@ def _detail(route_id: str, *, driver: bool = False) -> dict:
         "stops": [_stop_view(g, live, evidences, driver) for g in guides],
     })
     return data
+
+
+def _client_item(row: dict, guides: list[dict], live: dict, state: str, position, done: int, now: datetime) -> dict:
+    """UNA entrega del cliente. Solo datos de su parada: ni las otras paradas, ni el chofer, ni la placa."""
+    sid = str(row["id"])
+    gstate = logic.guide_state(row["delivery_status"], row["status"])
+    metrics = live["by_stop"].get(sid)
+    ahead = sum(1 for g in guides if str(g["id"]) != sid and logic.guide_state(g["delivery_status"], g["status"])
+                == logic.GUIDE_PENDING and g["sequence_number"] < row["sequence_number"])
+    if gstate == logic.GUIDE_DELIVERED:
+        status = "entregado"
+    elif gstate == logic.GUIDE_FAILED:
+        status = "no_entregado"
+    elif state != "active":
+        status = "cerrado"
+    else:
+        status = "en_camino" if row["departed_at"] is not None or done > 0 else "listo"
+    # El camión se muestra solo mientras viene hacia ella: una vez entregada, el cliente deja de ver por dónde anda.
+    truck = None
+    if status in ("listo", "en_camino") and position is not None:
+        truck = {"lat": position[0], "lng": position[1], "recorded_at": _iso(row["last_position_at"]),
+                 "signal": logic.signal(row["last_position_at"], now)}
+    return {
+        "id": sid, "status": status, "point_name": row["point_name"], "order_number": row["order_number"],
+        "address": row["delivery_address"], "city": row["delivery_city"],
+        "lat": _float(row["latitude"]), "lng": _float(row["longitude"]),
+        "planned_arrival_at": _iso(row["planned_arrival_time"]),
+        "eta_at": _iso(metrics["eta_at"]) if metrics and status == "en_camino" else None,
+        "distance_m": metrics["distance_m"] if metrics and status == "en_camino" else None,
+        "stops_ahead": ahead if status in ("listo", "en_camino") else None,
+        "delivered_at": _iso(row["actual_arrival_time"]) if status in ("entregado", "no_entregado") else None,
+        "site_arrived_at": _iso(row.get("site_arrived_at")), "site_departed_at": _iso(row.get("site_departed_at")),
+        "dwell_seconds": row.get("dwell_seconds"), "truck": truck,
+    }
+
+
+def list_mis_entregas(event: dict) -> dict:
+    """Vista del rol Cliente: SUS paradas (su punto de entrega, `tracking_client_access`) en viajes en ruta o recién
+    cerrados, y las ya planificadas para hoy. Sin vínculo no ve nada. El ETA se calcula con toda la ruta, pero solo
+    se devuelve lo suyo."""
+    caller, org_id = _caller(event, "view", client_ok=True)
+    if caller.role_name != logic.CLIENT_ROLE:
+        raise HttpError(403, "Esta vista es del rol Cliente.")
+    now = _now()
+    since = now - timedelta(hours=logic.CLIENT_RECENT_HOURS)
+    rows = _rq(sql.CLIENT_GUIDES_SQL, [caller.app_user_id, org_id, org_id, logic.ACTIVE_STATUS_SQL_VALUES, since])
+    by_route: dict[str, list] = {}
+    for row in rows:
+        by_route.setdefault(str(row["route_id"]), []).append(row)
+    items = []
+    for route_id, mine in by_route.items():
+        state = logic.route_state(mine[0]["route_status"])
+        if state not in ("active", "completed"):
+            continue
+        guides = _rq(sql.GUIDES_SQL, [route_id])
+        position = _coords(mine[0]["last_lat"], mine[0]["last_lng"])
+        live = _live(state, position, guides, now, mine[0]["last_position_at"])
+        done = sum(logic.guide_state(g["delivery_status"], g["status"]) != logic.GUIDE_PENDING for g in guides)
+        items += [_client_item(row, guides, live, state, position, done, now) for row in mine]
+    for row in _rq(sql.CLIENT_PLANNED_SQL, [caller.app_user_id, org_id, org_id]):
+        items.append({"id": f"{row['trip_id']}:{row['stop_order']}", "status": "listo", "point_name": row["point_name"],
+                      "order_number": row["order_number"], "address": row["delivery_address"],
+                      "city": row["delivery_city"], "lat": None, "lng": None, "planned_arrival_at": None,
+                      "eta_at": None, "distance_m": None, "stops_ahead": None, "delivered_at": None,
+                      "site_arrived_at": None, "site_departed_at": None, "dwell_seconds": None, "truck": None})
+    order = {"en_camino": 0, "listo": 1, "entregado": 2, "no_entregado": 3, "cerrado": 4}
+    items.sort(key=lambda item: order[item["status"]])
+    return _ok({"view": "client", "items": items})
 
 
 def summary(event: dict) -> dict:
@@ -713,6 +788,9 @@ def transition_stop(event: dict) -> dict:
     target = body.get("to")
     if target not in logic.GUIDE_STATUS_TEXT:
         raise HttpError(400, "to debe ser pending, delivered o failed")
+    is_driver = caller.role_name == logic.DRIVER_ROLE
+    if is_driver and target == logic.GUIDE_PENDING:
+        raise HttpError(403, "El chofer no puede deshacer una entrega.")
     reason = (body.get("reason") or "").strip() or None
     if target == logic.GUIDE_FAILED and not reason:
         raise HttpError(400, "Una entrega fallida requiere un motivo")
@@ -728,7 +806,9 @@ def transition_stop(event: dict) -> dict:
     receiver = (body.get("receiver_name") or "").strip() or None
     note = f"{guide['notes'] or ''}\nFallo: {reason}".strip() if reason and target == logic.GUIDE_FAILED else None
     # Geocerca (auditoría): distancia del dispositivo al punto. Fuera de 150 m, "Entregado" exige motivo.
-    # Sin lat/lng (o sin coordenadas de la parada) no se puede medir: se acepta, como la web del administrador.
+    # El administrador puede entregar sin lat/lng (no se mide); el chofer siempre debe enviar la ubicación.
+    if is_driver and target == logic.GUIDE_DELIVERED and (lat is None or lng is None):
+        raise HttpError(400, "No se puede entregar sin la ubicación del dispositivo (lat/lng).")
     distance_m = None if target == logic.GUIDE_PENDING else logic.distance_to_stop_m(
         lat, lng, guide["stop_lat"], guide["stop_lng"])
     outside = target == logic.GUIDE_DELIVERED and distance_m is not None and distance_m > logic.GEOFENCE_M
@@ -843,7 +923,8 @@ def my_trips(event: dict) -> dict:
             stops_by_trip.setdefault(str(st["trip_id"]), []).append({
                 "id": str(st["order_id"]), "sequence": st["stop_order"], "state": logic.GUIDE_PENDING,
                 "order_number": st["order_number"], "invoice_number": st["invoice_number"],
-                "customer_name": st["customer_name"], "customer_phone": st["customer_phone"],
+                "customer_name": st["customer_name"], "company_name": st.get("company_name"),
+                "customer_phone": st["customer_phone"],
                 "address": st["delivery_address"], "city": st["delivery_city"],
                 "items": st["total_items"], "weight": _float(st["total_weight"]),
                 "lat": _float(st["latitude"]), "lng": _float(st["longitude"])})
@@ -861,6 +942,7 @@ def my_trips(event: dict) -> dict:
 ROUTES = {
     "GET /api/v1/tracking/mi-viaje": my_trips,
     "POST /api/v1/tracking/consentimiento-gps": record_consent,
+    "GET /api/v1/tracking/mis-entregas": list_mis_entregas,
     "GET /api/v1/tracking/viajes": list_viajes,
     "GET /api/v1/tracking/viajes/{id}": get_viaje,
     "GET /api/v1/tracking/planificados": list_planificados,

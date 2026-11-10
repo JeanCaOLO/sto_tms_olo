@@ -6,16 +6,17 @@ import { setTrackingTransport, type TrackingTransport } from '../api';
 import { createFakeTrackingBackend } from '../mock/fakeTrackingBackend';
 import { resetSimulation, setRoadProvider, simNow } from '../mock/sim';
 
-vi.mock('../../../lib/supabase', () => ({ apiFetch: vi.fn() }));
+vi.mock('../../../lib/api-client', () => ({ apiFetch: vi.fn() }));
 vi.mock('../../../hooks/use-module-permissions', () => ({
   useModulePermissions: () => ({ canCreate: false, canEdit: false, canDelete: false, canExport: false }),
 }));
+vi.mock('../../../hooks/useAuth', () => ({ useAuth: () => ({ appUser: { role: { name: 'Operaciones' } } }) }));
 vi.mock('../hooks/useTrackingCountry', () => ({ useTrackingCountry: () => null }));
 // Leaflet no corre en jsdom: el mapa se reemplaza por un marcador de posición.
 vi.mock('../components/FlotaMapa', () => ({ default: () => <div data-testid="mapa" /> }));
 
 import TrackingPage from '../page';
-import { apiFetch } from '../../../lib/supabase';
+import { apiFetch } from '../../../lib/api-client';
 
 const paths: string[] = [];
 

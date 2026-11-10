@@ -42,7 +42,7 @@ def _tms_error(status: int, message: str, code: str | None = None) -> dict:
 
 def tms_handler(routes: dict[str, Route]) -> Callable[[dict, object], dict]:
     """Handler Lambda con el shape de error { data: null, error: { message } }
-    que ya espera el cliente del frontend (src/lib/supabase.ts)."""
+    que ya espera el cliente del frontend (src/lib/api-client.ts)."""
 
     @wraps(dispatch)
     def handler(event: dict, _context: object) -> dict:

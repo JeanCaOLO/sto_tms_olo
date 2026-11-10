@@ -1,6 +1,6 @@
 // Cliente de la Lambda de envío (backend/tarifas-mail): conexión con Google y envío directo por Gmail.
 
-import { apiFetch } from '../../supabase';
+import { apiFetch } from '../../api-client';
 
 export interface GoogleStatus {
   connected: boolean;

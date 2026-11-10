@@ -22,7 +22,7 @@
 | `src/lib/routePlanning/` | 6 archivos | Prototipo standalone |
 | `src/lib/mock-auth.ts` | 1 | Mock layer |
 | `src/lib/mock-store.ts` | 1 | Mock layer |
-| `src/lib/supabase.ts` | 1 | Infraestructura |
+| `src/lib/api-client.ts` | 1 | Infraestructura |
 | `HANDOFF.md` | 1 | Documentación |
 | `MOCKING.md` | 1 | Documentación |
 | `docs/decisions/0001-route-planning-safety-margin-and-optimization.md` | 1 | ADR |

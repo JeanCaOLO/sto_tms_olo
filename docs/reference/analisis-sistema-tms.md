@@ -65,7 +65,7 @@ Fuente: `src/router/config.tsx`. Cada hoja es una página real y navegable.
 │  src/pages/**  ─┐             │
 │                 │  fetch vía   │
 │                 │  src/lib/    │
-│                 │  supabase.ts │ (shim compatible con supabase-js;
+│                 │  api-client.ts │ (shim compatible con supabase-js;
 │                 │              │  NO hay Supabase real en el sistema)
 └─────────────────┼─────────────┘
                    │  /api/data/:table   (JWT, server/tms-auth.mjs)
@@ -99,7 +99,7 @@ ERP EPRAC: sin ningún código de integración en el repo (ver §4).
 
 Puntos clave:
 
-- `src/lib/supabase.ts` es un **shim propio** (no la librería de Supabase): implementa la
+- `src/lib/api-client.ts` es un **shim propio** (no la librería de Supabase): implementa la
   misma interfaz encadenable (`.from().select().eq()...`) pero contra el backend Express
   de arriba. Se conserva el nombre por compatibilidad de imports, no hay Supabase real.
 - El **motor de queries genérico** (`tms-select.mjs`/`tms-mutations.mjs`) valida cada
@@ -173,7 +173,7 @@ GET /api/health  →  502 { "error": "eflow_query_failed", "detail": "Sin creden
 **Causa raíz:** `.env.local` no define `EFLOW_QA_HOST`/`EFLOW_CR_HOST` (ni sus `_USER`/
 `_PASSWORD`). `server/db.mjs::paisConfig()` devuelve `null` y `getPool()` lanza. Afecta a
 `/planificacion` en la parte que consume datos reales de EFLOW QA (la parte que consume
-Aurora vía `supabase.ts` sigue funcionando). **No es un bug de código — es simplemente que
+Aurora vía `api-client.ts` sigue funcionando). **No es un bug de código — es simplemente que
 faltan credenciales en este entorno.** Para resolverlo: pedir a Intelix/EFLOW las
 credenciales QA y cargarlas en `.env.local` como `EFLOW_QA_HOST/PORT/USER/PASSWORD` (o
 `EFLOW_CR_*`).
@@ -186,7 +186,7 @@ credenciales QA y cargarlas en `.env.local` como `EFLOW_QA_HOST/PORT/USER/PASSWO
 > `DeliveryPointModal.tsx` y los endpoints atómicos `/v1/delivery-points`. Lo que sigue es el diagnóstico original.
 
 `StoreModal.tsx` (`/tiendas`) y `RouteTypeModal.tsx` (`/rutas`, pestaña Tipos de Ruta)
-hacen `supabase.from('zones')...` para poblar un selector de zona. La tabla `zones`:
+hacen `apiClient.from('zones')...` para poblar un selector de zona. La tabla `zones`:
 
 - **No existe** en el esquema de `tms_olo` (`to_regclass('public.zones')` → `NULL`).
 - **No está** en la whitelist de tablas del backend (`server/tms-relations.mjs`).

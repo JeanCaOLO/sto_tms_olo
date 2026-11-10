@@ -2,10 +2,12 @@
 // de orders (= EFLOW EXPEDICIONESCABECERA, sql/43; antes wms_expediciones) y ya
 // las prioriza con el Motor de Prioridad real (Fase 6, ../engine/priorityEngine.ts:
 // regla T-1 + cliente retira). El resto (rutas, alertas, catálogo de reglas,
-// auditoría) sigue en mock — todavía no tienen tabla real detrás.
+// auditoría) sigue en mock — todavía no tienen tabla real detrás. El catálogo de
+// reglas es de SOLO LECTURA (DECIDED 2026-11-05): las reglas son fijas en código.
 // Patrón §11: Page -> Controller -> Api.
 
-import { supabase } from '../../../lib/supabase';
+import { apiClient } from '../../../lib/api-client';
+import { calcularPrioridad } from '../engine/priorityEngine';
 import {
   auditEntries,
   cofersaRoutes,
@@ -26,8 +28,6 @@ import type {
   OmsPipeline,
   ProximaLiberacion,
   QueueOrder,
-  Simulation,
-  SimulationExecution,
 } from '../types';
 
 // Simula latencia de red para que los estados de carga sean visibles.
@@ -85,39 +85,6 @@ function isOmsDemo(): boolean {
     return DEMO_POR_DEFECTO;
   } catch {
     return DEMO_POR_DEFECTO;
-  }
-}
-
-// --- Persistencia mock del Simulador (localStorage) ---
-// PROTOTIPO: sin backend. El catálogo de simulaciones guardadas y el historial
-// de ejecuciones se guardan en localStorage para que la navegación se sienta
-// real entre recargas.
-const SIMS_KEY = 'oms.sim.simulations';
-const EXEC_KEY = 'oms.sim.executions';
-
-// Seed: una simulación de ejemplo por compañía para que la pantalla no arranque
-// vacía en el prototipo. Solo se siembra si el catálogo está vacío.
-function seedSimulations(): Simulation[] {
-  return [
-    { id: 'SIM-CF-seed', companyId: '0109', name: 'Cofersa — diaria T-1', ruleIds: ['MR-CF-1', 'MR-CF-3'], situations: ['DISP'], applyMode: 'mixto', cutoffTime: '15:00', active: true },
-    { id: 'SIM-EPA-seed', companyId: 'EPA', name: 'EPA — cross docking', ruleIds: ['MR-EPA-1'], situations: ['DISP'], applyMode: 'automatico', cutoffTime: '12:00', active: true },
-  ];
-}
-
-function readLS<T>(key: string, fallback: T): T {
-  try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback; // JSON corrupto o storage no disponible: degradar al default
-  }
-}
-
-function writeLS(key: string, value: unknown): void {
-  try {
-    if (typeof localStorage !== 'undefined') localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // storage lleno / no disponible: el proto sigue en memoria de la sesión
   }
 }
 
@@ -222,7 +189,7 @@ function mapOrderToQueueOrder(row: any, country: Country, passThrough: Set<strin
 let _passThroughCache: Set<string> | null = null;
 async function passThroughCustomers(): Promise<Set<string>> {
   if (_passThroughCache) return _passThroughCache;
-  const { data, error } = await supabase
+  const { data, error } = await apiClient
     .from('oms_rule_configs')
     .select('customer_id')
     .eq('scope_type', 'customer')
@@ -254,7 +221,7 @@ export const omsApi = {
     if (country === 'CR') {
       // Solo pedidos sin cierre en el WMS (EFLOW FECHACIERRE IS NULL), filtrados
       // por el contexto operativo del header (almacén / compañía / país).
-      let query = supabase.from('orders').select(QUEUE_SELECT).is('closed_at', null);
+      let query = apiClient.from('orders').select(QUEUE_SELECT).is('closed_at', null);
       if (scope.warehouseId) query = query.eq('warehouse_id', scope.warehouseId);
       else if (scope.warehouseIds && scope.warehouseIds.length > 0) query = query.in('warehouse_id', scope.warehouseIds);
       if (scope.customerId) query = query.eq('customer_id', scope.customerId);
@@ -291,7 +258,7 @@ export const omsApi = {
   // de Aurora vía /api/data; si la tabla no existe/aún no hay backend que escriba,
   // devuelve lista vacía (no mock) para no inventar logs.
   async getOmsLogs(limit = 200): Promise<OmsLogEntry[]> {
-    const { data, error } = await supabase
+    const { data, error } = await apiClient
       .from('oms_logs')
       .select('*')
       .order('created_at', { ascending: false })
@@ -317,7 +284,7 @@ export const omsApi = {
   // alguno (si faltara el rango, se usa created_at >= época = todo). Devuelve
   // cuántas filas borró.
   async clearOmsLogs(range?: { fromIso?: string; toIso?: string }): Promise<number> {
-    let q = supabase.from('oms_logs').delete();
+    let q = apiClient.from('oms_logs').delete();
     if (range?.fromIso) q = q.gte('created_at', range.fromIso);
     if (range?.toIso) q = q.lt('created_at', range.toIso);
     if (!range?.fromIso && !range?.toIso) q = q.gte('created_at', '1900-01-01');
@@ -333,7 +300,7 @@ export const omsApi = {
   // es barato y evita filtros que el backend genérico no expone. El scope operativo
   // (almacén/compañía del header) ya lo aplica el backend por headers.
   async getPanelResumen(): Promise<{ pipeline: OmsPipeline; proximas: ProximaLiberacion[] }> {
-    const { data, error } = await supabase.from('orders').select(PANEL_SELECT).is('closed_at', null);
+    const { data, error } = await apiClient.from('orders').select(PANEL_SELECT).is('closed_at', null);
     if (error || !data) throw new Error(error?.message ?? 'No se pudo leer orders');
     const rows = data as any[];
     const hoyIso = new Date().toISOString().slice(0, 10);
@@ -385,7 +352,7 @@ export const omsApi = {
   // de detail) + conteo de errores de las últimas 24 h. Si no hay backend/tabla,
   // devuelve vacío (no inventa corridas).
   async getMotorActividad(limit = 10): Promise<OmsMotorActividad> {
-    const { data, error } = await supabase
+    const { data, error } = await apiClient
       .from('oms_logs')
       .select('*')
       .order('created_at', { ascending: false })
@@ -422,51 +389,5 @@ export const omsApi = {
       (r) => r.level === 'error' && r.created_at && new Date(r.created_at).getTime() >= hace24h,
     ).length;
     return { ultima, corridas, erroresRecientes };
-  },
-
-  // --- Simulador (configurador) — todo mock/localStorage ---
-
-  // Catálogo de simulaciones guardadas de una compañía. Siembra ejemplos la
-  // primera vez para que el prototipo no arranque vacío.
-  getSimulations(companyId: string): Promise<Simulation[]> {
-    let all = readLS<Simulation[]>(SIMS_KEY, []);
-    if (all.length === 0) {
-      all = seedSimulations();
-      writeLS(SIMS_KEY, all);
-    }
-    return delay(all.filter((s) => s.companyId === companyId), 150);
-  },
-  // Crea o actualiza una simulación (upsert por id). No toca el flag `active`.
-  saveSimulation(sim: Simulation): Promise<Simulation> {
-    const all = readLS<Simulation[]>(SIMS_KEY, []);
-    const i = all.findIndex((s) => s.id === sim.id);
-    if (i >= 0) all[i] = sim;
-    else all.push(sim);
-    writeLS(SIMS_KEY, all);
-    return delay(sim, 150);
-  },
-  // Activa UNA simulación; desactiva cualquier otra de la MISMA compañía
-  // (invariante: solo una activa por compañía).
-  activateSimulation(companyId: string, simId: string): Promise<Simulation[]> {
-    const all = readLS<Simulation[]>(SIMS_KEY, []);
-    for (const s of all) {
-      if (s.companyId !== companyId) continue;
-      s.active = s.id === simId;
-    }
-    writeLS(SIMS_KEY, all);
-    return delay(all.filter((s) => s.companyId === companyId), 150);
-  },
-
-  // Historial de ejecuciones de una compañía (más recientes primero).
-  getExecutions(companyId: string): Promise<SimulationExecution[]> {
-    const all = readLS<SimulationExecution[]>(EXEC_KEY, []);
-    const rows = all.filter((e) => e.companyId === companyId).sort((a, b) => b.executedAt.localeCompare(a.executedAt));
-    return delay(rows, 150);
-  },
-  logExecution(exec: SimulationExecution): Promise<SimulationExecution> {
-    const all = readLS<SimulationExecution[]>(EXEC_KEY, []);
-    all.push(exec);
-    writeLS(EXEC_KEY, all);
-    return delay(exec, 150);
   },
 };

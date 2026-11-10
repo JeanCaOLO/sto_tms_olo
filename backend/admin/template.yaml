@@ -16,6 +16,10 @@ Parameters:
     Type: AWS::SSM::Parameter::Value<List<String>>
   SecurityGroupId:
     Type: AWS::SSM::Parameter::Value<String>
+  MobileEvidenceBucket:
+    Type: String
+    Default: ""
+    Description: Bucket de evidencias de la app del chofer (output EvidenceBucket del stack mobile). Con él, Devoluciones muestra la foto de cada devolución; el rol Lambda necesita s3:GetObject sobre pedidos/* (common-services).
 
 Conditions:
   IsProduction: !Equals [!Ref Environment, prod]
@@ -51,6 +55,7 @@ Resources:
       Environment:
         Variables:
           ENVIRONMENT: !Ref Environment
+          MOBILE_EVIDENCE_BUCKET: !Ref MobileEvidenceBucket
           TMS_DB_SECRET_NAME:
             Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName
 
@@ -286,6 +291,94 @@ Resources:
       ApiId:
         Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
       RouteKey: DELETE /api/v1/admin/roles/{id}
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${AdminApiIntegration}
+
+  ReturnsSummaryRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/v1/devoluciones/resumen
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${AdminApiIntegration}
+
+  ReturnsTripsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/v1/devoluciones/viajes
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${AdminApiIntegration}
+
+  ReturnsTripRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/v1/devoluciones/viajes/{routeId}
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${AdminApiIntegration}
+
+  ReturnsFormCreateRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/v1/devoluciones/viajes/{routeId}/formularios
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${AdminApiIntegration}
+
+  ReturnsFormGetRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/v1/devoluciones/formularios/{formId}
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${AdminApiIntegration}
+
+  ReturnsFormUpdateRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: PUT /api/v1/devoluciones/formularios/{formId}
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${AdminApiIntegration}
+
+  ReturnsReceiveAllRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/v1/devoluciones/viajes/{routeId}/recibir-todas
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${AdminApiIntegration}
+
+  ReturnsReceiveRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/v1/devoluciones/{returnId}/recibir
       AuthorizationType: CUSTOM
       AuthorizerId:
         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId

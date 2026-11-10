@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import Button from '../../../components/base/Button';
 import Input from '../../../components/base/Input';
 import Select from '../../../components/base/Select';
-import { supabase } from '../../../lib/supabase';
+import { apiClient } from '../../../lib/api-client';
 import { useAuth } from '../../../hooks/useAuth';
 import ZoneMap, { type GeoJSONGeometry, type ZoneShape } from './ZoneMap';
 import { overlappingZoneNames } from './geofence-overlap';
@@ -57,7 +57,7 @@ export default function ZonaModal({ isOpen, onClose, onSuccess, zona, siblings =
 
   const loadPaises = async () => {
     if (!appUser?.organization_id) return;
-    const { data } = await supabase
+    const { data } = await apiClient
       .from('countries')
       .select('id, name')
       .eq('organization_id', appUser.organization_id)
@@ -98,10 +98,10 @@ export default function ZonaModal({ isOpen, onClose, onSuccess, zona, siblings =
       if (!isEdit) payload.code = form.code || null;
 
       if (isEdit) {
-        const { error: err } = await supabase.from('zones').update(payload).eq('id', zona.id);
+        const { error: err } = await apiClient.from('zones').update(payload).eq('id', zona.id);
         if (err) throw err;
       } else {
-        const { error: err } = await supabase
+        const { error: err } = await apiClient
           .from('zones')
           .insert({ ...payload, organization_id: appUser.organization_id });
         if (err) throw err;

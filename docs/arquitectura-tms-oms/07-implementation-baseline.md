@@ -66,7 +66,7 @@ src/
   components/feature/    Sidebar, Header, StatCard, CsvImportModal
   hooks/                 useAuth, useSidebar, useToast
   lib/
-    supabase.ts          shim propio (fetch), NO Supabase real
+    api-client.ts          shim propio (fetch), NO Supabase real
     mock-auth.ts
     tarifas/             kernel de reglas/costeo — PURO, sin React/fetch
       localData/         datos del kernel en localStorage (NO Postgres)
