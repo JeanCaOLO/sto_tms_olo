@@ -102,6 +102,18 @@ def _resolver_registros(pedidos, resolver_config, hoy: date):
     return resueltos
 
 
+def _offset_liberacion(pedido, config) -> int:
+    """Días de anticipo de la ventana de liberación (handoff con Planificación 2026-11-09).
+
+    FUENTE por ZONA: `pedido.dias_anticipo` sale de tbl_zones.dias_anticipo por la zona
+    TMS del pedido (orders.tms_zone_id). Si el pedido NO hizo match de zona (tms_zone_id
+    NULL o fuera de toda geocerca) → `dias_anticipo` es None y se cae al DEFAULT por scope
+    `config.dias_prep_picking` (oms_rule_configs, default 1). Reemplaza como fuente al
+    fijo por scope, manteniendo `dias_prep_picking` solo como respaldo.
+    """
+    return pedido.dias_anticipo if pedido.dias_anticipo is not None else config.dias_prep_picking
+
+
 def _liberar(trios) -> tuple[int, int, list]:
     """Pasada 2 (ADR-013): libera los trios (pedido, config, registro) dados a eFlow.
 
@@ -160,7 +172,9 @@ def correr(
       - resolver_config: cómo resolver la ConfiguracionReglas por scope.
     Salida: resumen dict (corrida, total, priorizados, liberados, pendientes,
       prioridades). Solo se liberan los pedidos cuyo `dispatch_date` cruza la ventana
-      `now() >= dispatch_date − dias_prep_picking`; el resto queda priorizado-no-liberado
+      `now() >= dispatch_date − dias_anticipo`, donde `dias_anticipo` sale de la ZONA del
+      pedido (tbl_zones) y, si no hubo match de zona, del default por scope
+      `dias_prep_picking` (ver `_offset_liberacion`); el resto queda priorizado-no-liberado
       (DISP) para que un barrido posterior lo libere cuando llegue su día.
     """
     hoy = hoy or datetime.now(timezone.utc).date()
@@ -184,7 +198,7 @@ def correr(
             (pedido, config, registro)
             for pedido, config, registro in resueltos
             if handoff_pedidos.en_ventana_liberacion(
-                pedido.dispatch_date, hoy, config.dias_prep_picking,
+                pedido.dispatch_date, hoy, _offset_liberacion(pedido, config),
                 cliente_retira=registro.cliente_retira,
                 delivery_date=pedido.fecha_expedicion_planificada)
         ]

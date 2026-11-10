@@ -532,6 +532,65 @@ def test_barrido_sincroniza_solo_la_prioridad_cambiada_y_no_liberada(monkeypatch
     assert resumen["liberados"] == 1         # A
 
 
+# --- (f') Días de anticipo por ZONA (handoff Planificación 2026-11-09) ---
+
+def test_offset_liberacion_prefiere_zona_y_cae_al_default_por_scope():
+    """`_offset_liberacion`: usa pedido.dias_anticipo (de tbl_zones) si hay match; si es
+    None (pedido sin zona), cae a config.dias_prep_picking."""
+    app = load_stack_module("oms", "app")
+    models = load_stack_module("oms", "models")
+    config = models.ConfiguracionReglas(pesos={}, priorizar=True, dias_prep_picking=1)
+
+    def ped(dias_anticipo):
+        return models.PedidoCandidato(
+            id_almacen="0001", id_compania="0109", id_sucursal="0001", id_expedicion="1",
+            fecha_expedicion_planificada=datetime(2026, 10, 10, tzinfo=timezone.utc),
+            dias_anticipo=dias_anticipo, customer_id="cofersa")
+
+    assert app._offset_liberacion(ped(3), config) == 3        # la zona manda
+    assert app._offset_liberacion(ped(None), config) == 1     # sin zona => default por scope
+
+
+def test_barrido_usa_dias_anticipo_de_la_zona_sobre_el_default(monkeypatch):
+    """El barrido toma los días de anticipo de la ZONA del pedido para la ventana. Con el
+    mismo dispatch, el que trae dias_anticipo=3 (zona lejana) libera y el que no trae zona
+    (None → default dias_prep_picking=1) todavía no."""
+    app = load_stack_module("oms", "app")
+    models = load_stack_module("oms", "models")
+
+    cofersa = models.ConfiguracionReglas(pesos={"fecha_t1": 1.0}, priorizar=True,
+                                         estrategia="dias_hasta_salida", dias_prep_picking=1)
+
+    def mk(exp, dispatch, dias_anticipo):
+        return models.PedidoCandidato(
+            id_almacen="0001", id_compania="0109", id_sucursal="0001", id_expedicion=exp,
+            fecha_expedicion_planificada=datetime(dispatch.year, dispatch.month, dispatch.day, tzinfo=timezone.utc),
+            lead_time_days=1, numero_viaje=f"v-{exp}", planning_run_id="plan-1",
+            dispatch_date=datetime(dispatch.year, dispatch.month, dispatch.day, tzinfo=timezone.utc),
+            dias_anticipo=dias_anticipo, customer_id="cofersa")
+
+    # hoy=10-01, dispatch 10-03 para ambos.
+    # Z: dias_anticipo=3 => apertura 09-30 => 10-01>=09-30 => LIBERA (con el default 1 NO libraría).
+    # N: dias_anticipo=None => cae a dias_prep_picking=1 => apertura 10-02 => 10-01<10-02 => NO libera.
+    pedidos = [mk("Z", date(2026, 10, 3), 3), mk("N", date(2026, 10, 3), None)]
+    monkeypatch.setattr(app.cola_candidatos, "candidatos", lambda *a, **k: pedidos)
+
+    liberados = []
+    monkeypatch.setattr(app.handoff_pedidos, "priorizar_pedido", lambda *a, **k: None)
+    monkeypatch.setattr(app.handoff_pedidos, "sincronizar_prioridad", lambda *a, **k: None)
+
+    def _libera(pedido, registro, **kw):
+        liberados.append(pedido.id_expedicion)
+        return app.handoff_pedidos.ESTADO_COMPLETADO
+
+    monkeypatch.setattr(app.handoff_pedidos, "liberar_pedido", _libera)
+
+    resumen = app.correr(hoy=date(2026, 10, 1), resolver_config=lambda _p: cofersa)
+
+    assert liberados == ["Z"]            # solo Z: su zona (3 días) abre la ventana
+    assert resumen["liberados"] == 1
+
+
 # --- (f) Ventana de liberación (predicado puro) — falla si se rompe el predicado ---
 
 def test_en_ventana_borde_dia_de_liberacion_es_true():
