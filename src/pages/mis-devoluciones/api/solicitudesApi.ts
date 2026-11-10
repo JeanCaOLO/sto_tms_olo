@@ -1,6 +1,6 @@
 // Cliente de la API de solicitudes de devolución del cliente (backend/admin, /api/v1/solicitudes-devolucion/*).
 import { apiFetch } from '../../../lib/api-client';
-import type { RequestItemPayload, RequestView, UploadedFile } from '../../../lib/devoluciones/solicitudes';
+import type { RequestItemPayload, UploadedFile } from '../../../lib/devoluciones/solicitudes';
 
 const BASE = '/v1/solicitudes-devolucion';
 
@@ -36,9 +36,6 @@ export async function uploadFile(file: File): Promise<UploadedFile> {
   if (!res.ok) throw new Error(`No se pudo subir «${file.name}».`);
   return { key: form.key };
 }
-
-/** Solicitudes del propio usuario, con sus fotos y videos (URL temporales de lectura). */
-export const listMine = () => call<RequestView[]>(`${BASE}/mias`);
 
 export const createRequest = (items: RequestItemPayload[]) =>
   call<CreatedRequest>(BASE, { method: 'POST', body: JSON.stringify({ items }) });

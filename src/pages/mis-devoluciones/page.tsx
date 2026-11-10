@@ -6,44 +6,16 @@ import Button from '../../components/base/Button';
 import Card from '../../components/base/Card';
 import Input from '../../components/base/Input';
 import Select from '../../components/base/Select';
-import TabBar from '../../components/base/TabBar';
-import { tabPanelProps } from '../../components/base/tabPanelProps';
 import {
   ACCEPT_ATTR, CODE_LIMIT, DESCRIPTION_LIMIT, MAX_FILES_PER_ITEM, MAX_ITEMS, NAME_LIMIT, REASONS, fileProblem,
   isVideo, newDraftItem, toPayloadItem, validateAll, type DraftItem, type ItemErrors, type ReasonCode,
 } from '../../lib/devoluciones/solicitudes';
 import { createRequest, uploadFile, type CreatedRequest } from './api/solicitudesApi';
-import MyRequests from './parts/MyRequests';
 
 const formatSize = (bytes: number) =>
   bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 
-type View = 'nueva' | 'mias';
-
-const VIEWS: { key: View; label: string }[] = [
-  { key: 'nueva', label: 'Nueva solicitud' },
-  { key: 'mias', label: 'Mis solicitudes' },
-];
-
-const tabClass = (active: boolean) =>
-  `px-4 py-2 text-sm font-medium border-b-2 cursor-pointer ${active ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`;
-
 export default function MisDevolucionesPage() {
-  const [view, setView] = useState<View>('nueva');
-  return (
-    <div className="p-6 max-w-3xl mx-auto space-y-4">
-      <TabBar<View> tabs={VIEWS} value={view} onChange={setView} ariaLabel="Mis devoluciones" idBase="mis-devoluciones"
-        tabClassName={tabClass} className="flex gap-1 border-b border-slate-200" />
-      {/* El formulario sigue montado al cambiar de pestaña para no perder lo que se está escribiendo. */}
-      <div {...tabPanelProps('mis-devoluciones', view)}>
-        <div hidden={view !== 'nueva'}><NuevaSolicitud onViewMine={() => setView('mias')} /></div>
-        {view === 'mias' && <MyRequests />}
-      </div>
-    </div>
-  );
-}
-
-function NuevaSolicitud({ onViewMine }: { onViewMine: () => void }) {
   const counter = useRef(0);
   const nextId = () => `n${++counter.current}`;
   const [items, setItems] = useState<DraftItem[]>(() => [newDraftItem(nextId())]);
@@ -119,7 +91,7 @@ function NuevaSolicitud({ onViewMine }: { onViewMine: () => void }) {
 
   if (done) {
     return (
-      <div className="max-w-xl mx-auto">
+      <div className="p-6 max-w-xl mx-auto">
         <Card className="text-center space-y-4">
           <div className="w-14 h-14 mx-auto flex items-center justify-center rounded-full bg-teal-50">
             <i className="ri-checkbox-circle-line text-3xl text-teal-600"></i>
@@ -128,17 +100,14 @@ function NuevaSolicitud({ onViewMine }: { onViewMine: () => void }) {
           <p className="text-sm text-slate-600">
             Recibimos su solicitud de devolución <span className="font-semibold">{done.request_number}</span>.
           </p>
-          <div className="flex flex-wrap justify-center gap-3">
-            <Button onClick={reset}>Nueva solicitud</Button>
-            <Button variant="secondary" onClick={() => { reset(); onViewMine(); }}>Ver mis solicitudes</Button>
-          </div>
+          <Button onClick={reset}>Nueva solicitud</Button>
         </Card>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div className="p-6 max-w-3xl mx-auto space-y-4">
       <div>
         <h1 className="text-xl font-semibold text-slate-800">Solicitar una devolución</h1>
         <p className="text-sm text-slate-500">Indique los artículos que desea devolver y el motivo.</p>
