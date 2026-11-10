@@ -6,9 +6,11 @@ Ver el cambio base en `docs/work/2026-11/2026-11-10-dias-anticipo-por-zona-oms.m
 
 ## Qué falta
 
-### 1. Aplicar la migración en Aurora (Intelix, con OK de Eduardo)
-`sql/64_zonas_dias_anticipo.sql` agrega `tbl_zones.dias_anticipo` y `tbl_zones.tipo_zona`.
-Es la **Aurora compartida** (`tms_olo`) → lo aplica Intelix.
+### 1. Aplicar la migración en Aurora — ✅ HECHO (2026-11-10)
+`sql/64_zonas_dias_anticipo.sql` aplicada y registrada en `schema_migrations`. Verificado:
+`dias_anticipo smallint NOT NULL DEFAULT 1` + `tipo_zona text`; las 41 zonas quedaron en
+`dias_anticipo = 1`. Rollback disponible: `sql/64_zonas_dias_anticipo_rollback.sql`. Para
+referencia, así se corrió (túnel en localhost:15432, credenciales admin en `.env`):
 
 ```
 node --env-file=.env.local scripts/run-migration.mjs sql/64_zonas_dias_anticipo.sql            # dry-run
