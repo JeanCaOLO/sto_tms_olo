@@ -39,3 +39,11 @@ def test_no_toca_la_misma_expedicion_de_otra_compania(monkeypatch):
     sal, updates = _preparar(monkeypatch, [("B", "0109")], [_fila("B", "0029", "DESP", "CERR")])
     assert sal.refrescar("cr", "org", set()) == 0
     assert updates == []
+
+
+def test_liberados_por_el_oms_no_se_tocan():
+    """Liberado = congelado: ni la ingesta ni los salientes pisan el GENE del OMS."""
+    sal = load_stack_module("planning", "salientes")
+    ing = load_stack_module("planning", "ingest_orders")
+    assert "oms_processed_at IS NULL" in sal._EN_BANDEJA and "oms_processed_at IS NULL" in sal._UPD
+    assert ing._UPSERT.rstrip().endswith("WHERE orders.oms_processed_at IS NULL")

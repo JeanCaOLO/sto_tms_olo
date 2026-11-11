@@ -93,7 +93,10 @@ DO UPDATE SET
   delivery_zone = EXCLUDED.delivery_zone, priority = EXCLUDED.priority,
   wms_status = EXCLUDED.wms_status, wms_situation = EXCLUDED.wms_situation,
   observaciones = EXCLUDED.observaciones, es_cliente_retira = EXCLUDED.es_cliente_retira,
-  final_customer_id = EXCLUDED.final_customer_id, updated_at = now()"""
+  final_customer_id = EXCLUDED.final_customer_id, updated_at = now()
+-- Liberado por el OMS = congelado: eFlow real sigue en DISP/DISP (el OMS aún no le escribe) y
+-- pisaba el GENE del OMS y los datos de un viaje ya liberado. Tras liberar, la ingesta no lo toca.
+WHERE orders.oms_processed_at IS NULL"""
 
 
 def _coord(v) -> float | None:
