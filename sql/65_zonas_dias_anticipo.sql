@@ -1,5 +1,6 @@
 -- ============================================================================
--- 64 — Días de anticipo y tipo de zona en tbl_zones (handoff con Planificación, 2026-11-09).
+-- 65 — Días de anticipo y tipo de zona en tbl_zones (handoff con Planificación, 2026-11-09).
+-- (Renumerada de 64 a 65 el 2026-11-11: el 64 lo tomó sql/64_zona_tms_calculada_pedido.sql de Planificación en main.)
 --
 -- Planificación ya calcula la zona TMS del pedido en tbl_orders.tms_zone_id (FK a
 -- tbl_zones.id, por geocerca y país). El OMS pasa a tomar los DÍAS DE ANTICIPO de la
@@ -20,8 +21,8 @@
 -- Nota: la vista de compatibilidad public.zones (sql/59) es `select *` y NO expone
 -- columnas nuevas hasta recrearse; no se toca aquí porque el OMS lee tbl_zones directo.
 --
--- Aplicar con: node --env-file=.env.local scripts/run-migration.mjs sql/64_zonas_dias_anticipo.sql [--execute]
--- Deshacer con: sql/64_zonas_dias_anticipo_rollback.sql
+-- Aplicar con: node --env-file=.env scripts/run-migration.mjs sql/65_zonas_dias_anticipo.sql [--execute]
+-- Deshacer con: sql/65_zonas_dias_anticipo_rollback.sql
 -- Idempotente.
 -- ============================================================================
 

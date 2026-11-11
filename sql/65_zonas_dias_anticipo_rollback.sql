@@ -1,8 +1,8 @@
 -- ============================================================================
--- 64 ROLLBACK — Retira dias_anticipo y tipo_zona de tbl_zones (revierte sql/64).
+-- 65 ROLLBACK — Retira dias_anticipo y tipo_zona de tbl_zones (revierte sql/65).
 --
 -- Quita primero los CHECK y luego las columnas. Idempotente (if exists).
--- Aplicar con: node --env-file=.env.local scripts/run-migration.mjs sql/64_zonas_dias_anticipo_rollback.sql [--execute]
+-- Aplicar con: node --env-file=.env scripts/run-migration.mjs sql/65_zonas_dias_anticipo_rollback.sql [--execute]
 -- ============================================================================
 
 begin;

@@ -26,7 +26,8 @@ match de zona.
 
 ## Cambios
 
-- **`sql/64_zonas_dias_anticipo.sql`** (+ rollback): `ALTER tbl_zones ADD dias_anticipo
+- **`sql/65_zonas_dias_anticipo.sql`** (+ rollback; renumerada de 64 a 65 el 2026-11-11 por
+  choque con `sql/64_zona_tms_calculada_pedido.sql` de Planificación en `main`): `ALTER tbl_zones ADD dias_anticipo
   smallint NOT NULL DEFAULT 1` (`ck_zones_dias_anticipo` ≥ 0) y `tipo_zona text`
   (`ck_zones_tipo_zona IN ('corta','larga')`, nullable — lo pidió Planificación, el OMS no lo
   usa). Idempotente, con `COMMENT ON COLUMN`.

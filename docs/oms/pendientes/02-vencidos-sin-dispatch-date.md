@@ -1,6 +1,29 @@
-# 02 — Auditar pedidos vencidos sin `dispatch_date`
+# 02 — Pedidos vencidos sin liberar (vencidos NO planificados)
 
-**Estado:** pendiente por verificar (consulta de diagnóstico, solo lectura).
+**Estado:** diagnosticado 2026-11-10 — causa upstream (Planificación). Pendiente que Planning
+planifique los vencidos; re-auditar después.
+
+## Hallazgo (2026-11-10, Aurora `tms_olo`)
+
+La UI mostró ~11 pedidos de EPA del 2026-11-05 sin liberar. Al auditar, el conjunto real de
+**vencidos no liberados** (no cerrados, `wms_situation='DISP'`, `oms_processed_at IS NULL`,
+`delivery_date < hoy`) era **72**: **58 Cofersa + 14 EPA** (entregas del 02 al 05-nov).
+
+**TODOS tienen `planning_run_id IS NULL`** (nunca planificados), y por tanto `dispatch_date`,
+`numero_viaje` y `prioritization_run_id` también NULL. Como `cola_candidatos` exige
+`planning_run_id IS NOT NULL`, el OMS **ni los ve**: ni el barrido ni la liberación manual los
+tocan (ambos leen la misma cola). Se quedan `DISP`.
+
+**No es bug del OMS.** La causa es upstream: Planificación no planificó esos pedidos. Acción:
+Planning debe planificarlos (les pone `planning_run_id` + `dispatch_date`); con la fecha
+vencida, el barrido los libera de inmediato (ancla < hoy ⇒ siempre en ventana). Coincide con
+el punto 1 del mensaje a Planificación del 2026-11-10.
+
+## Importante sobre la consulta
+
+El conjunto "atascado" visible en la UI es **más amplio** que la cola del barrido: la UI filtra
+solo `closed_at IS NULL`, mientras el barrido exige `planning_run_id IS NOT NULL`. Por eso la
+consulta buena para "vencidos atascados" NO debe filtrar por la cola del barrido — ver abajo.
 
 ## Por qué
 
@@ -15,56 +38,40 @@ El riesgo concreto apareció con el handoff de zonas: Planificación debe seguir
 (265/1100, rutas 17–39). Esta auditoría mide si hay vencidos en la cola que se quedarían sin
 liberar. Relacionado con el mensaje a Planificación del 2026-11-10 (puntos 1 y 2).
 
-## Qué es "vencido" aquí
+## Qué es "vencido atascado" aquí
 
-Un pedido de la **cola del OMS** (`planning_run_id IS NOT NULL AND oms_processed_at IS NULL`)
-cuyo ancla de liberación (`COALESCE(dispatch_date, delivery_date)`) es **anterior a hoy**.
+Un pedido **no cerrado** (`closed_at IS NULL`), **no liberado** (`wms_situation='DISP'` y
+`oms_processed_at IS NULL`), con **entrega anterior a hoy** (`delivery_date < current_date`).
+Se desglosa por si está planificado o no, porque esa es la causa.
 
 ## Consulta de diagnóstico (solo lectura)
 
-Correr contra Aurora `tms_olo` por el túnel (localhost:15432). Ejemplo con `psql`:
+Correr contra Aurora `tms_olo` por el túnel (localhost:15432):
 
 ```sql
--- Resumen: cuántos pedidos EN COLA están vencidos y cuántos de esos NO tienen dispatch_date.
-SELECT
-  count(*) FILTER (
-    WHERE COALESCE(dispatch_date, delivery_date) < current_date
-  )                                                                       AS vencidos_en_cola,
-  count(*) FILTER (
-    WHERE COALESCE(dispatch_date, delivery_date) < current_date
-      AND dispatch_date IS NULL
-  )                                                                       AS vencidos_sin_dispatch,
-  count(*) FILTER (
-    WHERE dispatch_date IS NULL AND delivery_date IS NULL
-  )                                                                       AS sin_ninguna_fecha
-FROM public.tbl_orders
-WHERE planning_run_id IS NOT NULL
-  AND oms_processed_at IS NULL;
-```
-
-```sql
--- Detalle de los casos de riesgo (vencido y sin dispatch_date): ver si tienen zona o no.
-SELECT o.eflow_id_expedicion, o.numero_viaje, o.delivery_date, o.dispatch_date,
-       o.tms_zone_id, o.delivery_zone, o.warehouse_id
+-- Vencidos atascados, desglosados por si Planificación los corrió (planning_run_id).
+SELECT cu.name AS cliente,
+       (o.planning_run_id IS NOT NULL) AS planificado,
+       count(*)::int AS n,
+       min(o.delivery_date::date) AS entrega_min,
+       max(o.delivery_date::date) AS entrega_max
 FROM public.tbl_orders o
-WHERE o.planning_run_id IS NOT NULL
+LEFT JOIN public.tbl_customers cu ON cu.id = o.customer_id
+WHERE o.closed_at IS NULL
   AND o.oms_processed_at IS NULL
-  AND o.dispatch_date IS NULL
-  AND (o.delivery_date IS NULL OR o.delivery_date < current_date)
-ORDER BY o.delivery_date NULLS FIRST
-LIMIT 100;
+  AND o.wms_situation = 'DISP'
+  AND o.delivery_date::date < current_date
+GROUP BY 1, 2 ORDER BY n DESC;
 ```
 
 ## Cómo interpretar
 
-- `vencidos_sin_dispatch = 0` y `sin_ninguna_fecha = 0` → no hay colgados; el barrido
-  liberaría todos los vencidos. Nada que hacer.
-- `vencidos_sin_dispatch > 0` → son pedidos que el barrido NO libera por falta de
-  `dispatch_date`. Confirmar con Planificación que les asignen `dispatch_date` (punto 2 del
-  mensaje del 2026-11-10). Mientras tanto, se pueden sacar con la liberación manual
-  (`POST /api/v1/oms/pedidos/liberar`).
-- `sin_ninguna_fecha > 0` → además sin `delivery_date`: caso más grave (ni ancla manual por
-  fecha); revisar origen del pedido.
+- `planificado = false` (el caso del 2026-11-10) → **nunca se planificaron**; el OMS no los ve.
+  Acción: Planning los planifica (`planning_run_id` + `dispatch_date`). No es del OMS.
+- `planificado = true` y están atascados → ahí sí mirar `dispatch_date`: si es NULL, el barrido
+  cae al ancla `delivery_date` (que existe), así que deberían liberar; si no liberan con
+  `dispatch_date` presente y ancla < hoy, es un bug del barrido a investigar. También se pueden
+  sacar con la liberación manual (`POST /api/v1/oms/pedidos/liberar`).
 
 ## Nota
 
