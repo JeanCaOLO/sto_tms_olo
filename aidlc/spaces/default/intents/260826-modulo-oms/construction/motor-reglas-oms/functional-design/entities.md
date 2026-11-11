@@ -84,8 +84,13 @@ Campos de `ConfiguracionReglas`: `estrategia: str = ESTRATEGIA_ESCALA_LINEAL`,
   `handoff_status='priorizado'`, `prioritization_run_id`; `wms_situation` queda
   `DISP`, sin `oms_processed_at`.
 - **`public.orders`** (liberación, escritura 1): `wms_situation='GENE'`,
-  `handoff_status`, `oms_processed_at=now()` y, para Cofersa, `priority = 0`
-  (`LIBERAR_PEDIDO_CON_PRIORIDAD_SQL`; EPA no toca `priority`).
+  `handoff_status`, `oms_processed_at=now()` y el número de `priority` que va a eFlow
+  **según la compañía** (v4.3, as-built `app._liberar`): **Cofersa** (priorizada)
+  → `priority = 0` y ese 0 es el número que se manda
+  (`LIBERAR_PEDIDO_CON_PRIORIDAD_SQL`); **EPA** (pass-through) → **no toca
+  `priority`** (conserva su número de origen, 1 o 2; `prioridad_liberacion=None`
+  cuando `priorizar=false`), ese mismo número se devuelve a eFlow y **EPA nunca pasa
+  por 0**.
 - **`sim_expedicionescabecera`** (escritura 2, vía costura `EscritorSituacion`, DOS
   verbos): `actualizar_prioridad` → **solo `PRIORIDAD`**, `TPEXSI` queda `DISP`
   (`SIM_PRIORIDAD_SQL`; pasada 1b de sync, v4.3, SOLO Cofersa); `marcar_generada` →

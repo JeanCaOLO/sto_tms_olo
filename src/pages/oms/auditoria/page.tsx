@@ -43,7 +43,9 @@ export default function OmsAuditoriaPage() {
   const { countries, selectedCountryId } = useOperationalContext();
   // Zona horaria del país del contexto (IANA); si no hay país/zona, el helper cae a CR.
   const timeZone = countries.find((c) => c.id === selectedCountryId)?.timezone ?? null;
-  // "developer" se señaliza con el mismo permiso que gatea el Simulador.
+  // "developer" se señaliza con el permiso `oms.simulador` (sql/15). La vista del
+  // Simulador se retiró (DECIDED 2026-11-05), pero el permiso sigue en BD como marca
+  // de rol Developer: no renombrar sin coordinar con backend.
   const isDeveloper = can('oms.simulador', 'view');
 
   const [tab, setTab] = useState<Tab>('acciones');

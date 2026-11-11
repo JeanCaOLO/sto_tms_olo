@@ -36,7 +36,6 @@ const OmsPanelPage = lazy(() => import('../pages/oms/panel/page'));
 const OmsColaPage = lazy(() => import('../pages/oms/cola/page'));
 const OmsBandejaPage = lazy(() => import('../pages/oms/bandeja/page'));
 const OmsReglasPage = lazy(() => import('../pages/oms/reglas/page'));
-const OmsSimuladorPage = lazy(() => import('../pages/oms/simulador/page'));
 const OmsAuditoriaPage = lazy(() => import('../pages/oms/auditoria/page'));
 
 const routes: RouteObject[] = [
@@ -171,10 +170,6 @@ const routes: RouteObject[] = [
   {
     path: '/oms/reglas',
     element: <OmsReglasPage />,
-  },
-  {
-    path: '/oms/simulador',
-    element: <OmsSimuladorPage />,
   },
   {
     path: '/oms/auditoria',

@@ -14,13 +14,15 @@
 ## P2 — Administrador de Módulo
 
 - **Quién es**: superusuario del módulo OMS (no del TMS completo).
-- **Objetivo**: configurar el catálogo de reglas (activar/desactivar, peso/score,
-  parámetros) por compañía para el rollout por etapas.
+- **Objetivo**: **consultar el catálogo de reglas (solo lectura)** por scope —
+  ver qué reglas implementadas aplican y con qué scope. El set de reglas es **fijo
+  en código** (v4.4, 2026-11-05): ya **no** activa/desactiva reglas ni edita
+  peso/score/parámetros desde la UI.
 - **Contexto**: la lógica de las reglas vive en código (Lambdas compartidas por
-  función, resueltas por scope — C3-SUPERSEDE, no una Lambda por compañía); él
-  solo parametriza, no crea reglas.
-- **Dolor**: necesita habilitar reglas progresivamente sin depender de un
-  despliegue por cada ajuste de parámetro.
+  función, resueltas por scope — C3-SUPERSEDE, no una Lambda por compañía); el
+  catálogo configurable quedó **descartado**, la vista es informativa.
+- **Dolor**: necesita visibilidad de qué reglas aplican por scope para el rollout
+  por etapas (la habilitación progresiva se fija por config/migración, no por UI).
 
 ## P3 — Jefe de Almacén
 

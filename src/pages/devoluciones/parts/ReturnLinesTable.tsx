@@ -4,11 +4,14 @@ import Badge from '../../../components/base/Badge';
 import Button from '../../../components/base/Button';
 import { isOpen, isSelectable, receivedQuantity, returnTypeLabel, statusLabel, statusVariant, type SectionGroup } from '../../../lib/devoluciones/trips';
 import type { ReturnLine } from '../../../lib/devoluciones/types';
+import PhotoPreview from '../components/PhotoPreview';
 
 interface Props {
   groups: SectionGroup[];
   canReceive: boolean;
   onReceive: (line: ReturnLine) => void;
+  /** Recarga el viaje para renovar las URLs firmadas de las fotos cuando vencen. */
+  onReloadPhotos?: () => void;
   /** Casillas de selección (solo quien puede editar); sin esta prop no se muestran. */
   selection?: {
     selected: ReadonlySet<string>;
@@ -17,7 +20,7 @@ interface Props {
   };
 }
 
-export default function ReturnLinesTable({ groups, canReceive, onReceive, selection }: Props) {
+export default function ReturnLinesTable({ groups, canReceive, onReceive, onReloadPhotos, selection }: Props) {
   if (groups.length === 0) return <p className="text-sm text-slate-500">Este viaje no tiene devoluciones.</p>;
   return (
     <div className="space-y-4">
@@ -71,9 +74,8 @@ export default function ReturnLinesTable({ groups, canReceive, onReceive, select
                       {line.product_name ?? '-'}
                       {line.product_code && <span className="ml-1 text-xs text-slate-500">({line.product_code})</span>}
                       {line.photo_url && (
-                        <a href={line.photo_url} target="_blank" rel="noopener noreferrer" className="ml-2 text-xs text-teal-700 hover:underline">
-                          <i className="ri-image-line" aria-hidden="true" /> Ver foto
-                        </a>
+                        <PhotoPreview url={line.photo_url} onReload={onReloadPhotos}
+                          label={`${line.return_number} · ${line.product_name ?? 'Producto'}`} />
                       )}
                     </td>
                     <td className="px-2 py-2 text-slate-600">{line.reason}</td>

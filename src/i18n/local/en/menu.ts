@@ -21,7 +21,7 @@ export default {
   'menu.omsPanel': 'OMS Panel',
   'menu.omsBandeja': 'Inbox Orders',
   'menu.omsCola': 'Prioritization Queue',
-  'menu.omsReglas': 'Rules Engine',
+  'menu.omsReglas': 'OMS Rules',
   'menu.omsSimulador': 'Simulator',
   'menu.omsAuditoria': 'Audit',
   'menu.catalogos': 'Catalogs',
