@@ -1,6 +1,8 @@
 # 06 — Solicitudes de devolución del cliente (rol Cliente)
 
-**Estado:** pendiente por implementar (flujo posterior bloqueado: no se sabe quién atiende la solicitud). La migración `sql/64` ya está aplicada en Aurora (2026-11-06); falta desplegar `backend/admin` y el permiso S3 (Intelix).
+> **Reconciliado 2026-11-11:** creación e historial existen localmente; las tablas de 64 existen en Aurora. Ninguna de las tres rutas de solicitudes ni su módulo Python están desplegados en admin. Siguen pendientes bandeja/decisiones de negocio, avisos, validación contra pedidos, S3/CORS y E2E. Fuente vigente: [estado actual](../ESTADO_ACTUAL.md).
+
+**Estado (2026-11-11):** creación e historial implementados localmente; tablas de SQL 64 verificadas en Aurora. Backend/flujo Cliente sin publicar en sandbox y S3/CORS por configurar. El flujo interno posterior sigue bloqueado por definición de responsable y contrato con Planificación.
 
 ## Qué falta
 El cliente ya puede solicitar una devolución (`/mis-devoluciones`, estado `pendiente_asignacion`), pero **nadie la atiende**: no hay bandeja interna, aprobación, conversión a `tbl_returns`/recolecta, aviso al cliente ni validación contra pedidos.

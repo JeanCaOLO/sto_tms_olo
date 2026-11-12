@@ -42,6 +42,8 @@ class FakeDb:
             return [self.return_row] if self.return_row else []
         if sql.lstrip().startswith("UPDATE tbl_returns\nSET status = 'received'"):
             return [{"id": params[3], "status": "received", "received_quantity": params[1]}]
+        if sql.lstrip().startswith("UPDATE tbl_returns\nSET status = 'rejected'"):
+            return [{"id": params[2], "status": "rejected", "rejection_reason": params[0]}]
         if sql.lstrip().startswith("UPDATE tbl_returns rt"):
             return self.received_all
         if sql.lstrip().startswith("SELECT * FROM tbl_return_forms WHERE id"):
@@ -304,3 +306,66 @@ def test_updating_a_form_rejects_a_section_of_a_stop_it_does_not_cover(app, db, 
 def test_updating_an_unknown_form_is_a_404(app, caller_permissions):
     caller_permissions.set(RECEIVER)
     assert call(app, "PUT /api/v1/devoluciones/formularios/{formId}", path={"formId": "x"}, body={})["statusCode"] == 404
+
+
+def test_country_query_param_filters_summary_and_trips(app, db, caller_permissions):
+    caller_permissions.set(READER)
+    valid_country = "11111111-1111-1111-1111-111111111111"
+    # Resumen con filtro de país
+    res_summary = call(app, "GET /api/v1/devoluciones/resumen", query={"pais": valid_country})
+    assert res_summary["statusCode"] == 200
+    sql_summary, params_summary = next(c for c in db.calls if "FROM vw_return_trips" in c[0] and "WHERE" in c[0])
+    assert "country_id = %s::uuid" in sql_summary and valid_country in params_summary
+
+    # Viajes con filtro de país
+    res_trips = call(app, "GET /api/v1/devoluciones/viajes", query={"pais": valid_country})
+    assert res_trips["statusCode"] == 200
+    sql_trips, params_trips = next(c for c in reversed(db.calls) if "FROM vw_return_trips" in c[0] and "ORDER BY" in c[0])
+    assert "country_id = %s::uuid" in sql_trips and valid_country in params_trips
+
+    # País inválido da 400
+    assert call(app, "GET /api/v1/devoluciones/resumen", query={"pais": "no-uuid"})["statusCode"] == 400
+
+
+def test_rejecting_a_return_requires_reason_and_is_audited(app, db, caller_permissions, audit_calls):
+    caller_permissions.set(RECEIVER)
+    response = call(app, "POST /api/v1/devoluciones/{returnId}/rechazar", path={"returnId": RETURN},
+                    body={"reason": "Mercadería extraviada antes de cargar"})
+    assert response["statusCode"] == 200
+    assert body_of(response)["data"]["return"]["status"] == "rejected"
+    assert next(c for c in db.calls if "UPDATE tbl_returns" in c[0] and "status = 'rejected'" in c[0])
+    assert any(c[0] == "record" and c[2]["metadata"]["action"] == "rechazar" for c in audit_calls)
+
+
+def test_rejecting_requires_reason(app, caller_permissions):
+    caller_permissions.set(RECEIVER)
+    assert call(app, "POST /api/v1/devoluciones/{returnId}/rechazar", path={"returnId": RETURN},
+                body={})["statusCode"] == 400
+    assert call(app, "POST /api/v1/devoluciones/{returnId}/rechazar", path={"returnId": RETURN},
+                body={"reason": "   "})["statusCode"] == 400
+    assert call(app, "POST /api/v1/devoluciones/{returnId}/rechazar", path={"returnId": RETURN},
+                body={"reason": "x" * 501})["statusCode"] == 400
+
+
+def test_cannot_reject_a_received_return(app, db, caller_permissions):
+    caller_permissions.set(RECEIVER)
+    db.return_row = {"id": RETURN, "quantity": 1, "status": "received", "route_id": ROUTE}
+    assert call(app, "POST /api/v1/devoluciones/{returnId}/rechazar", path={"returnId": RETURN},
+                body={"reason": "ya se recibió"})["statusCode"] == 409
+
+
+def test_rejecting_already_rejected_is_idempotent(app, db, caller_permissions):
+    caller_permissions.set(RECEIVER)
+    db.return_row = {"id": RETURN, "quantity": 1, "status": "rejected", "route_id": ROUTE}
+    res = call(app, "POST /api/v1/devoluciones/{returnId}/rechazar", path={"returnId": RETURN},
+               body={"reason": "no existe"})
+    assert res["statusCode"] == 200
+    assert body_of(res)["data"]["return"] is None
+
+
+def test_a_reader_cannot_reject_a_return(app, caller_permissions):
+    caller_permissions.set(READER)
+    assert call(app, "POST /api/v1/devoluciones/{returnId}/rechazar", path={"returnId": RETURN},
+                body={"reason": "motivo"})["statusCode"] == 403
+
+

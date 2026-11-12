@@ -39,9 +39,16 @@ ROUTES = {
     "PUT /api/v1/devoluciones/formularios/{formId}": returns.update_form,
     "POST /api/v1/devoluciones/viajes/{routeId}/recibir-todas": returns.receive_all,
     "POST /api/v1/devoluciones/{returnId}/recibir": returns.receive_return,
+    "POST /api/v1/devoluciones/{returnId}/rechazar": returns.reject_return,
     "POST /api/v1/solicitudes-devolucion": return_requests.create_request,
     "POST /api/v1/solicitudes-devolucion/archivos/url": return_requests.upload_url,
     "GET /api/v1/solicitudes-devolucion/mias": return_requests.list_mine,
+    "GET /api/v1/solicitudes-devolucion/asignacion": return_requests.get_assignment,
+    "GET /api/v1/solicitudes-devolucion": return_requests.list_inbox,
+    "GET /api/v1/solicitudes-devolucion/{requestId}": return_requests.get_request,
+    "POST /api/v1/solicitudes-devolucion/{requestId}/aprobar": return_requests.approve_request,
+    "POST /api/v1/solicitudes-devolucion/{requestId}/rechazar": return_requests.reject_request,
+    "GET /api/v1/solicitudes-devolucion/{requestId}/archivos/{fileId}/url": return_requests.file_url,
 }
 
 handler = tms_handler(ROUTES)

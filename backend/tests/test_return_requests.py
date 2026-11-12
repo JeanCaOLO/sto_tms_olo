@@ -10,8 +10,8 @@ from tms_common import pg
 USER = {"id": "auth-1", "email": "cliente@epa.com"}
 ORG, CUSTOMER = "11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"
 UUID_A, UUID_B = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
-KEY_A = f"solicitudes/{ORG}/{CUSTOMER}/{UUID_A}.jpg"
-KEY_B = f"solicitudes/{ORG}/{CUSTOMER}/{UUID_B}.mp4"
+KEY_A = f"solicitudes/{ORG}/{CUSTOMER}/app-user/{UUID_A}.jpg"
+KEY_B = f"solicitudes/{ORG}/{CUSTOMER}/app-user/{UUID_B}.mp4"
 CLIENT = make_permissions({"devoluciones_solicitud": ["view", "create"]})
 VIEWER = make_permissions({"devoluciones_solicitud": ["view"]})
 UPLOAD_ROUTE = "POST /api/v1/solicitudes-devolucion/archivos/url"
@@ -24,8 +24,8 @@ class FakeDb:
 
     def query(self, sql, params=()):
         self.calls.append((sql, list(params)))
-        if "SELECT organization_id, customer_id FROM tbl_app_users" in sql:
-            return [{"organization_id": ORG, "customer_id": self.customer_id}]
+        if "FROM tbl_app_users u LEFT JOIN tbl_customers" in sql:
+            return [{"organization_id": ORG, "customer_id": self.customer_id, "customer_organization_id": ORG}]
         if "AS next FROM tbl_return_requests" in sql.replace("\n", " "):
             return [{"next": 7}]
         if sql.lstrip().startswith("INSERT INTO tbl_return_requests"):
@@ -60,7 +60,7 @@ def app(db, monkeypatch):
 
 
 def item(**extra):
-    return {"product_code": "ART-1", "quantity": 2, "reason_code": "danado", **extra}
+    return {"product_code": "ART-1", "product_name": "Articulo de prueba", "quantity": 2, "reason_code": "danado", **extra}
 
 
 def post(app, body, route="POST /api/v1/solicitudes-devolucion"):
@@ -109,6 +109,13 @@ def test_usuario_sin_empresa_es_403(app, db, caller_permissions):
 def test_validaciones_de_items(app, caller_permissions, items):
     caller_permissions.set(CLIENT)
     assert post(app, {"items": items})["statusCode"] == 400
+
+
+@pytest.mark.parametrize("extra", [{"product_name": None}, {"product_name": "  "},
+    {"product_name": {"name": "x"}}, {"files": [{"key": {"bad": "key"}}]}])
+def test_nombre_obligatorio_y_archivos_malformados_son_400(app, caller_permissions, extra):
+    caller_permissions.set(CLIENT)
+    assert post(app, {"items": [item(**extra)]})["statusCode"] == 400
 
 
 def test_limites_de_items_y_archivos(app, caller_permissions):
@@ -171,9 +178,29 @@ def test_upload_url_valida_el_tipo_y_firma_para_la_empresa(app, caller_permissio
 
 
 def test_upload_url_sin_bucket_es_503(app, caller_permissions, monkeypatch):
+    module = load_stack_module("admin", "admin_return_requests")
     caller_permissions.set(CLIENT)
     monkeypatch.delenv("MOBILE_EVIDENCE_BUCKET", raising=False)
+
+    def unexpected_client():
+        raise AssertionError("Sin bucket no se debe inicializar S3")
+
+    monkeypatch.setattr(module, "_client", unexpected_client)
     assert post(app, {"mime_type": "image/png"}, UPLOAD_ROUTE)["statusCode"] == 503
+
+
+def test_crear_con_archivos_sin_bucket_es_503_sin_inicializar_s3(db, caller_permissions, monkeypatch):
+    app = load_stack_module("admin")
+    module = load_stack_module("admin", "admin_return_requests")
+    caller_permissions.set(CLIENT)
+    monkeypatch.delenv("MOBILE_EVIDENCE_BUCKET", raising=False)
+
+    def unexpected_client():
+        raise AssertionError("Sin bucket no se debe inicializar S3")
+
+    monkeypatch.setattr(module, "_client", unexpected_client)
+    assert post(app, {"items": [item(files=[{"key": KEY_A}])]})["statusCode"] == 503
+    assert not any(sql.lstrip().startswith("INSERT") for sql, _ in db.calls)
 
 
 def test_mias_filtra_por_organizacion_empresa_y_usuario(app, db, caller_permissions):

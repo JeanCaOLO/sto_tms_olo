@@ -5,7 +5,7 @@ import {
 } from './solicitudes';
 
 const valid = (patch: Partial<DraftItem> = {}): DraftItem => ({
-  ...newDraftItem('a'), productCode: 'ART-1', quantity: '3', reason: 'danado', ...patch,
+  ...newDraftItem('a'), productCode: 'ART-1', productName: 'Producto', quantity: '3', reason: 'danado', ...patch,
 });
 const file = (type: string, size: number, name = 'f') => ({ name, type, size });
 
@@ -17,13 +17,21 @@ describe('parseQuantity', () => {
 describe('validateItem', () => {
   it('un artículo completo no tiene errores', () => expect(validateItem(valid())).toEqual({}));
   it('exige código, cantidad y motivo', () => {
-    expect(Object.keys(validateItem(newDraftItem('x'))).sort()).toEqual(['productCode', 'quantity', 'reason']);
+    expect(Object.keys(validateItem(newDraftItem('x'))).sort()).toEqual(['productCode', 'productName', 'quantity', 'reason']);
   });
   it('«Otro» exige descripción; los demás motivos no', () => {
     expect(validateItem(valid({ reason: 'otro' })).description).toBeDefined();
     expect(validateItem(valid({ reason: 'otro', description: '  ' })).description).toBeDefined();
     expect(validateItem(valid({ reason: 'otro', description: 'no coincide' }))).toEqual({});
     expect(validateItem(valid({ reason: 'no_solicitado' }))).toEqual({});
+  });
+  it.each(['', '   '])('exige nombre: %s', (productName) => {
+    expect(validateItem(valid({ productName })).productName).toBeDefined();
+  });
+  it('valida los limites de texto antes de subir evidencias', () => {
+    expect(validateItem(valid({ productName: 'x'.repeat(256) })).productName).toBeDefined();
+    expect(validateItem(valid({ productCode: 'x'.repeat(101) })).productCode).toBeDefined();
+    expect(validateItem(valid({ description: 'x'.repeat(501) })).description).toBeDefined();
   });
 });
 
@@ -35,6 +43,9 @@ describe('validateAll', () => {
     expect(Object.keys(result.errors)).toEqual(['b']);
   });
   it('todos válidos', () => expect(validateAll([valid(), valid({ id: 'c' })]).ok).toBe(true));
+  it('conserva el maximo de 50 articulos', () => {
+    expect(validateAll(Array.from({length: 51}, (_, n) => valid({id: String(n)}))).ok).toBe(false);
+  });
 });
 
 describe('fileProblem', () => {
@@ -60,7 +71,7 @@ describe('fileProblem', () => {
 describe('toPayloadItem', () => {
   it('normaliza y omite los opcionales vacíos', () => {
     expect(toPayloadItem(valid({ productCode: ' ART-1 ' }), [{ key: 'k' }])).toEqual({
-      product_code: 'ART-1', quantity: 3, reason_code: 'danado', files: [{ key: 'k' }],
+      product_code: 'ART-1', product_name: 'Producto', quantity: 3, reason_code: 'danado', files: [{ key: 'k' }],
     });
   });
   it('incluye nombre y descripción cuando existen', () => {

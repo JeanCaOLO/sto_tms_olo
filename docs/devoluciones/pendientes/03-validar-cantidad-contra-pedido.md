@@ -1,5 +1,7 @@
 # 03 — Validar cantidad devuelta contra el pedido
 
+> Reconciliado 2026-11-11: sigue pendiente en servidor móvil y solicitudes web. Ver F03 de [estado actual](../ESTADO_ACTUAL.md).
+
 **Estado:** pendiente por implementar.
 
 ## Qué falta

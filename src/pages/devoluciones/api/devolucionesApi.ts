@@ -27,14 +27,21 @@ export interface TripQuery {
   state: TripFilter;
   from?: string;
   to?: string;
+  countryId?: string | null;
 }
 
-export const getSummary = () => call<ReturnSummary>(`${BASE}/resumen`);
+export function getSummary(countryId?: string | null) {
+  const params = new URLSearchParams();
+  if (countryId) params.set('pais', countryId);
+  const q = params.toString();
+  return call<ReturnSummary>(`${BASE}/resumen${q ? `?${q}` : ''}`);
+}
 
-export function listTrips({ state, from, to }: TripQuery) {
+export function listTrips({ state, from, to, countryId }: TripQuery) {
   const params = new URLSearchParams({ estado: state });
   if (from) params.set('desde', from);
   if (to) params.set('hasta', to);
+  if (countryId) params.set('pais', countryId);
   return call<ReturnTrip[]>(`${BASE}/viajes?${params.toString()}`);
 }
 
@@ -42,6 +49,9 @@ export const getTrip = (routeId: string) => call<TripDetail>(`${BASE}/viajes/${r
 
 export const receiveReturn = (returnId: string, quantity: number, condition: ReturnCondition) =>
   call<{ return: unknown; trip: ReturnTrip }>(`${BASE}/${returnId}/recibir`, send('POST', { received_quantity: quantity, condition }));
+
+export const rejectReturn = (returnId: string, reason: string) =>
+  call<{ return: unknown; trip: ReturnTrip }>(`${BASE}/${returnId}/rechazar`, send('POST', { reason }));
 
 export const receiveAll = (routeId: string, condition: ReturnCondition) =>
   call<{ received: number; trip: ReturnTrip }>(`${BASE}/viajes/${routeId}/recibir-todas`, send('POST', { condition }));

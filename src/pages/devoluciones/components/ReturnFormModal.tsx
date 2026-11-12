@@ -6,7 +6,7 @@ import Input from '../../../components/base/Input';
 import Modal from '../../../components/base/Modal';
 import Select from '../../../components/base/Select';
 import { formDocumentHtml, printFormDocument } from '../../../lib/devoluciones/formDocument';
-import { KIND_LABELS, draftFromDetail, groupBySection, reasonsOf, toFormPayload } from '../../../lib/devoluciones/trips';
+import { KIND_LABELS, draftFromDetail, groupBySection, reasonsOf, returnTypeLabel, toFormPayload } from '../../../lib/devoluciones/trips';
 import type { FormDraft, FormView, ReturnKind, SectionDraft } from '../../../lib/devoluciones/types';
 import { createForm, updateForm } from '../api/devolucionesApi';
 
@@ -100,7 +100,9 @@ export default function ReturnFormModal({ detail, canEdit, canPrint, onClose, on
                   {field('Vendedor(es)', 'sellers')}
                 </div>
                 {field('Dirección', 'address')}
-                <p className="text-xs text-slate-500">Tipo: {reasonsOf(lines) || '-'}</p>
+                <p className="text-xs text-slate-500">
+                  Origen: {[...new Set(lines.map((l) => returnTypeLabel(l.return_type)))].join('; ') || '-'} · Motivo: {reasonsOf(lines) || '-'}
+                </p>
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-xs uppercase text-slate-500">

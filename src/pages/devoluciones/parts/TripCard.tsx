@@ -9,8 +9,9 @@ import {
   toggleSelection, tripProgress,
 } from '../../../lib/devoluciones/trips';
 import type { FormView, ReturnCondition, ReturnLine, ReturnTrip } from '../../../lib/devoluciones/types';
-import { getForm, receiveAll, receiveReturn } from '../api/devolucionesApi';
+import { getForm, receiveAll, receiveReturn, rejectReturn } from '../api/devolucionesApi';
 import ReceiveModal from '../components/ReceiveModal';
+import RejectModal from '../components/RejectModal';
 import ReturnFormModal from '../components/ReturnFormModal';
 import { useTripDetail } from '../hooks/useTripDetail';
 import ReturnLinesTable from './ReturnLinesTable';
@@ -28,6 +29,7 @@ type Receiving = { kind: 'line'; line: ReturnLine } | { kind: 'all' } | null;
 export default function TripCard({ trip, canEdit, canPrint, onChanged }: Props) {
   const [open, setOpen] = useState(false);
   const [receiving, setReceiving] = useState<Receiving>(null);
+  const [rejecting, setRejecting] = useState<ReturnLine | null>(null);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [formView, setFormView] = useState<FormView | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -47,6 +49,14 @@ export default function TripCard({ trip, canEdit, canPrint, onChanged }: Props) 
     else await receiveAll(trip.route_id, condition);
     setReceiving(null);
     changed();
+  };
+
+  const confirmReject = async (reason: string) => {
+    if (rejecting) {
+      await rejectReturn(rejecting.id, reason);
+      setRejecting(null);
+      changed();
+    }
   };
 
   const openForm = async (formId: string) => {
@@ -117,6 +127,7 @@ export default function TripCard({ trip, canEdit, canPrint, onChanged }: Props) 
               {formError && <p role="alert" className="text-sm text-red-600">{formError}</p>}
               <ReturnLinesTable groups={groupBySection(detail.returns, detail.sections)} canReceive={canEdit} onReloadPhotos={reload}
                 onReceive={(line) => setReceiving({ kind: 'line', line })}
+                onReject={canEdit ? (line) => setRejecting(line) : undefined}
                 selection={canEdit ? {
                   selected,
                   onToggle: (line) => setSelected((current) => toggleSelection(current, line.id)),
@@ -137,6 +148,12 @@ export default function TripCard({ trip, canEdit, canPrint, onChanged }: Props) 
         initialQuantity={receiving?.kind === 'line' ? defaultReceiveQuantity(receiving.line) : null}
         onClose={() => setReceiving(null)}
         onConfirm={confirm}
+      />
+      <RejectModal
+        isOpen={rejecting !== null}
+        title={rejecting ? `Rechazar ${rejecting.return_number}` : 'Rechazar devolución'}
+        onClose={() => setRejecting(null)}
+        onConfirm={confirmReject}
       />
       {formView && (
         <ReturnFormModal detail={formView} canEdit={canEdit} canPrint={canPrint} onClose={() => setFormView(null)}

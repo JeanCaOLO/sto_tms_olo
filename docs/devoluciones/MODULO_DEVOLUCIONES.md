@@ -1,5 +1,7 @@
 # Módulo Devoluciones — documentación completa
 
+> **Estado actual:** consultar [la matriz reconciliada](ESTADO_ACTUAL.md), con evidencia de código, pruebas, Aurora y sandbox del 2026-11-11. Este documento describe el baseline del 5 de noviembre y no certifica despliegues posteriores.
+
 > Ruta web: `/devoluciones` · Código: `src/pages/devoluciones/` (pantalla) y `src/lib/devoluciones/` (lógica pura) ·
 > Backend: `backend/admin/` (rutas `/api/v1/devoluciones/*`) · Permiso: módulo `devoluciones` (`view`, `edit`, `export`).
 > Migraciones: `sql/60`, `sql/61`, `sql/62`.

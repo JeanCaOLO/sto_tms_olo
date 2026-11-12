@@ -11,7 +11,7 @@ export interface UseReturnTrips {
   reload: () => void;
 }
 
-export function useReturnTrips(state: TripFilter, from: string, to: string): UseReturnTrips {
+export function useReturnTrips(state: TripFilter, from: string, to: string, countryId?: string | null): UseReturnTrips {
   const [summary, setSummary] = useState<ReturnSummary | null>(null);
   const [trips, setTrips] = useState<ReturnTrip[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,7 +23,7 @@ export function useReturnTrips(state: TripFilter, from: string, to: string): Use
     let cancelled = false;
     setLoading(true);
     setError(null);
-    Promise.all([getSummary(), listTrips({ state, from, to })])
+    Promise.all([getSummary(countryId), listTrips({ state, from, to, countryId })])
       .then(([nextSummary, nextTrips]) => {
         if (cancelled) return;
         setSummary(nextSummary);
@@ -32,7 +32,7 @@ export function useReturnTrips(state: TripFilter, from: string, to: string): Use
       .catch((e: unknown) => { if (!cancelled) setError(e instanceof Error ? e.message : 'No se pudo cargar'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [state, from, to, version]);
+  }, [state, from, to, countryId, version]);
 
   return { summary, trips, loading, error, reload };
 }
