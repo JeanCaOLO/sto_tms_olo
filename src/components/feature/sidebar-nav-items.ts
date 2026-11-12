@@ -90,6 +90,7 @@ export const navItems: NavItem[] = [
   { icon: 'ri-file-text-line', label: 'Guías de Despacho', i18nKey: 'menu.guias', path: '/guias', permKey: 'guias' },
   { icon: 'ri-map-pin-line', label: 'Tracking', i18nKey: 'menu.tracking', path: '/tracking', permKey: 'tracking' },
   { icon: 'ri-arrow-go-back-line', label: 'Devoluciones', i18nKey: 'menu.devoluciones', path: '/devoluciones', permKey: 'devoluciones' },
+  { icon: 'ri-reply-line', label: 'Mis Devoluciones', i18nKey: 'menu.misDevoluciones', path: '/mis-devoluciones', permKey: 'devoluciones_solicitud' },
 
   { type: 'section', label: 'Gestión Financiera y Comercial', i18nKey: 'menu.sectionFinance' },
   TARIFAS_GROUP,

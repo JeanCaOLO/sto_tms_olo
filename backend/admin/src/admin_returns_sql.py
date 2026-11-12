@@ -11,7 +11,7 @@ SELECT count(*)::int AS trips,
        COALESCE(sum(pending_returns), 0)::int AS returns_pending,
        COALESCE(sum(received_returns), 0)::int AS returns_received
 FROM vw_return_trips
-WHERE organization_id = %s{scope}
+WHERE organization_id = %s{filters}{scope}
 """
 
 # Mismo orden descendente de antes (NULLS FIRST), con route_id como desempate único.
@@ -171,6 +171,13 @@ SET status = 'received', received_at = now(), received_by = %s, received_quantit
     updated_at = now()
 WHERE id = %s AND organization_id = %s AND COALESCE(status, 'pending') IN ('pending', 'approved')
 RETURNING id, status, received_at, received_quantity, received_condition
+"""
+
+REJECT_SQL = """
+UPDATE tbl_returns
+SET status = 'rejected', rejection_reason = %s, rejected_by = %s, rejected_at = now(), updated_at = now()
+WHERE id = %s AND organization_id = %s AND COALESCE(status, 'pending') IN ('pending', 'approved')
+RETURNING id, status, rejection_reason, rejected_at
 """
 
 # received_quantity = lo que vino registrado: recibir todo de un viaje no reinterpreta cantidades.

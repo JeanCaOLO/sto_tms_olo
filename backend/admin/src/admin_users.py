@@ -24,6 +24,7 @@ class NewUser:
     status: str
     scopes: list[payload.ScopeInput]
     carrier_id: str | None = None
+    customer_id: str | None = None
 
 
 def _ok(data: object) -> dict:
@@ -61,6 +62,17 @@ def _carrier_for_role(run: pg.Runner, role_id: str, carrier_id: str | None) -> s
     return carrier_id
 
 
+def _customer_for_role(run: pg.Runner, role_id: str, customer_id: str | None) -> str | None:
+    """El rol Cliente exige empresa (tbl_customers); cualquier otro rol no puede tener una."""
+    if str(run(sql.ROLE_NAME_SQL, [role_id])[0]["name"]).strip().lower() != payload.CUSTOMER_ROLE:
+        return None
+    if customer_id is None:
+        raise HttpError(400, "El rol Cliente necesita una empresa")
+    if not run(sql.CUSTOMER_EXISTS_SQL, [customer_id]):
+        raise HttpError(400, "La empresa no existe")
+    return customer_id
+
+
 def _write_scopes(run: pg.Runner, user_id: str, role_id: str, scopes: list[payload.ScopeInput]) -> None:
     run(sql.DELETE_SCOPES_SQL, [user_id])
     for scope in scopes:
@@ -74,7 +86,8 @@ def insert_user(run: pg.Runner, organization_id: str, user: NewUser) -> str:
     auth_user_id = str(uuid4())
     run(sql.INSERT_CREDENTIAL_SQL, [auth_user_id, user.email, hash_password(user.password)])
     rows = run(sql.INSERT_USER_SQL, [auth_user_id, organization_id, user.full_name, user.email,
-                                     user.role_id, user.status == "active", user.carrier_id])
+                                     user.role_id, user.status == "active", user.carrier_id,
+                                     user.customer_id])
     user_id = str(rows[0]["id"])
     _write_scopes(run, user_id, user.role_id, user.scopes)
     return user_id
@@ -96,7 +109,8 @@ def create_user(event: dict) -> dict:
         role_id = _role_id(run, body)
         user = NewUser(payload.required_text(body, "full_name", "El nombre"), payload.email(body),
                        payload.password(body), role_id, payload.status(body), payload.scopes(body),
-                       _carrier_for_role(run, role_id, payload.carrier_id(body)))
+                       _carrier_for_role(run, role_id, payload.carrier_id(body)),
+                       _customer_for_role(run, role_id, payload.customer_id(body)))
         user_id = insert_user(run, admin.organization_id, user)
     return _ok(_fetch(admin, user_id)[0])
 
@@ -109,9 +123,12 @@ def _update_fields(run: pg.Runner, user_id: str, body: dict) -> str | None:
         fields["is_active"] = payload.status(body) == "active"
     if "role_id" in body:
         fields["role_id"] = _role_id(run, body)
-    if "role_id" in body or "carrier_id" in body:
+    if "role_id" in body or "carrier_id" in body or "customer_id" in body:
         current = run(sql.USER_ROLE_CARRIER_SQL, [user_id])[0]
         role = str(fields.get("role_id") or current["role_id"])
+        customer = payload.customer_id(body) if "customer_id" in body else (
+            None if current.get("customer_id") is None else str(current["customer_id"]))
+        fields["customer_id"] = _customer_for_role(run, role, customer)
         carrier = payload.carrier_id(body) if "carrier_id" in body else (
             None if current["carrier_id"] is None else str(current["carrier_id"]))
         fields["carrier_id"] = _carrier_for_role(run, role, carrier)

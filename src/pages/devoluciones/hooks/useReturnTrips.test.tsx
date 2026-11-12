@@ -28,6 +28,25 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('páginas de viajes con devoluciones', () => {
+  it('cambiar de país reinicia el cursor y descarta una página del país anterior', async () => {
+    const { result, rerender } = renderHook(({ countryId }) => useReturnTrips('todos', '', '', countryId), {
+      initialProps: { countryId: 'country-a' },
+    });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    const pending = deferred();
+    api.listTripsPage.mockReturnValueOnce(pending.promise);
+    act(() => { void result.current.loadMore(); });
+    expect(api.listTripsPage).toHaveBeenLastCalledWith({ state: 'todos', from: '', to: '', countryId: 'country-a' }, 'next');
+    api.listTripsPage.mockResolvedValueOnce({ trips: [trip('country-b-trip')], nextCursor: 'country-b-next' });
+    rerender({ countryId: 'country-b' });
+    await waitFor(() => expect(result.current.trips[0]?.route_id).toBe('country-b-trip'));
+    await act(async () => pending.resolve({ trips: [trip('country-a-stale')], nextCursor: 'old' }));
+    expect(api.getSummary).toHaveBeenLastCalledWith('country-b');
+    expect(result.current.trips.map(item => item.route_id)).toEqual(['country-b-trip']);
+    api.listTripsPage.mockResolvedValueOnce({ trips: [], nextCursor: null });
+    await act(async () => result.current.loadMore());
+    expect(api.listTripsPage).toHaveBeenLastCalledWith({ state: 'todos', from: '', to: '', countryId: 'country-b' }, 'country-b-next');
+  });
   it('agrega la página siguiente sin duplicar viajes y detecta el final', async () => {
     const { result } = open();
     await waitFor(() => expect(result.current.loading).toBe(false));

@@ -1,0 +1,389 @@
+{
+  "captured_at": "2026-11-12T12:05:12.593Z",
+  "read_only": true,
+  "checks": {
+    "client_company": {
+      "client_users": 1,
+      "without_company": 0,
+      "dangling_company": 0,
+      "organization_mismatch": 0
+    },
+    "operator_scopes": {
+      "operators": 2,
+      "operators_without_scope": 0,
+      "scope_rows": 3,
+      "company_scopes": 0,
+      "warehouse_scopes": 0,
+      "country_scopes": 2,
+      "global_scopes": 1
+    },
+    "warehouse_company_cardinality": {
+      "warehouses": 6,
+      "without_company": 1,
+      "single_company": 1,
+      "multiple_companies": 4
+    },
+    "route_company_cardinality": {
+      "routes_with_guides": 75,
+      "single_company": 4,
+      "multiple_companies": 71,
+      "routes_with_missing_order_company": 0
+    },
+    "return_company_trace": {
+      "returns": 29,
+      "missing_order": 0,
+      "missing_order_company": 0,
+      "missing_guide": 0,
+      "inconsistent_guide_order": 0,
+      "organization_mismatch": 0
+    }
+  },
+  "transaction_read_only": "on",
+  "key_columns": {
+    "tbl_app_users": [
+      "auth_user_id",
+      "carrier_id",
+      "customer_id",
+      "id",
+      "organization_id",
+      "role_id"
+    ],
+    "tbl_user_scopes": [
+      "app_user_id",
+      "country_id",
+      "customer_id",
+      "id",
+      "role_id",
+      "warehouse_id"
+    ],
+    "tbl_roles": [
+      "id"
+    ],
+    "tbl_customers": [
+      "country_id",
+      "id",
+      "organization_id",
+      "tax_id",
+      "warehouse_id"
+    ],
+    "tbl_warehouses": [
+      "country_id",
+      "currency_id",
+      "id",
+      "organization_id"
+    ],
+    "tbl_stores": [
+      "country_id",
+      "id",
+      "organization_id",
+      "warehouse_id"
+    ],
+    "tbl_orders": [
+      "branch_id",
+      "customer_id",
+      "delivery_point_id",
+      "destination_warehouse_id",
+      "final_customer_id",
+      "id",
+      "organization_id",
+      "planning_run_id",
+      "prioritization_run_id",
+      "tms_zone_id",
+      "warehouse_id"
+    ],
+    "tbl_routes": [
+      "carrier_id",
+      "driver_id",
+      "id",
+      "organization_id",
+      "plan_trip_id",
+      "route_type_id",
+      "store_id",
+      "vehicle_id"
+    ],
+    "tbl_dispatch_guides": [
+      "id",
+      "order_id",
+      "organization_id",
+      "recipient_id",
+      "route_id"
+    ],
+    "tbl_route_plans": [
+      "country_id",
+      "customer_id",
+      "id",
+      "organization_id",
+      "warehouse_id"
+    ],
+    "tbl_plan_trips": [
+      "driver_id",
+      "id",
+      "plan_id",
+      "vehicle_id"
+    ],
+    "tbl_returns": [
+      "dispatch_guide_id",
+      "id",
+      "order_id",
+      "organization_id"
+    ],
+    "tbl_return_requests": [
+      "customer_id",
+      "id",
+      "organization_id"
+    ]
+  },
+  "foreign_keys": [
+    {
+      "table_name": "tbl_app_users",
+      "conname": "fk_app_user_carrier",
+      "definition": "FOREIGN KEY (carrier_id) REFERENCES tbl_carriers(id) ON DELETE RESTRICT"
+    },
+    {
+      "table_name": "tbl_app_users",
+      "conname": "fk_app_user_customer",
+      "definition": "FOREIGN KEY (customer_id) REFERENCES tbl_customers(id) ON DELETE SET NULL"
+    },
+    {
+      "table_name": "tbl_app_users",
+      "conname": "fk_app_users_organization_id",
+      "definition": "FOREIGN KEY (organization_id) REFERENCES tbl_organizations(id)"
+    },
+    {
+      "table_name": "tbl_app_users",
+      "conname": "fk_app_users_role_id",
+      "definition": "FOREIGN KEY (role_id) REFERENCES tbl_roles(id)"
+    },
+    {
+      "table_name": "tbl_customers",
+      "conname": "fk_customer_country",
+      "definition": "FOREIGN KEY (country_id) REFERENCES tbl_countries(id) ON DELETE CASCADE"
+    },
+    {
+      "table_name": "tbl_customers",
+      "conname": "fk_customer_organization",
+      "definition": "FOREIGN KEY (organization_id) REFERENCES tbl_organizations(id) ON DELETE CASCADE"
+    },
+    {
+      "table_name": "tbl_customers",
+      "conname": "fk_customer_warehouse",
+      "definition": "FOREIGN KEY (warehouse_id) REFERENCES tbl_warehouses(id)"
+    },
+    {
+      "table_name": "tbl_dispatch_guides",
+      "conname": "fk_dispatch_guides_order_id",
+      "definition": "FOREIGN KEY (order_id) REFERENCES tbl_orders(id) ON DELETE CASCADE"
+    },
+    {
+      "table_name": "tbl_dispatch_guides",
+      "conname": "fk_dispatch_guides_organization_id",
+      "definition": "FOREIGN KEY (organization_id) REFERENCES tbl_organizations(id) ON DELETE CASCADE"
+    },
+    {
+      "table_name": "tbl_dispatch_guides",
+      "conname": "fk_dispatch_guides_route_id",
+      "definition": "FOREIGN KEY (route_id) REFERENCES tbl_routes(id) ON DELETE CASCADE"
+    },
+    {
+      "table_name": "tbl_orders",
+      "conname": "fk_order_branch",
+      "definition": "FOREIGN KEY (branch_id) REFERENCES tbl_branches(id)"
+    },
+    {
+      "table_name": "tbl_orders",
+      "conname": "fk_order_customer",
+      "definition": "FOREIGN KEY (customer_id) REFERENCES tbl_customers(id) ON DELETE CASCADE"
+    },
+    {
+      "table_name": "tbl_orders",
+      "conname": "fk_order_delivery_date_changed_by",
+      "definition": "FOREIGN KEY (delivery_date_changed_by) REFERENCES tbl_app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "table_name": "tbl_orders",
+      "conname": "fk_order_delivery_point",
+      "definition": "FOREIGN KEY (delivery_point_id) REFERENCES tbl_delivery_points(id)"
+    },
+    {
+      "table_name": "tbl_orders",
+      "conname": "fk_order_destination_warehouse",
+      "definition": "FOREIGN KEY (destination_warehouse_id) REFERENCES tbl_warehouses(id)"
+    },
+    {
+      "table_name": "tbl_orders",
+      "conname": "fk_order_final_customer",
+      "definition": "FOREIGN KEY (final_customer_id) REFERENCES tbl_final_customers(id)"
+    },
+    {
+      "table_name": "tbl_orders",
+      "conname": "fk_order_organization",
+      "definition": "FOREIGN KEY (organization_id) REFERENCES tbl_organizations(id) ON DELETE CASCADE"
+    },
+    {
+      "table_name": "tbl_orders",
+      "conname": "fk_order_warehouse",
+      "definition": "FOREIGN KEY (warehouse_id) REFERENCES tbl_warehouses(id)"
+    },
+    {
+      "table_name": "tbl_orders",
+      "conname": "fk_orders_tms_zone",
+      "definition": "FOREIGN KEY (tms_zone_id) REFERENCES tbl_zones(id)"
+    },
+    {
+      "table_name": "tbl_plan_trips",
+      "conname": "fk_plan_trips_driver_id",
+      "definition": "FOREIGN KEY (driver_id) REFERENCES tbl_drivers(id)"
+    },
+    {
+      "table_name": "tbl_plan_trips",
+      "conname": "fk_plan_trips_plan_id",
+      "definition": "FOREIGN KEY (plan_id) REFERENCES tbl_route_plans(id) ON DELETE CASCADE"
+    },
+    {
+      "table_name": "tbl_plan_trips",
+      "conname": "fk_plan_trips_vehicle_id",
+      "definition": "FOREIGN KEY (vehicle_id) REFERENCES tbl_vehicles(id)"
+    },
+    {
+      "table_name": "tbl_return_requests",
+      "conname": "fk_return_request_customer",
+      "definition": "FOREIGN KEY (customer_id) REFERENCES tbl_customers(id)"
+    },
+    {
+      "table_name": "tbl_return_requests",
+      "conname": "fk_return_request_user",
+      "definition": "FOREIGN KEY (requested_by) REFERENCES tbl_app_users(id)"
+    },
+    {
+      "table_name": "tbl_returns",
+      "conname": "fk_return_received_by",
+      "definition": "FOREIGN KEY (received_by) REFERENCES tbl_app_users(id) ON DELETE SET NULL"
+    },
+    {
+      "table_name": "tbl_returns",
+      "conname": "fk_returns_dispatch_guide_id",
+      "definition": "FOREIGN KEY (dispatch_guide_id) REFERENCES tbl_dispatch_guides(id) ON DELETE SET NULL"
+    },
+    {
+      "table_name": "tbl_returns",
+      "conname": "fk_returns_order_id",
+      "definition": "FOREIGN KEY (order_id) REFERENCES tbl_orders(id) ON DELETE CASCADE"
+    },
+    {
+      "table_name": "tbl_returns",
+      "conname": "fk_returns_organization_id",
+      "definition": "FOREIGN KEY (organization_id) REFERENCES tbl_organizations(id) ON DELETE CASCADE"
+    },
+    {
+      "table_name": "tbl_route_plans",
+      "conname": "fk_route_plans_country_id",
+      "definition": "FOREIGN KEY (country_id) REFERENCES tbl_countries(id)"
+    },
+    {
+      "table_name": "tbl_route_plans",
+      "conname": "fk_route_plans_created_by",
+      "definition": "FOREIGN KEY (created_by) REFERENCES tbl_app_users(id)"
+    },
+    {
+      "table_name": "tbl_route_plans",
+      "conname": "fk_route_plans_customer_id",
+      "definition": "FOREIGN KEY (customer_id) REFERENCES tbl_customers(id)"
+    },
+    {
+      "table_name": "tbl_route_plans",
+      "conname": "fk_route_plans_organization_id",
+      "definition": "FOREIGN KEY (organization_id) REFERENCES tbl_organizations(id)"
+    },
+    {
+      "table_name": "tbl_route_plans",
+      "conname": "fk_route_plans_warehouse_id",
+      "definition": "FOREIGN KEY (warehouse_id) REFERENCES tbl_warehouses(id)"
+    },
+    {
+      "table_name": "tbl_routes",
+      "conname": "fk_routes_carrier_id",
+      "definition": "FOREIGN KEY (carrier_id) REFERENCES tbl_carriers(id) ON DELETE SET NULL"
+    },
+    {
+      "table_name": "tbl_routes",
+      "conname": "fk_routes_driver_id",
+      "definition": "FOREIGN KEY (driver_id) REFERENCES tbl_drivers(id) ON DELETE SET NULL"
+    },
+    {
+      "table_name": "tbl_routes",
+      "conname": "fk_routes_organization_id",
+      "definition": "FOREIGN KEY (organization_id) REFERENCES tbl_organizations(id) ON DELETE CASCADE"
+    },
+    {
+      "table_name": "tbl_routes",
+      "conname": "fk_routes_plan_trip_id",
+      "definition": "FOREIGN KEY (plan_trip_id) REFERENCES tbl_plan_trips(id)"
+    },
+    {
+      "table_name": "tbl_routes",
+      "conname": "fk_routes_route_type_id",
+      "definition": "FOREIGN KEY (route_type_id) REFERENCES tbl_zones(id)"
+    },
+    {
+      "table_name": "tbl_routes",
+      "conname": "fk_routes_store_id",
+      "definition": "FOREIGN KEY (store_id) REFERENCES tbl_stores(id) ON DELETE CASCADE"
+    },
+    {
+      "table_name": "tbl_routes",
+      "conname": "fk_routes_vehicle_id",
+      "definition": "FOREIGN KEY (vehicle_id) REFERENCES tbl_vehicles(id) ON DELETE SET NULL"
+    },
+    {
+      "table_name": "tbl_stores",
+      "conname": "fk_stores_country_id",
+      "definition": "FOREIGN KEY (country_id) REFERENCES tbl_countries(id) ON DELETE CASCADE"
+    },
+    {
+      "table_name": "tbl_stores",
+      "conname": "fk_stores_organization_id",
+      "definition": "FOREIGN KEY (organization_id) REFERENCES tbl_organizations(id) ON DELETE CASCADE"
+    },
+    {
+      "table_name": "tbl_stores",
+      "conname": "fk_stores_warehouse_id",
+      "definition": "FOREIGN KEY (warehouse_id) REFERENCES tbl_warehouses(id)"
+    },
+    {
+      "table_name": "tbl_user_scopes",
+      "conname": "fk_user_scopes_app_user_id",
+      "definition": "FOREIGN KEY (app_user_id) REFERENCES tbl_app_users(id)"
+    },
+    {
+      "table_name": "tbl_user_scopes",
+      "conname": "fk_user_scopes_country_id",
+      "definition": "FOREIGN KEY (country_id) REFERENCES tbl_countries(id)"
+    },
+    {
+      "table_name": "tbl_user_scopes",
+      "conname": "fk_user_scopes_customer_id",
+      "definition": "FOREIGN KEY (customer_id) REFERENCES tbl_customers(id)"
+    },
+    {
+      "table_name": "tbl_user_scopes",
+      "conname": "fk_user_scopes_role_id",
+      "definition": "FOREIGN KEY (role_id) REFERENCES tbl_roles(id)"
+    },
+    {
+      "table_name": "tbl_user_scopes",
+      "conname": "fk_user_scopes_warehouse_id",
+      "definition": "FOREIGN KEY (warehouse_id) REFERENCES tbl_warehouses(id)"
+    },
+    {
+      "table_name": "tbl_warehouses",
+      "conname": "fk_warehouse_country",
+      "definition": "FOREIGN KEY (country_id) REFERENCES tbl_countries(id)"
+    },
+    {
+      "table_name": "tbl_warehouses",
+      "conname": "fk_warehouse_organization",
+      "definition": "FOREIGN KEY (organization_id) REFERENCES tbl_organizations(id)"
+    }
+  ],
+  "status": "verified"
+}

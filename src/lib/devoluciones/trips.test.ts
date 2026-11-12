@@ -138,6 +138,10 @@ describe('documento imprimible', () => {
     expect(html).toContain('DEV-2026-10-0001');
     expect(html).toContain('Inversiones S.A.');
     expect(html).toContain('9054404');
+    expect(html).toContain('Origen:');
+    expect(html).toContain('Devolución');
+    expect(html).toContain('Motivo:');
+    expect(html).toContain('Producto dañado');
     expect(html).toContain('garantías');
     expect(html).toContain('__________________');
   });

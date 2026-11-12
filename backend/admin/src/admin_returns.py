@@ -11,6 +11,7 @@ import base64
 import json
 from datetime import date, datetime, timezone
 from uuid import UUID
+import re
 
 from tms_common import audit, pg, permissions
 from tms_common.errors import HttpError
@@ -46,12 +47,25 @@ def _caller(event: dict, action: str) -> tuple[permissions.Permissions, str]:
     return caller, str(rows[0]["organization_id"])
 
 
+_UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE)
+
+
 def _scope(caller: permissions.Permissions, column: str = "country_id") -> tuple[str, list]:
     """Filtro por país del rol: None = todos; tupla (posiblemente vacía) = solo esos."""
     countries = caller.country_filter
     if countries is None:
         return "", []
     return f" AND {column} = ANY(%s::uuid[])", [list(countries)]
+
+
+def _country_filter(country_id: str | None) -> tuple[str, list]:
+    """Filtro opcional por país activo en la interfaz."""
+    if not country_id:
+        return "", []
+    cid = country_id.strip()
+    if not _UUID.match(cid):
+        raise HttpError(400, "pais debe ser un UUID válido.")
+    return " AND country_id = %s::uuid", [cid]
 
 
 def _trip(caller: permissions.Permissions, org: str, route_id: str) -> dict:
@@ -91,8 +105,10 @@ def _transport(trip: dict) -> str | None:
 
 def summary(event: dict) -> dict:
     caller, org = _caller(event, "view")
+    params = query_params(event)
+    country_sql, country_val = _country_filter(params.get("pais"))
     scope, extra = _scope(caller)
-    return _ok(pg.query(sql.SUMMARY_SQL.format(scope=scope), [org, *extra])[0])
+    return _ok(pg.query(sql.SUMMARY_SQL.format(filters=country_sql, scope=scope), [org, *country_val, *extra])[0])
 
 
 def _trips_cursor(raw: str) -> list:
@@ -150,6 +166,9 @@ def list_trips(event: dict) -> dict:
         cursor_values = _trips_cursor(params["cursor"])
         filters += f" AND {sql.TRIP_SORT_KEY} < (%s::boolean, %s::date, %s::boolean, %s::text, %s::uuid)"
         values.extend(cursor_values)
+    country_sql, country_val = _country_filter(params.get("pais"))
+    filters += country_sql
+    values.extend(country_val)
     scope, extra = _scope(caller)
     rows = pg.query(sql.TRIPS_SQL.format(filters=filters, scope=scope), [*values, *extra, limit + 1])
     items = rows[:limit]
@@ -241,6 +260,33 @@ def receive_all(event: dict) -> dict:
         audit.record(event, "update", module_key=MODULE, entity_table="tbl_routes", entity_id=route_id,
                      metadata={"action": "recibir-todas", "received": len(updated)})
     return _ok({"received": len(updated), "trip": _trip(caller, org, route_id)})
+
+
+def reject_return(event: dict) -> dict:
+    caller, org = _caller(event, "edit")
+    return_id, body = path_param(event, "returnId"), _body(event)
+    scope, extra = _scope(caller, "s.country_id")
+    rows = pg.query(sql.RETURN_SQL.format(scope=scope), [return_id, org, *extra])
+    if not rows:
+        raise HttpError(404, "Devolución no encontrada.")
+    current = rows[0]
+    reason = str(body.get("reason") or "").strip()
+    if not reason:
+        raise HttpError(400, "El motivo de rechazo es obligatorio.")
+    if len(reason) > 500:
+        raise HttpError(400, "El motivo admite hasta 500 caracteres.")
+    if current["status"] in ("received", "completed"):
+        raise HttpError(409, f'Una devolución en estado "{current["status"]}" no se puede rechazar.')
+    if current["status"] in ("rejected", "cancelled"):
+        rejected = None  # Idempotente
+    else:
+        updated = pg.query(sql.REJECT_SQL, [reason, caller.app_user_id, return_id, org])
+        if not updated:
+            raise HttpError(409, "La devolución cambió de estado; recarga e inténtalo de nuevo.")
+        rejected = updated[0]
+        audit.record(event, "update", module_key=MODULE, entity_table="tbl_returns", entity_id=return_id,
+                     metadata={"action": "rechazar", "reason": reason})
+    return _ok({"return": rejected, "trip": _trip(caller, org, str(current["route_id"]))})
 
 
 # ── Formularios ───────────────────────────────────────────────────────────────────────────────

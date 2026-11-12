@@ -11,6 +11,7 @@ STATUSES = ("active", "inactive")
 SCOPE_KEYS = ("country_id", "warehouse_id", "customer_id")
 # Rol cuyos usuarios pertenecen a UNA empresa transportista y solo ven lo de ella.
 CARRIER_ROLE = "transportista"
+CUSTOMER_ROLE = "cliente"
 
 
 @dataclass(frozen=True)
@@ -64,4 +65,9 @@ def scopes(body: dict) -> list[ScopeInput]:
 
 def carrier_id(body: dict) -> str | None:
     value = str(body.get("carrier_id") or "").strip()
+    return value or None
+
+
+def customer_id(body: dict) -> str | None:
+    value = str(body.get("customer_id") or "").strip()
     return value or None

@@ -5,6 +5,9 @@ import DevolucionesPage from './page';
 import { useReturnTrips } from './hooks/useReturnTrips';
 
 vi.mock('./hooks/useReturnTrips', () => ({ useReturnTrips: vi.fn() }));
+vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'operator' }, loading: false }) }));
+vi.mock('../../hooks/usePermissions', () => ({ usePermissions: () => ({ can: () => true, loading: false }) }));
+vi.mock('../../hooks/useOperationalContext', () => ({ useOperationalContext: () => ({ selectedCountryId: 'country-a' }) }));
 vi.mock('../../hooks/use-module-permissions', () => ({ useModulePermissions: () => ({ canEdit: true, canExport: true }) }));
 vi.mock('../../components/feature/DateRangeFilter', () => ({ default: () => null }));
 vi.mock('./parts/TripCard', () => ({ default: () => null }));

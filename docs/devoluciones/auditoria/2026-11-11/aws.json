@@ -1,0 +1,150 @@
+{
+  "captured_at": "2026-11-11T18:15:49.3221293Z",
+  "account": "758837481569",
+  "region": "us-east-2",
+  "profile": "tms-sandbox",
+  "read_only": true,
+  "admin": {
+    "name": "dev-tms-admin-admin-api",
+    "modified": "2026-11-05T21:03:45.000+0000",
+    "code_sha256": "GM/uHAbtojZegAiouDL2n7mqQLt4+6q9tha5mnHJFRk=",
+    "bucket": ""
+  },
+  "mobile": {
+    "name": "dev-tms-mobile-mobile-api",
+    "modified": "2026-11-05T21:10:10.000+0000",
+    "code_sha256": "CxWkfv38k9SuTGBg4FHUOmf3wY3fclaN1jMRpqKrKWE=",
+    "bucket": "dev-tms-mobile-evidencias-758837481569"
+  },
+  "tarifas": {
+    "name": "dev-tms-tarifas-tarifas-api",
+    "modified": "2026-11-05T21:06:05.000+0000",
+    "returns_gate": "on"
+  },
+  "routes": [
+    "GET /api/v1/devoluciones/resumen",
+    "POST /api/v1/devoluciones/viajes/{routeId}/recibir-todas",
+    "GET /api/v1/devoluciones/viajes",
+    "GET /api/v1/devoluciones/viajes/{routeId}",
+    "PUT /api/v1/devoluciones/formularios/{formId}",
+    "GET /api/v1/devoluciones/formularios/{formId}",
+    "POST /api/v1/devoluciones/{returnId}/recibir",
+    "POST /api/v1/devoluciones/viajes/{routeId}/formularios"
+  ],
+  "s3_cors": {
+    "CORSRules": [
+      {
+        "AllowedHeaders": [
+          "*"
+        ],
+        "AllowedMethods": [
+          "POST"
+        ],
+        "AllowedOrigins": [
+          "http://localhost:8081",
+          "http://localhost:3000"
+        ],
+        "MaxAgeSeconds": 3000
+      }
+    ]
+  },
+  "admin_role_inline_policy": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Action": "secretsmanager:GetSecretValue",
+        "Resource": [
+          "arn:aws:secretsmanager:us-east-2:758837481569:secret:/dev/tms/db-app-*",
+          "arn:aws:secretsmanager:us-east-2:758837481569:secret:/dev/tms/jwt-*",
+          "arn:aws:secretsmanager:us-east-2:758837481569:secret:/dev/tms/eflow-*"
+        ],
+        "Effect": "Allow"
+      }
+    ]
+  },
+  "admin_role_attached_policies": [
+    {
+      "PolicyName": "AWSLambdaVPCAccessExecutionRole",
+      "PolicyArn": "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+    }
+  ],
+  "frontend_jobs": [
+    {
+      "id": "30",
+      "status": "SUCCEED",
+      "start": "2026-11-11T09:37:14.888000-04:00",
+      "end": "2026-11-11T09:37:28.254000-04:00",
+      "commit": null
+    },
+    {
+      "id": "29",
+      "status": "SUCCEED",
+      "start": "2026-11-11T08:51:28.654000-04:00",
+      "end": "2026-11-11T08:51:36.470000-04:00",
+      "commit": null
+    }
+  ],
+  "code_comparison": [
+    {
+      "module": "admin",
+      "file": "app.py",
+      "local_sha256_normalized": "84be7c916e0cc6d3a98a91de79991cd5411c49d5ad3639dfbcfaf8a0ff4ea6a9",
+      "deployed_present": true,
+      "deployed_sha256_normalized": "e442701950f77952d13e5cd6dc4f5d5d4719ee902f4a20c77071cd27f76e1601",
+      "identical_text": false
+    },
+    {
+      "module": "admin",
+      "file": "admin_returns.py",
+      "local_sha256_normalized": "e579bbde711f4bb7a93516107190e0f39bbe1fb418f20358e9b7b1da76e87eea",
+      "deployed_present": true,
+      "deployed_sha256_normalized": "22c459b6589c18b40cb67dd40158581e1c4a7833a4ce08f90a2c7c808a75cac6",
+      "identical_text": false
+    },
+    {
+      "module": "admin",
+      "file": "admin_returns_sql.py",
+      "local_sha256_normalized": "a6ca467e06e4f26395a5b6504bc96abf09c67d22bee11bda306aae1f430803cb",
+      "deployed_present": true,
+      "deployed_sha256_normalized": "c339a003ad905f92c4422a6c9eff05522562acda1529d8c7ae0d13093ee5e057",
+      "identical_text": false
+    },
+    {
+      "module": "admin",
+      "file": "admin_return_requests.py",
+      "local_sha256_normalized": "a98afdba432f950323976134d123330ca9c6851e9a925ec18516a81d5c8a23db",
+      "deployed_present": false
+    },
+    {
+      "module": "admin",
+      "file": "admin_media.py",
+      "local_sha256_normalized": "3647ebe447c3eeac2571e4b50cf629898d4c7167d7f8b8e59b73ea65f0f2fd35",
+      "deployed_present": true,
+      "deployed_sha256_normalized": "3647ebe447c3eeac2571e4b50cf629898d4c7167d7f8b8e59b73ea65f0f2fd35",
+      "identical_text": true
+    },
+    {
+      "module": "mobile",
+      "file": "mobile_api/stops.py",
+      "local_sha256_normalized": "9340bcd39b1cbbb12c0604212dae5bbe5e63fb6f5f86a5b8aa916ead8283a3af",
+      "deployed_present": true,
+      "deployed_sha256_normalized": "9340bcd39b1cbbb12c0604212dae5bbe5e63fb6f5f86a5b8aa916ead8283a3af",
+      "identical_text": true
+    },
+    {
+      "module": "tarifas",
+      "file": "returns_gate.py",
+      "local_sha256_normalized": "2b804a62bdca70ac53126f3e181317ff3fcbaeed6e48e61b5d1a1bfbea36633f",
+      "deployed_present": true,
+      "deployed_sha256_normalized": "2b804a62bdca70ac53126f3e181317ff3fcbaeed6e48e61b5d1a1bfbea36633f",
+      "identical_text": true
+    }
+  ],
+  "frontend_entry": {
+    "asset": "/assets/index-BgzkRrBe.js",
+    "devoluciones_route": true,
+    "mis_devoluciones_route": false,
+    "scope": "entry route configuration only; lazy page chunks not inspected"
+  },
+  "bucket_policy_summary": "Only Deny for non-HTTPS; no Allow grants"
+}

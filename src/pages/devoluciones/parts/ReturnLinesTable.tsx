@@ -12,6 +12,7 @@ interface Props {
   onReceive: (line: ReturnLine) => void;
   /** Recarga el viaje para renovar las URLs firmadas de las fotos cuando vencen. */
   onReloadPhotos?: () => void;
+  onReject?: (line: ReturnLine) => void;
   /** Casillas de selección (solo quien puede editar); sin esta prop no se muestran. */
   selection?: {
     selected: ReadonlySet<string>;
@@ -20,7 +21,7 @@ interface Props {
   };
 }
 
-export default function ReturnLinesTable({ groups, canReceive, onReceive, onReloadPhotos, selection }: Props) {
+export default function ReturnLinesTable({ groups, canReceive, onReceive, onReloadPhotos, onReject, selection }: Props) {
   if (groups.length === 0) return <p className="text-sm text-slate-500">Este viaje no tiene devoluciones.</p>;
   return (
     <div className="space-y-4">
@@ -85,9 +86,22 @@ export default function ReturnLinesTable({ groups, canReceive, onReceive, onRelo
                     <td className="px-2 py-2 font-mono text-xs text-slate-600">{line.form_number ?? '-'}</td>
                     <td className="px-4 py-2 text-right">
                       {canReceive && isOpen(line.status) && (
-                        <Button size="sm" variant="success" onClick={() => onReceive(line)}>
-                          <i className="ri-check-line" aria-hidden="true" />Recibido
-                        </Button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button size="sm" variant="success" onClick={() => onReceive(line)}>
+                            <i className="ri-check-line" aria-hidden="true" />Recibido
+                          </Button>
+                          {onReject && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                              onClick={() => onReject(line)}
+                              title="Rechazar devolución"
+                            >
+                              <i className="ri-close-line" aria-hidden="true" />Rechazar
+                            </Button>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>
