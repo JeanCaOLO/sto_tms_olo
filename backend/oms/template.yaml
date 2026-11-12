@@ -36,8 +36,7 @@ Parameters:
     Default: cron(0 12,15,18,21,23 * * ? *)
     Description: >
       Expresion de EventBridge para el barrido (W1). Default = 5x/dia (UTC) para
-      qa/prod. En dev se usa algo frecuente (p. ej. rate(15 minutes)) via samconfig
-      para no esperar horas al probar.
+      qa/prod. En dev se usa rate(3 hours) via samconfig (antes rate(15 minutes)).
   SubnetIds:
     Type: AWS::SSM::Parameter::Value<List<String>>
   SecurityGroupId:
