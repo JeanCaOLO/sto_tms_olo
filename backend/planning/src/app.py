@@ -13,11 +13,11 @@ capacidad no asigne camiones con datos inventados.
 """
 
 import json
-import logging
 import re
 
 import bandeja
 import cambio_fecha
+import bitacora
 import ingest_orders
 import pedido_articulos
 import plan_builder
@@ -119,10 +119,7 @@ def build_plan(event: dict) -> dict:
         raise HttpError(400, "Almacén inexistente")
     # Replan: primero ingesta lo nuevo de eFlow (best-effort: si eFlow no está
     # disponible, se planifica sobre los pedidos ya ingestados), luego arma el día.
-    try:
-        ingest_orders.ingest_cr()
-    except Exception:  # noqa: BLE001 - frontera: no bloquear la planificación por eFlow
-        logging.getLogger().warning("ingest eFlow no disponible; se planifica sobre lo ya ingestado")
+    ingesta, error = bitacora.ingestar(ingest_orders.ingest_cr)
     country = str(rows[0]["country_id"])
     # Un plan por CLIENTE (compañía) del día: planificaciones separadas Cofersa/EPA.
     custs = pg.query("""SELECT DISTINCT customer_id FROM tbl_orders WHERE organization_id=%s AND warehouse_id=%s
@@ -130,6 +127,8 @@ def build_plan(event: dict) -> dict:
                         AND eflow_id_expedicion IS NOT NULL""", [user["org"], warehouse, fecha])
     armados = [plan_builder.construir_y_persistir(user["org"], country, warehouse, str(c["customer_id"]), fecha, user["id"])
                for c in custs]
+    bitacora.registrar_corrida("planif_plan_dia", f"Planificar {fecha}", ingesta, error,
+                               [fecha] if any(armados) else [], [], "manual")
     return json_response(200, {"data": {"planes": [p for p in armados if p]}, "error": None})
 
 
@@ -149,11 +148,10 @@ def replan_todo(event: dict) -> dict:
     rows = pg.query("SELECT country_id FROM tbl_warehouses WHERE id = %s", [warehouse])
     if not rows:
         raise HttpError(400, "Almacén inexistente")
-    try:
-        ingest_orders.ingest_cr()
-    except Exception:  # noqa: BLE001 - frontera: no bloquear por eFlow
-        logging.getLogger().warning("ingest eFlow no disponible; se replanifica sobre lo ya ingestado")
+    ingesta, error = bitacora.ingestar(ingest_orders.ingest_cr)
     res = replan.replanificar_todo(user["org"], str(rows[0]["country_id"]), warehouse, user["id"])
+    bitacora.registrar_corrida("planif_replan_manual", "Replanificar", ingesta, error,
+                               res["planificados"], res["bloqueados"], "manual")
     return json_response(200, {"data": res, "error": None})
 
 
@@ -170,10 +168,13 @@ ROUTES = {
 
 _http_handler = tms_handler(ROUTES)
 REPLAN_PROGRAMADO = "replan_programado"  # Input del Scheduler en template.yaml
+INGESTA_BANDEJA = "ingesta_bandeja"  # Input del Scheduler en template.yaml
 
 
 def handler(event: dict, context: object) -> dict:
-    """EventBridge Scheduler (replan horario) o API Gateway (rutas HTTP)."""
+    """EventBridge Scheduler (bandeja cada 10 min, replan horario) o API Gateway (rutas HTTP)."""
+    if isinstance(event, dict) and event.get("accion") == INGESTA_BANDEJA:
+        return replan.ingestar_programado()
     if isinstance(event, dict) and event.get("accion") == REPLAN_PROGRAMADO:
         return replan.replanificar_programado()
     return _http_handler(event, context)

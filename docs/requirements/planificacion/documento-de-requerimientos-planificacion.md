@@ -1,380 +1,480 @@
-# Requerimientos — Módulo de Planificación de Rutas (estado actual)
+# Requerimientos — Módulo de Planificación
 
-Proyecto **brownfield** `sto_tms_olo`. Idioma: español. Fecha de corte: **2026-10-06**.
+Proyecto **brownfield** `sto_tms_olo` (TMS OLO). Idioma: español. **Fecha de corte: 2026-11-05.**
+Responsable del módulo: Jesús Araujo (Intelix). Versión para la **ficha del proyecto**. Los cambios
+posteriores a esta fecha se manejan como **gestión de cambios** (indicación de la líder de proyecto).
 
-Este documento describe el módulo de Planificación **tal como está hoy** en la rama `planificacion-2`, en formato narrativo user-story + BDD, con el marco de Actores / Glosario / Restricciones / Supuestos / Open Questions. Reemplaza al documento anterior (`OC26007 - Planificación`, escrito sobre el **prototipo viejo** con Supabase + mock-auth + login roto + tablas `trips/trip_orders` inexistentes): ese estado ya no aplica.
+El documento describe el módulo **tal como está desplegado hoy** (sandbox AWS, Aurora `tms_olo`) y lo
+que quedó decidido en las reuniones hasta el 2026-11-05. Reemplaza la versión del 2026-10-21, que
+describía el flujo manual anterior (generar, editar y confirmar el plan a mano, sobre el backend
+hexagonal `TMS-Backend`). Ese flujo se retiró.
 
-**Léase antes que nada — qué cambió respecto del documento anterior:**
+Las historias de usuario, con sus criterios de aceptación y escenarios de prueba, están en
+[historias-de-usuario-planificacion.md](../../stories/planificacion/historias-de-usuario-planificacion.md).
 
-- El módulo **corre contra backend real**: API hexagonal en Python (AWS SAM/Lambda, repo `TMS-Backend`) sobre **Aurora PostgreSQL**. Ya **no** es Supabase + mocks encadenados.
-- El **login real funciona** (`admin@ologistics.com`); el contexto operativo (país/almacén/compañía) sale del headbar y viaja como headers en cada request.
-- La unidad de trabajo ya **no es "la ruta de un viaje del WMS"**: es un **Plan del día** que el motor arma desde cero agrupando los pedidos del día por zona. La ruta **no es fija**: se construye por los pedidos del día (confirmado reuniones 2026-09/10).
-- Los flujos "Nueva Ruta / Reparto de Flota / Rutas Generadas" se reemplazaron por dos pestañas: **Generar** (genera/regenera/edita/confirma el plan del día) y **Planificaciones** (lista los planes por estado, con estado por viaje).
-- "Implementado" aquí significa **verificado contra backend real (Aurora)**, salvo donde se indique lo contrario.
+**Qué cambió respecto de la versión anterior:**
+
+- **La planificación es automática.** Ya no hay un botón "Generar plan" ni planes `draft` que haya que
+  confirmar. El planificador arma los viajes solo, cada hora, y el usuario consulta el resultado
+  (reunión con Carlos del 2026-10-10: "planificar primero, priorizar después"; Planificación es el Paso 2).
+- **Los pedidos vienen de eFlow.** Se ingestan desde eFlow (pedidos DISP/DISP) a `tbl_orders` en Aurora.
+- **El número de viaje lo genera el TMS** y se escribe a eFlow, hoy de forma simulada en
+  `sim_expedicionescabecera`.
+- **Se agregaron:** la Bandeja de pedidos (con devoluciones), el cambio de fecha de entrega, el
+  replan programado, los viajes directos por tienda para EPA, las recolectas, el handoff al OMS por
+  columnas y el estándar de nombres de base de datos (`tbl_*`).
+- **"Implementado"** significa desplegado en el sandbox y verificado contra Aurora, salvo que se diga otra cosa.
 
 ## Análisis de intención
 
-El objetivo de negocio es **automatizar el armado del plan de reparto de un día**: dado el conjunto de pedidos planificables de una fecha (con destino, zona, peso y volumen) y la flota disponible, decidir **qué pedidos van en qué vehículo**, **en qué zona/viaje**, **en qué orden se entregan**, y persistir esa decisión como un plan operativo editable y confirmable.
+**Objetivo de negocio:** automatizar el armado de los viajes de reparto. A partir de los pedidos que
+eFlow deja disponibles (DISP/DISP), el sistema decide qué pedidos van en qué camión, en qué orden se
+entregan y cuándo tiene que salir cada viaje. Después le entrega ese resultado al OMS, que prioriza y
+libera los pedidos a eFlow para el alistamiento.
 
-Planificación es el módulo **downstream del OMS**: el OMS decide *cuándo* alistar un pedido y con qué prioridad; Planificación decide *cómo* se agrupan y secuencian los pedidos ya alistados. Ninguno reasigna la relación ruta↔pedido original del WMS.
+**Lugar en el flujo** (decisión del 2026-10-10, refinada el 2026-10-15/19):
 
-Metas (no features):
+1. eFlow (WMS) tiene el pedido en DISP/DISP.
+2. **Planificación** lo ingesta, arma el viaje, calcula la fecha de salida y escribe el número de viaje.
+3. El **OMS** prioriza y, un día antes de la salida, libera el pedido a eFlow (situación `GENE`).
+4. eFlow genera el picking.
+5. **Tracking** ejecuta el viaje.
 
-- Reemplazar el armado manual por un **cálculo determinístico** que nunca sobrecargue un vehículo por encima de los márgenes de seguridad.
-- **Agrupar por zona** y **minimizar el recorrido** de cada viaje con una secuencia cercana al óptimo usando distancias reales por calle (OSRM), no líneas rectas.
-- Escalar de un vehículo a una **flota** (reparto automático por capacidad, flota propia primero) sin cambiar de algoritmo.
-- **Degradar con gracia** ante fallas externas (OSRM) y datos incompletos (pedidos sin coordenadas, peso/volumen ausente): nunca un error fatal, siempre un fallback.
-- Conservar el **snapshot** con el que se generó el plan (que no mute por cambios aguas arriba).
+**Metas:**
 
-Alcance: recibir los pedidos del día, decidir asignación pedido↔vehículo, agrupación por zona, secuencia de paradas, y persistir el plan con sus viajes (vehículo, estado) y paradas. **Fuera de alcance**: generar/priorizar pedidos (OMS), ejecutar/trackear la ruta en vivo (módulo de tracking, futuro), calcular tarifas/liquidación (Dylan/José), y la logística de devoluciones (módulo de Devoluciones, en levantamiento).
+- Que ningún camión salga sobrecargado: techo de 85 % de peso (Decreto 31363-MOPT) y 95 % de volumen,
+  con un máximo de 16 paradas.
+- Que el plan siempre esté al día con la cola de eFlow, sin intervención manual (replan cada hora).
+- Respetar las reglas de cada cliente:
+  - **Cofersa (mayoreo):** consolida varios clientes por zona.
+  - **EPA (tiendas):** viaje directo, con el camión lleno, a una sola tienda.
+  - **Cliente retira:** no lleva camión.
+- Aprovechar los viajes existentes para recoger las devoluciones.
+- Que el OMS tenga una sola fuente de verdad (`tbl_orders`) para priorizar y liberar.
+
+**Alcance:**
+
+- Ingesta de pedidos desde eFlow.
+- Bandeja de pedidos (entregas y devoluciones).
+- Cambio de fecha de entrega.
+- Armado automático de viajes (capacidad, agrupación, secuencia, fecha de salida, número de viaje).
+- Recolectas.
+- Handoff al OMS.
+- Vistas de consulta: Calendario y Planificaciones.
+
+**Trabajo transversal del TMS que hizo este equipo:**
+- el login con Google (FR10);
+- el estándar de base de datos OLTP Intelix, con el renombrado de toda la base `tms_olo` (FR11).
+
+**Fuera de alcance:**
+
+- Priorizar o liberar pedidos a eFlow (es del OMS).
+- Ejecutar o trackear el viaje (Tracking y la app móvil).
+- Tarifas y liquidación (Tarifas).
+- Crear devoluciones (módulo de Devoluciones y app).
 
 ## Actores
 
 | Rol | Responsabilidad en Planificación |
-|-----|----------------------------------|
-| **Planificador de Rutas** | Usuario primario. Elige el día, **genera/regenera** el plan, lo **edita** (mueve pedidos entre viajes), lo **confirma**, y gestiona el **estado por viaje** (completar/cancelar/reabrir). |
-| **Jefe de Almacén** | Supervisa los planes ya generados desde la pestaña Planificaciones; filtra por estado. Rol compartido con el OMS — visibilidad. |
-| **Administrador de Módulo** | Configura catálogos base (vehículos, conductores, transportistas). No opera planes día a día. Rol transversal, compartido con el OMS. |
-
-Sin rol de "Conductor" en este módulo: el conductor se asigna pero no opera esta pantalla (su interfaz es el futuro módulo de ejecución/tracking). El "Coordinador de Flota" del documento anterior desaparece como flujo separado: el **reparto entre vehículos es automático** dentro de la generación (ver FR2/FR6).
+|---|---|
+| **Planificador / Coordinador de transporte** | Consulta la Bandeja y los viajes armados (Calendario, Planificaciones). Puede forzar un replan. Necesita el permiso `planificacion:view`; para forzar el armado, `planificacion:edit`. |
+| **Administrador** (roles `SuperAdministrador`, `SuperUsuario`, `Administrador`, `Admin`) | Además de lo anterior, **cambia la fecha de entrega** de un pedido desde la Bandeja. La reunión del 2026-11-03 pedía la aprobación de un Coordinador con clave master; se decidió que lo haga **solo un admin**. |
+| **Servicio al cliente** | Crea las devoluciones que Planificación agenda como recolectas (su pantalla está en el módulo de Devoluciones). |
+| **Sistema (replan programado)** | Ingesta eFlow y rearma los viajes cada hora. Firma los planes con `REPLAN_APP_USER_ID` o, si no está, con el usuario activo más antiguo de la organización. |
+| **OMS** (módulo vecino) | Lee de `tbl_orders` lo que Planificación estampó, prioriza y libera. No modifica las columnas de Planificación. |
+| **Chofer** (Tracking/app) | Ejecuta el viaje. Al iniciarlo, las paradas de Planificación se convierten en guías de despacho. |
 
 ## Glosario
 
-- **Plan (route_plan):** resultado de un ciclo de planificación de un día. Tiene estado `draft` → `confirmed`, uno o más viajes y un conjunto de pedidos sin asignar. Persiste en Aurora.
-- **Viaje (plan_trip):** agrupación de paradas de una **zona** asignada a **un vehículo**. Tiene estado propio `pending` / `completed` / `cancelled`, independiente del plan y de los otros viajes. Lleva snapshot del vehículo (placa, capacidad, flota propia).
-- **Parada (plan_stop):** un pedido a entregar en un punto. Lleva snapshot (cliente, nº pedido, ciudad, zona, coordenadas, peso, volumen) y su número de secuencia.
-- **Punto de entrega:** ubicación física (coordenadas). Varios pedidos pueden compartir el mismo punto → comparten color y se muestran agrupados.
-- **Zona:** clave de agrupación del viaje (sale del punto de entrega → `zones`, o del código WMS/zona del pedido). El motor arma un (o más) viaje por zona.
-- **Bin-packing / Selección por capacidad:** first-fit-decreasing que decide qué pedidos caben en un vehículo sin superar los márgenes de seguridad.
-- **Margen de seguridad:** techo de uso de capacidad — **85 % de peso** (base legal CR, Decreto 31363-MOPT) y **95 % de volumen**, aplicados de forma independiente.
-- **Flota propia primero:** los vehículos con `is_owned = true` se agotan antes de usar terceros.
-- **Secuencia de paradas:** orden de entrega optimizado (2-opt / nearest-neighbor sobre matriz de distancias real OSRM; fallback a distancia aproximada si OSRM no responde).
-- **Snapshot ("congelar"):** copia de los campos de pedido/vehículo al guardar el plan, para que el plan no cambie si los datos de eflow cambian después (migración `003`).
-- **Contexto operativo:** país / almacén / compañía seleccionados en el headbar; viajan como headers (`x-warehouse-id`, `x-customer-id`) y filtran lo que se ve.
-- **Pedido sin coordenadas:** entra al plan pero queda **fuera del dibujo de ruta** en el mapa (no se descarta).
-- **OMS:** sistema satélite upstream que prioriza el pedido antes de que llegue a Planificación.
+- **DISP/DISP:** pedido de eFlow con estado `TPEXES = DISP` y situación `TPEXSI = DISP`, sin cierre
+  (`FECHACIERRE` nulo) y sin viaje (`NUMEROVIAJEWMH` nulo). Es la cola que Planificación toma.
+- **Compañía:** cliente de OLO en eFlow (`IDCOMPANIA`): Cofersa `0109`, EPA `0029`. En Aurora es `tbl_customers`.
+- **Cliente destino:** a quien se le entrega (`IDCLIENTE` de eFlow, `tbl_final_customers`). Su tipo es
+  `TIENDA` (las tiendas de EPA, códigos `001`–`008`) o `MAYOREO`. El código solo es único dentro de su
+  compañía: el `008` existe en EPA y en Cofersa.
+- **Zona:** la `RUTA` de eFlow (`delivery_zone`). Es el grupo de consolidación del mayoreo. Si no
+  viene, el pedido queda en la zona "S/R".
+- **Plan (`tbl_route_plans`):** los viajes de **un día y una compañía** en un almacén. Se crea en estado `confirmed`.
+- **Viaje (`tbl_plan_trips`):** un camión (de la flota propia) con sus paradas. Su grupo
+  (`delivery_zone`) es la zona, la tienda (EPA) o `RETIRA`.
+- **Parada (`tbl_plan_stops`):** una **entrega** (`stop_type = delivery`, un pedido) o una **recolecta**
+  (`stop_type = collection`, una devolución que apunta a su pedido original).
+- **Número de viaje:** `YYYYMMDD-CCCC-NNN`, es decir, fecha de entrega, código de compañía y
+  secuencia (por ejemplo `20261106-0029-001`). En eFlow va sin guiones (`NUMEROVIAJEWMH`, bigint).
+- **Lead time / T-n:** días de tránsito del viaje. Hoy vale `1 + floor(km / 70)` en línea recta desde
+  el depósito CR hasta la parada más lejana, con un piso de 1 día.
+- **Fecha de salida (`dispatch_date`):** fecha de entrega menos el lead time. Es la misma para todo el viaje.
+- **Viaje liberado / congelado:** viaje con al menos una entrega ya liberada por el OMS
+  (`oms_processed_at`). El replan no lo toca.
+- **Cliente retira:** el cliente recoge en el almacén. Se detecta por texto en `OBSERVACIONESEXPEDICION`
+  ("RETIRA", "RETIRAN", "RECOGE", "PASA A RETIRAR", …) y va a un grupo `RETIRA` sin camión.
+- **Recolecta:** pasar a buscar una devolución (`tbl_returns`, estado `pending` o `approved`) en un
+  viaje que ya va a ese cliente o a esa zona.
+- **Espejo de eFlow (`sim_expedicionescabecera`):** copia en Aurora de `EXPEDICIONESCABECERA`. Hace de
+  destino del write-back mientras no estén las APIs de EPRAC.
+- **EPRAC:** el sistema o equipo que expone las APIs sobre eFlow.
 
 ## Requerimientos funcionales
 
-### FR1 — Elegir día y cargar pedidos planificables
+### FR1 — Ingestar los pedidos disponibles de eFlow
 
-Como Planificador, quiero elegir un día y ver cuántos pedidos y vehículos hay, para empezar a planificar.
+Como sistema, quiero traer de eFlow los pedidos disponibles para planificarlos sobre Aurora.
 
-- FR1.1 El selector de día define la **fecha de entrega objetivo**; el sistema carga los pedidos planificables de esa fecha en el contexto operativo activo (status `assigned`/`entregado`).
-- FR1.2 Cada pedido aporta: nº de orden, cliente, zona, ciudad, coordenadas, peso y volumen (peso/volumen se totalizan desde las líneas del pedido).
-- FR1.3 La carga **re-consulta en vivo** al cambiar la fecha o el contexto operativo (país/almacén/compañía), sin recargar la página.
-- FR1.4 Si el día no tiene pedidos, el botón Generar se deshabilita con un aviso.
+- FR1.1 La ingesta lee de eFlow CR (solo lectura) los pedidos en DISP/DISP, sin cierre, sin viaje y
+  con fecha de entrega de hoy en adelante.
+- FR1.2 Los guarda en `tbl_orders` con un UPSERT idempotente por la llave de eFlow
+  (almacén, compañía, sucursal, expedición). Re-ingestar no duplica: actualiza estado, situación, fecha,
+  peso, volumen, observaciones y cliente destino.
+- FR1.3 Resuelve compañía, cliente destino (por **compañía + código**) y sucursal. Un pedido al que le
+  falta alguno de los tres no se ingesta y queda reportado en `faltantes`.
+- FR1.4 Trae las líneas del pedido a `tbl_order_items` y sincroniza el espejo `sim_expedicionescabecera`.
+- FR1.5 Marca `es_cliente_retira` cuando las observaciones lo indican.
+- FR1.6 Si un administrador cambió la fecha de entrega (FR3), la ingesta **no la pisa**. La fecha que
+  manda eFlow se guarda aparte, en `delivery_date_eflow`.
 
-**Acceptance (BDD):** Dado un día con 26 pedidos en el contexto activo, When el planificador lo elige, Then se muestra el conteo de pedidos/vehículos y el botón Generar habilitado.
+**Acceptance (BDD):** Dado un pedido DISP/DISP de EPA para la tienda `008`, When corre la ingesta,
+Then queda en `tbl_orders` amarrado al cliente destino `T008 CARTAGO` **de EPA** (tipo `TIENDA`) y no
+al `008` de Cofersa.
 
-**Estado: Implementado (backend real).** Fuente: `use-pedidos-dia.ts`, `plan-pedidos-api.ts`, backend `ORDERS_SQL` (agrega peso/volumen por `order_items`).
+**Estado: Implementado.** Fuente: `backend/planning/src/ingest_orders.py`, `ingest_items.py`,
+`sim_eflow_sync.py`, `cliente_retira.py`.
 
-### FR2 — Generar el plan del día (zona → capacidad → secuencia)
+### FR2 — Bandeja de pedidos
 
-Como Planificador, quiero generar el plan con un clic y obtener los viajes con sus paradas, sin armarlos a mano.
+Como planificador, quiero ver en una bandeja los pedidos y las devoluciones que hay que atender.
 
-- FR2.1 El sistema crea un plan `draft` con uno o más viajes.
-- FR2.2 Los pedidos se **agrupan por zona**; dentro de cada zona se asignan a vehículos por **bin-packing** (85 % peso / 95 % volumen), **flota propia primero** y mayor capacidad primero.
-- FR2.3 Las paradas de cada viaje quedan **secuenciadas** (orden de entrega optimizado), no por orden de llegada.
-- FR2.4 Los pedidos que no caben por capacidad se listan como **sin asignar** (no se pierden).
+- FR2.1 La bandeja une:
+  - las **entregas**: pedidos DISP/DISP de eFlow ya guardados en Aurora;
+  - las **recolectas**: devoluciones abiertas (`pending` o `approved`), creadas en el TMS o en la app.
+- FR2.2 Cada fila muestra el tipo, con una etiqueta "Devolución" en las recolectas. Hay un filtro de
+  **Tipo**: Delivery o Pickup.
+- FR2.3 La recolecta usa los datos de su pedido original (cliente, zona). Su fecha es la de recolección
+  agendada (FR8) o, si todavía no tiene, la fecha en que se creó.
+- FR2.4 El detalle del pedido se abre en un modal.
+- FR2.5 El alcance (almacén y compañía) sale del contexto operativo del encabezado.
 
-**Acceptance (BDD):** Dado un día con ~20 pedidos de una misma zona y camiones de hasta 8000 kg, When se genera el plan, Then la zona produce un viaje con ~16 paradas (y un segundo viaje para el sobrante si no cabe), 0 pedidos perdidos.
+**Acceptance (BDD):** Dada una devolución `pending` y otra `completed`, When se abre la bandeja, Then
+aparece solo la `pending`, como Pickup y con la etiqueta "Devolución".
 
-**Estado: Implementado (backend real).** Verificado 2026-10-06 generando `2026-10-09`: viaje "07 Carretera" con 16 paradas, 0 sin asignar. Fuente: `POST /v1/planificacion/planes`, `domain/planificacion/{motor,agrupar_por_zona,ajustar_capacidad}.py`.
+**Estado: Implementado.** Fuente: `backend/planning/src/bandeja.py`, `src/pages/oms/bandeja/*`.
+**Abierto (OQ-1):** hoy la bandeja también muestra los pedidos que ya tienen viaje pero que el OMS
+todavía no liberó (12 de 100 al 2026-11-05).
 
-### FR3 — Regenerar el plan y alerta de pedidos nuevos
+### FR3 — Cambiar la fecha de entrega
 
-Como Planificador, quiero regenerar el plan cuando entran pedidos nuevos para ese día, y que el sistema me avise.
+Como administrador, quiero cambiar la fecha de entrega de un pedido cuando el cliente lo pide, y que
+quede registrado.
 
-- FR3.1 Sin plan el botón dice **"Generar plan"**; con plan pasa a **"Regenerar plan"** (icono refresco). Regenerar rearma el plan tomando los pedidos actuales del día.
-- FR3.2 Si entran pedidos nuevos después de generar, el botón muestra una **alerta** (ámbar/pulsante) con un **badge** del número de pedidos nuevos.
-- FR3.3 La alerta se recalcula periódicamente sin recargar; tras regenerar vuelve a cero.
+- FR3.1 `POST /api/v1/planificacion/pedidos/{id}/fecha-entrega`. Solo un **admin**; los demás reciben 403.
+- FR3.2 Se rechaza si el pedido **ya fue liberado** a eFlow (409) o si la fecha está en el pasado (400).
+- FR3.3 Se registra quién y cuándo lo cambió (`delivery_date_changed_by` y `_at`), se suma 1 al contador
+  `delivery_date_change_count` (es el que lee el Panel del OMS) y se guarda la fecha original de eFlow.
+- FR3.4 Se rearman los dos días afectados, el viejo y el nuevo, para que el pedido cambie de viaje.
 
-**Acceptance (BDD):** Dado un plan generado de un día, When entra 1 pedido nuevo para ese día, Then en ≤15 s aparece el badge "1" sobre "Regenerar plan"; When se regenera, Then el badge vuelve a 0 y el pedido está en el plan.
+**Acceptance (BDD):** Dado un pedido EPA del 06-nov sin liberar, When un admin lo pasa al 05-nov, Then
+el pedido sale del viaje del 06, entra en uno del 05, `delivery_date_eflow` queda en 06-nov, el
+contador en 1 y el autor es ese admin.
 
-**Estado: Implementado (polling).** El backend es Lambda y no sostiene WebSockets; hoy es polling cada 15 s, aislado en `use-nuevos-pedidos.ts` para enchufar WebSocket cuando haya infra (ver OQ-5, NFR). Fuente: `use-nuevos-pedidos.ts`, `PlanEditor.tsx`.
+**Estado: Implementado.** Fuente: `backend/planning/src/cambio_fecha.py`, `sql/57`, `sql/58`.
+**Pendiente:** la fecha cambiada vive solo en el TMS; no se escribe de vuelta a eFlow.
 
-### FR4 — Editar el plan (mover pedidos entre viajes)
+### FR4 — Armar los viajes automáticamente
 
-Como Planificador, quiero mover un pedido de un viaje a otro en un plan borrador, para ajustar el reparto.
+Como sistema, quiero armar los viajes de cada día y compañía sin intervención, respetando la capacidad
+de la flota.
 
-- FR4.1 Solo un plan `draft` es editable.
-- FR4.2 Cada parada ofrece un selector **"Mover a…"** con los otros viajes del plan.
-- FR4.3 Al mover, el servidor **revalida la capacidad** del viaje destino y **recalcula la secuencia**; si no cabe, se rechaza.
+- FR4.1 Se planifica por **día y compañía** sobre los pedidos DISP/DISP de ese día que no estén en un
+  viaje congelado.
+- FR4.2 **Agrupación:**
+  - **mayoreo** por **zona** (sin zona va a "S/R");
+  - **tiendas (`TIENDA`, EPA)** por **tienda**, en viaje directo (reunión 2026-11-03);
+  - **cliente retira** en un grupo `RETIRA` **sin camión ni capacidad**.
+- FR4.3 **Capacidad:** dentro de cada grupo se llena un camión de la **flota propia activa**
+  (`carrier_id` nulo, ordenada de mayor a menor capacidad) hasta el 85 % del peso, el 95 % del volumen y
+  **16 paradas**. Lo que sobra va al siguiente camión. Los camiones rotan en el día para no repetirse.
+  Un pedido que solo ya excede la capacidad va igual en su propio viaje.
+- FR4.4 **Secuencia:** las paradas se ordenan por vecino más cercano desde el depósito CR. Los pedidos
+  del mismo punto quedan juntos y los que no tienen coordenadas van al final.
+- FR4.5 Si no hay flota propia activa y hay pedidos que planificar, la respuesta es 409.
 
-**Acceptance (BDD):** Dado un plan `draft` con ≥2 viajes, When se mueve un pedido a otro viaje con espacio, Then aparece en el destino con la secuencia recalculada; When el destino no tiene capacidad, Then la acción se rechaza.
+**Acceptance (BDD):** Dados 3 pedidos EPA para T005, T006 y T008 el mismo día, When se arma el plan,
+Then salen **3 viajes**, uno por tienda; y dados 20 pedidos de Cofersa de la zona 13, Then salen 2
+viajes (16 + 4).
 
-**Estado: Implementado (backend real).** Fuente: `PUT /v1/planificacion/planes/{id}`, `plan-edit.ts`, `PlanEditor`.
+**Estado: Implementado.** Fuente: `backend/planning/src/plan_builder.py`, `ruta_geo.py`.
 
-### FR5 — Confirmar el plan
+### FR5 — Fecha de salida y número de viaje
 
-Como Planificador, quiero confirmar el plan cuando esté conforme, para dejarlo listo.
+Como OMS y como eFlow, necesito saber cuándo sale cada viaje y con qué número.
 
-- FR5.1 El botón **Confirmar** pasa el plan de `draft` a `confirmed`; deja de ser editable.
-- FR5.2 Tras confirmar, la vista cambia a la pestaña Planificaciones.
+- FR5.1 `lead_time_days` del viaje es `1 + floor(km_max / 70)`, con un piso de 1 si nadie tiene
+  coordenadas. Nunca es nulo.
+- FR5.2 `dispatch_date = delivery_date − lead_time_days`, igual para todos los pedidos del viaje.
+- FR5.3 El número de viaje es `YYYYMMDD-CCCC-NNN`. Incluye la compañía para que Cofersa y EPA no repitan
+  número el mismo día. Si la compañía no tiene código, va `0000`.
+- FR5.4 El número sin guiones se escribe en `NUMEROVIAJEWMH` del espejo de eFlow. Es un UPDATE de la
+  fila ya espejada; nunca crea filas.
 
-**Estado: Implementado (backend real).** Fuente: `POST /v1/planificacion/planes/{id}/confirmar`, `use-planes.ts`.
+**Acceptance (BDD):** Dado un viaje EPA del 06-nov, When se arma, Then su número es `20261106-0029-001`
+y en el espejo `NUMEROVIAJEWMH = 202611060029001`.
 
-### FR6 — Reparto automático de flota multi-vehículo
+**Estado: Implementado** (write-back simulado). **Pendiente:** el número de viaje real en eFlow espera la API de EPRAC.
 
-Como Planificador, quiero que cuando una zona no cabe en un vehículo, el sistema reparta sus pedidos entre varios, sin armar cada viaje a mano.
+### FR6 — Replan programado y viajes congelados
 
-- FR6.1 Dentro de una zona, si los pedidos exceden un vehículo, el bin-packing llena vehículos sucesivos (flota propia primero, mayor capacidad primero), generando varios viajes de la misma zona.
-- FR6.2 Cada viaje se secuencia con el mismo algoritmo (FR2.3).
-- FR6.3 Lo que no cabe en ningún vehículo se reporta como **sin asignar**.
+Como sistema, quiero que el plan se mantenga al día con eFlow sin que nadie lo dispare, sin romper lo
+que el OMS ya liberó.
 
-**Estado: Implementado (backend real), automático dentro de FR2.** (A diferencia del prototipo viejo, no es un flujo "Reparto de Flota" aparte.) Fuente: `ajustar_capacidad.py`, `motor.py`.
+- FR6.1 Un EventBridge Scheduler (`dev-tms-planning-replan-horario`, `cron(0 5-16 ? * MON-FRI *)`, hora
+  de Costa Rica) corre **cada hora en punto de 05:00 a 16:00, de lunes a viernes**. Primero ingesta eFlow
+  y después replanifica cada almacén con cola.
+- FR6.2 La ventana del replan es **(hoy, hoy + 3 días]**. Un día con viajes ya despachados
+  (`completed`/`cancelled`) no se vuelve a armar.
+- FR6.3 Al rearmar un día:
+  - se borran solo los viajes **no liberados**, y sus pedidos quedan sin marca de planificación;
+  - los liberados se conservan (**congelados**);
+  - la numeración sigue después del último número usado.
+- FR6.4 El replan también se puede forzar a mano (`POST /api/v1/planificacion/planes/replanificar`,
+  permiso `planificacion:edit`).
 
-### FR7 — Estado por viaje: completar / cancelar / reabrir
+**Acceptance (BDD):** Dado un viaje con un pedido ya liberado y otro pedido que salió de él, When corre
+el replan, Then el viaje liberado queda intacto y el pedido suelto va a un viaje nuevo con el número
+siguiente.
 
-Como Planificador, quiero marcar cada viaje de un plan confirmado como completado o cancelado, y poder reabrirlo, para reflejar la operación sin tocar el resto.
+**Estado: Implementado.** Fuente: `replan.py`, `viajes_liberados.py`, `template.yaml` (`ReplanHorario`).
 
-- FR7.1 En un plan confirmado, cada viaje muestra su estado (`pending`/`completed`/`cancelled`) y las acciones disponibles.
-- FR7.2 Completar → `completed`; Cancelar → `cancelled`; Reabrir → `pending`. Transiciones **reversibles**, por viaje e independientes.
-- FR7.3 La pestaña Planificaciones filtra por estado de los viajes (un plan entra en "Completadas"/"Canceladas" si tiene ≥1 viaje en ese estado).
+### FR7 — Handoff al OMS por columnas
 
-**Acceptance (BDD):** Dado un plan confirmado, When se completa un viaje y luego se reabre, Then el pill del viaje pasa a Completado y vuelve a Pendiente; los otros viajes no cambian.
+Como OMS, quiero leer en `tbl_orders` el resultado del plan para priorizar y liberar.
 
-**Estado: Implementado (backend real).** Fuente: `estados_viaje.py` (máquina PENDING/COMPLETED/CANCELLED + `TransicionViajeInvalida`), rutas `/viajes/{tripId}/completar|cancelar|reabrir`, `PlanTripCard`.
+- FR7.1 Planificación estampa en el pedido `numero_viaje`, `lead_time_days`, `dispatch_date` y
+  `planning_run_id`. Las columnas del OMS (`priority`, `oms_score`, `wms_situation`,
+  `oms_processed_at`, `prioritization_run_id`) **no se tocan**.
+- FR7.2 La cola del OMS es `planning_run_id IS NOT NULL AND oms_processed_at IS NULL`.
+- FR7.3 Un pedido que se cae del plan al rearmar vuelve a quedar en NULL en las columnas de
+  Planificación, salvo que ya esté liberado.
 
-### FR8 — Snapshot del plan ("congelar")
+**Estado: Implementado.** Verificado de punta a punta con el barrido del OMS (2026-11-04/05).
 
-Como sistema, quiero guardar el plan con los valores con que se generó, para que no cambie si eflow cambia después.
+### FR8 — Agendar recolectas en los viajes
 
-- FR8.1 Al guardar, se persisten en `plan_stops`/`plan_trips` las columnas snapshot (pedido: order_number, customer_name, ciudad, zona, lat/long, peso, volumen; vehículo: placa, capacidad, is_owned).
-- FR8.2 Las lecturas del plan guardado usan el snapshot, no re-consultan eflow.
+Como servicio al cliente, quiero que la devolución que registré se recoja en un viaje que ya pase por
+ese cliente, sin armar un viaje aparte.
 
-**Estado: Implementado (backend real).** Migraciones `003/004/005` aplicadas a Aurora. Fuente: `planificacion_service._congelar(...)`, `adapters/outbound/aurora/sql.py`, `models.py`.
+- FR8.1 En cada armado de un día, cada devolución abierta (`pending`/`approved`) de esa compañía que no
+  esté agendada para otro día entra como parada `collection`:
+  - en el viaje con camión que **ya entrega a ese mismo cliente**;
+  - si no hay, en uno de **su grupo** (zona, o tienda si es EPA).
+- FR8.2 Sirven los viajes ya liberados, porque la recolecta no va a eFlow. No se usa el grupo `RETIRA`.
+- FR8.3 La parada queda **después de las entregas a ese cliente**; si no tiene entregas, al final. La
+  devolución queda con `pickup_date` igual al día.
+- FR8.4 Si ningún viaje del día pasa por ahí, la devolución queda sin agendar y se reintenta en el
+  siguiente armado.
+- FR8.5 La recolecta **no suma peso ni volumen** (v1: son de 1 a 3 artículos).
+- FR8.6 Al iniciar el viaje, la guía nace con `stop_type = collection` y la devolución queda amarrada a
+  su guía (`tbl_returns.dispatch_guide_id`). La app la muestra como recolecta, con foto del producto y firma.
 
-### FR9 — Mapa interactivo y geometría real de ruta
+**Acceptance (BDD):** Dada una devolución `pending` de FERRETERIA EPA CURRIDABAT y un viaje del 06-nov
+que le entrega 2 pedidos, When se arma el 06-nov, Then la recolecta queda como parada 3 de ese viaje y
+`pickup_date` = 2026-11-06.
 
-Como Planificador, quiero ver cada viaje sobre un mapa con el trayecto real por calles, para verificar que tiene sentido.
+**Estado: Implementado** (E2E en Aurora con ROLLBACK, 2026-11-05). Fuente: `recolectas.py`, `sql/60`.
 
-- FR9.1 El mapa (Leaflet + OpenStreetMap) muestra un marcador numerado por parada y una polyline con la geometría real (OSRM `/route`, debounce).
-- FR9.2 Si OSRM falla, la polyline cae a segmentos rectos entre paradas, de forma transparente.
-- FR9.3 Los pedidos del **mismo punto** (mismas coordenadas) comparten **color** en la lista y en el pin.
-- FR9.4 Pedidos sin coordenadas quedan fuera del mapa (no se descartan del viaje).
+### FR9 — Consultar los viajes: Calendario y Planificaciones
 
-**Estado: Implementado.** Fuente: `TripMapa.tsx`, `route-geometry.ts`, `colores-parada.ts`.
+Como planificador, quiero ver los viajes armados por día y revisar sus paradas.
 
-### FR10 — Ver pedidos, detalle de parada y punto compartido
+- FR9.1 El **Calendario** muestra los viajes por día en vistas de semana (**lunes a domingo**, para ver
+  las entregas de fin de semana), mes y tabla, con filtro por zona.
+- FR9.2 **Planificaciones** lista los planes por fecha.
+- FR9.3 La tarjeta del viaje muestra:
+  - el número de viaje y el camión;
+  - las barras de capacidad (peso y volumen);
+  - las paradas en orden, con etiquetas **"Retira"** (cliente retira) y **"Recolecta"**;
+  - el mapa con el trayecto.
+- FR9.4 El detalle de la parada se abre en un modal. Una recolecta muestra el motivo de la devolución.
+  Los pedidos del mismo punto comparten color, y tocar un punto con varios pedidos abre una tabla.
+- FR9.5 Cambiar el contexto operativo vuelve a consultar los datos sin recargar.
 
-Como Planificador, quiero revisar los pedidos del viaje y el detalle de cada parada, incluso cuando varios pedidos comparten el mismo punto.
+**Estado: Implementado.** Fuente: `src/pages/planificacion/*` (`CalendarioPlanificacion`, `PlanesTab`,
+`PlanTripCard`, `StopBadges`, `ParadaModal`, `TripMapa`).
 
-- FR10.1 Botón **"Ver pedidos"** lista los pedidos del viaje **agrupados por punto** (con su color).
-- FR10.2 La lista de paradas muestra las **primeras 3**; si hay más, un botón **"Ver las N paradas" / "Ver menos"** expande/colapsa (evita tarjetas infinitas).
-- FR10.3 Al tocar en el mapa un punto con **varios pedidos**, se abre una **tabla del punto** (#, cliente, nº pedido, peso); al tocar una fila se abre el **detalle del pedido** encima. Punto con un solo pedido → va directo al detalle.
-- FR10.4 Todos los modales se cierran al **hacer click afuera** o con **Escape**.
+### FR10 — Iniciar sesión con Google (transversal al TMS)
 
-**Acceptance (BDD):** Dado un viaje con 2 pedidos en el mismo punto, When se toca ese pin, Then se muestra la tabla del punto; When se toca una fila, Then el detalle abre **delante** de la tabla; When se hace click afuera, Then el modal se cierra.
+Como usuario de OLO o de Intelix, quiero entrar al TMS con mi cuenta corporativa de Google, sin
+manejar otra contraseña. Lo construyó el equipo de Planificación el 2026-11-05 a pedido de Palencia.
 
-**Estado: Implementado.** Verificado 2026-10-06 (incluye fix de z-index). Fuente: `PlanTripCard`, `PuntoModal.tsx`, `ParadaModal.tsx`, `ViajePedidosModal.tsx`, `AdminModal.tsx`.
+- FR10.1 La pantalla de login muestra el botón oficial **"Iniciar sesión con Google"** debajo del
+  formulario, con la leyenda "Solo cuentas @ologistics.com o @intelix.biz".
+- FR10.2 Solo entran correos de **`ologistics.com`** e **`intelix.biz`**. Cualquier otro ve el aviso
+  *"Solo pueden iniciar sesión cuentas de @ologistics.com o @intelix.biz. Entra con tu correo
+  corporativo."* El dominio se valida dos veces: en la Lambda de Google y en la Lambda de auth.
+- FR10.3 El token de Google se valida en el backend contra Google: firma, que el cliente (`aud`) sea el
+  nuestro, el emisor y que el correo esté verificado. Un token de otra app o vencido se rechaza.
+- FR10.4 Si el correo ya tiene usuario, entra con su rol. Si no lo tiene, se **crea sin rol** (no ve
+  ningún módulo hasta que un admin le asigne uno desde Administración → Usuarios). Un usuario
+  desactivado no entra.
+- FR10.5 La sesión es el mismo JWT del login con contraseña. El alta y el login quedan en la
+  bitácora de auditoría con `method: google`.
+- FR10.6 El ID del cliente OAuth vive en configuración, uno por ambiente: SSM
+  `/<env>/tms/google-client-id` en el backend y `VITE_GOOGLE_CLIENT_ID` en el frontend. El secreto del
+  cliente no se usa ni se guarda.
 
-### FR11 — Barra de capacidad por viaje
+**Acceptance (BDD):** Dado un correo `@gmail.com`, When intenta entrar con Google, Then ve el aviso de
+dominio y no se crea usuario. Dado `jaraujo@intelix.biz` sin usuario, When entra, Then se crea sin rol
+y entra a una sesión vacía.
 
-Como Planificador, quiero ver cuánta capacidad usa cada viaje, para anticipar sobrecargas.
+**Estado: Implementado y desplegado** (2026-11-05; probado con una cuenta real `@intelix.biz`).
+Fuente: `backend/auth/google/google_login.py` (Lambda fuera de la VPC), `backend/auth/src/app.py`
+(`google_login`), `backend/auth/template.yaml` (`POST /api/auth/google`),
+`src/pages/login/components/GoogleLoginButton.tsx`, `src/lib/google-identity.ts`,
+`src/lib/google-login.ts`. Cliente OAuth "TMS login" en el proyecto de Google Cloud
+`sistema-tms-513814`, publicado en producción.
 
-- FR11.1 Cada viaje muestra barras de **peso** y **volumen** contra la capacidad del vehículo, con umbrales de color.
+### FR11 — Estándar de base de datos OLTP Intelix (transversal al TMS)
 
-**Estado: Implementado.** Fuente: `CapacityBar.tsx`, `PlanTripCard`.
+Como equipo de Intelix, queremos que la base `tms_olo` cumpla el estándar de nombres de Intelix, para
+que todos los módulos la escriban y la mantengan igual. Lo ejecutó el equipo de Planificación el 2026-11-03.
 
-### FR12 — Filtrar planificaciones por estado y por contexto
+- FR11.1 Todas las tablas propias usan el prefijo **`tbl_`** (96, incluidas `audit.tbl_events` y sus
+  particiones); las vistas, `vw_`; las secuencias, `seq_`; y las restricciones, índices y triggers,
+  `pk_`, `fk_`, `uq_`, `ck_`, `idx_`, `uidx_` y `trg_` (281 restricciones, 185 índices y 87 triggers).
+  Todo en minúsculas, snake_case y ASCII.
+- FR11.2 Excepciones documentadas:
+  - `sim_expedicionescabecera` (la tabla de simulación de eFlow);
+  - `schema_migrations` y `mobile_migrations`;
+  - los objetos de PostGIS;
+  - las funciones que el código llama por nombre.
+- FR11.3 El código de todos los backends, del servidor y de los scripts usa los nombres físicos. El
+  contrato HTTP (`/api/data/<tabla>`) sigue con nombres lógicos y se traduce en un solo lugar
+  (`tms_common/db_names.py`).
+- FR11.4 Durante la transición hubo **vistas de compatibilidad** con los nombres viejos, para no romper
+  los despliegues. Se retiraron el 2026-11-05 (`sql/61` y `sql/62`), después de redesplegar todos los stacks.
+- FR11.5 Toda migración nueva sigue la guía `sql/README.md`: nombres físicos, prefijos, ROLLBACK y
+  validación, y ensayo antes de `--execute`.
 
-Como Jefe de Almacén/Planificador, quiero ver la lista de planes filtrada por estado y acorde al contexto operativo, sin recargar.
-
-- FR12.1 La pestaña Planificaciones lista los planes con fecha, estado, nº de rutas y paradas, expandibles.
-- FR12.2 Filtros: todas / borrador / confirmado / completado / cancelado (los dos últimos por estado de viaje).
-- FR12.3 Cambiar país/almacén/compañía en el headbar **re-consulta en vivo** la lista (y el tab Generar).
-
-**Estado: Implementado (backend real).** Fuente: `PlanesTab.tsx`, `use-planes-list.ts` (depende del contexto operativo), `GET /planes`.
+**Estado: Implementado** en Aurora `tms_olo` (`sql/59`, `sql/61`–`sql/63`; ADR-0005). Verificado:
+`tms_app` lee y escribe por los nombres nuevos; CloudWatch sin errores de tabla inexistente; pytest en verde.
 
 ## Requerimientos no funcionales
 
-- **NFR1 — Backend real hexagonal:** la lógica corre en una API Python (SAM/Lambda) con arquitectura hexagonal (domain/ports/adapters/app), contra Aurora PostgreSQL. SQL siempre **parametrizado** (nunca se interpola input de la request).
-- **NFR2 — Contexto operativo por headers:** cada request adjunta `x-warehouse-id`/`x-customer-id` desde el headbar; el backend resuelve país/almacén/compañía y filtra. Al cambiar, las vistas re-consultan en vivo.
-- **NFR3 — Degradación con gracia:** OSRM falla → distancia aproximada / polyline recta; pedido sin coordenadas → fuera del mapa, no se descarta; peso/volumen ausente → la capacidad degrada sin romper el plan.
-- **NFR4 — Timeout/debounce de servicios externos:** las llamadas a OSRM usan timeout; la geometría aplica debounce para no saturar en reordenamientos.
-- **NFR5 — Interfaz bilingüe (es/en):** toda la UI con i18n (claves `planning.*`), español por defecto.
-- **NFR6 — UX de modales:** todos los modales cierran al click afuera y con Escape; el detalle se apila **encima** de la tabla del punto.
-- **NFR7 — Seguridad:** sin credenciales hardcodeadas (el runner local lee `.env.local`, gitignored); allowlist/parametrización en el acceso a datos. Pendiente: rotar la key AWS `ext.claude` (expuesta en chat, no en git).
-- **NFR8 — Trazabilidad:** simplificaciones marcadas `ponytail:` (techo + upgrade); bitácoras en `docs/work/`; decisiones mayores en ADRs.
-- **NFR9 — Calidad:** el backend pasa la certificación Intelix (APTO 92 %); pytest verde en el motor. En el frontend persisten errores de `type-check` **preexistentes** en tests/mocks (`planes-mock.ts`, `plan-edit.test.ts` sin `status`), ajenos al runtime.
+- **NFR1 — Stack Intelix:** Python 3.13 sobre AWS Lambda (SAM), API Gateway HTTP compartida
+  (`common-services`), Aurora PostgreSQL 17 y frontend React en Amplify. Un stack por servicio
+  (`dev-tms-planning`); toda ruta de `ROUTES` tiene que estar declarada en el `template.yaml` (lo
+  verifica `test_routes_wired.py`).
+- **NFR2 — Estándar OLTP Intelix:** tablas `tbl_*`, restricciones con prefijo (`pk_`, `fk_`, `ck_`,
+  `idx_`, `trg_`) y migraciones con ROLLBACK y validación (`sql/README.md`, ADR-0005). Desde la `sql/61`
+  ya no existen las vistas con nombres viejos.
+- **NFR3 — Idempotencia:** ingesta y armado repetibles sin duplicar (UPSERT por llave de eFlow; el
+  rearmado borra y reconstruye solo lo no liberado).
+- **NFR4 — Seguridad:**
+  - SQL siempre parametrizado;
+  - permisos por módulo (`planificacion:view` y `planificacion:edit`), con el cambio de fecha solo para admin;
+  - auditoría por trigger en las tablas;
+  - sin credenciales en el repo (Secrets Manager y SSM).
+- **NFR5 — Disponibilidad del dato:** el replan corre cada hora en días hábiles. Aurora está encendida
+  de lunes a viernes de 04:45 a 17:00 (hora CR).
+- **NFR6 — Degradación con gracia:**
+  - pedido sin coordenadas: va al final de la ruta y el lead time cae al piso de 1 día;
+  - eFlow no disponible: se planifica con lo último ingestado;
+  - pedido que excede la capacidad: viaje propio.
+- **NFR7 — Interfaz bilingüe** (es/en, claves `planning.*`) usando el design system del repo.
+- **NFR8 — Calidad:** `pytest backend/tests` en verde (560 al 2026-11-05) y `vitest` en verde; los
+  archivos respetan los topes de tamaño de `standards/code-quality.md`.
 
 ## Restricciones
 
-- **C1 — Downstream del OMS:** Planificación consume pedidos ya priorizados; no decide cuándo alistar ni reasigna ruta↔pedido del WMS.
-- **C2 — Fecha de entrega inmutable:** la fecha de entrega la pone el cliente y **no se modifica**; Planificación solo ajusta prioridad/estado (reunión 2026-10-05). La lejanía (T-1) se resuelve subiendo prioridad, no cambiando la fecha.
-- **C3 — La ruta no es fija:** el viaje se arma por los pedidos del día y su zona; no hay rutas estáticas por día.
-- **C4 — Distancias por OSRM auto-hospedado:** fuente activa de distancias/geometría; existe un prototipo con Google Maps (rama anterior) no integrado. La fuente definitiva no está decidida (OQ-6).
-- **C5 — Capacidad de flota sintética:** los vehículos reales de eflow **no traen capacidad** poblada; hoy se usa un catálogo con capacidades (Ricardo ofreció dimensionar ~20-30 vehículos reales).
-- **C6 — Design system obligatorio:** se usan los componentes base (`AdminModal`, `Button`, `CapacityBar`…), sin kits nuevos.
-- **C7 — Divergencia de plataforma:** el backend ya es AWS serverless (estándar Intelix), pero el **pipeline de auto-deploy** necesita credenciales AWS aún pendientes.
+- **C1 — eFlow es de solo lectura** para Planificación. El write-back (número de viaje) va al espejo
+  hasta que lleguen las APIs de EPRAC.
+- **C2 — Planificación no prioriza ni libera.** Eso es del OMS (liberación un día antes de la salida, ADR-013).
+- **C3 — El orden lo manda la fecha de entrega.** Se planifica para la fecha del cliente; la salida se
+  calcula hacia atrás.
+- **C4 — Solo flota propia** (`carrier_id` nulo). El transportista tercero no se asigna todavía (OQ-6).
+- **C5 — Una compañía por plan:** los viajes no mezclan compañías.
+- **C6 — Costa Rica primero.** La ingesta y las constantes (depósito, organización, almacén) son de CR.
+  Venezuela no se planifica todavía.
 
 ## Supuestos
 
-- **A1** El vehículo tiene capacidad poblada (del catálogo); si no, el bin-packing no tiene contra qué medir.
-- **A2** La relación cliente↔punto de entrega y la zona ya vienen resueltas aguas arriba (eflow/catálogos); Planificación las consume.
-- **A3** Peso/volumen por pedido se obtienen sumando las líneas; en compañías sin ese dato (VE, EPA cross-docking) la capacidad degrada con gracia.
-- **A4** Un pedido sin coordenadas es la excepción, no la norma; el diseño lo tolera (fuera del mapa) pero no lo optimiza.
+- **A1** El cliente destino ya existe en `tbl_final_customers` con su tipo (`TIENDA`/`MAYOREO`); si no,
+  el pedido no se ingesta.
+- **A2** El peso y el volumen de eFlow (`PESOPEDIDO_TOTAL`, `CUBICAJEPEDIDO_TOTAL`) son confiables.
+- **A3** Las tiendas EPA son pocas y fijas (8 en CR), así que un viaje por tienda no satura la flota.
+- **A4** Una devolución trae pocos artículos y no compromete la capacidad del camión.
 
-## Fuera de alcance
+## Fuera de alcance (de esta entrega)
 
-- **Split de pedido en varias guías (por línea):** un pedido despachado en varios viajes a nivel de línea (común en EPA / cuando no cabe). Hoy la parada es por pedido. Requiere levantamiento con Ricardo (ver OQ-1).
-- **Estatus de entrega/recepción y devoluciones:** marcar no-entregado, recepción especial, y la liquidación de la guía (no se liquida sin recepción; Venezuela liquida lo entregado en bolívares con pro forma). Ligado a IPRAC. Módulo de Devoluciones en levantamiento.
-- **Regla de piso de capacidad mínima (80 %) para que salga el viaje:** hoy solo se valida el techo (85 %/95 %). Pendiente (OQ-2).
-- **WebSocket real** de alerta (hoy polling; depende de infra AWS).
-- **Tracking/ejecución en vivo** de la ruta (módulo futuro).
-- **Interfaz Planificación → Liquidación** (datos de rutas completadas como insumo de tarifas — Dylan/José).
+- Escribir en eFlow real (situación, prioridad, número de viaje): depende de las APIs de EPRAC.
+- Rutas solo de recolección (muchas devoluciones juntas).
+- Partir un pedido en varias guías por línea.
+- Piso de capacidad mínima para que salga el viaje (~80 %).
+- Planificación de Venezuela.
+- Motor de ruteo por calles definitivo (proveedor pago).
 
 ## Open Questions
 
-- **OQ-1 — Split de pedido por línea:** ¿`plan_stops` debe pasar a nivel de **línea** para soportar un pedido repartido en varias guías? Afecta el snapshot. Owner: Jesús + Ricardo.
-- **OQ-2 — Regla del piso 80 %:** ¿% exacto y cómo se muestra (aviso "bajo mínimo")? ¿Cómo convive con la regla de fecha de entrega (un viaje puede tener que salir subóptimo)? Owner: Ricardo/negocio.
-- **OQ-3 — Estatus de entrega/recepción:** qué estados y campos necesita un viaje para reflejar devoluciones y habilitar liquidación. Owner: Ricardo + Devoluciones.
-- **OQ-4 — T-1 / zona→días:** qué fecha usar y la tabla parametrizable **zona → días a restar** (VE puede tardar 2 días; Colombia también). Consulta pendiente a Ricardo. Owner: Eduardo (OMS) + Jesús.
-- **OQ-5 — WebSocket vs polling:** cuándo hay infra de API Gateway WebSocket para la alerta en vivo. Bloqueado por credenciales/infra AWS.
-- **OQ-6 — OSRM vs Google Maps:** fuente de distancias definitiva para producción; qué pasa con el prototipo Google Maps. Sin decidir.
-- **OQ-7 — Coordenadas de Venezuela:** ~20.000 puntos sin coordenadas (solo dirección en texto). Sin esto no se puede dibujar ruta en VE. Jean lo gestiona con Toño; Dylan/José probarían la API de Google. Owner: negocio + datos.
-- **OQ-8 — Capacidad real de flota:** poblar `capacity_weight/volume` reales (Ricardo ofreció ~20-30 vehículos). Hoy sintético.
-- **OQ-9 — Contrato formal OMS → Planificación:** fuente canónica de "pedidos reales" (campo/estado en `orders` vs tabla/endpoint intermedio). Hoy se lee directo de `orders`.
+- **OQ-1 — ¿La bandeja muestra solo lo no planificado?** Se pidió que sí. Pero el replan planifica cada
+  hora todo lo que está dentro de los próximos 3 días, y el cambio de fecha (FR3) se hace desde la
+  bandeja. Si se ocultan los planificados, no se le puede cambiar la fecha a un pedido de mañana.
+  Owner: líder de proyecto y Chus.
+- **OQ-2 — Días de anticipo por zona (cerrada 2026-11-06):** `tbl_zones` gana días de anticipo
+  (default 1) y tipo de zona corta/larga, por país y sin compañía (lo agrega el OMS). Planificación
+  guarda en cada pedido la **zona TMS** (`tbl_orders.tms_zone_id`, `sql/64`): la zona cuya geocerca
+  contiene la coordenada de entrega, sin tocar el `delivery_zone` de eFlow. El OMS lee de ahí los días;
+  pedido sin zona TMS = 1 día. Pendiente: geocercas de las rutas 17–39 y de Venezuela (app de zonas).
+- **OQ-3 — Coordenadas de las tiendas EPA:** eFlow no trae lat/long (`CLIENTES.LATITUD`), así que el
+  lead time de EPA queda siempre en el piso de 1 día.
+- **OQ-4 — Cierre de pedidos desde eFlow:** el TMS no recibe cuándo se cierra un pedido (`closed_at`).
+  Hay pedidos de octubre que siguen "abiertos" y que el Panel del OMS cuenta como planificados sin
+  fecha de salida (32 al 2026-11-05: viajes de octubre armados antes de que existiera `dispatch_date`).
+- **OQ-5 — `NUMEROVIAJEWMH` real:** confirmar con eFlow que acepta 15 dígitos (`YYYYMMDDCCCCNNN`).
+- **OQ-6 — Transportista tercero:** el viaje sale sin chofer ni vehículo y el transportista los
+  informa después. No es urgente (reunión 2026-11-03).
+- **OQ-7 — Capacidad de las recolectas:** cuándo sumar el peso y el volumen de la devolución.
+- **OQ-8 — Cambio de fecha a eFlow:** la fecha cambiada vive solo en el TMS.
 
 ## Requerimientos técnicos (ítems de trabajo)
 
-Desglose por ítem del trabajo técnico que sostiene los FR/NFR de arriba (antes 7 archivos
-sueltos `001`–`007`, consolidados aquí). El comportamiento funcional vive en las
-[historias de usuario](../../stories/planificacion/historias-de-usuario-planificacion.md).
+| # | Requerimiento | Estado | Depende de |
+|---|---|---|---|
+| R001 | Ingesta eFlow DISP/DISP → `tbl_orders` + espejo + líneas | Delivered | — |
+| R002 | Armado automático por capacidad (zona / tienda / retira) | Delivered | R001 |
+| R003 | Fecha de salida, lead time y número de viaje con compañía | Delivered | R002 |
+| R004 | Replan programado + viajes congelados | Delivered | R002 |
+| R005 | Contrato de handoff Planificación → OMS en `tbl_orders` | Delivered | R002 |
+| R006 | Bandeja con devoluciones + cambio de fecha (admin) | Delivered | R001 |
+| R007 | Recolectas como paradas `collection` (`sql/60`) | Delivered | R002 |
+| R008 | Estándar OLTP en la base (`sql/59`, retiro de las vistas `sql/61–63`) | Delivered | — |
+| R009 | Zona TMS del pedido por geocerca (`sql/64`); días de anticipo en `tbl_zones` (OMS) | Partial | R003 |
+| R010 | Write-back real a eFlow vía APIs de EPRAC | Blocked (EPRAC) | R003 |
+| R011 | Sincronizar el cierre de pedidos desde eFlow | Draft | R001 |
+| R012 | Capacidad de las recolectas y rutas solo de recolección | Draft | R007 |
+| R013 | Login con Google para `ologistics.com` e `intelix.biz` (FR10) | Delivered | — |
+| R014 | IDs de cliente de Google para qa/prod en SSM (`/qa`, `/prod`) | Draft | R013 |
 
-| # | Requerimiento | Estado | Depends on |
-|---|---------------|--------|------------|
-| [R001](#r001--motor-de-planificación-zona--capacidad--secuencia) | Motor de planificación: zona → capacidad → secuencia | Delivered | — |
-| [R002](#r002--snapshot-de-pedidovehículo-al-guardar-el-plan) | Snapshot de pedido/vehículo al guardar el plan | Delivered | R001 |
-| [R003](#r003--contexto-operativo-por-headers-paísalmacéncompañía) | Contexto operativo por headers | Delivered | — |
-| [R004](#r004--regla-de-piso-de-capacidad-mínima-80) | Regla de piso de capacidad mínima (80%) | Draft | R001 |
-| [R005](#r005--alerta-de-pedidos-nuevos-por-websocket-hoy-polling) | Alerta de pedidos nuevos por WebSocket | Draft | R003 |
-| [R006](#r006--geocodificación-de-direcciones) | Geocodificación de direcciones | Draft | R001 |
-| [R007](#r007--contrato-de-handoff-planificación--oms-en-orders) | Contrato de handoff Planificación → OMS en `orders` | Delivered | R001 |
-
-### R001 — Motor de planificación: zona → capacidad → secuencia
-
-- **Status:** Delivered · **Depends on:** None · **Date:** 2026-10-06
-
-Dado un conjunto de pedidos y vehículos, producir un plan `draft` con viajes por zona, cada
-viaje asignado a un vehículo que respeta su capacidad, con las paradas en orden optimizado;
-la flota propia se agota antes de usar terceros; lo que no cabe queda sin asignar (no se
-pierde). Resuelto: agrupación por zona (`agrupar_por_zona`), bin-packing first-fit-decreasing
-con márgenes 85% peso / 95% volumen (`ajustar_capacidad`), secuencia 2-opt sobre matriz OSRM.
-
-**Tope de 16 pedidos por viaje** (reunión 2026-10-13, Ana/Eduardo): además de los márgenes de
-carga, al superar 16 el pedido cae al siguiente viaje aunque quepa por peso/volumen
-(`MAX_PARADAS = 16` en `plan_builder.py` / `ajustar_capacidad.py`).
-
-Deliverable: `src/domain/planificacion/` (`motor.py`, `agrupar_por_zona.py`,
-`ajustar_capacidad.py`) en TMS-Backend; `POST /v1/planificacion/planes` (+ GET/PUT); frontend
-`use-planes`, `planes-api`, `PlanEditor`, `PlanTripCard`, `TripMapa`.
-
-### R002 — Snapshot de pedido/vehículo al guardar el plan
-
-- **Status:** Delivered · **Depends on:** R001 · **Date:** 2026-10-06
-
-Al guardar un plan, persistir en `plan_stops`/`plan_trips` las columnas snapshot (order_number,
-customer_name, delivery_city/zone, lat/long, weight, volume; vehicle_plate, capacity, is_owned)
-para que el plan no mute por cambios aguas arriba en eflow; las lecturas usan el snapshot, no
-re-consultan eflow. Migraciones `003_plan_snapshots.sql`, `004_plan_trip_status.sql`,
-`005_route_plan_customer.sql` aplicadas a Aurora. Fuente: `domain/models.py`,
-`planificacion_service._congelar(...)`, `adapters/outbound/aurora/sql.py`.
-
-### R003 — Contexto operativo por headers (país/almacén/compañía)
-
-- **Status:** Delivered · **Depends on:** None · **Date:** 2026-10-06
-
-El país/almacén/compañía salen del contexto operativo del headbar, no de un selector de la
-página. `apiFetch` adjunta `x-warehouse-id` / `x-customer-id` en cada request; al cambiar el
-contexto, las vistas (lista de planes y pedidos del día) se re-consultan en vivo sin recargar.
-Fuente: `hooks/useOperationalContext.tsx`, `lib/api-client.ts`, `use-planes-list.ts`,
-`use-pedidos-dia.ts`; backend `wiring._warehouse_id()` / `_customer_id()` (headers
-case-insensitive vía `event.header`).
-
-### R004 — Regla de piso de capacidad mínima (80%)
-
-- **Status:** Draft · **Depends on:** R001 · **Date:** 2026-10-06
-
-Un camión no debería salir si no va al menos al ~80% de su capacidad (reunión 2026-10-05); hoy
-el motor solo valida el techo (85/95), falta el piso. El motor debe marcar/separar los viajes
-bajo el umbral mínimo para que el planificador decida (esperar, consolidar o liberar igual); el
-umbral debe ser **parametrizable** y poder diferir por país/compañía; no bloquear a ciegas (la
-fecha de entrega del cliente manda → puede salir subóptimo, pero el cliente paga el costo).
-Abierto: dónde vive el umbral (config vs tabla), cómo se muestra en la UI, el % exacto con
-Ricardo. Deliverable: lógica en `domain/planificacion` + aviso en `PlanTripCard`.
-
-### R005 — Alerta de pedidos nuevos por WebSocket (hoy polling)
-
-- **Status:** Draft · **Depends on:** R003, story 002 · **Date:** 2026-10-06
-
-La historia 002 ya avisa de pedidos nuevos, pero por polling cada 15 s (el backend Lambda/SAM
-no sostiene WebSockets). Reemplazar por una suscripción WS (API Gateway WebSocket API
-connect/disconnect/notify + Lambda que publique al crearse un pedido; o SSE/AppSync) que empuje
-el evento; la UI no cambia (la detección vive aislada en `use-nuevos-pedidos.ts`, solo se
-reemplaza el cuerpo del hook). **Bloqueado por infra AWS + credenciales** que aún no tenemos.
-
-### R006 — Geocodificación de direcciones
-
-- **Status:** Draft · **Depends on:** R001 · **Date:** 2026-10-06
-
-El motor dibuja/optimiza solo con coordenadas; en datos reales de eflow la dirección en texto
-está casi completa pero la coordenada no (CR ~40% de clientes activos de COFERSA; VE ~7% sobre
-~20.000 puntos, marcado bloqueante en el daily 2026-10-06). Un proceso/batch que desde
-`DIRECCIONLARGA` calcule lat/long y las **persista** (`addresses.latitude/longitude` +
-`geocoding_status`/`provider`/`geocoded_at`, ya existe); degradar con gracia (sin coordenada →
-fuera del dibujo, no rompe). Mantener la calidad de la dirección es del negocio/cliente.
-Abierto: proveedor (Nominatim + Bedrock vs API de Google de Dylan/José), costo para ~20k VE,
-acceso a datos VE (Jean con Toño).
-
-### R007 — Contrato de handoff Planificación → OMS en `orders`
-
-- **Status:** Delivered · **Depends on:** R001 · **Date:** 2026-10-21
-
-Planificación y OMS son módulos separados que se comunican por una **superficie de datos
-compartida**: la tabla `orders`. No hay llamada de código; el acoplamiento es un **contrato de
-columnas**. Planificación estampa el resultado del plan; el OMS lee esa cola, calcula prioridad
-y pasa el pedido a `generada`. (Story funcional:
-[008](../../stories/planificacion/historias-de-usuario-planificacion.md#008--entregar-el-plan-al-oms-estampar-el-pedido-y-limpiar-al-re-planificar).)
-
-Reparto de columnas en `orders`:
+**Contrato de columnas en `tbl_orders` (R005):**
 
 | Columna | La escribe | Significado |
 |---|---|---|
-| `numero_viaje` | Planificación | viaje (`AAAAMMDD-seq`) |
-| `lead_time_days` | Planificación | días de tránsito |
-| `dispatch_date` | Planificación | `delivery_date − lead_time_days` (NULL si no hay lead) |
-| `planning_run_id` | Planificación | uuid de la corrida (cliente-día) |
-| `delivery_zone` | Planificación | zona de entrega |
-| `priority`, `oms_score`, `wms_situation`, `oms_processed_at` | OMS | Planificación NO las toca |
-
-- **Cola del OMS:** `planning_run_id IS NOT NULL AND oms_processed_at IS NULL`.
-- **`dispatch_date` en SQL:** `delivery_date − make_interval(days => lead_time_days)`; misma
-  fecha para todo el viaje; NULL si no hay lead.
-- **`lead_time_days`:** `1 + floor(km_max / 70)` por haversine de la parada más lejana al
-  depósito CR (9.9281, −84.0907); sin coordenadas → NULL.
-- **Limpieza al re-planificar:** NULL de `numero_viaje`/`lead_time_days`/`planning_run_id`/
-  `dispatch_date` para los pedidos del día (org + almacén + compañía + `delivery_date`) que ya
-  no quedaron en el plan; los que siguen se re-estampan. **No** toca `oms_processed_at`.
-
-Deliverable: estampado en `backend/planning/src/plan_builder.py` (frontend) y en el
-planificador hexagonal de `TMS-Backend` (`STAMP_ORDERS_SQL` / `CLEANUP_ORDERS_SQL` en
-`adapters/outbound/aurora/sql.py`, puerto `OrdersHandoffRepo`). Migraciones:
-`sql/37_planif_oms_contract.sql` + `sql/42_orders_dispatch_date.sql` (TMS-Frontend);
-`sql/008` + `sql/009` (TMS-Backend), aditivas e idempotentes. Aplicadas y verificadas contra
-Aurora `tms_olo` (las 5 columnas existen; 277 pedidos estampados; limpieza al caerse verificada).
+| `numero_viaje` | Planificación | `YYYYMMDD-CCCC-NNN` |
+| `lead_time_days` | Planificación | días de tránsito (≥ 1) |
+| `dispatch_date` | Planificación | `delivery_date − lead_time_days` |
+| `planning_run_id` | Planificación | uuid de la corrida |
+| `delivery_date_*` | Planificación (cambio de fecha) | autor, fecha, contador, fecha de eFlow |
+| `priority`, `oms_score`, `wms_situation`, `oms_processed_at`, `prioritization_run_id` | OMS | Planificación no las toca |
 
 ## Sources
 
-- Código del módulo: `src/pages/planificacion/*` (frontend) y repo `TMS-Backend` (`src/domain/planificacion/*`, `src/app/planificacion_service.py`, `src/adapters/**`).
-- Historias de usuario y requerimientos técnicos: [`docs/stories/planificacion/historias-de-usuario-planificacion.md`](../../stories/planificacion/historias-de-usuario-planificacion.md) y la sección [Requerimientos técnicos](#requerimientos-técnicos-ítems-de-trabajo) de este documento.
-- SQL: `TMS-Backend/sql/003_plan_snapshots.sql`, `004_plan_trip_status.sql`, `005_route_plan_customer.sql` (aplicadas a Aurora).
-- Bitácoras: `docs/work/2026-10/` (regenerar/alerta/contexto, infra/git/mirror, UX de paradas/modales/punto compartido).
-- Reuniones (Notion, espacio INTELIX): 2026-09-28 (modelo de datos EFLOW/WMH), 2026-10-05 4pm (reglas de viaje/liquidación), dailies 2026-10-05/06; doc "Fuentes de datos reales EFLOW/WMH".
-- Documento anterior (prototipo): `OC26007 - Planificación - Documento de Requerimientos` — superado por este (ya no hay Supabase/mock-auth/login roto).
+- Código: `backend/planning/src/*`, `backend/tracking/src/app.py` y `backend/mobile/src/mobile_api/start.py`
+  (inicio del viaje), `src/pages/planificacion/*`, `src/pages/oms/bandeja/*`.
+- Migraciones: `sql/37`, `sql/39`, `sql/42`, `sql/56`–`sql/63`; guía `sql/README.md`; ADR-0005.
+- Bitácoras: `docs/work/2026-10/` y `docs/work/2026-11/` (replan, bandeja, EPA, número de viaje, recolectas).
+- Reuniones: 2026-10-10 (Carlos, flujo), 2026-10-15 (Antonio, viaje y T-1), 2026-10-19/20 (zonas y
+  envío un día antes), 2026-10-21 (APIs EPRAC), 2026-11-03 (bandeja, EPA y fines de semana), 2026-11-04
+  (fechas de cierre), 2026-11-05 (recolectas y anticipo por zona), 2026-11-06 (zona TMS calculada).
 
 ## Review
 
-Pendiente. Documento escrito a pedido explícito del usuario, **sin AIDLC**, apegado al estado del módulo al 2026-10-06. Es la foto del código actual, no una spec previa a construcción.
+Documento escrito a mano por pedido del responsable del módulo, siguiendo la estructura de AI-DLC
+(intención, actores, glosario, FR con BDD, NFR, restricciones, supuestos, OQ), sin correr el workflow.
+Refleja el estado desplegado al 2026-11-05. Pendiente: revisión de la líder de proyecto.

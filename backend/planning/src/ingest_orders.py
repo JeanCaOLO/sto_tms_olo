@@ -15,6 +15,7 @@ Read-only contra eFlow; escribe el UPSERT en `orders` y sus líneas en `order_it
 
 import cliente_retira
 import ingest_items
+import salientes
 import sim_eflow_sync
 from tms_common import eflow_db, pg
 
@@ -141,8 +142,11 @@ def ingest_cr(limite: int = 500, dry_run: bool = False) -> dict:
                 str(r["IDEXPEDICION"]), str(r["IDCLIENTE"]) if r["IDCLIENTE"] is not None else None,
             ])
         upserted += 1
+    # Los que salieron de la cola (despachados/cerrados en eFlow) dejan la bandeja.
+    salidos = 0 if dry_run else salientes.refrescar(
+        PAIS, ORG_CR, {(str(r["IDEXPEDICION"]), str(r["IDCOMPANIA"])) for r in filas})
     # Espejo de la cabecera de eFlow (sim_expedicionescabecera) para el write-back.
     espejadas = 0 if dry_run else sim_eflow_sync.sincronizar()
     lineas = 0 if dry_run else ingest_items.sincronizar(ORG_CR, [str(r["IDEXPEDICION"]) for r in filas])
-    return {"leidos": len(filas), "upserted": upserted, "saltados": len(faltantes), "espejadas": espejadas,
+    return {"leidos": len(filas), "upserted": upserted, "saltados": len(faltantes), "salidos": salidos, "espejadas": espejadas,
             "lineas": lineas, "faltantes": faltantes[:20], "dry_run": dry_run}

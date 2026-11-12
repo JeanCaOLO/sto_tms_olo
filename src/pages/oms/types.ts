@@ -189,6 +189,7 @@ export interface OmsCorrida {
   actor: string;
   level: OmsLogLevel;
   action: string;
+  tipo: 'planificacion' | 'oms'; // módulo que ejecutó (Planificación escribe action 'planif_*')
   total: number | null;
   priorizados: number | null;
   liberados: number | null;
