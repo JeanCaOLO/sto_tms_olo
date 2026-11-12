@@ -18,7 +18,7 @@ import type { PlanStatus } from '../planificacion/planes-types';
 export default function GuiasPage() {
   const { appUser } = useAuth();
   const { planes, cargando } = usePlanesList();
-  const { conductores } = useCatalogos(appUser);
+  const { conductores, error: catalogosError } = useCatalogos(appUser);
   const { nombreDe } = useZonasNombre();
   const [filtro, setFiltro] = useState<'all' | 'confirmed' | 'completed'>('all');
   const [startDate, setStartDate] = useState('');
@@ -58,7 +58,15 @@ export default function GuiasPage() {
       sortable: true,
       render: (g) => <span className="font-mono font-medium text-slate-800">{g.guide_number}</span>,
     },
-    { key: 'zona', header: 'Ruta / Zona', accessor: (g) => g.zona, sortable: true, filterable: true },
+    {
+      key: 'numero_viaje',
+      header: 'Nº de Viaje',
+      accessor: (g) => g.numero_viaje,
+      sortable: true,
+      filterable: true,
+      render: (g) => <span className="font-mono text-slate-700">{g.numero_viaje}</span>,
+    },
+    { key: 'zona', header: 'Zona', accessor: (g) => g.zona, sortable: true, filterable: true },
     { key: 'conductor', header: 'Conductor', accessor: (g) => g.conductor, sortable: true, filterable: true },
     { key: 'vehiculo', header: 'Vehículo', accessor: (g) => g.vehiculo, sortable: true, filterable: true },
     {
@@ -96,6 +104,13 @@ export default function GuiasPage() {
         </p>
       </div>
 
+      {catalogosError && (
+        <div role="alert" className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700 flex items-center gap-2">
+          <i className="ri-error-warning-line"></i>
+          {catalogosError} Los nombres de conductor pueden no aparecer en las guías.
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Total Guías" value={guias.length} icon="ri-file-list-3-line" color="teal" />
         <StatCard title="Confirmadas" value={confirmadas} icon="ri-flag-line" color="blue" />
@@ -129,7 +144,7 @@ export default function GuiasPage() {
         getRowId={(g) => g.id}
         searchPlaceholder="Buscar por guía, conductor, vehículo o zona..."
         exportFileName="guias_de_despacho"
-        emptyMessage="No hay guías (generá y confirmá un plan en Planificación)."
+        emptyMessage="No hay guías (genera y confirmá un plan en Planificación)."
         actions={(g) => (
           <button
             onClick={() => setDetalle(g)}

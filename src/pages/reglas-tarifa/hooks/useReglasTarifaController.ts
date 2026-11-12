@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useRulesAndParties } from './useRulesAndParties';
 import { useZones } from './useZones';
 import { useRuleDelete } from './useRuleDelete';
+import { useRuleBulk } from './useRuleBulk';
 import { useRuleFromLink } from './useRuleFromLink';
 import { useRuleGroupModals } from './useRuleGroupModals';
 import { filterByCountry, filterByExactCountry } from '../parts/countryFilter';
@@ -12,11 +13,12 @@ interface UseReglasTarifaControllerProps {
   organizationId: string;
   countryId: string;
   userName: string;
+  canEdit: boolean;
   canDelete: boolean;
 }
 
 export function useReglasTarifaController({
-  organizationId, countryId, userName, canDelete,
+  organizationId, countryId, userName, canEdit, canDelete,
 }: UseReglasTarifaControllerProps) {
   const [activeTab, setActiveTab] = useState<Tab>('reglas');
 
@@ -27,6 +29,9 @@ export function useReglasTarifaController({
 
   const modals = useRuleGroupModals();
   const ruleDelete = useRuleDelete();
+  const bulk = useRuleBulk({
+    organizationId, userName, canEdit, canDelete, reload: loadRules, onDone: () => undefined,
+  });
 
   // Enlace desde el desglose de una liquidación: abre la regla indicada.
   useRuleFromLink(rules, (rule) => {
@@ -50,7 +55,7 @@ export function useReglasTarifaController({
     rules: filterByCountry(rules, countryId),
     zones: filterByExactCountry(zones, countryId),
     parties, loadingRules, loadingZones, loadError: rulesError || zonesError,
-    ...modals, ...ruleDelete,
+    ...modals, ...ruleDelete, ...bulk,
     handleDeleteRule, loadRules,
   };
 }

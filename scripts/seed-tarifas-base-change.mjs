@@ -1,3 +1,4 @@
+// OBSOLETO: la base ya no se elige al liquidar (sale de carriers.rate_type, ver sql/37). No ejecutar.
 // Reglas de PRUEBA para el "Cambiar base de cálculo" del liquidador (módulo Tarifas).
 //
 // Solo INSERTA reglas nuevas en `tarifas_pricing_rules` para algunos terceros de Costa Rica que ya
@@ -72,19 +73,19 @@ try {
   await client.query('BEGIN');
 
   if (reset) {
-    const del = await client.query(`DELETE FROM tarifas_pricing_rules WHERE id LIKE 'TEST_RULE_BASECHG_%'`);
+    const del = await client.query(`DELETE FROM tbl_tarifas_pricing_rules WHERE id LIKE 'TEST_RULE_BASECHG_%'`);
     console.log(`Reglas borradas: ${del.rowCount}`);
   } else {
     let inserted = 0;
     for (const [partyId, tag] of Object.entries(PARTIES)) {
       const { rows } = await client.query(
-        `SELECT p.id, c.country_id FROM tarifas_settlement_parties p JOIN carriers c ON c.id = p.carrier_id WHERE p.id = $1`,
+        `SELECT p.id, c.country_id FROM tbl_tarifas_settlement_parties p JOIN tbl_carriers c ON c.id = p.carrier_id WHERE p.id = $1`,
         [partyId],
       );
       if (!rows[0]) { console.log(`Perfil ${partyId} no existe: se omite`); continue; }
       for (const r of ALTERNATIVAS) {
         const res = await client.query(
-          `INSERT INTO tarifas_pricing_rules (id, country_id, scope, party_id, code, name, stage, priority, stacking, exclusion_group,
+          `INSERT INTO tbl_tarifas_pricing_rules (id, country_id, scope, party_id, code, name, stage, priority, stacking, exclusion_group,
              conditions, expression, description, reason, effect, builder, condition_builder, is_adhoc, active, effective_from, effective_to, version)
            VALUES ($1,$2,'PARTY',$3,$4,$5,'BASE',$6,'EXCLUSIVE',null,$7::jsonb,$8::jsonb,$9,$10,'INCREASE',$11::jsonb,null,false,true,null,null,1)
            ON CONFLICT (id) DO NOTHING`,

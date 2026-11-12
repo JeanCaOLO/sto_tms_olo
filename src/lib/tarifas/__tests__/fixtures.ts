@@ -155,7 +155,7 @@ export function makeRequirementRules(): Rule[] {
   });
   const r3 = makeRule({
     code: 'R3',
-    stage: 'MODIFIER',
+    stage: 'VARIABLE',
     priority: 30,
     stacking: 'SUM',
     conditions: { p: 'EQ', left: 'serviceType', right: 'EXPRESS' },

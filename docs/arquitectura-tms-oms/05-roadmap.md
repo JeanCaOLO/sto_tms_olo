@@ -110,6 +110,12 @@ gantt
 
 ## Fase 11 — Tendering
 
+- **Hecho (2026-10-20, opción 1):** el tarifador liquida el monto adjudicado al
+  viaje (`tarifas_trip_tender_awards`, `carriers.rate_type = 'TENDERING'`) como
+  tarifa fija. Ver `docs/work/2026-10/2026-10-20-tendering-opcion-1.md`.
+- **PENDIENTE (opción 2):** el proceso completo — `tenders`, `tender_offers`,
+  ranking tarifa+score, cascada con plazo, fallback a spot, `carrier_lane_rates`.
+  Bloqueado por las preguntas abiertas a Jean Carlo (misma nota de trabajo).
 - Proceso manual (nivel 1 de automatización) primero; `automation_level`
   configurable para escalar después.
 

@@ -77,7 +77,7 @@ export function validateVariable(
   } else if (!KEY_FORMAT.test(key)) {
     // Sin espacios ni símbolos: la clave se usa dentro de las reglas, donde tiene que ser estable
     // aunque después cambien el nombre visible.
-    errors.key = 'Usá letras, números y guion bajo, empezando por una letra. Ej: horas_espera';
+    errors.key = 'Usa letras, números y guion bajo, empezando por una letra. Ej: horas_espera';
   } else if (
     existing.some((v) => v.id !== id && v.partyId === input.partyId && v.key === customVarKey(key))
   ) {

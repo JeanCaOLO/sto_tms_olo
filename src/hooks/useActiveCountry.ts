@@ -31,6 +31,8 @@ export type CountryProblem =
   | 'not-available'
   /** El país existe pero no tiene configuración de cálculo. */
   | 'not-configured'
+  /** La lista de países no cargó (backend caído, proxy mal apuntado, sesión vencida…). No es "país no disponible". */
+  | 'load-failed'
   | null;
 
 export interface ActiveCountryState {
@@ -41,6 +43,8 @@ export interface ActiveCountryState {
   /** Nombre del país elegido en el selector global, aunque el tarifador no lo tenga. */
   selectedName: string | null;
   problem: CountryProblem;
+  /** Mensaje técnico cuando `problem === 'load-failed'`. */
+  loadError: string | null;
   loading: boolean;
   reload: () => Promise<void>;
 }
@@ -68,7 +72,7 @@ export function useActiveCountry(): ActiveCountryState {
 
   useEffect(() => { void reload(); }, [reload]);
 
-  return useMemo(() => {
+  const state = useMemo(() => {
     const visible = permitted.all ? countries : countries.filter((c) => permitted.ids.includes(c.id));
     const selected = ctx.countries.find((c) => c.id === ctx.selectedCountryId) ?? null;
     // Mismo id en Aurora; por código en la semilla local (demo), cuyos ids no son los del TMS.
@@ -81,23 +85,31 @@ export function useActiveCountry(): ActiveCountryState {
     const loading = loadingList || ctx.loading || loadingPermissions;
     let problem: CountryProblem = null;
     if (!loading) {
-      if (!ctx.selectedCountryId) problem = 'none-selected';
+      if (loadError) problem = 'load-failed';
+      else if (!ctx.selectedCountryId) problem = 'none-selected';
       else if (!match) problem = 'not-available';
       else if (match.settings_id === null) problem = 'not-configured';
     }
 
     // Costa Rica se muestra en colones aunque la BD diga USD (solo presentación, ver format.ts).
     const shown = match && match.iso2 === 'CR' ? { ...match, local_currency: 'CRC' } : match;
-    setDisplayCurrencyOverride(shown?.iso2 === 'CR' ? 'CRC' : null);
+    const unusable = problem === 'load-failed' || problem === 'none-selected' || problem === 'not-available';
 
     return {
       countries: visible,
-      country: problem === 'none-selected' || problem === 'not-available' ? null : shown,
-      countryId: problem === 'none-selected' || problem === 'not-available' ? '' : match?.id ?? '',
+      country: unusable ? null : shown,
+      countryId: unusable ? '' : match?.id ?? '',
       selectedName: selected?.name ?? null,
       problem,
+      loadError,
       loading,
       reload,
     };
-  }, [countries, ctx.countries, ctx.selectedCountryId, ctx.loading, loadingList, loadingPermissions, permitted, reload]);
+  }, [countries, ctx.countries, ctx.selectedCountryId, ctx.loading, loadError, loadingList, loadingPermissions, permitted, reload]);
+
+  // Efecto fuera de `useMemo`: escribir un global durante el render es impuro (en StrictMode se ejecuta dos veces).
+  const displayCurrency = state.country?.iso2 === 'CR' ? 'CRC' : null;
+  useEffect(() => { setDisplayCurrencyOverride(displayCurrency); }, [displayCurrency]);
+
+  return state;
 }

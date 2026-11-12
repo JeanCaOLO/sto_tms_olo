@@ -5,7 +5,7 @@ Pasos (en este orden, para no perder nunca la contraseña):
   1. Genera una contraseña aleatoria (40 caracteres alfanuméricos).
   2. La guarda en Secrets Manager `/dev/tms/db-app` (la crea o le pone un valor nuevo).
   3. Se la asigna a tms_app en Aurora, conectado como el DUEÑO (olo_db).
-  4. Verifica que tms_app entra, lee datos y NO puede modificar audit.events.
+  4. Verifica que tms_app entra, lee datos y NO puede modificar audit.tbl_events.
   5. Reescribe en .env.local: TMS_DB_USER/PASSWORD = tms_app y
      TMS_DB_ADMIN_USER/PASSWORD = el dueño (lo usa scripts/run-migration.mjs).
 La contraseña nunca se imprime. Re-correrlo rota la contraseña.
@@ -94,11 +94,11 @@ def _set_password(owner: tuple[str, str], password: str) -> None:
 def _verify(password: str) -> None:
     pg = _connect_as(APP_ROLE, password)
     assert pg.query("SELECT current_user AS u")[0]["u"] == APP_ROLE
-    pg.query("SELECT count(*) FROM delivery_points")
-    pg.query("SELECT count(*) FROM audit.events")
+    pg.query("SELECT count(*) FROM tbl_delivery_points")
+    pg.query("SELECT count(*) FROM audit.tbl_events")
     try:
-        pg.query("UPDATE audit.events SET action = action WHERE false")
-        raise SystemExit("ERROR: tms_app pudo hacer UPDATE en audit.events (no debería).")
+        pg.query("UPDATE audit.tbl_events SET action = action WHERE false")
+        raise SystemExit("ERROR: tms_app pudo hacer UPDATE en audit.tbl_events (no debería).")
     except SystemExit:
         raise
     except Exception:

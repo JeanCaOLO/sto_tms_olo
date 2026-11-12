@@ -1,0 +1,190 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: TMS - TARIFAS MAIL | Envío de proformas por Gmail desde la cuenta de Google del usuario (OAuth + token guardado)
+
+# Por qué fuera de la VPC: llega a Google (internet) y la VPC de Aurora no tiene NAT. La Lambda no ve
+# Aurora: para verificar permisos y estado de la proforma invoca a la Lambda de tarifas (que sí está en
+# la VPC), igual que `alerts` hace con `digest`. Los tokens de Google viven en Secrets Manager.
+#
+# Antes de desplegar (lo hace Intelix):
+#  1. Google Cloud: crear un cliente OAuth "Aplicación web"; scope gmail.send. Redirect URI autorizada =
+#     el valor de GoogleRedirectUri (ruta /api/tarifas-mail/google/callback del API Gateway).
+#     Si la cuenta es de un Workspace propio, publicar la app como "Interna" evita la verificación de Google.
+#  2. Cargar client_id y client_secret en el secreto GoogleOauthSecret (consola; nunca en el repo).
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [dev, qa, prod]
+  CommonStackName:
+    Type: String
+    Description: Stack de common-services del mismo ambiente (ej. dev-tms-common-services)
+  TarifasFunctionName:
+    Type: String
+    Description: Nombre de la Lambda de tarifas (ej. dev-tms-tarifas-tarifas-api), que verifica permisos.
+  GoogleRedirectUri:
+    Type: String
+    Description: URL de retorno de Google, https://<api>/api/tarifas-mail/google/callback
+  AppUrl:
+    Type: String
+    Description: URL del frontend del TMS, a donde se devuelve al usuario tras conectar Google.
+
+Conditions:
+  IsProduction: !Equals [!Ref Environment, prod]
+
+Globals:
+  Function:
+    Runtime: python3.13
+    Architectures: [x86_64]
+    LoggingConfig:
+      LogFormat: JSON
+
+Resources:
+  # Contenedor del cliente OAuth. El valor real se carga en consola (estándar de secretos del proyecto).
+  GoogleOauthSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Name: !Sub /${Environment}/tms/google-oauth
+      Description: TMS - Cliente OAuth de Google para enviar proformas (client_id, client_secret)
+      SecretString: '{"client_id":"CAMBIAR","client_secret":"CAMBIAR"}'
+
+  TarifasMailRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: tarifas-mail
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${TarifasFunctionName}
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref GoogleOauthSecret
+              # Un secreto por usuario con su refresh token de Google.
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:PutSecretValue
+                  - secretsmanager:CreateSecret
+                  - secretsmanager:DeleteSecret
+                Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/${Environment}/tms/tarifas/google/*
+      Tags:
+        - { Key: Project, Value: TMS }
+
+  TarifasMailLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-tarifas-mail
+      RetentionInDays: !If [IsProduction, 30, 14]
+
+  TarifasMailFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-tarifas-mail
+      Description: TMS - TARIFAS MAIL | Conecta la cuenta de Google del usuario y envía proformas por Gmail (fuera de la VPC)
+      CodeUri: src/
+      Handler: app.handler
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt TarifasMailRole.Arn
+      LoggingConfig:
+        LogGroup: !Ref TarifasMailLogGroup
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+          TARIFAS_FUNCTION: !Ref TarifasFunctionName
+          GOOGLE_OAUTH_SECRET_NAME: !Sub /${Environment}/tms/google-oauth
+          GOOGLE_TOKEN_PREFIX: !Sub /${Environment}/tms/tarifas/google
+          GOOGLE_REDIRECT_URI: !Ref GoogleRedirectUri
+          APP_URL: !Ref AppUrl
+
+  TarifasMailIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt TarifasMailFunction.Arn
+      PayloadFormatVersion: "2.0"
+
+  TarifasMailPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref TarifasMailFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub
+        - arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/*/*
+        - ApiId:
+            Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+
+  GoogleStatusRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/tarifas-mail/google/status
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${TarifasMailIntegration}
+
+  GoogleStartRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/tarifas-mail/google/start
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${TarifasMailIntegration}
+
+  # SIN authorizer a propósito: Google redirige el navegador aquí y no lleva el token del TMS. La identidad
+  # del usuario viaja en `state`, firmado con el secreto del cliente y con vencimiento de 10 minutos.
+  GoogleCallbackRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/tarifas-mail/google/callback
+      AuthorizationType: NONE
+      Target: !Sub integrations/${TarifasMailIntegration}
+
+  GoogleDisconnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: DELETE /api/tarifas-mail/google
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${TarifasMailIntegration}
+
+  ProformaSendRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/tarifas-mail/proformas/{id}/send
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${TarifasMailIntegration}
+
+Outputs:
+  TarifasMailFunctionArn:
+    Value: !GetAtt TarifasMailFunction.Arn

@@ -90,6 +90,11 @@ export async function getProfileForCarrierCached(
   return entry.promise;
 }
 
+// La base de un tercero (forma de cobro del catálogo + adjudicación de tendering) vive en `carrierBase.ts`.
+export {
+  carrierBaseForCarrier, getTenderAwardForTrip, resolveCarrierBase, type CarrierBase,
+} from './carrierBase';
+
 /**
  * Devuelve el perfil del transportista, creándolo si todavía no existe. Es lo que llama una
  * pantalla antes de guardar la primera variable, estructura de costos o tarifario del transportista.
@@ -120,6 +125,19 @@ export async function ensurePartyProfile(carrierId: string): Promise<EnsureProfi
       if (again) return { status: 'saved', partyId: again.id, created: false };
     }
     return { status: 'failed', error: { message: message(error) } };
+  }
+}
+
+/**
+ * Deshace un perfil recién creado por `ensurePartyProfile` cuando lo que lo motivó no se pudo guardar
+ * (T3): sin esto la compañía quedaba «Configurada» sin nada configurado. Solo borra el perfil si está vacío:
+ * una clave foránea que lo use hace fallar el borrado y el perfil se conserva. Nunca lanza.
+ */
+export async function discardNewParty(partyId: string): Promise<void> {
+  try {
+    await db().delete('settlementParty', partyId);
+  } catch (error) {
+    console.error('No se pudo deshacer el perfil recién creado:', error);
   }
 }
 

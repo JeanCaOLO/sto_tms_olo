@@ -7,6 +7,16 @@ import { SHEET_PARAMS } from './sheets';
 import type { ParseState, TemplateIssue } from './parsing';
 import { findSheet, headerIndex, isBlankRow, numberOf, text } from './utils';
 
+/** Clave sin guiones bajos, guiones ni espacios repetidos: "km_anual", "Km-anual" y "km  anual" son lo mismo. */
+const canonicalParamKey = (keyNorm: string): string => keyNorm.replace(/[_\-\s]+/g, ' ').trim();
+
+/** Sinónimos aceptados por parámetro (ya canónicos: minúsculas, sin acentos, con espacios). */
+const PARAM_ALIASES: Record<'operatingDays' | 'kmPerYear' | 'fuelPrice', readonly string[]> = {
+  operatingDays: ['dias operativos', 'dias operativos mes', 'dias operativos por mes'],
+  kmPerYear: ['km anual', 'km anuales', 'km por anio', 'km por ano', 'km al anio', 'km al ano'],
+  fuelPrice: ['precio combustible', 'precio diesel', 'precio del combustible', 'precio del diesel'],
+};
+
 /**
  * Procesa la hoja de Parámetros.
  * Valida estructura, clave-valor, y asigna: kmPerYear, fuelPrice, fuelEfficiency, operatingDays.
@@ -40,11 +50,12 @@ export function parseParams(sheets: Record<string, import('./sheets').SheetMatri
         }
 
         const numValue = Number(value);
-        if (keyNorm === 'dias_operativos' || keyNorm === 'dias operativos') {
+        const canon = canonicalParamKey(keyNorm);
+        if (PARAM_ALIASES.operatingDays.includes(canon)) {
           operatingDays = numValue;
-        } else if (keyNorm === 'km_anual' || keyNorm === 'km por anio') {
+        } else if (PARAM_ALIASES.kmPerYear.includes(canon)) {
           params.kmPerYear = numValue;
-        } else if (keyNorm === 'precio_combustible' || keyNorm === 'precio_diesel') {
+        } else if (PARAM_ALIASES.fuelPrice.includes(canon)) {
           params.fuelPrice = value;
         } else if (keyNorm.startsWith('rendimiento')) {
           const truck = key.includes(':') ? key.slice(key.indexOf(':') + 1).trim() : '';

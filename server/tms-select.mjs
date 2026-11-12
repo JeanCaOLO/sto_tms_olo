@@ -1,4 +1,4 @@
-import { q, assertColumn, tableColumns, findForeignKey, HttpError } from "./tms-schema.mjs";
+import { q, qt, assertColumn, tableColumns, findForeignKey, HttpError } from "./tms-schema.mjs";
 
 // Parser del mini-lenguaje de `select` estilo PostgREST/Supabase:
 //   "*, role:roles(id, name)"  ->  [{name:'*', isStar:true}, {alias:'role', name:'roles', children:[...]}]
@@ -78,7 +78,7 @@ export function buildFieldList(table, nodes, alias) {
     const innerFields = buildFieldList(node.name, childNodes, subAlias);
     parts.push(
       `(SELECT to_jsonb(${subAlias}) FROM (SELECT ${innerFields.join(", ")} ` +
-        `FROM ${q(node.name)} ${subAlias} WHERE ${subAlias}.${q("id")} = ${alias}.${q(fkColumn)}) ${subAlias}) AS ${q(node.alias)}`
+        `FROM ${qt(node.name)} ${subAlias} WHERE ${subAlias}.${q("id")} = ${alias}.${q(fkColumn)}) ${subAlias}) AS ${q(node.alias)}`
     );
   }
   return parts;
@@ -117,14 +117,14 @@ export function buildWhereClause(table, alias, filters, startParamIndex = 1) {
   return { clause: clauses.join(" AND "), params };
 }
 
-export function buildListQuery({ table, select, filters, order, limit }) {
+export function buildListQuery({ table, select, filters, order, limit, offset }) {
   embedCounter = 0;
   const alias = "t";
   const nodes = parseSelect(select);
   const fields = buildFieldList(table, nodes, alias);
   const { clause, params } = buildWhereClause(table, alias, filters, 1);
 
-  let sql = `SELECT ${fields.join(", ")} FROM ${q(table)} ${alias}`;
+  let sql = `SELECT ${fields.join(", ")} FROM ${qt(table)} ${alias}`;
   if (clause) sql += ` WHERE ${clause}`;
   if (order?.column) {
     assertColumn(table, order.column);
@@ -135,13 +135,18 @@ export function buildListQuery({ table, select, filters, order, limit }) {
     if (!Number.isInteger(n) || n < 0) throw new HttpError(400, "limit inválido");
     sql += ` LIMIT ${n}`;
   }
+  if (offset != null) {
+    const n = Number(offset);
+    if (!Number.isInteger(n) || n < 0) throw new HttpError(400, "offset inválido");
+    sql += ` OFFSET ${n}`;
+  }
   return { sql, params };
 }
 
 export function buildCountQuery({ table, filters }) {
   const alias = "t";
   const { clause, params } = buildWhereClause(table, alias, filters, 1);
-  let sql = `SELECT count(*)::int AS count FROM ${q(table)} ${alias}`;
+  let sql = `SELECT count(*)::int AS count FROM ${qt(table)} ${alias}`;
   if (clause) sql += ` WHERE ${clause}`;
   return { sql, params };
 }

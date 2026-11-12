@@ -147,20 +147,25 @@ priorizaciones automáticas.
 
 ## Consolidated Summary Confirmation
 
-Re-corrida 2026-09-30 (pivote WMH), ACOTADA a la rebanada delgada de 1ª entrega.
-5 componentes en alcance: MotorReglasOMS (NUEVO, C2-RESUELTO: motor propio del OMS
-desde cero en Lambda/Python, no portar AST, no tocar Liquidaciones), ReglaFecha
-(T-1; fecha base FECHAEXPEDICIONPLANIFICADA de EXPEDICIONESCABECERA como insumo,
-ruta ESTIMADA por scope, fallback de fecha nula US8), AnalizadorObservaciones
-(cliente retira/Bedrock, solo detecta), ColaCandidatos (lectura EFLOW/WMS), y
-HandoffPedidosOMS (NUEVO, D6: dos escrituras — tabla propia del OMS + situación
-WMS, orden/fallo parcial idempotente/sin 2PC/idempotencia por clave). Resto
-DIFERIDO (CatalogoReglas, Simulador, Auditoría completa, override, Panel, UI);
-CalendarioRutas ELIMINADO (D5). 5 ADRs; 3 entidades en alcance; grafo acíclico;
-confirmación de nombres reales (EXPEDICIONESCABECERA/FECHAEXPEDICIONPLANIFICADA)
-que resuelve el [verificar]. Sensores: required-sections PASS, upstream-coverage
-PASS, traceability = falso positivo advisory conocido. Secuencia: → Units →
-code-generation del esqueleto del MotorReglasOMS. (La confirmación de la corrida
-previa 2026-09-16 fue "Looks correct".)
+Re-corrida **v4 (2026-10-16): inversión del flujo OMS↔Planificación.**
+Nomenclatura EFLOW/EPRAC. Componentes en alcance de la rebanada (actualizado):
+**LambdaActivacion** (NUEVO, D7: entrada async; Planificación activa al OMS con
+`planning_run_id` + scope; el OMS deja de auto-dispararse); **MotorReglasOMS**
+(NUEVO, C2-RESUELTO; deriva EPA a ReglaEPA, score para el resto); **ColaCandidatos**
+(lee **public.orders**, no EXPEDICIONESCABECERA — D7); **ReglaEPA** (NUEVO, D9:
+cortocircuita el score; prioridad pre-asignada por EPRAC guion-0/1);
+**ReglaFecha** (generalizada `fecha_entrega − duración`, duración = **insumo de
+Planificación**, D10; T-1 = caso Cofersa); **ReglaClienteRetiraZona** (NUEVO, D11:
+cliente-retira por `delivery_zone`, no por observaciones); **HandoffPedidosOMS**
+(NUEVO, D7/D8: escritura 1 = UPDATE a public.orders + escritura 2 = **EFLOW real**
+`TPEXSI='GENE'`+`PRIORIDAD`, flag TRUE; **sin número de viaje**; orden + reintento
+idempotente, sin 2PC); **BackorderInventario** (NUEVO, D13: loop desacoplado,
+esqueleto + OQ-BO1/BO2/BO3). **AnalizadorObservaciones DIFERIDO** (D11). Resto
+DIFERIDO (CatalogoReglas, Simulador, Auditoría, override, Panel, UI);
+CalendarioRutas ELIMINADO (D5). ADR-002/ADR-003 SUPERSEDED; ADR-007..012 nuevos
+(D7–D13). **No hay `oms.pedidos`** (esquema único `public`). Assumptions abiertas:
+contrato de la lambda de activación (scope vs. llaves explícitas) y OQ-BO1/BO2/BO3.
+YA HECHO (no se rehízo): BD 2026-10-16 y código rama oms. Sensores:
+required-sections, upstream-coverage.
 
 [Answer]: Looks correct

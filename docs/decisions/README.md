@@ -48,4 +48,5 @@ Add new ADRs to this list with their status:
 | 0001 | Margen de seguridad de capacidad y prioridades de optimización del ruteo | Accepted |
 | 0002 | Correr el backend del TMS en Lambdas Python con SAM | Accepted |
 | 0003 | Bitácora de auditoría: triggers de BD + actor por request | Accepted |
-| 0004 | Guardar guía fiscal y número de viaje WMS en los pedidos | Accepted |
+| 0004 | Guardar la guía fiscal en las líneas del pedido | Accepted |
+| 0005 | Aplicar el estándar OLTP Intelix a los nombres de tms_olo con vistas de compatibilidad | Proposed |

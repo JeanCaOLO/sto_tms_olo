@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Funcionalidades Principales | Plantilla INTELIX IA-DLC — INTELIX</title>
+<style>
+  :root {
+    --azul-corporativo: #0b3d91;
+    --azul-medio: #1560bd;
+    --azul-claro: #e8f0fb;
+    --gris-fondo: #f5f7fa;
+    --gris-borde: #e2e8f0;
+    --gris-texto: #334155;
+    --gris-suave: #64748b;
+    --blanco: #ffffff;
+    --verde: #16a34a;
+    --verde-fondo: #dcfce7;
+    --ambar: #d97706;
+    --ambar-fondo: #fef3c7;
+    --rojo: #dc2626;
+    --sombra: 0 1px 3px rgba(15,23,42,.08), 0 8px 24px rgba(15,23,42,.06);
+    --radio: 12px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--gris-texto);
+    background: var(--gris-fondo);
+    line-height: 1.65;
+    font-size: 15.5px;
+  }
+
+  /* ---------- Layout ---------- */
+  .layout { display: flex; min-height: 100vh; }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    width: 290px;
+    background: var(--azul-corporativo);
+    color: #dbeafe;
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    overflow-y: auto;
+    padding: 28px 0;
+  }
+  .sidebar .brand {
+    padding: 0 26px 22px;
+    border-bottom: 1px solid rgba(255,255,255,.12);
+    margin-bottom: 16px;
+  }
+  .sidebar .brand .logo {
+    font-size: 20px; font-weight: 800; color: #fff; letter-spacing: .5px;
+  }
+  .sidebar .brand .sub {
+    font-size: 12.5px; color: #93c5fd; margin-top: 4px;
+  }
+  .nav a {
+    display: block;
+    padding: 9px 26px;
+    color: #cbd5e1;
+    text-decoration: none;
+    font-size: 14px;
+    border-left: 3px solid transparent;
+    transition: all .15s ease;
+  }
+  .nav a:hover { background: rgba(255,255,255,.07); color: #fff; border-left-color: #60a5fa; }
+  .nav a .num { color: #60a5fa; font-weight: 700; margin-right: 8px; }
+
+  /* ---------- Main ---------- */
+  .main { margin-left: 290px; flex: 1; }
+
+  .hero {
+    background: linear-gradient(135deg, var(--azul-corporativo) 0%, var(--azul-medio) 100%);
+    color: #fff;
+    padding: 54px 60px 48px;
+  }
+  .hero .eyebrow {
+    text-transform: uppercase; letter-spacing: 2px; font-size: 12.5px;
+    color: #bfdbfe; font-weight: 600; margin-bottom: 14px;
+  }
+  .hero h1 { font-size: 34px; font-weight: 800; line-height: 1.2; max-width: 780px; }
+  .hero p { margin-top: 16px; font-size: 16.5px; color: #dbeafe; max-width: 760px; }
+  .hero .meta {
+    margin-top: 26px; display: flex; gap: 28px; flex-wrap: wrap;
+    font-size: 13.5px; color: #bfdbfe;
+  }
+  .hero .meta span strong { color: #fff; font-weight: 600; }
+
+  .content { padding: 44px 60px 80px; max-width: 1080px; }
+
+  section { margin-bottom: 46px; scroll-margin-top: 20px; }
+
+  .section-head {
+    display: flex; align-items: center; gap: 14px; margin-bottom: 20px;
+    padding-bottom: 12px; border-bottom: 2px solid var(--gris-borde);
+  }
+  .section-head .badge {
+    background: var(--azul-corporativo); color: #fff;
+    width: 34px; height: 34px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px; flex-shrink: 0;
+  }
+  .section-head h2 { font-size: 22px; font-weight: 700; color: #0f172a; }
+
+  h3 { font-size: 16.5px; font-weight: 700; color: var(--azul-corporativo); margin: 22px 0 12px; }
+  h4 { font-size: 14.5px; font-weight: 700; color: #0f172a; margin: 16px 0 8px; }
+
+  p { margin-bottom: 12px; }
+
+  ul { list-style: none; margin-bottom: 14px; }
+  ul li { position: relative; padding-left: 22px; margin-bottom: 7px; }
+  ul li::before {
+    content: ""; position: absolute; left: 4px; top: 10px;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--azul-medio);
+  }
+  ol { padding-left: 20px; margin-bottom: 14px; }
+  ol li { margin-bottom: 7px; }
+
+  code {
+    background: #eef2f7; color: #b21f66;
+    padding: 2px 7px; border-radius: 5px;
+    font-family: "SF Mono", "Cascadia Code", Consolas, monospace; font-size: 13px;
+  }
+
+  /* ---------- Cards ---------- */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; margin: 18px 0; }
+  .card {
+    background: var(--blanco); border: 1px solid var(--gris-borde);
+    border-radius: var(--radio); padding: 20px; box-shadow: var(--sombra);
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .card:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(15,23,42,.12); }
+  .card .card-top { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .card .icon {
+    width: 32px; height: 32px; border-radius: 8px; background: var(--azul-claro);
+    display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0;
+  }
+  .card h4 { margin: 0; font-size: 14.5px; }
+  .card p { font-size: 13.5px; color: var(--gris-suave); margin: 0; }
+
+  /* ---------- Phase timeline ---------- */
+  .timeline { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin: 18px 0; }
+  .phase {
+    background: var(--blanco); border: 1px solid var(--gris-borde);
+    border-radius: var(--radio); padding: 18px 14px; text-align: center; position: relative;
+    box-shadow: var(--sombra);
+  }
+  .phase .step {
+    width: 30px; height: 30px; border-radius: 50%; background: var(--azul-corporativo);
+    color: #fff; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; margin: 0 auto 10px; font-size: 14px;
+  }
+  .phase h4 { margin: 0 0 6px; font-size: 14px; color: var(--azul-corporativo); }
+  .phase p { font-size: 12.5px; color: var(--gris-suave); margin: 0; line-height: 1.45; }
+
+  /* ---------- Tables ---------- */
+  .table-wrap { overflow-x: auto; margin: 16px 0; border-radius: var(--radio); box-shadow: var(--sombra); }
+  table { width: 100%; border-collapse: collapse; background: var(--blanco); }
+  th {
+    background: var(--azul-corporativo); color: #fff; text-align: left;
+    padding: 13px 16px; font-size: 13.5px; font-weight: 600;
+  }
+  td { padding: 12px 16px; border-bottom: 1px solid var(--gris-borde); font-size: 13.8px; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tbody tr:nth-child(even) { background: #fafbfc; }
+  tbody tr:hover { background: var(--azul-claro); }
+
+  /* ---------- Callout / quote ---------- */
+  .quote {
+    background: linear-gradient(135deg, #0b3d91 0%, #1560bd 100%);
+    color: #fff; padding: 26px 30px; border-radius: var(--radio);
+    margin: 20px 0; font-size: 17px; font-style: italic; line-height: 1.5;
+    box-shadow: var(--sombra);
+  }
+  .quote::before { content: "\201C"; font-size: 42px; line-height: 0; vertical-align: -12px; margin-right: 6px; color: #93c5fd; }
+
+  .note {
+    background: var(--ambar-fondo); border-left: 4px solid var(--ambar);
+    padding: 14px 18px; border-radius: 8px; margin: 16px 0; font-size: 14px;
+  }
+  .note strong { color: var(--ambar); }
+
+  /* ---------- Pills / tags ---------- */
+  .pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+  .pill {
+    background: var(--azul-claro); color: var(--azul-corporativo);
+    padding: 5px 13px; border-radius: 20px; font-size: 12.5px; font-weight: 600;
+    border: 1px solid #c7dbf5;
+  }
+
+  /* ---------- Governance grid ---------- */
+  .gov { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 18px 0; }
+  .gov-card {
+    background: var(--blanco); border-radius: var(--radio); border: 1px solid var(--gris-borde);
+    overflow: hidden; box-shadow: var(--sombra);
+  }
+  .gov-card .top { padding: 16px 18px; color: #fff; }
+  .gov-card.menor .top { background: #16a34a; }
+  .gov-card.inter .top { background: #d97706; }
+  .gov-card.mayor .top { background: #dc2626; }
+  .gov-card .top h4 { color: #fff; margin: 0; font-size: 16px; }
+  .gov-card .top .hh { font-size: 12.5px; opacity: .9; margin-top: 3px; }
+  .gov-card .body { padding: 16px 18px; }
+  .gov-card .body .modo { font-weight: 700; color: #0f172a; font-size: 14px; }
+  .gov-card .body .gates { font-size: 13px; color: var(--gris-suave); margin-top: 5px; }
+
+  /* ---------- Governance table ---------- */
+  .gov-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+  .gov-table th { background: var(--azul-corporativo); color: #fff; text-align: left; padding: 13px 16px; font-size: 13.5px; font-weight: 600; }
+  .gov-table td { padding: 12px 16px; border-bottom: 1px solid var(--gris-borde); font-size: 13.8px; vertical-align: middle; }
+  .gov-table tr:last-child td { border-bottom: none; }
+  .gov-table tbody tr:nth-child(even) { background: #fafbfc; }
+  .gov-table tbody tr:hover { background: var(--azul-claro); }
+  
+  .badge.fast { background: #16a34a; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+  .badge.std { background: #d97706; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+  .badge.ent { background: #dc2626; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+
+  /* ---------- Security controls ---------- */
+  .sec-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; margin: 18px 0; }
+  .sec-item {
+    background: var(--blanco); border: 1px solid var(--gris-borde);
+    border-left: 4px solid var(--verde); border-radius: 10px; padding: 16px 18px;
+    box-shadow: var(--sombra);
+  }
+  .sec-item h4 { margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
+  .sec-item ul { margin: 0; }
+  .sec-item ul li { font-size: 13.3px; }
+
+  /* ---------- Code block ---------- */
+  .codeblock {
+    background: #0f172a; color: #e2e8f0; padding: 18px 20px; border-radius: 10px;
+    font-family: "SF Mono", "Cascadia Code", Consolas, monospace; font-size: 13px;
+    line-height: 1.7; overflow-x: auto; margin: 14px 0;
+  }
+  .codeblock .ok { color: #4ade80; }
+  .codeblock .no { color: #f87171; }
+  .codeblock .na { color: #fbbf24; }
+
+  /* ---------- Status ---------- */
+  .status-ok { color: var(--verde); font-weight: 700; }
+  .status-wip { color: var(--ambar); font-weight: 700; }
+
+  /* ---------- Footer ---------- */
+  .footer {
+    background: #0f172a; color: #94a3b8; padding: 30px 60px;
+    font-size: 13px; margin-left: 0;
+  }
+  .footer strong { color: #e2e8f0; }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 980px) {
+    .sidebar { display: none; }
+    .main { margin-left: 0; }
+    .hero, .content, .footer { padding-left: 26px; padding-right: 26px; }
+    .timeline { grid-template-columns: 1fr 1fr; }
+    .gov { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">INTELIX</div>
+      <div class="sub">Plantilla IA-DLC · intelix-cli</div>
+    </div>
+    <nav class="nav">
+      <a href="#s1"><span class="num">01</span>Proposito</a>
+      <a href="#s2"><span class="num">02</span>Discovery y Gate 0</a>
+      <a href="#s3"><span class="num">03</span>Metodologia AI-DLC</a>
+      <a href="#s4"><span class="num">04</span>Skills (17)</a>
+      <a href="#s5"><span class="num">05</span>Task tracker</a>
+      <a href="#s6"><span class="num">06</span>Certificacion</a>
+      <a href="#s7"><span class="num">07</span>Seguridad R1-R14</a>
+      <a href="#s8"><span class="num">08</span>Estandares desarrollo y BD</a>
+      <a href="#s9"><span class="num">09</span>Git / GitLab</a>
+      <a href="#s10"><span class="num">10</span>Multi-IDE</a>
+      <a href="#s11"><span class="num">11</span>Que deja el CLI</a>
+      <a href="#s12"><span class="num">12</span>Mapa docs</a>
+      <a href="#s13"><span class="num">13</span>Limites</a>
+    </nav>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+
+    <header class="hero">
+      <div class="eyebrow">Inventario funcional · Grupo Mayoreo</div>
+      <h1>Funcionalidades de la plantilla INTELIX · IA-DLC</h1>
+      <p>Nucleo reutilizable que estandariza metodologia AI-DLC, 17 skills corporativos, seguridad baseline, estandares de desarrollo, desarrollo movil y base de datos, gobierno GitLab y certificacion. Compatible con Cursor, Kiro IDE y el resto de agentes soportados por <code>intelix-cli</code> (un solo runtime AI-DLC por proyecto).</p>
+      <div class="meta">
+        <span><strong>CLI:</strong> intelix-cli 0.6.0</span>
+        <span><strong>AI-DLC:</strong> 2.8.x (pin default 2.8.2)</span>
+        <span><strong>Agentes:</strong> Cursor · Kiro · multi-IDE</span>
+        <span><strong>Fecha:</strong> 24 de septiembre de 2026</span>
+      </div>
+    </header>
+
+    <main class="content">
+
+      <!-- 1 Proposito -->
+      <section id="s1">
+        <div class="section-head"><div class="badge">1</div><h2>Proposito</h2></div>
+        <p>La plantilla <strong>no es la aplicacion de negocio</strong>. Es el nucleo compartido con el que INTELIX alinea cada repositorio:</p>
+        <div class="cards">
+          <div class="card"><div class="card-top"><div class="icon">🔄</div><h4>Metodologia AI-DLC</h4></div><p>Ciclo de vida asistido por IA con rigor proporcional al riesgo.</p></div>
+          <div class="card"><div class="card-top"><div class="icon">⚡</div><h4>Skills corporativos</h4></div><p>Plan, documentacion, avance, datos, gobierno y certificacion.</p></div>
+          <div class="card"><div class="card-top"><div class="icon">🔒</div><h4>Seguridad R1–R14</h4></div><p>Baseline documental y steering operativo por unidad.</p></div>
+          <div class="card"><div class="card-top"><div class="icon">🗄️</div><h4>BD OLTP / lago / bridge</h4></div><p>Convenciones separadas segun la naturaleza de los datos.</p></div>
+          <div class="card"><div class="card-top"><div class="icon">🌿</div><h4>Git / GitLab</h4></div><p>Ramas, MR, pipelines y trazabilidad de avance.</p></div>
+          <div class="card"><div class="card-top"><div class="icon">✅</div><h4>Certificacion</h4></div><p>Dictamen frente a estandares antes de promocionar a QA.</p></div>
+        </div>
+        <p>Un proyecto nuevo o existente recibe el mismo ADN. El rigor se ajusta al riesgo del cambio, no al gusto del equipo.</p>
+        <p>Antes del nombre y de los agentes, <code>init</code> registra <code>.intelix/project-profile.json</code>: tipo de solucion, origen nuevo/existente, baseline agentic/AI-DLC e infraestructura. <code>sync</code> preserva esta decision y regenera <code>.intelix/applicability-policy.json</code> para separar perfiles aplicables, material referencial y componentes que deben preservarse. <code>intelix-cli profile --show</code> permite consultarla y <code>profile --configure</code> corregirla con historial, sin sincronizar el proyecto.</p>
+        <div class="note">
+          <p><strong>Procedencia:</strong> <code>intelix-cli init</code> / <code>sync</code> copia desde <code>templates/</code> del CLI. Este informe vive en <code>docs/FUNCIONALIDADES_PRINCIPALES.html</code> junto al Markdown homologo.</p>
+        </div>
+      </section>
+
+      <!-- 2 Discovery -->
+      <section id="s2">
+        <div class="section-head"><div class="badge">2</div><h2>Arranque del producto (Discovery y Gate 0)</h2></div>
+
+        <h3>Contrato <code>Product-Definition/</code></h3>
+        <p>Carpeta contractual entre negocio y desarrollo antes de Inception.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Artefacto</th><th>Contenido</th></tr></thead>
+            <tbody>
+              <tr><td><code>vision-document.md</code></td><td>Problema, casos de uso, KPIs, fuera de alcance, clasificacion</td></tr>
+              <tr><td><code>technical-environment.md</code></td><td>Stack, integraciones, cumplimiento, restricciones Intelix</td></tr>
+              <tr><td><code>open-questions.md</code></td><td>Ambiguedades y riesgos</td></tr>
+              <tr><td><code>HANDOFF_PROMPT.md</code></td><td>Llave de arranque para Cursor o Kiro</td></tr>
+              <tr><td><code>ENTRY_MODE.md</code></td><td><code>with-discovery</code> o <code>no-discovery</code></td></tr>
+              <tr><td><code>visual/</code></td><td>Opcional (viajes, mockups)</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Dos modos de entrada</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Modo</th><th>Cuando</th><th>Resultado</th></tr></thead>
+            <tbody>
+              <tr><td><strong>with-discovery</strong></td><td>El PO ya entrego artefactos reales</td><td>Gate 0 → Inception</td></tr>
+              <tr><td><strong>no-discovery</strong></td><td>No hubo Discovery formal</td><td>Ideation completa <code>Product-Definition/</code> → Gate 0 estricto → Inception</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Al cerrar Ideation, ambos caminos convergen en los mismos artefactos minimos.</p>
+
+        <h3>Quality Gate 0 (handoff)</h3>
+        <p>Filtro humano + script antes de Inception.</p>
+        <div class="codeblock">
+python .intelix/scripts/validate_discovery_gate.py --mode with-discovery<br>
+python .intelix/scripts/validate_discovery_gate.py --mode no-discovery --strict-no-discovery
+        </div>
+        <ul>
+          <li><strong>Estado:</strong> <code>.aidlc/aidlc-state.md</code> (<code>entry_mode</code>, <code>gate_status</code>).</li>
+          <li><strong>Reporte:</strong> <code>.aidlc/audit/gate0-latest.md</code>.</li>
+          <li><strong>Issues GitLab:</strong> <em>Discovery Handoff</em> y <em>Start Without Discovery</em>.</li>
+          <li><strong>Guias:</strong> <code>docs/guides/path-with-discovery.md</code>, <code>path-without-discovery.md</code>, <code>quality-gate-0.md</code>, <code>po-cheatsheet.md</code>.</li>
+        </ul>
+        <div class="note">
+          <p><strong>Overlay vs motor:</strong> <code>.aidlc/</code> en la plantilla es el <strong>overlay de Gate 0 / entry mode</strong>. El estado por intent del motor AI-DLC vive en <code>aidlc/spaces/.../intents/</code>.</p>
+        </div>
+      </section>
+
+      <!-- 3 Metodologia -->
+      <section id="s3">
+        <div class="section-head"><div class="badge">3</div><h2>Metodologia AI-DLC</h2></div>
+
+        <h3>Cinco fases</h3>
+        <div class="timeline">
+          <div class="phase"><div class="step">1</div><h4>Initialization</h4><p>Entorno y deteccion greenfield / brownfield.</p></div>
+          <div class="phase"><div class="step">2</div><h4>Ideation</h4><p>Intencion y alcance (incluye Discovery si aplica).</p></div>
+          <div class="phase"><div class="step">3</div><h4>Inception</h4><p>En Menor, tres respuestas. En Intermedio, un cuestionario medio. En Mayor, requerimientos, historias y diseno.</p></div>
+          <div class="phase"><div class="step">4</div><h4>Construction</h4><p>El como: unidades, codigo, pruebas, seguridad por unidad.</p></div>
+          <div class="phase"><div class="step">5</div><h4>Operation</h4><p>Despliegue, monitoreo, aprendizajes.</p></div>
+        </div>
+        <p>La IA propone; una persona con autoridad aprueba en cada puerta relevante.</p>
+
+        <h3>Clasificacion y rigor proporcional</h3>
+        <div class="quote">Aplica el proceso necesario para el riesgo del cambio.</div>
+        <div class="table-wrap">
+          <table class="gov-table">
+            <thead><tr><th>Clasificacion</th><th>Esfuerzo tradicional</th><th>Gates tipicos</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Menor</strong></td><td>&lt; 40 HH</td><td>Si al integrar a desarrollo</td></tr>
+              <tr><td><strong>Intermedio</strong></td><td>40–240 HH</td><td>Concepcion + pre-despliegue</td></tr>
+              <tr><td><strong>Mayor</strong></td><td>&gt; 240 HH</td><td>Ideacion + Concepcion + pre-despliegue + operacion</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Todo cambio empieza por tres respuestas: que se cambia y para que, donde vive el cambio, y como se sabe que quedo resuelto. La agentica propone la clase segun el esfuerzo tradicional y el impacto. Si el Lider declara Menor y el esfuerzo indica Intermedio o Mayor, esa diferencia queda anotada y no se borra. El calendario con AI-DLC suele ser mas corto, pero <strong>no</strong> se baja de clase solo por velocidad agentica.</p>
+        <p><strong>Menor</strong> termina en esas tres respuestas. Estima el cambio, su verificacion, la implementacion y el acta. <strong>Intermedio</strong> agrega sistemas, contratos o datos, de uno a tres objetivos especificos, prueba y aceptacion, y si toca acceso, datos personales, secretos o el esquema. Su estimacion suma certificacion acotada, estabilizacion y calendario. <strong>Mayor</strong> recorre el cuestionario completo y estima el plan completo, con modelo, arquitectura y Mob Elaboration cuando el trabajo es AI-DLC. Los estandares se cumplen en la construccion en las tres clases.</p>
+
+        <h4>Que es un gate</h4>
+        <p>Decision humana con veto, materializada en Merge Request (<code>develop</code> → <code>qa</code> → <code>master</code>). No es un check automatico.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Momento</th><th>Quien</th><th>Que verifica</th></tr></thead>
+            <tbody>
+              <tr><td>Ideacion</td><td>RC/RT y patrocinador</td><td>Problema, alcance y viabilidad. Solo en Mayor.</td></tr>
+              <tr><td>Concepcion</td><td>Arquitectura / Seguridad</td><td>Diseno. En Intermedio y en Mayor.</td></tr>
+              <tr><td>Integracion a desarrollo</td><td>Lider de desarrollo y lider funcional</td><td>En Menor, el cambio sigue a calidad y a produccion. En Intermedio y Mayor, autoriza el despliegue a produccion.</td></tr>
+              <tr><td>Operacion</td><td>Operaciones</td><td>Despliegue, monitoreo y vuelta atras. Solo en Mayor.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Runtime y version</h3>
+        <ul>
+          <li>Canal oficial: binario <code>aidlc</code> + <code>aidlc config</code> (un solo agente por proyecto recibe AI-DLC).</li>
+          <li>Pin de equipo: <code>.intelix/config.json</code> → <code>aidlcVersion</code> (default del CLI: <strong>2.8.2</strong>).</li>
+          <li>Workspace: <code>aidlc/spaces/default/</code> (memory, knowledge, intents).</li>
+          <li>Bedrock: el CLI lo desactiva en Claude Code; Intelix no opera sobre Bedrock.</li>
+        </ul>
+      </section>
+
+      <!-- 4 Skills -->
+      <section id="s4">
+        <div class="section-head"><div class="badge">4</div><h2>Skills corporativos INTELIX (17)</h2></div>
+        <p>Capacidades invocables en el agente (Cursor, Kiro, Claude, etc.). Prefijo <code>intelix-*</code>. Se instalan en la carpeta nativa de <strong>cada</strong> agente elegido. Total: <strong>17 skills</strong> mas el runtime AI-DLC del agente designado.</p>
+
+        <h3>Planificacion</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Skill</th><th>Para que</th><th>Salida tipica</th></tr></thead>
+            <tbody>
+              <tr><td><code>intelix-objetivos-y-plan-trabajo</code></td><td>Objetivos segun la clase: uno general en Menor, 1 a 3 especificos en Intermedio, 1 a 5 en Mayor</td><td>Objetivos de la clase</td></tr>
+              <tr><td><code>intelix-ficha-de-solicitud</code></td><td>Ficha del recorrido de la clase</td><td>Ficha + estimacion de la clase</td></tr>
+              <tr><td><code>intelix-estimacion</code></td><td>Estimacion con los elementos de la clase</td><td>Excel (Plan, Resumen, Colaboradores)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="note">
+          <p>En un cambio Menor hecho fuera de <code>/aidlc</code> no hay task-tracker: la construccion del plan se toma de <code>scripts/construccion-menor.json</code> (que escribe <code>intelix-ficha-de-solicitud</code> al cerrar la ficha corta). Precedencia de la fuente: task-tracker &gt; ficha corta &gt; vacia.</p>
+        </div>
+
+        <h3>Documentacion y requerimientos</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Skill</th><th>Para que</th><th>Salida tipica</th></tr></thead>
+            <tbody>
+              <tr><td><code>intelix-requirements-matrix-excel</code></td><td>Matriz de identificacion</td><td>.xlsx</td></tr>
+              <tr><td><code>intelix-requirements-matrix-pdf</code></td><td>Misma matriz</td><td>PDF</td></tr>
+              <tr><td><code>intelix-project-docs-html</code></td><td>Docs del proyecto + Swagger UI</td><td>HTML</td></tr>
+              <tr><td><code>intelix-file-to-markdown</code></td><td>Conversion de 21 formatos a Markdown</td><td>.md</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Seguimiento y trazabilidad</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Skill</th><th>Para que</th><th>Salida tipica</th></tr></thead>
+            <tbody>
+              <tr><td><code>intelix-task-tracker</code></td><td>Avance por tarea con verificacion humana</td><td>Ledger + indices en <code>aidlc-docs/tracking/</code> (v1) o el intent activo (v2)</td></tr>
+              <tr><td><code>intelix-seguimiento-plan</code></td><td>Baseline vs real (% agente / % verificado)</td><td>Snapshot Excel</td></tr>
+              <tr><td><code>intelix-roadmap-generator-html</code></td><td>Plan Excel → roadmap interactivo</td><td>HTML</td></tr>
+              <tr><td><code>intelix-consolidado-avance</code></td><td>Avance multi-rama / multi-dev</td><td>Dashboard consolidado</td></tr>
+              <tr><td><code>intelix-inception-iterations</code></td><td>Vueltas de Inception + rework alcance (fechas, develop, HH)</td><td>Ledger + reporte gestion</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Gobierno y certificacion</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Skill</th><th>Para que</th><th>Salida tipica</th></tr></thead>
+            <tbody>
+              <tr><td><code>intelix-git-flow</code></td><td>Arbol de ramas y protecciones GitLab</td><td>Ramas + comandos API</td></tr>
+              <tr><td><code>intelix-certificacion</code></td><td>Dictamen Apto / Con observaciones / No apto para QA</td><td>Acta MD + reportes del motor</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Datos y base de datos</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Skill</th><th>Para que</th><th>Salida tipica</th></tr></thead>
+            <tbody>
+              <tr><td><code>intelix-db-provisioning</code></td><td>Scripts SQL de aprovisionamiento OLTP multi-motor (no se conecta a BD)</td><td>SQL + validacion</td></tr>
+              <tr><td><code>intelix-datalake-naming</code></td><td>Linter de nomenclatura (OLTP, lago, bridge)</td><td>Reporte de cumplimiento</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Desarrollo movil</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Skill</th><th>Para que</th><th>Salida tipica</th></tr></thead>
+            <tbody>
+              <tr><td><code>intelix-mobile-kmp</code></td><td>Desarrollo y revision tecnica de Android con Kotlin y proyectos Kotlin Multiplatform</td><td>Codigo, pruebas e informe de verificaciones por target</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="note">
+          <p>La skill usa el estandar <code>docs/estandares/estandares-mobile-kmp-intelix.md</code>. Para un perfil movil completo, <code>.intelix/applicability-policy.json</code> habilita exclusivamente el dominio <code>mobile-kmp</code> y el motor ejecuta los controles <code>MOB1</code>–<code>MOB8</code> sin mezclar requisitos AWS/SAM/React. El dictamen mide preparacion tecnica para QA; no certifica Google Play o App Store, no firma artefactos y no publica aplicaciones.</p>
+        </div>
+
+        <h3>Puertas de calidad del ciclo (gates)</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Skill</th><th>Fase que fortalece</th><th>Salida tipica</th></tr></thead>
+            <tbody>
+              <tr><td><code>intelix-arquitectura-gate</code></td><td>Inception &rarr; Construction</td><td>Reporte de diseno + ADR; no recalcula el dictamen</td></tr>
+              <tr><td><code>intelix-seguridad-linter</code></td><td>Construction (pre-CI)</td><td>Hallazgos R1&ndash;R7 por archivo; no emite dictamen</td></tr>
+              <tr><td><code>intelix-qa-gate</code></td><td>Cierre de unidad + Pre-Deploy</td><td>DoD (R1&ndash;R8) y checklist R11 AUTORIZADO/BLOQUEADO</td></tr>
+              <tr><td><code>intelix-devops-diagnostico</code></td><td>Pre-Deploy / Operacion</td><td>Clasifica un log de CI/CD (solo lectura) y propone fix guiado; no despliega ni toca R11</td></tr>
+              <tr><td><code>intelix-observador-tareas</code></td><td>Transversal (mejora continua)</td><td>Telemetria de patrones reusando tracking + ledger; sin PII</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="note">
+          <p>Guia complementaria (no skill): <code>docs/guides/prompting-por-fase-aidlc.md</code> estructura los prompts por fase para reducir alucinaciones (Prompt Master). Los gates fortalecen fases de AI-DLC; no las saltan ni reemplazan el sign-off humano.</p>
+        </div>
+
+        <div class="note">
+          <p><strong>Procedencia (skills de plan):</strong> los artefactos deben venir de Discovery, Inception o <code>Product-Definition/</code> validado. Sin fuente, se bloquea la generacion.</p>
+        </div>
+
+        <h3>Estado del nucleo (skills y capacidades)</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Area</th><th>Estado</th><th>Notas</th></tr></thead>
+            <tbody>
+              <tr><td>Skills corporativos INTELIX</td><td><span class="status-ok">Operativos (22)</span></td><td>Incluye certificacion, gates de calidad (arquitectura, seguridad-linter, qa-gate), diagnostico de CI y observador de tareas (solo lectura), inception-iterations, consolidado-avance, skills de BD y desarrollo movil KMP.</td></tr>
+              <tr><td>Discovery y Gate 0</td><td><span class="status-ok">Operativo</span></td><td>Script, overlay <code>.aidlc/</code> y job <code>gate0_discovery</code>.</td></tr>
+              <tr><td>Iteraciones Inception / rework alcance</td><td><span class="status-ok">Operativo</span></td><td>Ledger + reporte HH; skill <code>intelix-inception-iterations</code>.</td></tr>
+              <tr><td>Certificacion de estandares</td><td><span class="status-ok">Operativo</span></td><td>Motor <code>scripts/verificacion/</code> + skill <code>intelix-certificacion</code>.</td></tr>
+              <tr><td>Estandares y skills de BD</td><td><span class="status-ok">Operativo</span></td><td>OLTP / lago / bridge; guia <code>README-solucion-base-de-datos.md</code>.</td></tr>
+              <tr><td>Metodologia AI-DLC</td><td><span class="status-ok">Operativa</span></td><td>Pin 2.8.x via CLI; un agente con runtime por proyecto.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 5 Task tracker -->
+      <section id="s5">
+        <div class="section-head"><div class="badge">5</div><h2>Task tracker y avance</h2></div>
+        <ul>
+          <li>El avance se registra en los indices Markdown del layout AI-DLC activo, siguiendo la skill.</li>
+          <li><code>check_drift.py</code> detecta desalineaciones contra los planes; no bloquea escrituras.</li>
+          <li>Git conserva el historial auditable de los indices y ajustes.</li>
+          <li>Timestamps del sistema: no se fabrican horas.</li>
+          <li>El estado verificado (✅) solo lo concede un humano en su terminal.</li>
+        </ul>
+        <h3>Reporte de avance (doble salida)</h3>
+        <div class="cards">
+          <div class="card">
+            <div class="card-top"><div class="icon">📄</div><h4>Markdown (equipo)</h4></div>
+            <p>Para equipo tecnico y GitLab; renderizado en el repo.</p>
+          </div>
+          <div class="card">
+            <div class="card-top"><div class="icon">📊</div><h4>HTML (gerencia)</h4></div>
+            <p>Para gerencia y cliente; artefacto de CI o generacion local.</p>
+          </div>
+        </div>
+        <p>CLI auxiliar: <code>.intelix/cli/reporte-avance/</code>. Job CI: <code>build_dashboard</code>.</p>
+      </section>
+
+      <!-- 6 Certificacion -->
+      <section id="s6">
+        <div class="section-head"><div class="badge">6</div><h2>Certificacion de estandares</h2></div>
+        <p>Modelo hibrido: motor determinista + skill interpretativa.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Capa</th><th>Rol</th></tr></thead>
+            <tbody>
+              <tr><td><code>scripts/verificacion/</code></td><td>Determinista (Node, sin deps). Misma entrada → mismo dictamen. Sirve en CI.</td></tr>
+              <tr><td><code>intelix-certificacion</code></td><td>Interpreta bordes, valida N/A, redacta acta. <strong>No recalcula</strong> la puntuacion.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="codeblock">
+node scripts/verificacion/analizador.js --proyecto . --exposicion corporativa|publica --alcance estandares|completo
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Alcance</th><th>Uso</th></tr></thead>
+            <tbody>
+              <tr><td><code>estandares</code></td><td>Desarrollo, arquitectura, BD, seguridad (sin exigir pruebas)</td></tr>
+              <tr><td><code>completo</code></td><td>Puerta a produccion: suma pruebas / cobertura</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Pesos: Infraestructura 30% · Codigo 25% · Seguridad 35% · DevOps 10%.</p>
+        <p><strong>Dictamenes:</strong> Apto (≥85%, 0 criticos) · Con observaciones · No apto.</p>
+        <p>Salida por defecto: <code>docs/certificaciones/</code>. Job CI manual: <code>certificacion_estandares</code>.</p>
+      </section>
+
+      <!-- 7 Seguridad -->
+      <section id="s7">
+        <div class="section-head"><div class="badge">7</div><h2>Seguridad baseline R1–R14</h2></div>
+        <p>Documento compartible: <code>docs/estandares/seguridad-baseline.md</code>. Steering: <code>.kiro/steering/seguridad-baseline.md</code>.</p>
+        <p>Estados por control: cumplido · no-cumplido · N/A-justificado · diferido-piloto.</p>
+        <div class="note">
+          <p><strong>HARD-STOP</strong> (bloquean cierre de unidad o despliegue): R1, R3, R5, R6, R11.</p>
+        </div>
+        <div class="sec-grid">
+          <div class="sec-item"><h4>Construccion</h4><p>R1–R8</p></div>
+          <div class="sec-item"><h4>Operacion</h4><p>R9–R12</p></div>
+          <div class="sec-item"><h4>Transversal</h4><p>R13–R14</p></div>
+        </div>
+        <div class="quote">La seguridad se cierra dentro de cada unidad, no al final del proyecto.</div>
+        <p>El enforcement tecnico (SAST, scanners) se activa por proyecto consumidor; la baseline documental ya viaja con la plantilla. Complemento: app interna vs publica en <code>estandares-desarrollo-intelix.md</code>.</p>
+      </section>
+
+      <!-- 8 Estandares -->
+      <section id="s8">
+        <div class="section-head"><div class="badge">8</div><h2>Estandares de desarrollo y base de datos</h2></div>
+        <p>Fuente canonica: <code>docs/estandares/estandares-desarrollo-intelix.md</code>.</p>
+        <div class="pills">
+          <span class="pill">IaC / SAM en template</span>
+          <span class="pill">Serverless-first</span>
+          <span class="pill">SQS resiliencia</span>
+          <span class="pill">IAM minimo privilegio</span>
+          <span class="pill">React + design system</span>
+          <span class="pill">Python hexagonal</span>
+          <span class="pill">Interno vs externo</span>
+        </div>
+
+        <h3>Estandares de base de datos</h3>
+        <p>La naturaleza de la BD decide la convencion — <strong>no se mezclan</strong>.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Naturaleza</th><th>Norma</th><th>Skill</th></tr></thead>
+            <tbody>
+              <tr><td>OLTP (transaccional)</td><td><code>estandares-base-de-datos-oltp-intelix.md</code></td><td><code>intelix-db-provisioning</code></td></tr>
+              <tr><td>Lago de datos</td><td><code>estandares-lago-de-datos-intelix.md</code> (+ DWH)</td><td><code>intelix-datalake-naming</code></td></tr>
+              <tr><td>Bridge / interface</td><td><code>estandares-bridge-intelix.md</code></td><td><code>intelix-datalake-naming</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Guia de uso: <code>docs/README-solucion-base-de-datos.md</code>. Marco: <code>docs/estandares-base-de-datos.md</code>.</p>
+      </section>
+
+      <!-- 9 Git -->
+      <section id="s9">
+        <div class="section-head"><div class="badge">9</div><h2>Gobierno Git / GitLab</h2></div>
+
+        <h3>Ramas y ambientes</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Rama</th><th>Ambiente</th></tr></thead>
+            <tbody>
+              <tr><td><code>feature/*</code> / <code>bugfix/*</code></td><td>Trabajo aislado → merge a develop</td></tr>
+              <tr><td><code>develop</code></td><td>DEV</td></tr>
+              <tr><td><code>qa</code></td><td>QA</td></tr>
+              <tr><td><code>master</code></td><td>PROD (+ tag <code>vX.Y.Z</code>)</td></tr>
+              <tr><td><code>hotfix/*</code></td><td>Emergencia desde master + backport a develop y qa</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Tres capas de enforcement</h3>
+        <ol>
+          <li><strong>Prevencion</strong> — docs y agente guian el flujo correcto.</li>
+          <li><strong>Bloqueo</strong> — GitLab rechaza push directo; exige MR con aprobacion.</li>
+          <li><strong>Deteccion</strong> — CI / chequeos de sincronizacion y backport.</li>
+        </ol>
+
+        <h3>Pipeline aditivo (<code>.gitlab/intelix-ci.yml</code>)</h3>
+        <p>En proyectos nuevos, <code>.gitlab-ci.yml</code> activa el fragmento mediante un <code>include</code> local y agrega un job ancla en <code>test</code> para que GitLab inicie el pipeline. En proyectos existentes, INTELIX preserva el pipeline raiz y solicita incorporar el include manualmente. El fragmento usa <code>.pre</code> y <code>.post</code>, sin imponer stages al proyecto consumidor.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Job</th><th>Funcion</th></tr></thead>
+            <tbody>
+              <tr><td><code>gate0_discovery</code></td><td>Valida <code>Product-Definition/</code></td></tr>
+              <tr><td><code>certificacion_estandares</code></td><td>Motor de certificacion (manual)</td></tr>
+              <tr><td><code>build_dashboard</code></td><td>Regenera reporte de avance (MD + HTML)</td></tr>
+              <tr><td><code>daily_sync_check</code></td><td>Recordatorio en issues sin actividad (schedule)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 10 Multi-IDE -->
+      <section id="s10">
+        <div class="section-head"><div class="badge">10</div><h2>Arnes multi-IDE</h2></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Capacidad</th><th>Cursor</th><th>Kiro IDE</th><th>Antigravity</th><th>Otros (Claude, Codex, Copilot, opencode, Kiro CLI)</th></tr></thead>
+            <tbody>
+              <tr><td>Skills Intelix</td><td>Si</td><td>Si</td><td>Si, en <code>.agents/skills/</code></td><td>Si (carpeta nativa de cada uno)</td></tr>
+              <tr><td>AI-DLC runtime</td><td>Si el agente elegido lo recibe</td><td>Idem</td><td>No en AI-DLC 2.8.2</td><td>Idem (solo <strong>uno</strong> por proyecto)</td></tr>
+              <tr><td>Reglas plantilla</td><td><code>.cursor/rules/intelix-aidlc.mdc</code></td><td><code>.kiro/steering/*</code></td><td><code>.agents/rules/intelix-aidlc.md</code></td><td>Bloque <code>intelix</code> en <code>AGENTS.md</code> / <code>CLAUDE.md</code></td></tr>
+              <tr><td>Integridad task-tracker</td><td><code>check_drift.py</code> + Git</td><td><code>check_drift.py</code> + Git</td><td>Mismo mecanismo</td><td>Mismo mecanismo para todos los agentes</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Instrucciones permanentes anexadas por el CLI: <code>templates/agents/intelix-block.md</code>.</p>
+        <p>El contrato de propiedad bloquea la adopcion si el manifiesto no admite bloques, una skill externa reescribe instrucciones o las reglas apuntan a skills ausentes. Detalle: <code>docs/guides/contrato-propiedad-instrucciones.md</code>.</p>
+      </section>
+
+      <!-- 11 CLI -->
+      <section id="s11">
+        <div class="section-head"><div class="badge">11</div><h2>Que deja <code>intelix-cli</code> en el repositorio</h2></div>
+        <div class="codeblock">
+&lt;proyecto&gt;/<br>
+&nbsp;&nbsp;.intelix/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;config, scripts (Gate 0), tracking, CLI reporte<br>
+&nbsp;&nbsp;.intelix/project-profile.json &nbsp;&nbsp;tipo de solucion, baseline e infraestructura<br>
+&nbsp;&nbsp;.intelix/applicability-policy.json perfiles, certificacion y propiedad de actualizacion<br>
+&nbsp;&nbsp;.intelix/managed-files.json &nbsp;&nbsp;&nbsp;checksums, personalizaciones y conflictos de sync<br>
+&nbsp;&nbsp;.intelix/profile-history/ &nbsp;&nbsp;&nbsp;&nbsp;revisiones anteriores del perfil<br>
+&nbsp;&nbsp;Product-Definition/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;contrato Discovery<br>
+&nbsp;&nbsp;.aidlc/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;overlay Gate 0 / entry_mode<br>
+&nbsp;&nbsp;aidlc/spaces/default/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;memory, knowledge, intents<br>
+&nbsp;&nbsp;docs/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;estandares, guias, funcionalidades<br>
+&nbsp;&nbsp;scripts/verificacion/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;motor de certificacion<br>
+&nbsp;&nbsp;.gitlab/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;templates + intelix-ci.yml administrado<br>
+&nbsp;&nbsp;.gitlab-ci.yml &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;pipeline propio; incluye INTELIX si se activa<br>
+&nbsp;&nbsp;.kiro/steering/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;seguridad + Discovery (solo si se eligio Kiro)<br>
+&nbsp;&nbsp;.cursor/rules/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;reglas Cursor (solo si se eligio Cursor)<br>
+&nbsp;&nbsp;.agents/rules/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;reglas Antigravity (solo si se eligio Antigravity)<br>
+&nbsp;&nbsp;&lt;harness&gt;/skills/intelix-* &nbsp;&nbsp;skills por agente
+        </div>
+
+        <h3>Comandos esenciales</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Comando</th><th>Uso</th></tr></thead>
+            <tbody>
+              <tr><td><code>intelix-cli init</code></td><td>Crea o configura un proyecto</td></tr>
+              <tr><td><code>intelix-cli init --here</code></td><td>Sobre el repo actual</td></tr>
+              <tr><td><code>intelix-cli adopt --analyze</code></td><td>Audita una adopcion sin escribir</td></tr>
+              <tr><td><code>intelix-cli adopt --apply</code></td><td>Adopta con snapshot y rollback</td></tr>
+              <tr><td><code>intelix-cli sync --force</code></td><td>Actualiza skills/docs y retira guards obsoletos</td></tr>
+              <tr><td><code>intelix-cli managed-files --status</code></td><td>Muestra personalizaciones y conflictos</td></tr>
+              <tr><td><code>managed-files --accept-local &lt;ruta&gt;</code></td><td>Conserva la version local</td></tr>
+              <tr><td><code>managed-files --accept-template &lt;ruta&gt;</code></td><td>Acepta la propuesta <code>.intelix-new</code></td></tr>
+              <tr><td><code>migrate aidlc-state --from v1 --to v2 --dry-run</code></td><td>Planifica la migración sin escribir</td></tr>
+              <tr><td><code>migrate aidlc-state --from v1 --to v2 --apply --resume-stage &lt;slug&gt;</code></td><td>Migra tracking y progreso con respaldo e informe</td></tr>
+              <tr><td><code>--aidlc-version</code></td><td>Fija la version de AI-DLC</td></tr>
+              <tr><td><code>--aidlc-policy install|preserve|upgrade|none</code></td><td>Persiste la decision de instalar, conservar, actualizar u omitir el runtime</td></tr>
+              <tr><td><code>--skip-aidlc</code></td><td>Solo skills y docs; persiste <code>aidlcPolicy: none</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Runtime AI-DLC (en el agente)</h3>
+        <div class="codeblock">
+/aidlc "Descripcion del proyecto" &nbsp;&nbsp;<span style="color:#64748b"># Arrancar flujo</span><br>
+/aidlc --doctor &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#64748b"># Validar configuracion</span><br>
+/aidlc --version &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#64748b"># Version del framework</span>
+        </div>
+
+        <h3>Skills corporativos (invocacion)</h3>
+        <div class="codeblock">
+/intelix-objetivos-y-plan-trabajo<br>
+/intelix-ficha-de-solicitud<br>
+/intelix-estimacion<br>
+/intelix-requirements-matrix-excel<br>
+/intelix-requirements-matrix-pdf<br>
+/intelix-project-docs-html<br>
+/intelix-file-to-markdown<br>
+/intelix-task-tracker<br>
+/intelix-seguimiento-plan<br>
+/intelix-roadmap-generator-html<br>
+/intelix-consolidado-avance<br>
+/intelix-inception-iterations<br>
+/intelix-git-flow<br>
+/intelix-arquitectura-gate<br>
+/intelix-seguridad-linter<br>
+/intelix-qa-gate<br>
+/intelix-devops-diagnostico<br>
+/intelix-observador-tareas<br>
+/intelix-certificacion<br>
+/intelix-db-provisioning<br>
+/intelix-datalake-naming<br>
+/intelix-mobile-kmp
+        </div>
+      </section>
+
+      <!-- 12 Mapa docs -->
+      <section id="s12">
+        <div class="section-head"><div class="badge">12</div><h2>Mapa rapido de documentos</h2></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Documento</th><th>Audiencia</th><th>Contenido</th></tr></thead>
+            <tbody>
+              <tr><td><code>FUNCIONALIDADES_PRINCIPALES.md</code> / este HTML</td><td>Todos</td><td>Inventario de funcionalidades</td></tr>
+              <tr><td><code>guides/gobierno-iadlc-intelix.md</code></td><td>Equipo de proyecto</td><td>Como operar dia a dia</td></tr>
+              <tr><td><code>guides/prompting-por-fase-aidlc.md</code></td><td>Todos los roles</td><td>Estructura de prompts por fase (anti-alucinacion)</td></tr>
+              <tr><td><code>guides/inception-iterations.md</code></td><td>PM / Arquitectura / Dev</td><td>Vueltas de Inception, rework alcance y HH</td></tr>
+              <tr><td><a href="guides/guia-cross-account-aws.md">guia-cross-account-aws.md</a></td><td>Arquitectura / DevSecOps</td><td>Patrones seguros para acceso AWS entre cuentas</td></tr>
+              <tr><td><code>guides/fuente-autorizada-plantilla-y-aidlc.md</code></td><td>Lider + Dev</td><td>Plantilla Git oficial + pin AI-DLC</td></tr>
+              <tr><td><code>guides/integracion-ci-aditiva.md</code></td><td>Dev / DevOps</td><td>Activar jobs INTELIX sin reemplazar el pipeline propio</td></tr>
+              <tr><td><code>guides/archivos-administrados-intelix.md</code></td><td>Dev / Maintainer</td><td>Checksums, .intelix-new y resolucion de conflictos</td></tr>
+              <tr><td><code>guides/migracion-estado-aidlc.md</code></td><td>Dev / Maintainer</td><td>Migracion explicita y preservacion de AI-DLC v1 a v2</td></tr>
+              <tr><td><code>guides/resolucion-layout-aidlc.md</code></td><td>Dev / Maintainer</td><td>Seleccion inequivoca del space, intent y tracking v1/v2</td></tr>
+              <tr><td><code>estandares/estandares-desarrollo-intelix.md</code></td><td>Dev / Arquitectura</td><td>Patron tecnico AWS / React</td></tr>
+              <tr><td><code>estandares/estandares-mobile-kmp-intelix.md</code></td><td>Dev movil / Arquitectura</td><td>Kotlin/KMP y controles MOB1–MOB8 para QA</td></tr>
+              <tr><td><code>estandares/seguridad-baseline.md</code></td><td>Dev / CISO</td><td>R1–R14</td></tr>
+              <tr><td><code>README-solucion-base-de-datos.md</code></td><td>Dev / DBA</td><td>Nomenclatura y aprovisionamiento BD</td></tr>
+              <tr><td><code>estrategia-control-versiones.md</code></td><td>Dev / Lider</td><td>Ramas y promocion</td></tr>
+              <tr><td><code>guia-nuevo-proyecto-lider.md</code></td><td>Maintainer</td><td>Crear proyecto en GitLab</td></tr>
+              <tr><td><code>scripts/verificacion/README.md</code></td><td>Dev / QA</td><td>Motor de certificacion</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 13 Limites -->
+      <section id="s13">
+        <div class="section-head"><div class="badge">13</div><h2>Limites conscientes</h2></div>
+        <p>La plantilla <strong>no</strong> pretende:</p>
+        <ul>
+          <li>sustituir el juicio humano en los gates,</li>
+          <li>instalar AWS AI-DLC desde el registry npm (canal oficial: instalador nativo),</li>
+          <li>vendorizar el engine completo de agents/skills de AI-DLC en Git (lo proyecta <code>aidlc config</code>),</li>
+          <li>garantizar enforcement automatico de todos los R1–R14 sin herramientas por proyecto,</li>
+          <li>ser la aplicacion de negocio del cliente.</li>
+        </ul>
+        <p>Su valor es el <strong>contrato comun</strong>, el <strong>control proporcional</strong> y la <strong>continuidad</strong> entre Discovery, Inception, Construction y Operation.</p>
+        <div class="note">
+          <p><strong>Documento vivo:</strong> al agregar una skill, un gate o un estandar, actualizar este inventario en el mismo MR.</p>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="footer">
+      <strong>Inventario funcional — Plantilla INTELIX IA-DLC · INTELIX / Grupo Mayoreo.</strong><br>
+      Distribuido via intelix-cli 0.6.0 · AI-DLC 2.8.x &nbsp;·&nbsp; Actualizado el 10 de octubre de 2026.
+    </footer>
+
+  </div>
+</div>
+</body>
+</html>

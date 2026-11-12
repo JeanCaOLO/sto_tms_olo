@@ -321,6 +321,8 @@ agregar una entrada; no hay dos listas que mantener sincronizadas.
 
 # 3 · Cómo se calcula un viaje
 
+> **Obsoleto (2026-10-15):** este diagrama pone el costo después del pipeline y no incluye el cambio de base ni el filtro por forma de cobro. El orden vigente está en [`FASES_MOTOR.md`](FASES_MOTOR.md).
+
 ```
       viaje
         │

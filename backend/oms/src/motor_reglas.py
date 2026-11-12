@@ -14,6 +14,11 @@ Flujo por pedido:
   3. Calcula el score ponderado (submódulo puro `score`).
   4. Aplica el efecto cliente-retira (prioridad máxima) y convierte a prioridad.
 
+ADR-013: este motor es la PASADA DE PRIORIZACIÓN (deja el pedido en DISP). NO
+libera a eFlow ni usa `dispatch_date` — la LIBERACIÓN (ventana `dispatch_date −
+dias_prep_picking`, escritura 'GENE' + oms_processed_at) vive en el barrido de
+`app.correr()` vía `handoff_pedidos.liberar_pedido`, desacoplada de las reglas.
+
 Multi-compañía por SCOPE (C3-SUPERSEDE): la especificidad por compañía vive en la
 config resuelta por scope, no en una Lambda por compañía.
 """
@@ -24,6 +29,7 @@ from collections.abc import Callable
 from datetime import date
 
 import analizador_observaciones as obs
+import estrategias_prioridad
 import regla_fecha
 import score as score_mod
 from analizador_observaciones import Clasificador, clasificador_stub
@@ -44,6 +50,20 @@ def priorizar(
     return [_priorizar_uno(p, resolver_config(p), hoy, clasificador) for p in pedidos]
 
 
+def priorizar_uno(
+    pedido: PedidoCandidato,
+    config: ConfiguracionReglas,
+    hoy: date,
+    clasificador: Clasificador = clasificador_stub,
+) -> RegistroPrioridad:
+    """Prioriza UN pedido (envoltura pública de `_priorizar_uno`).
+
+    La usa el barrido (`app.correr`) para priorizar pedido a pedido con la config
+    resuelta por scope, saltándose los de compañías con `priorizar=false` (EPA).
+    """
+    return _priorizar_uno(pedido, config, hoy, clasificador)
+
+
 def _priorizar_uno(
     pedido: PedidoCandidato,
     config: ConfiguracionReglas,
@@ -56,7 +76,11 @@ def _priorizar_uno(
     )
     cliente_retira = any(r.cliente_retira for r in resultados)
     score = score_mod.score_ponderado(resultados, config)
-    prioridad = score_mod.score_a_prioridad(score, cliente_retira=cliente_retira, config=config)
+    # El NÚMERO de prioridad lo decide la estrategia de la compañía (por scope/config):
+    # 'escala_lineal' (score→[1,escala]) o 'dias_hasta_salida' (Cofersa). Ver estrategias_prioridad.
+    ctx = estrategias_prioridad.ContextoPrioridad(
+        pedido=pedido, hoy=hoy, score=score, cliente_retira=cliente_retira, config=config)
+    prioridad = estrategias_prioridad.resolver(config.estrategia)(ctx)
     return RegistroPrioridad(
         pk=pedido.pk,
         prioridad=prioridad,
@@ -76,7 +100,5 @@ def config_por_defecto(_pedido: PedidoCandidato) -> ConfiguracionReglas:
     """
     return ConfiguracionReglas(
         pesos={regla_fecha.REGLA: 1.0, obs.REGLA: 1.0},
-        duracion_ruta_dias=1,
         prioridad_cliente_retira=1,
-        escribir_prioridad_al_wms=False,  # TODO(negocio): confirmar destino de PRIORIDAD
     )

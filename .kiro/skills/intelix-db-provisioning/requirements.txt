@@ -1,0 +1,3 @@
+# Dependencia OPCIONAL: solo necesaria si se usa config.yaml como fuente.
+# Con .env o variables de entorno (DBKIT_*) no se requiere ninguna dependencia.
+pyyaml>=6.0

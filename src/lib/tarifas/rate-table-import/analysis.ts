@@ -53,7 +53,7 @@ export function analyzeRateTableSheet(
   // Advierte sobre columnas sin mapear.
   const sinMapear = keyColumns.filter((_c, i) => key[i] === null).length;
   if (sinMapear > 0) {
-    notes.push(`${sinMapear} columna${sinMapear === 1 ? '' : 's'} de la clave sin asignar: revisá el mapeo.`);
+    notes.push(`${sinMapear} columna${sinMapear === 1 ? '' : 's'} de la clave sin asignar: revisa el mapeo.`);
   }
 
   return {

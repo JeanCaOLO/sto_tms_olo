@@ -1,0 +1,13 @@
+{
+  "categoria": "movil",
+  "estandares": [
+    { "id": "MOB1", "nombre": "Proyecto móvil reproducible", "criticidad": "Critico", "descripcion": "El proyecto declara Gradle Wrapper, configuración de build y fuentes Kotlin." },
+    { "id": "MOB2", "nombre": "Secretos y material de firma fuera del repositorio", "criticidad": "Critico", "descripcion": "No se versionan secretos, local.properties, keystores, certificados ni perfiles de aprovisionamiento." },
+    { "id": "MOB3", "nombre": "Configuración Android explícita", "criticidad": "Alto", "descripcion": "Los módulos Android declaran manifiesto y targetSdk en la configuración versionada." },
+    { "id": "MOB4", "nombre": "Validación TLS preservada", "criticidad": "Critico", "descripcion": "El código móvil no acepta certificados u hostnames indiscriminadamente." },
+    { "id": "MOB5", "nombre": "Metadatos y privacidad iOS", "criticidad": "Alto", "descripcion": "Los targets iOS conservan Info.plist y permiten revisar sus declaraciones de privacidad." },
+    { "id": "MOB6", "nombre": "Concurrencia estructurada", "criticidad": "Alto", "descripcion": "El código de aplicación evita GlobalScope y mantiene scopes con ciclo de vida." },
+    { "id": "MOB7", "nombre": "Pruebas móviles", "criticidad": "Critico", "descripcion": "La puerta completa exige pruebas Kotlin, Android o iOS detectables." },
+    { "id": "MOB8", "nombre": "Pipeline de build móvil", "criticidad": "Medio", "descripcion": "El pipeline usa el wrapper y ejecuta tareas de build, check o test." }
+  ]
+}

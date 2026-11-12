@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "solutionType": "web-app",
+  "lifecycle": "existing",
+  "existingContext": {
+    "agenticStatus": "in-use",
+    "aidlcStatus": "current",
+    "aidlcVersion": "2.8.2"
+  },
+  "adoptionGoal": "refresh-intelix",
+  "infrastructure": [
+    "serverless",
+    "rds"
+  ],
+  "capture": {
+    "mode": "flags",
+    "complete": true
+  },
+  "createdAt": "2026-10-28T14:06:19.543Z"
+}

@@ -1,0 +1,1915 @@
+{
+  "schemaVersion": 1,
+  "cliVersion": "0.9.0",
+  "updatedAt": "2026-10-28T14:06:20.102Z",
+  "files": {
+    ".aidlc/audit/README.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/.aidlc/audit/README.md",
+      "installedChecksum": "3f1d5865a0c6f1689bdc5b542cffb1259f3f8c34132346e39fffa67216c3342e",
+      "templateChecksum": "3f1d5865a0c6f1689bdc5b542cffb1259f3f8c34132346e39fffa67216c3342e",
+      "projectChecksum": "3f1d5865a0c6f1689bdc5b542cffb1259f3f8c34132346e39fffa67216c3342e",
+      "status": "installed"
+    },
+    ".aidlc/README.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/.aidlc/README.md",
+      "installedChecksum": "4029ca775264f73bfa01eaafdf06562c693b7f3077b5ef647f7e9840392c2189",
+      "templateChecksum": "4029ca775264f73bfa01eaafdf06562c693b7f3077b5ef647f7e9840392c2189",
+      "projectChecksum": "4029ca775264f73bfa01eaafdf06562c693b7f3077b5ef647f7e9840392c2189",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-arquitectura-gate/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-arquitectura-gate/SKILL.md",
+      "installedChecksum": "cdc4d7f3274a1be6c2669230560e97197d367ddcb46a2fd6430d64746e6a1aec",
+      "templateChecksum": "cdc4d7f3274a1be6c2669230560e97197d367ddcb46a2fd6430d64746e6a1aec",
+      "projectChecksum": "cdc4d7f3274a1be6c2669230560e97197d367ddcb46a2fd6430d64746e6a1aec",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-certificacion/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-certificacion/SKILL.md",
+      "installedChecksum": "8350bc7461a19c364b5700ded62173c3b958b46f1db7526e3e18292db099e022",
+      "templateChecksum": "8350bc7461a19c364b5700ded62173c3b958b46f1db7526e3e18292db099e022",
+      "projectChecksum": "8350bc7461a19c364b5700ded62173c3b958b46f1db7526e3e18292db099e022",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-consolidado-avance/consolidado_core.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-consolidado-avance/consolidado_core.py",
+      "installedChecksum": "f060f0d4762e5bfd3da617c179f1e14cb8dea5173d6b56c679cab5338dd2dbbb",
+      "templateChecksum": "f060f0d4762e5bfd3da617c179f1e14cb8dea5173d6b56c679cab5338dd2dbbb",
+      "projectChecksum": "f060f0d4762e5bfd3da617c179f1e14cb8dea5173d6b56c679cab5338dd2dbbb",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-consolidado-avance/generar_consolidado.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-consolidado-avance/generar_consolidado.py",
+      "installedChecksum": "7ba3702605fab07f32c5e341568e5d4a17b91a3c9a3f8e46cf6ae125b2b9ef49",
+      "templateChecksum": "7ba3702605fab07f32c5e341568e5d4a17b91a3c9a3f8e46cf6ae125b2b9ef49",
+      "projectChecksum": "7ba3702605fab07f32c5e341568e5d4a17b91a3c9a3f8e46cf6ae125b2b9ef49",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-consolidado-avance/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-consolidado-avance/SKILL.md",
+      "installedChecksum": "34198b8447cd6dad813d5059e90472ec00031b8557be19aabebee6788eab3a57",
+      "templateChecksum": "34198b8447cd6dad813d5059e90472ec00031b8557be19aabebee6788eab3a57",
+      "projectChecksum": "34198b8447cd6dad813d5059e90472ec00031b8557be19aabebee6788eab3a57",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-datalake-naming/hooks/db-naming-validator.json": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-datalake-naming/hooks/db-naming-validator.json",
+      "installedChecksum": "44ad7bf92e2574b5106162e0dfc0706738a5ad30087ca3a501271211f59dc13a",
+      "templateChecksum": "44ad7bf92e2574b5106162e0dfc0706738a5ad30087ca3a501271211f59dc13a",
+      "projectChecksum": "44ad7bf92e2574b5106162e0dfc0706738a5ad30087ca3a501271211f59dc13a",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-datalake-naming/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-datalake-naming/SKILL.md",
+      "installedChecksum": "3066aeee2bdbca863ec24bb5189795211971dea6161ffb03737b7ef7609cff9d",
+      "templateChecksum": "3066aeee2bdbca863ec24bb5189795211971dea6161ffb03737b7ef7609cff9d",
+      "projectChecksum": "3066aeee2bdbca863ec24bb5189795211971dea6161ffb03737b7ef7609cff9d",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-datalake-naming/validar_sql.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-datalake-naming/validar_sql.py",
+      "installedChecksum": "c38ac8b543233de9f54c7a495680fd0d2525b5ce0699e36bc18c1109c2115ad1",
+      "templateChecksum": "c38ac8b543233de9f54c7a495680fd0d2525b5ce0699e36bc18c1109c2115ad1",
+      "projectChecksum": "c38ac8b543233de9f54c7a495680fd0d2525b5ce0699e36bc18c1109c2115ad1",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-db-provisioning/.env.example": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-db-provisioning/.env.example",
+      "installedChecksum": "c2c6e0765103ead2be2b499f9b37400fcaebd1516bbe505cec69ed1fdd8a0048",
+      "templateChecksum": "c2c6e0765103ead2be2b499f9b37400fcaebd1516bbe505cec69ed1fdd8a0048",
+      "projectChecksum": "c2c6e0765103ead2be2b499f9b37400fcaebd1516bbe505cec69ed1fdd8a0048",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-db-provisioning/config.yaml": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-db-provisioning/config.yaml",
+      "installedChecksum": "3aab336b8a1e30e483ca2ae12af19d8c22690929d400238f1eac421ff281a0b4",
+      "templateChecksum": "3aab336b8a1e30e483ca2ae12af19d8c22690929d400238f1eac421ff281a0b4",
+      "projectChecksum": "3aab336b8a1e30e483ca2ae12af19d8c22690929d400238f1eac421ff281a0b4",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-db-provisioning/generate.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-db-provisioning/generate.py",
+      "installedChecksum": "da4cccc2ed0763cd42e70d299704f5c5a3d1f66207062483ac915de76009c263",
+      "templateChecksum": "da4cccc2ed0763cd42e70d299704f5c5a3d1f66207062483ac915de76009c263",
+      "projectChecksum": "da4cccc2ed0763cd42e70d299704f5c5a3d1f66207062483ac915de76009c263",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-db-provisioning/README.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-db-provisioning/README.md",
+      "installedChecksum": "4c27e1df93b6e8117995ab7d45ac05ebc7c3a93943556b17b691dd8e4ae4c5df",
+      "templateChecksum": "4c27e1df93b6e8117995ab7d45ac05ebc7c3a93943556b17b691dd8e4ae4c5df",
+      "projectChecksum": "4c27e1df93b6e8117995ab7d45ac05ebc7c3a93943556b17b691dd8e4ae4c5df",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-db-provisioning/requirements.txt": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-db-provisioning/requirements.txt",
+      "installedChecksum": "6252860334936bab5eb34f15c3b64ef43db04d39ba9ef219eb72d9872f5b2256",
+      "templateChecksum": "6252860334936bab5eb34f15c3b64ef43db04d39ba9ef219eb72d9872f5b2256",
+      "projectChecksum": "6252860334936bab5eb34f15c3b64ef43db04d39ba9ef219eb72d9872f5b2256",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-db-provisioning/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-db-provisioning/SKILL.md",
+      "installedChecksum": "22c1220bf6782800a83308b3a9ce825bfb13aafce69742d500d17b8638f1e942",
+      "templateChecksum": "22c1220bf6782800a83308b3a9ce825bfb13aafce69742d500d17b8638f1e942",
+      "projectChecksum": "22c1220bf6782800a83308b3a9ce825bfb13aafce69742d500d17b8638f1e942",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-db-provisioning/templates/mysql.sql.tpl": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/mysql.sql.tpl",
+      "installedChecksum": "28ca6404c922a2ecdb014330feea24cf484eff9d61feea72c24219b863ca9cd5",
+      "templateChecksum": "28ca6404c922a2ecdb014330feea24cf484eff9d61feea72c24219b863ca9cd5",
+      "projectChecksum": "28ca6404c922a2ecdb014330feea24cf484eff9d61feea72c24219b863ca9cd5",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-db-provisioning/templates/mysql.validate.sql.tpl": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/mysql.validate.sql.tpl",
+      "installedChecksum": "31641240098f874074a60ba9984f676e1e4278840ff8640d38b8371cd71eaf46",
+      "templateChecksum": "31641240098f874074a60ba9984f676e1e4278840ff8640d38b8371cd71eaf46",
+      "projectChecksum": "31641240098f874074a60ba9984f676e1e4278840ff8640d38b8371cd71eaf46",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-db-provisioning/templates/oracle.sql.tpl": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/oracle.sql.tpl",
+      "installedChecksum": "ffb06c086157eb81aeb115f9b525baa5e07aef7978106cd80a7e31e1885a7290",
+      "templateChecksum": "ffb06c086157eb81aeb115f9b525baa5e07aef7978106cd80a7e31e1885a7290",
+      "projectChecksum": "ffb06c086157eb81aeb115f9b525baa5e07aef7978106cd80a7e31e1885a7290",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-db-provisioning/templates/oracle.validate.sql.tpl": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/oracle.validate.sql.tpl",
+      "installedChecksum": "a4d185bf4677a9c6e7eb652e708abcefefa37ab75693c2edb2fa325a904b72aa",
+      "templateChecksum": "a4d185bf4677a9c6e7eb652e708abcefefa37ab75693c2edb2fa325a904b72aa",
+      "projectChecksum": "a4d185bf4677a9c6e7eb652e708abcefefa37ab75693c2edb2fa325a904b72aa",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-db-provisioning/templates/postgresql.sql.tpl": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/postgresql.sql.tpl",
+      "installedChecksum": "2d154f30aa760d40a56f8a30b8813fad60702b61ec7b91ef987b6802005b4115",
+      "templateChecksum": "2d154f30aa760d40a56f8a30b8813fad60702b61ec7b91ef987b6802005b4115",
+      "projectChecksum": "2d154f30aa760d40a56f8a30b8813fad60702b61ec7b91ef987b6802005b4115",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-db-provisioning/templates/postgresql.validate.sql.tpl": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/postgresql.validate.sql.tpl",
+      "installedChecksum": "0fb9263167e0283203995dc52b6571ff9377fa7f3dc0c0384b9286b85976993c",
+      "templateChecksum": "0fb9263167e0283203995dc52b6571ff9377fa7f3dc0c0384b9286b85976993c",
+      "projectChecksum": "0fb9263167e0283203995dc52b6571ff9377fa7f3dc0c0384b9286b85976993c",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-db-provisioning/templates/sqlserver.sql.tpl": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/sqlserver.sql.tpl",
+      "installedChecksum": "85f5103ec23afe0ef0912adbd79346013d8b7a50f688fb798cb8f87bb7b3494d",
+      "templateChecksum": "85f5103ec23afe0ef0912adbd79346013d8b7a50f688fb798cb8f87bb7b3494d",
+      "projectChecksum": "85f5103ec23afe0ef0912adbd79346013d8b7a50f688fb798cb8f87bb7b3494d",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-db-provisioning/templates/sqlserver.validate.sql.tpl": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/sqlserver.validate.sql.tpl",
+      "installedChecksum": "067c8916813030a3a6356f9bed2103e5aa31e1c6d0e04c385a11cca8a75954cd",
+      "templateChecksum": "067c8916813030a3a6356f9bed2103e5aa31e1c6d0e04c385a11cca8a75954cd",
+      "projectChecksum": "067c8916813030a3a6356f9bed2103e5aa31e1c6d0e04c385a11cca8a75954cd",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-db-provisioning/validate.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-db-provisioning/validate.py",
+      "installedChecksum": "4875b151511a39f8c26130d03f5e2956d4ae30ac3123fed878059424359e300b",
+      "templateChecksum": "4875b151511a39f8c26130d03f5e2956d4ae30ac3123fed878059424359e300b",
+      "projectChecksum": "4875b151511a39f8c26130d03f5e2956d4ae30ac3123fed878059424359e300b",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-devops-diagnostico/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-devops-diagnostico/SKILL.md",
+      "installedChecksum": "9e58bb53b5da8d8bed49f5b492df209fb9c310d62fb61ea38dedf6cc41329dbe",
+      "templateChecksum": "9e58bb53b5da8d8bed49f5b492df209fb9c310d62fb61ea38dedf6cc41329dbe",
+      "projectChecksum": "9e58bb53b5da8d8bed49f5b492df209fb9c310d62fb61ea38dedf6cc41329dbe",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-estimacion/scripts/corrector_ortografico.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-estimacion/scripts/corrector_ortografico.py",
+      "installedChecksum": "e63e93b7cf5ed676da0c8a2655dcc8fc431172f87f21fb70d55e04c264db6d9c",
+      "templateChecksum": "e63e93b7cf5ed676da0c8a2655dcc8fc431172f87f21fb70d55e04c264db6d9c",
+      "projectChecksum": "e63e93b7cf5ed676da0c8a2655dcc8fc431172f87f21fb70d55e04c264db6d9c",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-estimacion/scripts/estimacion-fases.example.json": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-estimacion/scripts/estimacion-fases.example.json",
+      "installedChecksum": "4b55a61e9892bef5ea75ffd92be06a2cb9cd03f627250562470f7e0df3cbf031",
+      "templateChecksum": "4b55a61e9892bef5ea75ffd92be06a2cb9cd03f627250562470f7e0df3cbf031",
+      "projectChecksum": "4b55a61e9892bef5ea75ffd92be06a2cb9cd03f627250562470f7e0df3cbf031",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-estimacion/scripts/generate_estimacion_v3.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-estimacion/scripts/generate_estimacion_v3.py",
+      "installedChecksum": "1df453b52be0d0af8684966c0214eaae2b488d1a592ac85ce7bf0b278f29571b",
+      "templateChecksum": "1df453b52be0d0af8684966c0214eaae2b488d1a592ac85ce7bf0b278f29571b",
+      "projectChecksum": "1df453b52be0d0af8684966c0214eaae2b488d1a592ac85ce7bf0b278f29571b",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-estimacion/scripts/project-config.example.json": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-estimacion/scripts/project-config.example.json",
+      "installedChecksum": "191bb75b9b90bd653e47ed9826d5fbd4125db7ef3ba7f9081e230823657bc664",
+      "templateChecksum": "191bb75b9b90bd653e47ed9826d5fbd4125db7ef3ba7f9081e230823657bc664",
+      "projectChecksum": "191bb75b9b90bd653e47ed9826d5fbd4125db7ef3ba7f9081e230823657bc664",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-estimacion/scripts/README.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-estimacion/scripts/README.md",
+      "installedChecksum": "a86ab7d4acd5f9dfca1da925bd2a87297db4c62551067b1a5c79dfca755397c3",
+      "templateChecksum": "a86ab7d4acd5f9dfca1da925bd2a87297db4c62551067b1a5c79dfca755397c3",
+      "projectChecksum": "a86ab7d4acd5f9dfca1da925bd2a87297db4c62551067b1a5c79dfca755397c3",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-estimacion/scripts/test_corrector_ortografico.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-estimacion/scripts/test_corrector_ortografico.py",
+      "installedChecksum": "932d96bdf5a3f4338a7519a28bff9fdd35f1412f407221c4e7c5a7d2ca584024",
+      "templateChecksum": "932d96bdf5a3f4338a7519a28bff9fdd35f1412f407221c4e7c5a7d2ca584024",
+      "projectChecksum": "932d96bdf5a3f4338a7519a28bff9fdd35f1412f407221c4e7c5a7d2ca584024",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-estimacion/scripts/test_generate_estimacion_v3.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-estimacion/scripts/test_generate_estimacion_v3.py",
+      "installedChecksum": "ef13637906db42ebe549ee8077b4f31da958cf88300ae6e0b29834a5b708b38a",
+      "templateChecksum": "ef13637906db42ebe549ee8077b4f31da958cf88300ae6e0b29834a5b708b38a",
+      "projectChecksum": "ef13637906db42ebe549ee8077b4f31da958cf88300ae6e0b29834a5b708b38a",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-estimacion/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-estimacion/SKILL.md",
+      "installedChecksum": "811ff61c38527cbc0f2ae5dd8808b7317b6355fd851ab020ce7850b894d6b521",
+      "templateChecksum": "811ff61c38527cbc0f2ae5dd8808b7317b6355fd851ab020ce7850b894d6b521",
+      "projectChecksum": "811ff61c38527cbc0f2ae5dd8808b7317b6355fd851ab020ce7850b894d6b521",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-ficha-de-solicitud/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-ficha-de-solicitud/SKILL.md",
+      "installedChecksum": "675c02f6c92bb7536370a1c4976ac457953b180951a35ad03eb6077f994f92e4",
+      "templateChecksum": "675c02f6c92bb7536370a1c4976ac457953b180951a35ad03eb6077f994f92e4",
+      "projectChecksum": "675c02f6c92bb7536370a1c4976ac457953b180951a35ad03eb6077f994f92e4",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-file-to-markdown/file-to-markdown.bat": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-file-to-markdown/file-to-markdown.bat",
+      "installedChecksum": "5d87b01527b08924700ac5852a362053956cf58d3e9b0537102cc7ecc868f8fd",
+      "templateChecksum": "5d87b01527b08924700ac5852a362053956cf58d3e9b0537102cc7ecc868f8fd",
+      "projectChecksum": "5d87b01527b08924700ac5852a362053956cf58d3e9b0537102cc7ecc868f8fd",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-file-to-markdown/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-file-to-markdown/SKILL.md",
+      "installedChecksum": "4c4671f6d89e63c8cd1ec4e68db9bb683c08915343993c4d6ff119f7b6605108",
+      "templateChecksum": "4c4671f6d89e63c8cd1ec4e68db9bb683c08915343993c4d6ff119f7b6605108",
+      "projectChecksum": "4c4671f6d89e63c8cd1ec4e68db9bb683c08915343993c4d6ff119f7b6605108",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-git-flow/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-git-flow/SKILL.md",
+      "installedChecksum": "58bb86c96c20b6b4f84e4dcdbaf31db3311dfdf36161235fbe493f604f6204e3",
+      "templateChecksum": "58bb86c96c20b6b4f84e4dcdbaf31db3311dfdf36161235fbe493f604f6204e3",
+      "projectChecksum": "58bb86c96c20b6b4f84e4dcdbaf31db3311dfdf36161235fbe493f604f6204e3",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-inception-iterations/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-inception-iterations/SKILL.md",
+      "installedChecksum": "7431200baf65fc121e184d25935bc890e3ad0077cbe155c5778a969146f9b051",
+      "templateChecksum": "7431200baf65fc121e184d25935bc890e3ad0077cbe155c5778a969146f9b051",
+      "projectChecksum": "7431200baf65fc121e184d25935bc890e3ad0077cbe155c5778a969146f9b051",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-mobile-kmp/references/criterios-mobile-kmp.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-mobile-kmp/references/criterios-mobile-kmp.md",
+      "installedChecksum": "2ccc613d72e93005785a475f1664a7939da04eaa19f544ebfb8a8e5f15782412",
+      "templateChecksum": "2ccc613d72e93005785a475f1664a7939da04eaa19f544ebfb8a8e5f15782412",
+      "projectChecksum": "2ccc613d72e93005785a475f1664a7939da04eaa19f544ebfb8a8e5f15782412",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-mobile-kmp/references/estandar-afv-mayoreo.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-mobile-kmp/references/estandar-afv-mayoreo.md",
+      "installedChecksum": "927228fc8448bd82b2676794797c776dfcf4b55eaf6e577216e65b950755b252",
+      "templateChecksum": "927228fc8448bd82b2676794797c776dfcf4b55eaf6e577216e65b950755b252",
+      "projectChecksum": "927228fc8448bd82b2676794797c776dfcf4b55eaf6e577216e65b950755b252",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-mobile-kmp/references/estandar-arquitectura-kmp.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-mobile-kmp/references/estandar-arquitectura-kmp.md",
+      "installedChecksum": "b6c5af9c3e8190da794fa25cc3415bad0a52aa1db39bb70a89d5c3469189df08",
+      "templateChecksum": "b6c5af9c3e8190da794fa25cc3415bad0a52aa1db39bb70a89d5c3469189df08",
+      "projectChecksum": "b6c5af9c3e8190da794fa25cc3415bad0a52aa1db39bb70a89d5c3469189df08",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-mobile-kmp/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-mobile-kmp/SKILL.md",
+      "installedChecksum": "a780b3460669263e473915df718c4784cd8725f3e66b8bf1013a230aec41e6fc",
+      "templateChecksum": "a780b3460669263e473915df718c4784cd8725f3e66b8bf1013a230aec41e6fc",
+      "projectChecksum": "a780b3460669263e473915df718c4784cd8725f3e66b8bf1013a230aec41e6fc",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-objetivos-y-plan-trabajo/references/plantilla-plan-trabajo.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-objetivos-y-plan-trabajo/references/plantilla-plan-trabajo.md",
+      "installedChecksum": "4f8a85b756cb9f5d37dfd3ffcf6b7c64846cc12916b53800209d70105930c67d",
+      "templateChecksum": "4f8a85b756cb9f5d37dfd3ffcf6b7c64846cc12916b53800209d70105930c67d",
+      "projectChecksum": "4f8a85b756cb9f5d37dfd3ffcf6b7c64846cc12916b53800209d70105930c67d",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-objetivos-y-plan-trabajo/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-objetivos-y-plan-trabajo/SKILL.md",
+      "installedChecksum": "dc4529cc382ed397ea7cb912ce2bf52c9c9b83191ddf57182d4c4adc0fc61560",
+      "templateChecksum": "dc4529cc382ed397ea7cb912ce2bf52c9c9b83191ddf57182d4c4adc0fc61560",
+      "projectChecksum": "dc4529cc382ed397ea7cb912ce2bf52c9c9b83191ddf57182d4c4adc0fc61560",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-observador-tareas/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-observador-tareas/SKILL.md",
+      "installedChecksum": "fa601b65678d8a673e5c93d88fd51c05be8022b2427874cecaef3392641c0648",
+      "templateChecksum": "fa601b65678d8a673e5c93d88fd51c05be8022b2427874cecaef3392641c0648",
+      "projectChecksum": "fa601b65678d8a673e5c93d88fd51c05be8022b2427874cecaef3392641c0648",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-project-docs-html/example_config.json": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-project-docs-html/example_config.json",
+      "installedChecksum": "8f64e0ef76644ef235659a9ed708c314781ded94829daf9086e896fd3a678c24",
+      "templateChecksum": "8f64e0ef76644ef235659a9ed708c314781ded94829daf9086e896fd3a678c24",
+      "projectChecksum": "8f64e0ef76644ef235659a9ed708c314781ded94829daf9086e896fd3a678c24",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-project-docs-html/generate_docs_html.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-project-docs-html/generate_docs_html.py",
+      "installedChecksum": "b8142b84272bd905a1ba1a2d080eb43011cd87e5670da90b6706be173c98636f",
+      "templateChecksum": "b8142b84272bd905a1ba1a2d080eb43011cd87e5670da90b6706be173c98636f",
+      "projectChecksum": "b8142b84272bd905a1ba1a2d080eb43011cd87e5670da90b6706be173c98636f",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-project-docs-html/generate_requirements_matrix_html.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-project-docs-html/generate_requirements_matrix_html.py",
+      "installedChecksum": "18b15ba12145d14441b3b308124daf2ee341e6247789b8f861d8ca7be7537dd8",
+      "templateChecksum": "18b15ba12145d14441b3b308124daf2ee341e6247789b8f861d8ca7be7537dd8",
+      "projectChecksum": "18b15ba12145d14441b3b308124daf2ee341e6247789b8f861d8ca7be7537dd8",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-project-docs-html/requirements.txt": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-project-docs-html/requirements.txt",
+      "installedChecksum": "26c346f5c912dc5eb86e6925a04b67aa06b1a77ca4d1a832f025fe0d22dcbc9c",
+      "templateChecksum": "26c346f5c912dc5eb86e6925a04b67aa06b1a77ca4d1a832f025fe0d22dcbc9c",
+      "projectChecksum": "26c346f5c912dc5eb86e6925a04b67aa06b1a77ca4d1a832f025fe0d22dcbc9c",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-project-docs-html/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-project-docs-html/SKILL.md",
+      "installedChecksum": "0c5908b994e26d1e5ecce07815fb83796c4792e09ed473ac45f7ea0bc26df1e3",
+      "templateChecksum": "0c5908b994e26d1e5ecce07815fb83796c4792e09ed473ac45f7ea0bc26df1e3",
+      "projectChecksum": "0c5908b994e26d1e5ecce07815fb83796c4792e09ed473ac45f7ea0bc26df1e3",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-qa-gate/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-qa-gate/SKILL.md",
+      "installedChecksum": "6ee2400f8fcd0c93999b878bceecaf1ffeb368da22a2067ca436b04d309873b4",
+      "templateChecksum": "6ee2400f8fcd0c93999b878bceecaf1ffeb368da22a2067ca436b04d309873b4",
+      "projectChecksum": "6ee2400f8fcd0c93999b878bceecaf1ffeb368da22a2067ca436b04d309873b4",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-requirements-matrix-excel/assets/logointelix-sin-fondo.png": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-requirements-matrix-excel/assets/logointelix-sin-fondo.png",
+      "installedChecksum": "37747af71699df844d6f91a9c2bff3e1ed4468ed6e158792d4e66aa0980abb34",
+      "templateChecksum": "37747af71699df844d6f91a9c2bff3e1ed4468ed6e158792d4e66aa0980abb34",
+      "projectChecksum": "37747af71699df844d6f91a9c2bff3e1ed4468ed6e158792d4e66aa0980abb34",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-requirements-matrix-excel/example_input.json": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-requirements-matrix-excel/example_input.json",
+      "installedChecksum": "d8f9075719fecad2527675bc3d69087119861da1e32bfda5afbea4518eaa3945",
+      "templateChecksum": "d8f9075719fecad2527675bc3d69087119861da1e32bfda5afbea4518eaa3945",
+      "projectChecksum": "d8f9075719fecad2527675bc3d69087119861da1e32bfda5afbea4518eaa3945",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-requirements-matrix-excel/generate_requirements_excel.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-requirements-matrix-excel/generate_requirements_excel.py",
+      "installedChecksum": "1f784ed66167b3d83f54cde5802b55e62f63ef776aefa4d7a5073b5c1e9d4f42",
+      "templateChecksum": "1f784ed66167b3d83f54cde5802b55e62f63ef776aefa4d7a5073b5c1e9d4f42",
+      "projectChecksum": "1f784ed66167b3d83f54cde5802b55e62f63ef776aefa4d7a5073b5c1e9d4f42",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-requirements-matrix-excel/README.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-requirements-matrix-excel/README.md",
+      "installedChecksum": "5731cabe6048fc434c543416e7b6d3e13493427b7ce89ebe028c732a06449dce",
+      "templateChecksum": "5731cabe6048fc434c543416e7b6d3e13493427b7ce89ebe028c732a06449dce",
+      "projectChecksum": "5731cabe6048fc434c543416e7b6d3e13493427b7ce89ebe028c732a06449dce",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-requirements-matrix-excel/requirements.txt": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-requirements-matrix-excel/requirements.txt",
+      "installedChecksum": "ae999682b2f7352207717c5d54c7090061f43f56fddba3fe070ecc1b86d105f6",
+      "templateChecksum": "ae999682b2f7352207717c5d54c7090061f43f56fddba3fe070ecc1b86d105f6",
+      "projectChecksum": "ae999682b2f7352207717c5d54c7090061f43f56fddba3fe070ecc1b86d105f6",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-requirements-matrix-excel/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-requirements-matrix-excel/SKILL.md",
+      "installedChecksum": "616678a2d65f83f68021a9eae5b6ae89d14810b3cedb2babb89ca3cbbf51fa5a",
+      "templateChecksum": "616678a2d65f83f68021a9eae5b6ae89d14810b3cedb2babb89ca3cbbf51fa5a",
+      "projectChecksum": "616678a2d65f83f68021a9eae5b6ae89d14810b3cedb2babb89ca3cbbf51fa5a",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-requirements-matrix-pdf/assets/logointelix-sin-fondo.png": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-requirements-matrix-pdf/assets/logointelix-sin-fondo.png",
+      "installedChecksum": "37747af71699df844d6f91a9c2bff3e1ed4468ed6e158792d4e66aa0980abb34",
+      "templateChecksum": "37747af71699df844d6f91a9c2bff3e1ed4468ed6e158792d4e66aa0980abb34",
+      "projectChecksum": "37747af71699df844d6f91a9c2bff3e1ed4468ed6e158792d4e66aa0980abb34",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-requirements-matrix-pdf/example_input.json": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-requirements-matrix-pdf/example_input.json",
+      "installedChecksum": "d8f9075719fecad2527675bc3d69087119861da1e32bfda5afbea4518eaa3945",
+      "templateChecksum": "d8f9075719fecad2527675bc3d69087119861da1e32bfda5afbea4518eaa3945",
+      "projectChecksum": "d8f9075719fecad2527675bc3d69087119861da1e32bfda5afbea4518eaa3945",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-requirements-matrix-pdf/generate_requirements_pdf.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-requirements-matrix-pdf/generate_requirements_pdf.py",
+      "installedChecksum": "99780c8899195b21dea583f9cac09708ed8f963ce2ee7195a5b07e274b415d9a",
+      "templateChecksum": "99780c8899195b21dea583f9cac09708ed8f963ce2ee7195a5b07e274b415d9a",
+      "projectChecksum": "99780c8899195b21dea583f9cac09708ed8f963ce2ee7195a5b07e274b415d9a",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-requirements-matrix-pdf/README.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-requirements-matrix-pdf/README.md",
+      "installedChecksum": "6e6c5e60678e8cbb741e3169a99acbfbab8c3075deaa9d38f4c86e2e7c4e5c13",
+      "templateChecksum": "6e6c5e60678e8cbb741e3169a99acbfbab8c3075deaa9d38f4c86e2e7c4e5c13",
+      "projectChecksum": "6e6c5e60678e8cbb741e3169a99acbfbab8c3075deaa9d38f4c86e2e7c4e5c13",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-requirements-matrix-pdf/requirements.txt": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-requirements-matrix-pdf/requirements.txt",
+      "installedChecksum": "b2458912fe7373043bc31bfbbe2d44af24ba2d41a46023933735c852d5beab8f",
+      "templateChecksum": "b2458912fe7373043bc31bfbbe2d44af24ba2d41a46023933735c852d5beab8f",
+      "projectChecksum": "b2458912fe7373043bc31bfbbe2d44af24ba2d41a46023933735c852d5beab8f",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-requirements-matrix-pdf/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-requirements-matrix-pdf/SKILL.md",
+      "installedChecksum": "b27acd7540ec981df6386adf17e6a95e812e5357946d288802ded6067138abcc",
+      "templateChecksum": "b27acd7540ec981df6386adf17e6a95e812e5357946d288802ded6067138abcc",
+      "projectChecksum": "b27acd7540ec981df6386adf17e6a95e812e5357946d288802ded6067138abcc",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-roadmap-generator-html/assets/logo-intelix.svg": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-roadmap-generator-html/assets/logo-intelix.svg",
+      "installedChecksum": "b056e56a4b5b288f86cb4f1909bb7e101956218f523af946365deacb4b1fe51c",
+      "templateChecksum": "b056e56a4b5b288f86cb4f1909bb7e101956218f523af946365deacb4b1fe51c",
+      "projectChecksum": "b056e56a4b5b288f86cb4f1909bb7e101956218f523af946365deacb4b1fe51c",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-roadmap-generator-html/assets/logointelix-sin-fondo.png": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-roadmap-generator-html/assets/logointelix-sin-fondo.png",
+      "installedChecksum": "37747af71699df844d6f91a9c2bff3e1ed4468ed6e158792d4e66aa0980abb34",
+      "templateChecksum": "37747af71699df844d6f91a9c2bff3e1ed4468ed6e158792d4e66aa0980abb34",
+      "projectChecksum": "37747af71699df844d6f91a9c2bff3e1ed4468ed6e158792d4e66aa0980abb34",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-roadmap-generator-html/assets/roadmap-template.html": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-roadmap-generator-html/assets/roadmap-template.html",
+      "installedChecksum": "af0d9f6b11aee405479f7805ecb675ff5312fe227ba79a60b156dd44afe37468",
+      "templateChecksum": "af0d9f6b11aee405479f7805ecb675ff5312fe227ba79a60b156dd44afe37468",
+      "projectChecksum": "af0d9f6b11aee405479f7805ecb675ff5312fe227ba79a60b156dd44afe37468",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-roadmap-generator-html/assets/style.css": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-roadmap-generator-html/assets/style.css",
+      "installedChecksum": "fee59cbdefd1a99c85be8a05a8e46bce7b2677e07beec0a902324b33cc9d0f88",
+      "templateChecksum": "fee59cbdefd1a99c85be8a05a8e46bce7b2677e07beec0a902324b33cc9d0f88",
+      "projectChecksum": "fee59cbdefd1a99c85be8a05a8e46bce7b2677e07beec0a902324b33cc9d0f88",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-roadmap-generator-html/config.example.json": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-roadmap-generator-html/config.example.json",
+      "installedChecksum": "140275ea6318ff94a8711999db02bac73f53ccb4dc9f61653831971f1b1b024b",
+      "templateChecksum": "140275ea6318ff94a8711999db02bac73f53ccb4dc9f61653831971f1b1b024b",
+      "projectChecksum": "140275ea6318ff94a8711999db02bac73f53ccb4dc9f61653831971f1b1b024b",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-roadmap-generator-html/config.roadmap.json": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-roadmap-generator-html/config.roadmap.json",
+      "installedChecksum": "b591a9cf5aa536186fd7f55d534eba153508220080fe3e0c147c39306a51b66f",
+      "templateChecksum": "b591a9cf5aa536186fd7f55d534eba153508220080fe3e0c147c39306a51b66f",
+      "projectChecksum": "b591a9cf5aa536186fd7f55d534eba153508220080fe3e0c147c39306a51b66f",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-roadmap-generator-html/generate_example_excel.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-roadmap-generator-html/generate_example_excel.py",
+      "installedChecksum": "9c3ab493b7a73155121c7c88344ca837cf0cb1b633b3dd742ec0faff07d8358f",
+      "templateChecksum": "9c3ab493b7a73155121c7c88344ca837cf0cb1b633b3dd742ec0faff07d8358f",
+      "projectChecksum": "9c3ab493b7a73155121c7c88344ca837cf0cb1b633b3dd742ec0faff07d8358f",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-roadmap-generator-html/generate_roadmap.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-roadmap-generator-html/generate_roadmap.py",
+      "installedChecksum": "b67da2d998f40dd064bbfd63bb50e9c8a43afec61d4ca5def32f88b88f02568e",
+      "templateChecksum": "b67da2d998f40dd064bbfd63bb50e9c8a43afec61d4ca5def32f88b88f02568e",
+      "projectChecksum": "b67da2d998f40dd064bbfd63bb50e9c8a43afec61d4ca5def32f88b88f02568e",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-roadmap-generator-html/input.example.xlsx": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-roadmap-generator-html/input.example.xlsx",
+      "installedChecksum": "302d94fdb416472a8e0b2e21d43aa7c313e66e6f1981332e8e0644f7f623ede1",
+      "templateChecksum": "302d94fdb416472a8e0b2e21d43aa7c313e66e6f1981332e8e0644f7f623ede1",
+      "projectChecksum": "302d94fdb416472a8e0b2e21d43aa7c313e66e6f1981332e8e0644f7f623ede1",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-roadmap-generator-html/README.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-roadmap-generator-html/README.md",
+      "installedChecksum": "19d82edc02ec06522954e73329425b700791a95628486d5b4060aef9b89c5e13",
+      "templateChecksum": "19d82edc02ec06522954e73329425b700791a95628486d5b4060aef9b89c5e13",
+      "projectChecksum": "19d82edc02ec06522954e73329425b700791a95628486d5b4060aef9b89c5e13",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-roadmap-generator-html/requirements.txt": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-roadmap-generator-html/requirements.txt",
+      "installedChecksum": "d8728b9c3104c18767d468f59967ae1ec983a46f185cbe3e18e9001b98074bba",
+      "templateChecksum": "d8728b9c3104c18767d468f59967ae1ec983a46f185cbe3e18e9001b98074bba",
+      "projectChecksum": "d8728b9c3104c18767d468f59967ae1ec983a46f185cbe3e18e9001b98074bba",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-roadmap-generator-html/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-roadmap-generator-html/SKILL.md",
+      "installedChecksum": "3a966608bcea0e18f9e0adbec3cfe797651359bda3b72a05506cdc146d9582bc",
+      "templateChecksum": "3a966608bcea0e18f9e0adbec3cfe797651359bda3b72a05506cdc146d9582bc",
+      "projectChecksum": "3a966608bcea0e18f9e0adbec3cfe797651359bda3b72a05506cdc146d9582bc",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-seguimiento-plan/generate_seguimiento.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-seguimiento-plan/generate_seguimiento.py",
+      "installedChecksum": "6d993a3c586af7482408e7875740e785699bcee4aecb02541a3282e651bc51ed",
+      "templateChecksum": "6d993a3c586af7482408e7875740e785699bcee4aecb02541a3282e651bc51ed",
+      "projectChecksum": "6d993a3c586af7482408e7875740e785699bcee4aecb02541a3282e651bc51ed",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-seguimiento-plan/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-seguimiento-plan/SKILL.md",
+      "installedChecksum": "8f3da4d92b2206101266085668977f03fc6ad381dcf97718fcc572034f58ce16",
+      "templateChecksum": "8f3da4d92b2206101266085668977f03fc6ad381dcf97718fcc572034f58ce16",
+      "projectChecksum": "8f3da4d92b2206101266085668977f03fc6ad381dcf97718fcc572034f58ce16",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-seguridad-linter/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-seguridad-linter/SKILL.md",
+      "installedChecksum": "24cdb05ff1c163d1761e682dd867d58881558eb1cc2219defc5da6fd79d87257",
+      "templateChecksum": "24cdb05ff1c163d1761e682dd867d58881558eb1cc2219defc5da6fd79d87257",
+      "projectChecksum": "24cdb05ff1c163d1761e682dd867d58881558eb1cc2219defc5da6fd79d87257",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-task-tracker/aidlc_paths.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-task-tracker/aidlc_paths.py",
+      "installedChecksum": "0a6b1e27cc5524d8b5f4c4212c714ef4fe8a070306be850b52b9ec090b82fb7a",
+      "templateChecksum": "0a6b1e27cc5524d8b5f4c4212c714ef4fe8a070306be850b52b9ec090b82fb7a",
+      "projectChecksum": "0a6b1e27cc5524d8b5f4c4212c714ef4fe8a070306be850b52b9ec090b82fb7a",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-task-tracker/check_drift.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-task-tracker/check_drift.py",
+      "installedChecksum": "a25a7bb7aad896e22ab9dfa48d8a0b2b7dd5f7cbf0833d135cdaa49e6d543f19",
+      "templateChecksum": "a25a7bb7aad896e22ab9dfa48d8a0b2b7dd5f7cbf0833d135cdaa49e6d543f19",
+      "projectChecksum": "a25a7bb7aad896e22ab9dfa48d8a0b2b7dd5f7cbf0833d135cdaa49e6d543f19",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-task-tracker/generate_tracking_pdf.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-task-tracker/generate_tracking_pdf.py",
+      "installedChecksum": "b4d0624a15c4e31ad4e9073c806c1f12fdd02c2d51be9839008643c47b62ce6b",
+      "templateChecksum": "b4d0624a15c4e31ad4e9073c806c1f12fdd02c2d51be9839008643c47b62ce6b",
+      "projectChecksum": "b4d0624a15c4e31ad4e9073c806c1f12fdd02c2d51be9839008643c47b62ce6b",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-task-tracker/generate_tracking_report.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-task-tracker/generate_tracking_report.py",
+      "installedChecksum": "bbe204f0dde5976a91407b7d0f293ddade7dc29de039182c96abb11c4d25bfa6",
+      "templateChecksum": "bbe204f0dde5976a91407b7d0f293ddade7dc29de039182c96abb11c4d25bfa6",
+      "projectChecksum": "bbe204f0dde5976a91407b7d0f293ddade7dc29de039182c96abb11c4d25bfa6",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-task-tracker/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-task-tracker/SKILL.md",
+      "installedChecksum": "a77e7f88af8846406f45307e605c23bb115558855e2501dbe83e6ab9eb0e90eb",
+      "templateChecksum": "a77e7f88af8846406f45307e605c23bb115558855e2501dbe83e6ab9eb0e90eb",
+      "projectChecksum": "a77e7f88af8846406f45307e605c23bb115558855e2501dbe83e6ab9eb0e90eb",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-task-tracker/story_mapping.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-task-tracker/story_mapping.py",
+      "installedChecksum": "0b1df3a4deeb63d966698847613c1902f4ae41e52a0f9c34039c3bb2b76ea003",
+      "templateChecksum": "0b1df3a4deeb63d966698847613c1902f4ae41e52a0f9c34039c3bb2b76ea003",
+      "projectChecksum": "0b1df3a4deeb63d966698847613c1902f4ae41e52a0f9c34039c3bb2b76ea003",
+      "status": "installed"
+    },
+    ".claude/skills/intelix-task-tracker/tracker_core.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-task-tracker/tracker_core.py",
+      "installedChecksum": "d5501e06f443068298e762e971e7c97c4eb75cf9669cb3e367d97c1aacf5d037",
+      "templateChecksum": "d5501e06f443068298e762e971e7c97c4eb75cf9669cb3e367d97c1aacf5d037",
+      "projectChecksum": "d5501e06f443068298e762e971e7c97c4eb75cf9669cb3e367d97c1aacf5d037",
+      "status": "installed"
+    },
+    ".gitlab/intelix-ci.yml": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/.gitlab/intelix-ci.yml",
+      "installedChecksum": "a81705e6648bde5c401abef1394384bc6548f1dc57494c423f5fb756e3394e0f",
+      "templateChecksum": "a81705e6648bde5c401abef1394384bc6548f1dc57494c423f5fb756e3394e0f",
+      "projectChecksum": "a81705e6648bde5c401abef1394384bc6548f1dc57494c423f5fb756e3394e0f",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-arquitectura-gate/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-arquitectura-gate/SKILL.md",
+      "installedChecksum": "cdc4d7f3274a1be6c2669230560e97197d367ddcb46a2fd6430d64746e6a1aec",
+      "templateChecksum": "cdc4d7f3274a1be6c2669230560e97197d367ddcb46a2fd6430d64746e6a1aec",
+      "projectChecksum": "cdc4d7f3274a1be6c2669230560e97197d367ddcb46a2fd6430d64746e6a1aec",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-certificacion/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-certificacion/SKILL.md",
+      "installedChecksum": "8350bc7461a19c364b5700ded62173c3b958b46f1db7526e3e18292db099e022",
+      "templateChecksum": "8350bc7461a19c364b5700ded62173c3b958b46f1db7526e3e18292db099e022",
+      "projectChecksum": "8350bc7461a19c364b5700ded62173c3b958b46f1db7526e3e18292db099e022",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-consolidado-avance/consolidado_core.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-consolidado-avance/consolidado_core.py",
+      "installedChecksum": "f060f0d4762e5bfd3da617c179f1e14cb8dea5173d6b56c679cab5338dd2dbbb",
+      "templateChecksum": "f060f0d4762e5bfd3da617c179f1e14cb8dea5173d6b56c679cab5338dd2dbbb",
+      "projectChecksum": "f060f0d4762e5bfd3da617c179f1e14cb8dea5173d6b56c679cab5338dd2dbbb",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-consolidado-avance/generar_consolidado.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-consolidado-avance/generar_consolidado.py",
+      "installedChecksum": "7ba3702605fab07f32c5e341568e5d4a17b91a3c9a3f8e46cf6ae125b2b9ef49",
+      "templateChecksum": "7ba3702605fab07f32c5e341568e5d4a17b91a3c9a3f8e46cf6ae125b2b9ef49",
+      "projectChecksum": "7ba3702605fab07f32c5e341568e5d4a17b91a3c9a3f8e46cf6ae125b2b9ef49",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-consolidado-avance/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-consolidado-avance/SKILL.md",
+      "installedChecksum": "34198b8447cd6dad813d5059e90472ec00031b8557be19aabebee6788eab3a57",
+      "templateChecksum": "34198b8447cd6dad813d5059e90472ec00031b8557be19aabebee6788eab3a57",
+      "projectChecksum": "34198b8447cd6dad813d5059e90472ec00031b8557be19aabebee6788eab3a57",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-datalake-naming/hooks/db-naming-validator.json": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-datalake-naming/hooks/db-naming-validator.json",
+      "installedChecksum": "44ad7bf92e2574b5106162e0dfc0706738a5ad30087ca3a501271211f59dc13a",
+      "templateChecksum": "44ad7bf92e2574b5106162e0dfc0706738a5ad30087ca3a501271211f59dc13a",
+      "projectChecksum": "44ad7bf92e2574b5106162e0dfc0706738a5ad30087ca3a501271211f59dc13a",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-datalake-naming/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-datalake-naming/SKILL.md",
+      "installedChecksum": "3066aeee2bdbca863ec24bb5189795211971dea6161ffb03737b7ef7609cff9d",
+      "templateChecksum": "3066aeee2bdbca863ec24bb5189795211971dea6161ffb03737b7ef7609cff9d",
+      "projectChecksum": "3066aeee2bdbca863ec24bb5189795211971dea6161ffb03737b7ef7609cff9d",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-datalake-naming/validar_sql.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-datalake-naming/validar_sql.py",
+      "installedChecksum": "c38ac8b543233de9f54c7a495680fd0d2525b5ce0699e36bc18c1109c2115ad1",
+      "templateChecksum": "c38ac8b543233de9f54c7a495680fd0d2525b5ce0699e36bc18c1109c2115ad1",
+      "projectChecksum": "c38ac8b543233de9f54c7a495680fd0d2525b5ce0699e36bc18c1109c2115ad1",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-db-provisioning/.env.example": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-db-provisioning/.env.example",
+      "installedChecksum": "c2c6e0765103ead2be2b499f9b37400fcaebd1516bbe505cec69ed1fdd8a0048",
+      "templateChecksum": "c2c6e0765103ead2be2b499f9b37400fcaebd1516bbe505cec69ed1fdd8a0048",
+      "projectChecksum": "c2c6e0765103ead2be2b499f9b37400fcaebd1516bbe505cec69ed1fdd8a0048",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-db-provisioning/config.yaml": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-db-provisioning/config.yaml",
+      "installedChecksum": "3aab336b8a1e30e483ca2ae12af19d8c22690929d400238f1eac421ff281a0b4",
+      "templateChecksum": "3aab336b8a1e30e483ca2ae12af19d8c22690929d400238f1eac421ff281a0b4",
+      "projectChecksum": "3aab336b8a1e30e483ca2ae12af19d8c22690929d400238f1eac421ff281a0b4",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-db-provisioning/generate.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-db-provisioning/generate.py",
+      "installedChecksum": "da4cccc2ed0763cd42e70d299704f5c5a3d1f66207062483ac915de76009c263",
+      "templateChecksum": "da4cccc2ed0763cd42e70d299704f5c5a3d1f66207062483ac915de76009c263",
+      "projectChecksum": "da4cccc2ed0763cd42e70d299704f5c5a3d1f66207062483ac915de76009c263",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-db-provisioning/README.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-db-provisioning/README.md",
+      "installedChecksum": "4c27e1df93b6e8117995ab7d45ac05ebc7c3a93943556b17b691dd8e4ae4c5df",
+      "templateChecksum": "4c27e1df93b6e8117995ab7d45ac05ebc7c3a93943556b17b691dd8e4ae4c5df",
+      "projectChecksum": "4c27e1df93b6e8117995ab7d45ac05ebc7c3a93943556b17b691dd8e4ae4c5df",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-db-provisioning/requirements.txt": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-db-provisioning/requirements.txt",
+      "installedChecksum": "6252860334936bab5eb34f15c3b64ef43db04d39ba9ef219eb72d9872f5b2256",
+      "templateChecksum": "6252860334936bab5eb34f15c3b64ef43db04d39ba9ef219eb72d9872f5b2256",
+      "projectChecksum": "6252860334936bab5eb34f15c3b64ef43db04d39ba9ef219eb72d9872f5b2256",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-db-provisioning/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-db-provisioning/SKILL.md",
+      "installedChecksum": "22c1220bf6782800a83308b3a9ce825bfb13aafce69742d500d17b8638f1e942",
+      "templateChecksum": "22c1220bf6782800a83308b3a9ce825bfb13aafce69742d500d17b8638f1e942",
+      "projectChecksum": "22c1220bf6782800a83308b3a9ce825bfb13aafce69742d500d17b8638f1e942",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-db-provisioning/templates/mysql.sql.tpl": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/mysql.sql.tpl",
+      "installedChecksum": "28ca6404c922a2ecdb014330feea24cf484eff9d61feea72c24219b863ca9cd5",
+      "templateChecksum": "28ca6404c922a2ecdb014330feea24cf484eff9d61feea72c24219b863ca9cd5",
+      "projectChecksum": "28ca6404c922a2ecdb014330feea24cf484eff9d61feea72c24219b863ca9cd5",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-db-provisioning/templates/mysql.validate.sql.tpl": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/mysql.validate.sql.tpl",
+      "installedChecksum": "31641240098f874074a60ba9984f676e1e4278840ff8640d38b8371cd71eaf46",
+      "templateChecksum": "31641240098f874074a60ba9984f676e1e4278840ff8640d38b8371cd71eaf46",
+      "projectChecksum": "31641240098f874074a60ba9984f676e1e4278840ff8640d38b8371cd71eaf46",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-db-provisioning/templates/oracle.sql.tpl": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/oracle.sql.tpl",
+      "installedChecksum": "ffb06c086157eb81aeb115f9b525baa5e07aef7978106cd80a7e31e1885a7290",
+      "templateChecksum": "ffb06c086157eb81aeb115f9b525baa5e07aef7978106cd80a7e31e1885a7290",
+      "projectChecksum": "ffb06c086157eb81aeb115f9b525baa5e07aef7978106cd80a7e31e1885a7290",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-db-provisioning/templates/oracle.validate.sql.tpl": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/oracle.validate.sql.tpl",
+      "installedChecksum": "a4d185bf4677a9c6e7eb652e708abcefefa37ab75693c2edb2fa325a904b72aa",
+      "templateChecksum": "a4d185bf4677a9c6e7eb652e708abcefefa37ab75693c2edb2fa325a904b72aa",
+      "projectChecksum": "a4d185bf4677a9c6e7eb652e708abcefefa37ab75693c2edb2fa325a904b72aa",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-db-provisioning/templates/postgresql.sql.tpl": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/postgresql.sql.tpl",
+      "installedChecksum": "2d154f30aa760d40a56f8a30b8813fad60702b61ec7b91ef987b6802005b4115",
+      "templateChecksum": "2d154f30aa760d40a56f8a30b8813fad60702b61ec7b91ef987b6802005b4115",
+      "projectChecksum": "2d154f30aa760d40a56f8a30b8813fad60702b61ec7b91ef987b6802005b4115",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-db-provisioning/templates/postgresql.validate.sql.tpl": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/postgresql.validate.sql.tpl",
+      "installedChecksum": "0fb9263167e0283203995dc52b6571ff9377fa7f3dc0c0384b9286b85976993c",
+      "templateChecksum": "0fb9263167e0283203995dc52b6571ff9377fa7f3dc0c0384b9286b85976993c",
+      "projectChecksum": "0fb9263167e0283203995dc52b6571ff9377fa7f3dc0c0384b9286b85976993c",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-db-provisioning/templates/sqlserver.sql.tpl": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/sqlserver.sql.tpl",
+      "installedChecksum": "85f5103ec23afe0ef0912adbd79346013d8b7a50f688fb798cb8f87bb7b3494d",
+      "templateChecksum": "85f5103ec23afe0ef0912adbd79346013d8b7a50f688fb798cb8f87bb7b3494d",
+      "projectChecksum": "85f5103ec23afe0ef0912adbd79346013d8b7a50f688fb798cb8f87bb7b3494d",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-db-provisioning/templates/sqlserver.validate.sql.tpl": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/sqlserver.validate.sql.tpl",
+      "installedChecksum": "067c8916813030a3a6356f9bed2103e5aa31e1c6d0e04c385a11cca8a75954cd",
+      "templateChecksum": "067c8916813030a3a6356f9bed2103e5aa31e1c6d0e04c385a11cca8a75954cd",
+      "projectChecksum": "067c8916813030a3a6356f9bed2103e5aa31e1c6d0e04c385a11cca8a75954cd",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-db-provisioning/validate.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-db-provisioning/validate.py",
+      "installedChecksum": "4875b151511a39f8c26130d03f5e2956d4ae30ac3123fed878059424359e300b",
+      "templateChecksum": "4875b151511a39f8c26130d03f5e2956d4ae30ac3123fed878059424359e300b",
+      "projectChecksum": "4875b151511a39f8c26130d03f5e2956d4ae30ac3123fed878059424359e300b",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-devops-diagnostico/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-devops-diagnostico/SKILL.md",
+      "installedChecksum": "9e58bb53b5da8d8bed49f5b492df209fb9c310d62fb61ea38dedf6cc41329dbe",
+      "templateChecksum": "9e58bb53b5da8d8bed49f5b492df209fb9c310d62fb61ea38dedf6cc41329dbe",
+      "projectChecksum": "9e58bb53b5da8d8bed49f5b492df209fb9c310d62fb61ea38dedf6cc41329dbe",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-estimacion/scripts/corrector_ortografico.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-estimacion/scripts/corrector_ortografico.py",
+      "installedChecksum": "e63e93b7cf5ed676da0c8a2655dcc8fc431172f87f21fb70d55e04c264db6d9c",
+      "templateChecksum": "e63e93b7cf5ed676da0c8a2655dcc8fc431172f87f21fb70d55e04c264db6d9c",
+      "projectChecksum": "e63e93b7cf5ed676da0c8a2655dcc8fc431172f87f21fb70d55e04c264db6d9c",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-estimacion/scripts/estimacion-fases.example.json": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-estimacion/scripts/estimacion-fases.example.json",
+      "installedChecksum": "4b55a61e9892bef5ea75ffd92be06a2cb9cd03f627250562470f7e0df3cbf031",
+      "templateChecksum": "4b55a61e9892bef5ea75ffd92be06a2cb9cd03f627250562470f7e0df3cbf031",
+      "projectChecksum": "4b55a61e9892bef5ea75ffd92be06a2cb9cd03f627250562470f7e0df3cbf031",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-estimacion/scripts/generate_estimacion_v3.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-estimacion/scripts/generate_estimacion_v3.py",
+      "installedChecksum": "1df453b52be0d0af8684966c0214eaae2b488d1a592ac85ce7bf0b278f29571b",
+      "templateChecksum": "1df453b52be0d0af8684966c0214eaae2b488d1a592ac85ce7bf0b278f29571b",
+      "projectChecksum": "1df453b52be0d0af8684966c0214eaae2b488d1a592ac85ce7bf0b278f29571b",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-estimacion/scripts/project-config.example.json": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-estimacion/scripts/project-config.example.json",
+      "installedChecksum": "191bb75b9b90bd653e47ed9826d5fbd4125db7ef3ba7f9081e230823657bc664",
+      "templateChecksum": "191bb75b9b90bd653e47ed9826d5fbd4125db7ef3ba7f9081e230823657bc664",
+      "projectChecksum": "191bb75b9b90bd653e47ed9826d5fbd4125db7ef3ba7f9081e230823657bc664",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-estimacion/scripts/README.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-estimacion/scripts/README.md",
+      "installedChecksum": "a86ab7d4acd5f9dfca1da925bd2a87297db4c62551067b1a5c79dfca755397c3",
+      "templateChecksum": "a86ab7d4acd5f9dfca1da925bd2a87297db4c62551067b1a5c79dfca755397c3",
+      "projectChecksum": "a86ab7d4acd5f9dfca1da925bd2a87297db4c62551067b1a5c79dfca755397c3",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-estimacion/scripts/test_corrector_ortografico.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-estimacion/scripts/test_corrector_ortografico.py",
+      "installedChecksum": "932d96bdf5a3f4338a7519a28bff9fdd35f1412f407221c4e7c5a7d2ca584024",
+      "templateChecksum": "932d96bdf5a3f4338a7519a28bff9fdd35f1412f407221c4e7c5a7d2ca584024",
+      "projectChecksum": "932d96bdf5a3f4338a7519a28bff9fdd35f1412f407221c4e7c5a7d2ca584024",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-estimacion/scripts/test_generate_estimacion_v3.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-estimacion/scripts/test_generate_estimacion_v3.py",
+      "installedChecksum": "ef13637906db42ebe549ee8077b4f31da958cf88300ae6e0b29834a5b708b38a",
+      "templateChecksum": "ef13637906db42ebe549ee8077b4f31da958cf88300ae6e0b29834a5b708b38a",
+      "projectChecksum": "ef13637906db42ebe549ee8077b4f31da958cf88300ae6e0b29834a5b708b38a",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-estimacion/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-estimacion/SKILL.md",
+      "installedChecksum": "811ff61c38527cbc0f2ae5dd8808b7317b6355fd851ab020ce7850b894d6b521",
+      "templateChecksum": "811ff61c38527cbc0f2ae5dd8808b7317b6355fd851ab020ce7850b894d6b521",
+      "projectChecksum": "811ff61c38527cbc0f2ae5dd8808b7317b6355fd851ab020ce7850b894d6b521",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-ficha-de-solicitud/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-ficha-de-solicitud/SKILL.md",
+      "installedChecksum": "675c02f6c92bb7536370a1c4976ac457953b180951a35ad03eb6077f994f92e4",
+      "templateChecksum": "675c02f6c92bb7536370a1c4976ac457953b180951a35ad03eb6077f994f92e4",
+      "projectChecksum": "675c02f6c92bb7536370a1c4976ac457953b180951a35ad03eb6077f994f92e4",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-file-to-markdown/file-to-markdown.bat": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-file-to-markdown/file-to-markdown.bat",
+      "installedChecksum": "5d87b01527b08924700ac5852a362053956cf58d3e9b0537102cc7ecc868f8fd",
+      "templateChecksum": "5d87b01527b08924700ac5852a362053956cf58d3e9b0537102cc7ecc868f8fd",
+      "projectChecksum": "5d87b01527b08924700ac5852a362053956cf58d3e9b0537102cc7ecc868f8fd",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-file-to-markdown/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-file-to-markdown/SKILL.md",
+      "installedChecksum": "4c4671f6d89e63c8cd1ec4e68db9bb683c08915343993c4d6ff119f7b6605108",
+      "templateChecksum": "4c4671f6d89e63c8cd1ec4e68db9bb683c08915343993c4d6ff119f7b6605108",
+      "projectChecksum": "4c4671f6d89e63c8cd1ec4e68db9bb683c08915343993c4d6ff119f7b6605108",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-git-flow/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-git-flow/SKILL.md",
+      "installedChecksum": "58bb86c96c20b6b4f84e4dcdbaf31db3311dfdf36161235fbe493f604f6204e3",
+      "templateChecksum": "58bb86c96c20b6b4f84e4dcdbaf31db3311dfdf36161235fbe493f604f6204e3",
+      "projectChecksum": "58bb86c96c20b6b4f84e4dcdbaf31db3311dfdf36161235fbe493f604f6204e3",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-inception-iterations/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-inception-iterations/SKILL.md",
+      "installedChecksum": "7431200baf65fc121e184d25935bc890e3ad0077cbe155c5778a969146f9b051",
+      "templateChecksum": "7431200baf65fc121e184d25935bc890e3ad0077cbe155c5778a969146f9b051",
+      "projectChecksum": "7431200baf65fc121e184d25935bc890e3ad0077cbe155c5778a969146f9b051",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-mobile-kmp/references/criterios-mobile-kmp.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-mobile-kmp/references/criterios-mobile-kmp.md",
+      "installedChecksum": "2ccc613d72e93005785a475f1664a7939da04eaa19f544ebfb8a8e5f15782412",
+      "templateChecksum": "2ccc613d72e93005785a475f1664a7939da04eaa19f544ebfb8a8e5f15782412",
+      "projectChecksum": "2ccc613d72e93005785a475f1664a7939da04eaa19f544ebfb8a8e5f15782412",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-mobile-kmp/references/estandar-afv-mayoreo.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-mobile-kmp/references/estandar-afv-mayoreo.md",
+      "installedChecksum": "927228fc8448bd82b2676794797c776dfcf4b55eaf6e577216e65b950755b252",
+      "templateChecksum": "927228fc8448bd82b2676794797c776dfcf4b55eaf6e577216e65b950755b252",
+      "projectChecksum": "927228fc8448bd82b2676794797c776dfcf4b55eaf6e577216e65b950755b252",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-mobile-kmp/references/estandar-arquitectura-kmp.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-mobile-kmp/references/estandar-arquitectura-kmp.md",
+      "installedChecksum": "b6c5af9c3e8190da794fa25cc3415bad0a52aa1db39bb70a89d5c3469189df08",
+      "templateChecksum": "b6c5af9c3e8190da794fa25cc3415bad0a52aa1db39bb70a89d5c3469189df08",
+      "projectChecksum": "b6c5af9c3e8190da794fa25cc3415bad0a52aa1db39bb70a89d5c3469189df08",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-mobile-kmp/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-mobile-kmp/SKILL.md",
+      "installedChecksum": "a780b3460669263e473915df718c4784cd8725f3e66b8bf1013a230aec41e6fc",
+      "templateChecksum": "a780b3460669263e473915df718c4784cd8725f3e66b8bf1013a230aec41e6fc",
+      "projectChecksum": "a780b3460669263e473915df718c4784cd8725f3e66b8bf1013a230aec41e6fc",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-objetivos-y-plan-trabajo/references/plantilla-plan-trabajo.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-objetivos-y-plan-trabajo/references/plantilla-plan-trabajo.md",
+      "installedChecksum": "4f8a85b756cb9f5d37dfd3ffcf6b7c64846cc12916b53800209d70105930c67d",
+      "templateChecksum": "4f8a85b756cb9f5d37dfd3ffcf6b7c64846cc12916b53800209d70105930c67d",
+      "projectChecksum": "4f8a85b756cb9f5d37dfd3ffcf6b7c64846cc12916b53800209d70105930c67d",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-objetivos-y-plan-trabajo/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-objetivos-y-plan-trabajo/SKILL.md",
+      "installedChecksum": "dc4529cc382ed397ea7cb912ce2bf52c9c9b83191ddf57182d4c4adc0fc61560",
+      "templateChecksum": "dc4529cc382ed397ea7cb912ce2bf52c9c9b83191ddf57182d4c4adc0fc61560",
+      "projectChecksum": "dc4529cc382ed397ea7cb912ce2bf52c9c9b83191ddf57182d4c4adc0fc61560",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-observador-tareas/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-observador-tareas/SKILL.md",
+      "installedChecksum": "fa601b65678d8a673e5c93d88fd51c05be8022b2427874cecaef3392641c0648",
+      "templateChecksum": "fa601b65678d8a673e5c93d88fd51c05be8022b2427874cecaef3392641c0648",
+      "projectChecksum": "fa601b65678d8a673e5c93d88fd51c05be8022b2427874cecaef3392641c0648",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-project-docs-html/example_config.json": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-project-docs-html/example_config.json",
+      "installedChecksum": "8f64e0ef76644ef235659a9ed708c314781ded94829daf9086e896fd3a678c24",
+      "templateChecksum": "8f64e0ef76644ef235659a9ed708c314781ded94829daf9086e896fd3a678c24",
+      "projectChecksum": "8f64e0ef76644ef235659a9ed708c314781ded94829daf9086e896fd3a678c24",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-project-docs-html/generate_docs_html.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-project-docs-html/generate_docs_html.py",
+      "installedChecksum": "b8142b84272bd905a1ba1a2d080eb43011cd87e5670da90b6706be173c98636f",
+      "templateChecksum": "b8142b84272bd905a1ba1a2d080eb43011cd87e5670da90b6706be173c98636f",
+      "projectChecksum": "b8142b84272bd905a1ba1a2d080eb43011cd87e5670da90b6706be173c98636f",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-project-docs-html/generate_requirements_matrix_html.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-project-docs-html/generate_requirements_matrix_html.py",
+      "installedChecksum": "18b15ba12145d14441b3b308124daf2ee341e6247789b8f861d8ca7be7537dd8",
+      "templateChecksum": "18b15ba12145d14441b3b308124daf2ee341e6247789b8f861d8ca7be7537dd8",
+      "projectChecksum": "18b15ba12145d14441b3b308124daf2ee341e6247789b8f861d8ca7be7537dd8",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-project-docs-html/requirements.txt": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-project-docs-html/requirements.txt",
+      "installedChecksum": "26c346f5c912dc5eb86e6925a04b67aa06b1a77ca4d1a832f025fe0d22dcbc9c",
+      "templateChecksum": "26c346f5c912dc5eb86e6925a04b67aa06b1a77ca4d1a832f025fe0d22dcbc9c",
+      "projectChecksum": "26c346f5c912dc5eb86e6925a04b67aa06b1a77ca4d1a832f025fe0d22dcbc9c",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-project-docs-html/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-project-docs-html/SKILL.md",
+      "installedChecksum": "0c5908b994e26d1e5ecce07815fb83796c4792e09ed473ac45f7ea0bc26df1e3",
+      "templateChecksum": "0c5908b994e26d1e5ecce07815fb83796c4792e09ed473ac45f7ea0bc26df1e3",
+      "projectChecksum": "0c5908b994e26d1e5ecce07815fb83796c4792e09ed473ac45f7ea0bc26df1e3",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-qa-gate/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-qa-gate/SKILL.md",
+      "installedChecksum": "6ee2400f8fcd0c93999b878bceecaf1ffeb368da22a2067ca436b04d309873b4",
+      "templateChecksum": "6ee2400f8fcd0c93999b878bceecaf1ffeb368da22a2067ca436b04d309873b4",
+      "projectChecksum": "6ee2400f8fcd0c93999b878bceecaf1ffeb368da22a2067ca436b04d309873b4",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-requirements-matrix-excel/assets/logointelix-sin-fondo.png": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-requirements-matrix-excel/assets/logointelix-sin-fondo.png",
+      "installedChecksum": "37747af71699df844d6f91a9c2bff3e1ed4468ed6e158792d4e66aa0980abb34",
+      "templateChecksum": "37747af71699df844d6f91a9c2bff3e1ed4468ed6e158792d4e66aa0980abb34",
+      "projectChecksum": "37747af71699df844d6f91a9c2bff3e1ed4468ed6e158792d4e66aa0980abb34",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-requirements-matrix-excel/example_input.json": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-requirements-matrix-excel/example_input.json",
+      "installedChecksum": "d8f9075719fecad2527675bc3d69087119861da1e32bfda5afbea4518eaa3945",
+      "templateChecksum": "d8f9075719fecad2527675bc3d69087119861da1e32bfda5afbea4518eaa3945",
+      "projectChecksum": "d8f9075719fecad2527675bc3d69087119861da1e32bfda5afbea4518eaa3945",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-requirements-matrix-excel/generate_requirements_excel.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-requirements-matrix-excel/generate_requirements_excel.py",
+      "installedChecksum": "1f784ed66167b3d83f54cde5802b55e62f63ef776aefa4d7a5073b5c1e9d4f42",
+      "templateChecksum": "1f784ed66167b3d83f54cde5802b55e62f63ef776aefa4d7a5073b5c1e9d4f42",
+      "projectChecksum": "1f784ed66167b3d83f54cde5802b55e62f63ef776aefa4d7a5073b5c1e9d4f42",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-requirements-matrix-excel/README.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-requirements-matrix-excel/README.md",
+      "installedChecksum": "5731cabe6048fc434c543416e7b6d3e13493427b7ce89ebe028c732a06449dce",
+      "templateChecksum": "5731cabe6048fc434c543416e7b6d3e13493427b7ce89ebe028c732a06449dce",
+      "projectChecksum": "5731cabe6048fc434c543416e7b6d3e13493427b7ce89ebe028c732a06449dce",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-requirements-matrix-excel/requirements.txt": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-requirements-matrix-excel/requirements.txt",
+      "installedChecksum": "ae999682b2f7352207717c5d54c7090061f43f56fddba3fe070ecc1b86d105f6",
+      "templateChecksum": "ae999682b2f7352207717c5d54c7090061f43f56fddba3fe070ecc1b86d105f6",
+      "projectChecksum": "ae999682b2f7352207717c5d54c7090061f43f56fddba3fe070ecc1b86d105f6",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-requirements-matrix-excel/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-requirements-matrix-excel/SKILL.md",
+      "installedChecksum": "616678a2d65f83f68021a9eae5b6ae89d14810b3cedb2babb89ca3cbbf51fa5a",
+      "templateChecksum": "616678a2d65f83f68021a9eae5b6ae89d14810b3cedb2babb89ca3cbbf51fa5a",
+      "projectChecksum": "616678a2d65f83f68021a9eae5b6ae89d14810b3cedb2babb89ca3cbbf51fa5a",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-requirements-matrix-pdf/assets/logointelix-sin-fondo.png": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-requirements-matrix-pdf/assets/logointelix-sin-fondo.png",
+      "installedChecksum": "37747af71699df844d6f91a9c2bff3e1ed4468ed6e158792d4e66aa0980abb34",
+      "templateChecksum": "37747af71699df844d6f91a9c2bff3e1ed4468ed6e158792d4e66aa0980abb34",
+      "projectChecksum": "37747af71699df844d6f91a9c2bff3e1ed4468ed6e158792d4e66aa0980abb34",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-requirements-matrix-pdf/example_input.json": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-requirements-matrix-pdf/example_input.json",
+      "installedChecksum": "d8f9075719fecad2527675bc3d69087119861da1e32bfda5afbea4518eaa3945",
+      "templateChecksum": "d8f9075719fecad2527675bc3d69087119861da1e32bfda5afbea4518eaa3945",
+      "projectChecksum": "d8f9075719fecad2527675bc3d69087119861da1e32bfda5afbea4518eaa3945",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-requirements-matrix-pdf/generate_requirements_pdf.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-requirements-matrix-pdf/generate_requirements_pdf.py",
+      "installedChecksum": "99780c8899195b21dea583f9cac09708ed8f963ce2ee7195a5b07e274b415d9a",
+      "templateChecksum": "99780c8899195b21dea583f9cac09708ed8f963ce2ee7195a5b07e274b415d9a",
+      "projectChecksum": "99780c8899195b21dea583f9cac09708ed8f963ce2ee7195a5b07e274b415d9a",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-requirements-matrix-pdf/README.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-requirements-matrix-pdf/README.md",
+      "installedChecksum": "6e6c5e60678e8cbb741e3169a99acbfbab8c3075deaa9d38f4c86e2e7c4e5c13",
+      "templateChecksum": "6e6c5e60678e8cbb741e3169a99acbfbab8c3075deaa9d38f4c86e2e7c4e5c13",
+      "projectChecksum": "6e6c5e60678e8cbb741e3169a99acbfbab8c3075deaa9d38f4c86e2e7c4e5c13",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-requirements-matrix-pdf/requirements.txt": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-requirements-matrix-pdf/requirements.txt",
+      "installedChecksum": "b2458912fe7373043bc31bfbbe2d44af24ba2d41a46023933735c852d5beab8f",
+      "templateChecksum": "b2458912fe7373043bc31bfbbe2d44af24ba2d41a46023933735c852d5beab8f",
+      "projectChecksum": "b2458912fe7373043bc31bfbbe2d44af24ba2d41a46023933735c852d5beab8f",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-requirements-matrix-pdf/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-requirements-matrix-pdf/SKILL.md",
+      "installedChecksum": "b27acd7540ec981df6386adf17e6a95e812e5357946d288802ded6067138abcc",
+      "templateChecksum": "b27acd7540ec981df6386adf17e6a95e812e5357946d288802ded6067138abcc",
+      "projectChecksum": "b27acd7540ec981df6386adf17e6a95e812e5357946d288802ded6067138abcc",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-roadmap-generator-html/assets/logo-intelix.svg": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-roadmap-generator-html/assets/logo-intelix.svg",
+      "installedChecksum": "b056e56a4b5b288f86cb4f1909bb7e101956218f523af946365deacb4b1fe51c",
+      "templateChecksum": "b056e56a4b5b288f86cb4f1909bb7e101956218f523af946365deacb4b1fe51c",
+      "projectChecksum": "b056e56a4b5b288f86cb4f1909bb7e101956218f523af946365deacb4b1fe51c",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-roadmap-generator-html/assets/logointelix-sin-fondo.png": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-roadmap-generator-html/assets/logointelix-sin-fondo.png",
+      "installedChecksum": "37747af71699df844d6f91a9c2bff3e1ed4468ed6e158792d4e66aa0980abb34",
+      "templateChecksum": "37747af71699df844d6f91a9c2bff3e1ed4468ed6e158792d4e66aa0980abb34",
+      "projectChecksum": "37747af71699df844d6f91a9c2bff3e1ed4468ed6e158792d4e66aa0980abb34",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-roadmap-generator-html/assets/roadmap-template.html": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-roadmap-generator-html/assets/roadmap-template.html",
+      "installedChecksum": "af0d9f6b11aee405479f7805ecb675ff5312fe227ba79a60b156dd44afe37468",
+      "templateChecksum": "af0d9f6b11aee405479f7805ecb675ff5312fe227ba79a60b156dd44afe37468",
+      "projectChecksum": "af0d9f6b11aee405479f7805ecb675ff5312fe227ba79a60b156dd44afe37468",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-roadmap-generator-html/assets/style.css": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-roadmap-generator-html/assets/style.css",
+      "installedChecksum": "fee59cbdefd1a99c85be8a05a8e46bce7b2677e07beec0a902324b33cc9d0f88",
+      "templateChecksum": "fee59cbdefd1a99c85be8a05a8e46bce7b2677e07beec0a902324b33cc9d0f88",
+      "projectChecksum": "fee59cbdefd1a99c85be8a05a8e46bce7b2677e07beec0a902324b33cc9d0f88",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-roadmap-generator-html/config.example.json": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-roadmap-generator-html/config.example.json",
+      "installedChecksum": "140275ea6318ff94a8711999db02bac73f53ccb4dc9f61653831971f1b1b024b",
+      "templateChecksum": "140275ea6318ff94a8711999db02bac73f53ccb4dc9f61653831971f1b1b024b",
+      "projectChecksum": "140275ea6318ff94a8711999db02bac73f53ccb4dc9f61653831971f1b1b024b",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-roadmap-generator-html/config.roadmap.json": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-roadmap-generator-html/config.roadmap.json",
+      "installedChecksum": "b591a9cf5aa536186fd7f55d534eba153508220080fe3e0c147c39306a51b66f",
+      "templateChecksum": "b591a9cf5aa536186fd7f55d534eba153508220080fe3e0c147c39306a51b66f",
+      "projectChecksum": "b591a9cf5aa536186fd7f55d534eba153508220080fe3e0c147c39306a51b66f",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-roadmap-generator-html/generate_example_excel.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-roadmap-generator-html/generate_example_excel.py",
+      "installedChecksum": "9c3ab493b7a73155121c7c88344ca837cf0cb1b633b3dd742ec0faff07d8358f",
+      "templateChecksum": "9c3ab493b7a73155121c7c88344ca837cf0cb1b633b3dd742ec0faff07d8358f",
+      "projectChecksum": "9c3ab493b7a73155121c7c88344ca837cf0cb1b633b3dd742ec0faff07d8358f",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-roadmap-generator-html/generate_roadmap.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-roadmap-generator-html/generate_roadmap.py",
+      "installedChecksum": "b67da2d998f40dd064bbfd63bb50e9c8a43afec61d4ca5def32f88b88f02568e",
+      "templateChecksum": "b67da2d998f40dd064bbfd63bb50e9c8a43afec61d4ca5def32f88b88f02568e",
+      "projectChecksum": "b67da2d998f40dd064bbfd63bb50e9c8a43afec61d4ca5def32f88b88f02568e",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-roadmap-generator-html/input.example.xlsx": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-roadmap-generator-html/input.example.xlsx",
+      "installedChecksum": "302d94fdb416472a8e0b2e21d43aa7c313e66e6f1981332e8e0644f7f623ede1",
+      "templateChecksum": "302d94fdb416472a8e0b2e21d43aa7c313e66e6f1981332e8e0644f7f623ede1",
+      "projectChecksum": "302d94fdb416472a8e0b2e21d43aa7c313e66e6f1981332e8e0644f7f623ede1",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-roadmap-generator-html/README.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-roadmap-generator-html/README.md",
+      "installedChecksum": "19d82edc02ec06522954e73329425b700791a95628486d5b4060aef9b89c5e13",
+      "templateChecksum": "19d82edc02ec06522954e73329425b700791a95628486d5b4060aef9b89c5e13",
+      "projectChecksum": "19d82edc02ec06522954e73329425b700791a95628486d5b4060aef9b89c5e13",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-roadmap-generator-html/requirements.txt": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-roadmap-generator-html/requirements.txt",
+      "installedChecksum": "d8728b9c3104c18767d468f59967ae1ec983a46f185cbe3e18e9001b98074bba",
+      "templateChecksum": "d8728b9c3104c18767d468f59967ae1ec983a46f185cbe3e18e9001b98074bba",
+      "projectChecksum": "d8728b9c3104c18767d468f59967ae1ec983a46f185cbe3e18e9001b98074bba",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-roadmap-generator-html/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-roadmap-generator-html/SKILL.md",
+      "installedChecksum": "3a966608bcea0e18f9e0adbec3cfe797651359bda3b72a05506cdc146d9582bc",
+      "templateChecksum": "3a966608bcea0e18f9e0adbec3cfe797651359bda3b72a05506cdc146d9582bc",
+      "projectChecksum": "3a966608bcea0e18f9e0adbec3cfe797651359bda3b72a05506cdc146d9582bc",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-seguimiento-plan/generate_seguimiento.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-seguimiento-plan/generate_seguimiento.py",
+      "installedChecksum": "6d993a3c586af7482408e7875740e785699bcee4aecb02541a3282e651bc51ed",
+      "templateChecksum": "6d993a3c586af7482408e7875740e785699bcee4aecb02541a3282e651bc51ed",
+      "projectChecksum": "6d993a3c586af7482408e7875740e785699bcee4aecb02541a3282e651bc51ed",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-seguimiento-plan/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-seguimiento-plan/SKILL.md",
+      "installedChecksum": "8f3da4d92b2206101266085668977f03fc6ad381dcf97718fcc572034f58ce16",
+      "templateChecksum": "8f3da4d92b2206101266085668977f03fc6ad381dcf97718fcc572034f58ce16",
+      "projectChecksum": "8f3da4d92b2206101266085668977f03fc6ad381dcf97718fcc572034f58ce16",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-seguridad-linter/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-seguridad-linter/SKILL.md",
+      "installedChecksum": "24cdb05ff1c163d1761e682dd867d58881558eb1cc2219defc5da6fd79d87257",
+      "templateChecksum": "24cdb05ff1c163d1761e682dd867d58881558eb1cc2219defc5da6fd79d87257",
+      "projectChecksum": "24cdb05ff1c163d1761e682dd867d58881558eb1cc2219defc5da6fd79d87257",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-task-tracker/aidlc_paths.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-task-tracker/aidlc_paths.py",
+      "installedChecksum": "0a6b1e27cc5524d8b5f4c4212c714ef4fe8a070306be850b52b9ec090b82fb7a",
+      "templateChecksum": "0a6b1e27cc5524d8b5f4c4212c714ef4fe8a070306be850b52b9ec090b82fb7a",
+      "projectChecksum": "0a6b1e27cc5524d8b5f4c4212c714ef4fe8a070306be850b52b9ec090b82fb7a",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-task-tracker/check_drift.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-task-tracker/check_drift.py",
+      "installedChecksum": "a25a7bb7aad896e22ab9dfa48d8a0b2b7dd5f7cbf0833d135cdaa49e6d543f19",
+      "templateChecksum": "a25a7bb7aad896e22ab9dfa48d8a0b2b7dd5f7cbf0833d135cdaa49e6d543f19",
+      "projectChecksum": "a25a7bb7aad896e22ab9dfa48d8a0b2b7dd5f7cbf0833d135cdaa49e6d543f19",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-task-tracker/generate_tracking_pdf.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-task-tracker/generate_tracking_pdf.py",
+      "installedChecksum": "b4d0624a15c4e31ad4e9073c806c1f12fdd02c2d51be9839008643c47b62ce6b",
+      "templateChecksum": "b4d0624a15c4e31ad4e9073c806c1f12fdd02c2d51be9839008643c47b62ce6b",
+      "projectChecksum": "b4d0624a15c4e31ad4e9073c806c1f12fdd02c2d51be9839008643c47b62ce6b",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-task-tracker/generate_tracking_report.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-task-tracker/generate_tracking_report.py",
+      "installedChecksum": "bbe204f0dde5976a91407b7d0f293ddade7dc29de039182c96abb11c4d25bfa6",
+      "templateChecksum": "bbe204f0dde5976a91407b7d0f293ddade7dc29de039182c96abb11c4d25bfa6",
+      "projectChecksum": "bbe204f0dde5976a91407b7d0f293ddade7dc29de039182c96abb11c4d25bfa6",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-task-tracker/SKILL.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-task-tracker/SKILL.md",
+      "installedChecksum": "a77e7f88af8846406f45307e605c23bb115558855e2501dbe83e6ab9eb0e90eb",
+      "templateChecksum": "a77e7f88af8846406f45307e605c23bb115558855e2501dbe83e6ab9eb0e90eb",
+      "projectChecksum": "a77e7f88af8846406f45307e605c23bb115558855e2501dbe83e6ab9eb0e90eb",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-task-tracker/story_mapping.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-task-tracker/story_mapping.py",
+      "installedChecksum": "0b1df3a4deeb63d966698847613c1902f4ae41e52a0f9c34039c3bb2b76ea003",
+      "templateChecksum": "0b1df3a4deeb63d966698847613c1902f4ae41e52a0f9c34039c3bb2b76ea003",
+      "projectChecksum": "0b1df3a4deeb63d966698847613c1902f4ae41e52a0f9c34039c3bb2b76ea003",
+      "status": "installed"
+    },
+    ".kiro/skills/intelix-task-tracker/tracker_core.py": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/skills/intelix-task-tracker/tracker_core.py",
+      "installedChecksum": "d5501e06f443068298e762e971e7c97c4eb75cf9669cb3e367d97c1aacf5d037",
+      "templateChecksum": "d5501e06f443068298e762e971e7c97c4eb75cf9669cb3e367d97c1aacf5d037",
+      "projectChecksum": "d5501e06f443068298e762e971e7c97c4eb75cf9669cb3e367d97c1aacf5d037",
+      "status": "installed"
+    },
+    ".kiro/steering/aidlc-project.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/.kiro/steering/aidlc-project.md",
+      "installedChecksum": "edefcfec8327d217a2b9f4f444f1d0e5aa977fd8c4118d71e62549b4648275e7",
+      "templateChecksum": "edefcfec8327d217a2b9f4f444f1d0e5aa977fd8c4118d71e62549b4648275e7",
+      "projectChecksum": "edefcfec8327d217a2b9f4f444f1d0e5aa977fd8c4118d71e62549b4648275e7",
+      "status": "installed"
+    },
+    ".kiro/steering/optimizacion-kiro.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/.kiro/steering/optimizacion-kiro.md",
+      "installedChecksum": "f364220784afb67dcc276452d282b30aa25db02da18059c2bf702c0f67f1002d",
+      "templateChecksum": "f364220784afb67dcc276452d282b30aa25db02da18059c2bf702c0f67f1002d",
+      "projectChecksum": "f364220784afb67dcc276452d282b30aa25db02da18059c2bf702c0f67f1002d",
+      "status": "installed"
+    },
+    ".kiro/steering/seguridad-baseline.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/.kiro/steering/seguridad-baseline.md",
+      "installedChecksum": "b5395fda20cf43008ec486bd9fdc8155b057352f12145c44d7a89d9337ea28e1",
+      "templateChecksum": "b5395fda20cf43008ec486bd9fdc8155b057352f12145c44d7a89d9337ea28e1",
+      "projectChecksum": "b5395fda20cf43008ec486bd9fdc8155b057352f12145c44d7a89d9337ea28e1",
+      "status": "installed"
+    },
+    "docs/estandares-base-de-datos-oltp-intelix.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/estandares-base-de-datos-oltp-intelix.md",
+      "installedChecksum": "53566f91bfa87a5fb14adc0109e291397ced6a6e258891b9b6b9447b5aa461c9",
+      "templateChecksum": "53566f91bfa87a5fb14adc0109e291397ced6a6e258891b9b6b9447b5aa461c9",
+      "projectChecksum": "53566f91bfa87a5fb14adc0109e291397ced6a6e258891b9b6b9447b5aa461c9",
+      "status": "installed"
+    },
+    "docs/estandares-base-de-datos.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/estandares-base-de-datos.md",
+      "installedChecksum": "29f5806260b5c7e313c6b41d1dc563be5281a4ebcb2f0cd170876db02ee40399",
+      "templateChecksum": "29f5806260b5c7e313c6b41d1dc563be5281a4ebcb2f0cd170876db02ee40399",
+      "projectChecksum": "29f5806260b5c7e313c6b41d1dc563be5281a4ebcb2f0cd170876db02ee40399",
+      "status": "installed"
+    },
+    "docs/estandares-bridge-intelix.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/estandares-bridge-intelix.md",
+      "installedChecksum": "4be2f23d2c2de0a0b0186eb39ab8ae854d5dac9822d9b013387713b07ff4637b",
+      "templateChecksum": "4be2f23d2c2de0a0b0186eb39ab8ae854d5dac9822d9b013387713b07ff4637b",
+      "projectChecksum": "4be2f23d2c2de0a0b0186eb39ab8ae854d5dac9822d9b013387713b07ff4637b",
+      "status": "installed"
+    },
+    "docs/estandares-datawarehouse-intelix.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/estandares-datawarehouse-intelix.md",
+      "installedChecksum": "1178aec4e492ce01e7a2dc6e994ab01f5c388f13f5d69b9ba010e87f1a9b6111",
+      "templateChecksum": "1178aec4e492ce01e7a2dc6e994ab01f5c388f13f5d69b9ba010e87f1a9b6111",
+      "projectChecksum": "1178aec4e492ce01e7a2dc6e994ab01f5c388f13f5d69b9ba010e87f1a9b6111",
+      "status": "installed"
+    },
+    "docs/estandares-desarrollo-intelix.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/estandares-desarrollo-intelix.md",
+      "installedChecksum": "712f9cb2a4fcd53f3e0fa6927609a254fa81a3888713c8cae0a3b3da360d2733",
+      "templateChecksum": "712f9cb2a4fcd53f3e0fa6927609a254fa81a3888713c8cae0a3b3da360d2733",
+      "projectChecksum": "712f9cb2a4fcd53f3e0fa6927609a254fa81a3888713c8cae0a3b3da360d2733",
+      "status": "installed"
+    },
+    "docs/estandares-lago-de-datos-intelix.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/estandares-lago-de-datos-intelix.md",
+      "installedChecksum": "e4d5764af12008ee220bbaec28c9bd32bdb90db3d902409172f5c2ea8fa9c1bd",
+      "templateChecksum": "e4d5764af12008ee220bbaec28c9bd32bdb90db3d902409172f5c2ea8fa9c1bd",
+      "projectChecksum": "e4d5764af12008ee220bbaec28c9bd32bdb90db3d902409172f5c2ea8fa9c1bd",
+      "status": "installed"
+    },
+    "docs/estandares/estandares-desarrollo-intelix.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/estandares/estandares-desarrollo-intelix.md",
+      "installedChecksum": "39b766cca8c6d6d5accec5b5a6dbea8026d05c5cab020d44e5d9011f3315c08e",
+      "templateChecksum": "39b766cca8c6d6d5accec5b5a6dbea8026d05c5cab020d44e5d9011f3315c08e",
+      "projectChecksum": "39b766cca8c6d6d5accec5b5a6dbea8026d05c5cab020d44e5d9011f3315c08e",
+      "status": "installed"
+    },
+    "docs/estandares/estandares-mobile-kmp-intelix.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/estandares/estandares-mobile-kmp-intelix.md",
+      "installedChecksum": "d4fa8c6b2a7f77fc9c1e06a459bf1e119dbea06da56a3b13dca4cc7554b124ee",
+      "templateChecksum": "d4fa8c6b2a7f77fc9c1e06a459bf1e119dbea06da56a3b13dca4cc7554b124ee",
+      "projectChecksum": "d4fa8c6b2a7f77fc9c1e06a459bf1e119dbea06da56a3b13dca4cc7554b124ee",
+      "status": "installed"
+    },
+    "docs/estandares/seguridad-baseline.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/estandares/seguridad-baseline.md",
+      "installedChecksum": "3530afba0fac2a183ad5b9dcae616e28ea4c0120e5cdfd9bf62ffe519785e1f9",
+      "templateChecksum": "3530afba0fac2a183ad5b9dcae616e28ea4c0120e5cdfd9bf62ffe519785e1f9",
+      "projectChecksum": "3530afba0fac2a183ad5b9dcae616e28ea4c0120e5cdfd9bf62ffe519785e1f9",
+      "status": "installed"
+    },
+    "docs/estrategia-control-versiones.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/estrategia-control-versiones.md",
+      "installedChecksum": "f6dd0490f3d0d284203491c00e61f1a3b5f0d4b5f2c6fba553150106a4985e0c",
+      "templateChecksum": "f6dd0490f3d0d284203491c00e61f1a3b5f0d4b5f2c6fba553150106a4985e0c",
+      "projectChecksum": "f6dd0490f3d0d284203491c00e61f1a3b5f0d4b5f2c6fba553150106a4985e0c",
+      "status": "installed"
+    },
+    "docs/FUNCIONALIDADES_PRINCIPALES.html": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/FUNCIONALIDADES_PRINCIPALES.html",
+      "installedChecksum": "a19720b77bf62ca4277cfe7b466ef3be2c18b5c31da71dd0b199c45efceb5e31",
+      "templateChecksum": "a19720b77bf62ca4277cfe7b466ef3be2c18b5c31da71dd0b199c45efceb5e31",
+      "projectChecksum": "a19720b77bf62ca4277cfe7b466ef3be2c18b5c31da71dd0b199c45efceb5e31",
+      "status": "installed"
+    },
+    "docs/FUNCIONALIDADES_PRINCIPALES.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/FUNCIONALIDADES_PRINCIPALES.md",
+      "installedChecksum": "ddd799eb8d71a8d0479bdbbbb5cbbbb1e240bff0724ec3fc369124ce0699dec3",
+      "templateChecksum": "ddd799eb8d71a8d0479bdbbbb5cbbbb1e240bff0724ec3fc369124ce0699dec3",
+      "projectChecksum": "ddd799eb8d71a8d0479bdbbbb5cbbbb1e240bff0724ec3fc369124ce0699dec3",
+      "status": "installed"
+    },
+    "docs/guia-configuracion-gitlab.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/guia-configuracion-gitlab.md",
+      "installedChecksum": "603beea2183664bfd95ed71dbf2657d9771b241647116ab23f2cffa82a004c1a",
+      "templateChecksum": "603beea2183664bfd95ed71dbf2657d9771b241647116ab23f2cffa82a004c1a",
+      "projectChecksum": "603beea2183664bfd95ed71dbf2657d9771b241647116ab23f2cffa82a004c1a",
+      "status": "installed"
+    },
+    "docs/guia-nuevo-proyecto-lider.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/guia-nuevo-proyecto-lider.md",
+      "installedChecksum": "f06b9e31d9c4fbb3bfeaf63ea39e90f4819db04a3be011200886c76c727a96e9",
+      "templateChecksum": "f06b9e31d9c4fbb3bfeaf63ea39e90f4819db04a3be011200886c76c727a96e9",
+      "projectChecksum": "f06b9e31d9c4fbb3bfeaf63ea39e90f4819db04a3be011200886c76c727a96e9",
+      "status": "installed"
+    },
+    "docs/guia-seguimiento-gitlab.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/guia-seguimiento-gitlab.md",
+      "installedChecksum": "2ece7fc83b211dd35c02a65e3c572c4dde5434b3cbc6638437649f4f5d42da1f",
+      "templateChecksum": "2ece7fc83b211dd35c02a65e3c572c4dde5434b3cbc6638437649f4f5d42da1f",
+      "projectChecksum": "2ece7fc83b211dd35c02a65e3c572c4dde5434b3cbc6638437649f4f5d42da1f",
+      "status": "installed"
+    },
+    "docs/guides/archivos-administrados-intelix.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/guides/archivos-administrados-intelix.md",
+      "installedChecksum": "c0b250820b145e622b835ce7c34e468279befdc0f14353ce588a159971bf1c74",
+      "templateChecksum": "c0b250820b145e622b835ce7c34e468279befdc0f14353ce588a159971bf1c74",
+      "projectChecksum": "c0b250820b145e622b835ce7c34e468279befdc0f14353ce588a159971bf1c74",
+      "status": "installed"
+    },
+    "docs/guides/contrato-propiedad-instrucciones.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/guides/contrato-propiedad-instrucciones.md",
+      "installedChecksum": "a025894d87a451983a8aa95c062c700233c756fc89d82f4f8d355338d6b62a58",
+      "templateChecksum": "a025894d87a451983a8aa95c062c700233c756fc89d82f4f8d355338d6b62a58",
+      "projectChecksum": "a025894d87a451983a8aa95c062c700233c756fc89d82f4f8d355338d6b62a58",
+      "status": "installed"
+    },
+    "docs/guides/fuente-autorizada-plantilla-y-aidlc.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/guides/fuente-autorizada-plantilla-y-aidlc.md",
+      "installedChecksum": "32364ccff53b13b7a682b1ae11f56d712982accf8e9048c3eb5a520913a91a6b",
+      "templateChecksum": "32364ccff53b13b7a682b1ae11f56d712982accf8e9048c3eb5a520913a91a6b",
+      "projectChecksum": "32364ccff53b13b7a682b1ae11f56d712982accf8e9048c3eb5a520913a91a6b",
+      "status": "installed"
+    },
+    "docs/guides/gobierno-iadlc-intelix.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/guides/gobierno-iadlc-intelix.md",
+      "installedChecksum": "005e8be0d6a8b01efd12158c6c3a5ac095ea125e12af61a968ce33474a66fefc",
+      "templateChecksum": "005e8be0d6a8b01efd12158c6c3a5ac095ea125e12af61a968ce33474a66fefc",
+      "projectChecksum": "005e8be0d6a8b01efd12158c6c3a5ac095ea125e12af61a968ce33474a66fefc",
+      "status": "installed"
+    },
+    "docs/guides/guia-configuracion-steering-aidlc-manual.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/guides/guia-configuracion-steering-aidlc-manual.md",
+      "installedChecksum": "191c95ddcded1e2a2ef89c047409f44827a32c61a7a8aa1df00b0b917669421c",
+      "templateChecksum": "191c95ddcded1e2a2ef89c047409f44827a32c61a7a8aa1df00b0b917669421c",
+      "projectChecksum": "191c95ddcded1e2a2ef89c047409f44827a32c61a7a8aa1df00b0b917669421c",
+      "status": "installed"
+    },
+    "docs/guides/guia-cross-account-aws.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/guides/guia-cross-account-aws.md",
+      "installedChecksum": "370b7876a1115babf58eae890993483a5f9d1ec7617f7191f048564b53a4ce9d",
+      "templateChecksum": "370b7876a1115babf58eae890993483a5f9d1ec7617f7191f048564b53a4ce9d",
+      "projectChecksum": "370b7876a1115babf58eae890993483a5f9d1ec7617f7191f048564b53a4ce9d",
+      "status": "installed"
+    },
+    "docs/guides/guia-optimizar-kiro.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/guides/guia-optimizar-kiro.md",
+      "installedChecksum": "61f78edf4b1245584f40a55d586aa7b8e4faa8574ced39cc0e89196ca875ffec",
+      "templateChecksum": "61f78edf4b1245584f40a55d586aa7b8e4faa8574ced39cc0e89196ca875ffec",
+      "projectChecksum": "61f78edf4b1245584f40a55d586aa7b8e4faa8574ced39cc0e89196ca875ffec",
+      "status": "installed"
+    },
+    "docs/guides/inception-iterations.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/guides/inception-iterations.md",
+      "installedChecksum": "5fc21980fbb97355e3b2aca5b0a3aeed24117aad797e672794446dbbe22440ec",
+      "templateChecksum": "5fc21980fbb97355e3b2aca5b0a3aeed24117aad797e672794446dbbe22440ec",
+      "projectChecksum": "5fc21980fbb97355e3b2aca5b0a3aeed24117aad797e672794446dbbe22440ec",
+      "status": "installed"
+    },
+    "docs/guides/integracion-ci-aditiva.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/guides/integracion-ci-aditiva.md",
+      "installedChecksum": "b6dda617a6173d297174a3ac53150d63ddd5692705c038faecc2302838398949",
+      "templateChecksum": "b6dda617a6173d297174a3ac53150d63ddd5692705c038faecc2302838398949",
+      "projectChecksum": "b6dda617a6173d297174a3ac53150d63ddd5692705c038faecc2302838398949",
+      "status": "installed"
+    },
+    "docs/guides/matriz-soporte-intelix.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/guides/matriz-soporte-intelix.md",
+      "installedChecksum": "c16c560d09e65b4494185374fe6d3dfa819733bd0c2585cd5e26cf4b29902fdb",
+      "templateChecksum": "c16c560d09e65b4494185374fe6d3dfa819733bd0c2585cd5e26cf4b29902fdb",
+      "projectChecksum": "c16c560d09e65b4494185374fe6d3dfa819733bd0c2585cd5e26cf4b29902fdb",
+      "status": "installed"
+    },
+    "docs/guides/migracion-estado-aidlc.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/guides/migracion-estado-aidlc.md",
+      "installedChecksum": "5ab2cc7ecb1c26474b3de7e8942a1c01cbd17e0f2a2895fc64fcd55f951a5f2f",
+      "templateChecksum": "5ab2cc7ecb1c26474b3de7e8942a1c01cbd17e0f2a2895fc64fcd55f951a5f2f",
+      "projectChecksum": "5ab2cc7ecb1c26474b3de7e8942a1c01cbd17e0f2a2895fc64fcd55f951a5f2f",
+      "status": "installed"
+    },
+    "docs/guides/migracion-propiedad-agents-md.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/guides/migracion-propiedad-agents-md.md",
+      "installedChecksum": "d5e879122a7c9d9438e492ac8e6241c004b53398d4926d7985e311ddbeda18b3",
+      "templateChecksum": "d5e879122a7c9d9438e492ac8e6241c004b53398d4926d7985e311ddbeda18b3",
+      "projectChecksum": "d5e879122a7c9d9438e492ac8e6241c004b53398d4926d7985e311ddbeda18b3",
+      "status": "installed"
+    },
+    "docs/guides/path-with-discovery.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/guides/path-with-discovery.md",
+      "installedChecksum": "a74ffde39451b6521b2824a334c5a08d683dda06665da3cdcd25eec4591ea387",
+      "templateChecksum": "a74ffde39451b6521b2824a334c5a08d683dda06665da3cdcd25eec4591ea387",
+      "projectChecksum": "a74ffde39451b6521b2824a334c5a08d683dda06665da3cdcd25eec4591ea387",
+      "status": "installed"
+    },
+    "docs/guides/path-without-discovery.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/guides/path-without-discovery.md",
+      "installedChecksum": "fff9e9c6dfdf02af512441586a59a221b50c38f9aa6be45ac0a0d6027d19c105",
+      "templateChecksum": "fff9e9c6dfdf02af512441586a59a221b50c38f9aa6be45ac0a0d6027d19c105",
+      "projectChecksum": "fff9e9c6dfdf02af512441586a59a221b50c38f9aa6be45ac0a0d6027d19c105",
+      "status": "installed"
+    },
+    "docs/guides/perfiles-proyecto-intelix.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/guides/perfiles-proyecto-intelix.md",
+      "installedChecksum": "931c2a8d3f27048c31ae9320848d10bf372f6dcbcae217adf7e291ec330c518f",
+      "templateChecksum": "931c2a8d3f27048c31ae9320848d10bf372f6dcbcae217adf7e291ec330c518f",
+      "projectChecksum": "931c2a8d3f27048c31ae9320848d10bf372f6dcbcae217adf7e291ec330c518f",
+      "status": "installed"
+    },
+    "docs/guides/po-cheatsheet.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/guides/po-cheatsheet.md",
+      "installedChecksum": "30a4508818eb4325e0027d2faa7eab1cda75d7c9ad73fbfcdeb672e753d26af7",
+      "templateChecksum": "30a4508818eb4325e0027d2faa7eab1cda75d7c9ad73fbfcdeb672e753d26af7",
+      "projectChecksum": "30a4508818eb4325e0027d2faa7eab1cda75d7c9ad73fbfcdeb672e753d26af7",
+      "status": "installed"
+    },
+    "docs/guides/prompting-por-fase-aidlc.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/guides/prompting-por-fase-aidlc.md",
+      "installedChecksum": "d5d8637eaf711b4bfdf0282ef112feaf64f2a53c31355202ed79f6f1b0fa1899",
+      "templateChecksum": "d5d8637eaf711b4bfdf0282ef112feaf64f2a53c31355202ed79f6f1b0fa1899",
+      "projectChecksum": "d5d8637eaf711b4bfdf0282ef112feaf64f2a53c31355202ed79f6f1b0fa1899",
+      "status": "installed"
+    },
+    "docs/guides/quality-gate-0.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/guides/quality-gate-0.md",
+      "installedChecksum": "8ec5f7b6d491aa42fe93926a1b424697d1e85253cb409d5ff68e6ffa5deb0482",
+      "templateChecksum": "8ec5f7b6d491aa42fe93926a1b424697d1e85253cb409d5ff68e6ffa5deb0482",
+      "projectChecksum": "8ec5f7b6d491aa42fe93926a1b424697d1e85253cb409d5ff68e6ffa5deb0482",
+      "status": "installed"
+    },
+    "docs/guides/resolucion-layout-aidlc.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/guides/resolucion-layout-aidlc.md",
+      "installedChecksum": "f9c618a50479c29c8cfa147e267f27fd3355de28cc722ed10472b8ba63bdc955",
+      "templateChecksum": "f9c618a50479c29c8cfa147e267f27fd3355de28cc722ed10472b8ba63bdc955",
+      "projectChecksum": "f9c618a50479c29c8cfa147e267f27fd3355de28cc722ed10472b8ba63bdc955",
+      "status": "installed"
+    },
+    "docs/protocolo-hotfixes.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/protocolo-hotfixes.md",
+      "installedChecksum": "407983d8be8389591fad952d6de16475e021f9939128cbc584be5f6f818955ed",
+      "templateChecksum": "407983d8be8389591fad952d6de16475e021f9939128cbc584be5f6f818955ed",
+      "projectChecksum": "407983d8be8389591fad952d6de16475e021f9939128cbc584be5f6f818955ed",
+      "status": "installed"
+    },
+    "docs/README-solucion-base-de-datos.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/README-solucion-base-de-datos.md",
+      "installedChecksum": "7fc37a5e20809f686f6f4d2a9a34d90fe56bf9573e5e648d0f448b0f35fea4f2",
+      "templateChecksum": "7fc37a5e20809f686f6f4d2a9a34d90fe56bf9573e5e648d0f448b0f35fea4f2",
+      "projectChecksum": "7fc37a5e20809f686f6f4d2a9a34d90fe56bf9573e5e648d0f448b0f35fea4f2",
+      "status": "installed"
+    },
+    "docs/README.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/README.md",
+      "installedChecksum": "739cb0c421849273ad93f954c60e50bbf4999b2affa38bf13065668f9396a00a",
+      "templateChecksum": "739cb0c421849273ad93f954c60e50bbf4999b2affa38bf13065668f9396a00a",
+      "projectChecksum": "739cb0c421849273ad93f954c60e50bbf4999b2affa38bf13065668f9396a00a",
+      "status": "installed"
+    },
+    "docs/roles-y-accesos-gitlab.md": {
+      "owner": "intelix",
+      "policy": "managed-copy",
+      "source": "templates/docs/roles-y-accesos-gitlab.md",
+      "installedChecksum": "cd32cb7f940d66b5bd4398fac4945ab91d56d2f9bdd3a44995e4deae160f3fa3",
+      "templateChecksum": "cd32cb7f940d66b5bd4398fac4945ab91d56d2f9bdd3a44995e4deae160f3fa3",
+      "projectChecksum": "cd32cb7f940d66b5bd4398fac4945ab91d56d2f9bdd3a44995e4deae160f3fa3",
+      "status": "installed"
+    }
+  }
+}

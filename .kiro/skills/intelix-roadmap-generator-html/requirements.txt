@@ -1,0 +1,35 @@
+# Dependencias pinneadas para Roadmap Generator HTML - Skill INTELIX
+# Versiones especificadas según directiva seguridad-baseline.md para prevenir vulnerabilidades
+
+# Procesamiento de Excel
+pandas==2.2.2           # Data manipulation y análisis
+openpyxl==3.1.2         # Lectura/escritura de archivos .xlsx
+xlrd==2.0.1            # Soporte para formatos Excel antiguos (.xls)
+
+# Templating HTML con seguridad XSS
+Jinja2==3.1.4          # Template engine con autoescape
+MarkupSafe==2.1.5      # Escapado automático de HTML para prevención XSS
+
+# Manejo de fechas y tiempos
+python-dateutil==2.9.0.post0  # Parsing flexible de fechas
+
+# Utilidades de sistema
+tzdata==2024.1          # Zonas horarias para fechas internacionales
+
+# Validación y seguridad
+jsonschema==4.22.0     # Validación de esquemas JSON para configuraciones
+defusedxml==0.7.1      # Parsing seguro de XML para futuras extensiones
+
+# Desarrollo y testing (opcional para CI/CD)
+pytest==8.2.1          # Framework de testing
+pytest-cov==5.0.0      # Cobertura de código
+black==24.4.2          # Formateador de código
+flake8==7.1.0          # Linter para Python
+mypy==1.10.0           # Chequeo de tipos estáticos
+
+# NOTAS DE SEGURIDAD:
+# - pandas>=2.0: Incluye mejoras de seguridad en parsing
+# - Jinja2>=3.1: Autoescape por defecto para prevención XSS
+# - MarkupSafe: Escapado de caracteres especiales
+# - Versiones pinneadas: Previene actualizaciones automáticas que puedan introducir vulnerabilidades
+# - Dependencias auditadas: Todas las versiones son las más recientes estables sin CVEs conocidos críticos

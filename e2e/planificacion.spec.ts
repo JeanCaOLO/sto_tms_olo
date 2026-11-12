@@ -34,6 +34,9 @@ async function login(page: Page): Promise<void> {
 async function irAPlanificacion(page: Page): Promise<void> {
   await page.goto('/planificacion', { waitUntil: 'networkidle' });
   await expect(page.getByRole('heading', { name: 'Planificación de Rutas' })).toBeVisible({ timeout: 15000 });
+  // La vista por defecto ahora es el Calendario; este flujo prueba el editor,
+  // así que primero hay que ir a la pestaña "Generar plan".
+  await page.getByTestId('tab-generar').click();
   // El editor (con el botón Generar por testid) monta tras cargar catálogos/pedidos.
   await expect(page.getByTestId('generar-plan')).toBeVisible({ timeout: 15000 });
 }

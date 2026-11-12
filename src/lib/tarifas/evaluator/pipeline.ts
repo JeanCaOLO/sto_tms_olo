@@ -44,7 +44,7 @@ export function runChargePipeline(
   const rateTableRows = input.rateTableRows ?? [];
 
   const stageAccum: Record<Stage, Decimal> = {
-    BASE: ZERO, VARIABLE: ZERO, MODIFIER: ZERO, SURCHARGE: ZERO, ADJUSTMENT: ZERO, TAX: ZERO,
+    BASE: ZERO, VARIABLE: ZERO, ADJUSTMENT: ZERO, TAX: ZERO,
   };
   const ruleAmounts = new Map<string, Decimal>();
   let running = ZERO;
@@ -95,13 +95,13 @@ export function runChargePipeline(
       getRuleAmount: (ruleCode) => {
         const amount = ruleAmounts.get(ruleCode);
         if (amount === undefined) {
-          blockingIssues.push({
-            code: 'BASE_NO_DISPONIBLE',
-            message:
-              `La regla "${rule.code}" calcula un porcentaje sobre "${ruleCode}", que todavía no se ` +
-              'evaluó (o no aplica en este viaje). Movela a una etapa posterior o subile la prioridad.',
-            ruleCode: rule.code,
-          });
+          const message =
+            `La regla "${rule.code}" calcula un porcentaje sobre "${ruleCode}", que todavía no se ` +
+            'evaluó (o no aplica en este viaje). Movela a una etapa posterior o subile la prioridad.';
+          // Un candidato de grupo MAX se evalúa más de una vez: el mismo bloqueo no se repite.
+          if (!blockingIssues.some((i) => i.code === 'BASE_NO_DISPONIBLE' && i.message === message)) {
+            blockingIssues.push({ code: 'BASE_NO_DISPONIBLE', message, ruleCode: rule.code });
+          }
           return null;
         }
         return amount;
@@ -128,7 +128,7 @@ export function runChargePipeline(
       discarded.push({
         ruleCode: rule.code,
         reason: 'RULE_BROKEN',
-        detail: `No se pudo leer: ${e.message}. Revisá su expresión en modo avanzado.`,
+        detail: `No se pudo leer: ${e.message}. Revisa su expresión en modo avanzado.`,
       });
       blockingIssues.push({
         code: 'REGLA_ILEGIBLE',
@@ -146,7 +146,7 @@ export function runChargePipeline(
       if ((rule.effect === 'INCREASE') !== sube) {
         warnings.push(
           `La regla "${rule.code}" está marcada como "${rule.effect === 'INCREASE' ? 'aumenta' : 'disminuye'} el costo" ` +
-          `pero su importe ${sube ? 'suma' : 'resta'}. Revisá el signo de la expresión.`,
+          `pero su importe ${sube ? 'suma' : 'resta'}. Revisa el signo de la expresión.`,
         );
       }
     }
@@ -165,6 +165,7 @@ export function runChargePipeline(
     const line: TraceLine = {
       seq,
       stage: rule.stage,
+      ...(rule.category ? { category: rule.category } : {}),
       ruleId: rule.isAdhoc ? null : rule.id,
       ruleCode: rule.code,
       label: rule.name,
@@ -194,7 +195,7 @@ export function runChargePipeline(
       code: 'TOTAL_NEGATIVO',
       message:
         `El total da ${totalLiquidado} ${country.localCurrency}: los descuentos superan a los cargos. ` +
-        'Revisá las reglas de ajuste, o habilitá los totales negativos para este país si es intencional.',
+        'Revisa las reglas de ajuste, o habilita los totales negativos para este país si es intencional.',
     });
   }
 

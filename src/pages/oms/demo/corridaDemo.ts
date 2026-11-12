@@ -10,7 +10,7 @@
 // EXPEDICIONESCABECERA (docs/wms-eflow/EFLOW_OLO-ddl.sql).
 
 import demoDoc from './oms_corrida_demo.json';
-import type { Country, PriorityTier, QueueOrder } from '../types';
+import type { Country, QueueOrder } from '../types';
 
 interface DemoWms {
   IDALMACEN: string;
@@ -46,16 +46,6 @@ interface DemoDoc {
   pedidos: { wms: DemoWms; oms: DemoOms }[];
 }
 
-// Prioridad NUMÉRICA del motor (menor = más urgente) -> tier 1..4 del prototipo,
-// SOLO para el badge de la tabla. La prioridad real es el número; el modelo de
-// tiers 1..4 del prototipo es deuda a reconciliar contra la decisión "numérica".
-function tierFromPrioridad(p: number): PriorityTier {
-  if (p <= 1) return 1;
-  if (p <= 20) return 2;
-  if (p <= 50) return 3;
-  return 4;
-}
-
 // FECHAEXPEDICIONPLANIFICADA / FECHACREACION son datetime (fecha + hora).
 // Mostramos "YYYY-MM-DD HH:mm" (tomado directo del ISO, sin desfase de zona).
 function fmtFechaHora(iso: string | null | undefined): string {
@@ -75,9 +65,9 @@ export function corridaDemoOrders(): QueueOrder[] {
     branchId: w.IDSUCURSAL,
     orderType: w.TPEXPE,
     customer: w.NOMBRECLIENTE || w.IDCLIENTE,
-    route: w.RUTA || '(sin ruta)',
+    route: w.RUTA || '(sin zona)',
     country: (w.PAIS === 'VE' ? 'VE' : 'CR') as Country,
-    tier: tierFromPrioridad(o.prioridad),
+    priority: o.prioridad, // prioridad numérica real del motor (0..n)
     score: o.score,
     totalAmount: w.COSTO_TOTAL ?? 0,
     weight: w.PESOPEDIDO_TOTAL ?? 0,
@@ -86,9 +76,10 @@ export function corridaDemoOrders(): QueueOrder[] {
     observations: w.OBSERVACIONESEXPEDICION ?? '',
     dispatchDate: fmtFechaHora(w.FECHAEXPEDICIONPLANIFICADA),
     createdDate: fmtFechaHora(w.FECHACREACION),
-    readyToPrepDate: '',
     status: w.TPEXES, // 'DISP' — el estado NO cambia
     situation: o.TPEXSI_resultante, // 'GENE' — situación generada por el OMS
+    prioritized: true, // el demo es salida del motor: ya priorizado
+    released: o.TPEXSI_resultante === 'GENE', // liberado si el motor lo dejó en GENE
     intakeTime: '',
     appliedRules: o.reglas
       .filter((r) => r.puntos > 0)

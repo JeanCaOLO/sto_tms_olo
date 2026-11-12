@@ -6,7 +6,7 @@
 
 /* global process */
 import pg from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { setDataSource } from '../data';
 import { PgDataSource } from './helpers/pgDataSource';
 import { calculateTrip } from '../tripSettlement';
@@ -38,6 +38,12 @@ describe.skipIf(!enabled)('Datos de prueba del tarifador sobre Aurora', { timeou
     await client.query('BEGIN READ ONLY');
     setDataSource(new PgDataSource(client));
     trips = await listLiquidableTrips({});
+  });
+
+  // El setup global (`src/test/setupTarifas.ts`) vuelve al almacén en memoria antes de cada prueba:
+  // aquí se vuelve a fijar la conexión real.
+  beforeEach(() => {
+    setDataSource(new PgDataSource(client));
   });
 
   afterAll(async () => {

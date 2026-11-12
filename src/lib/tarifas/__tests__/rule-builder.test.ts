@@ -175,7 +175,7 @@ function runWithBuilder(builderForm: RuleBuilderForm, trip: Partial<TripContext>
   const { zoneGroups, zones, locations } = makeGeoVE();
   const rule = makeRule({
     code: 'VISUAL',
-    stage: 'SURCHARGE',
+    stage: 'VARIABLE',
     expression: compileBuilder(builderForm),
     builder: builderForm,
     effect: builderForm.effect,
@@ -384,7 +384,7 @@ describe('A2 de punta a punta: OR e IN deciden si la regla aplica', () => {
     const country = makeCountryVE();
     const { zoneGroups, zones, locations } = makeGeoVE();
     const rule = makeRule({
-      code: 'OR_RULE', stage: 'SURCHARGE', conditions, expression: { op: 'FIXED', amount: '50' },
+      code: 'OR_RULE', stage: 'VARIABLE', conditions, expression: { op: 'FIXED', amount: '50' },
     });
     const input: CalculateInput = {
       country, trip: makeTrip({ truckTypeId: 'FRR' }), rules: [rule], zones, zoneGroups, locations,

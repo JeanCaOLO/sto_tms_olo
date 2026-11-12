@@ -19,8 +19,8 @@ DEFAULT_WINDOW = "occurred_at >= now() - interval '3 months'"
 
 LIST_COLUMNS = ("id, occurred_at, actor_type, app_user_id, actor_email, role_name, source, action, module_key, "
                 "entity_table, entity_id, changes, request_id, ip")
-EVENT_SQL = "SELECT * FROM audit.events WHERE id = %s"
-MODULE_EXISTS_SQL = "SELECT 1 FROM app_modules WHERE key = %s"
+EVENT_SQL = "SELECT * FROM audit.tbl_events WHERE id = %s"
+MODULE_EXISTS_SQL = "SELECT 1 FROM tbl_app_modules WHERE key = %s"
 
 # parámetro de consulta → (condición SQL, cómo se transforma el valor)
 FILTERS = {
@@ -80,7 +80,7 @@ def list_events(event: dict) -> dict:
     params = query_params(event)
     where, args = _where(params)
     limit = _limit(params)
-    rows = pg.query(f"SELECT {LIST_COLUMNS} FROM audit.events{where} ORDER BY id DESC LIMIT %s", [*args, limit + 1])
+    rows = pg.query(f"SELECT {LIST_COLUMNS} FROM audit.tbl_events{where} ORDER BY id DESC LIMIT %s", [*args, limit + 1])
     page = rows[:limit]
     next_cursor = page[-1]["id"] if len(rows) > limit else None
     return _ok(page, next_cursor=next_cursor)

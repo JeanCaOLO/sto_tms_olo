@@ -7,6 +7,7 @@ import type {
 import { evaluatePred, RuleShapeError } from '../evaluator';
 import { addAll, roundToMoney, toDecimal } from '../money';
 import { unitsForDriver, componentCostPerKm } from './driver';
+import { fuelEfficiencyFor, pickStructure, rowAppliesToTruck } from './shared';
 
 interface CostLine {
   code: string;
@@ -58,7 +59,7 @@ function computeCostLines(
   const lines: CostLine[] = rows
     .filter((row) => row.active)
     // Filtrar por tipo de camión.
-    .filter((row) => !row.truckType || row.truckType === trip.truckTypeId)
+    .filter((row) => rowAppliesToTruck(row, trip.truckTypeId))
     // Filtrar por condición.
     .filter((row) => {
       if (!row.appliesWhen) return true;
@@ -122,7 +123,7 @@ function computeCostLines(
   // Combustible: línea propia para verlo aparte.
   const { fuelPrice, fuelEfficiency } = structure.params;
   if (fuelPrice) {
-    const efficiency = trip.truckTypeId ? fuelEfficiency[trip.truckTypeId] : undefined;
+    const efficiency = fuelEfficiencyFor(fuelEfficiency, trip.truckTypeId);
     if (efficiency && toDecimal(efficiency).greaterThan(0)) {
       lines.push({
         code: 'COMBUSTIBLE',
@@ -154,19 +155,26 @@ function computeFromStructure(
   const days = daysFor(overnightNights);
   const km = toDecimal(trip.km);
 
+  // Los ceros silenciosos esconden datos que faltan: se avisan en vez de dar un costo "correcto" de 0.
+  if (!km.greaterThan(0)) {
+    warn?.('El viaje tiene 0 km: los gastos por kilómetro y el combustible valen 0.');
+  }
+  if (structure.operatingDaysPerMonth <= 0 && rows.some((r) => r.active && r.driver === 'PER_MONTH_PRORATED')) {
+    warn?.('La estructura no tiene días operativos por mes: los importes mensuales prorrateados valen 0.');
+  }
+
   const lines = computeCostLines(structure, rows, trip, days, km, vars, warn);
 
+  // El total es la suma de las líneas YA redondeadas: son las que el pipeline siembra como base,
+  // así que el costo y la base de la liquidación coinciden al centavo (margen incluido).
+  const breakdown = toTraceLines(lines, country, 'COST_ROW');
   return {
-    total: roundToMoney(addAll(lines.map((l) => l.amount)), country),
-    breakdown: toTraceLines(lines, country, 'COST_ROW'),
+    total: roundToMoney(addAll(breakdown.map((l) => toDecimal(l.final))), country),
+    breakdown,
     modelId: structure.id,
     currency: country.localCurrency,
   };
 }
-
-/** Revisa si una estructura tiene filas activas. */
-const hasRows = (structure: CostStructure | null | undefined, rows: CostStructureRow[] | undefined) =>
-  !!structure?.active && !!rows?.length;
 
 /** Costo cero: tercero o sin estructura. */
 const NO_COST = (country: Country): CostBreakdown => ({
@@ -196,19 +204,9 @@ export function computeCost(
 
   if (trip.fleetType !== 'OWN') return NO_COST(country);
 
-  if (hasRows(input.costStructure, input.costStructureRows)) {
-    return computeFromStructure(input.costStructure!, input.costStructureRows!, input, overnightNights, bag, warn);
-  }
-
-  if (hasRows(input.defaultCostStructure, input.defaultCostStructureRows)) {
-    return computeFromStructure(
-      input.defaultCostStructure!,
-      input.defaultCostStructureRows!,
-      input,
-      overnightNights,
-      bag,
-      warn,
-    );
+  const picked = pickStructure(input);
+  if (picked) {
+    return computeFromStructure(picked.structure, picked.rows, input, overnightNights, bag, warn);
   }
 
   throw new Error(

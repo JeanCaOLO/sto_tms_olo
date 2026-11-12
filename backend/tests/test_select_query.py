@@ -15,7 +15,7 @@ def test_simple_select_with_filters_order_and_limit(sq):
         {"column": "name", "ascending": False}, "10",
     )
     assert sql == (
-        'SELECT t."id" AS "id", t."name" AS "name" FROM "drivers" t '
+        'SELECT t."id" AS "id", t."name" AS "name" FROM "tbl_drivers" t '
         'WHERE t."status" = %s AND t."carrier_id" IN (%s,%s) ORDER BY t."name" DESC LIMIT 10'
     )
     assert params == ["active", "a", "b"]
@@ -24,7 +24,7 @@ def test_simple_select_with_filters_order_and_limit(sq):
 def test_embed_resolves_foreign_key_as_jsonb_subquery(sq):
     sql, _ = sq.build_list_query("drivers", "*, carrier:carriers(id, name)", [])
     assert 't.*' in sql
-    assert 'FROM "carriers" e0 WHERE e0."id" = t."carrier_id"' in sql
+    assert 'FROM "tbl_carriers" e0 WHERE e0."id" = t."carrier_id"' in sql
     assert 'AS "carrier"' in sql
 
 
@@ -41,11 +41,11 @@ def test_empty_in_matches_nothing_and_is_null(sq):
 
 def test_count_query(sq):
     sql, params = sq.build_count_query("drivers", [["status", "neq", "x"]])
-    assert sql == 'SELECT count(*)::int AS count FROM "drivers" t WHERE t."status" <> %s'
+    assert sql == 'SELECT count(*)::int AS count FROM "tbl_drivers" t WHERE t."status" <> %s'
     assert params == ["x"]
 
 
-@pytest.mark.parametrize("select", ["name; DROP TABLE drivers", "id,", "carriers(id"])
+@pytest.mark.parametrize("select", ["name; DROP TABLE tbl_drivers", "id,", "carriers(id"])
 def test_malformed_select_is_rejected(sq, select):
     with pytest.raises(HttpError) as err:
         sq.build_list_query("drivers", select, [])
@@ -67,3 +67,35 @@ def test_unknown_operator_and_bad_limit(sq):
 def test_embed_without_foreign_key_is_rejected(sq):
     with pytest.raises(HttpError, match="No hay foreign key"):
         sq.build_list_query("drivers", "roles(id)", [])
+
+
+def test_offset_pages_after_limit(sq):
+    sql, _ = sq.build_list_query("drivers", "id", [], {"column": "name"}, "25", None, "50")
+    assert sql.endswith('ORDER BY t."name" ASC LIMIT 25 OFFSET 50')
+    with pytest.raises(HttpError, match="offset inválido"):
+        sq.build_list_query("drivers", "*", [], None, "25", None, "-1")
+
+
+def test_ilike_search_across_several_columns(sq):
+    sql, params = sq.build_list_query("drivers", "id", [["name|status", "ilike", "%ana%"]])
+    assert 'WHERE (t."name" ILIKE %s OR t."status" ILIKE %s)' in sql
+    assert params == ["%ana%", "%ana%"]
+
+
+def test_filter_by_parent_table_column_through_foreign_key(sq):
+    sql, params = sq.build_count_query("drivers", [["carriers.country_id", "eq", "c1"]])
+    assert sql == ('SELECT count(*)::int AS count FROM "tbl_drivers" t WHERE t."carrier_id" IN '
+                   '(SELECT p0."id" FROM "tbl_carriers" p0 WHERE p0."country_id" = %s)')
+    assert params == ["c1"]
+    with pytest.raises(HttpError, match="Columna desconocida"):
+        sq.build_count_query("drivers", [["carriers.password", "eq", "x"]])
+    with pytest.raises(HttpError, match="No hay foreign key"):
+        sq.build_count_query("drivers", [["roles.name", "eq", "x"]])
+
+
+def test_filter_by_grandparent_table_column(sq):
+    sql, params = sq.build_count_query("drivers", [["carriers.countries.name", "eq", "Venezuela"]])
+    assert sql == ('SELECT count(*)::int AS count FROM "tbl_drivers" t WHERE t."carrier_id" IN '
+                   '(SELECT p0."id" FROM "tbl_carriers" p0 WHERE p0."country_id" IN '
+                   '(SELECT p1."id" FROM "tbl_countries" p1 WHERE p1."name" = %s))')
+    assert params == ["Venezuela"]

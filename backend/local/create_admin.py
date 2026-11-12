@@ -28,9 +28,9 @@ from tms_common import pg  # noqa: E402
 import admin_payload  # noqa: E402
 from admin_users import NewUser, insert_user  # noqa: E402
 
-ROLE_SQL = "SELECT id FROM roles WHERE lower(name) = lower(%s)"
-CREATE_ROLE_SQL = "INSERT INTO roles (name, description) VALUES (%s, %s) RETURNING id"
-ORGANIZATION_SQL = "SELECT id, name FROM organizations ORDER BY name LIMIT 1"
+ROLE_SQL = "SELECT id FROM tbl_roles WHERE lower(name) = lower(%s)"
+CREATE_ROLE_SQL = "INSERT INTO tbl_roles (name, description) VALUES (%s, %s) RETURNING id"
+ORGANIZATION_SQL = "SELECT id, name FROM tbl_organizations ORDER BY name LIMIT 1"
 
 
 def parse_args() -> argparse.Namespace:

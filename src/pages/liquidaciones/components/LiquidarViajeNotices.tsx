@@ -11,12 +11,20 @@ interface Props {
   loadError: string;
   /** Falta la lógica de costos de la flota del viaje: se ofrece el enlace para cargarla. */
   noLogic?: NoLogicInfo | null;
+  /** El viaje volvió por un reclamo de proforma: su motivo es la indicación para re-liquidar. */
+  claimReason?: string | null;
 }
 
-export function LiquidarViajeNotices({ calculation, error, loadError, noLogic }: Props) {
+export function LiquidarViajeNotices({ calculation, error, loadError, noLogic, claimReason }: Props) {
   const progreso = calculation ? tripProgress(calculation.trip) : null;
   return (
     <>
+      {claimReason && (
+        <div className="bg-red-50 border border-red-200 text-red-800 text-sm rounded-lg px-4 py-3 mb-4">
+          <div className="font-medium"><i className="ri-error-warning-line mr-1" />Anulada por reclamo</div>
+          <p className="mt-1">Indicación para re-liquidar: “{claimReason}”</p>
+        </div>
+      )}
       {(error || loadError) && (
         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 mb-4">
           {error || loadError}
@@ -36,14 +44,14 @@ export function LiquidarViajeNotices({ calculation, error, loadError, noLogic }:
         </div>
       )}
       {calculation?.notLiquidableReason && (
-        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-4 py-2.5 mb-4">
+        <div className="bg-red-50 border border-red-200 text-red-800 text-xs rounded-lg px-4 py-2.5 mb-4" role="alert">
           <i className="ri-information-line mr-1" />{calculation.notLiquidableReason}
         </div>
       )}
       {calculation && progreso && !progreso.complete && !calculation.notLiquidableReason && (
         <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-4 py-2.5 mb-4">
           <i className="ri-error-warning-line mr-1" />
-          Este viaje no está 100 % entregado ({progreso.label.toLowerCase()}). Podés liquidarlo completo, o
+          Este viaje no está 100 % entregado ({progreso.label.toLowerCase()}). Puedes liquidarlo completo, o
           anular los pedidos que no corresponden / dejarlos para liquidar después.
         </div>
       )}

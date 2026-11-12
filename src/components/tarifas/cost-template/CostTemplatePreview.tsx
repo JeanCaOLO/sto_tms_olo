@@ -26,7 +26,7 @@ export function CostTemplatePreview({ parsed, summary, currency }: Props) {
 
       {hasErrors && (
         <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-          <p className="text-sm font-medium text-red-700 mb-1">Corregí esto en el archivo y volvé a subirlo:</p>
+          <p className="text-sm font-medium text-red-700 mb-1">Corrige esto en el archivo y vuelve a subirlo:</p>
           <ul className="list-disc pl-5 text-sm text-red-700 space-y-0.5">
             {parsed.errors.map((e, i) => <li key={i}>{issue(e)}</li>)}
           </ul>

@@ -111,4 +111,20 @@ Sensores: required-sections PASS, upstream-coverage PASS; traceability = falso
 positivo advisory conocido. (La confirmación de la corrida original 2026-09-16 fue
 "Looks correct".)
 
+---
+
+**Re-corrida v4 (2026-10-16) — inversión del flujo OMS↔Planificación.**
+Nomenclatura EFLOW/EPRAC. Cambios en el story map (D7–D13): **E0/US0** activación
+por Planificación (lambda async, `planning_run_id` + scope); **US1** lee de
+`public.orders` (no de EFLOW); **US7/US8** regla fecha generalizada
+(`fecha_entrega − duración`, duración = insumo de Planificación); **US9** UPDATE a
+`orders` + escritura a **EFLOW real** (`TPEXSI='GENE'` + `PRIORIDAD`, sin número de
+viaje); **E2b/US-EPA** EPA cortocircuita el score (prioridad pre-asignada por
+EPRAC); **US13** cliente-retira por **zona** y **US12** (observaciones IA)
+DIFERIDA a futuro (D11); **US15b** cambio de prioridad sin anular (D12);
+**E10/US-BO** backorder (D13, esqueleto + OQ). traceability.json, assessment.md y
+personas.md reconciliados (P6 Planificación activa; P7 EPRAC nuevo). Assumptions
+abiertas: contrato de la lambda de activación y OQ-BO1/BO2/BO3. Sensores:
+required-sections, upstream-coverage.
+
 [Answer]: Looks correct

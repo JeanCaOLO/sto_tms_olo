@@ -1,6 +1,7 @@
 // Consultas de viajes.
 
-import { db, type Condition, type Row } from '../data';
+import { db, findMany, type Condition, type FindRequest, type Row } from '../data';
+import { OPEN_STATUSES } from '../../devoluciones/trips';
 import { isLiquidable, toTripRecord } from '../tripContext';
 import type { TripRecord } from '../types';
 
@@ -24,23 +25,34 @@ export function whereOf(filter: TripFilter): Condition[] {
   return where;
 }
 
-interface SettlementFlags { vigente: Map<string, string>; conAnulada: Set<string> }
+interface SettlementFlags { vigente: Map<string, string>; conAnulada: Set<string>; porReclamo: Map<string, string> }
+
+/** La consulta de las liquidaciones de esos viajes (vigentes y anuladas), solo con los campos que hacen falta. */
+function flagsRequest(tripIds: string[]): FindRequest {
+  return {
+    entity: 'settlement',
+    // Solo se necesitan estos campos: sin esto traía cada liquidación entera con sus JSONB.
+    options: { where: [{ column: 'trip_id', op: 'in', value: tripIds }], columns: ['id', 'trip_id', 'status', 'void_kind', 'void_reason'] },
+  };
+}
+
+function toFlags(rows: Row[]): SettlementFlags {
+  const vigente = new Map<string, string>();
+  const conAnulada = new Set<string>();
+  const porReclamo = new Map<string, string>();
+  for (const s of rows) {
+    if (s.status === 'Anulado') {
+      conAnulada.add(String(s.trip_id));
+      if (s.void_kind === 'reclamo' && s.void_reason) porReclamo.set(String(s.trip_id), String(s.void_reason));
+    } else vigente.set(String(s.trip_id), String(s.id));
+  }
+  return { vigente, conAnulada, porReclamo };
+}
 
 /** Una sola consulta con las liquidaciones de esos viajes (vigentes y anuladas). */
 async function settlementFlags(tripIds: string[]): Promise<SettlementFlags> {
-  const vigente = new Map<string, string>();
-  const conAnulada = new Set<string>();
-  if (tripIds.length === 0) return { vigente, conAnulada };
-  const delViaje = await db().find('settlement', {
-    where: [{ column: 'trip_id', op: 'in', value: tripIds }],
-    // Solo se necesitan estos campos: sin esto traía cada liquidación entera con sus JSONB.
-    columns: ['id', 'trip_id', 'status'],
-  });
-  for (const s of delViaje) {
-    if (s.status === 'Anulado') conAnulada.add(String(s.trip_id));
-    else vigente.set(String(s.trip_id), String(s.id));
-  }
-  return { vigente, conAnulada };
+  if (tripIds.length === 0) return toFlags([]);
+  return toFlags(await db().find('settlement', flagsRequest(tripIds).options));
 }
 
 /** La vigente da `settlementId` y, si hubo alguna anulada, se marca para que la bandeja lo diga. */
@@ -49,15 +61,43 @@ function applyFlags(trips: TripRecord[], flags: SettlementFlags): TripRecord[] {
     ...t,
     settlementId: flags.vigente.get(t.id) ?? null,
     ...(flags.conAnulada.has(t.id) ? { hadAnnulledSettlement: true } : {}),
+    ...(flags.porReclamo.has(t.id) ? { claimVoidReason: flags.porReclamo.get(t.id) } : {}),
   }));
 }
 
 /**
- * Completa `settlementId` con la liquidación VIGENTE de cada viaje, leída de las liquidaciones.
+ * Cuántas devoluciones SIN RECIBIR (pending/approved) tiene cada viaje; solo aparecen los que tienen alguna.
+ *
+ * Si la consulta falla se devuelve vacío: la pantalla no se cae por esto, y quien decide de verdad es el backend,
+ * que rechaza liquidar un viaje con devoluciones sin recibir (backend/tarifas, returns_gate.py).
+ */
+export async function openReturnCounts(tripIds: string[]): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (tripIds.length === 0) return counts;
+  try {
+    const rows = await db().find('tripReturn', {
+      where: [{ column: 'route_id', op: 'in', value: tripIds }, { column: 'status', op: 'in', value: OPEN_STATUSES }],
+      columns: ['id', 'route_id'],
+    });
+    for (const r of rows) counts.set(String(r.route_id), (counts.get(String(r.route_id)) ?? 0) + 1);
+  } catch (error) {
+    console.warn('No se pudieron leer las devoluciones sin recibir del viaje:', error);
+  }
+  return counts;
+}
+
+const withOpenReturns = (trips: TripRecord[], counts: Map<string, number>): TripRecord[] =>
+  trips.map((t) => ({ ...t, openReturns: counts.get(t.id) ?? 0 }));
+
+/**
+ * Completa `settlementId` con la liquidación VIGENTE de cada viaje, leída de las liquidaciones, y `openReturns`
+ * con sus devoluciones sin recibir.
  */
 export async function withVigentes(trips: TripRecord[]): Promise<TripRecord[]> {
   if (trips.length === 0) return trips;
-  return applyFlags(trips, await settlementFlags(trips.map((t) => t.id)));
+  const ids = trips.map((t) => t.id);
+  const [flags, open] = await Promise.all([settlementFlags(ids), openReturnCounts(ids)]);
+  return withOpenReturns(applyFlags(trips, flags), open);
 }
 
 export const ORDEN = [
@@ -107,10 +147,14 @@ export async function listLiquidableTrips(
 }
 
 export async function getTrip(id: string): Promise<TripRecord | null> {
-  // El viaje y sus liquidaciones son consultas independientes: van a la vez (una espera de red, no dos).
-  const [row, flags] = await Promise.all([db().findOne('trip', id), settlementFlags([id])]);
-  if (!row) return null;
-  return applyFlags([toTripRecord(row)], flags)[0];
+  // El viaje y sus liquidaciones son consultas independientes: viajan JUNTAS en una sola llamada (/batch).
+  const [rows, settlements] = await findMany(db(), [
+    { entity: 'trip', options: { where: [{ column: 'id', op: 'eq', value: id }], limit: 1 } },
+    flagsRequest([id]),
+  ]);
+  if (!rows[0]) return null;
+  const trip = applyFlags([toTripRecord(rows[0])], toFlags(settlements))[0];
+  return withOpenReturns([trip], await openReturnCounts([id]))[0];
 }
 
 /** Paradas del viaje (guías), en orden de visita. Solo para mostrar el detalle. */

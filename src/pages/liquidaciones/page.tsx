@@ -3,6 +3,8 @@
 
 import { useMemo, useState } from 'react';
 import Card from '../../components/base/Card';
+import TabBar from '../../components/base/TabBar';
+import { tabPanelProps } from '../../components/base/tabPanelProps';
 import Button from '../../components/base/Button';
 import Input from '../../components/base/Input';
 import DataTable from '../../components/base/DataTable';
@@ -10,17 +12,15 @@ import StatCard from '../../components/feature/StatCard';
 import CountryScopeBar from '../../components/feature/CountryScopeBar';
 import LiquidarViajeModal from './components/LiquidarViajeModal';
 import DetalleLiquidacionModal from './components/DetalleLiquidacionModal';
-import TripOrdersPanel from './components/TripOrdersPanel';
 import { PageHeader } from './parts/PageHeader';
+import LiquidarLoteModal from './components/lote/LiquidarLoteModal';
 import { useActiveCountry } from '../../hooks/useActiveCountry';
 import { useModulePermissions } from '../../hooks/use-module-permissions';
 import { useTarifasActor } from '../../hooks/useTarifasActor';
 import { useLiquidacionesController } from './hooks/useLiquidacionesController';
 import { useLiquidadorVista } from './hooks/useLiquidadorVista';
-import { notLiquidableReason } from '../../lib/tarifas/tripContext';
-import { tripProgress } from '../../lib/tarifas/tripOrders';
 import { formatMoney } from '../../lib/tarifas/format';
-import { tripColumns } from './parts/tripColumns';
+import { TripsTable } from './parts/TripsTable';
 import { getSettlementColumns, getSettlementColumnsExtended } from './parts/settlementColumns';
 import { PedidosEmitidos } from './parts/PedidosEmitidos';
 import { LoadMoreBar, TruncatedNotice } from './parts/ListNotices';
@@ -35,12 +35,13 @@ export default function LiquidacionesPage() {
 
   const {
     tab, setTab, from, setFrom, to, setTo, error, trips, loadingTrips, settlements,
-    loadingSettlements, reload, changeStatus, listos, incompletos, kpis,
-    tripsRecortados, siguiente, cargandoMas, loadMore, openFull, prefetchProps,
+    loadingSettlements, changeStatus, listos, incompletos, kpis,
+    tripsRecortados, siguiente, cargandoMas, loadMore, openFull, prefetchProps, onEmitted, onBatchEmitted, emitida,
   } = useLiquidacionesController(countryId);
 
   const [alcance, setAlcance] = useState<'ready' | 'incomplete' | 'all'>('ready');
   const [modal, setModal] = useState<{ trip: TripRecord | null; settlement: SettlementRecord | null } | null>(null);
+  const [lote, setLote] = useState<TripRecord[] | null>(null);
   const [detalle, setDetalle] = useState<SettlementRecord | null>(null);
 
   const visibles = useMemo(
@@ -86,26 +87,29 @@ export default function LiquidacionesPage() {
 
       <Card>
         <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
-          <div className="flex border-b border-slate-200">
-            <button type="button" className={getTabClass(tab, 'trips')} onClick={() => setTab('trips')}>
-              Por Liquidar
-            </button>
-            <button type="button" className={getTabClass(tab, 'history')} onClick={() => setTab('history')}>
-              Historial
-            </button>
-          </div>
+          <TabBar<'trips' | 'history'>
+            tabs={[{ key: 'trips', label: 'Por Liquidar' }, { key: 'history', label: 'Historial' }]}
+            value={tab}
+            onChange={setTab}
+            ariaLabel="Secciones de liquidaciones"
+            idBase="liquidaciones"
+            className="flex border-b border-slate-200"
+            tabClassName={getTabClass}
+          />
           <div className="grid grid-cols-2 gap-3">
             <Input label="Desde" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
             <Input label="Hasta" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
           </div>
         </div>
 
+        <div {...tabPanelProps('liquidaciones', tab)}>
         {tab === 'trips' && (
           <div className="flex flex-wrap items-center gap-2 mb-3">
             {ALCANCES.map((a) => (
               <button
                 key={a.value}
                 type="button"
+                aria-pressed={alcance === a.value}
                 title={a.hint}
                 onClick={() => setAlcance(a.value)}
                 className={`px-3 py-1.5 text-xs font-medium rounded-full border cursor-pointer transition-colors ${
@@ -123,44 +127,15 @@ export default function LiquidacionesPage() {
         )}
 
         {tab === 'trips' ? (
-          <DataTable
-            maxVisibleRows={5}
-            data={visibles}
-            columns={tripColumns}
-            getRowId={(t) => t.id}
+          <TripsTable
+            trips={visibles}
             loading={loadingTrips}
-            columnsKey={`liquidaciones.viajes.${extendida ? 'extendida' : 'simple'}`}
-            defaultHidden={extendida ? [] : ['fleet', 'driver', 'vehicle', 'weight', 'zone']}
-            renderExpanded={(t) => (
-              <TripOrdersPanel
-                trip={t}
-                currency={moneda}
-                intro="Pedidos que lleva el viaje, uno por guía de despacho. Se liquidan juntos; desde Liquidar se puede anular alguno o dejarlo para después."
-              />
-            )}
-            searchHidden
-            searchPlaceholder="Buscar por viaje, transportista, conductor o placa"
-            exportFileName="viajes_por_liquidar"
-            emptyMessage="No hay viajes completados pendientes de liquidar"
-            pageSize={25}
-            actions={(t) => {
-              if (!canCreate) return null;
-              const motivo = notLiquidableReason(t);
-              const parcial = !tripProgress(t).complete;
-              return (
-                <Button
-                  size="sm"
-                  variant={parcial ? 'secondary' : 'primary'}
-                  disabled={!!motivo}
-                  onClick={() => setModal({ trip: t, settlement: null })}
-                  {...prefetchProps(t, !!motivo)}
-                  title={motivo ?? (parcial ? 'Tiene pedidos sin entregar: podés anularlos o dejarlos para después' : 'Liquidar este viaje')}
-                >
-                  <i className="ri-calculator-line mr-1" />
-                  Liquidar
-                </Button>
-              );
-            }}
+            extendida={extendida}
+            canCreate={canCreate}
+            currency={moneda}
+            prefetchProps={prefetchProps}
+            onLiquidar={(t) => setModal({ trip: t, settlement: null })}
+            onLiquidarLote={setLote}
           />
         ) : (
           <div className="space-y-3">
@@ -168,7 +143,7 @@ export default function LiquidacionesPage() {
             maxVisibleRows={5}
             data={settlements}
             columns={settlementCols}
-            getRowId={(s) => s.id}
+            getRowId={(s) => s.id} selectedRowId={emitida}
             loading={loadingSettlements}
             columnsKey={`liquidaciones.historial.${extendida ? 'extendida' : 'simple'}`}
             renderExpanded={(s) => <PedidosEmitidos orders={s.orders} currency={s.currency} />}
@@ -197,6 +172,7 @@ export default function LiquidacionesPage() {
           {siguiente && <LoadMoreBar shown={settlements.length} loading={cargandoMas} onLoadMore={() => void loadMore()} />}
           </div>
         )}
+        </div>
       </Card>
 
       <LiquidarViajeModal
@@ -204,8 +180,10 @@ export default function LiquidacionesPage() {
         trip={modal?.trip ?? null}
         settlement={modal?.settlement ?? null}
         onClose={() => setModal(null)}
-        onSaved={(saved) => { reload(); setDetalle(saved); }}
+        onSaved={onEmitted}
       />
+
+      {lote && <LiquidarLoteModal trips={lote} onClose={() => setLote(null)} onEmitted={onBatchEmitted} />}
 
       <DetalleLiquidacionModal settlement={detalle} onClose={() => setDetalle(null)} />
     </div>

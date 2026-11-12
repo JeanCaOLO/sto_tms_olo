@@ -52,38 +52,38 @@ export const cofersaRoutes: DispatchRoute[] = [
   { id: '44', name: 'REY', routeType: 'GAM', country: 'CR', loadDays: [], deliveryDays: [], byAppointment: true, exceptions: 0, active: true },
 ];
 
-// FR2/FR3 — cola de priorización (mock). tier numérico: 1 = más urgente.
+// FR2/FR3 — cola de priorización (mock). prioridad numérica: menor = más urgente.
 export const queueOrders: QueueOrder[] = [
   {
     id: 'PED-10432', ref: 'ERP-CF-88213', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Ferretería Central', route: '34 Escazú', country: 'CR', tier: 1, score: 920,
+    customer: 'Ferretería Central', route: '34 Escazú', country: 'CR', priority:1, score: 920,
     totalAmount: 1_240_500, weight: 320.5, volume: 2.4, itemCount: 24, observations: 'Entregar en oficina, urgente',
-    dispatchDate: '2026-08-29', createdDate: '2026-08-27', readyToPrepDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '08:41',
-    appliedRules: [{ name: 'Fecha de despacho vencida', weight: 600 }, { name: 'Cliente — quiebre de stock', weight: 320 }],
+    dispatchDate: '2026-08-29', createdDate: '2026-08-27', status: 'DISP', situation: 'DISP', intakeTime: '08:41',
+    appliedRules: [{ name: 'Fecha de entrega vencida', weight: 600 }, { name: 'Cliente — quiebre de stock', weight: 320 }],
     history: [{ at: '2026-08-28 08:41', from: 'sin asignar', to: 1, type: 'automatico' }],
   },
   {
     id: 'PED-10440', ref: 'ERP-CF-88240', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Distribuidora Pacífico', route: '13 Puntarenas', country: 'CR', tier: 2, score: 610,
+    customer: 'Distribuidora Pacífico', route: '13 Puntarenas', country: 'CR', priority:2, score: 610,
     totalAmount: 486_200, weight: 95.0, volume: 0.9, itemCount: 8, observations: '—',
-    dispatchDate: '2026-08-30', createdDate: '2026-08-28', readyToPrepDate: '2026-08-29', status: 'DISP', situation: 'DISP', intakeTime: '09:05',
+    dispatchDate: '2026-08-30', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '09:05',
     appliedRules: [{ name: 'Día de ruta próximo', weight: 610 }],
     history: [{ at: '2026-08-28 09:05', from: 'sin asignar', to: 2, type: 'automatico' }],
   },
   {
     id: 'PED-10455', ref: 'ERP-CF-88255', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Ferretería San Carlos', route: '08 San Carlos', country: 'CR', tier: 3, score: 300,
+    customer: 'Ferretería San Carlos', route: '08 San Carlos', country: 'CR', priority:3, score: 300,
     totalAmount: 712_800, weight: 210.0, volume: 1.6, itemCount: 15, observations: 'Cliente retira',
-    dispatchDate: '2026-08-31', createdDate: '2026-08-28', readyToPrepDate: '2026-08-30', status: 'DISP', situation: 'DISP', intakeTime: '09:22',
+    dispatchDate: '2026-08-31', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '09:22',
     appliedRules: [{ name: 'Día de ruta a 2 días', weight: 300 }],
     history: [{ at: '2026-08-28 09:22', from: 'sin asignar', to: 3, type: 'automatico' }],
   },
   {
     id: 'PED-10461', ref: 'ERP-CF-88261', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Ferretería San Carlos', route: '08 San Carlos', country: 'CR', tier: 1, score: 950,
+    customer: 'Ferretería San Carlos', route: '08 San Carlos', country: 'CR', priority:1, score: 950,
     totalAmount: 158_000, weight: 42.3, volume: 0.3, itemCount: 3, observations: 'Viaje extra pagado por el cliente',
-    dispatchDate: '2026-08-28', createdDate: '2026-08-26', readyToPrepDate: '2026-08-27', status: 'DISP', situation: 'DISP', intakeTime: '07:58',
-    appliedRules: [{ name: 'Fecha de despacho vencida', weight: 600 }, { name: 'Override manual', weight: 350 }],
+    dispatchDate: '2026-08-28', createdDate: '2026-08-26', status: 'DISP', situation: 'DISP', intakeTime: '07:58',
+    appliedRules: [{ name: 'Fecha de entrega vencida', weight: 600 }, { name: 'Override manual', weight: 350 }],
     history: [
       { at: '2026-08-28 07:58', from: 'sin asignar', to: 2, type: 'automatico' },
       { at: '2026-08-28 10:12', from: 2, to: 1, type: 'manual', reason: 'Viaje extra pagado por el cliente' },
@@ -91,129 +91,129 @@ export const queueOrders: QueueOrder[] = [
   },
   {
     id: 'PED-10470', ref: 'ERP-CF-88270', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Comercial Zona Sur', route: '12 Zona Sur', country: 'CR', tier: 4, score: 0,
+    customer: 'Comercial Zona Sur', route: '12 Zona Sur', country: 'CR', priority:4, score: 0,
     totalAmount: 2_050_900, weight: 540.0, volume: 4.1, itemCount: 41, observations: '—',
-    dispatchDate: '2026-09-03', createdDate: '2026-08-28', readyToPrepDate: '2026-09-02', status: 'DISP', situation: 'DISP', intakeTime: '10:30',
+    dispatchDate: '2026-09-03', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '10:30',
     appliedRules: [],
     history: [{ at: '2026-08-28 10:30', from: 'sin asignar', to: 4, type: 'automatico' }],
   },
   {
     id: 'PED-10471', ref: 'ERP-CF-88271', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Ferretería Limón', route: '09 Limón', country: 'CR', tier: 2, score: 640,
+    customer: 'Ferretería Limón', route: '09 Limón', country: 'CR', priority:2, score: 640,
     totalAmount: 890_400, weight: 178.5, volume: 1.2, itemCount: 12, observations: 'Entregar antes de mediodía',
-    dispatchDate: '2026-08-30', createdDate: '2026-08-28', readyToPrepDate: '2026-08-29', status: 'DISP', situation: 'DISP', intakeTime: '08:12',
+    dispatchDate: '2026-08-30', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '08:12',
     appliedRules: [{ name: 'Día de ruta próximo', weight: 640 }],
     history: [{ at: '2026-08-28 08:12', from: 'sin asignar', to: 2, type: 'automatico' }],
   },
   {
     id: 'PED-10472', ref: 'ERP-CF-88272', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Depósito Guanacaste', route: '10 Guanacaste Altura', country: 'CR', tier: 3, score: 340,
+    customer: 'Depósito Guanacaste', route: '10 Guanacaste Altura', country: 'CR', priority:3, score: 340,
     totalAmount: 1_320_000, weight: 410.0, volume: 3.0, itemCount: 28, observations: '—',
-    dispatchDate: '2026-08-31', createdDate: '2026-08-28', readyToPrepDate: '2026-08-30', status: 'DISP', situation: 'DISP', intakeTime: '08:20',
+    dispatchDate: '2026-08-31', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '08:20',
     appliedRules: [{ name: 'Día de ruta a 2 días', weight: 340 }],
     history: [{ at: '2026-08-28 08:20', from: 'sin asignar', to: 3, type: 'automatico' }],
   },
   {
     id: 'PED-10473', ref: 'ERP-CF-88273', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Ferretería Turrialba', route: '15 Turrialba', country: 'CR', tier: 1, score: 900,
+    customer: 'Ferretería Turrialba', route: '15 Turrialba', country: 'CR', priority:1, score: 900,
     totalAmount: 245_600, weight: 62.0, volume: 0.5, itemCount: 5, observations: 'Cliente retira',
-    dispatchDate: '2026-08-29', createdDate: '2026-08-27', readyToPrepDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '08:33',
+    dispatchDate: '2026-08-29', createdDate: '2026-08-27', status: 'DISP', situation: 'DISP', intakeTime: '08:33',
     appliedRules: [{ name: 'Cliente retira', weight: 900 }],
     history: [{ at: '2026-08-28 08:33', from: 'sin asignar', to: 1, type: 'automatico' }],
   },
   {
     id: 'PED-10474', ref: 'ERP-CF-88274', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Comercial Puriscal', route: '20 Puriscal', country: 'CR', tier: 2, score: 600,
+    customer: 'Comercial Puriscal', route: '20 Puriscal', country: 'CR', priority:2, score: 600,
     totalAmount: 512_300, weight: 130.0, volume: 1.0, itemCount: 9, observations: '—',
-    dispatchDate: '2026-08-30', createdDate: '2026-08-28', readyToPrepDate: '2026-08-29', status: 'DISP', situation: 'DISP', intakeTime: '08:47',
+    dispatchDate: '2026-08-30', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '08:47',
     appliedRules: [{ name: 'Día de ruta próximo', weight: 600 }],
     history: [{ at: '2026-08-28 08:47', from: 'sin asignar', to: 2, type: 'automatico' }],
   },
   {
     id: 'PED-10475', ref: 'ERP-CF-88275', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Distribuidora Bajura', route: '11 Guanacaste Bajura', country: 'CR', tier: 3, score: 320,
+    customer: 'Distribuidora Bajura', route: '11 Guanacaste Bajura', country: 'CR', priority:3, score: 320,
     totalAmount: 1_780_000, weight: 495.0, volume: 3.7, itemCount: 33, observations: 'Enviar a bodega nueva',
-    dispatchDate: '2026-08-31', createdDate: '2026-08-28', readyToPrepDate: '2026-08-30', status: 'DISP', situation: 'DISP', intakeTime: '09:01',
+    dispatchDate: '2026-08-31', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '09:01',
     appliedRules: [{ name: 'Día de ruta a 2 días', weight: 320 }],
     history: [{ at: '2026-08-28 09:01', from: 'sin asignar', to: 3, type: 'automatico' }],
   },
   {
     id: 'PED-10476', ref: 'ERP-CF-88276', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Ferretería Talamanca', route: '29 Talamanca', country: 'CR', tier: 1, score: 930,
+    customer: 'Ferretería Talamanca', route: '29 Talamanca', country: 'CR', priority:1, score: 930,
     totalAmount: 168_900, weight: 38.0, volume: 0.4, itemCount: 4, observations: 'Urgente — reposición',
-    dispatchDate: '2026-08-29', createdDate: '2026-08-27', readyToPrepDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '09:14',
-    appliedRules: [{ name: 'Fecha de despacho vencida', weight: 600 }, { name: 'Quiebre de stock', weight: 330 }],
+    dispatchDate: '2026-08-29', createdDate: '2026-08-27', status: 'DISP', situation: 'DISP', intakeTime: '09:14',
+    appliedRules: [{ name: 'Fecha de entrega vencida', weight: 600 }, { name: 'Quiebre de stock', weight: 330 }],
     history: [{ at: '2026-08-28 09:14', from: 'sin asignar', to: 1, type: 'automatico' }],
   },
   {
     id: 'PED-10477', ref: 'ERP-CF-88277', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Comercial Sarapiquí', route: '39 Sarapiquí', country: 'CR', tier: 3, score: 300,
+    customer: 'Comercial Sarapiquí', route: '39 Sarapiquí', country: 'CR', priority:3, score: 300,
     totalAmount: 720_000, weight: 205.0, volume: 1.5, itemCount: 14, observations: '—',
-    dispatchDate: '2026-08-31', createdDate: '2026-08-28', readyToPrepDate: '2026-08-30', status: 'DISP', situation: 'DISP', intakeTime: '09:28',
+    dispatchDate: '2026-08-31', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '09:28',
     appliedRules: [{ name: 'Día de ruta a 2 días', weight: 300 }],
     history: [{ at: '2026-08-28 09:28', from: 'sin asignar', to: 3, type: 'automatico' }],
   },
   {
     id: 'PED-10478', ref: 'ERP-CF-88278', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Ferretería Corralillo', route: '16 Corralillo', country: 'CR', tier: 2, score: 620,
+    customer: 'Ferretería Corralillo', route: '16 Corralillo', country: 'CR', priority:2, score: 620,
     totalAmount: 398_000, weight: 88.0, volume: 0.8, itemCount: 7, observations: 'Entregar mañana',
-    dispatchDate: '2026-08-30', createdDate: '2026-08-28', readyToPrepDate: '2026-08-29', status: 'DISP', situation: 'DISP', intakeTime: '09:40',
+    dispatchDate: '2026-08-30', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '09:40',
     appliedRules: [{ name: 'Día de ruta próximo', weight: 620 }],
     history: [{ at: '2026-08-28 09:40', from: 'sin asignar', to: 2, type: 'automatico' }],
   },
   {
     id: 'PED-10479', ref: 'ERP-CF-88279', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Depósito Upala', route: '31 Upala', country: 'CR', tier: 4, score: 40,
+    customer: 'Depósito Upala', route: '31 Upala', country: 'CR', priority:4, score: 40,
     totalAmount: 2_410_500, weight: 610.0, volume: 4.8, itemCount: 47, observations: '—',
-    dispatchDate: '2026-09-04', createdDate: '2026-08-28', readyToPrepDate: '2026-09-03', status: 'DISP', situation: 'DISP', intakeTime: '09:52',
+    dispatchDate: '2026-09-04', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '09:52',
     appliedRules: [{ name: 'Día de ruta lejano', weight: 40 }],
     history: [{ at: '2026-08-28 09:52', from: 'sin asignar', to: 4, type: 'automatico' }],
   },
   {
     id: 'PED-10480', ref: 'ERP-CF-88280', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Ferretería Osa', route: '32 Puerto Jiménez', country: 'CR', tier: 1, score: 910,
+    customer: 'Ferretería Osa', route: '32 Puerto Jiménez', country: 'CR', priority:1, score: 910,
     totalAmount: 320_000, weight: 71.0, volume: 0.6, itemCount: 6, observations: 'Cliente retira 48h',
-    dispatchDate: '2026-08-29', createdDate: '2026-08-27', readyToPrepDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '10:05',
+    dispatchDate: '2026-08-29', createdDate: '2026-08-27', status: 'DISP', situation: 'DISP', intakeTime: '10:05',
     appliedRules: [{ name: 'Cliente retira', weight: 910 }],
     history: [{ at: '2026-08-28 10:05', from: 'sin asignar', to: 1, type: 'automatico' }],
   },
   {
     id: 'PED-10481', ref: 'ERP-CF-88281', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'EPA Cartago', route: '33 Cartago Epa', country: 'CR', tier: 2, score: 660,
+    customer: 'EPA Cartago', route: '33 Cartago Epa', country: 'CR', priority:2, score: 660,
     totalAmount: 1_050_000, weight: 260.0, volume: 2.0, itemCount: 19, observations: '—',
-    dispatchDate: '2026-08-30', createdDate: '2026-08-28', readyToPrepDate: '2026-08-29', status: 'DISP', situation: 'DISP', intakeTime: '10:18',
+    dispatchDate: '2026-08-30', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '10:18',
     appliedRules: [{ name: 'Día de ruta próximo', weight: 660 }],
     history: [{ at: '2026-08-28 10:18', from: 'sin asignar', to: 2, type: 'automatico' }],
   },
   {
     id: 'PED-10482', ref: 'ERP-CF-88282', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'EPA Belén', route: '38 Belén Epa', country: 'CR', tier: 3, score: 310,
+    customer: 'EPA Belén', route: '38 Belén Epa', country: 'CR', priority:3, score: 310,
     totalAmount: 640_800, weight: 152.0, volume: 1.1, itemCount: 11, observations: 'Revisar dirección en observación',
-    dispatchDate: '2026-08-31', createdDate: '2026-08-28', readyToPrepDate: '2026-08-30', status: 'DISP', situation: 'DISP', intakeTime: '10:31',
+    dispatchDate: '2026-08-31', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '10:31',
     appliedRules: [{ name: 'Día de ruta a 2 días', weight: 310 }],
     history: [{ at: '2026-08-28 10:31', from: 'sin asignar', to: 3, type: 'automatico' }],
   },
   {
     id: 'PED-10483', ref: 'ERP-CF-88283', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Ferretería Casco', route: '01 Casco', country: 'CR', tier: 2, score: 630,
+    customer: 'Ferretería Casco', route: '01 Casco', country: 'CR', priority:2, score: 630,
     totalAmount: 455_000, weight: 102.0, volume: 0.9, itemCount: 8, observations: '—',
-    dispatchDate: '2026-08-30', createdDate: '2026-08-28', readyToPrepDate: '2026-08-29', status: 'DISP', situation: 'DISP', intakeTime: '10:44',
+    dispatchDate: '2026-08-30', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '10:44',
     appliedRules: [{ name: 'Día de ruta próximo', weight: 630 }],
     history: [{ at: '2026-08-28 10:44', from: 'sin asignar', to: 2, type: 'automatico' }],
   },
   {
     id: 'PED-10484', ref: 'ERP-CF-88284', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'Depósito Heredia', route: '05 Heredia', country: 'CR', tier: 4, score: 30,
+    customer: 'Depósito Heredia', route: '05 Heredia', country: 'CR', priority:4, score: 30,
     totalAmount: 1_990_000, weight: 520.0, volume: 4.0, itemCount: 38, observations: '—',
-    dispatchDate: '2026-09-04', createdDate: '2026-08-28', readyToPrepDate: '2026-09-03', status: 'DISP', situation: 'DISP', intakeTime: '10:57',
+    dispatchDate: '2026-09-04', createdDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '10:57',
     appliedRules: [{ name: 'Día de ruta lejano', weight: 30 }],
     history: [{ at: '2026-08-28 10:57', from: 'sin asignar', to: 4, type: 'automatico' }],
   },
   {
     id: 'PED-10485', ref: 'ERP-CF-88285', warehouseId: '0001', companyId: '0109', branchId: '0001', orderType: 'Expedición ERP',
-    customer: 'El Rey Distribución', route: '44 REY', country: 'CR', tier: 1, score: 940,
+    customer: 'El Rey Distribución', route: '44 REY', country: 'CR', priority:1, score: 940,
     totalAmount: 275_000, weight: 55.0, volume: 0.5, itemCount: 5, observations: 'Cita previa — coordinar hora',
-    dispatchDate: '2026-08-29', createdDate: '2026-08-27', readyToPrepDate: '2026-08-28', status: 'DISP', situation: 'DISP', intakeTime: '11:10',
+    dispatchDate: '2026-08-29', createdDate: '2026-08-27', status: 'DISP', situation: 'DISP', intakeTime: '11:10',
     appliedRules: [{ name: 'Cliente retira', weight: 940 }],
     history: [{ at: '2026-08-28 11:10', from: 'sin asignar', to: 1, type: 'automatico' }],
   },
@@ -233,98 +233,58 @@ export const companies: Company[] = [
   { id: 'EPA', name: 'EPA' },
 ];
 
-// FR5 — catálogo de macro-reglas del OMS, asociadas por compañía.
-// `active` refleja el ESTADO REAL DEL CÓDIGO (src/pages/oms/engine/priorityEngine.ts),
-// no la aspiración de negocio: una regla en `false` todavía NO tiene lógica
-// detrás, sin importar cuánto se documentó en las reuniones. Mantener
-// sincronizado con priorityEngine.ts cada vez que se implemente/cambie una
-// regla ahí — este catálogo es lo único que un no-desarrollador puede leer
-// para saber "qué de esto ya es real".
-//
-// Hoy están activas exactamente 2 reglas (primera entrega, reunión Antonio
-// 2026-09-08), y priorityEngine.ts las aplica IGUAL para Cofersa y EPA (el
-// código no distingue compañía todavía) - por eso ambas compañías las listan.
+// FR5 — catálogo de macro-reglas del OMS, de SOLO LECTURA (DECIDED 2026-11-05).
+// El set de reglas es FIJO en código (Python, backend/oms/src/: motor_reglas.py,
+// regla_fecha.py, estrategias_prioridad.py, handoff_pedidos.py); este catálogo
+// solo lo documenta. No hay toggle, ni peso, ni parámetros editables.
+// `active` = la lógica YA existe en código (no la aspiración de negocio).
+// `scope` = nivel de oms_rule_configs donde se resuelve (CUSTOMER → WAREHOUSE →
+// COUNTRY → GLOBAL). La estrategia por scope (FR3.9, sql/55) se siembra por
+// migración SQL, no desde la UI. Mantener sincronizado con el backend.
 export const engineRules: EngineRule[] = [
   // --- Cofersa ---
   {
-    id: 'MR-CF-1', company: '0109', order: 1, name: 'Regla T-1 (fecha de despacho)', firstDelivery: true, active: true, weight: 600,
-    description: 'Calcula la urgencia según los días que faltan para la fecha de entrega (fecha_planificada; si no hay, cae a fecha_expedicion). Vencida u hoy = más urgente; exactamente 1 día antes (ventana T-1, "listo hoy") = urgente; 2 días = media; 3+ días = decrece. Implementada en priorityEngine.ts::calcularPrioridad. Ajuste por horas de corte y duración de ruta: NO aplicado todavía (ver params).',
-    params: [
-      { key: 'prioridad_vencida_o_hoy', label: 'Prioridad si vencida u hoy', value: '2', kind: 'number' },
-      { key: 'prioridad_t1', label: 'Prioridad ventana T-1 (mañana)', value: '3', kind: 'number' },
-      { key: 'prioridad_2dias', label: 'Prioridad a 2 días', value: '10', kind: 'number' },
-      { key: 'prioridad_base_lejana', label: 'Base banda lejana (20 + días, tope 49)', value: '20', kind: 'number' },
-    ],
+    id: 'MR-CF-1', company: '0109', order: 1, name: 'Prioridad por días hasta la salida', scope: 'CUSTOMER', firstDelivery: true, active: true,
+    description: 'Da más urgencia a los pedidos que salen antes: la prioridad es el número de días que faltan para la salida del viaje (menos días = más urgente). Se vuelve a calcular en cada revisión, así que la urgencia sube sola conforme se acerca la fecha.',
   },
   {
-    id: 'MR-CF-2', company: '0109', order: 2, name: 'Análisis de observaciones (general)', firstDelivery: false, active: false, weight: 200,
-    description: 'Interpretar el texto libre de observaciones más allá de "cliente retira" (dirección distinta, fecha solicitada, urgencia, cita) para ajustar ruteo/prioridad. NO implementada - hoy solo se detecta el patrón de cliente retira (ver regla aparte). Requiere estandarizar observaciones.',
-    params: [
-      { key: 'patrones_urgencia', label: 'Palabras de urgencia (propuesta, sin implementar)', value: 'urgente, hoy, inmediato', kind: 'text' },
-    ],
+    id: 'MR-CF-6', company: '0109', order: 2, name: 'Envío al almacén un día antes de la salida', scope: 'GLOBAL', firstDelivery: true, active: true,
+    description: 'Separa priorizar de enviar al almacén: el pedido se prioriza apenas entra, pero se envía a preparar (picking) solo cuando falta un día para la salida de su viaje. Como todos los pedidos de un mismo viaje salen el mismo día, el envío ocurre por viaje completo. Hay un envío automático varias veces al día y, además, un usuario con permiso puede enviar un viaje a mano cuando lo necesite, sin esperar.',
   },
   {
-    id: 'MR-CF-3', company: '0109', order: 3, name: 'Cliente retira', firstDelivery: true, active: true, weight: 900,
-    description: 'Detecta frases de "cliente retira" en observaciones (heurística de palabras clave, texto libre sin estándar) y asigna la prioridad más alta (1), sin importar la fecha. Implementada en priorityEngine.ts::esClienteRetira. Pendiente (no implementado): agrupar en viaje/cliente dummy.',
-    params: [
-      { key: 'palabras_clave', label: 'Palabras clave detectadas', value: 'cliente retira, retira cliente, retiro cliente, recoge cliente, recoge en bodega', kind: 'text', help: 'Coincidencia por substring, sin distinguir mayúsculas/minúsculas.' },
-      { key: 'prioridad_retira', label: 'Prioridad asignada', value: '1', kind: 'number' },
-    ],
+    id: 'MR-CF-3', company: '0109', order: 3, name: 'Cliente retira (por zona)', scope: 'GLOBAL', firstDelivery: true, active: true,
+    description: 'Los pedidos cuya zona de entrega es "cliente retira" reciben la prioridad más alta, sin importar la fecha. Se reconocen por la zona del pedido, no por lo que diga el vendedor en las observaciones.',
   },
   {
-    id: 'MR-CF-4', company: '0109', order: 4, name: 'Asignación de viaje / bajada', firstDelivery: false, active: false, weight: 150,
-    description: 'Consumir el viaje asignado por el TMS y asignar la bajada/muelle de despacho (todo lo del mismo viaje a la misma bajada). NO implementada. El OMS no crea el viaje.',
-    params: [
-      { key: 'modo_bajada', label: 'Modo de asignación (propuesta, sin implementar)', value: 'por capacidad', kind: 'text', help: 'por capacidad | fijo (ruta→bajada).' },
-    ],
+    id: 'MR-CF-2', company: '0109', order: 4, name: 'Lectura de observaciones con IA (pendiente)', scope: 'GLOBAL', firstDelivery: false, active: false,
+    description: 'Leer con inteligencia artificial el texto libre de las observaciones del pedido (dirección, fecha pedida, urgencia, cita). Queda para más adelante: por ahora los "cliente retira" se detectan por la zona del pedido.',
   },
   {
-    id: 'MR-CF-5', company: '0109', order: 5, name: 'Inventario / capacidad', firstDelivery: false, active: false, weight: 100,
-    description: 'Validar viabilidad de inventario/capacidad antes de liberar (reservas, pendientes, prioridad de reposición, callbacks al ERP). NO implementada. Etapa futura del roadmap.',
-    params: [
-      { key: 'valida_inventario', label: 'Validar inventario total (propuesta, sin implementar)', value: 'sí', kind: 'text' },
-    ],
-  },
-  // --- EPA: hoy pasa por el MISMO motor que Cofersa (priorityEngine.ts no
-  // distingue compañía) - el cross docking descrito en las reuniones de
-  // negocio (prioridad fija, sin cálculo de fecha) sigue sin codificarse. ---
-  {
-    id: 'MR-EPA-1', company: 'EPA', order: 1, name: 'Regla T-1 (fecha de despacho)', firstDelivery: true, active: true, weight: 600,
-    description: 'Misma lógica y mismos parámetros que en Cofersa (priorityEngine.ts no distingue compañía todavía) - ver MR-CF-1.',
-    params: [
-      { key: 'prioridad_vencida_o_hoy', label: 'Prioridad si vencida u hoy', value: '2', kind: 'number' },
-      { key: 'prioridad_t1', label: 'Prioridad ventana T-1 (mañana)', value: '3', kind: 'number' },
-      { key: 'prioridad_2dias', label: 'Prioridad a 2 días', value: '10', kind: 'number' },
-      { key: 'prioridad_base_lejana', label: 'Base banda lejana (20 + días, tope 49)', value: '20', kind: 'number' },
-    ],
+    id: 'MR-CF-4', company: '0109', order: 5, name: 'Asignación de viaje', scope: 'GLOBAL', firstDelivery: false, active: false,
+    description: 'El viaje lo arma Planificación, no las Reglas OMS. Aquí solo se lee el viaje que Planificación ya asignó al pedido.',
   },
   {
-    id: 'MR-EPA-2', company: 'EPA', order: 2, name: 'Cliente retira', firstDelivery: true, active: true, weight: 900,
-    description: 'Misma lógica y mismos parámetros que en Cofersa (priorityEngine.ts no distingue compañía todavía) - ver MR-CF-3.',
-    params: [
-      { key: 'palabras_clave', label: 'Palabras clave detectadas', value: 'cliente retira, retira cliente, retiro cliente, recoge cliente, recoge en bodega', kind: 'text' },
-      { key: 'prioridad_retira', label: 'Prioridad asignada', value: '1', kind: 'number' },
-    ],
+    id: 'MR-CF-5', company: '0109', order: 6, name: 'Inventario y capacidad (futuro)', scope: 'GLOBAL', firstDelivery: false, active: false,
+    description: 'Comprobar que haya inventario y capacidad suficientes antes de enviar el pedido a preparar. Pendiente para una etapa futura, cuando el negocio defina las reglas.',
+  },
+  // --- EPA: conserva la prioridad que trae de origen (no se recalcula) ---
+  {
+    id: 'MR-EPA-1', company: 'EPA', order: 1, name: 'Prioridad que trae de origen', scope: 'CUSTOMER', firstDelivery: true, active: true,
+    description: 'Los pedidos de EPA no se vuelven a priorizar: conservan la prioridad con la que llegan (1 o 2). Las Reglas OMS solo se encargan de enviarlos a preparar en su momento.',
   },
   {
-    id: 'MR-EPA-3', company: 'EPA', order: 3, name: 'Cross docking (prioridad fija, sin T-1)', firstDelivery: false, active: false, weight: 500,
-    description: 'EPA recibe y alista al mismo tiempo (cross docking): el pedido debería salir con prioridad fija, SIN pasar por la regla T-1. NO implementada todavía - hoy los pedidos de EPA sí pasan por la Regla T-1 (MR-EPA-1) igual que Cofersa. Activar esta regla implica excluir a EPA de MR-EPA-1 en el código.',
-    params: [
-      { key: 'prioridad_default', label: 'Prioridad por default (propuesta, sin implementar)', value: '1', kind: 'number' },
-    ],
+    id: 'MR-EPA-3', company: 'EPA', order: 2, name: 'Cross docking (prioridad fija)', scope: 'CUSTOMER', firstDelivery: false, active: false,
+    description: 'EPA recibe y alista al mismo tiempo (cross docking), por lo que saldría con una prioridad fija sin pasar por la regla de fecha. Aún no está implementada.',
   },
   {
-    id: 'MR-EPA-4', company: 'EPA', order: 4, name: 'Asignación de viaje / bajada', firstDelivery: false, active: false, weight: 150,
-    description: 'Consumir el viaje asignado por el TMS y asignar la bajada/muelle de despacho. NO implementada. El OMS no crea el viaje.',
-    params: [
-      { key: 'modo_bajada', label: 'Modo de asignación (propuesta, sin implementar)', value: 'fijo', kind: 'text', help: 'por capacidad | fijo (ruta→bajada).' },
-    ],
+    id: 'MR-EPA-5', company: 'EPA', order: 3, name: 'Envío al almacén un día antes de la salida', scope: 'GLOBAL', firstDelivery: true, active: true,
+    description: 'Igual que para Cofersa: el pedido se envía a preparar cuando falta un día para la salida de su viaje, por viaje completo, con envío automático y envío manual para quien tenga permiso.',
   },
 ];
 
 // FR7 — auditoría (mock).
 export const auditEntries: AuditEntry[] = [
-  { id: 'A-1', timestamp: '2026-08-28 09:12', orderId: 'PED-10432', country: 'CR', changeType: 'automatico', tierFrom: 'sin asignar', tierTo: 1, scoreFrom: null, scoreTo: 920, actor: 'sistema', detail: 'Regla: Fecha de despacho vencida' },
+  { id: 'A-1', timestamp: '2026-08-28 09:12', orderId: 'PED-10432', country: 'CR', changeType: 'automatico', tierFrom: 'sin asignar', tierTo: 1, scoreFrom: null, scoreTo: 920, actor: 'sistema', detail: 'Regla: Fecha de entrega vencida' },
   { id: 'A-2', timestamp: '2026-08-28 10:12', orderId: 'PED-10461', country: 'CR', changeType: 'manual', tierFrom: 2, tierTo: 1, scoreFrom: 600, scoreTo: 950, actor: 'jperez', detail: 'Viaje extra pagado por el cliente' },
   { id: 'A-3', timestamp: '2026-08-28 09:05', orderId: 'PED-10440', country: 'CR', changeType: 'automatico', tierFrom: 'sin asignar', tierTo: 2, scoreFrom: null, scoreTo: 610, actor: 'sistema', detail: 'Regla: Día de ruta próximo' },
 ];
@@ -332,10 +292,10 @@ export const auditEntries: AuditEntry[] = [
 // KPIs del Panel derivados de los mocks (FR4.1).
 export function computeKpis() {
   const pendientes = queueOrders.filter((o) => o.status === 'Pendiente').length;
-  const vencidos = queueOrders.filter((o) => o.readyToPrepDate < '2026-08-28').length;
+  const vencidos = queueOrders.filter((o) => o.dispatchDate < '2026-08-29').length;
   const overrides = auditEntries.filter((a) => a.changeType === 'manual').length;
   const total = auditEntries.length || 1;
   const overridePct = Math.round((overrides / total) * 100);
-  const sinRuta = queueOrders.filter((o) => o.appliedRules.length === 0 && o.tier === 4).length;
+  const sinRuta = queueOrders.filter((o) => o.appliedRules.length === 0 && o.priority === 4).length;
   return { pendientes, vencidos, overridePct, sinRuta };
 }

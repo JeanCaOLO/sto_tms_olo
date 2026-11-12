@@ -13,7 +13,7 @@
 //
 // Envoltura {data,error} vía apiFetch. País/almacén salen del contexto operativo.
 
-import { apiFetch } from '../../lib/supabase';
+import { apiFetch } from '../../lib/api-client';
 import type { Conductor, Pedido, Vehiculo } from './types';
 import type { PlanEditPayload, PlanStatus, RoutePlan } from './planes-types';
 import {
@@ -51,6 +51,18 @@ export async function generarPlan(planDate: string, ctx: MockContext): Promise<R
     // cae al mock
   }
   return construirDraft(planDate, ctx);
+}
+
+// Replanifica TODOS los días pendientes (ingesta eFlow + arma cada día). Devuelve
+// qué días se planificaron y cuáles se saltaron por estar ya despachados.
+export async function replanificarTodo(): Promise<{ planificados: string[]; bloqueados: string[] } | null> {
+  try {
+    const { ok, body } = await apiFetch(`${BASE}/replanificar`, { method: 'POST' });
+    if (ok) return (body?.data as { planificados: string[]; bloqueados: string[] }) ?? null;
+  } catch {
+    // sin backend: no hay replan
+  }
+  return null;
 }
 
 export async function listarPlanes(status?: PlanStatus, fecha?: string): Promise<RoutePlan[]> {

@@ -1,8 +1,10 @@
 // Mutaciones (insert, update, delete) para estructuras y filas de costos.
 
 import { db, type Row } from '../data';
+import { rowValues, rowPatch } from './rowMapper';
 import type { CostStructure } from '../types';
 import { toCostStructure, toCostStructureRow } from './schema';
+import { newId } from './ids';
 import { validateStructure } from './validation';
 import type {
   CostRowInput, CostStructureInput, SaveStructureResult, ApplyTemplateInput, ApplyTemplateResult,
@@ -45,9 +47,11 @@ export async function saveStructure(
         }
       }
 
+      // El id se genera acá: con el driver HTTP, `tx.insert` devuelve lo enviado y sin id el
+      // llamador (`ensureStructure`) seguiría con `structure.id === undefined`.
       const saved = id
         ? await tx.update('costStructure', id, values)
-        : await tx.insert('costStructure', values);
+        : await tx.insert('costStructure', { id: newId('cstr'), ...values });
       return { status: 'saved' as const, structure: toCostStructure(saved) };
     });
   } catch (error) {
@@ -56,27 +60,6 @@ export async function saveStructure(
       error: { message: error instanceof Error ? error.message : String(error) },
     };
   }
-}
-
-function rowValues(structureId: string, input: CostRowInput, order: number): Row {
-  return {
-    structure_id: structureId,
-    code: input.code,
-    label: input.label,
-    driver: input.driver,
-    amount: input.amount,
-    sign: input.sign,
-    applies_when: input.appliesWhen,
-    unit: input.unit,
-    row_order: order,
-    active: input.active,
-    cost_group: input.group ?? null,
-    frequency: input.frequency ?? null,
-    frequency_qty: input.frequencyQty ?? null,
-    unit_qty: input.unitQty ?? null,
-    cost_per_km: input.costPerKm ?? null,
-    truck_type: input.truckType ?? null,
-  };
 }
 
 export async function addRow(structureId: string, input: CostRowInput): Promise<{ error: string | null }> {
@@ -94,17 +77,7 @@ export async function updateRow(
   rowId: string,
   input: Partial<CostRowInput>,
 ): Promise<{ error: string | null }> {
-  const values: Row = {};
-  if (input.code !== undefined) values.code = input.code;
-  if (input.label !== undefined) values.label = input.label;
-  if (input.driver !== undefined) values.driver = input.driver;
-  if (input.amount !== undefined) values.amount = input.amount;
-  if (input.sign !== undefined) values.sign = input.sign;
-  if (input.appliesWhen !== undefined) values.applies_when = input.appliesWhen;
-  if (input.unit !== undefined) values.unit = input.unit;
-  if (input.active !== undefined) values.active = input.active;
-  if (input.truckType !== undefined) values.truck_type = input.truckType;
-  if (input.group !== undefined) values.cost_group = input.group;
+  const values = rowPatch(input);
 
   try {
     await db().update('costStructureRow', rowId, values);

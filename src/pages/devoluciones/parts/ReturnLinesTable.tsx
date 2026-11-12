@@ -1,0 +1,116 @@
+// Devoluciones de un viaje agrupadas por parada (cliente / factura): botón "Recibido" por línea y casillas para elegir
+// cuáles van en un formulario nuevo (las que ya van en un formulario muestran su número y no se pueden marcar).
+import Badge from '../../../components/base/Badge';
+import Button from '../../../components/base/Button';
+import { isOpen, isSelectable, receivedQuantity, returnTypeLabel, statusLabel, statusVariant, type SectionGroup } from '../../../lib/devoluciones/trips';
+import type { ReturnLine } from '../../../lib/devoluciones/types';
+import PhotoPreview from '../components/PhotoPreview';
+
+interface Props {
+  groups: SectionGroup[];
+  canReceive: boolean;
+  onReceive: (line: ReturnLine) => void;
+  /** Recarga el viaje para renovar las URLs firmadas de las fotos cuando vencen. */
+  onReloadPhotos?: () => void;
+  onReject?: (line: ReturnLine) => void;
+  /** Casillas de selección (solo quien puede editar); sin esta prop no se muestran. */
+  selection?: {
+    selected: ReadonlySet<string>;
+    onToggle: (line: ReturnLine) => void;
+    onToggleGroup: (lines: ReturnLine[]) => void;
+  };
+}
+
+export default function ReturnLinesTable({ groups, canReceive, onReceive, onReloadPhotos, onReject, selection }: Props) {
+  if (groups.length === 0) return <p className="text-sm text-slate-500">Este viaje no tiene devoluciones.</p>;
+  return (
+    <div className="space-y-4">
+      {groups.map(({ section, lines }) => {
+        const selectable = lines.filter(isSelectable);
+        const allMarked = selectable.length > 0 && selectable.every((l) => selection?.selected.has(l.id));
+        const name = section.customer_name ?? 'Cliente sin nombre';
+        return (
+          <div key={section.dispatch_guide_id} className="rounded-lg border border-slate-200">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-slate-200 bg-slate-50 px-4 py-2 text-sm">
+              {selection && (
+                <input type="checkbox" className="h-4 w-4 cursor-pointer accent-teal-600" checked={allMarked}
+                  disabled={selectable.length === 0} onChange={() => selection.onToggleGroup(lines)}
+                  aria-label={`Marcar todas las devoluciones sin formulario de ${name}`} />
+              )}
+              <span className="font-medium text-slate-800">{name}</span>
+              {section.invoice_number && <span className="text-slate-600">Factura {section.invoice_number}</span>}
+              {section.address && <span className="text-slate-500">{section.address}</span>}
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                  {selection && <th className="w-10 px-4 py-2"><span className="sr-only">Marcar</span></th>}
+                  <th className="px-4 py-2">Devolución</th>
+                  <th className="px-2 py-2">Tipo</th>
+                  <th className="px-2 py-2">Producto</th>
+                  <th className="px-2 py-2">Motivo</th>
+                  <th className="px-2 py-2 text-right">Cant.</th>
+                  <th className="px-2 py-2 text-right">Recibido</th>
+                  <th className="px-2 py-2">Estado</th>
+                  <th className="px-2 py-2">Formulario</th>
+                  <th className="px-4 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {lines.map((line) => (
+                  <tr key={line.id} className="border-t border-slate-100">
+                    {selection && (
+                      <td className="px-4 py-2">
+                        <input type="checkbox" className="h-4 w-4 cursor-pointer accent-teal-600 disabled:cursor-not-allowed"
+                          checked={selection.selected.has(line.id)} disabled={!isSelectable(line)}
+                          onChange={() => selection.onToggle(line)}
+                          aria-label={`Marcar la devolución ${line.return_number} para un formulario`} />
+                      </td>
+                    )}
+                    <td className="px-4 py-2 font-mono text-xs text-slate-600">{line.return_number}</td>
+                    <td className="px-2 py-2">
+                      <Badge size="sm" variant={line.return_type === 'recolecta' ? 'warning' : 'blue'}>{returnTypeLabel(line.return_type)}</Badge>
+                    </td>
+                    <td className="px-2 py-2 text-slate-800">
+                      {line.product_name ?? '-'}
+                      {line.product_code && <span className="ml-1 text-xs text-slate-500">({line.product_code})</span>}
+                      {line.photo_url && (
+                        <PhotoPreview url={line.photo_url} onReload={onReloadPhotos}
+                          label={`${line.return_number} · ${line.product_name ?? 'Producto'}`} />
+                      )}
+                    </td>
+                    <td className="px-2 py-2 text-slate-600">{line.reason}</td>
+                    <td className="px-2 py-2 text-right">{line.quantity ?? '-'}</td>
+                    <td className="px-2 py-2 text-right">{receivedQuantity(line) ?? '-'}</td>
+                    <td className="px-2 py-2"><Badge size="sm" variant={statusVariant(line.status)}>{statusLabel(line.status)}</Badge></td>
+                    <td className="px-2 py-2 font-mono text-xs text-slate-600">{line.form_number ?? '-'}</td>
+                    <td className="px-4 py-2 text-right">
+                      {canReceive && isOpen(line.status) && (
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button size="sm" variant="success" onClick={() => onReceive(line)}>
+                            <i className="ri-check-line" aria-hidden="true" />Recibido
+                          </Button>
+                          {onReject && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                              onClick={() => onReject(line)}
+                              title="Rechazar devolución"
+                            >
+                              <i className="ri-close-line" aria-hidden="true" />Rechazar
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
+    </div>
+  );
+}

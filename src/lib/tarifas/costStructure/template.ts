@@ -1,37 +1,12 @@
 // Aplicación de plantillas de estructura de costos.
 
 import { db, type Row } from '../data';
+import { rowValues, rowPatch } from './rowMapper';
 import type { CostStructureParams } from '../types';
 import { toCostStructure } from './schema';
+import { newId } from './ids';
 import { validateStructure } from './validation';
 import type { CostRowInput, ApplyTemplateInput, ApplyTemplateResult } from './types';
-
-/** Mismo formato que `genId` del driver JSON: `<prefijo>_<ms base36>_<6 hex>`. */
-function newId(prefix: string): string {
-  const random = Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0');
-  return `${prefix}_${Date.now().toString(36)}_${random}`;
-}
-
-function rowValues(structureId: string, input: CostRowInput, order: number): Row {
-  return {
-    structure_id: structureId,
-    code: input.code,
-    label: input.label,
-    driver: input.driver,
-    amount: input.amount,
-    sign: input.sign,
-    applies_when: input.appliesWhen,
-    unit: input.unit,
-    row_order: order,
-    active: input.active,
-    cost_group: input.group ?? null,
-    frequency: input.frequency ?? null,
-    frequency_qty: input.frequencyQty ?? null,
-    unit_qty: input.unitQty ?? null,
-    cost_per_km: input.costPerKm ?? null,
-    truck_type: input.truckType ?? null,
-  };
-}
 
 /**
  * Deja la estructura de ese ámbito (compañía o país) con EXACTAMENTE las filas de la plantilla:

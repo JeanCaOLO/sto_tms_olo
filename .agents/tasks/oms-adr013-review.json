@@ -1,0 +1,16 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "severity": "non-blocking",
+      "label": "Evidencia de run ausente en el repo",
+      "detail": "El conteo de pytest y los comandos viven solo en el mensaje final del coder, no en un artefacto versionado del arbol (se busco en .agents/tasks/, la etapa nfr-requirements y breadcrumbs de recovery). El codigo de test es completo y coherente contra los modulos reales y cubre los seis puntos del contrato (a-f) incluido el guard del predicado de ventana; no se re-corrio pytest, como pide la tarea. Guardar la salida del run junto al as-built ayudaria a auditar."
+    },
+    {
+      "severity": "minor",
+      "label": "Asimetria de shape: falta 'priorizados' en la respuesta manual",
+      "detail": "procesar_viaje devuelve total/liberados/pendientes pero no 'priorizados', que si expone el barrido correr(). Cosmetico, sin impacto funcional."
+    }
+  ],
+  "reviewDoc": "c:\\Users\\emedina\\Desktop\\Dev\\sto-olo\\sto_tms_olo/.agents/tasks/oms-adr013-review.md"
+}

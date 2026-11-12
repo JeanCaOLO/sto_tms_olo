@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api-client';
 import { useAuth } from '../../hooks/useAuth';
 import Button from '../../components/base/Button';
 import Badge from '../../components/base/Badge';
@@ -9,6 +9,9 @@ import DataTable, { type DataTableColumn } from '../../components/base/DataTable
 import CarrierModal from './components/CarrierModal';
 import CsvImportModal from '../../components/feature/CsvImportModal';
 import { useModulePermissions } from '../../hooks/use-module-permissions';
+import { expiryStatus } from '../../lib/expiry';
+import { BASE_METHODS } from '../../lib/tarifas/baseMethods';
+import type { BaseMethodId } from '../../lib/tarifas/types';
 
 interface Carrier {
   id: string;
@@ -23,6 +26,9 @@ interface Carrier {
   status: string;
   payment_account: string;
   softland_code: string;
+  contract_expiry?: string | null;
+  contract_file_key?: string | null;
+  rate_type?: BaseMethodId | null;
   countries?: {
     name: string;
     code: string;
@@ -48,7 +54,7 @@ export default function TransportistasPage() {
   const loadCarriers = async () => {
     setLoading(true);
     try {
-      const { data } = await supabase
+      const { data } = await apiClient
         .from('carriers')
         .select(`
           *,
@@ -62,12 +68,12 @@ export default function TransportistasPage() {
       if (data) {
         const carriersWithCounts = await Promise.all(
           data.map(async (carrier) => {
-            const { count: driverCount } = await supabase
+            const { count: driverCount } = await apiClient
               .from('drivers')
               .select('*', { count: 'exact', head: true })
               .eq('carrier_id', carrier.id);
 
-            const { count: vehicleCount } = await supabase
+            const { count: vehicleCount } = await apiClient
               .from('vehicles')
               .select('*', { count: 'exact', head: true })
               .eq('carrier_id', carrier.id);
@@ -89,7 +95,7 @@ export default function TransportistasPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('¿Estás seguro de eliminar este transportista? Esto puede afectar a conductores y vehículos asociados.')) return;
 
-    const { error } = await supabase
+    const { error } = await apiClient
       .from('carriers')
       .delete()
       .eq('id', id);
@@ -168,6 +174,29 @@ export default function TransportistasPage() {
           {c.vehicle_count || 0}
         </span>
       ),
+    },
+    {
+      key: 'rate_type',
+      header: t('carriers.colRateType'),
+      accessor: (c) => (c.rate_type ? BASE_METHODS[c.rate_type]?.label ?? c.rate_type : ''),
+      filterable: true,
+      render: (c) => c.rate_type
+        ? <span className="text-sm text-slate-700">{BASE_METHODS[c.rate_type]?.label ?? c.rate_type}</span>
+        : <span className="text-slate-300 text-sm">—</span>,
+    },
+    {
+      key: 'contract_expiry',
+      header: t('carriers.colContract'),
+      accessor: (c) => c.contract_expiry ?? '',
+      sortable: true,
+      render: (c) => {
+        if (!c.contract_expiry) return <span className="text-slate-300 text-sm">—</span>;
+        const status = expiryStatus(c.contract_expiry);
+        const date = new Date(c.contract_expiry + 'T00:00:00').toLocaleDateString('es-CR');
+        if (status === 'expired') return <Badge variant="danger">{t('carriers.contractExpired')} · {date}</Badge>;
+        if (status === 'due_soon') return <Badge variant="warning">{t('carriers.contractDueSoon')} · {date}</Badge>;
+        return <span className="text-sm text-slate-600">{date}</span>;
+      },
     },
     {
       key: 'status',
@@ -323,7 +352,7 @@ export default function TransportistasPage() {
         ]}
         transformRow={async (row, organizationId) => {
           // Resolver country_code -> country_id
-          const { data: country } = await supabase
+          const { data: country } = await apiClient
             .from('countries')
             .select('id')
             .eq('code', row.country_code)

@@ -45,7 +45,8 @@ export type {
   RuleBuilderForm,
   Rule,
 } from './types/ast';
-export { STAGE_ORDER } from './types/ast';
+export { STAGE_ORDER, RULE_CATEGORIES, normalizeStage, legacyCategory } from './types/ast';
+export type { LegacyStage, RuleCategory } from './types/ast';
 
 export type {
   RateTable,

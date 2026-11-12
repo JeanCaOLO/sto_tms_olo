@@ -74,23 +74,23 @@ describe.skipIf(!schemaReady)('Aislamiento multi-tenant — jerarquía País/Alm
   let finalCustomerBId: string;
 
   it('setup: crea dos clientes de prueba bajo el mismo almacén', async () => {
-    const { rows: warehouses } = await pool.query('SELECT id FROM warehouses LIMIT 1');
+    const { rows: warehouses } = await pool.query('SELECT id FROM tbl_warehouses LIMIT 1');
     if (!warehouses[0]) throw new Error('No hay ningún warehouse — corré el seed antes de esta suite.');
     warehouseId = warehouses[0].id;
 
-    const { rows: orgRows } = await pool.query('SELECT organization_id, country_id FROM warehouses WHERE id = $1', [warehouseId]);
+    const { rows: orgRows } = await pool.query('SELECT organization_id, country_id FROM tbl_warehouses WHERE id = $1', [warehouseId]);
     const { organization_id: organizationId, country_id: countryId } = orgRows[0];
 
     const insertCustomer = async (code: string, name: string) => {
       const { rows } = await pool.query(
-        `INSERT INTO customers (organization_id, country_id, warehouse_id, code, name, status)
+        `INSERT INTO tbl_customers (organization_id, country_id, warehouse_id, code, name, status)
          VALUES ($1, $2, $3, $4, $5, 'active')
          ON CONFLICT DO NOTHING
          RETURNING id`,
         [organizationId, countryId, warehouseId, code, name],
       );
       if (rows[0]) return rows[0].id;
-      const { rows: existing } = await pool.query('SELECT id FROM customers WHERE warehouse_id = $1 AND code = $2', [warehouseId, code]);
+      const { rows: existing } = await pool.query('SELECT id FROM tbl_customers WHERE warehouse_id = $1 AND code = $2', [warehouseId, code]);
       return existing[0].id;
     };
 
@@ -99,7 +99,7 @@ describe.skipIf(!schemaReady)('Aislamiento multi-tenant — jerarquía País/Alm
 
     const insertFinalCustomer = async (customerId: string, code: string) => {
       const { rows } = await pool.query(
-        `INSERT INTO final_customers (customer_id, external_code, name, status)
+        `INSERT INTO tbl_final_customers (customer_id, external_code, name, status)
          VALUES ($1, $2, $3, 'active')
          ON CONFLICT (customer_id, external_code) DO UPDATE SET name = EXCLUDED.name
          RETURNING id`,
@@ -119,7 +119,7 @@ describe.skipIf(!schemaReady)('Aislamiento multi-tenant — jerarquía País/Alm
     // /v1/customers/:id/final-customers — el filtro por customer_id es la
     // frontera de aislamiento real.
     const { rows: visibleForA } = await pool.query(
-      'SELECT id FROM final_customers WHERE customer_id = $1',
+      'SELECT id FROM tbl_final_customers WHERE customer_id = $1',
       [customerAId],
     );
     expect(visibleForA.map((r) => r.id)).toContain(finalCustomerAId);
@@ -128,7 +128,7 @@ describe.skipIf(!schemaReady)('Aislamiento multi-tenant — jerarquía País/Alm
 
   it('Caso 4: un final_customer no puede "verse" desde el customer_id equivocado', async () => {
     const { rows } = await pool.query(
-      'SELECT id FROM final_customers WHERE id = $1 AND customer_id = $2',
+      'SELECT id FROM tbl_final_customers WHERE id = $1 AND customer_id = $2',
       [finalCustomerBId, customerAId],
     );
     expect(rows).toHaveLength(0);
@@ -139,14 +139,14 @@ describe.skipIf(!schemaReady)('Aislamiento multi-tenant — jerarquía País/Alm
     // permitirse porque el UNIQUE real es (customer_id, external_code), no
     // external_code solo.
     await pool.query(
-      `INSERT INTO final_customers (customer_id, external_code, name, status)
+      `INSERT INTO tbl_final_customers (customer_id, external_code, name, status)
        VALUES ($1, 'DUP-1', 'Duplicado bajo A', 'active')
        ON CONFLICT (customer_id, external_code) DO NOTHING`,
       [customerAId],
     );
     await expect(
       pool.query(
-        `INSERT INTO final_customers (customer_id, external_code, name, status)
+        `INSERT INTO tbl_final_customers (customer_id, external_code, name, status)
          VALUES ($1, 'DUP-1', 'Duplicado bajo B', 'active')
          ON CONFLICT (customer_id, external_code) DO NOTHING`,
         [customerBId],
@@ -154,14 +154,14 @@ describe.skipIf(!schemaReady)('Aislamiento multi-tenant — jerarquía País/Alm
     ).resolves.not.toThrow();
 
     const { rows } = await pool.query(
-      `SELECT customer_id FROM final_customers WHERE external_code = 'DUP-1' ORDER BY customer_id`,
+      `SELECT customer_id FROM tbl_final_customers WHERE external_code = 'DUP-1' ORDER BY customer_id`,
     );
     expect(rows.length).toBeGreaterThanOrEqual(2);
   });
 
   it('teardown: limpia los fixtures de esta suite', async () => {
-    await pool.query(`DELETE FROM final_customers WHERE customer_id IN ($1, $2)`, [customerAId, customerBId]);
-    await pool.query(`DELETE FROM customers WHERE id IN ($1, $2) AND code LIKE 'TEST-ISO-%'`, [customerAId, customerBId]);
+    await pool.query(`DELETE FROM tbl_final_customers WHERE customer_id IN ($1, $2)`, [customerAId, customerBId]);
+    await pool.query(`DELETE FROM tbl_customers WHERE id IN ($1, $2) AND code LIKE 'TEST-ISO-%'`, [customerAId, customerBId]);
   });
 });
 
@@ -169,28 +169,28 @@ describe.skipIf(!schemaReady)('Caso 5: delivery_point pertenece al final_custome
   it('un delivery_point no puede quedar huérfano de un final_customer inexistente', async () => {
     await expect(
       pool.query(
-        `INSERT INTO delivery_points (final_customer_id, name) VALUES ('00000000-0000-0000-0000-000000000000', 'huérfano')`,
+        `INSERT INTO tbl_delivery_points (final_customer_id, name) VALUES ('00000000-0000-0000-0000-000000000000', 'huérfano')`,
       ),
     ).rejects.toThrow();
   });
 
   it('un final_customer solo puede tener un delivery_point marcado is_default', async () => {
-    const { rows: fcs } = await pool.query('SELECT id FROM final_customers LIMIT 1');
+    const { rows: fcs } = await pool.query('SELECT id FROM tbl_final_customers LIMIT 1');
     if (!fcs[0]) return; // suite de fixtures corrió y ya se limpió; no bloquea el resultado
     const finalCustomerId = fcs[0].id;
 
     await pool.query(
-      `INSERT INTO delivery_points (final_customer_id, name, is_default) VALUES ($1, 'Punto 1 (default)', true)
+      `INSERT INTO tbl_delivery_points (final_customer_id, name, is_default) VALUES ($1, 'Punto 1 (default)', true)
        ON CONFLICT DO NOTHING`,
       [finalCustomerId],
     );
     await expect(
       pool.query(
-        `INSERT INTO delivery_points (final_customer_id, name, is_default) VALUES ($1, 'Punto 2 (default también)', true)`,
+        `INSERT INTO tbl_delivery_points (final_customer_id, name, is_default) VALUES ($1, 'Punto 2 (default también)', true)`,
         [finalCustomerId],
       ),
     ).rejects.toThrow(); // viola el índice único parcial (is_default) por final_customer_id
 
-    await pool.query(`DELETE FROM delivery_points WHERE final_customer_id = $1 AND name LIKE 'Punto 1%'`, [finalCustomerId]);
+    await pool.query(`DELETE FROM tbl_delivery_points WHERE final_customer_id = $1 AND name LIKE 'Punto 1%'`, [finalCustomerId]);
   });
 });

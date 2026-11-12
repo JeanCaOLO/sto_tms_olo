@@ -1,0 +1,35 @@
+{
+  "categoria": "devops",
+  "peso": 10,
+  "fuente": "docs/estandares/estandares-desarrollo-intelix.md + docs/estrategia-control-versiones.md + .gitlab-ci.yml",
+  "estandares": [
+    {
+      "id": "DEVOPS1",
+      "nombre": "Pipeline CI/CD con etapas de seguridad",
+      "criticidad": "Alto",
+      "regla": "ci-con-seguridad",
+      "descripcion": "Pipeline de build/test con secret-scan y SAST + escaneo de dependencias del codigo. Si el frontend usa AWS Amplify, su CI/CD vive en la consola de Amplify: la ausencia de pipeline en el repositorio no se trata como incumplimiento, se difiere a verificacion en consola."
+    },
+    {
+      "id": "DEVOPS2",
+      "nombre": "Despliegue parametrizado por ambiente",
+      "criticidad": "Medio",
+      "regla": "deploy-ambientes",
+      "descripcion": "Scripts o pipeline de despliegue parametrizados por ambiente dev/qa/prod."
+    },
+    {
+      "id": "DEVOPS3",
+      "nombre": "Health check disponible",
+      "criticidad": "Medio",
+      "regla": "health-check",
+      "descripcion": "Existe un endpoint o handler de verificacion de salud."
+    },
+    {
+      "id": "DEP1",
+      "nombre": "Dependencias pinneadas",
+      "criticidad": "Medio",
+      "regla": "dependencias-pinneadas",
+      "descripcion": "Versiones pinneadas o lockfile presente para builds reproducibles."
+    }
+  ]
+}

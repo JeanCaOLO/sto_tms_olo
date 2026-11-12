@@ -24,12 +24,16 @@ export type WhereOp =
   | 'lt'
   | 'lte'
   | 'isNull'
-  | 'notNull';
+  | 'notNull'
+  | 'ilike';
 
 export interface Condition {
   column: string;
   op: WhereOp;
-  /** No se usa con 'isNull'/'notNull'. Con 'in', un array. */
+  /**
+   * No se usa con 'isNull'/'notNull'. Con 'in', un array. Con 'ilike', el texto a contener (sin
+   * distinguir mayúsculas ni tildes) y `column` puede ser `a|b|c`: basta que una columna coincida.
+   */
   value?: unknown;
 }
 

@@ -1,22 +1,21 @@
 // State for trip calculation loading and errors.
 
-import { useRef, useState, type MutableRefObject } from 'react';
+import { useRef, useState } from 'react';
 import { calculateTrip, type TripCalculation } from '../../../lib/tarifas/tripSettlement';
 import { emptyTripEdits } from '../../../lib/tarifas/tripContext';
 import type { NoLogicInfo } from '../../../lib/tarifas/missingLogic';
-import type { BaseMethodId, TripEdits, TripRecord } from '../../../lib/tarifas/types';
+import type { TripEdits, TripRecord } from '../../../lib/tarifas/types';
 
 interface Props {
   tripId: string;
   /** El viaje que ya trae la bandeja: evita pedirlo de nuevo (la emisión lo valida otra vez). */
   trip?: TripRecord | null;
   reliquidando: boolean;
-  baseUsed: MutableRefObject<BaseMethodId | null>;
   /** Se llama cuando un cálculo salió bien (p. ej. para limpiar un error anterior). */
   onCalculated?: () => void;
 }
 
-export function useCalculationState({ tripId, trip, reliquidando, baseUsed, onCalculated }: Props) {
+export function useCalculationState({ tripId, trip, reliquidando, onCalculated }: Props) {
   const [calculation, setCalculation] = useState<TripCalculation | null>(null);
   const [pending, setPending] = useState(false);
   const [loadError, setLoadError] = useState('');
@@ -40,7 +39,6 @@ export function useCalculationState({ tripId, trip, reliquidando, baseUsed, onCa
     try {
       const res = await calculateTrip(tripRead.current ?? trip ?? tripId, edits, {
         allowSettled: reliquidando,
-        baseOverride: baseUsed.current ? { method: baseUsed.current } : null,
         ...extra,
       });
       if (seq !== calcSeq.current) return null;

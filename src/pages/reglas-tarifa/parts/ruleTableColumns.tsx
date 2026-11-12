@@ -1,6 +1,8 @@
 import Badge from '../../../components/base/Badge';
 import type { DataTableColumn } from '../../../components/base/DataTable';
+import { BASE_METHODS } from '../../../lib/tarifas/baseMethods';
 import { todayLocalIso } from '../../../lib/tarifas/localDate';
+import type { BaseMethodId } from '../../../lib/tarifas/types';
 import type { CarrierProfile } from '../../../lib/tarifas/parties';
 import type { RuleRow } from '../types';
 
@@ -11,6 +13,21 @@ export function getPartyName(id: string | null, parties: CarrierProfile[]): stri
 export function stackingBadge(stacking: string) {
   const variant = stacking === 'EXCLUSIVE' ? 'warning' : stacking === 'MAX' ? 'info' : 'default';
   return <Badge variant={variant}>{stacking}</Badge>;
+}
+
+/** "Ligada a: Por kilómetro" cuando el ajuste solo aplica con ciertas formas de cobro. */
+export function ligadaABadge(rule: RuleRow) {
+  const declarada = rule.stage === 'BASE' && typeof rule.base_method === 'string' && rule.base_method in BASE_METHODS
+    ? BASE_METHODS[rule.base_method as BaseMethodId].label
+    : null;
+  if (declarada) return <span className="block text-[11px] text-slate-500 whitespace-nowrap">Base: {declarada}</span>;
+  const metodos = (rule.applies_to_base ?? []).filter((m): m is BaseMethodId => m in BASE_METHODS);
+  if (metodos.length === 0) return null;
+  return (
+    <span className="block text-[11px] text-slate-500 whitespace-nowrap">
+      Ligada a: {metodos.map((m) => BASE_METHODS[m].label).join(', ')}
+    </span>
+  );
 }
 
 export function vigenciaBadge(rule: RuleRow) {
@@ -99,6 +116,7 @@ export function getRuleTableColumns(parties: CarrierProfile[], rules: RuleRow[])
       accessor: (r) => r.stage,
       sortable: true,
       filterable: true,
+      render: (r) => (<><span>{r.stage}</span>{ligadaABadge(r)}</>),
     },
     {
       key: 'stacking',

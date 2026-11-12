@@ -60,11 +60,28 @@ describe('LiquidarViajeModal (caracterización)', () => {
     await waitFor(() => expect(screen.getByText('Vista extendida')).toBeTruthy());
     fireEvent.click(screen.getByText('Vista extendida'));
     await waitFor(() => expect(screen.getByText('PED-1001')).toBeTruthy());
+    // El detalle por renglón (donde se excluye) solo aparece con "Ver margen y detalles".
+    fireEvent.click(screen.getByLabelText('Ver margen y detalles'));
     const antes = html();
-    const casillas = Array.from(document.querySelectorAll('input[type="checkbox"]')) as HTMLInputElement[];
+    const casillas = (Array.from(document.querySelectorAll('input[type="checkbox"]')) as HTMLInputElement[])
+      .filter((c) => c !== screen.getByLabelText('Ver margen y detalles'));
     expect(casillas.length).toBeGreaterThan(0);
     fireEvent.click(casillas[0]!);
     await waitFor(() => expect(html()).not.toBe(antes));
+  });
+
+  it('en la extendida, "Ver margen y detalles" arranca apagado y muestra el margen al marcarlo', async () => {
+    puedeConfigurar = true;
+    renderModal();
+    await waitFor(() => expect(screen.getByText('Vista extendida')).toBeTruthy());
+    fireEvent.click(screen.getByText('Vista extendida'));
+    await waitFor(() => expect(screen.getByText('PED-1001')).toBeTruthy());
+    const casilla = screen.getByLabelText('Ver margen y detalles') as HTMLInputElement;
+    expect(casilla.checked).toBe(false);
+    expect(screen.queryByText('Gastos operativos (total pagado)')).toBeNull();
+    fireEvent.click(casilla);
+    expect(casilla.checked).toBe(true);
+    await waitFor(() => expect(document.body.textContent).toContain('Gastos operativos (total pagado)'));
   });
 
   it('emitir guarda la liquidación, avisa y cierra', async () => {

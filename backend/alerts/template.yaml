@@ -1,0 +1,229 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: TMS - ALERTS | Vencimientos de contratos y licencias (API para la campana + correo diario)
+
+# Por qué tres Lambdas: la VPC de Aurora no tiene NAT ni endpoint de SES. `digest` (en la VPC) lee
+# los vencimientos de Aurora; `mailer` (fuera de la VPC) la invoca y manda el correo por SES. Así no
+# hace falta un endpoint de interfaz de SES (~US$15/mes). `api` atiende la campana del frontend.
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [dev, qa, prod]
+  CommonStackName:
+    Type: String
+    Description: Stack de common-services del mismo ambiente (ej. dev-tms-common-services)
+  CommonLayerArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Description: Parámetro SSM con el ARN de la versión vigente de la Layer tms_common.
+  SubnetIds:
+    Type: AWS::SSM::Parameter::Value<List<String>>
+  SecurityGroupId:
+    Type: AWS::SSM::Parameter::Value<String>
+  AlertFrom:
+    Type: String
+    Description: Remitente del correo (identidad VERIFICADA en SES).
+  AlertTo:
+    Type: String
+    Description: Destinatarios (separados por coma).
+  AlertCc:
+    Type: String
+    Default: ""
+    Description: Con copia (separados por coma; vacío = sin copia).
+  AppUrl:
+    Type: String
+    Default: ""
+    Description: Enlace al TMS que va al pie del correo.
+  MailCron:
+    Type: String
+    Default: cron(0 7 ? * MON-FRI *)
+    Description: Cuándo sale el correo (hora de Costa Rica). Días hábiles, con Aurora ya encendida (04:45).
+
+Conditions:
+  IsProduction: !Equals [!Ref Environment, prod]
+
+Globals:
+  Function:
+    Runtime: python3.13
+    Architectures: [x86_64]
+    LoggingConfig:
+      LogFormat: JSON
+
+Resources:
+  # --- API de la campana ---------------------------------------------------------------
+  AlertsApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-alerts-api
+      RetentionInDays: !If [IsProduction, 30, 7]
+
+  AlertsApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-alerts-api
+      Description: TMS - ALERTS API | Vencimientos de contratos y licencias visibles para el usuario
+      CodeUri: src/
+      Handler: app.handler
+      Timeout: 15
+      MemorySize: 256
+      Role:
+        Fn::ImportValue: !Sub ${CommonStackName}-LambdaRoleArn
+      Layers: [!Ref CommonLayerArn]
+      VpcConfig:
+        SubnetIds: !Ref SubnetIds
+        SecurityGroupIds: [!Ref SecurityGroupId]
+      LoggingConfig:
+        LogGroup: !Ref AlertsApiLogGroup
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+          TMS_DB_SECRET_NAME:
+            Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName
+
+  AlertsApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt AlertsApiFunction.Arn
+      PayloadFormatVersion: "2.0"
+
+  AlertsApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AlertsApiFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub
+        - arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/*/*
+        - ApiId:
+            Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+
+  ExpirationsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: GET /api/v1/alerts/expirations
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${AlertsApiIntegration}
+
+  # --- Lectura para el correo (sin API: solo la invoca el mailer) ----------------------
+  AlertsDigestLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-alerts-digest
+      RetentionInDays: !If [IsProduction, 30, 7]
+
+  AlertsDigestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-alerts-digest
+      Description: TMS - ALERTS DIGEST | Todas las alertas de vencimiento (para el correo diario)
+      CodeUri: src/
+      Handler: app.digest_handler
+      Timeout: 30
+      MemorySize: 256
+      Role:
+        Fn::ImportValue: !Sub ${CommonStackName}-LambdaRoleArn
+      Layers: [!Ref CommonLayerArn]
+      VpcConfig:
+        SubnetIds: !Ref SubnetIds
+        SecurityGroupIds: [!Ref SecurityGroupId]
+      LoggingConfig:
+        LogGroup: !Ref AlertsDigestLogGroup
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+          TMS_DB_SECRET_NAME:
+            Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName
+
+  # --- Correo diario --------------------------------------------------------------------
+  AlertsMailerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: alerts-mailer
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt AlertsDigestFunction.Arn
+              - Effect: Allow
+                Action: ses:SendEmail
+                Resource: "*"
+                Condition:
+                  StringEquals: { "ses:FromAddress": !Ref AlertFrom }
+      Tags:
+        - { Key: Project, Value: TMS }
+
+  AlertsMailerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-alerts-mailer
+      RetentionInDays: !If [IsProduction, 30, 14]
+
+  AlertsMailerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-alerts-mailer
+      Description: TMS - ALERTS MAILER | Correo diario de vencimientos por SES (fuera de la VPC)
+      CodeUri: mailer/
+      Handler: mailer.handler
+      Timeout: 60
+      MemorySize: 128
+      Role: !GetAtt AlertsMailerRole.Arn
+      LoggingConfig:
+        LogGroup: !Ref AlertsMailerLogGroup
+      Environment:
+        Variables:
+          DIGEST_FUNCTION: !Ref AlertsDigestFunction
+          ALERT_FROM: !Ref AlertFrom
+          ALERT_TO: !Ref AlertTo
+          ALERT_CC: !Ref AlertCc
+          APP_URL: !Ref AppUrl
+
+  AlertsSchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: scheduler.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: invocar-mailer
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt AlertsMailerFunction.Arn
+      Tags:
+        - { Key: Project, Value: TMS }
+
+  AlertsMailSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: !Sub ${AWS::StackName}-correo-vencimientos
+      Description: Correo diario de vencimientos de contratos y licencias (días hábiles, hora CR)
+      ScheduleExpression: !Ref MailCron
+      ScheduleExpressionTimezone: America/Costa_Rica
+      FlexibleTimeWindow: { Mode: "OFF" }
+      Target:
+        Arn: !GetAtt AlertsMailerFunction.Arn
+        RoleArn: !GetAtt AlertsSchedulerRole.Arn
+        RetryPolicy: { MaximumRetryAttempts: 2, MaximumEventAgeInSeconds: 3600 }

@@ -84,6 +84,12 @@ FOREIGN_KEYS: tuple[tuple[str, str, str], ...] = (
     ("orders", "route_type_id", "zones"),
     ("routes", "route_type_id", "zones"),
     ("delivery_points", "zone_id", "zones"),  # sql/12
+    # Maestros EFLOW (sql/40-43). orders.destination_warehouse_id NO se registra: sería una 2.ª FK
+    # orders -> warehouses y volvería ambiguo el embed de warehouses desde orders.
+    ("branches", "customer_id", "customers"),
+    ("orders", "warehouse_id", "warehouses"),
+    ("orders", "branch_id", "branches"),
+    ("orders", "final_customer_id", "final_customers"),
 )
 
 TABLES = frozenset({
@@ -97,6 +103,9 @@ TABLES = frozenset({
     "driver_license_types", "driver_licenses", "user_scopes",
     "wms_expediciones",
     "zones",  # ex route_types (sql/09)
+    "branches",  # sucursales EFLOW (sql/40)
+    "oms_logs",  # bitácora del OMS (sql/49)
+    "oms_rule_configs",  # config de reglas por scope del OMS (sql/52); la cola la lee para saber qué compañías son pass-through (EPA)
 })
 
 

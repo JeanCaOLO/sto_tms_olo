@@ -6,6 +6,7 @@ import type { PlanStatus, PlanTrip, RoutePlan } from '../planificacion/planes-ty
 export interface Guia {
   id: string; // trip.id
   guide_number: string;
+  numero_viaje: string; // nº de viaje real del planificador (plan_trips.numero_viaje)
   plan_date: string;
   plan_status: PlanStatus;
   zona: string;
@@ -28,6 +29,28 @@ export function guideNumber(plan: RoutePlan, trip: PlanTrip): string {
   return `G-${plan.plan_date}-${String(trip.sequence_order).padStart(2, '0')}`;
 }
 
+// Formatea un peso en kg sin ruido de float (0.1+0.2 → "0.3 kg", no "0.300…04").
+export const fmtKg = (n: number | null | undefined): string =>
+  n == null ? '—' : `${Number(n.toFixed(2))} kg`;
+
+export interface TotalesGuia {
+  paradas: number;
+  pedidos: number; // 1 parada = 1 pedido
+  peso: number;
+  volumen: number | null; // null si ninguna parada trae volumen (no mostrar 0 falso)
+}
+
+export function totalesDeGuia(guia: Guia): TotalesGuia {
+  const stops = guia.trip.stops;
+  const hayVol = stops.some((s) => s.total_volume != null);
+  return {
+    paradas: stops.length,
+    pedidos: stops.length,
+    peso: stops.reduce((a, s) => a + (s.total_weight ?? 0), 0),
+    volumen: hayVol ? stops.reduce((a, s) => a + (s.total_volume ?? 0), 0) : null,
+  };
+}
+
 // Aplana los viajes de los planes confirmados/completados en guías.
 export function planesToGuias(
   planes: RoutePlan[],
@@ -41,6 +64,7 @@ export function planesToGuias(
       out.push({
         id: trip.id,
         guide_number: guideNumber(plan, trip),
+        numero_viaje: trip.numero_viaje || String(trip.sequence_order),
         plan_date: plan.plan_date,
         plan_status: plan.status,
         zona: nombreDe(trip.delivery_zone) || trip.delivery_zone,

@@ -16,6 +16,8 @@ export interface RuleRow {
   country_id?: string | null;
   effective_from?: string | null;
   effective_to?: string | null;
+  /** Formas de cobro de la base a las que está ligado el ajuste (vacío o ausente = transversal). */
+  applies_to_base?: string[] | null;
   [key: string]: unknown;
 }
 

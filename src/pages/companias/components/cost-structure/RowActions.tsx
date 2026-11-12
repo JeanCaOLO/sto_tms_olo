@@ -1,5 +1,6 @@
 import Button from '../../../../components/base/Button';
 import type { CostStructureRow } from '../../../../lib/tarifas/costStructureDataSource';
+import { confirmAction } from '../../../../lib/confirm';
 
 interface Props {
   row: CostStructureRow;
@@ -29,8 +30,8 @@ export function RowActions({ row, canEdit, canDelete, onEdit, onToggleActive, on
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => {
-          if (!window.confirm(`¿Eliminar "${row.label}"?`)) return;
+        onClick={async () => {
+          if (!(await confirmAction({ title: 'Eliminar componente', message: `¿Eliminar "${row.label}"?`, confirmLabel: 'Eliminar' }))) return;
           onDelete(row);
         }}
         disabled={!canDelete}

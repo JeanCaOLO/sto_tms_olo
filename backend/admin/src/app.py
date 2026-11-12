@@ -9,6 +9,8 @@ from tms_common.handler import tms_handler
 
 import admin_audit as audit_log
 import admin_permissions as permissions
+import admin_return_requests as return_requests
+import admin_returns as returns
 import admin_roles as roles
 import admin_users as users
 
@@ -29,6 +31,24 @@ ROUTES = {
     "GET /api/v1/admin/audit": audit_log.list_events,
     "GET /api/v1/admin/audit/{id}": audit_log.get_event,
     "POST /api/v1/audit/events": audit_log.record_client_event,
+    "GET /api/v1/devoluciones/resumen": returns.summary,
+    "GET /api/v1/devoluciones/viajes": returns.list_trips,
+    "GET /api/v1/devoluciones/viajes/{routeId}": returns.get_trip,
+    "POST /api/v1/devoluciones/viajes/{routeId}/formularios": returns.create_form,
+    "GET /api/v1/devoluciones/formularios/{formId}": returns.get_form,
+    "PUT /api/v1/devoluciones/formularios/{formId}": returns.update_form,
+    "POST /api/v1/devoluciones/viajes/{routeId}/recibir-todas": returns.receive_all,
+    "POST /api/v1/devoluciones/{returnId}/recibir": returns.receive_return,
+    "POST /api/v1/devoluciones/{returnId}/rechazar": returns.reject_return,
+    "POST /api/v1/solicitudes-devolucion": return_requests.create_request,
+    "POST /api/v1/solicitudes-devolucion/archivos/url": return_requests.upload_url,
+    "GET /api/v1/solicitudes-devolucion/mias": return_requests.list_mine,
+    "GET /api/v1/solicitudes-devolucion/asignacion": return_requests.get_assignment,
+    "GET /api/v1/solicitudes-devolucion": return_requests.list_inbox,
+    "GET /api/v1/solicitudes-devolucion/{requestId}": return_requests.get_request,
+    "POST /api/v1/solicitudes-devolucion/{requestId}/aprobar": return_requests.approve_request,
+    "POST /api/v1/solicitudes-devolucion/{requestId}/rechazar": return_requests.reject_request,
+    "GET /api/v1/solicitudes-devolucion/{requestId}/archivos/{fileId}/url": return_requests.file_url,
 }
 
 handler = tms_handler(ROUTES)

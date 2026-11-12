@@ -1,0 +1,189 @@
+// Reglas puras de presentación del tracking (sin React): colores, etiquetas y tiempos relativos.
+// Los umbrales (señal, retraso, detenido) viven SOLO en el backend: la UI pinta `signal`, `color` y `alerts`.
+import type { AlertCode, EvidenceKind, MapColor, Resumen, RouteState, StopState, Viaje } from './types';
+
+export const COLOR_HEX: Record<MapColor, string> = {
+  green: '#059669',
+  amber: '#d97706',
+  gray: '#64748b',
+  blue: '#0284c7',
+};
+
+export const STOP_COLOR_HEX: Record<StopState, string> = {
+  pending: '#0f766e',
+  delivered: '#059669',
+  failed: '#dc2626',
+};
+
+export type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'info' | 'blue';
+
+/**
+ * Insignia del estado del viaje. Sale del MISMO `color` que el punto del mapa y la leyenda (lo calcula el backend:
+ * verde con señal, ámbar señal vieja, gris sin señal o no activo, azul completado), para que nunca se contradigan.
+ */
+export function colorVariant(color: MapColor): BadgeVariant {
+  switch (color) {
+    case 'green': return 'success';
+    case 'amber': return 'warning';
+    case 'blue': return 'blue';
+    default: return 'default';
+  }
+}
+
+/**
+ * Paradas fallidas de los viajes en curso. El resumen del backend cuenta como "hechas" las entregadas MÁS las fallidas y
+ * no las separa; se suman de los viajes cargados, y solo si están TODOS los activos (si no, el número sería parcial: null).
+ */
+export function failedStopsOfActive(viajes: Viaje[], resumen: Pick<Resumen, 'active'> | null): number | null {
+  if (!resumen) return null;
+  const activos = viajes.filter((v) => v.state === 'active');
+  return activos.length === resumen.active ? activos.reduce((sum, v) => sum + v.progress.failed, 0) : null;
+}
+
+/** ¿El tramo de la ruta hacia esa parada ya se recorrió? Una parada que no está en el detalle no cuenta como hecha. */
+export const legDone = (state: StopState | undefined): boolean => state !== undefined && state !== 'pending';
+
+export function stopVariant(state: StopState): BadgeVariant {
+  return state === 'delivered' ? 'success' : state === 'failed' ? 'danger' : 'default';
+}
+
+/** Segundos desde `iso` hasta `now`; null si no hay fecha válida. */
+export function ageSeconds(iso: string | null | undefined, now: number): number | null {
+  if (!iso) return null;
+  const then = Date.parse(iso);
+  return Number.isNaN(then) ? null : Math.max(0, Math.round((now - then) / 1000));
+}
+
+/**
+ * Última vez que se supo del chofer: la más reciente entre el último punto GPS y el último latido de la app (solo si
+ * está en línea; un latido anterior al cierre de sesión no cuenta). null si nunca hubo ninguno.
+ */
+export function lastSignalAt(viaje: Pick<Viaje, 'position' | 'presence'>): string | null {
+  const heartbeat = viaje.presence?.status === 'online' ? viaje.presence.last_seen_at : null;
+  const times = [viaje.position?.recorded_at, heartbeat].filter((value): value is string => Boolean(value) && !Number.isNaN(Date.parse(value as string)));
+  return times.length ? times.reduce((latest, value) => (Date.parse(value) > Date.parse(latest) ? value : latest)) : null;
+}
+
+/** El chofer cerró sesión en la app (logout explícito) y el viaje quedó sin señal por eso. */
+export const driverLoggedOut = (viaje: Pick<Viaje, 'presence' | 'signal' | 'state'>): boolean =>
+  viaje.state === 'active' && viaje.signal === 'offline' && viaje.presence?.status === 'offline';
+
+type Translate = (key: string, options?: Record<string, unknown>) => string;
+
+/** Antigüedad corta y traducida: "30 s", "5 min", "2 h", "3 d"; null sin fecha. */
+export function formatAge(iso: string | null | undefined, now: number, t: Translate): string | null {
+  const seconds = ageSeconds(iso, now);
+  if (seconds === null) return null;
+  if (seconds < 60) return t('tracking.ageSeconds', { count: seconds });
+  if (seconds < 3600) return t('tracking.ageMinutes', { count: Math.floor(seconds / 60) });
+  if (seconds < 86400) return t('tracking.ageHours', { count: Math.floor(seconds / 3600) });
+  return t('tracking.ageDays', { count: Math.floor(seconds / 86400) });
+}
+
+/** Viajes con coordenadas para el mapa. */
+export function positioned(viajes: Viaje[]): Viaje[] {
+  return viajes.filter((v) => v.position !== null);
+}
+
+// Claves i18n (tracking.*) por estado, para que los componentes no repitan el mapeo.
+export const STATE_KEY: Record<RouteState, string> = {
+  planned: 'tracking.statePlanned',
+  active: 'tracking.stateActive',
+  completed: 'tracking.stateCompleted',
+  cancelled: 'tracking.stateCancelled',
+  unknown: 'tracking.stateUnknown',
+};
+
+export const STOP_KEY: Record<StopState, string> = {
+  pending: 'tracking.stopPending',
+  delivered: 'tracking.stopDelivered',
+  failed: 'tracking.stopFailed',
+};
+
+export const EVIDENCE_KEY: Record<EvidenceKind, string> = {
+  photo_invoice: 'tracking.evidenceInvoice',
+  photo_product: 'tracking.evidenceProduct',
+  signature: 'tracking.evidenceSignature',
+};
+
+export const ALERT_META: Record<AlertCode, { key: string; icon: string; cls: string }> = {
+  failed: { key: 'tracking.alertFailed', icon: 'ri-close-circle-line', cls: 'bg-red-100 text-red-700' },
+  no_signal: { key: 'tracking.alertNoSignal', icon: 'ri-signal-wifi-off-line', cls: 'bg-slate-200 text-slate-700' },
+  late: { key: 'tracking.alertLate', icon: 'ri-time-line', cls: 'bg-red-100 text-red-700' },
+  stopped: { key: 'tracking.alertStopped', icon: 'ri-pause-circle-line', cls: 'bg-amber-100 text-amber-800' },
+};
+
+/** "850 m" / "12.4 km"; null si no hay distancia. */
+export function formatDistance(meters: number | null | undefined): string | null {
+  if (meters == null) return null;
+  return meters < 1000 ? `${Math.round(meters)} m` : `${(meters / 1000).toFixed(1)} km`;
+}
+
+/** "45 s" / "12 min" / "1 h 05 min" para una permanencia; null si no hay dato. */
+export function formatDwell(seconds: number | null | undefined): string | null {
+  if (seconds == null || seconds < 0) return null;
+  if (seconds < 60) return `${Math.round(seconds)} s`;
+  const minutes = Math.round(seconds / 60);
+  return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')} min`;
+}
+
+/** Hora "HH:MM" de un ISO en la zona del viaje (la del país); sin zona, la del navegador. null si no es válido. */
+export function formatClock(iso: string | null | undefined, timezone?: string | null): string | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  try {
+    // hourCycle 'h23' (no hour12:false): algunos motores escriben "24:05" a medianoche con hour12:false.
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: timezone ?? undefined });
+  } catch {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  }
+}
+
+/** Día corto ("2 oct") de una fecha. `date` puede ser YYYY-MM-DD (fecha de entrega: sin desplazar por zona) o un
+ * ISO con hora (se muestra el día en la zona del viaje). null si no es válida. */
+export function formatDay(date: string | null | undefined, timezone?: string | null): string | null {
+  if (!date) return null;
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(date);
+  const value = new Date(dateOnly ? `${date}T00:00:00Z` : date);
+  if (Number.isNaN(value.getTime())) return null;
+  try {
+    return value.toLocaleDateString([], { day: 'numeric', month: 'short', timeZone: dateOnly ? 'UTC' : timezone ?? undefined });
+  } catch {
+    return value.toLocaleDateString([], { day: 'numeric', month: 'short' });
+  }
+}
+
+// --- filtro rápido desde los KPIs (por viaje) ---------------------------------------------------------
+
+export type KpiFilter = 'active' | 'on_time' | 'late' | 'no_signal' | 'completed_today';
+
+/**
+ * Fecha local (YYYY-MM-DD) de un instante en la zona dada. Sin zona se usa UTC, igual que el backend
+ * (`coalesce(countries.timezone, 'UTC')`): con la del navegador, "Completados hoy" no coincidiría con el tile.
+ */
+function localDate(ms: number, timezone: string | null): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: timezone ?? 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(ms);
+  } catch {
+    // Zona inválida: el backend también cae a UTC.
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC', year: 'numeric', month: '2-digit', day: '2-digit' }).format(ms);
+  }
+}
+
+/** ¿El viaje entra en el KPI elegido? Misma definición que los conteos del backend. */
+export function matchesKpi(viaje: Viaje, kpi: KpiFilter, now: number): boolean {
+  const has = (code: AlertCode) => viaje.alerts.some((a) => a.code === code);
+  switch (kpi) {
+    case 'active': return viaje.state === 'active';
+    case 'late': return viaje.state === 'active' && has('late');
+    case 'on_time': return viaje.state === 'active' && !has('late');
+    case 'no_signal': return viaje.state === 'active' && has('no_signal');
+    case 'completed_today': {
+      if (viaje.state !== 'completed' || !viaje.ended_at) return false;
+      const ended = Date.parse(viaje.ended_at);
+      return !Number.isNaN(ended) && localDate(ended, viaje.timezone) === localDate(now, viaje.timezone);
+    }
+    default: return true;
+  }
+}

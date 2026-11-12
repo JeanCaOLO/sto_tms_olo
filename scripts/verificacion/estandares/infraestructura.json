@@ -1,0 +1,49 @@
+{
+  "categoria": "infraestructura",
+  "peso": 30,
+  "fuente": "docs/estandares/estandares-desarrollo-intelix.md",
+  "estandares": [
+    {
+      "id": "INFRA1",
+      "nombre": "Infraestructura como codigo en SAM (template unico)",
+      "criticidad": "Critico",
+      "regla": "existe-template-sam",
+      "descripcion": "Todo recurso vive en template.yaml (SAM/CloudFormation). Regla de oro: si no esta en el template, no esta listo para desplegar."
+    },
+    {
+      "id": "INFRA2",
+      "nombre": "Serverless-first (Lambda por defecto)",
+      "criticidad": "Alto",
+      "regla": "serverless-first",
+      "descripcion": "Lambda por defecto; ECS/Fargate/contenedores de larga vida solo con justificacion medida."
+    },
+    {
+      "id": "INFRA3",
+      "nombre": "SQS con los 4 controles de resiliencia",
+      "criticidad": "Critico",
+      "regla": "sqs-cuatro-controles",
+      "descripcion": "DLQ obligatoria, maxReceiveCount>=5, VisibilityTimeout>=6x el timeout de la Lambda, ReportBatchItemFailures."
+    },
+    {
+      "id": "INFRA4",
+      "nombre": "IAM de minimo privilegio",
+      "criticidad": "Critico",
+      "regla": "iam-sin-comodines",
+      "descripcion": "Acciones y ARNs concretos. Prohibido Action:* o Resource:*."
+    },
+    {
+      "id": "INFRA5",
+      "nombre": "Ambientes parametrizados (samconfig.toml dev/qa/prod)",
+      "criticidad": "Medio",
+      "regla": "samconfig-ambientes",
+      "descripcion": "Una sola plantilla para N ambientes via samconfig.toml; entre entornos cambian parametros, no la estructura."
+    },
+    {
+      "id": "INFRA6",
+      "nombre": "Secretos en gestor de secretos (no en codigo ni variables planas)",
+      "criticidad": "Alto",
+      "regla": "secretos-gestor",
+      "descripcion": "Secretos en Secrets Manager/SSM; nunca en codigo, variables planas ni bundle."
+    }
+  ]
+}

@@ -21,7 +21,7 @@ import { useCompaniasList } from './hooks/useCompaniasList';
 import { useCountryZones } from './hooks/useCountryZones';
 import type { CarrierProfile, PartyClassification } from '../../lib/tarifas/parties';
 import { useAuth } from '../../hooks/useAuth';
-import { registrarEvento } from '../../lib/liquidador/auditLog';
+import { registrarEventoSeguro } from '../../lib/liquidador/auditLog';
 import { getActorRole } from '../../lib/tarifas/actor';
 import { useModulePermissions } from '../../hooks/use-module-permissions';
 import { useTarifasActor } from '../../hooks/useTarifasActor';
@@ -42,7 +42,7 @@ const COPY: Record<PartyClassification, Copy> = {
     subtitle: 'Compañías propias a las que se les liquida el viaje con recursos internos',
     icon: 'ri-home-gear-line',
     intro:
-      'Acá administrás recursos internos: los conductores están en nómina y el costo del viaje se ' +
+      'Aquí administras recursos internos: los conductores están en nómina y el costo del viaje se ' +
       'arma con la estructura de costos detallada de la compañía (combustible, depreciación, ' +
       'salarios, mantenimiento). No se factura contra un tercero. La lista sale del catálogo ' +
       '(solo lectura): acá solo se configura el cálculo.',
@@ -101,7 +101,7 @@ export default function CompaniasView({ classification }: { classification: Part
   }, [searchParams, setSearchParams, profiles, loading, loadingCountries]);
 
   const handleToggle = async (profile: CarrierProfile) => {
-    const result = await handleToggleStatus(profile, usuarioActivo, getActorRole, registrarEvento);
+    const result = await handleToggleStatus(profile, usuarioActivo, getActorRole, registrarEventoSeguro);
     if (result.error) setActionError(result.error);
   };
 

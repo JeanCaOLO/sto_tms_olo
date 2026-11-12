@@ -10,3 +10,14 @@ export function setActorRole(name: string | null): void {
 export function getActorRole(): string {
   return actorRole ?? 'desconocido';
 }
+
+// Nombre del usuario activo, publicado igual que el rol, para las bitácoras que se escriben fuera de componentes.
+let actorName: string | null = null;
+
+export function setActorName(name: string | null): void {
+  actorName = name && name.trim() ? name : null;
+}
+
+export function getActorName(): string {
+  return actorName ?? 'Usuario';
+}

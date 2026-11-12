@@ -17,8 +17,8 @@ Punto de continuidad para retomar el trabajo sin releer toda la sesión. **La ma
 
 Tres repos bajo `olo/tms` en **GitLab** (`git.intelix.biz`): **TMS-Frontend**, **TMS-Backend**, **TMS-Docs**.
 
-- **TMS-Frontend** (monorepo React + backend-planif): remotos `github` (`JeanCaOLO/sto_tms_olo`) y `origin` (GitLab). Local: `C:\Users\jaraujo\Documents\Desarrollo\TMS_NEW\TMS-Frontend`.
-- **TMS-Backend** (hexagonal Python/SAM): **solo** remoto GitLab. Local: `...\TMS_NEW\TMS-Backend`. Su `src/` es **idéntico** al `backend-planif/src/` del frontend.
+- **TMS-Frontend** (monorepo React + backend SAM en `backend/`): remotos `github` (`JeanCaOLO/sto_tms_olo`) y `origin` (GitLab). Local: `C:\Users\jaraujo\Documents\Desarrollo\TMS_NEW\TMS-Frontend`.
+- **TMS-Backend** (hexagonal Python/SAM): **solo** remoto GitLab. Local: `...\TMS_NEW\TMS-Backend`. (Antes había una copia de su `src/` en `backend-planif/` del frontend; se eliminó el 2026-11-02, planning ahora corre su propio `backend/planning/src`.)
 - **El mirror GitLab→GitHub está MUERTO** (lo quitó Jesús en *GitLab → Settings → Repository → Mirroring repositories*). **Nueva política: GitHub es la fuente de verdad** (normalmente adelantada); GitLab se pone al día **desde** GitHub por **fast-forward**, nunca `--force`. Si una rama diverge, avisar, no forzar.
 - **Ramas frontend (al 2026-10-06, GitHub=GitLab):** `main cb45c6a`, **`planificacion-2 2e80c32`** (la de Jesús, la más reciente), `oms 1c09851` (Edward), `dylan-tarifas 628c083` (Dylan), `dev 4276d9f`, `jesus-planificacion e2381ab` (prototipo viejo), `Andrey`, `backup/dev-pre-wmh-2026-09-29`.
 - **Commits: convención aura** → `type(scope): Resumen` + línea en blanco + bullets `- `. **SIN footer** (NO `Co-Authored-By`). Identidad: `Jesús Araujo <j2a0a0a5@gmail.com>`. Las descripciones de PR SÍ llevan `🤖 Generated with [Claude Code]`.
@@ -32,7 +32,7 @@ Tres procesos; **se caen solos** (SSM por idle, y los background del agente a ~2
    aws ssm start-session --target i-062fc98e8e26c0f79 --document-name AWS-StartPortForwardingSessionToRemoteHost --parameters '{"host":["db-tms-olo.cluster-cjo2ss6io0lb.us-east-2.rds.amazonaws.com"],"portNumber":["5432"],"localPortNumber":["15432"]}' --profile ext-claude --region us-east-2
    ```
    (Perfil AWS `ext-claude`, cuenta sandbox `758837481569`, `us-east-2`. Funciona aunque la VPN de intelix esté caída.)
-2. **Backend** `:4000` — `pnpm api:local` (corre `backend-planif/serve.py`, superconjunto). O desde el repo propio con el runner de scratchpad `serve_backend_repo.py` apuntando a `TMS-Backend/src`.
+2. **Backend** `:4000` — `pnpm api:local` (corre `backend/local/serve.py`, que monta las Lambdas reales de `backend/*`, planning incluido). O desde el repo propio con el runner de scratchpad `serve_backend_repo.py` apuntando a `TMS-Backend/src`.
 3. **Frontend** `pnpm dev` (Vite, suele quedar en `:3000/3001/3002`). Proxy `/api` → `:4000`.
 
 **Login:** `admin@ologistics.com` / **`Olo12345`** (sin `*` final — el `*` era la máscara; eso confundió a varios). Falta cambiar el mensaje de error genérico a "contraseña incorrecta".

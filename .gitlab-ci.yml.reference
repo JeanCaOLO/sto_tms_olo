@@ -1,0 +1,246 @@
+# ============================================================================
+# .gitlab-ci.yml.reference — Pipeline CI/CD de REFERENCIA (INTELIX / IA-DLC)
+#
+# Entregable M5 del Reporte de Control de Versiones. Capa 2 (bloqueo: gate de
+# tests para MR) + Capa 3 (deteccion: backport-check y orphan-branches).
+# Cierra las brechas B7 (tags semanticos) y B8 (pipeline por rama).
+#
+# ESTO ES UNA REFERENCIA, NO EL PIPELINE ACTIVO.
+# El pipeline activo de la plantilla es `.gitlab-ci.yml` (dashboard de avance +
+# daily_sync_check). Este archivo se COPIA a `.gitlab-ci.yml` y se ADAPTA por
+# proyecto cuando se quiera el ciclo build/test/deploy por rama. Fusiona sus
+# jobs con los del pipeline activo (build_dashboard, daily_sync_check) segun
+# convenga; aqui se referencian con `include`-friendly nombres distintos.
+#
+# Mapeo ramas <-> ambientes (estandares-desarrollo-intelix.md):
+#   develop -> DEV   |   qa -> QA   |   master -> PROD (tag vX.Y.Z)
+#
+# RUNNER TIPO SHELL: igual que el pipeline activo, escrito para runner "shell"
+# (sin Docker). No usa `image:`. Si falta una herramienta (node, sam, curl, jq)
+# el job avisa y no rompe (allow_failure + verificacion previa). Ajusta a tu
+# runner real (puedes cambiar a runner Docker con `image:` si lo prefieres).
+# ============================================================================
+
+stages:
+  - lint
+  - test
+  - build
+  - deploy
+  - detect
+
+variables:
+  GIT_DEPTH: 0   # historial completo: necesario para backport-check y shortlog
+
+# ---------------------------------------------------------------------------
+# LINT — en todas las ramas y MR. ESLint / Pylint / cfn-lint segun exista.
+# ---------------------------------------------------------------------------
+lint:
+  stage: lint
+  allow_failure: false
+  script:
+    - |
+      set -e
+      echo "== Lint =="
+      if [ -f package.json ] && command -v npx >/dev/null 2>&1; then
+        npx --no-install eslint . || echo "[AVISO] eslint no configurado; se omite."
+      fi
+      if command -v pylint >/dev/null 2>&1 && ls **/*.py >/dev/null 2>&1; then
+        pylint $(git ls-files '*.py') || echo "[AVISO] hallazgos de pylint (revisar)."
+      fi
+      if command -v cfn-lint >/dev/null 2>&1 && [ -f template.yaml ]; then
+        cfn-lint template.yaml
+      else
+        echo "[AVISO] cfn-lint o template.yaml ausente; se omite el lint de SAM."
+      fi
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+# ---------------------------------------------------------------------------
+# TEST — pruebas unitarias + cobertura. Gate de MR (Capa 2).
+# ---------------------------------------------------------------------------
+test:
+  stage: test
+  allow_failure: false
+  script:
+    - |
+      set -e
+      echo "== Pruebas unitarias =="
+      if [ -f package.json ]; then
+        npm ci --no-audit --no-fund || npm install
+        npm test --if-present
+      fi
+      if [ -f requirements.txt ] || ls **/*.py >/dev/null 2>&1; then
+        if command -v pytest >/dev/null 2>&1; then
+          pytest --maxfail=1 --cov=. --cov-report=term-missing || exit 1
+        else
+          echo "[AVISO] pytest no instalado en el runner; se omiten pruebas Python."
+        fi
+      fi
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+
+# ---------------------------------------------------------------------------
+# BUILD — construye el artefacto (SAM/Docker) al integrar a una rama base.
+# ---------------------------------------------------------------------------
+build:
+  stage: build
+  script:
+    - |
+      set -e
+      echo "== Build =="
+      if command -v sam >/dev/null 2>&1 && [ -f template.yaml ]; then
+        sam build
+      else
+        echo "[AVISO] sam/template.yaml ausente; nada que construir (ajusta a tu stack)."
+      fi
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "qa" || $CI_COMMIT_BRANCH == "master"'
+
+# ---------------------------------------------------------------------------
+# DEPLOY DEV — automatico al mergear a develop.
+# ---------------------------------------------------------------------------
+deploy-dev:
+  stage: deploy
+  environment:
+    name: dev
+  script:
+    - |
+      set -e
+      echo "== Deploy DEV (develop) =="
+      if command -v sam >/dev/null 2>&1; then
+        sam deploy --config-env dev --no-confirm-changeset --no-fail-on-empty-changeset
+      else
+        echo "[AVISO] sam ausente; deploy DEV omitido."
+      fi
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+
+# ---------------------------------------------------------------------------
+# DEPLOY QA — automatico al promover a qa.
+# ---------------------------------------------------------------------------
+deploy-qa:
+  stage: deploy
+  environment:
+    name: qa
+  script:
+    - |
+      set -e
+      echo "== Deploy QA (qa) =="
+      if command -v sam >/dev/null 2>&1; then
+        sam deploy --config-env qa --no-confirm-changeset --no-fail-on-empty-changeset
+      else
+        echo "[AVISO] sam ausente; deploy QA omitido."
+      fi
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "qa"'
+
+# ---------------------------------------------------------------------------
+# DEPLOY PROD — MANUAL. Despliega y coloca el tag semantico vX.Y.Z (B7).
+# El tag se toma de la variable RELEASE_TAG definida al lanzar el job manual,
+# o del package.json/version. Requiere un token con permiso de push de tags
+# (PROJECT_ACCESS_TOKEN, scope api / write_repository) en variables CI/CD.
+# ---------------------------------------------------------------------------
+deploy-prod:
+  stage: deploy
+  environment:
+    name: prod
+  when: manual
+  script:
+    - |
+      set -e
+      echo "== Deploy PROD (master) =="
+      if command -v sam >/dev/null 2>&1; then
+        sam deploy --config-env prod --no-confirm-changeset --no-fail-on-empty-changeset
+      else
+        echo "[AVISO] sam ausente; deploy PROD omitido."
+      fi
+      # Tag semantico
+      TAG="${RELEASE_TAG}"
+      if [ -z "$TAG" ] && [ -f package.json ] && command -v node >/dev/null 2>&1; then
+        TAG="v$(node -p "require('./package.json').version" 2>/dev/null || echo '')"
+      fi
+      if [ -n "$TAG" ] && [ -n "$PROJECT_ACCESS_TOKEN" ]; then
+        echo "Creando tag $TAG en master..."
+        curl --fail --silent --show-error --request POST \
+          --header "PRIVATE-TOKEN: $PROJECT_ACCESS_TOKEN" \
+          "$CI_API_V4_URL/projects/$CI_PROJECT_ID/repository/tags?tag_name=$TAG&ref=master"
+      else
+        echo "[AVISO] Falta RELEASE_TAG o PROJECT_ACCESS_TOKEN; no se creo el tag."
+      fi
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'
+
+# ---------------------------------------------------------------------------
+# BACKPORT-CHECK (Capa 3) — semanal. Para cada tag reciente de master,
+# verifica que sus commits existan tambien en develop y qa. Si falta el
+# backport de un hotfix, alerta (comentario en un issue o log).
+# Requiere: git (historial completo, GIT_DEPTH:0). Token opcional para notificar.
+# ---------------------------------------------------------------------------
+backport-check:
+  stage: detect
+  allow_failure: true
+  script:
+    - |
+      set -e
+      echo "== Verificacion de backporting de hotfixes =="
+      git fetch --all --tags --quiet || true
+      DESDE=$(date -u -d "-8 days" +%Y-%m-%d 2>/dev/null || date -u +%Y-%m-%d)
+      TAGS=$(git for-each-ref --sort=-creatordate --format='%(refname:short) %(creatordate:short)' refs/tags \
+             | awk -v d="$DESDE" '$2 >= d {print $1}')
+      if [ -z "$TAGS" ]; then echo "Sin tags recientes que verificar."; exit 0; fi
+      FALTANTES=""
+      for TAG in $TAGS; do
+        SHA=$(git rev-list -n 1 "$TAG")
+        for RAMA in develop qa; do
+          if git merge-base --is-ancestor "$SHA" "origin/$RAMA" 2>/dev/null; then
+            echo "OK  $TAG -> presente en $RAMA"
+          else
+            echo "FALTA $TAG -> NO esta en $RAMA (backport pendiente)"
+            FALTANTES="$FALTANTES $TAG->$RAMA"
+          fi
+        done
+      done
+      if [ -n "$FALTANTES" ]; then
+        echo "ALERTA: backports pendientes:$FALTANTES"
+        # (Opcional) notificar: crear issue/comentario con PROJECT_ACCESS_TOKEN.
+        exit 1
+      fi
+      echo "Backporting al dia."
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+
+# ---------------------------------------------------------------------------
+# ORPHAN-BRANCHES (Capa 3) — semanal. Reporta ramas feature/bugfix con mas de
+# 14 dias sin actividad (posiblemente abandonadas o sin merge).
+# ---------------------------------------------------------------------------
+orphan-branches:
+  stage: detect
+  allow_failure: true
+  script:
+    - |
+      set -e
+      echo "== Reporte de ramas huerfanas (>14 dias sin actividad) =="
+      git fetch --all --quiet || true
+      LIMITE=$(date -u -d "-14 days" +%s 2>/dev/null || echo 0)
+      COUNT=0
+      for REF in $(git for-each-ref --format='%(refname:short)' refs/remotes/origin/feature refs/remotes/origin/bugfix 2>/dev/null); do
+        TS=$(git log -1 --format=%ct "$REF" 2>/dev/null || echo 0)
+        if [ "$TS" -lt "$LIMITE" ]; then
+          FECHA=$(git log -1 --format=%ci "$REF")
+          echo "HUERFANA $REF (ultima actividad: $FECHA)"
+          COUNT=$((COUNT+1))
+        fi
+      done
+      echo "Ramas huerfanas detectadas: $COUNT"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+
+# ---------------------------------------------------------------------------
+# NOTA: los jobs `build_dashboard` (artefacto del reporte de avance) y
+# `daily_sync_check` (recordatorio diario, Fase 3) ya viven en el `.gitlab-ci.yml`
+# ACTIVO de la plantilla. Al fusionar este archivo de referencia con el activo,
+# conserva ambos: son la parte de reporte/recordatorio (Capa 3) ya probada.
+# ---------------------------------------------------------------------------

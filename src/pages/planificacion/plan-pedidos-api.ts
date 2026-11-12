@@ -8,11 +8,12 @@
 //
 // Notas del backend (CANAL.md): delivery_date llega como ISO con hora
 // (medianoche UTC) → se normaliza a YYYY-MM-DD; total_weight/total_volume
-// llegan null (capacity_known=false) hasta que EFLOW pase a live. Sin backend
-// o sin datos, cae al pool mock.
+// llegan null (capacity_known=false) hasta que EFLOW pase a live. Sin backend,
+// en desarrollo cae al pool mock; en producción lanza (ver mock-fallback.ts).
 
-import { apiFetch } from '../../lib/supabase';
+import { apiFetch } from '../../lib/api-client';
 import { getFallbackPedidosParaPlanificar, offsetDayIso } from './fallback-pedidos';
+import { mockFallbackEnabled } from './mock-fallback';
 import type { Articulo, Pedido } from './types';
 
 // Día objetivo por defecto: mañana (hoy + 1).
@@ -31,17 +32,23 @@ function normalizar(row: PedidoRow): Pedido {
 export async function fetchPedidosParaPlanificar(
   fechaEntrega: string = fechaEntregaObjetivo(),
 ): Promise<Pedido[]> {
+  // Solo en desarrollo cae a mock si el backend no respondió; en producción lanza para que la UI
+  // muestre el error. Un día real sin pedidos = 0 (nunca mock).
+  const alFallar = (motivo: string): Pedido[] => {
+    if (mockFallbackEnabled()) return getFallbackPedidosParaPlanificar(fechaEntrega);
+    throw new Error(motivo);
+  };
+  let respuesta: Awaited<ReturnType<typeof apiFetch>>;
   try {
-    const { ok, body } = await apiFetch(`/v1/planificacion/pedidos?fecha_entrega=${fechaEntrega}`);
-    const data = body?.data as PedidoRow[] | undefined;
-    // Solo cae a mock si el backend no respondió; un día real sin pedidos = 0 (no mock).
-    if (!ok || !Array.isArray(data)) {
-      return getFallbackPedidosParaPlanificar(fechaEntrega);
-    }
-    return data.map(normalizar);
+    respuesta = await apiFetch(`/v1/planificacion/pedidos?fecha_entrega=${fechaEntrega}`);
   } catch {
-    return getFallbackPedidosParaPlanificar(fechaEntrega);
+    return alFallar('No se pudo conectar con el servidor de pedidos.');
   }
+  const data = respuesta.body?.data as PedidoRow[] | undefined;
+  if (!respuesta.ok || !Array.isArray(data)) {
+    return alFallar(`No se pudieron cargar los pedidos (HTTP ${respuesta.status}).`);
+  }
+  return data.map(normalizar);
 }
 
 // Artículos (líneas) de un pedido, para el modal de detalle del pin.

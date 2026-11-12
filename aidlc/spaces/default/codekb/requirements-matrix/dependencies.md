@@ -11,7 +11,7 @@ Estas son las dependencias que el módulo de planificación utiliza directamente
 | `react` | 19.1.0 | Framework UI — hooks, componentes, renderizado | Todos los archivos `.tsx` y hooks |
 | `react-dom` | 19.1.0 | Renderizado al DOM — portales para modales | Modales (`ParadaDetalleModal`, `SecuenciaRutaModal`, `EditarRutaModal`) |
 | `react-router-dom` | 7.6.3 | Routing — la página se monta en `/planificacion` | `page.tsx`, navegación interna |
-| `@supabase/supabase-js` | 2.57.4 | Cliente de base de datos y auth — queries, inserts, session | `catalogos-api.ts`, `pedidos-api.ts`, `generar-ruta-api.ts`, `src/lib/supabase.ts` |
+| `@supabase/supabase-js` | 2.57.4 | Cliente de base de datos y auth — queries, inserts, session | `catalogos-api.ts`, `pedidos-api.ts`, `generar-ruta-api.ts`, `src/lib/api-client.ts` |
 | `leaflet` | 1.9.4 | Mapas interactivos — marcadores, polylines, bounds, eventos de click | `RutaMapaPreview.tsx` |
 | `react-leaflet` | 5.0.0 | Wrapper React para Leaflet — `<MapContainer>`, `<TileLayer>`, `<Marker>`, `<Polyline>`, `<Popup>` | `RutaMapaPreview.tsx`, mini-mapas en cards |
 | `@types/leaflet` | — | Tipos TypeScript para Leaflet | Type-checking en compilación |

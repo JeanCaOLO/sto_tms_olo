@@ -11,6 +11,7 @@ Lee .env.local / .env de la raíz del repo (TMS_DB_*, JWT_SECRET, EFLOW_*).
 Aurora requiere el túnel SSM levantado (docs/guides/tunel-ssm-a-rds.md).
 """
 
+import base64
 import importlib.util
 import json
 import os
@@ -31,10 +32,16 @@ STACKS = {
     "admin": BACKEND / "admin" / "src",
     "planning": BACKEND / "planning" / "src",
     "tarifas": BACKEND / "tarifas" / "src",
+    # Envío de proformas por Gmail: en local usa GOOGLE_CLIENT_ID/SECRET de .env.local y guarda tokens en archivos.
+    "tarifas_mail": BACKEND / "tarifas-mail" / "src",
+    "oms": BACKEND / "oms" / "src",
+    "tracking": BACKEND / "tracking" / "src",
+    "eflow_sim": BACKEND / "eflow-sim" / "src",
 }
 AUTHORIZER = BACKEND / "common-services" / "src" / "authorizer" / "app.py"
-PUBLIC_STACKS = {"eflow"}
-PUBLIC_ROUTES = {"POST /api/auth/login"}
+PUBLIC_STACKS = {"eflow", "eflow_sim"}
+# El callback de Google llega sin sesión del TMS (la identidad va en `state`, firmado), como en API Gateway.
+PUBLIC_ROUTES = {"POST /api/auth/login", "GET /api/tarifas-mail/google/callback"}
 DEFAULT_PORT = 4000
 # Lambda atiende una request por contenedor y tms_common reutiliza UNA conexión
 # por proceso: correr handlers en paralelo intercala lecturas del mismo socket.
@@ -51,6 +58,15 @@ def load_env_files() -> None:
             if sep and not key.strip().startswith("#"):
                 os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
     os.environ.setdefault("EFLOW_MODE", "mock")
+    os.environ.setdefault("TRACKING_BUCKET", "local-dev")  # sin esto el detalle de tracking fallaba al firmar evidencias
+    # Las evidencias de la app del chofer viven en SU bucket (backend/mobile). Sin este valor, tracking firma la lectura
+    # en TRACKING_BUCKET y el enlace de la foto no abre. Se toma del .env del backend móvil para no repetirlo.
+    mobile_env = BACKEND / "mobile" / ".env"
+    if mobile_env.exists():
+        for line in mobile_env.read_text(encoding="utf-8").splitlines():
+            key, sep, value = line.partition("=")
+            if sep and key.strip() == "EVIDENCE_BUCKET" and value.strip():
+                os.environ.setdefault("MOBILE_EVIDENCE_BUCKET", value.strip().strip('"').strip("'"))
 
 
 def load_module(name: str, path: Path):
@@ -84,7 +100,7 @@ class ApiHandler(BaseHTTPRequestHandler):
             self.send_header(name, value)
         self.end_headers()
         if body:
-            self.wfile.write(body.encode("utf-8"))
+            self.wfile.write(body if isinstance(body, bytes) else body.encode("utf-8"))
 
     def _match(self, path: str):
         for method, pattern, key, handler, is_public in self.routes:
@@ -129,10 +145,13 @@ class ApiHandler(BaseHTTPRequestHandler):
         event = self._event(key, url, params, authorizer)
         with HANDLER_LOCK:
             response = handler(event, None)
-        self._send(response["statusCode"], response.get("body", ""), response.get("headers"))
+        body = response.get("body", "")
+        if response.get("isBase64Encoded"):  # respuesta comprimida (gzip): API Gateway la decodifica igual
+            body = base64.b64decode(body)
+        self._send(response["statusCode"], body, response.get("headers"))
         return None
 
-    do_GET = do_POST = do_PATCH = do_DELETE = _dispatch
+    do_GET = do_POST = do_PUT = do_PATCH = do_DELETE = _dispatch
 
 
 def main() -> None:
@@ -140,7 +159,10 @@ def main() -> None:
     ApiHandler.routes = build_routes()
     ApiHandler.authorizer = load_module("authorizer_app", AUTHORIZER)
     port = int(os.environ.get("EFLOW_API_PORT") or DEFAULT_PORT)
-    print(f"Lambdas locales en http://localhost:{port} ({len(ApiHandler.routes)} rutas, EFLOW_MODE={os.environ['EFLOW_MODE']})")
+    print(
+        f"Lambdas locales en http://localhost:{port} ({len(ApiHandler.routes)} rutas, "
+        f"EFLOW_MODE={os.environ['EFLOW_MODE']}, OMS_SOURCE={os.environ.get('OMS_SOURCE', 'mock')})"
+    )
     ThreadingHTTPServer(("127.0.0.1", port), ApiHandler).serve_forever()
 
 

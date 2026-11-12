@@ -1,0 +1,187 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: TMS - MOBILE | API de la app del chofer (login propio, mi-viaje, posiciones GPS, paradas y evidencias)
+
+# Stack PROPIO de la app móvil: su API, su Lambda, su rol y su bucket de evidencias. No modifica la infraestructura
+# central del TMS. Comparte la BD (Aurora tms_olo), que llega como parámetro.
+# El despliegue lo hace Intelix: sam build --use-container && sam deploy --config-env <dev|qa|prod>
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [dev, qa, prod]
+  DbSecretName:
+    Type: String
+    Description: Nombre del secreto de Secrets Manager con la conexión a Aurora (host, port, username, password, dbname).
+  JwtSecretName:
+    Type: String
+    Description: 'Secreto con { "jwt_secret": "..." } PROPIO de la app móvil (distinto al del TMS).'
+  EvidenceCorsOrigins:
+    Type: CommaDelimitedList
+    Default: "http://localhost:8081,http://localhost:3000"
+    Description: Orígenes web que pueden subir evidencias (Expo web en desarrollo). La app nativa no lo necesita.
+  SubnetIds:
+    Type: AWS::SSM::Parameter::Value<List<String>>
+    Description: Subredes privadas con ruta a Aurora (mismo parámetro SSM que usan los stacks del TMS).
+  SecurityGroupId:
+    Type: AWS::SSM::Parameter::Value<String>
+  DriverRoleName:
+    Type: String
+    Default: Chofer
+  MemorySize:
+    Type: Number
+    Default: 256
+    Description: MB. La mayoría de las llamadas son lotes GPS que esperan a la BD; subir a 512 solo si el login (bcrypt) se siente lento.
+  MaxConcurrency:
+    Type: Number
+    Default: 20
+    Description: Tope de Lambdas simultáneas = tope de conexiones a Aurora (una por contenedor). 200 choferes enviando cada 150 s ≈ 1,3 req/s.
+
+Conditions:
+  IsProduction: !Equals [!Ref Environment, prod]
+
+Resources:
+  # Fotos de factura firmada y firmas que toma la app. Bucket pequeño y privado: cada archivo queda en la carpeta de
+  # su pedido (pedidos/<número>/<id del pedido>/<tipo>-<uuid>.<ext>) y la fila de tracking_evidences guarda pedido,
+  # número y este bucket. Sin versionado (reintentar con el mismo client_id sobrescribe a propósito); a los 90 días
+  # pasa a Standard-IA (se consulta poco); NO expira: es la prueba de entrega.
+  EvidenceBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub ${AWS::StackName}-evidencias-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules: [{ ObjectOwnership: BucketOwnerEnforced }]
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      LifecycleConfiguration:
+        Rules:
+          - Id: subidas-incompletas-y-archivo-frio
+            Status: Enabled
+            AbortIncompleteMultipartUpload: { DaysAfterInitiation: 1 }
+            Transitions:
+              - { StorageClass: STANDARD_IA, TransitionInDays: 90 }
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins: !Ref EvidenceCorsOrigins
+            AllowedMethods: [POST]
+            AllowedHeaders: ["*"]
+            MaxAge: 3000
+      Tags:
+        - { Key: Project, Value: TMS-MOBILE }
+
+  EvidenceBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref EvidenceBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: SoloHttps
+            Effect: Deny
+            Principal: "*"
+            Action: s3:*
+            Resource:
+              - !GetAtt EvidenceBucket.Arn
+              - !Sub ${EvidenceBucket.Arn}/*
+            Condition: { Bool: { aws:SecureTransport: "false" } }
+
+  MobileApiRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: mobile-api
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${DbSecretName}-*
+                  - !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${JwtSecretName}-*
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject]
+                Resource: !Sub ${EvidenceBucket.Arn}/pedidos/*
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt EvidenceBucket.Arn
+      Tags:
+        - { Key: Project, Value: TMS-MOBILE }
+
+  MobileApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-mobile-api
+      RetentionInDays: !If [IsProduction, 30, 7]
+
+  MobileApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-mobile-api
+      Description: TMS - MOBILE API | App del chofer
+      CodeUri: src/
+      Handler: app.handler
+      Runtime: python3.13
+      # Graviton: ~20 % más barato por GB-s. pg8000 y PyJWT son Python puro; bcrypt trae wheel aarch64
+      # (`sam build --use-container` arma el paquete para esta arquitectura).
+      Architectures: [arm64]
+      Timeout: 20
+      MemorySize: !Ref MemorySize
+      ReservedConcurrentExecutions: !Ref MaxConcurrency
+      Role: !GetAtt MobileApiRole.Arn
+      VpcConfig:
+        SubnetIds: !Ref SubnetIds
+        SecurityGroupIds: [!Ref SecurityGroupId]
+      LoggingConfig:
+        LogFormat: JSON
+        LogGroup: !Ref MobileApiLogGroup
+      Environment:
+        Variables:
+          ENVIRONMENT: !Ref Environment
+          DB_SECRET_NAME: !Ref DbSecretName
+          JWT_SECRET_NAME: !Ref JwtSecretName
+          EVIDENCE_BUCKET: !Ref EvidenceBucket
+          DRIVER_ROLE_NAME: !Ref DriverRoleName
+          # Certificados de RDS (empaquetados en src/certs): la conexión a Aurora verifica el servidor.
+          DB_SSL_CA: /var/task/certs/rds-global-bundle.pem
+      Events:
+        Public:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MobileHttpApi
+            Path: /api/mobile/v1/{proxy+}
+            Method: ANY
+
+  # API propia. La autenticación la hace la propia Lambda (token de la app); no usa el authorizer del TMS.
+  MobileHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: $default
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 50
+        ThrottlingRateLimit: 25
+      Tags:
+        Project: TMS-MOBILE
+
+Outputs:
+  EvidenceBucketName:
+    Description: Bucket de evidencias de la app (fotos y firmas por pedido)
+    Value: !Ref EvidenceBucket
+  ApiUrl:
+    Description: URL base para EXPO_PUBLIC_API_BASE en la app
+    Value: !Sub https://${MobileHttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}

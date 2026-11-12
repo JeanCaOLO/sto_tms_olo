@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api-client';
 import Card from '../../components/base/Card';
 import Button from '../../components/base/Button';
 import Badge from '../../components/base/Badge';
@@ -54,11 +54,11 @@ export default function ClientesPage() {
     setLoading(true);
     try {
       const [customersResult, countriesResult] = await Promise.all([
-        supabase
+        apiClient
           .from('customers')
           .select('*, countries(name, code)')
           .order('created_at', { ascending: false }),
-        supabase
+        apiClient
           .from('countries')
           .select('id, name, code')
           .eq('is_active', true)
@@ -78,7 +78,7 @@ export default function ClientesPage() {
     if (!confirm('¿Estás seguro de eliminar este cliente?')) return;
 
     try {
-      const { error } = await supabase
+      const { error } = await apiClient
         .from('customers')
         .delete()
         .eq('id', id);

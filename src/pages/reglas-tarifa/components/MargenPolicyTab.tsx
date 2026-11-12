@@ -51,14 +51,20 @@ export default function MargenPolicyTab({ organizationId, countryId }: MargenPol
   const [policies, setPolicies] = useState<MarginPolicyRow[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  // La lectura de la política falló: no se sabe si el país ya tiene una. Guardar insertaría una fila
+  // duplicada (la tabla no tiene unicidad por país), así que el guardado queda bloqueado hasta releer.
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       setPolicies((await listMarginPolicies(organizationId)) as MarginPolicyRow[]);
       setError('');
+      setLoadFailed(false);
     } catch (e) {
+      setLoadFailed(true);
       setError(e instanceof Error ? e.message : 'No se pudo leer la alerta de auditoría.');
     } finally {
       setLoading(false);
@@ -81,10 +87,11 @@ export default function MargenPolicyTab({ organizationId, countryId }: MargenPol
   }, [countryId, current?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSave = async () => {
-    if (!countryId) return;
+    if (!countryId || loadFailed) return;
     const invalid = validateThresholds(form.warn_below, form.critical_below);
     if (invalid) { setError(invalid); return; }
     setSaving(true);
+    setSaved(false);
     setError('');
     try {
       const { error: saveError } = await saveMarginPolicy(organizationId, {
@@ -95,7 +102,7 @@ export default function MargenPolicyTab({ organizationId, countryId }: MargenPol
         block_on_loss: current ? !!current.block_on_loss : form.block_on_loss,
       }, current?.id);
       if (saveError) setError(saveError.message);
-      else await load();
+      else { await load(); setSaved(true); }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo guardar la alerta de auditoría.');
     } finally {
@@ -134,13 +141,22 @@ export default function MargenPolicyTab({ organizationId, countryId }: MargenPol
             placeholder="0.10 (10%)"
           />
         </div>
-        {error && <p role="alert" className="text-xs text-red-600 mt-3">{error}</p>}
+        {error && (
+          <div role="alert" className="flex items-center gap-3 mt-3">
+            <p className="text-xs text-red-600">{error}</p>
+            {loadFailed && (
+              <Button variant="secondary" size="sm" onClick={() => void load()}>Reintentar</Button>
+            )}
+          </div>
+        )}
+        {saved && !error && <p role="status" className="text-xs text-emerald-700 mt-3">Umbrales guardados.</p>}
         <div className="pt-4 mt-4 border-t border-slate-200">
-          <Button onClick={handleSave} disabled={saving || !countryId || !canEdit} title={!canEdit ? 'Tu rol no puede editar la alerta' : undefined}>
-            {saving ? 'Guardando...' : current ? 'Actualizar' : 'Guardar'}
+          <Button onClick={handleSave} disabled={saving || !countryId || !canEdit || loadFailed}
+            title={!canEdit ? 'Tu rol no puede editar la alerta' : loadFailed ? 'No se pudo leer la política actual: reintenta antes de guardar' : undefined}>
+            {saving ? 'Guardando...' : 'Guardar umbrales'}
           </Button>
         </div>
-        {!current && (
+        {!current && !loadFailed && (
           <p className="text-xs text-amber-600 mt-2">
             Sin esto configurado, una liquidación para este país no puede mostrar la alerta de auditoría (se usan los umbrales por defecto).
           </p>

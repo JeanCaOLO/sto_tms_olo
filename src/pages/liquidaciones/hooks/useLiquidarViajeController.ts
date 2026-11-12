@@ -1,14 +1,12 @@
 // Orchestration of all settlement emission states (calculation, custom vars, returns, emission).
 
 import { useEffect } from 'react';
-import { useBaseOverride } from './useBaseOverride';
 import { useCalculationLifecycle } from './useCalculationLifecycle';
 import { useCalculationState } from './useCalculationState';
 import { useCustomVarsState } from './useCustomVarsState';
 import { useCalculationTotals } from './useCalculationTotals';
 import { useEmissionState } from './useEmissionState';
 import { useExclusionsState } from './useExclusionsState';
-import { useEditsUsed } from './useEditsUsed';
 import { useRecheckBeforeEmit } from './useRecheckBeforeEmit';
 import { useTripReturnsPreload } from './useTripReturnsPreload';
 import type { SettlementRecord, TripRecord } from '../../../lib/tarifas/types';
@@ -24,14 +22,11 @@ export function useLiquidarViajeController({ trip, settlement, isOpen }: Props) 
   const reliquidando = !!settlement;
 
   const emissionState = useEmissionState({ reliquidando, settlement });
-  const base = useBaseOverride();
   // Un error anterior (p. ej. una emisión fallida) no se queda pegado si lo siguiente funcionó.
   const calcState = useCalculationState({
-    tripId, trip, reliquidando, baseUsed: base.baseUsed, onCalculated: () => emissionState.setError(''),
+    tripId, trip, reliquidando, onCalculated: () => emissionState.setError(''),
   });
-  const { loading } = useCalculationLifecycle({
-    tripId, isOpen, settlement, calc: calcState, onOpen: () => base.reset(settlement),
-  });
+  const { loading } = useCalculationLifecycle({ tripId, isOpen, settlement, calc: calcState });
   const { excludedSeqs, setExcludedSeqs, resetExcluded } = useExclusionsState();
   const customVarsState = useCustomVarsState({
     calculation: calcState.calculation,
@@ -52,23 +47,21 @@ export function useLiquidarViajeController({ trip, settlement, isOpen }: Props) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, settlement?.id]);
 
-  const editsUsed = useEditsUsed(calcState.calculation, customVarsState.customRaw);
   useTripReturnsPreload(
-    calcState.calculation, tripId, settlement, emissionState.setReturns, emissionState.setError,
+    calcState.calculation, tripId, settlement, isOpen, emissionState.setReturns, emissionState.setError,
   );
   const recheck = useRecheckBeforeEmit({
-    calc: calcState, base, reliquidando, setError: emissionState.setError, resetExcluded,
+    calc: calcState, reliquidando, setError: emissionState.setError, resetExcluded,
   });
 
   return {
     ...calcState,
     ...emissionState,
     loading,
-    baseMethod: base.baseMethod,
-    changeBase: (m: Parameters<typeof base.change>[0], extra?: { fresh?: boolean }) =>
-      base.change(m, calcState, extra),
     customRaw: customVarsState.customRaw,
     setCustomRaw: customVarsState.setCustomRaw,
+    /** Teclear una variable: la guarda, marca el cálculo como pendiente y lo recalcula tras una pausa. */
+    setCustomVar: customVarsState.handleSetRaw,
     excludedSeqs,
     setExcludedSeqs,
     /** Lo calculado más reciente: lo que se guarda, aunque después se siga tecleando. */
@@ -78,7 +71,6 @@ export function useLiquidarViajeController({ trip, settlement, isOpen }: Props) 
     totals,
     effectiveResult,
     reliquidando,
-    editsUsed,
   };
 }
 

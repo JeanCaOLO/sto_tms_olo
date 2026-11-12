@@ -24,6 +24,10 @@ function buildAddress(form: DeliveryPointForm) {
 
 export function buildDeliveryPointRequest(form: DeliveryPointForm): DeliveryPointRequest {
   const address = buildAddress(form);
+  // Zona: en modo 'auto' se manda zone_source='map' (la BD la recalcula por la
+  // geocerca e ignora zone_id); en 'manual' se manda la zona fija (la BD la
+  // marca zone_source='manual'). El endpoint solo acepta 'map'/'manual'.
+  const auto = form.zone_mode === 'auto';
   if (form.id) {
     return {
       method: 'PATCH',
@@ -31,7 +35,8 @@ export function buildDeliveryPointRequest(form: DeliveryPointForm): DeliveryPoin
       body: {
         name: form.name,
         delivery_instructions: form.delivery_instructions || null,
-        zone_id: form.zone_id || null,
+        contact_phone: form.contact_phone || null,
+        ...(auto ? { zone_source: 'map' } : { zone_id: form.zone_id || null, zone_source: 'manual' }),
         route_code: form.route_code || null,
         active: form.active,
         address,
@@ -46,7 +51,8 @@ export function buildDeliveryPointRequest(form: DeliveryPointForm): DeliveryPoin
       external_code: form.external_code,
       name: form.name,
       delivery_instructions: form.delivery_instructions || undefined,
-      zone_id: form.zone_id || undefined,
+      contact_phone: form.contact_phone || undefined,
+      ...(auto ? { zone_source: 'map' } : { zone_id: form.zone_id || undefined, zone_source: 'manual' }),
       route_code: form.route_code || undefined,
       address,
     },

@@ -1,0 +1,20 @@
+# Pipeline raíz para proyectos nuevos configurados con INTELIX.
+#
+# Los jobs administrados viven en un fragmento separado para que un proyecto existente pueda
+# incorporarlos sin reemplazar su pipeline. Si este archivo ya existe, intelix-cli lo preserva y
+# muestra la instrucción necesaria para activar el include manualmente.
+include:
+  - local: .gitlab/intelix-ci.yml
+
+# GitLab no inicia pipelines formados exclusivamente por jobs en `.pre` y `.post`.
+# Este ancla solo pertenece al pipeline mínimo de proyectos nuevos; un repositorio existente
+# conserva sus propios jobs y no recibe cambios automáticos en este archivo.
+intelix_pipeline_anchor:
+  stage: test
+  allow_failure: true
+  script:
+    - echo "Fragmento CI INTELIX cargado."
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "schedule"

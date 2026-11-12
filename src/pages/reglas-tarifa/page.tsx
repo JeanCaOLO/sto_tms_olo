@@ -17,6 +17,7 @@ import { useModulePermissions } from '../../hooks/use-module-permissions';
 import { useReglasTarifaController } from './hooks/useReglasTarifaController';
 import { RulesSection } from './parts/RulesSection';
 import { TabNavigation } from './parts/TabNavigation';
+import { tabPanelProps } from '../../components/base/tabPanelProps';
 
 export default function ReglasTarifaPage() {
   const { appUser } = useAuth();
@@ -31,6 +32,7 @@ export default function ReglasTarifaPage() {
     organizationId,
     countryId,
     userName,
+    canEdit,
     canDelete,
   });
 
@@ -43,7 +45,7 @@ export default function ReglasTarifaPage() {
             title="¿Qué es esto?"
             steps={[
               'Reglas: definen cómo se calcula lo que se le cobra al transportista/cliente por una liquidación (base, por km, recargos, descuentos).',
-              'Probador Motor: corré un viaje de prueba con los datos de arriba y mirá el desglose completo antes de usarlo en una liquidación real.',
+              'Probador Motor: corre un viaje de prueba con los datos de arriba y mira el desglose completo antes de usarlo en una liquidación real.',
             ]}
           />
         </div>
@@ -75,6 +77,7 @@ export default function ReglasTarifaPage() {
             onNew={() => { controller.setSelectedRule(null); controller.setIsRuleModalOpen(true); }}
             onEdit={(r) => { controller.setSelectedRule(r); controller.setIsRuleModalOpen(true); }}
             onDelete={(r) => { controller.setRuleToDelete(r); controller.setRuleDeleteError(''); }}
+            onBulk={(action, rules) => void controller.startBulk(action, rules)}
           />
         );
       case 'tarifarios':
@@ -87,7 +90,7 @@ export default function ReglasTarifaPage() {
           </div>
         );
       case 'probador':
-        return <RuleTester organizationId={organizationId} />;
+        return <RuleTester organizationId={organizationId} initialCountryId={countryId} />;
       case 'bitacora':
         return <BitacoraTab />;
       default:
@@ -111,7 +114,7 @@ export default function ReglasTarifaPage() {
           <span>{controller.loadError}</span>
         </div>
       )}
-      {renderContent()}
+      <div {...tabPanelProps('reglas', controller.activeTab)}>{renderContent()}</div>
 
       <RuleModal
         isOpen={controller.isRuleModalOpen}
@@ -124,11 +127,21 @@ export default function ReglasTarifaPage() {
       />
 
       <DeleteConfirmModal
+        isOpen={!!controller.toDelete}
+        onClose={() => controller.setToDelete(null)}
+        onConfirm={controller.confirmBulkDelete}
+        title={controller.toDelete?.length === 1 ? 'Eliminar regla' : `Eliminar ${controller.toDelete?.length ?? 0} reglas`}
+        description={`¿Seguro que quieres eliminar ${controller.toDelete?.map((r) => `"${r.code}"`).join(', ')}? Esta acción no se puede deshacer.`}
+        errorMessage={controller.bulkError}
+        busy={controller.bulkBusy}
+      />
+
+      <DeleteConfirmModal
         isOpen={!!controller.ruleToDelete}
         onClose={() => controller.setRuleToDelete(null)}
         onConfirm={controller.handleDeleteRule}
         title="Eliminar regla"
-        description={`¿Seguro que querés eliminar la regla "${controller.ruleToDelete?.code}"? Esta acción no se puede deshacer.`}
+        description={`¿Seguro que quieres eliminar la regla "${controller.ruleToDelete?.code}"? Esta acción no se puede deshacer.`}
         errorMessage={controller.ruleDeleteError}
         busy={controller.deletingRule}
       />

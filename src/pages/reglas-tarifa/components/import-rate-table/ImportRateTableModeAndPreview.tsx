@@ -70,7 +70,7 @@ export default function ImportRateTableModeAndPreview({
         )}
 
         {duplicadas.length > 0 && (
-          <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-4 py-3 mb-3">
+          <div className="bg-red-50 border border-red-200 text-red-800 text-xs rounded-lg px-4 py-3 mb-3">
             <i className="ri-alert-line mr-1"></i>
             El archivo repite estas combinaciones:{' '}
             {duplicadas.slice(0, 5).map((k) => k.join(' | ')).join(' · ')}
@@ -132,6 +132,18 @@ export default function ImportRateTableModeAndPreview({
                 <li key={s.sourceRow}>Fila {s.sourceRow + 1} ({s.key.join(' | ')}): {s.reason}</li>
               ))}
               {parsed.skipped.length > 8 && <li>y {parsed.skipped.length - 8} más…</li>}
+            </ul>
+          </div>
+        )}
+
+        {(parsed.warnings?.length ?? 0) > 0 && (
+          <div className="mt-3 bg-sky-50 border border-sky-200 rounded-lg px-4 py-3">
+            <p className="text-xs font-medium text-sky-800 mb-1">Filas que se importan, pero conviene revisar</p>
+            <ul className="text-xs text-sky-700 space-y-0.5">
+              {parsed.warnings!.slice(0, 8).map((w) => (
+                <li key={w.sourceRow}>Fila {w.sourceRow + 1} ({w.key.join(' | ')}): {w.reason}</li>
+              ))}
+              {parsed.warnings!.length > 8 && <li>y {parsed.warnings!.length - 8} más…</li>}
             </ul>
           </div>
         )}

@@ -5,10 +5,11 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  deactivateParty, ensurePartyProfile, getProfileForCarrier,
-  listCarrierProfiles, reactivateParty,
+  carrierBaseForCarrier, deactivateParty, discardNewParty, ensurePartyProfile, getProfileForCarrier,
+  listCarrierProfiles, reactivateParty, resolveCarrierBase,
 } from '../partiesDataSource';
 import { db, ReadOnlyEntityError } from '../data';
+import { loadDatabase } from '../data/memory/store';
 
 beforeEach(() => { localStorage.clear(); });
 
@@ -82,5 +83,102 @@ describe('baja lógica y catálogo de solo lectura', () => {
 
   it('el transportista del catálogo no se edita desde el liquidador', async () => {
     await expect(db().update('carrier', 'CARRIER_VE_1', { name: 'Otro nombre' })).rejects.toThrow(ReadOnlyEntityError);
+  });
+});
+
+describe('discardNewParty (T3)', () => {
+  it('deshace un perfil recién creado y no toca uno que ya tiene configuración', async () => {
+    const [perfil] = await db().find('settlementParty', { where: [{ column: 'carrier_id', op: 'eq', value: 'CARRIER_CR_2' }] });
+    for (const t of ['partyVariable', 'pricingRule', 'rateTable', 'costStructure'] as const) {
+      for (const row of await db().find(t, { where: [{ column: 'party_id', op: 'eq', value: perfil.id }] })) {
+        await db().delete(t, row.id);
+      }
+    }
+    await db().delete('settlementParty', perfil.id);
+
+    const created = await ensurePartyProfile('CARRIER_CR_2');
+    expect(created.status === 'saved' && created.created).toBe(true);
+    if (created.status !== 'saved') return;
+    await discardNewParty(created.partyId);
+    expect(await getProfileForCarrier('CARRIER_CR_2')).toBeNull();
+
+    await discardNewParty('no-existe'); // nunca lanza
+  });
+});
+
+// Regresión del paso 2 de "forma de pago": la base del cálculo se hereda de
+// carriers.rate_type (sql/35) en vez del selector manual de Liquidaciones.
+describe('carrierBaseForCarrier (base de un tercero según el catálogo)', () => {
+  it('lee la forma de cobro del carrier de la semilla', async () => {
+    expect(await carrierBaseForCarrier('CARRIER_VE_1')).toMatchObject({ override: { method: 'FIXED' } });
+  });
+
+  it('un carrier inexistente → motivo, no rompe el cálculo', async () => {
+    expect(await carrierBaseForCarrier('NO_EXISTE')).toEqual({ issue: expect.any(String) });
+  });
+
+  it('mapea cada tipo calculable a su BaseOverride; TENDERING / vacío / desconocido bloquean', () => {
+    expect(resolveCarrierBase('PER_KM')).toEqual({ override: { method: 'PER_KM' } });
+    expect(resolveCarrierBase('PER_UNIT')).toEqual({ override: { method: 'PER_UNIT' } });
+    expect(resolveCarrierBase('FIXED')).toEqual({ override: { method: 'FIXED' } });
+    expect(resolveCarrierBase('VOLUME')).toEqual({ override: { method: 'VOLUME' } });
+    expect(resolveCarrierBase('TENDERING')).toEqual({ issue: expect.stringContaining('Tendering') });
+    expect(resolveCarrierBase('')).toEqual({ issue: expect.any(String) });
+    expect(resolveCarrierBase(null)).toEqual({ issue: expect.any(String) });
+    expect(resolveCarrierBase('BASURA')).toEqual({ issue: expect.stringContaining('BASURA') });
+  });
+
+  it('tarifa fija con monto lleva el monto; sin monto usa la regla; monto inválido bloquea', () => {
+    expect(resolveCarrierBase('FIXED', '150000')).toEqual({ override: { method: 'FIXED', amount: '150000' } });
+    expect(resolveCarrierBase('FIXED', 0)).toEqual({ override: { method: 'FIXED', amount: '0' } });
+    expect(resolveCarrierBase('FIXED', null)).toEqual({ override: { method: 'FIXED' } });
+    expect(resolveCarrierBase('FIXED', '')).toEqual({ override: { method: 'FIXED' } });
+    expect(resolveCarrierBase('FIXED', '-5')).toEqual({ issue: expect.any(String) });
+    expect(resolveCarrierBase('PER_KM', '150000')).toEqual({ override: { method: 'PER_KM' } });
+  });
+
+  it('tendering con monto adjudicado se liquida como tarifa fija con origen TENDER', () => {
+    expect(resolveCarrierBase('TENDERING', null, '98000')).toEqual({ override: { method: 'FIXED', amount: '98000', origin: 'TENDER' } });
+    expect(resolveCarrierBase('TENDERING', '5', 0)).toEqual({ override: { method: 'FIXED', amount: '0', origin: 'TENDER' } });
+  });
+
+  it('tendering sin adjudicación o con monto inválido bloquea con motivo', () => {
+    expect(resolveCarrierBase('TENDERING')).toEqual({ issue: expect.stringContaining('adjudicado') });
+    expect(resolveCarrierBase('TENDERING', null, '')).toEqual({ issue: expect.stringContaining('adjudicado') });
+    expect(resolveCarrierBase('TENDERING', null, '-1')).toEqual({ issue: expect.stringContaining('no es válido') });
+    expect(resolveCarrierBase('TENDERING', null, 'abc')).toEqual({ issue: expect.stringContaining('no es válido') });
+  });
+});
+
+describe('carrierBaseForCarrier con TENDERING (adjudicación por viaje)', () => {
+  function tenderingCarrier(): void {
+    const carrier = loadDatabase().carriers.find((c) => c.id === 'CARRIER_VE_1');
+    if (!carrier) throw new Error('la semilla no trae CARRIER_VE_1');
+    carrier.rate_type = 'TENDERING';
+  }
+  function award(carrierId: string, amount: string): void {
+    loadDatabase().tripTenderAwards.push({
+      id: 'tnd_test', country_id: 'VE', trip_id: 'TRIP_X', carrier_id: carrierId, amount,
+      awarded_at: null, actor: null, notes: null,
+    });
+  }
+
+  it('con adjudicación del mismo transportista usa el monto adjudicado', async () => {
+    tenderingCarrier();
+    award('CARRIER_VE_1', '98000');
+    expect(await carrierBaseForCarrier('CARRIER_VE_1', { tripId: 'TRIP_X' }))
+      .toMatchObject({ override: { method: 'FIXED', amount: '98000', origin: 'TENDER' } });
+  });
+
+  it('sin adjudicación del viaje bloquea con motivo', async () => {
+    tenderingCarrier();
+    expect(await carrierBaseForCarrier('CARRIER_VE_1', { tripId: 'TRIP_X' })).toEqual({ issue: expect.stringContaining('adjudicado') });
+    expect(await carrierBaseForCarrier('CARRIER_VE_1')).toEqual({ issue: expect.stringContaining('adjudicado') });
+  });
+
+  it('una adjudicación de otro transportista no vale', async () => {
+    tenderingCarrier();
+    award('CARRIER_VE_2', '98000');
+    expect(await carrierBaseForCarrier('CARRIER_VE_1', { tripId: 'TRIP_X' })).toEqual({ issue: expect.stringContaining('otro transportista') });
   });
 });

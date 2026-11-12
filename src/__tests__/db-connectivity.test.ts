@@ -23,7 +23,7 @@ try {
   // pueden venir igual del entorno del shell; si no, dbAvailable quedará en false.
 }
 
-// Todas las tablas que el frontend referencia hoy vía `supabase.from('<tabla>')`
+// Todas las tablas que el frontend referencia hoy vía `apiClient.from('<tabla>')`
 // (barrido exhaustivo de src/pages/**, ver docs/reference/analisis-sistema-tms.md §5.4).
 // Se listan agrupadas por módulo para que un fallo señale el módulo afectado.
 const TABLES_BY_MODULE: Record<string, string[]> = {
@@ -33,7 +33,6 @@ const TABLES_BY_MODULE: Record<string, string[]> = {
   clientes: ['customers', 'countries'],
   tiendas: ['stores', 'countries', 'app_users'],
   paises: ['countries', 'stores', 'app_users'],
-  pedidos: ['orders'],
   zonas: ['zones', 'countries'],
   licencias: ['driver_license_types', 'countries'],
   guias: ['dispatch_guides', 'routes', 'drivers', 'vehicles'],
@@ -64,6 +63,8 @@ const BACKEND_WHITELIST = new Set([
   // Fase 1 — Multi-country Foundation (docs/arquitectura-tms-oms/05-roadmap.md).
   'warehouses', 'final_customers', 'delivery_points', 'addresses', 'contacts',
   'driver_license_types', 'driver_licenses', 'user_scopes',
+  'branches', // sucursales EFLOW (sql/40)
+  'oms_logs', // bitácora del OMS (sql/49)
 ]);
 
 // Top-level await (soportado por vitest/ESM): la disponibilidad de Aurora se
@@ -124,7 +125,7 @@ describe.skipIf(!dbAvailable)('Catálogo de Zonas: tabla "zones"', () => {
   // `country_id` es NOT NULL. Este test invierte el anterior, que documentaba la
   // ausencia de la tabla (rotura §5.3 ya resuelta).
   it('existe y country_id es NOT NULL', async () => {
-    const { rows } = await pool.query("SELECT to_regclass('public.zones') AS reg");
+    const { rows } = await pool.query("SELECT to_regclass('public.tbl_zones') AS reg");
     expect(rows[0].reg).not.toBeNull();
 
     const { rows: cols } = await pool.query(

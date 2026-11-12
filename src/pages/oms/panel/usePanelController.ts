@@ -1,37 +1,43 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { omsApi } from '../api/omsApi';
-import type { Company, Country, OmsAlert, PriorityTier } from '../types';
+import { fetchBandeja } from '../bandeja/bandeja-api';
+import type { OmsMotorActividad, OmsPipeline, ProximaLiberacion } from '../types';
 
-// Controller del Panel OMS (FR4). Un solo load por compañía; estados loading/error.
-// El país sigue siendo el filtro de dato (FR4.4); la compañía es el selector visible
-// en el header, igual que en el Motor de Reglas.
+// Controller del Panel del OMS. Dashboard del MOTOR (ADR-013) con datos REALES:
+//  - embudo del día + "por liberar pronto" desde public.orders;
+//  - latido del motor (corridas + errores) desde oms_logs.
+// "En cola" = cantidad de pedidos en la BANDEJA (pedidos crudos aún sin priorizar,
+// los que salen a más de 3 días): se toma del MISMO endpoint que alimenta la vista
+// Bandeja (/v1/planificacion/bandeja) para que el número coincida 1:1 con ella.
+// Ya no hay alertas/distribución/overdue mock. Un solo load; expone recargar().
 export function usePanelController() {
-  const country: Country = 'CR';
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [company, setCompany] = useState<string>('');
-  const [kpis, setKpis] = useState<{ pendientes: number; vencidos: number; overridePct: number; sinRuta: number } | null>(null);
-  const [alerts, setAlerts] = useState<OmsAlert[]>([]);
-  const [distribution, setDistribution] = useState<{ tier: PriorityTier; count: number }[]>([]);
+  const [pipeline, setPipeline] = useState<OmsPipeline | null>(null);
+  const [proximas, setProximas] = useState<ProximaLiberacion[]>([]);
+  const [actividad, setActividad] = useState<OmsMotorActividad | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const cargar = useCallback(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    Promise.all([omsApi.getCompanies(), omsApi.getKpis(country), omsApi.getAlerts(country), omsApi.getTierDistribution(country)])
-      .then(([c, k, a, d]) => {
+    // La bandeja vive en el backend de Planificación: si falla, no tumba el panel —
+    // se deja el enCola que ya calculó getPanelResumen (fallback = null).
+    Promise.all([omsApi.getPanelResumen(), omsApi.getMotorActividad(), fetchBandeja().catch(() => null)])
+      .then(([resumen, act, bandeja]) => {
         if (cancelled) return;
-        setCompanies(c);
-        setCompany((prev) => prev || c[0]?.id || '');
-        setKpis(k);
-        setAlerts(a);
-        setDistribution(d);
+        setPipeline(bandeja == null ? resumen.pipeline : { ...resumen.pipeline, enCola: bandeja.length });
+        setProximas(resumen.proximas);
+        setActividad(act);
       })
-      .catch(() => { if (!cancelled) setError('No se pudieron cargar los datos del motor.'); })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'No se pudieron cargar los datos del motor.');
+      })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);
 
-  return { companies, company, setCompany, kpis, alerts, distribution, loading, error };
+  useEffect(() => cargar(), [cargar]);
+
+  return { pipeline, proximas, actividad, loading, error, recargar: cargar };
 }

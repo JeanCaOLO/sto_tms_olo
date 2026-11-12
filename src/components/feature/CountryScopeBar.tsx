@@ -9,6 +9,8 @@ import type { ActiveCountryState } from '../../hooks/useActiveCountry';
 type Props = Pick<ActiveCountryState, 'country' | 'problem' | 'selectedName' | 'loading'>;
 
 const MESSAGES: Record<NonNullable<ActiveCountryState['problem']>, (name: string | null) => string> = {
+  'load-failed': () =>
+    'No se pudo cargar la lista de países del tarifador. Revise que el backend de tarifas esté corriendo y vuelva a intentar (no es que el país no exista).',
   'none-selected': () =>
     'Elija un país en el selector de la parte superior. El tarifador liquida en la moneda y con el redondeo de cada país, por eso no mezcla países.',
   'not-available': (name) =>

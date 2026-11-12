@@ -14,12 +14,15 @@
 ## P2 — Administrador de Módulo
 
 - **Quién es**: superusuario del módulo OMS (no del TMS completo).
-- **Objetivo**: configurar el catálogo de reglas (activar/desactivar, peso/score,
-  parámetros) por compañía para el rollout por etapas.
-- **Contexto**: la lógica de las reglas vive en código (Lambda por compañía); él
-  solo parametriza, no crea reglas.
-- **Dolor**: necesita habilitar reglas progresivamente sin depender de un
-  despliegue por cada ajuste de parámetro.
+- **Objetivo**: **consultar el catálogo de reglas (solo lectura)** por scope —
+  ver qué reglas implementadas aplican y con qué scope. El set de reglas es **fijo
+  en código** (v4.4, 2026-11-05): ya **no** activa/desactiva reglas ni edita
+  peso/score/parámetros desde la UI.
+- **Contexto**: la lógica de las reglas vive en código (Lambdas compartidas por
+  función, resueltas por scope — C3-SUPERSEDE, no una Lambda por compañía); el
+  catálogo configurable quedó **descartado**, la vista es informativa.
+- **Dolor**: necesita visibilidad de qué reglas aplican por scope para el rollout
+  por etapas (la habilitación progresiva se fija por config/migración, no por UI).
 
 ## P3 — Jefe de Almacén
 
@@ -33,36 +36,53 @@
 
 - **Quién es**: heredero de las funciones que hoy hacen 3–4 personas de la Torre
   de Control.
-- **Objetivo**: monitorear el motor automatizado, ejercer el **override manual**
-  (única intervención humana sobre el cálculo) y decidir/aplicar simulaciones.
+- **Objetivo**: monitorear el motor automatizado, ejercer la **liberación manual**
+  de un pedido (única intervención humana: prioridad `0` + `GENE` + eFlow, v4.3; ya
+  **no** altera la prioridad a un número arbitrario, porque va atada a la fecha de
+  salida) y decidir/aplicar simulaciones.
 - **Contexto**: interviene solo en casos extraordinarios (camión accidentado,
   urgencia); confía progresivamente en la automatización.
 - **Dolor**: hoy prioriza a mano ~400–500 pedidos/día leyendo observaciones.
 
 ## P5 — Sistema / Motor OMS (actor no-humano)
 
-- **Quién es**: el motor de reglas del OMS que corre automáticamente (≥1 vez/día
-  y en horas de corte).
-- **Objetivo**: leer los pedidos de EFLOW, calcular la prioridad (T-1 + score) y
-  dejar los pedidos "alistados" cambiando `situación` a `GENERADA`.
-- **Invariantes que respeta**: **no escribe fechas**; transición
-  **DISP → GENERADA**; **prioridad numérica invertida con score ponderado**.
-- **Contexto**: una Lambda por compañía; escribe solo a nivel WMS/EFLOW; termina
-  en "alistado".
+- **Quién es**: el motor de reglas del OMS, **activado por Planificación** (D7:
+  lambda de activación asíncrona; ya no corre por cron/EventBridge).
+- **Objetivo**: leer los pedidos del lote desde **`public.orders`** (los que
+  Planificación procesó y dejó con viaje), calcular la prioridad (regla fecha
+  generalizada + score; EPA pre-asignada; cliente-retira por zona) y dejar los
+  pedidos "alistados": UPDATE a `orders` + escritura a **EFLOW real**
+  (`TPEXSI='GENE'` + `PRIORIDAD`).
+- **Invariantes que respeta**: **no escribe fechas**; **no escribe el número de
+  viaje**; situación **DISP → GENE** (estado permanece `DISP`); **prioridad
+  numérica invertida con score ponderado**.
+- **Contexto**: Lambdas compartidas por función, por scope (C3-SUPERSEDE, no una
+  Lambda por compañía); termina en "alistado". También corre el loop de backorder
+  (D13) de forma desacoplada.
 
 ## P6 — Sistema TMS / Planificación (actor externo)
 
-- **Quién es**: módulo hermano que consume los pedidos que el OMS dejó en
-  `GENERADA`.
-- **Objetivo**: crear/asignar el viaje automáticamente. **Fuera del alcance del
-  OMS**; aparece como actor externo en las historias de frontera.
+- **Quién es**: módulo hermano que, en el flujo invertido (D7), **procesa los
+  pedidos, les asigna el viaje y ACTIVA al OMS** (lambda de activación), y luego
+  **lee de `public.orders`** los pedidos ya priorizados para armar los viajes.
+- **Objetivo**: asignar el viaje y disparar al OMS. Escribe el `wms_trip_number`
+  (el OMS no lo escribe). **Fuera del alcance del OMS**; actor externo en las
+  historias de frontera (US0).
+
+## P7 — EPRAC (actor externo, módulo que pre-asigna la prioridad de EPA)
+
+- **Quién es**: módulo que entrega los pedidos de EPA y les **pre-asigna la
+  prioridad** (**1 o 2**; nunca 0; esos valores no cambian).
+- **Objetivo**: entregar al OMS los pedidos de EPA ya con su prioridad. El OMS
+  **no recalcula** para EPA (US-EPA); solo los libera con esa prioridad. **Fuera del alcance
+  del OMS**; actor externo.
 
 ## Sources
 
 - `aidlc/spaces/default/intents/260826-modulo-oms/inception/requirements-analysis/requirements.md`
   (Actores; FR2, FR4, FR8, FR13).
 - `aidlc/spaces/default/memory/project.md` (`## Decided`: roles, alcance del OMS,
-  override manual, viaje = Planificación).
+  liberación manual (v4.3), viaje = Planificación).
 - `documents/2026-08-26-reunion-oms-roles.md` (Adenda: los 4 roles).
 
 ## Assumptions & Open Questions

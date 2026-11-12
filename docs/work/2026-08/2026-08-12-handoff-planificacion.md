@@ -2,7 +2,7 @@
 
 > **⚠️ EVIDENCIA HISTÓRICA (2026-08-12), NO fuente de verdad actual.** Movido a `docs/work/` por
 > ser una bitácora de sesión. Varias afirmaciones ya no son vigentes: el backend NO es Supabase
-> (es **Express + AWS Aurora**, `supabase.ts` es un shim); el gestor de paquetes que funciona hoy
+> (es **Express + AWS Aurora**, `api-client.ts` es un shim); el gestor de paquetes que funciona hoy
 > es **npm** (no solo pnpm); el dev server puede levantar en otro puerto si 3000 está ocupado.
 > Para el estado real actual del sistema ver
 > [`../../reference/analisis-sistema-tms.md`](../../reference/analisis-sistema-tms.md) (2026-09-21).

@@ -29,7 +29,7 @@
 
 - `server/tms-relations.mjs` — whitelist + FK map con las tablas de Fase 1; `license_types` → `driver_license_types`.
 - `server/index.mjs` — monta `tmsContextRouter`.
-- `src/lib/supabase.ts` — `apiFetch` exportado (reuso por `useOperationalContext`).
+- `src/lib/api-client.ts` — `apiFetch` exportado (reuso por `useOperationalContext`).
 - `src/App.tsx` — envuelve el layout autenticado en `OperationalContextProvider`.
 - `src/components/feature/Header.tsx` — agrega `<ContextSelector />`.
 - `src/pages/conductores/components/DriverModal.tsx` — referencia a `driver_license_types` (era `license_types`, roto por el rename real).

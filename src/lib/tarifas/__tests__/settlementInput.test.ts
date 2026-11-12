@@ -203,7 +203,7 @@ describe('cambiar de perfil cambia el cálculo', () => {
   it('cada perfil trae sus propias reglas, tarifario y variables', async () => {
     await db().insert('pricingRule', {
       country_id: 'VE', scope: 'PARTY', party_id: 'CARRIER_VE_1',
-      code: 'BONO_PROPIO', name: 'Bono de la compañía', stage: 'SURCHARGE', priority: 50,
+      code: 'BONO_PROPIO', name: 'Bono de la compañía', stage: 'VARIABLE', priority: 50,
       stacking: 'SUM', exclusion_group: null,
       conditions: { p: 'ALWAYS' }, expression: { op: 'FIXED', amount: '77.00' },
       is_adhoc: false, active: true, version: 1,
@@ -228,7 +228,7 @@ describe('variables personalizadas y estructura de costos llegan al motor', () =
     });
     await db().insert('pricingRule', {
       country_id: 'VE', scope: 'PARTY', party_id: 'CARRIER_VE_1',
-      code: 'BONO', name: 'Bono de zona', stage: 'SURCHARGE', priority: 50, stacking: 'SUM',
+      code: 'BONO', name: 'Bono de zona', stage: 'VARIABLE', priority: 50, stacking: 'SUM',
       exclusion_group: null, conditions: { p: 'ALWAYS' },
       expression: { op: 'PER_UNIT', unit: 'custom:bono_zona', rate: '2' },
       is_adhoc: false, active: true, version: 1,

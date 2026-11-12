@@ -181,6 +181,25 @@ la pantalla de planificación; su interfaz es el futuro módulo de ejecución/tr
 - **OMS**: sistema satélite upstream que calcula cuándo debe alistarse cada pedido y con
   qué prioridad, antes de que llegue al lago de datos del TMS que Planificación consulta
   (ver `documents/OC26007 - Documento de Requerimientos - Módulo OMS - Iteración 2.pdf`).
+- **Tope de 16 pedidos por viaje**: límite operativo de pedidos que acepta un viaje, además
+  de los márgenes de peso/volumen; al superarlo (o al llegar a ~80 % de capacidad) se abre
+  otro viaje. Acordado en la reunión 2026-10-13 (Ana/Eduardo); reemplaza el techo anterior
+  de ≤25/≤50 paradas que suponía la escala del prototipo.
+- **lead_time_days (días de tránsito)**: días de viaje estimados de la parada más lejana al
+  depósito, por distancia haversine al depósito CR (9.9281, −84.0907): `1 + floor(km_max/70)`.
+  Sin coordenadas en el viaje → queda sin valor (NULL).
+- **dispatch_date (fecha de despacho/salida)**: fecha en que el viaje debe salir del
+  almacén para entregar a tiempo: `delivery_date − lead_time_days`. Es la misma para todo
+  el viaje y se recalcula en cada re-planificación. Es el insumo con el que el OMS decide
+  cuándo alistar (regla T-1), no una "fecha de alisto" que Planificación escriba por su
+  cuenta.
+- **planning_run_id**: identificador (uuid) de una corrida de planificación por
+  cliente-día; cambia en cada re-planificación. El OMS lo usa para saber qué pedidos ya
+  fueron planificados y aún no procesa (cola `planning_run_id IS NOT NULL AND
+  oms_processed_at IS NULL`).
+- **numero_viaje**: identificador del viaje que arma Planificación (`<AAAAMMDD>-<secuencia>`),
+  estampado en el pedido y escrito de vuelta al WMS/eFlow (hoy de forma **simulada** en la
+  tabla espejo de Aurora, nunca contra el eFlow real, que es de solo lectura).
 
 ## Requerimientos funcionales
 
@@ -232,14 +251,21 @@ caben en el vehículo seleccionado, para no exceder su capacidad legal ni operat
   resto.
 - FR2.4 Los pedidos excluidos por capacidad se listan como tales y quedan disponibles para
   re-incluirse manualmente o reasignarse a otro viaje/vehículo.
+- FR2.5 Además de los márgenes de peso/volumen, un viaje no acepta más de **16 pedidos**
+  (tope operativo, reunión 2026-10-13 Ana/Eduardo): al superarlo, el pedido cae al siguiente
+  viaje/vehículo aunque quepa por carga. Es un límite sobre el bin-packing, no un cambio del
+  algoritmo FFD.
 
 Acceptance (BDD):
 - Dado un vehículo con 1500 kg de capacidad y pedidos que suman 1985 kg, When se optimiza
   la ruta, Then el sistema excluye el/los pedido(s) necesario(s) para quedar bajo 1275 kg
   (85 %) y lo comunica visualmente.
+- Dado un viaje con 17 pedidos que caben por peso y volumen, When se arma el viaje, Then el
+  pedido nº 17 queda fuera del viaje (se abre otro), aunque hubiera capacidad de carga.
 
-*Estado: Implementado.* Fuente: `capacity-fit.ts`; ADR-0001 (margen 85 %/95 %); verificado
-en `e2e/planificacion-flujo.spec.ts` (exclusión real de 1 de 5 pedidos por capacidad).
+*Estado: Implementado.* Fuente: `capacity-fit.ts` y `backend/planning/src/plan_builder.py`
+(`MAX_PARADAS = 16`); ADR-0001 (margen 85 %/95 %); verificado en
+`e2e/planificacion-flujo.spec.ts` (exclusión real de 1 de 5 pedidos por capacidad).
 
 ### FR3 — Pedidos anclados
 
@@ -338,6 +364,11 @@ roto, ver `MOCKING.md`) y toda escritura sin sesión real falla por RLS
 backend funcionando. Fuente: `generar-ruta-mock.ts`, `generar-ruta-api.ts`,
 `use-generar-ruta.ts`; verificado end-to-end únicamente en modo mock
 (`e2e/planificacion-flujo.spec.ts` escribe a `localStorage`, nunca a Supabase).
+**Nota (2026-10-20):** existe además un camino de persistencia real y distinto del de
+React/Supabase — el planificador de backend `backend/planning/src/plan_builder.py` (Python)
+que lee de Aurora `orders` y persiste el plan (`route_plans`→`plan_trips`→`plan_stops`),
+estampando el pedido para el OMS (ver FR17/FR18). Es el que corre contra datos reales; el
+camino Supabase de este FR es del prototipo.
 
 ### FR8 — Generación de rutas en batch (flota) *(léase "secuencias de paradas" — ver nota de terminología)*
 
@@ -519,6 +550,56 @@ el escenario de recolección al pie de camión (FR16.4 específicamente — FR16
 independientes de esa definición y podrían diseñarse antes). Fuente: página de Notion de
 la Reunión 2026-08-24 (link arriba, bajo "TMS OLO — Documentación del Proyecto") y
 transcripción de reunión Ana↔Jesús, 2026-08-31.
+
+### FR17 — Handoff al OMS: estampado del pedido al persistir el plan
+
+Como **sistema**, quiero que al persistir un plan cada pedido quede marcado con su viaje y
+su fecha de despacho, para que el OMS sepa qué alistar y cuándo sin que Planificación
+escriba su prioridad.
+
+- FR17.1 Al persistir/confirmar un plan, por cada pedido que quedó en él, Planificación
+  estampa en el pedido: `numero_viaje`, `lead_time_days`, `dispatch_date`, `planning_run_id`
+  y `delivery_zone`.
+- FR17.2 `dispatch_date = delivery_date − lead_time_days` (misma fecha para todo el viaje),
+  resuelta en SQL; si no hay `lead_time_days` (viaje sin coordenadas), queda NULL.
+- FR17.3 Planificación **no** escribe las columnas del OMS (`priority`, `oms_score`,
+  `wms_situation/status`, `oms_processed_at`, `prioritization_run_id`): esas son del OMS. El
+  límite entre ambos módulos es el contrato de estas columnas (comunicación entre módulos,
+  no acoplamiento de código).
+- FR17.4 La cola que consume el OMS es "planificado y no procesado":
+  `planning_run_id IS NOT NULL AND oms_processed_at IS NULL`.
+
+Acceptance (BDD):
+- Dado un plan con un viaje cuya entrega es el día D y `lead_time_days = 2`, When se
+  persiste el plan, Then cada pedido del viaje queda con `dispatch_date = D − 2 días`,
+  `numero_viaje`, `planning_run_id` y `delivery_zone`, y sin tocar sus columnas del OMS.
+
+*Estado: Implementado en el backend real (Aurora), fuera del camino React/Supabase de
+FR7.* Fuente: `backend/planning/src/plan_builder.py` (estampado de `orders`); contrato
+Planif→OMS en `sql/37_planif_oms_contract.sql` y `sql/42_orders_dispatch_date.sql`; portado
+al planificador hexagonal del backend (`TMS-Backend`, `sql/008`/`sql/009`), verificado
+contra Aurora (277 pedidos estampados correctamente).
+
+### FR18 — Limpieza al re-planificar (pedidos que se caen del plan)
+
+Como **sistema**, quiero que un pedido que deja de estar en el plan del día quede sin marca
+de planificación, para que la cola del OMS lo excluya sola sin dejar un sello viejo.
+
+- FR18.1 Al re-planificar un día (organización + almacén + cliente + `delivery_date`), los
+  pedidos que ya **no** quedaron en el plan (dejaron de estar disponibles o cambiaron de
+  día) quedan con `planning_run_id`, `numero_viaje` y `dispatch_date` en NULL.
+- FR18.2 Los pedidos que siguen en el plan se re-estampan normalmente (FR17) con el
+  `planning_run_id` de la nueva corrida.
+
+Acceptance (BDD):
+- Dado un pedido planificado que en la siguiente corrida sale del plan, When se re-planifica
+  su día, Then el pedido queda con `planning_run_id`/`numero_viaje`/`dispatch_date` en NULL y
+  deja de aparecer en la cola del OMS.
+
+*Estado: Implementado y verificado contra Aurora* (un pedido sacado del plan quedó en NULL;
+al restaurarlo, se re-estampó). Fuente: `backend/planning/src/plan_builder.py`
+(`_borrar_plan_del_dia`); portado al planificador hexagonal del backend. Atiende la "Alerta
+2" que levantó el OMS.
 
 ## Requerimientos no funcionales
 

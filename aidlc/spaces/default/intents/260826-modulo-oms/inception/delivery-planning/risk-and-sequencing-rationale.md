@@ -1,73 +1,59 @@
-# Racional de riesgo y secuenciación — Módulo OMS (rebanada delgada)
+# Racional de riesgo y secuenciación — Módulo OMS (v4)
 
-> Intent: `260826-modulo-oms`. Etapa: Delivery Planning (2026-10-01). Explica el
-> **porqué** del orden de los Bolts. Consume: unit-of-work-dependency.md (DAG),
-> bolt-plan.md.
+> Intent: `260826-modulo-oms`. Etapa: Delivery Planning (re-corrida v4, 2026-10-16).
+> Explica el porqué del orden de los Bolts. Consume: unit-of-work-dependency.md
+> (DAG U2→U1), bolt-plan.md, contract-summary.md.
 
-## Heurística aplicada: walking-skeleton-first (Cockburn)
+## Heurística: walking-skeleton-first + bloqueo por integración
 
-No se aplicó un modelo de puntaje formal. **WSJF** (Weighted Shortest Job First,
-Reinertsen/SAFe: `(valor + urgencia + reducción de riesgo) ÷ tamaño`) sirve para
-re-ordenar un backlog con varias piezas que compiten por ir primero. Aquí no hay
-nada que re-ordenar: la rebanada tiene **una sola unidad desplegable** (U1) más su
-spec de datos (U2), y el usuario ya fijó la secuencia de negocio — el esqueleto de
-U1 va primero. La heurística de ordenamiento es, por tanto, **walking skeleton
-primero** (Cockburn): un slice de punta a punta que prueba que la arquitectura se
-sostiene, antes de refinar cualquier regla.
+No se aplicó WSJF formal: con 2 unidades y una de ellas bloqueada por
+integraciones abiertas, no hay backlog que puntuar y re-ordenar. El orden es:
+**Bolt 1 = U1 (walking skeleton) primero; Bolt 2 = U2 bloqueado hasta resolver sus
+OQ.**
 
 ## Respeto del DAG
 
-El DAG de Units Generation es `U1 → U2` (una arista): U1 depende de U2 porque la
-escritura 1 del handoff persiste en la tabla cuyo esquema define U2. El Bolt único
-construye ambas en el orden correcto (U2 se materializa antes de que U1 ejerza su
-escritura 1), así que **no hay desviación del orden topológico** que justificar.
+El DAG es `U2 → U1` (U2 reutiliza el borde de escritura de U1). Construir U1 primero
+y U2 después respeta la arista sin desviación. Además U2 está bloqueado por
+integración, lo que refuerza el orden.
 
 ## Riesgos y cómo los ataca el orden
 
-1. **Contrato de escritura del handoff (riesgo principal)**: `HandoffPedidosOMS`
-   hace dos escrituras (tabla propia del OMS + WMS) **sin 2PC**. El riesgo es
-   consistencia parcial (una escritura ocurre, la otra no) y duplicados en
-   reintento. Mitigación en Bolt 1: orden fijo (tabla del OMS primero, WMS
-   después), **idempotencia por PK** (IDALMACEN, IDCOMPANIA, IDSUCURSAL,
-   IDEXPEDICION), reintento, y un campo `estadoHandoff` ("disparo pendiente") para
-   el caso de fallo parcial. La escritura de `PRIORIDAD` al WMS queda tras un
-   **flag/config parametrizable** con `TODO` visible (está por confirmar si va solo
-   a la tabla del OMS, solo al WMS, o a ambos). Al ser el walking skeleton quien lo
-   resuelve, el punto más incierto se construye y prueba primero.
-   `ponytail:` el "sin 2PC + reintento idempotente" es una simplificación
-   deliberada con techo conocido — bajo fallo entre escritura 1 y 2, un barrido de
-   `estadoHandoff='disparo pendiente'` reconcilia; no hay garantía transaccional
-   distribuida. Upgrade path: outbox/transactional si el volumen lo exige.
+1. **Flujo invertido correcto (riesgo principal del rediseño)**: la inversión (D7)
+   cambió quién dispara y de dónde lee el OMS. Bolt 1 (walking skeleton) valida de
+   punta a punta el contrato **C1** (señal + pull por columna `oms_processed_at`,
+   barrido como red de seguridad, batching por compañía) y **C2** (dos escrituras:
+   `orders` + EFLOW, sin número de viaje, idempotencia por llave + columna). Al ser
+   el primer Bolt, el punto más incierto se construye y prueba primero.
+   `ponytail:` dos escrituras sin 2PC — techo = orden + reintento idempotente;
+   upgrade = outbox/reconciliación.
+2. **Idempotencia del pull por columna**: `oms_processed_at` es la red de seguridad
+   ante señal perdida/duplicada. Bolt 1 prueba que re-correr (señal duplicada o
+   barrido) no re-prioriza.
+3. **EPA cortocircuita el score (D9)**: Bolt 1 prueba que EPA no pasa por
+   fecha/score (prioridad pre-asignada por EPRAC), un camino distinto al de
+   Cofersa/mayoreo.
+4. **Duración por `lead_time_days` (D10)**: Bolt 1 cubre Cofersa (=1) y el mecanismo
+   de lectura por columna; el cálculo dinámico de VE es futuro (no bloquea).
+5. **Backorder bloqueado (D13)**: U2 depende de OQ-BO1/BO2/BO3 (integraciones no
+   resueltas). Construirlo ahora sería sobre supuestos; por eso se **bloquea** hasta
+   la próxima reunión en vez de adivinar el contrato.
 
-2. **Dependencia de la réplica de `EFLOW_OLO` (OQ-2, no existe aún)**: en vez de
-   bloquear, Bolt 1 lee contra un **mock**; el adaptador `ColaCandidatos` aísla la
-   lectura, así que cambiar al origen real luego no toca el motor. Deuda explícita
-   con `TODO` visible.
+## Por qué U2 no entra ahora
 
-3. **Integración con Amazon Bedrock (a construir)**: `AnalizadorObservaciones` usa
-   un **clasificador stub** determinístico en Bolt 1; la clasificación real por IA
-   se incorpora después sin re-arquitectura. Deuda explícita con `TODO` visible.
-
-4. **Arquitectura del motor propio (C2-RESUELTO)**: construir el motor desde cero
-   (sin AST compartido con el TMS) es la decisión de diseño de mayor impacto. El
-   walking skeleton la valida como construible antes de invertir en lo demás.
-
-## Por qué un solo Bolt y no dos
-
-Separar U2 (esquema) en su propio Bolt previo añadiría un gate y una pasada de
-Construcción para un `spec` de tamaño S que de todos modos es prerequisito
-inmediato de la escritura 1 de U1. Agruparlas en un Bolt entrega el esqueleto
-completo y ejecutable de una vez, que es exactamente lo que prueba la hipótesis de
-confianza. Menos ceremonia, mismo resultado verificable.
+Construir el backorder sin saber de dónde lee las acciones omitidas (OQ-BO1), qué
+fuente de inventario consulta (OQ-BO2) ni cuál es su disparador (OQ-BO3) produciría
+código sobre supuestos que la próxima reunión puede invalidar. Se registra como
+Bolt 2 bloqueado para no perderlo, pero no se construye.
 
 ## Sources
 
-- `aidlc/spaces/default/intents/260826-modulo-oms/inception/units-generation/unit-of-work-dependency.md` (DAG `U1 → U2`).
+- `aidlc/spaces/default/intents/260826-modulo-oms/inception/units-generation/unit-of-work-dependency.md` (DAG U2→U1).
 - `aidlc/spaces/default/intents/260826-modulo-oms/inception/delivery-planning/bolt-plan.md`.
-- `aidlc/spaces/default/intents/260826-modulo-oms/inception/domain-design/decisions.md` (ADR-001..006, C2/C3).
+- `aidlc/spaces/default/intents/260826-modulo-oms/inception/contract-design/contract-summary.md` (C1, C2).
+- `aidlc/spaces/default/intents/260826-modulo-oms/inception/domain-design/decisions.md` (ADR-007..012).
 
 ## Assumptions & Open Questions
 
-- La confirmación del destino de la escritura de `PRIORIDAD` (tabla del OMS / WMS /
-  ambos) se resuelve en code-generation vía el flag parametrizable; no bloquea el
-  esqueleto.
+- Bolt 2 permanece bloqueado hasta cerrar OQ-BO1/BO2/BO3; su contrato se formaliza
+  entonces.

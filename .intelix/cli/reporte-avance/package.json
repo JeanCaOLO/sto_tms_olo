@@ -1,0 +1,18 @@
+{
+  "name": "reporte-avance-intelix",
+  "version": "2.0.0",
+  "description": "CLI de reporte de avance (Markdown + HTML) generado desde el Índice de Progreso AI-DLC para proyectos INTELIX",
+  "scripts": {
+    "reporte": "node bin/generar-reporte.js",
+    "inicializar": "node bin/inicializar-avance.js",
+    "install-hook": "node bin/install-hook.js",
+    "test": "node test/reporte.test.js"
+  },
+  "dependencies": {
+    "readline-sync": "1.4.10"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "private": true
+}

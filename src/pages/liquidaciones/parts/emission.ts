@@ -37,7 +37,10 @@ export function buildEmissionInput(
     excludedSeqs: [...excludedSeqs],
     // Quién y cuándo lo cambió lo completa la capa de datos al guardar.
     baseChange: calculation.result.base
-      ? { ...calculation.result.base, changedBy: null, changedAt: '' }
+      ? {
+        ...calculation.result.base, changedBy: null, changedAt: '',
+        ...(calculation.contract ? { contractExpiry: calculation.contract.contractExpiry } : {}),
+      }
       : null,
     returns,
     orders: calculation.orders.length > 0 ? snapshotOrders(calculation.orders) : null,

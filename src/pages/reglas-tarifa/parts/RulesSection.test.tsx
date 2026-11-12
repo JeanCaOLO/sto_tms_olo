@@ -2,8 +2,8 @@
 //
 // La lista de reglas: una regla de compañía muestra el NOMBRE de la compañía (no su id interno).
 
-import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { RulesSection } from './RulesSection';
 import type { CarrierProfile } from '../../../lib/tarifas/parties';
@@ -26,7 +26,7 @@ describe('RulesSection', () => {
       <MemoryRouter>
         <RulesSection
           rules={rules} parties={parties} loading={false}
-          canCreate canEdit canDelete onNew={() => {}} onEdit={() => {}} onDelete={() => {}}
+          canCreate canEdit canDelete onNew={() => {}} onEdit={() => {}} onDelete={() => {}} onBulk={() => {}}
         />
       </MemoryRouter>,
     );
@@ -45,11 +45,43 @@ describe('RulesSection', () => {
       <MemoryRouter>
         <RulesSection
           rules={mixed} parties={parties} loading={false}
-          canCreate canEdit canDelete onNew={() => {}} onEdit={() => {}} onDelete={() => {}}
+          canCreate canEdit canDelete onNew={() => {}} onEdit={() => {}} onDelete={() => {}} onBulk={() => {}}
         />
       </MemoryRouter>,
     );
     expect(screen.getByText('Regla encendida')).toBeTruthy();
     expect(screen.queryByText('Regla apagada')).toBeNull();
+  });
+
+  const renderBulk = (flags: { canEdit: boolean; canDelete: boolean }, onBulk = vi.fn()) => {
+    render(
+      <MemoryRouter>
+        <RulesSection
+          rules={rules} parties={parties} loading={false}
+          canCreate {...flags} onNew={() => {}} onEdit={() => {}} onDelete={() => {}} onBulk={onBulk}
+        />
+      </MemoryRouter>,
+    );
+    return onBulk;
+  };
+
+  it('al marcar reglas aparecen Desactivar, Activar y Eliminar con las reglas elegidas', () => {
+    const onBulk = renderBulk({ canEdit: true, canDelete: true });
+    fireEvent.click(screen.getByLabelText('Marcar fila R1'));
+    fireEvent.click(screen.getByLabelText('Marcar fila R2'));
+    fireEvent.click(screen.getByText('Desactivar'));
+    expect(onBulk).toHaveBeenCalledWith('deactivate', [rules[0], rules[1]]);
+    fireEvent.click(screen.getByText('Eliminar'));
+    expect(onBulk).toHaveBeenLastCalledWith('delete', [rules[0], rules[1]]);
+  });
+
+  it('sin permiso de eliminar no se ofrece Eliminar; sin ninguno no hay casillas', () => {
+    renderBulk({ canEdit: true, canDelete: false });
+    fireEvent.click(screen.getByLabelText('Marcar fila R1'));
+    expect(screen.getByText('Activar')).toBeTruthy();
+    expect(screen.queryByText('Eliminar')).toBeNull();
+    cleanup();
+    renderBulk({ canEdit: false, canDelete: false });
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
   });
 });

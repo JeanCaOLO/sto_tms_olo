@@ -1,8 +1,10 @@
 // Emitir una liquidación nueva.
 
+import { autoAssignSettlement } from '../proformas/autoAssign';
+import { stampClaimOrigin } from '../proformas/claimOrigin';
 import { getTrip } from '../tripsDataSource';
 import { failed, isNumberCollision } from './errorHandling';
-import { attemptEmit, validateAndReload } from './emitLogic';
+import { attemptEmit } from './emitLogic';
 import { blockingIssues, validateSettlement } from './validation';
 import type { EmitSettlementResult, SettlementInput } from '../types';
 
@@ -26,10 +28,13 @@ export async function emitSettlement(input: SettlementInput): Promise<EmitSettle
     const trip = await getTrip(input.trip.id);
     if (!trip) return { status: 'blocked', issues: [{ code: 'BASE_NO_DISPONIBLE', message: 'El viaje ya no existe.' }] };
 
-    const problem = await validateAndReload(input);
-    if (problem) return problem;
-
-    return await attemptEmit(input, trip);
+    const result = await attemptEmit(input, trip);
+    // La proforma se genera sola: la liquidación entra a la abierta de su transportista (o abre una).
+    if (result.status === 'saved') {
+      await stampClaimOrigin(result.settlement.id, input.trip.id);
+      await autoAssignSettlement(result.settlement);
+    }
+    return result;
   } catch (error) {
     const isCollision = await isNumberCollision(error, input.trip.id);
     return failed(error, { isNumberCollision: isCollision });

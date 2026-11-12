@@ -2,7 +2,7 @@
 
 import Decimal from 'decimal.js';
 import type { BuiltinCostDriver, CalculateInput, CostStructureRow, VarBag } from '../types';
-import { toDecimal } from '../money';
+import { toDecimal, tryDecimal } from '../money';
 
 /**
  * Cuántas unidades le corresponden a una fila en ESTE viaje, según su driver.
@@ -20,11 +20,16 @@ export function unitsForDriver(
 ): Decimal {
   if (driver.startsWith('custom:')) {
     const raw = (vars as Record<string, unknown> | undefined)?.[driver];
-    if (raw === undefined || raw === null) {
+    if (raw === undefined || raw === null || raw === '') {
       warn?.(`La variable "${driver}" no tiene valor en este viaje: la fila de costo vale 0.`);
       return new Decimal(0);
     }
-    return toDecimal(raw as number | string);
+    const value = tryDecimal(raw);
+    if (value === null) {
+      warn?.(`La variable "${driver}" no tiene un valor numérico ("${String(raw)}"): la fila de costo vale 0.`);
+      return new Decimal(0);
+    }
+    return value;
   }
 
   const builtinDriver = driver as BuiltinCostDriver;

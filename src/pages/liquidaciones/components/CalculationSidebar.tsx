@@ -1,5 +1,6 @@
 // Right sidebar with breakdown and totals for settlement calculation.
 
+import { useState } from 'react';
 import CalcBreakdownPanel, { AllocationBlock } from '../../../components/tarifas/CalcBreakdownPanel';
 import { formatMoney } from '../../../lib/tarifas/format';
 import { ruleHref } from '../parts/emission';
@@ -30,6 +31,8 @@ export function CalculationSidebar({
   onToggleExcluded,
   currency,
 }: Props) {
+  // Siempre arranca apagado; no se persiste.
+  const [verMargen, setVerMargen] = useState(false);
   return (
     <div className={simple ? '' : 'lg:sticky lg:top-20'}>
       <div className="space-y-3">
@@ -40,6 +43,18 @@ export function CalculationSidebar({
             ¿Por qué este total?
             {pending && <i className="ri-loader-4-line animate-spin ml-2 text-slate-400" />}
           </h3>
+        )}
+
+        {!simple && (
+          <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer w-fit">
+            <input
+              type="checkbox"
+              checked={verMargen}
+              onChange={(e) => setVerMargen(e.target.checked)}
+              className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+            />
+            Ver margen y detalles
+          </label>
         )}
 
         {blocking.length > 0 && (
@@ -76,6 +91,7 @@ export function CalculationSidebar({
               hrefFor={ruleHref}
               total={totals.total}
               onToggleLine={onToggleExcluded}
+              fixedLevel={verMargen ? 'auditoria' : 'resumen'}
             />
             {totals.excludedCount > 0 && (
               <p className="text-xs text-amber-700">

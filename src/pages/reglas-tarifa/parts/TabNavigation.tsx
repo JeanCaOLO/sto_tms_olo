@@ -1,5 +1,6 @@
 import type { Tab } from '../hooks/useReglasTarifaController';
 import { useModulePermissions } from '../../../hooks/use-module-permissions';
+import TabBar from '../../../components/base/TabBar';
 
 interface TabNavigationProps {
   activeTab: Tab;
@@ -19,21 +20,16 @@ export function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
   const { canEdit } = useModulePermissions('tarifas.config');
   const visibles = TABS.filter((tab) => canEdit || !tab.soloEditores);
   return (
-    <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit overflow-x-auto">
-      {visibles.map((tab) => (
-        <button
-          key={tab.id}
-          onClick={() => onTabChange(tab.id)}
-          className={`px-4 py-2 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${
-            activeTab === tab.id
-              ? 'bg-white text-teal-700 shadow-sm'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          {tab.icon && <i className={`${tab.icon} mr-1`}></i>}
-          {tab.label}
-        </button>
-      ))}
-    </div>
+    <TabBar
+      tabs={visibles.map((tab) => ({ key: tab.id, label: tab.label, icon: tab.icon }))}
+      value={activeTab}
+      onChange={onTabChange}
+      ariaLabel="Secciones de reglas de tarifa"
+      idBase="reglas"
+      className="flex gap-1 bg-slate-100 rounded-lg p-1 w-fit overflow-x-auto"
+      tabClassName={(on) => `px-4 py-2 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${
+        on ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+      }`}
+    />
   );
 }

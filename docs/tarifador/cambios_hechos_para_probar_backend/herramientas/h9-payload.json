@@ -1,0 +1,1 @@
+[{"op":"insert","table":"tarifas_cost_structure_rows","values":{"code":"SALARIO","label":"Salario","driver":"PER_MONTH_PRORATED","amount":"1000","sign":"ADD","applies_when":null,"unit":null,"row_order":0,"active":true,"cost_group":null,"frequency":null,"frequency_qty":null,"unit_qty":null,"cost_per_km":null,"truck_type":null}}]

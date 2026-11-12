@@ -2,7 +2,7 @@
 // Crear/editar/borrar usuarios y roles pasa SIEMPRE por aquí: el backend lo
 // hace en una transacción y exige rol administrador. La API genérica
 // /api/data ya no permite escribir app_users, roles ni user_scopes.
-import { apiFetch } from '../../../lib/supabase';
+import { apiFetch } from '../../../lib/api-client';
 
 export type UserStatus = 'active' | 'inactive';
 
@@ -25,6 +25,12 @@ export interface AdminUser {
   email: string;
   role_id: string | null;
   role_name: string | null;
+  // Solo el rol Transportista: la empresa de la que ve las proformas.
+  carrier_id: string | null;
+  carrier_name: string | null;
+  // Solo el rol Cliente: la empresa (compañía) a nombre de la que solicita devoluciones.
+  customer_id: string | null;
+  customer_name: string | null;
   status: UserStatus;
   created_at: string;
   scopes: UserScope[];
@@ -42,6 +48,8 @@ export interface UserPayload {
   role_id: string;
   status: UserStatus;
   scopes: ScopeInput[];
+  carrier_id?: string | null;
+  customer_id?: string | null;
   email?: string;
   password?: string;
 }

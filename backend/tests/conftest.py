@@ -13,20 +13,29 @@ LAYER = BACKEND / "common-services" / "layers" / "tms_common"
 STACK_SOURCES = {
     "authorizer": BACKEND / "common-services" / "src" / "authorizer",
     "auth": BACKEND / "auth" / "src",
+    "auth-google": BACKEND / "auth" / "google",
     "data": BACKEND / "data" / "src",
     "context": BACKEND / "context" / "src",
     "eflow": BACKEND / "eflow" / "src",
+    "eflow-sim": BACKEND / "eflow-sim" / "src",
     "admin": BACKEND / "admin" / "src",
     "planning": BACKEND / "planning" / "src",
     "oms": BACKEND / "oms" / "src",
     "tarifas": BACKEND / "tarifas" / "src",
     "realtime": BACKEND / "realtime" / "src",
+    "documents": BACKEND / "documents" / "src",
+    "tracking": BACKEND / "tracking" / "src",
+    "alerts": BACKEND / "alerts" / "src",
+    "alerts-mailer": BACKEND / "alerts" / "mailer",
+    "tarifas-mail": BACKEND / "tarifas-mail" / "src",
 }
 STACK_MODULES = {"app", "table_modules", "admin_permissions", "admin_audit", "audit_maintenance", "relations", "schema", "select_parser", "select_query", "mutations",
-                 "scopes", "context_queries", "eflow_queries", "live_source", "mock_source",
-                 "admin_access", "admin_payload", "admin_sql", "admin_users", "admin_roles", "planning_sql", "delivery_points", "delivery_points_sql",
-                 "models", "score", "regla_fecha", "analizador_observaciones", "cola_candidatos", "handoff_pedidos", "motor_reglas",
-                 "tarifas_schema", "tarifas_sql", "tarifas_perms", "tarifas_db", "tarifas_metrics"}
+                 "scopes", "context_queries", "eflow_queries", "live_source", "mock_source", "sim_source",
+                 "admin_access", "admin_payload", "admin_sql", "admin_users", "admin_roles", "admin_returns", "admin_returns_sql", "admin_return_requests", "admin_return_requests_sql", "admin_return_request_access", "returns_gate", "planning_sql", "delivery_points", "delivery_points_sql",
+                 "models", "score", "regla_fecha", "analizador_observaciones", "cola_candidatos", "handoff_pedidos", "motor_reglas", "reglas_config",
+                 "tarifas_schema", "tarifas_sql", "tarifas_perms", "tarifas_db", "tarifas_metrics",
+                 "proformas_api", "proformas_flow", "http_util", "google_oauth", "gmail_send", "token_store",
+                 "contract_files", "tracking_logic", "tracking_sql", "expirations", "email_body", "mailer"}
 
 sys.path.insert(0, str(LAYER))
 

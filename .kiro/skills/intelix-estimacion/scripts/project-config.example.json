@@ -1,0 +1,16 @@
+{
+  "_descripcion": "Configuracion central del proyecto compartida por las skills de estimacion, seguimiento y task-tracker. Fuente unica de verdad para el nombre y el codigo del proyecto: NO hardcodear estos valores en los generadores. El codigo forma parte del nombre de los archivos (PLAN-ESTIMACION-<code>-v<N>.xlsx, SEGUIMIENTO-<code>-...).",
+
+  "code": "ABC12345",
+  "name": "ABC12345-nombre-del-proyecto",
+
+  "_leader_nota": "Opcional. Lider del proyecto para la metadata de los reportes.",
+  "leader": "Nombre del lider",
+
+  "_country_nota": "Codigo ISO del pais base. VE carga feriados nacionales automaticamente. Para otro pais, declarar holidays con fechas YYYY-MM-DD validadas por el proyecto.",
+  "country": "VE",
+  "holidays": [],
+
+  "_clasificacion_nota": "Obligatoria. Clasificacion confirmada en la ficha de solicitud; controla las HH fijas del Acta de Cierre.",
+  "clasificacion": "mayor"
+}

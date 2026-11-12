@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api-client';
 import Button from '@/components/base/Button';
 import Badge from '@/components/base/Badge';
 import Input from '@/components/base/Input';
@@ -56,7 +56,7 @@ export default function DocumentsList({ contract, organizationId, onClose }: Pro
 
   const fetchDocuments = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data, error } = await apiClient
       .from('contract_documents')
       .select('*')
       .eq('contract_id', contract.id)
@@ -68,7 +68,7 @@ export default function DocumentsList({ contract, organizationId, onClose }: Pro
   const handleAddDocument = async () => {
     if (!newDoc.name.trim()) return;
     setSaving(true);
-    const { error } = await supabase.from('contract_documents').insert({
+    const { error } = await apiClient.from('contract_documents').insert({
       contract_id: contract.id,
       organization_id: organizationId,
       name: newDoc.name.trim(),
@@ -88,7 +88,7 @@ export default function DocumentsList({ contract, organizationId, onClose }: Pro
 
   const handleDelete = async (id: string) => {
     setDeletingId(id);
-    await supabase.from('contract_documents').delete().eq('id', id);
+    await apiClient.from('contract_documents').delete().eq('id', id);
     setDocuments((prev) => prev.filter((d) => d.id !== id));
     setDeletingId(null);
   };

@@ -33,6 +33,8 @@ yarn-error.log*
 .env.local
 .env.*.local
 *.local
+.env.local.bak
+*.env.bak
 
 # Buffer local de traspaso de mensajes a Kiro (scratch de sesión, no es artefacto del proyecto)
 /mensajes para kiro.md
@@ -55,6 +57,7 @@ Thumbs.db
 /.mirror-github/
 
 
+# BEGIN AI-DLC:gitignore
 # AI-DLC — the committed-vs-ignored split (workspace layout, re-rooted under aidlc/).
 # Rule of thumb (vision §5.1): per-user session CURSORS and machine-local
 # runtime/derived state are ignored; everything that is the shared work —
@@ -102,6 +105,7 @@ aidlc/diagnostics/
 # concurrent appends — there is intentionally NO .gitattributes merge=union,
 # which was proven to corrupt the multi-line audit blocks) ·
 # aidlc/spaces/*/intents/*/<phase>/<stage>/*.md (artifacts + diary).
+# END AI-DLC:gitignore
 
 # Backend Python (SAM)
 backend/**/.aws-sam/
@@ -111,8 +115,25 @@ backend/.pytest_cache/
 # Enlaces que crea `orca skills install --local` con rutas absolutas de la máquina
 .claude/skills/orca-cli
 .claude/skills/orchestration
+# Skills de Intelix copiadas desde git.intelix.biz/grupomayoreo/template_base (templates/skills/)
+.claude/skills/intelix-*/
 
 # Artefactos de despliegue al sandbox (scripts/sandbox/)
 build/
 
+# Exports de EFLOW con datos personales de clientes (contactos, teléfonos, emails): no versionar.
+/CLIENTES_*.csv
+/SUCURSAL_*.csv
+
 .test
+
+# Data temporal de paso Kiro -> Claude (ingesta a BD; se borra tras cargar)
+.tmp-claude/
+
+# Respaldos locales de filas borradas/reconciliadas en pruebas (no commitear)
+backup-*.json
+
+graphify-out/
+.test/
+
+DocAna/

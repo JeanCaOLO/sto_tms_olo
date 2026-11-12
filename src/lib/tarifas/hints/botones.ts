@@ -4,7 +4,8 @@ import type { HintMap } from '../../../components/base/hintKey';
 
 export const BOTONES: HintMap = {
   'Liquidar': 'Abre el cálculo de este viaje para revisarlo y emitir su liquidación.',
-  'Emitir liquidación': 'Guarda la liquidación con su desglose congelado.',
+  'Emitir liquidación': 'Guarda la liquidación con el desglose congelado: no cambia aunque cambien las reglas.',
+  'Re-liquidar': 'Anula la liquidación vigente y emite una nueva con el cálculo actual. Pide un motivo.',
   'Descargar PDF': 'Abre la proforma completa para imprimir o guardar como PDF.',
   'Ver el desglose completo': 'Muestra el cálculo línea por línea.',
   'Ver menos': 'Pliega el detalle.',
@@ -33,5 +34,4 @@ export const BOTONES: HintMap = {
   'Ver qué se va a importar': 'Muestra la vista previa antes de guardar.',
   'Fijar como el total esperado': 'Guarda este resultado como el valor que debe dar el escenario.',
   'Volver a la automática': 'Quita el ajuste manual y usa de nuevo el cálculo automático.',
-  'Ver': 'Abre la regla en modo lectura.',
 };

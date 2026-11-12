@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api-client';
 
 // Mapa código de zona (zones.code, = orders.delivery_zone / ruta del WMS) → nombre
 // de zona. Planificación agrupa por el CÓDIGO (delivery_zone), pero para mostrar
@@ -9,7 +9,7 @@ export function useZonasNombre() {
   const [porCodigo, setPorCodigo] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    supabase
+    apiClient
       .from('zones')
       .select('code, name')
       .then(({ data }) => {
@@ -23,7 +23,9 @@ export function useZonasNombre() {
   }, []);
 
   // Nombre de la zona para un código; si no hay match, devuelve el código tal cual.
-  const nombreDe = (codigo: string): string => porCodigo[codigo] ?? codigo;
+  // 'RETIRA' es la zona especial de cliente-retira (sin camión), no un código real.
+  const nombreDe = (codigo: string): string =>
+    codigo === 'RETIRA' ? 'Cliente Retira' : (porCodigo[codigo] ?? codigo);
 
   return { nombreDe };
 }

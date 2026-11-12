@@ -29,7 +29,8 @@ function collect() {
   for (const root of ROOTS) {
     for (const file of sources(join(SRC, root))) {
       const code = readFileSync(file, 'utf-8');
-      for (const m of code.matchAll(/\blabel=["']([^"'{}]+)["']/g)) found.campo.add(m[1]!);
+      // `aria-label` no es el texto visible de un campo (es el nombre de un botón de ícono): no pide descripción.
+      for (const m of code.matchAll(/(?<!aria-)\blabel=["']([^"'{}]+)["']/g)) found.campo.add(m[1]!);
       for (const m of code.matchAll(/header:\s*['"]([^'"]+)['"]/g)) found.columna.add(m[1]!);
       for (const m of code.matchAll(/<h[2-4][^>]*>([^<{]+)<\/h[2-4]>/g)) found.seccion.add(m[1]!.trim());
       for (const m of code.matchAll(/<(?:Button|button)\b[^>]*>([^<>{}]*?)<\/(?:Button|button)>/g)) {

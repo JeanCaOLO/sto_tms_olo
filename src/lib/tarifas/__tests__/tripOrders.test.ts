@@ -6,7 +6,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { allocateTotal, allocationAddsUp } from '../allocation';
 import { calculateTrip } from '../tripSettlement';
-import { listPendingTrips, listTripOrders, setOrderMark } from '../tripsDataSource';
+import { listOrdersForTrips, listPendingTrips, listTripOrders, setOrderMark } from '../tripsDataSource';
 import { emitSettlement, getSettlement } from '../settlementsDataSource';
 import { cargoFromOrders, snapshotOrders, toTripOrder, tripProgress } from '../tripOrders';
 import { makeCountryVE } from './fixtures';
@@ -101,6 +101,16 @@ describe('con la capa de datos', () => {
   it('lista los pedidos del viaje, uno por guía', async () => {
     const orders = await listTripOrders(VIAJE);
     expect(orders.map((o) => o.orderNumber)).toEqual(['PED-1001', 'PED-1002', 'PED-1003']);
+  });
+
+  it('listOrdersForTrips agrupa por viaje, con marcas y un viaje sin pedidos vacío', async () => {
+    const trip = { id: VIAJE, countryId: 'VE' };
+    await setOrderMark({ trip, orderId: 'ORD_3', mark: 'DIFERIDO' });
+    const byTrip = await listOrdersForTrips([VIAJE, 'NO_EXISTE', VIAJE]);
+    expect([...byTrip.keys()]).toEqual([VIAJE, 'NO_EXISTE']);
+    expect(byTrip.get('NO_EXISTE')).toEqual([]);
+    expect(byTrip.get(VIAJE)).toEqual(await listTripOrders(VIAJE));
+    expect(byTrip.get(VIAJE)!.map((o) => o.mark)).toEqual([null, null, 'DIFERIDO']);
   });
 
   it('anular exige un motivo', async () => {

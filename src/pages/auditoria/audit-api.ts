@@ -1,7 +1,8 @@
 // Cliente de la bitácora de auditoría (backend/admin). Lectura por cursor +
 // registro de eventos del navegador. El registro es fire-and-forget: nunca
 // bloquea ni rompe la UI si falla.
-import { apiFetch } from '../../lib/supabase';
+import { apiFetch } from '../../lib/api-client';
+import { MOCK_AUTH_ENABLED } from '../../lib/mock-auth';
 
 export type AuditAction =
   | 'create' | 'update' | 'delete'
@@ -71,6 +72,7 @@ export async function getAuditEvent(id: string): Promise<AuditDetail> {
 // Registro de un evento del navegador. Fire-and-forget: se traga cualquier error
 // (incluye red caída) para no interferir con la acción del usuario.
 export function postAuditEvent(action: AuditAction, moduleKey: string, metadata?: Record<string, unknown>): void {
+  if (MOCK_AUTH_ENABLED) return; // sin backend en modo mock
   void apiFetch('/v1/audit/events', {
     method: 'POST',
     body: JSON.stringify({ action, module_key: moduleKey, metadata }),

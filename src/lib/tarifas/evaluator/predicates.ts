@@ -2,17 +2,10 @@
 
 import Decimal from 'decimal.js';
 import type { Pred, VarBag } from '../types';
+import { tryDecimal } from '../money';
 
 /** Decimal exacto del valor, o null si no es numérico (la comparación entonces es false, como con NaN). */
-function toDec(value: string | number | undefined | null): Decimal | null {
-  if (value === undefined || value === null || (typeof value === 'string' && value.trim() === '')) return null;
-  try {
-    const d = new Decimal(value);
-    return d.isFinite() ? d : null;
-  } catch {
-    return null;
-  }
-}
+const toDec = (value: string | number | undefined | null): Decimal | null => tryDecimal(value);
 
 function compare(a: string | number, b: string | number, test: (c: number) => boolean): boolean {
   const da = toDec(a);
@@ -21,7 +14,7 @@ function compare(a: string | number, b: string | number, test: (c: number) => bo
 }
 
 // Igualdad tolerante a tipo: 40 (number) === "40" (string) cuando ambos son numéricos.
-function looseEq(a: string | number, b: string | number): boolean {
+export function looseEq(a: string | number, b: string | number): boolean {
   if (typeof a === 'number' || typeof b === 'number') {
     const da = toDec(a);
     const db = toDec(b);

@@ -9,7 +9,7 @@ from tms_common.permissions import ADMIN_ROLES
 
 CALLER_SQL = """
 SELECT u.id, u.organization_id, COALESCE(u.is_active, true) AS is_active, r.name AS role_name
-FROM app_users u LEFT JOIN roles r ON r.id = u.role_id
+FROM tbl_app_users u LEFT JOIN tbl_roles r ON r.id = u.role_id
 WHERE u.auth_user_id = %s
 """
 

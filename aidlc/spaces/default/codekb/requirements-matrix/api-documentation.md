@@ -4,7 +4,7 @@
 
 | Servicio | Protocolo | Estado | Archivos |
 |----------|-----------|--------|----------|
-| Supabase (Postgres + Auth) | HTTPS (SDK) | Parcialmente activo | `catalogos-api.ts`, `pedidos-api.ts`, `generar-ruta-api.ts`, `src/lib/supabase.ts` |
+| Supabase (Postgres + Auth) | HTTPS (SDK) | Parcialmente activo | `catalogos-api.ts`, `pedidos-api.ts`, `generar-ruta-api.ts`, `src/lib/api-client.ts` |
 | OSRM — Distance Matrix | HTTP REST | Activo | `distance-matrix.ts`, `osrm-config.ts` |
 | OSRM — Route Geometry | HTTP REST | Activo | `route-geometry.ts`, `osrm-config.ts` |
 | Google Maps Distance Matrix | HTTP REST | Solo prototipo | `src/lib/routePlanning/google-distance-matrix.ts` |
@@ -16,7 +16,7 @@
 ## 1. Supabase (Base de Datos + Auth)
 
 ### Configuración
-- **Cliente**: `src/lib/supabase.ts` — singleton inicializado con `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`
+- **Cliente**: `src/lib/api-client.ts` — singleton inicializado con `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`
 - **SDK**: `@supabase/supabase-js` v2.57.4
 
 ### Operaciones de Lectura

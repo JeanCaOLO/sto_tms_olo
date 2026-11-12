@@ -1,6 +1,6 @@
 // Validación de transiciones de estado de liquidación.
 
-import { db } from '../data';
+import { db, type Row } from '../data';
 import type { SettlementStatus } from '../types';
 
 const ALLOWED_TRANSITIONS: Record<SettlementStatus, SettlementStatus[]> = {
@@ -14,7 +14,11 @@ const ALLOWED_TRANSITIONS: Record<SettlementStatus, SettlementStatus[]> = {
 export async function updateStatus(
   id: string,
   status: SettlementStatus,
-  options?: { marginReason?: string },
+  options?: {
+    marginReason?: string;
+    /** Fila de bitácora a escribir en la MISMA transacción que el cambio; recibe el estado anterior. */
+    audit?: (previous: SettlementStatus) => Row;
+  },
 ): Promise<{ error: string | null }> {
   try {
     const actual = await db().findOne('settlement', id);
@@ -34,10 +38,13 @@ export async function updateStatus(
       };
     }
 
-    await db().update('settlement', id, {
-      status,
-      ...(options?.marginReason ? { margin_reason: options.marginReason } : {}),
-      updated_at: new Date().toISOString(),
+    await db().transaction(async (tx) => {
+      await tx.update('settlement', id, {
+        status,
+        ...(options?.marginReason ? { margin_reason: options.marginReason } : {}),
+        updated_at: new Date().toISOString(),
+      });
+      if (options?.audit) await tx.insert('auditLog', options.audit(currentStatus));
     });
 
     return { error: null };

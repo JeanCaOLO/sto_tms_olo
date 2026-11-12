@@ -45,7 +45,7 @@ tmsContextRouter.get(
     const { clause, params } = scopeFilterCountries(scopes);
     const { rows } = await tmsQuery(
       `SELECT id, code, name, timezone, locale, unit_system, date_format
-       FROM countries WHERE true ${clause} ORDER BY name`,
+       FROM tbl_countries WHERE true ${clause} ORDER BY name`,
       params
     );
     res.json({ data: rows, error: null });
@@ -59,7 +59,7 @@ tmsContextRouter.get(
   wrap(async (req, res) => {
     const { rows } = await tmsQuery(
       `SELECT id, country_id, code, name, timezone, active
-       FROM warehouses WHERE country_id = $1 AND active = true ORDER BY name`,
+       FROM tbl_warehouses WHERE country_id = $1 AND active = true ORDER BY name`,
       [req.params.id]
     );
     res.json({ data: rows, error: null });
@@ -73,7 +73,7 @@ tmsContextRouter.get(
   wrap(async (req, res) => {
     const { rows } = await tmsQuery(
       `SELECT id, warehouse_id, code, name, status
-       FROM customers WHERE warehouse_id = $1 ORDER BY name`,
+       FROM tbl_customers WHERE warehouse_id = $1 ORDER BY name`,
       [req.params.id]
     );
     res.json({ data: rows, error: null });
@@ -87,7 +87,7 @@ tmsContextRouter.get(
   wrap(async (req, res) => {
     const { rows } = await tmsQuery(
       `SELECT id, customer_id, external_code, name, region, status
-       FROM final_customers WHERE customer_id = $1 ORDER BY name`,
+       FROM tbl_final_customers WHERE customer_id = $1 ORDER BY name`,
       [req.params.id]
     );
     res.json({ data: rows, error: null });
@@ -101,7 +101,7 @@ tmsContextRouter.get(
     // final_customers no tiene country/warehouse propio en la request; se
     // autoriza vía el customer_id al que pertenece.
     const { rows: fc } = await tmsQuery(
-      `SELECT customer_id FROM final_customers WHERE id = $1`,
+      `SELECT customer_id FROM tbl_final_customers WHERE id = $1`,
       [req.params.id]
     );
     if (!fc[0]) throw new HttpError(404, `Cliente final no encontrado: ${req.params.id}`);
@@ -117,8 +117,8 @@ tmsContextRouter.get(
       `SELECT dp.id, dp.final_customer_id, dp.external_code, dp.name, dp.delivery_instructions,
               dp.delivery_window_start, dp.delivery_window_end, dp.is_default, dp.active,
               a.line1, a.line2, a.city, a.state, a.latitude, a.longitude
-       FROM delivery_points dp
-       LEFT JOIN addresses a ON a.id = dp.address_id
+       FROM tbl_delivery_points dp
+       LEFT JOIN tbl_addresses a ON a.id = dp.address_id
        WHERE dp.final_customer_id = $1 AND dp.active = true
        ORDER BY dp.is_default DESC, dp.name`,
       [req.params.id]

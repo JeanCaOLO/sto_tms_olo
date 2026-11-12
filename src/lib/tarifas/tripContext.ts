@@ -55,6 +55,8 @@ export function toTripRecord(row: Row): TripRecord {
     deliveredGuides: row.delivered_guides === null || row.delivered_guides === undefined
       ? num(row.guide_count) : num(row.delivered_guides),
     returnCount: num(row.return_count),
+    novedadCount: num(row.novedad_count),
+    pickupCount: num(row.pickup_count),
     settlementId: text(row.settlement_id),
   };
 }
@@ -72,6 +74,11 @@ export function notLiquidableReason(trip: TripRecord): string | null {
   }
   if (trip.settlementId) {
     return `El viaje ${trip.routeNumber} ya tiene una liquidación vigente. Para recalcularlo, re-liquidalo.`;
+  }
+  const open = trip.openReturns ?? 0;
+  if (open > 0) {
+    return `No se puede liquidar el viaje ${trip.routeNumber} porque tiene ${open} ${open === 1 ? 'devolución' : 'devoluciones'} sin recibir. `
+      + 'Recíbelas en el módulo de Devoluciones y vuelve a intentarlo.';
   }
   if (!trip.carrierId) {
     return `El viaje ${trip.routeNumber} no tiene transportista asignado en guía de despacho.`;

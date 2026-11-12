@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useOperationalContext } from '../../hooks/useOperationalContext';
 import { fetchPedidosParaPlanificar } from './plan-pedidos-api';
-import { currentAccessToken } from '../../lib/supabase';
+import { currentAccessToken } from '../../lib/api-client';
 
 // Avisa si entraron pedidos NUEVOS para el día ya planificado (→ hay que
 // "Regenerar plan"). Esto es lo que pidió Jean/Palencia: una alerta en vivo.

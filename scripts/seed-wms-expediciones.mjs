@@ -112,14 +112,14 @@ async function main() {
     await client.query('BEGIN');
 
     const { rows: whRows } = await client.query(
-      `SELECT w.id, w.organization_id FROM warehouses w
-       JOIN countries c ON c.id = w.country_id WHERE c.code = 'CR' LIMIT 1`,
+      `SELECT w.id, w.organization_id FROM tbl_warehouses w
+       JOIN tbl_countries c ON c.id = w.country_id WHERE c.code = 'CR' LIMIT 1`,
     );
     if (!whRows[0]) throw new Error('No existe warehouse para CR - corré primero sql/06_fase1_multicountry_foundation.sql');
     const { id: warehouseId, organization_id: organizationId } = whRows[0];
 
-    const { rows: epaRows } = await client.query(`SELECT id FROM customers WHERE code = 'EPA' AND warehouse_id = $1`, [warehouseId]);
-    const { rows: cofersaRows } = await client.query(`SELECT id FROM customers WHERE code = 'COFERSA' AND warehouse_id = $1`, [warehouseId]);
+    const { rows: epaRows } = await client.query(`SELECT id FROM tbl_customers WHERE code = 'EPA' AND warehouse_id = $1`, [warehouseId]);
+    const { rows: cofersaRows } = await client.query(`SELECT id FROM tbl_customers WHERE code = 'COFERSA' AND warehouse_id = $1`, [warehouseId]);
     if (!epaRows[0] || !cofersaRows[0]) throw new Error('No se encontró EPA/COFERSA bajo el warehouse de CR.');
     const epaId = epaRows[0].id;
     const cofersaId = cofersaRows[0].id;
@@ -128,7 +128,7 @@ async function main() {
     const finalCustomerIdByCode = new Map(); // 'EPA:T002' / 'COFERSA:020205008' -> id
     const upsertFinalCustomer = async (customerId, prefix, code, name) => {
       const { rows } = await client.query(
-        `INSERT INTO final_customers (customer_id, external_code, name, status)
+        `INSERT INTO tbl_final_customers (customer_id, external_code, name, status)
          VALUES ($1, $2, $3, 'active')
          ON CONFLICT (customer_id, external_code) DO UPDATE SET name = EXCLUDED.name
          RETURNING id`,
@@ -151,7 +151,7 @@ async function main() {
         : COFERSA_CLIENTS.find((c) => c.code === clienteCode)?.name ?? clienteCode;
 
       const { rowCount } = await client.query(
-        `INSERT INTO wms_expediciones (
+        `INSERT INTO tbl_wms_expediciones (
            organization_id, warehouse_id, id_compania, id_sucursal, expedicion, tipo_expedicion,
            estado, situacion, avance_pct, ruta, cliente_code, nombre_cliente, final_customer_id,
            cant_lineas, muelle_asignado

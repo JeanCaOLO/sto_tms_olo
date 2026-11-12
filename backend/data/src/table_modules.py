@@ -21,11 +21,14 @@ TABLE_MODULES: dict[str, str] = {
     "vehicles": "vehiculos", "vehicle_types": "vehiculos",
     "drivers": "conductores", "driver_licenses": "conductores",
     "driver_license_types": "licencias",
-    "customers": "clientes", "final_customers": "clientes",
+    "customers": "clientes", "final_customers": "clientes", "branches": "clientes",
     "delivery_points": "puntos_entrega", "addresses": "puntos_entrega", "contacts": "puntos_entrega",
     "stores": "puntos_entrega",
     "contracts": "contratos", "contract_documents": "contratos",
     "organizations": "configuracion", "warehouses": "configuracion",
+    # Bitácora del OMS (sql/49): la lee/limpia la vista de Auditoría del OMS.
+    # Dueña = oms.auditoria → leer exige `view`; limpiar (DELETE) exige `delete`.
+    "oms_logs": "oms.auditoria",
 }
 
 
@@ -48,7 +51,8 @@ READ_MODULES: dict[str, tuple[str, ...]] = {
     "driver_license_types": ("conductores", "licencias"),
     "vehicles": ("tarifas", "transportistas", "vehiculos"),
     "dispatch_guides": ("dashboard", "guias", "tarifas", "tracking"),
-    "orders": ("dashboard", "devoluciones", "guias", "pedidos", "reportes"),
+    # La Cola del OMS lee los pedidos de orders (paso 5 del plan de pedidos EFLOW, antes wms_expediciones).
+    "orders": ("dashboard", "devoluciones", "guias", "pedidos", "reportes", *OMS_MODULES),
     "returns": ("dashboard", "devoluciones", "tarifas", "reportes"),
     "routes": ("dashboard", "guias", "tarifas", "reportes", "tracking"),
     "stores": ("tarifas", "paises", "puntos_entrega"),

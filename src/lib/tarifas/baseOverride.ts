@@ -2,27 +2,15 @@
 // evita que otra fase cobre lo mismo dos veces. Lógica pura, como el resto del kernel.
 
 import Decimal from 'decimal.js';
-import { evaluatePred, RuleShapeError } from './evaluator';
 import { roundToMoney, toDecimal } from './money';
+import { compareRules } from './resolver/evaluation';
 import {
-  BASE_METHODS, NO_DATA, baseRulesOf, classifyExpr, describeBaseMethods, sourceOfRule, structureCostPerKm,
-  type ExprKind,
+  BASE_METHODS, NO_DATA, baseRulesOf, classifyExpr, describeBaseMethods, structureCostPerKm,
+  type BaseMethodOption, type ExprKind,
 } from './baseMethods';
 import type {
   BaseInfo, BaseMethodId, BaseOverride, BaseSource, CalcIssue, CalculateInput, DiscardedRule, Rule, TraceLine, VarBag,
 } from './types';
-
-const STAGES: readonly string[] = ['BASE', 'VARIABLE', 'MODIFIER', 'SURCHARGE', 'ADJUSTMENT', 'TAX'];
-
-/** Mismo orden que el resolver: etapa, prioridad, alcance (la de compañía primero) y código. */
-function compareRulesForBase(a: Rule, b: Rule): number {
-  const byStage = STAGES.indexOf(a.stage) - STAGES.indexOf(b.stage);
-  if (byStage !== 0) return byStage;
-  if (a.priority !== b.priority) return a.priority - b.priority;
-  const rank = (r: Rule) => ((r.scope ?? 'COUNTRY') === 'PARTY' ? 0 : 1);
-  if (rank(a) !== rank(b)) return rank(a) - rank(b);
-  return a.code.localeCompare(b.code);
-}
 
 /**
  * Reglas BASE que quedan al elegir un tipo de cobro: todas las que se suman o compiten por MAX y,
@@ -31,8 +19,22 @@ function compareRulesForBase(a: Rule, b: Rule): number {
 function pickBaseRules(candidates: Rule[], method: BaseMethodId): { rule: Rule; kind: ExprKind }[] {
   const all = baseRulesOf(candidates, method);
   const exclusive = all.filter((c) => c.rule.stacking === 'EXCLUSIVE')
-    .sort((a, b) => compareRulesForBase(a.rule, b.rule));
+    .sort((a, b) => compareRules(a.rule, b.rule));
   return [...all.filter((c) => c.rule.stacking !== 'EXCLUSIVE'), ...exclusive.slice(0, 1)];
+}
+
+const CARRIER_SOURCE: BaseSource = { kind: 'CARRIER', ref: 'carriers.flat_rate_amount', label: 'Tarifa fija del transportista' };
+const TENDER_SOURCE: BaseSource = { kind: 'TENDER', ref: 'tarifas_trip_tender_awards.amount', label: 'Monto adjudicado por tendering' };
+
+/** Monto fijo del transportista válido (número ≥ 0), o null si no viene o no se puede leer. */
+function parseCarrierAmount(raw: string | undefined): Decimal | null {
+  if (raw === undefined || raw === null || String(raw).trim() === '') return null;
+  try {
+    const value = new Decimal(String(raw).trim());
+    return value.isFinite() && !value.isNegative() ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 export interface AppliedBase {
@@ -70,7 +72,11 @@ export function applyBaseOverride(
   currentSeed: TraceLine[],
   vars?: VarBag,
 ): AppliedBase {
-  const option = describeBaseMethods(input, candidates, vars).find((o) => o.id === override.method);
+  const carrierAmount = override.method === 'FIXED' ? parseCarrierAmount(override.amount) : null;
+  const isTender = override.origin === 'TENDER';
+  const option: BaseMethodOption | undefined = carrierAmount
+    ? { id: 'FIXED', ...BASE_METHODS.FIXED, available: true, source: isTender ? TENDER_SOURCE : CARRIER_SOURCE }
+    : describeBaseMethods(input, candidates, vars).find((o) => o.id === override.method);
   if (!option?.available || !option.source) {
     const label = BASE_METHODS[override.method]?.label ?? override.method;
     return {
@@ -81,15 +87,19 @@ export function applyBaseOverride(
       issues: [{
         code: 'BASE_NO_DISPONIBLE',
         message: `No se puede calcular la base "${label}": ${option?.reason ?? NO_DATA} `
-          + 'Elegí otro tipo de cobro o volvé a la base por defecto.',
+          + 'Elige otro tipo de cobro o vuelve a la base por defecto.',
       }],
     };
   }
 
   const source = option.source;
-  const chosen = source.kind === 'COST_STRUCTURE' ? [] : pickBaseRules(candidates, override.method);
+  const chosen = source.kind === 'COST_STRUCTURE' || source.kind === 'CARRIER' || source.kind === 'TENDER'
+    ? []
+    : pickBaseRules(candidates, override.method);
   const chosenIds = new Set(chosen.map((c) => c.rule.id));
-  const concept = chosen[0]?.kind.concept ?? 'km';
+  // Concepto que la base ya cobra: el de su regla; con monto del transportista es 'fixed' (no hay nada
+  // "por km" cobrado, así un recargo por km transversal sigue aplicando) y con la estructura es 'km'.
+  const concept = source.kind === 'CARRIER' || source.kind === 'TENDER' ? 'fixed' : (chosen[0]?.kind.concept ?? 'km');
 
   const discarded: DiscardedRule[] = [];
   const replaced: string[] = [];
@@ -147,6 +157,24 @@ export function applyBaseOverride(
     }
   }
 
+  if (carrierAmount) {
+    const amount = roundToMoney(carrierAmount, input.country);
+    seed = [{
+      seq: 1,
+      stage: 'BASE',
+      ruleId: null,
+      ruleCode: isTender ? 'BASE_FIJA_TENDERING' : 'BASE_FIJA_TRANSPORTISTA',
+      label: isTender ? 'Monto adjudicado por tendering' : 'Tarifa fija del transportista',
+      inputs: isTender
+        ? { 'monto adjudicado': carrierAmount.toFixed() }
+        : { 'monto pactado': carrierAmount.toFixed() },
+      source: 'COST_ROW',
+      computed: amount,
+      final: amount,
+      runningSubtotal: amount,
+    }];
+  }
+
   if (duplicates.length > 0) {
     warnings.push(
       `Se omitieron ${duplicates.length} regla(s) que cobraban lo mismo que la base `
@@ -155,7 +183,7 @@ export function applyBaseOverride(
   }
 
   return {
-    rules: kept.sort(compareRulesForBase),
+    rules: kept.sort(compareRules),
     seed,
     discarded,
     warnings,

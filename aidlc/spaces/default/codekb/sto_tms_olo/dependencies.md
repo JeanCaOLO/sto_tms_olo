@@ -26,12 +26,12 @@ tms_common (Layer) ← todos los módulos
 | **Softland** | dato de catálogo | `softland_code` en transportistas; NO hay integración de código Softland en backend. |
 | **Amazon Bedrock** | — | **NO integrado**. Solo historia futura (US12: IA de observaciones). |
 | **OSRM / Leaflet** | mapas/ruteo | frontend de planificación. |
-| **Supabase** | — | **NO se usa en producción**. `.env` tiene claves del prototipo/Liquidador; el shim `supabase.ts` no llama a Supabase. |
+| **Supabase** | — | **NO se usa en producción**. `.env` tiene claves del prototipo/Liquidador; el shim `api-client.ts` no llama a Supabase. |
 
 ## Frontend → backend
 
 El frontend depende del API Gateway HTTP (via `VITE_API_BASE`) a través del shim
-`src/lib/supabase.ts`. En dev, Vite proxya `/api` a `:4000`.
+`src/lib/api-client.ts`. En dev, Vite proxya `/api` a `:4000`.
 
 ## Sources
 

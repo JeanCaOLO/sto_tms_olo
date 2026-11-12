@@ -85,6 +85,14 @@ export const FOREIGN_KEYS = [
   { child: "orders", column: "route_type_id", parent: "zones" },
   { child: "routes", column: "route_type_id", parent: "zones" },
   { child: "delivery_points", column: "zone_id", parent: "zones" }, // sql/12
+
+  // Maestros EFLOW (sql/40-43): sucursales y relaciones de orders con almacén, sucursal y cliente destino.
+  // orders.destination_warehouse_id (sql/43) NO se registra: sería una 2.ª FK orders -> warehouses y
+  // volvería ambiguo el embed de warehouses desde orders.
+  { child: "branches", column: "customer_id", parent: "customers" },
+  { child: "orders", column: "warehouse_id", parent: "warehouses" },
+  { child: "orders", column: "branch_id", parent: "branches" },
+  { child: "orders", column: "final_customer_id", parent: "final_customers" },
 ];
 
 const TABLES = new Set([
@@ -100,6 +108,8 @@ const TABLES = new Set([
   // Fase 5 — staging del WMS real (sql/07_wms_expediciones_staging.sql).
   "wms_expediciones",
   "zones", // ex route_types (sql/09)
+  "branches", // sucursales EFLOW (sql/40)
+  "oms_logs", // bitácora del OMS (sql/49) — solo lectura desde la pestaña Logs OMS
 ]);
 
 export function isKnownTable(name) {

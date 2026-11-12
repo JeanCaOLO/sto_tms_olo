@@ -13,6 +13,7 @@ import {
   emitSettlement, getSettlement, listSettlements, listSettlementSummaries, listTripSettlements, nextSettlementNumber,
   reliquidateSettlement, updateSettlementStatus, validateSettlement, type SettlementInput,
 } from '../settlementsDataSource';
+import { nextNumber } from '../settlements/numberingAndIds';
 import { getTrip, listLiquidableTrips } from '../tripsDataSource';
 import { calculate } from '../index';
 import { db } from '../data';
@@ -68,6 +69,21 @@ beforeEach(async () => {
 });
 
 // ── Numeración ────────────────────────────────────────────────────────────────────────────────
+
+describe('nextNumber con más liquidaciones que una página', () => {
+  it('pagina por cursor y no se queda con un máximo truncado', async () => {
+    const total = 2105; // más que una página (2000)
+    for (let i = 1; i <= total; i += 1) {
+      await db().insert('settlement', {
+        id: `stl_pag_${String(i).padStart(5, '0')}`,
+        country_id: viaje.countryId,
+        number: `LIQ-VE-${String(i).padStart(3, '0')}`,
+      });
+    }
+    const siguiente = await nextNumber(viaje.countryId);
+    expect(siguiente.endsWith(String(total + 1))).toBe(true);
+  }, 60000);
+});
 
 describe('nextSettlementNumber', () => {
   it('arranca en LIQ-0001', () => {

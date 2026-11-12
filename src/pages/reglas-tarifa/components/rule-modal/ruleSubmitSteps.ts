@@ -32,7 +32,7 @@ export function preconditionError(c: SubmitContext): string | null {
   if (!c.organizationId) return 'No se pudo identificar la organización. Recarga la página e intenta de nuevo.';
   if (!c.allowed) return `Tu rol no puede ${c.rule ? 'editar' : 'crear'} reglas.`;
   if (formData.scope === 'PARTY' && !c.selectedCarrierId) {
-    return 'Elegí a qué compañía pertenece la regla, o cambiá su alcance a "Todas las compañías del país".';
+    return 'Elige a qué compañía pertenece la regla, o cambia su alcance a "Todas las compañías del país".';
   }
   if (formData.stacking === 'MAX' && !formData.exclusion_group.trim()) {
     return 'Cuando el modo es "Compite: gana la de monto más alto", es obligatorio definir el grupo de exclusión.';
@@ -43,7 +43,7 @@ export function preconditionError(c: SubmitContext): string | null {
       mode: conditions.conditionMode, combinator: conditions.conditionCombinator, rows: conditions.conditionRows,
     });
     conditions.setConditionRowErrors(rowErrors);
-    if (Object.keys(rowErrors).length > 0) return 'Revisá las filas de condición marcadas.';
+    if (Object.keys(rowErrors).length > 0) return 'Revisa las filas de condición marcadas.';
   }
   return null;
 }
@@ -62,7 +62,7 @@ export function parseExpression({ calc }: SubmitContext): Parsed<Expr> {
     calc.setBuilderErrors(errors);
     return isBuilderValid(errors)
       ? { value: compileBuilder(calc.builder) }
-      : { error: 'Revisá los campos marcados del cálculo.' };
+      : { error: 'Revisa los campos marcados del cálculo.' };
   }
   try {
     return { value: JSON.parse(calc.advancedExpressionJson) as Expr };
@@ -71,14 +71,17 @@ export function parseExpression({ calc }: SubmitContext): Parsed<Expr> {
   }
 }
 
-/** Id del perfil de cálculo de la compañía; lo crea si todavía no existe. */
-export async function resolvePartyId(c: SubmitContext): Promise<Parsed<string | null>> {
+/**
+ * Id del perfil de cálculo de la compañía; lo crea si todavía no existe. `created` dice si lo creó AHORA: si lo que
+ * viene después falla, quien llama lo deshace (un perfil vacío dejaría a la compañía como "Configurada" sin nada).
+ */
+export async function resolvePartyId(c: SubmitContext): Promise<Parsed<{ id: string | null; created: boolean }>> {
   const { formData } = c.form;
-  if (formData.scope !== 'PARTY') return { value: null };
-  if (formData.party_id) return { value: formData.party_id };
+  if (formData.scope !== 'PARTY') return { value: { id: null, created: false } };
+  if (formData.party_id) return { value: { id: formData.party_id, created: false } };
   const ensured = await ensurePartyProfile(c.selectedCarrierId);
   if (ensured.status === 'failed') {
     return { error: `No se pudo crear el perfil de cálculo de la compañía: ${ensured.error.message}` };
   }
-  return { value: ensured.partyId };
+  return { value: { id: ensured.partyId, created: ensured.created } };
 }

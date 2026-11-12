@@ -106,11 +106,11 @@ export default function CountrySettingsCard({ countryId, currency }: Props) {
             <Select label="Modo de redondeo" value={form.rounding_mode} onChange={(e) => setForm({ ...form, rounding_mode: e.target.value })} options={ROUNDING_MODES} />
             <Input label="Umbral de pernocta (h)" type="number" value={form.overnight_threshold_hours} onChange={(e) => setForm({ ...form, overnight_threshold_hours: e.target.value })} />
             <Button onClick={() => void handleSave()} disabled={saving || !countryId || !canEdit} title={!canEdit ? 'Tu rol no puede editar la configuración' : undefined}>
-              {saving ? 'Guardando...' : 'Guardar'}
+              {saving ? 'Guardando...' : 'Guardar cálculo del país'}
             </Button>
           </div>
           {!configured && (
-            <p className="text-xs text-amber-600 mt-2">
+            <p className="text-xs text-red-700 mt-2">
               Este país todavía no tiene configuración de cálculo: sin ella no se puede liquidar.
             </p>
           )}

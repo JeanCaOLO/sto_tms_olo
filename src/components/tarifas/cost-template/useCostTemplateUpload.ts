@@ -5,6 +5,7 @@ import { parseCostTemplate, type ParsedCostTemplate } from '../../../lib/tarifas
 import { applyCostTemplate } from '../../../lib/tarifas/costStructureDataSource';
 import { listTruckTypes } from '../../../lib/tarifas/vehiclesDataSource';
 import { readWorkbook } from './costTemplateFile';
+import { confirmAction } from '../../../lib/confirm';
 
 interface Params {
   isOpen: boolean;
@@ -58,7 +59,7 @@ export function useCostTemplateUpload({
 
   const handleSave = async () => {
     if (!parsed || parsed.errors.length > 0 || !parsed.operatingDays) return;
-    if (!window.confirm(`Esto reemplaza ${scopeLabel} por las ${parsed.rows.length} filas de la plantilla. ¿Continuar?`)) return;
+    if (!(await confirmAction({ title: 'Reemplazar estructura', message: `Esto reemplaza ${scopeLabel} por las ${parsed.rows.length} filas de la plantilla. ¿Continuar?`, confirmLabel: 'Reemplazar' }))) return;
     setSaving(true); setError('');
     try {
       const result = await applyCostTemplate({

@@ -57,6 +57,10 @@ Resources:
           # Ver src/tarifas_db.py: no cambian la configuración de la base ni de otros módulos.
           TMS_STATEMENT_TIMEOUT_MS: '10000'
           TMS_LOCK_TIMEOUT_MS: '5000'
+          # Bloqueo de liquidación: un viaje con devoluciones sin recibir no se liquida. Ver src/returns_gate.py.
+          # Encendido: desplegar ANTES backend/admin (ahí se reciben las devoluciones), si no un viaje con
+          # devoluciones queda sin poder liquidarse ni recibirse. Apagar con 'off' si hay que desbloquear.
+          TMS_RETURNS_GATE: 'on'
           TMS_DB_SECRET_NAME:
             Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName
 
@@ -94,6 +98,17 @@ Resources:
       Target: !Sub integrations/${TarifasApiIntegration}
 
   # Lecturas por POST: varias consultas en una llamada y consultas largas que no caben en la URL.
+  TarifasProformaDecisionRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/tarifas/proformas/{id}/decision
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${TarifasApiIntegration}
+
   TarifasBatchRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:

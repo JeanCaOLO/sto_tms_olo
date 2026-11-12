@@ -303,6 +303,10 @@ sequenceDiagram
     TMS->>TMS: Generar viaje
 ```
 
+> **Estado (2026-10-20):** solo existe el extremo del tarifador (liquidar el
+> monto adjudicado, tabla `tarifas_trip_tender_awards`). El proceso de
+> ofertas/ranking/cascada de este diagrama está **pendiente** (roadmap Fase 11).
+
 Fase inicial: **manual** (Torre de Control ve el ranking y decide) — nivel 1
 de automatización (§38). Queda preparado para automatizarse (nivel 3/4) sin
 cambiar el contrato del proceso, solo el `automation_level` configurado.

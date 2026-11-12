@@ -1,5 +1,6 @@
 import { tmsQuery } from "./tms-db.mjs";
 import { isKnownTable, findForeignKey } from "./tms-relations.mjs";
+import { logical, physical } from "./tms-db-names.mjs";
 
 // Cache de columnas reales por tabla, cargado una vez al iniciar el server.
 // Toda referencia a nombre de tabla/columna que llegue desde el cliente se
@@ -16,7 +17,7 @@ export async function loadSchema() {
   `);
   const map = {};
   for (const row of res.rows) {
-    (map[row.table_name] ??= new Set()).add(row.column_name);
+    (map[logical(row.table_name)] ??= new Set()).add(row.column_name);
   }
   COLUMNS = map;
   return map;
@@ -52,3 +53,8 @@ export function q(ident) {
 }
 
 export { findForeignKey, isKnownTable };
+
+// Tabla para el SQL: nombre FÍSICO (tbl_x) entre comillas. Solo sobre nombres ya validados.
+export function qt(table) {
+  return q(physical(table));
+}

@@ -1,0 +1,42 @@
+# ============================================================
+# CONFIGURACION DEL KIT DE PROVISIONAMIENTO
+# Edita estos valores antes de ejecutar generate.py / validate.py
+# ============================================================
+
+# --- Identificacion ---
+compania:   "acme"        # Identificador corto de la empresa (3-5 car.)
+ambiente:   "prd"         # dev | qa | prd
+aplicativo: "ventas"      # Nombre del aplicativo
+
+# --- Esquemas (uno o varios en un solo run) ---
+# Cada entrada genera su propio bloque de esquema, permisos y objetos.
+# Resultado del ejemplo: acme_prd_ventas_sch_core, _sch_staging, _sch_audit
+schemas:
+  - core
+  - staging
+  - audit
+
+# Alternativa de un solo esquema (compatibilidad hacia atras):
+# schema_suffix: "core"
+
+# --- Contrasenas (12+ chars: mayus, minus, numero, especial) ---
+passwords:
+  ro:    "Ro_Ventas!2024Ax"
+  rw:    "Rw_Ventas!2024Bx"
+  ddl:   "Ddl_Ventas!2024Cx"
+  admin: "Adm_Ventas!2024Dx"
+  owner: "Own_Ventas!2024Zx"   # Solo Oracle (dueno del esquema)
+
+# --- Opciones especificas por motor ---
+postgresql:
+  encoding:  "UTF8"
+  collate:   "es_ES.UTF-8"
+  ctype:     "es_ES.UTF-8"
+
+mysql:
+  charset:   "utf8mb4"
+  collation: "utf8mb4_unicode_ci"
+
+oracle:
+  default_tablespace:   "USERS"
+  temporary_tablespace: "TEMP"

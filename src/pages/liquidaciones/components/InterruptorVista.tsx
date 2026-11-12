@@ -12,6 +12,7 @@ export function InterruptorVista({ extendida, onChange }: Props) {
         <button
           key={label}
           type="button"
+          aria-pressed={extendida === valor}
           onClick={() => onChange(valor)}
           className={`px-3 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
             extendida === valor ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'

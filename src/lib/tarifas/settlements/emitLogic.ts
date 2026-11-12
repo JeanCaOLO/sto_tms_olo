@@ -2,8 +2,7 @@
 
 import { db, UniqueViolationError } from '../data';
 import { notLiquidableReason } from '../tripContext';
-import { getTrip } from '../tripsDataSource';
-import { auditar } from './audit';
+import { auditRow } from './audit';
 import { buildRowValues } from './buildRowValues';
 import { mapToDomain } from './mapToDomain';
 import { nextNumber, newSettlementId } from './numberingAndIds';
@@ -20,11 +19,17 @@ export async function attemptEmit(input: SettlementInput, trip: TripRecord): Pro
   let lastError;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      saved = await db().insert('settlement', {
-        id: newSettlementId(),
-        ...buildRowValues(input, trip, ahora),
-        number: await nextNumber(trip.countryId),
-        created_at: ahora,
+      const number = await nextNumber(trip.countryId);
+      // Liquidación y bitácora en UNA transacción: o quedan las dos o ninguna.
+      saved = await db().transaction(async (tx) => {
+        const row = await tx.insert('settlement', {
+          id: newSettlementId(),
+          ...buildRowValues(input, trip, ahora),
+          number,
+          created_at: ahora,
+        });
+        await tx.insert('auditLog', auditRow('CREATE', String(row.id), null, resumen(row), undefined));
+        return row;
       });
       break; // Éxito, salir del loop
     } catch (error) {
@@ -38,13 +43,5 @@ export async function attemptEmit(input: SettlementInput, trip: TripRecord): Pro
 
   if (!saved) throw lastError;
 
-  await auditar('CREATE', String(saved.id), null, resumen(saved), undefined);
   return { status: 'saved', settlement: mapToDomain(saved) };
-}
-
-export async function validateAndReload(input: SettlementInput): Promise<EmitSettlementResult | null> {
-  // Se relee el viaje: entre que se abrió la pantalla y se emite, pudo cambiar o liquidarse.
-  const trip = await getTrip(input.trip.id);
-  if (!trip) return { status: 'blocked', issues: [{ code: 'BASE_NO_DISPONIBLE', message: 'El viaje ya no existe.' }] };
-  return null; // OK, viaje existe y puede recargarse
 }

@@ -115,7 +115,7 @@ erDiagram
 | `routes` | Agregar `warehouse_id`; considerar `planning_run_id` para trazabilidad |
 | `settlements` | Agregar columnas de desglose (`operating_cost`, `billable_cost`, `selling_rate`, `margin_pct`, `margin_status`) para que el snapshot deje de vivir en `settlementSnapshots.ts` local |
 | `stores` | Retirar su uso como "cliente final"; mantener solo `is_origin=true` |
-| **`zones`** | **No existe pero se referencia** — decisión pendiente: crear la tabla real, o quitar la referencia si el concepto de zona debe vivir en `src/lib/tarifas` (`Zone`/`ZoneGroup`) en vez de duplicarse |
+| **`zones`** | **Ya existe** (sql/09, antes `route_types`): `id, organization_id, country_id (NOT NULL), code, name, status`. Con geocerca desde sql/34: `geofence` (jsonb, GeoJSON Polygon/MultiPolygon WGS84 `[lon,lat]`), `color`. Los puntos de entrega caen solos en la zona cuya cerca los contiene vía triggers; `delivery_points.zone_source` registra el origen (`map`/`manual`/`wms`). Se dibuja desde el Catálogo de Zonas con mapa (`/zonas`) |
 
 ## 9. ❓ Decisiones de modelado que requieren confirmación de negocio
 

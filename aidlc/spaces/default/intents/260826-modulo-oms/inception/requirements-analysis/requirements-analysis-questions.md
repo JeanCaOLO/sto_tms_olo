@@ -99,8 +99,6 @@ corregido?
 
 [Answer]: A
 
-[Answer]:
-
 ---
 
 ## Assumptions & Open Questions
@@ -115,15 +113,27 @@ corregido?
 
 ## Consolidated Summary Confirmation
 
-Resumen del requirements.md v3 (re-corrida por el pivote WMH), confirmado en
-conversación: reemplazo del WMH desde la salida (D1); FR12 y rol Operador de
-Despacho retirados, E8/US28–US29 fuera (D5); multi-compañía por scope
-CUSTOMER→WAREHOUSE→COUNTRY→GLOBAL en Lambdas compartidas (C3-SUPERSEDE); rediseño
-del flujo en alcance (D4); stack Python/Lambdas confirmado (C1); flujo de dos
-escrituras OMS→Planificación con tabla de pedidos propia del OMS como superficie
-de handoff (D6). C2 (motor de reglas compartido OMS+TMS) diferido a domain-design;
-OQ-8 (gap peso/volumen) abierta. Petición de secuencia anotada: rebanada delgada
-de las 2 reglas de 1ª entrega en domain-design. Sensores: required-sections PASS,
-upstream-coverage PASS.
+Resumen del requirements.md **v4** (re-corrida por reuniones de negocio —
+inversión del flujo OMS↔Planificación, 2026-10-16). Nomenclatura: WMS = **EFLOW**;
+módulo que parte EPA por línea = **EPRAC**. Cambios absorbidos (D7–D13):
+**(D7)** flujo invertido — Planificación procesa, asigna viaje y **activa al OMS**
+por una **lambda asíncrona** (FR0: payload `planning_run_id` + scope; el OMS
+resuelve los pedidos leyendo `public.orders`); el OMS deja de dispararse por
+cron/EventBridge. **(D8)** escritura real a EFLOW: `TPEXSI='GENE'` + `PRIORIDAD`
+(flag TRUE); el OMS **no** escribe el número de viaje; escritura 1 = UPDATE a
+`public.orders` (no hay `oms.pedidos`; esquema único `public`). **(D9)** EPA
+cortocircuita el score — prioridad pre-asignada por EPRAC (guion-0=0, guion-1=1).
+**(D10)** regla fecha generalizada `fecha_entrega − duración` con la duración como
+**insumo de Planificación** (Cofersa=1, VE dinámica). **(D11)** cliente retira =
+**zona** (no observaciones); AnalizadorObservaciones (IA/Bedrock) **diferido a
+futuro**. **(D12)** cambio de prioridad **sin anular** (reenviar registro); solo el
+cambio de fecha pasa por Planificación. **(D13)** **backorder/inventario** como
+nueva responsabilidad del OMS (loop desacoplado; esqueleto + open questions).
+Se mantiene: reemplazo del WMH desde la salida (D1), FR12 retirado (D5),
+multi-compañía por scope (C3), stack Python/Lambdas (C1). Assumptions a confirmar:
+contrato de la lambda de activación (scope vs. llaves explícitas) y OQ-BO1/BO2/BO3
+del backorder. YA HECHO (no se rehízo): BD 2026-10-16 (orders/order_items, llave
+EFLOW, columnas WMS/OMS, customer_type), código rama oms (IDs str, handoff a
+orders, cola UI lee orders). Sensores: required-sections, upstream-coverage.
 
 [Answer]: Looks correct

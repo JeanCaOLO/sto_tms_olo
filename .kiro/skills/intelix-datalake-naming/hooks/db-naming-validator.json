@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Validador de nomenclatura de BD (INTELIX)",
+      "trigger": "PostFileSave",
+      "description": "Al guardar un archivo .sql, valida la nomenclatura de objetos contra el estándar de BD INTELIX según naturaleza y capa (OLTP, lago bronze/silver/dwh/viewbi/ssot, bridge inbound/outbound). Reporta violaciones (mayúsculas, acentos, snake_case, prefijo de fuente fuera de bronze, clase dim/fact/master, prefijos dimensionales, volatilidad stg_/hist_, placeholders sin reemplazar). Es un linter: reporta, no bloquea.",
+      "matcher": "\\.sql$",
+      "action": {
+        "type": "command",
+        "command": "python .kiro/skills/intelix-datalake-naming/validar_sql.py --hook",
+        "timeout": 60
+      }
+    }
+  ]
+}

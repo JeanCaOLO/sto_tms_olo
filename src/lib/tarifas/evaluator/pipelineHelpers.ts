@@ -40,12 +40,15 @@ export function resolveMaxGroup(
   warnings: string[],
   discarded: DiscardedRule[],
 ): string {
+  // Los candidatos se evalúan "en seco": sus avisos y la fila de tarifario que resolvieron no deben
+  // llegar al desglose (el ganador se evalúa de nuevo en el pipeline y ahí sí informa lo suyo).
+  const silent: EvalContext = { ...ctx, warn: () => {}, recordTableMatch: undefined };
   const candidates = applied
     .filter((r) => r.stacking === 'MAX' && r.exclusionGroup === group)
     .map((r) => {
       let amount: Decimal;
       try {
-        amount = evaluateExpr(r.expression, ctx);
+        amount = evaluateExpr(r.expression, silent);
       } catch (e) {
         if (!(e instanceof RuleShapeError)) throw e;
         warnings.push(`La regla "${r.code}" tiene una ${e.message}: no puede competir en su grupo MAX.`);

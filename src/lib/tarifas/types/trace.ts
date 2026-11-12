@@ -2,7 +2,7 @@
 
 import type { Money } from './variables';
 import type { Stage } from './ast';
-import type { RuleScope } from './ast';
+import type { RuleCategory, RuleScope } from './ast';
 import type { RateTableMatch, Override } from './rateTable';
 import type { CostBreakdown, MarginResult } from './cost';
 import type { Allocation } from './cargo';
@@ -15,6 +15,8 @@ export type TraceSource = 'RULE' | 'ADHOC' | 'COST_ROW';
 export interface TraceLine {
   seq: number;
   stage: Stage;
+  /** Etiqueta de reporte de la regla (recargo, modificador…). No participa del cálculo. */
+  category?: RuleCategory | null;
   ruleId: string | null; // null = línea ad-hoc sin persistir
   ruleCode: string;
   label: string;
@@ -49,7 +51,9 @@ export type DiscardReason =
   /** El liquidador cambió la base de cálculo: esta regla BASE (o la estructura de costos) ya no aplica. */
   | 'BASE_REEMPLAZADA'
   /** Cobra el mismo concepto que la base elegida (p. ej. otra regla por km): se omite para no cobrar doble. */
-  | 'DUPLICA_BASE';
+  | 'DUPLICA_BASE'
+  /** Ajuste ligado a otra modalidad de cobro (`appliesToBase`): este viaje no se cobra por ella. */
+  | 'MODALIDAD_DISTINTA';
 
 export interface DiscardedRule {
   ruleCode: string;
@@ -65,13 +69,16 @@ export interface DiscardedRule {
 export interface CalcIssue {
   code:
     | 'BASE_NO_DISPONIBLE'
+    | 'BASE_NO_DEFINIDA'
     | 'REFERENCIA_CIRCULAR'
     | 'TOTAL_NEGATIVO'
     | 'VARIABLE_INEXISTENTE'
     | 'COMPANIA_SIN_PERFIL'
     | 'COMPANIA_INACTIVA'
     /** Una regla no se pudo leer: el total está incompleto hasta arreglarla. */
-    | 'REGLA_ILEGIBLE';
+    | 'REGLA_ILEGIBLE'
+    /** Dos reglas activas con el mismo código y alcance aplican a la vez: el cargo se cobraría dos veces. */
+    | 'REGLA_DUPLICADA';
   message: string;
   ruleCode?: string;
 }
@@ -81,11 +88,18 @@ export interface CalcIssue {
 // (terceros). El liquidador puede cambiarla por otro tipo de cobro; solo cambia la base, las demás
 // fases siguen igual.
 
-/** Tipos de cobro que puede tomar la base. TENDERING existe en el catálogo pero no tiene mecánica definida. */
+/**
+ * Tipos de cobro que puede tomar la base. TENDERING no es una fórmula: el monto sale de la
+ * adjudicación del viaje (`tarifas_trip_tender_awards`) y se liquida como tarifa fija (method 'FIXED').
+ */
 export type BaseMethodId = 'PER_KM' | 'PER_UNIT' | 'FIXED' | 'VOLUME' | 'TENDERING';
 
 /** De dónde sale la base elegida. */
-export type BaseSourceKind = 'RULE' | 'RATE_TABLE' | 'COST_STRUCTURE';
+/**
+ * CARRIER = monto fijo pactado con el transportista (carriers.flat_rate_amount).
+ * TENDER = monto adjudicado por tendering a ese viaje (tarifas_trip_tender_awards.amount).
+ */
+export type BaseSourceKind = 'RULE' | 'RATE_TABLE' | 'COST_STRUCTURE' | 'CARRIER' | 'TENDER';
 
 export interface BaseSource {
   kind: BaseSourceKind;
@@ -98,6 +112,13 @@ export interface BaseSource {
 /** Lo que pide el liquidador: qué tipo de cobro usar como base. */
 export interface BaseOverride {
   method: BaseMethodId;
+  /**
+   * Solo FIXED: monto pactado con el transportista (carriers.flat_rate_amount). Si viene, la base es
+   * este monto y no hace falta una regla FIXED en el catálogo.
+   */
+  amount?: string;
+  /** De dónde sale `amount`. Ausente = monto fijo del transportista; 'TENDER' = adjudicación de tendering del viaje. */
+  origin?: 'TENDER';
 }
 
 /** Cómo se resolvió la base elegida: es lo que se muestra y lo que se guarda al emitir. */
@@ -114,6 +135,8 @@ export interface BaseInfo {
 export interface SettlementBaseChange extends BaseInfo {
   changedBy: string | null;
   changedAt: string;
+  /** Vencimiento del contrato del transportista al liquidar (YYYY-MM-DD), para releer la liquidación fiel. */
+  contractExpiry?: string | null;
 }
 
 // El motor calcula cuánto se le debe LIQUIDAR (pagar) al transportista por el viaje — nunca un

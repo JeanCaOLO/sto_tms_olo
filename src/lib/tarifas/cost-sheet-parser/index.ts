@@ -14,5 +14,5 @@
 export { analyzeSheet, type ColumnCandidate, type SheetAnalysis, type TargetField } from './analysis';
 export { detectCurrency, detectDriver, detectHeaderRow } from './detection';
 export { codeFromLabel, parseCostRows, type ColumnMapping, type ParsedCostRow, type ParseProblem, type ParseResult } from './parsing';
-export { isBlank, looksLikeNumber, looksNumeric, parseAmount, text, type NumberFormat } from './utils';
+export { isAmbiguousThousands, isBlank, looksLikeNumber, parseAmount, text, type NumberFormat } from './utils';
 export type { SheetMatrix } from './types';

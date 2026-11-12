@@ -2,6 +2,7 @@
 // Módulo PURO: no importa React, ni la capa de datos, ni usa `Date.now()`.
 
 import Decimal from 'decimal.js';
+import { componentCostPerKm } from '../cost';
 import { toDecimal } from '../money';
 import type { CostRowInput } from '../costStructureDataSource';
 import type { CostStructureParams } from '../types';
@@ -34,7 +35,12 @@ export function summarize(rows: CostRowInput[], params: CostStructureParams, ope
       .reduce((sum, r) => sum.plus(r.amount), new Decimal(0));
     const variablePerKm = mine
       .filter((r) => r.frequency)
-      .reduce((sum, r) => sum.plus(r.costPerKm ?? 0), new Decimal(0));
+      // Derivado igual que en el motor (`componentCostPerKm`): el `costPerKm` guardado en la fila es
+      // solo una foto para mostrar y puede quedar desfasado si se edita el importe o la frecuencia.
+      .reduce((sum, r) => sum.plus(componentCostPerKm(
+        { amount: r.amount, frequency: r.frequency ?? null, frequencyQty: r.frequencyQty ?? null },
+        params.kmPerYear,
+      ) ?? 0), new Decimal(0));
     const efficiency = truck ? params.fuelEfficiency[truck] : undefined;
     const fuelPerKm = params.fuelPrice && efficiency && toDecimal(efficiency).greaterThan(0)
       ? toDecimal(params.fuelPrice).dividedBy(efficiency)

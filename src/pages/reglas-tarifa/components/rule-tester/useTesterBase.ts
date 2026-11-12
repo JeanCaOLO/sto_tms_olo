@@ -13,11 +13,13 @@ import { mensajeDe } from './testerTypes';
 interface Params {
   organizationId: string;
   countryId: string;
+  /** País con el que arranca (el del selector global); sin él, el primero del catálogo. */
+  initialCountryId?: string;
   setCountryId: (update: (prev: string) => string) => void;
   setError: (message: string) => void;
 }
 
-export function useTesterBase({ organizationId, countryId, setCountryId, setError }: Params) {
+export function useTesterBase({ organizationId, countryId, initialCountryId, setCountryId, setError }: Params) {
   const [cargando, setCargando] = useState(true);
   const [countries, setCountries] = useState<{ id: string; name: string }[]>([]);
   const [carriers, setCarriers] = useState<CarrierProfile[]>([]);
@@ -32,7 +34,8 @@ export function useTesterBase({ organizationId, countryId, setCountryId, setErro
     try {
       const paises = await loadCountries();
       setCountries(paises.map((c) => ({ id: c.id, name: c.name })));
-      setCountryId((prev) => prev || paises[0]?.id || '');
+      const inicial = paises.find((c) => c.id === initialCountryId)?.id ?? paises[0]?.id ?? '';
+      setCountryId((prev) => prev || inicial);
       setTemplates(await listTemplates(organizationId) as Record<string, unknown>[]);
     } catch (e) {
       console.error('Error cargando el probador:', e);
@@ -40,7 +43,7 @@ export function useTesterBase({ organizationId, countryId, setCountryId, setErro
     } finally {
       setCargando(false);
     }
-  }, [organizationId, setCountryId, setError]);
+  }, [organizationId, initialCountryId, setCountryId, setError]);
 
   useEffect(() => { void recargar(); }, [recargar]);
 

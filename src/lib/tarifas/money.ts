@@ -19,6 +19,18 @@ export function toDecimal(value: Money | number): Decimal {
   return decimal;
 }
 
+/** Como `toDecimal`, pero devuelve null si el valor no es un número finito (texto, vacío, NaN). */
+export function tryDecimal(value: unknown): Decimal | null {
+  if (typeof value !== 'string' && typeof value !== 'number') return null;
+  if (typeof value === 'string' && value.trim() === '') return null;
+  try {
+    const decimal = new Decimal(value);
+    return decimal.isFinite() ? decimal : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Interpreta texto de un formulario ("1.234,50" no; "12,5" sí) como Decimal, o null si no es válido. */
 export function parseMoneyInput(text: string): Decimal | null {
   const normalized = text.trim().replace(',', '.');

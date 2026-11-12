@@ -1,40 +1,37 @@
-# 0004 — Guardar guía fiscal y número de viaje WMS en los pedidos
+# 0004 — Guardar la guía fiscal en las líneas del pedido
 
-- **Status**: Accepted
+- **Status**: Accepted (revisado 2026-10-08)
 - **Date**: 2026-10-08
 - **Owner role**: data-architect
-- **Affects**: Aurora `tms_olo` (`public.orders`, `public.order_items`), migración `sql/19_wms_guia_viaje_en_pedidos.sql` (aplicada), proceso de sincronización WMS→Aurora (hoy `agregar_pedidos_reales.py`, mañana réplica/sync continuo), diccionario `docs/reference/diccionario-datos-tms-olo.md`. Lectura desde WMS EFLOW (`EFLOW_OLO`, solo lectura).
+- **Affects**: Aurora `tms_olo` (`public.order_items`), migraciones `sql/19_wms_guia_viaje_en_pedidos.sql` y `sql/20_drop_wms_trip_number.sql` (aplicadas). Lectura desde WMS EFLOW (`EFLOW_OLO`, solo lectura).
 
 ## Context
 
-Esto es la **primera fase de una migración/sincronización progresiva WMS/WMH (EFLOW) → Aurora**, no un andamiaje desechable. Aurora `tms_olo` es el nuevo sistema de registro del TMS/Planificación; EFLOW se sigue consultando **solo lectura** durante la coexistencia y cada iteración migra más entidades y campos. Es coherente con los DECIDED del proyecto (`aidlc/spaces/default/memory/project.md`): "OMS+Planificación REEMPLAZAN al WMH desde la salida", "el OMS lee los pedidos del WMS/EFLOW o de la réplica", y el rediseño del flujo pedido→TMS→OMS→WMS entra en alcance.
+Al cargar pedidos reales de COFERSA desde EFLOW a `tms_olo`, el negocio pidió (daily 2026-10-07) ver la **guía fiscal** de cada línea, que el mapeo EFLOW→Aurora estaba descartando. `order_items` no tenía dónde alojarla.
 
-El disparador concreto: ya se cargaron pedidos reales de COFERSA desde EFLOW y, en el daily del 2026-10-07, el negocio pidió ver dos datos reales que el mapeo EFLOW→Aurora estaba descartando — la **guía fiscal** de cada línea y el **número de viaje del WMH** que liga el pedido con el viaje de la torre de control. `orders`/`order_items` no tenían dónde alojarlos (`orders` ya traía `invoice_number` para la factura de cabecera, pero nada para la guía por línea ni para el viaje WMS).
+**Qué NO es esto (corrección de marco):** no es una migración masiva de los pedidos del WMS/WMH a Aurora. EFLOW/WMS **sigue siendo la fuente** de los pedidos; a Aurora llegan solo los pedidos **operativos/vigentes** que el OMS ingiere para que Planificación arme viajes (flujo en vivo, coexistencia). El histórico del WMH no se migra. La columna solo **enriquece el modelo del pedido** en Aurora con un dato que el negocio consume en la guía de despacho.
 
 ## Decision
 
-Agregar dos columnas de trazabilidad WMS a los pedidos, pobladas por el loader al importar desde EFLOW:
+Agregar **`order_items.guia_fiscal`** ← EFLOW `EXPEDICIONESDETALLE.GUIAFISCAL` (guía fiscal **por línea**). `varchar` nullable, snake_case, con `COMMENT` que deja la trazabilidad al origen. La factura de cabecera ya vivía en `orders.invoice_number` (← `EXPEDICIONESCABECERA.FACTURA`): **no** se duplicó.
 
-- **`order_items.guia_fiscal`** ← EFLOW `EXPEDICIONESDETALLE.GUIAFISCAL` (guía fiscal **por línea**).
-- **`orders.wms_trip_number`** ← EFLOW `EXPEDICIONESCABECERA.NUMEROVIAJEWMH` (= `EFLOW_WMH.journey_orders.journey_id`), que liga pedido↔viaje del WMH.
-
-Ambas `varchar` nullable, snake_case como el resto del esquema, con `COMMENT` que deja la trazabilidad al origen EFLOW en la propia columna. Son columnas **estructurales y permanentes**: parte del modelo de registro del TMS, alimentadas por el proceso de sincronización WMS→Aurora (hoy el loader `agregar_pedidos_reales.py`, que evolucionará a réplica/sync continuo), no por una carga única. La migración `sql/19` es idempotente (`ADD COLUMN IF NOT EXISTS`) y ya está aplicada y registrada en `schema_migrations`; otorga `SELECT/INSERT/UPDATE` a `tms_app` (coherente con ADR-0003). La factura de cabecera sigue en la columna ya existente `orders.invoice_number` (← EFLOW `EXPEDICIONESCABECERA.FACTURA`): **no** se duplicó.
+**`orders.wms_trip_number` — agregada y luego RETIRADA.** La migración `sql/19` también agregó `orders.wms_trip_number` (← `EXPEDICIONESCABECERA.NUMEROVIAJEWMH`, el viaje del WMH legado). Se retiró en `sql/20` porque: (a) nadie la lee; (b) el viaje nuevo lo arma el **planificador** en `plan_trips`/`plan_stops`, no en `orders`; (c) no hay migración del WMH a Aurora que la justifique; (d) el nombre (`wms_` en vez de `wmh_`, y "trip_number" a secas) confundía con el viaje del planificador. Si algún día se hace una conciliación durante el corte del WMH, re-agregarla es trivial.
 
 ## Considered alternatives
 
-- **Tabla puente `order_wms_refs` (pedido/línea → refs WMS)** — una tabla aparte para guía y viaje. Rechazada: no hay cardinalidad que lo justifique (la guía es 1:1 con la línea y el viaje 1:1 con el encabezado), y añadiría un join a cada lectura de la demo sin beneficio de integridad.
-- **Guardar todo en `orders.notes` / JSON** — meter guía y viaje en texto libre (de hecho el loader ya los escribe en `notes` para la demo). Rechazada como solución de datos: no es consultable ni tipable, y el negocio pidió verlos como campos, no como nota.
-- **`guia_fiscal` a nivel de encabezado (`orders`)** — una sola guía por pedido. Rechazada **por ahora** porque el origen real (`EXPEDICIONESDETALLE`) la entrega por línea; ver "Open coordination points".
+- **Tabla puente `order_wms_refs`** — rechazada: la guía es 1:1 con la línea; sin cardinalidad que justifique una tabla ni un join extra.
+- **Guardar en `orders.notes` / JSON** — rechazada como dato: no es consultable ni tipable; el negocio la pidió como campo.
+- **`guia_fiscal` a nivel de encabezado (`orders`)** — rechazada por ahora: el origen (`EXPEDICIONESDETALLE`) la da por línea; ver "Open coordination points".
 
 ## Consequences
 
-- **Positive**: los dos datos reales de EFLOW quedan como campos tipados y consultables; `wms_trip_number` habilita ligar el pedido con el viaje del WMH (33 pedidos ya poblados) y sienta el patrón de mapeo EFLOW→Aurora que la migración progresiva irá ampliando.
-- **Negative**: dos columnas nullable más en tablas del núcleo compartido; `varchar` sin límite ni índice — pendiente a resolver **pronto**, porque el volumen crecerá con la sincronización real (no es un "si acaso" de demo). Ver "Open coordination points".
-- **Neutral**: ambas tablas ya están auditadas (ADR-0003, trigger en `audit.events`); las nuevas columnas entran en ese registro sin trabajo extra.
+- **Positive**: la guía queda como campo tipado y consultable, lista para la guía de despacho.
+- **Negative**: una columna nullable más; `varchar` sin límite (acotable si se consulta por ella).
+- **Neutral**: `order_items` ya está auditada (ADR-0003); la columna entra en ese registro sin trabajo extra.
 
 ## Nota del hallazgo — nulos en pre-despacho
 
-En los pedidos COFERSA que se cargaron (estado/situación `DISP`, pre-despacho), `EXPEDICIONESDETALLE.GUIAFISCAL` y `EXPEDICIONESCABECERA.FACTURA` vienen **NULL en origen**: la guía y la factura se llenan recién al **despachar/facturar**. Por eso hoy `order_items.guia_fiscal` e `orders.invoice_number` quedan vacíos para estos pedidos, mientras que `orders.wms_trip_number` sí quedó poblado (33 pedidos). Las columnas son correctas; la ausencia de dato es del estado del pedido, no del mapeo. Consecuencia para la UI: no asumir guía/factura presentes en pedidos no despachados. A medida que la sincronización progresiva capture pedidos ya despachados, estas columnas se irán poblando sin cambio de esquema.
+En los pedidos COFERSA cargados (situación `DISP`, pre-despacho), `GUIAFISCAL` y `FACTURA` vienen **NULL en origen**: se llenan al **despachar/facturar**. Por eso hoy `order_items.guia_fiscal` e `orders.invoice_number` quedan vacíos para esos pedidos. La ausencia es del estado del pedido, no del mapeo. La UI no debe asumir guía/factura presentes en pedidos no despachados.
 
 ## Trazabilidad EFLOW → Aurora
 
@@ -42,12 +39,15 @@ En los pedidos COFERSA que se cargaron (estado/situación `DISP`, pre-despacho),
 |---|---|---|---|
 | `EXPEDICIONESDETALLE.GUIAFISCAL` | línea | `order_items.guia_fiscal` | NULL (se llena al despachar) |
 | `EXPEDICIONESCABECERA.FACTURA` | encabezado | `orders.invoice_number` (preexistente) | NULL (se llena al facturar) |
-| `EXPEDICIONESCABECERA.NUMEROVIAJEWMH` (= `journey_orders.journey_id`) | encabezado | `orders.wms_trip_number` | sí (33 pedidos) |
 
-Escritura por el proceso de sincronización WMS→Aurora (hoy `agregar_pedidos_reales.py`, INSERT a `orders`/`order_items`; mañana réplica/sync continuo); EFLOW se consulta **solo lectura** en coexistencia.
+Escritura por el loader de ingesta (`agregar_pedidos_reales.py`, INSERT a `orders`/`order_items`); EFLOW se consulta **solo lectura**.
 
 ## Open coordination points
 
-- **¿Guía a nivel de encabezado?** El origen la da por línea, pero en estos pedidos suele haber una sola guía por expedición; si el negocio siempre la consume por pedido, evaluar moverla a `orders` (como `invoice_number`). Decisión de product/functional-analyst sobre el origen real del dato — **no cambiar el esquema sin aprobación del usuario**.
-- **Tipo e índice (pronto, no "si acaso")**: `varchar` sin límite difiere de los `varchar(100)` vecinos; como el volumen crecerá con la migración real y Planificación probablemente filtre/junte por `wms_trip_number`, conviene acotar el tipo y añadir índice en una iteración cercana, no diferirlo. Confirmar el patrón de acceso de Planificación.
-- **security-compliance (aplica ya)**: guía fiscal y factura son datos fiscales/documentales **reales**, no de demo; evaluar desde ahora marca de sensibilidad y retención, no "cuando deje de ser demo".
+- **¿Guía a nivel de encabezado?** El origen la da por línea, pero suele haber una sola guía por expedición; si el negocio la consume por pedido, evaluar moverla a `orders`. Decisión de product/functional-analyst.
+- **security-compliance**: la guía fiscal es dato fiscal/documental real; evaluar marca de sensibilidad y retención.
+
+## Historial de correcciones
+
+- **2026-10-08 (1)**: se reencuadró de "andamiaje de demo desechable" a columna estructural del modelo (las columnas no son de usar y tirar).
+- **2026-10-08 (2)**: se **retiró `wms_trip_number`** (`sql/20` / backend `sql/007`) y se **corrigió el marco**: esto NO es una migración WMS/WMH → Aurora; EFLOW sigue siendo la fuente y a Aurora solo llega lo operativo que el OMS ingiere. El ADR queda acotado a `guia_fiscal`.

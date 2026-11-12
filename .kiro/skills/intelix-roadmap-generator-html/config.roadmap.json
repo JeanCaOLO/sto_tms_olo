@@ -1,0 +1,9 @@
+{
+  "_comment": "Config de ejemplo con codigo y descripcion del proyecto para el nombre dinamico del archivo",
+  "project_code": "MC26006",
+  "project_title": "Integraciones eFlow/Next",
+  "company_name": "Beconsult INTELIX",
+  "show_legend": true,
+  "show_risk_section": true,
+  "flag_milestone": "Acta de Cierre"
+}

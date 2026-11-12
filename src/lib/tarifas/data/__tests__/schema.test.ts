@@ -7,7 +7,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import seed from '../../__tests__/fixtures/seed.json';
-import { COLLECTIONS } from '../../__tests__/helpers/memory/store';
+import { COLLECTIONS } from '../memory/store';
 import {
   ENTITIES,
   ENTITY_NAMES,

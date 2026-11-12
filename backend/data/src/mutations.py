@@ -2,7 +2,7 @@
 
 from tms_common.errors import HttpError
 
-from schema import assert_column, quote
+from schema import assert_column, quote, table_ref
 from select_query import build_where
 
 
@@ -19,7 +19,7 @@ def build_insert_query(table: str, rows: dict | list | None) -> tuple[str, list]
     placeholders = "(" + ",".join(["%s"] * len(columns)) + ")"
     values = ", ".join([placeholders] * len(items))
     column_list = ", ".join(quote(column) for column in columns)
-    return f"INSERT INTO {quote(table)} ({column_list}) VALUES {values} RETURNING *", params
+    return f"INSERT INTO {table_ref(table)} ({column_list}) VALUES {values} RETURNING *", params
 
 
 def _require_filters(filters: list | None, operation: str) -> None:
@@ -37,11 +37,11 @@ def build_update_query(table: str, values: dict | None, filters: list | None) ->
         assert_column(table, column)
     set_clause = ", ".join(f"{quote(column)} = %s" for column in values)
     where, where_params = build_where(table, None, filters)
-    sql = f"UPDATE {quote(table)} SET {set_clause} WHERE {where} RETURNING *"
+    sql = f"UPDATE {table_ref(table)} SET {set_clause} WHERE {where} RETURNING *"
     return sql, [*values.values(), *where_params]
 
 
 def build_delete_query(table: str, filters: list | None) -> tuple[str, list]:
     _require_filters(filters, "delete")
     where, params = build_where(table, None, filters)
-    return f"DELETE FROM {quote(table)} WHERE {where} RETURNING *", params
+    return f"DELETE FROM {table_ref(table)} WHERE {where} RETURNING *", params

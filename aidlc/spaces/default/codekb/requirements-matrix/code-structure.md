@@ -91,7 +91,7 @@ src/
 │   │
 │   ├── mock-auth.ts                   # Sesión falsa Supabase (opt-in env var)
 │   ├── mock-store.ts                  # CRUD localStorage (prefijo sto_mock_)
-│   └── supabase.ts                    # Cliente Supabase singleton
+│   └── api-client.ts                    # Cliente Supabase singleton
 │
 ├── infra/
 │   └── osrm/
@@ -174,10 +174,10 @@ route-geometry
   └── HTTP call → OSRM /route
 
 catalogos-api / pedidos-api
-  └── imports → src/lib/supabase
+  └── imports → src/lib/api-client
 
 generar-ruta-api
-  └── imports → src/lib/supabase
+  └── imports → src/lib/api-client
 
 generar-ruta-mock
   └── imports → src/lib/mock-store

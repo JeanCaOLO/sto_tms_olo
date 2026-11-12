@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import Button from '../base/Button';
+import Modal from '../base/Modal';
 
 interface CsvField {
   key: string;
@@ -199,7 +200,7 @@ export default function CsvImportModal({
     let failedCount = 0;
 
     try {
-      const { supabase } = await import('../../lib/supabase');
+      const { apiClient } = await import('../../lib/api-client');
       
       for (const row of validRows) {
         try {
@@ -209,7 +210,7 @@ export default function CsvImportModal({
             dataToInsert = await transformRow(row.data, organizationId);
           }
 
-          const { error } = await supabase.from(tableName).insert([dataToInsert]);
+          const { error } = await apiClient.from(tableName).insert([dataToInsert]);
           
           if (error) {
             console.error(`Error en fila ${row.rowNumber}:`, error);
@@ -242,8 +243,7 @@ export default function CsvImportModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+    <Modal isOpen onClose={handleClose} ariaLabel={title} widthClass="max-w-4xl" closeOnBackdrop={false}>
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-teal-50 to-teal-100">
           <div className="flex items-center gap-3">
@@ -257,6 +257,7 @@ export default function CsvImportModal({
           </div>
           <button
             onClick={handleClose}
+            aria-label="Cerrar"
             className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/50 transition-colors cursor-pointer"
           >
             <i className="ri-close-line text-xl text-slate-600"></i>
@@ -464,7 +465,6 @@ export default function CsvImportModal({
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

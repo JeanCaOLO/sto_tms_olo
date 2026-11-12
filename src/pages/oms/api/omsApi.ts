@@ -1,19 +1,18 @@
 // Capa de API del OMS. La Cola de Priorización (getQueue) ya lee datos REALES
-// de wms_expediciones (Fase 5 — docs/arquitectura-tms-oms/05-roadmap.md) y ya
+// de orders (= EFLOW EXPEDICIONESCABECERA, sql/43; antes wms_expediciones) y ya
 // las prioriza con el Motor de Prioridad real (Fase 6, ../engine/priorityEngine.ts:
 // regla T-1 + cliente retira). El resto (rutas, alertas, catálogo de reglas,
-// auditoría) sigue en mock — todavía no tienen tabla real detrás.
+// auditoría) sigue en mock — todavía no tienen tabla real detrás. El catálogo de
+// reglas es de SOLO LECTURA (DECIDED 2026-11-05): las reglas son fijas en código.
 // Patrón §11: Page -> Controller -> Api.
 
-import { supabase } from '../../../lib/supabase';
+import { apiClient } from '../../../lib/api-client';
 import { calcularPrioridad } from '../engine/priorityEngine';
 import {
   auditEntries,
   cofersaRoutes,
   companies,
-  computeKpis,
   engineRules,
-  omsAlerts,
   queueOrders,
 } from '../mockData';
 import type {
@@ -22,11 +21,13 @@ import type {
   Country,
   DispatchRoute,
   EngineRule,
-  OmsAlert,
-  PriorityTier,
+  OmsCorrida,
+  OmsLogEntry,
+  OmsLogLevel,
+  OmsMotorActividad,
+  OmsPipeline,
+  ProximaLiberacion,
   QueueOrder,
-  Simulation,
-  SimulationExecution,
 } from '../types';
 
 // Simula latencia de red para que los estados de carga sean visibles.
@@ -34,19 +35,27 @@ function delay<T>(data: T, ms = 350): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(data), ms));
 }
 
+// Scope del contexto operativo del header (País → Almacén → Cliente). La Cola
+// filtra orders por estos ids (orders.warehouse_id / orders.customer_id son FK
+// directas a los mismos UUIDs del contexto). `warehouseIds` = almacenes del país
+// seleccionado, para filtrar por país cuando aún no se eligió un almacén (orders
+// no tiene country_id; el país va por el almacén).
+export interface QueueScope {
+  warehouseId?: string | null;
+  customerId?: string | null;
+  warehouseIds?: string[];
+}
+
 // Modo DEMO: alimenta la Cola con el JSON generado por el MOTOR REAL del backend
 // (src/pages/oms/demo/) en vez de Supabase/mock + motor TS. Sirve para mostrar en
 // la tabla cómo prioriza el motor nuevo del OMS.
 //
-// POR AHORA está ENCENDIDO POR DEFECTO: abrir el OMS normal (/oms/cola) ya muestra
-// el demo, sin tener que tocar la URL ni configurar nada — así cualquiera que
-// pruebe el PR lo ve directo. Escape por si hace falta volver al flujo normal:
-//   - `?demo=0` en la URL lo APAGA y lo recuerda en la sesión (localStorage).
-//   - `?demo=1` lo vuelve a ENCENDER.
-// TODO: cuando dejemos de usar el demo, cambiar DEMO_POR_DEFECTO a false (o
-// quitar este bloque) para que la Cola vuelva a leer datos reales/Supabase.
+// APAGADO POR DEFECTO: la Cola lee los pedidos REALES de orders (Aurora, vía
+// /api/data). El demo del motor queda disponible solo bajo demanda:
+//   - `?demo=1` en la URL lo ENCIENDE y lo recuerda en la sesión (localStorage).
+//   - `?demo=0` lo APAGA.
 const DEMO_LS_KEY = 'oms.demo';
-const DEMO_POR_DEFECTO = true;
+const DEMO_POR_DEFECTO = false;
 
 function readDemoParam(): string | null {
   if (typeof window === 'undefined') return null;
@@ -79,83 +88,127 @@ function isOmsDemo(): boolean {
   }
 }
 
-// --- Persistencia mock del Simulador (localStorage) ---
-// PROTOTIPO: sin backend. El catálogo de simulaciones guardadas y el historial
-// de ejecuciones se guardan en localStorage para que la navegación se sienta
-// real entre recargas.
-const SIMS_KEY = 'oms.sim.simulations';
-const EXEC_KEY = 'oms.sim.executions';
+// Pedidos de la Cola: public.orders (= EFLOW EXPEDICIONESCABECERA, sql/43), con sus
+// maestros. Reemplaza a wms_expediciones (paso 5 del plan de pedidos EFLOW).
+const QUEUE_SELECT = `
+  *,
+  customer:customers(code, external_code),
+  warehouse:warehouses(code, external_code),
+  branch:branches(external_code, name),
+  final_customer:final_customers(external_code, name)
+`;
 
-// Seed: una simulación de ejemplo por compañía para que la pantalla no arranque
-// vacía en el prototipo. Solo se siembra si el catálogo está vacío.
-function seedSimulations(): Simulation[] {
-  return [
-    { id: 'SIM-CF-seed', companyId: '0109', name: 'Cofersa — diaria T-1', ruleIds: ['MR-CF-1', 'MR-CF-3'], situations: ['DISP'], applyMode: 'mixto', cutoffTime: '15:00', active: true },
-    { id: 'SIM-EPA-seed', companyId: 'EPA', name: 'EPA — cross docking', ruleIds: ['MR-EPA-1'], situations: ['DISP'], applyMode: 'automatico', cutoffTime: '12:00', active: true },
-  ];
+// --- Panel del motor: columnas y helpers del embudo ---
+// Columnas mínimas de orders para derivar el embudo sin traer toda la fila.
+const PANEL_SELECT =
+  'priority,oms_score,prioritization_run_id,planning_run_id,oms_processed_at,wms_situation,dispatch_date,lead_time_days,numero_viaje,delivery_date,delivery_date_change_count,closed_at';
+// Política del OMS (ADR-013): la ventana de liberación abre dispatch_date − N días.
+const DIAS_PREP_PICKING_DEFECTO = 1;
+// Acciones de negocio que forman el "Historial OMS" del panel (barrido automático
+// + acciones manuales). Los logs internos/por pedido quedan fuera del historial.
+const HISTORIAL_ACTIONS = new Set(['barrido', 'procesar_viaje', 'override_manual']);
+
+// Día ISO (YYYY-MM-DD) de un timestamp/fecha; null si viene vacío.
+function isoDay(value: unknown): string | null {
+  if (!value) return null;
+  return String(value).slice(0, 10);
 }
 
-function readLS<T>(key: string, fallback: T): T {
-  try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback; // JSON corrupto o storage no disponible: degradar al default
+// Resta `dias` a una fecha YYYY-MM-DD y devuelve YYYY-MM-DD.
+function restarDias(iso: string, dias: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - dias);
+  return d.toISOString().slice(0, 10);
+}
+
+// Normaliza el jsonb `detail` a objeto (el backend puede devolverlo como objeto o string).
+function parseDetail(d: unknown): Record<string, unknown> {
+  if (d && typeof d === 'object') return d as Record<string, unknown>;
+  if (typeof d === 'string') {
+    try { return JSON.parse(d) as Record<string, unknown>; } catch { return {}; }
   }
+  return {};
 }
 
-function writeLS(key: string, value: unknown): void {
-  try {
-    if (typeof localStorage !== 'undefined') localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // storage lleno / no disponible: el proto sigue en memoria de la sesión
-  }
-}
-
-// Mapea una fila cruda de wms_expediciones (espejo del WMS real) a QueueOrder,
-// aplicando el Motor de Prioridad real en vez de un placeholder.
-function mapExpedicionToQueueOrder(row: any, country: Country, hoyIso: string): QueueOrder {
-  const prioridad = calcularPrioridad(
-    {
-      fechaPlanificada: row.fecha_planificada ?? null,
-      fechaExpedicion: row.fecha_expedicion ?? null,
-      observaciones: row.observaciones ?? null,
-    },
-    hoyIso,
-  );
+// Mapea un pedido de orders a QueueOrder. La llave EFLOW manda cuando el pedido
+// vino de EFLOW; si no (pedidos de prueba), se usan los códigos de los maestros.
+//
+// Qué prioridad se muestra depende de si la compañía la PRIORIZA el OMS o es
+// PASS-THROUGH (config `oms_rule_configs.priorizar`):
+//  - Pass-through (priorizar=false, p. ej. EPA): conserva su prioridad de EFLOW
+//    (orders.priority). Es su prioridad REAL y no cambia (el OMS NO la recalcula ni
+//    la pone en 0 al liberar). Siempre se muestra tal cual.
+//  - Priorizada por el OMS (Cofersa, escala 0..n): la prioridad SOLO es válida
+//    cuando el OMS ya priorizó (prioritization_run_id). Si no, prioridad = null y la
+//    UI muestra "Sin priorizar" — NO se muestra el valor heredado de EFLOW, que no
+//    pertenece a la escala del OMS.
+// `score` es del OMS: solo existe cuando el OMS priorizó (EPA no tiene score).
+function mapOrderToQueueOrder(row: any, country: Country, passThrough: Set<string>): QueueOrder {
+  const priorizadoOms = row.prioritization_run_id != null;
+  const esPassThrough = passThrough.has(row.customer_id);
+  const priority = esPassThrough
+    ? (row.priority != null ? Number(row.priority) : null)
+    : (priorizadoOms && row.priority != null ? Number(row.priority) : null);
   return {
     id: row.id,
-    ref: row.expedicion,
-    warehouseId: row.id_compania, // el WMS de esta captura no distingue almacén de compañía - ver nota en seed-wms-expediciones.mjs
-    companyId: row.id_compania,
-    branchId: row.id_sucursal,
-    orderType: row.tipo_expedicion,
-    customer: row.nombre_cliente,
-    route: row.ruta || '(sin ruta)',
+    ref: row.eflow_id_expedicion ?? row.order_number,
+    warehouseId: row.eflow_id_almacen ?? row.warehouse?.external_code ?? row.warehouse?.code ?? '',
+    companyId: row.eflow_id_compania ?? row.customer?.external_code ?? row.customer?.code ?? '',
+    branchId: row.eflow_id_sucursal ?? row.branch?.external_code ?? '',
+    orderType: row.order_type ?? '',
+    customer: row.final_customer?.name ?? '',
+    route: row.delivery_zone || '(sin zona)',
     country,
-    tier: prioridad.tier,
-    score: prioridad.score,
-    totalAmount: 0, // no viene en la vista de Expediciones del WMS
-    weight: 0,
-    volume: 0,
-    itemCount: row.cant_lineas ?? 0,
+    priority,
+    score: priorizadoOms && row.oms_score != null ? Number(row.oms_score) : 0,
+    totalAmount: Number(row.total_amount ?? 0),
+    weight: Number(row.total_weight ?? 0),
+    volume: Number(row.total_volume ?? 0),
+    itemCount: row.total_items ?? 0,
     observations: row.observaciones ?? '',
-    dispatchDate: row.fecha_planificada ?? row.fecha_expedicion ?? '',
-    createdDate: row.created_at ?? '',
-    readyToPrepDate: '',
-    status: row.estado,
-    situation: row.situacion,
+    dispatchDate: row.delivery_date ?? '',
+    salidaDate: row.dispatch_date ?? '',
+    createdDate: row.wms_created_at ?? row.created_at ?? '',
+    status: row.wms_status ?? row.status ?? '',
+    situation: row.wms_situation ?? '',
+    // `prioritized` = el OMS calculó score para el pedido (gobierna la columna Score).
+    // Las compañías pass-through (EPA) son false: tienen prioridad pero no score del OMS.
+    // La pertenencia a la cola y el badge de prioridad se rigen por `priority != null`.
+    prioritized: priorizadoOms,
+    released: row.oms_processed_at != null || row.wms_situation === 'GENE',
     intakeTime: row.created_at ?? '',
-    appliedRules: prioridad.appliedRules,
+    appliedRules: [],
     history: [],
   };
+}
+
+// Compañías PASS-THROUGH (customer_id con priorizar=false en oms_rule_configs):
+// conservan su prioridad de EFLOW; el OMS no la recalcula (p. ej. EPA). Se consulta
+// la config real (no se hardcodea la compañía) y se cachea por sesión. Si la lectura
+// falla, se degrada a "ninguna pass-through" (no cachea el fallo → reintenta luego).
+let _passThroughCache: Set<string> | null = null;
+async function passThroughCustomers(): Promise<Set<string>> {
+  if (_passThroughCache) return _passThroughCache;
+  const { data, error } = await apiClient
+    .from('oms_rule_configs')
+    .select('customer_id')
+    .eq('scope_type', 'customer')
+    .eq('priorizar', false);
+  if (error || !data) {
+    console.warn('[OMS] oms_rule_configs (pass-through) no disponible:', error?.message);
+    return new Set<string>();
+  }
+  const set = new Set<string>();
+  for (const r of data as any[]) if (r.customer_id) set.add(r.customer_id);
+  _passThroughCache = set;
+  return set;
 }
 
 export const omsApi = {
   getRoutes(country: Country): Promise<DispatchRoute[]> {
     return delay(cofersaRoutes.filter((r) => r.country === country));
   },
-  async getQueue(country: Country): Promise<QueueOrder[]> {
+  async getQueue(country: Country, scope: QueueScope = {}): Promise<QueueOrder[]> {
     // Modo DEMO: pedidos priorizados por el motor real del backend (JSON export).
     if (isOmsDemo()) {
       const { corridaDemoOrders } = await import('../demo/corridaDemo');
@@ -166,32 +219,31 @@ export const omsApi = {
       return delay(rows);
     }
     if (country === 'CR') {
-      const { data, error } = await supabase.from('wms_expediciones').select('*');
-      if (error) {
-        // eslint-disable-next-line no-console
-        console.warn('[OMS] wms_expediciones no disponible, usando mock de respaldo:', error.message);
-      } else if (data && data.length > 0) {
-        const hoyIso = new Date().toISOString().slice(0, 10);
+      // Solo pedidos sin cierre en el WMS (EFLOW FECHACIERRE IS NULL), filtrados
+      // por el contexto operativo del header (almacén / compañía / país).
+      let query = apiClient.from('orders').select(QUEUE_SELECT).is('closed_at', null);
+      if (scope.warehouseId) query = query.eq('warehouse_id', scope.warehouseId);
+      else if (scope.warehouseIds && scope.warehouseIds.length > 0) query = query.in('warehouse_id', scope.warehouseIds);
+      if (scope.customerId) query = query.eq('customer_id', scope.customerId);
+      const { data, error } = await query;
+      if (!error && data) {
+        // Datos REALES de orders (aunque vengan vacíos): es lo que pidió negocio.
+        const passThrough = await passThroughCustomers();
         return data
-          .map((row: any) => mapExpedicionToQueueOrder(row, country, hoyIso))
+          .map((row: any) => mapOrderToQueueOrder(row, country, passThrough))
           .sort((a, b) => b.score - a.score);
       }
-      // Sin datos reales todavía (o error de red) - cae al mock en vez de
-      // mostrar una cola vacía sin explicación.
+      // CR trabaja SOLO con datos reales: ante un error de BD mostramos la cola
+      // vacía (y el error en consola), NUNCA mock. El mock de abajo queda solo
+      // para países sin fuente real todavía (p. ej. VE).
+      console.error('[OMS] cola no disponible (orders):', error?.message);
+      return [];
     }
     const rows = queueOrders
       .filter((o) => o.country === country)
       .slice()
       .sort((a, b) => b.score - a.score);
     return delay(rows);
-  },
-  getAlerts(country: Country): Promise<OmsAlert[]> {
-    void country;
-    return delay(omsAlerts);
-  },
-  getKpis(country: Country): Promise<ReturnType<typeof computeKpis>> {
-    void country;
-    return delay(computeKpis());
   },
   getEngineRules(): Promise<EngineRule[]> {
     return delay(engineRules);
@@ -202,61 +254,140 @@ export const omsApi = {
   getAudit(country: Country): Promise<AuditEntry[]> {
     return delay(auditEntries.filter((a) => a.country === country));
   },
-  // FR4 — distribución de pedidos por priority_tier (para el Panel).
-  getTierDistribution(country: Country): Promise<{ tier: PriorityTier; count: number }[]> {
-    void country;
-    // Mock ilustrativo (conteos de ejemplo, no derivados de la cola reducida).
-    return delay([
-      { tier: 1, count: 12 },
-      { tier: 2, count: 45 },
-      { tier: 3, count: 102 },
-      { tier: 4, count: 88 },
-    ]);
-  },
-
-  // --- Simulador (configurador) — todo mock/localStorage ---
-
-  // Catálogo de simulaciones guardadas de una compañía. Siembra ejemplos la
-  // primera vez para que el prototipo no arranque vacío.
-  getSimulations(companyId: string): Promise<Simulation[]> {
-    let all = readLS<Simulation[]>(SIMS_KEY, []);
-    if (all.length === 0) {
-      all = seedSimulations();
-      writeLS(SIMS_KEY, all);
+  // Bitácora del OMS (sql/49 oms_logs), más recientes primero. Lee datos REALES
+  // de Aurora vía /api/data; si la tabla no existe/aún no hay backend que escriba,
+  // devuelve lista vacía (no mock) para no inventar logs.
+  async getOmsLogs(limit = 200): Promise<OmsLogEntry[]> {
+    const { data, error } = await apiClient
+      .from('oms_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error || !data) {
+      console.warn('[OMS] oms_logs no disponible:', error?.message);
+      return [];
     }
-    return delay(all.filter((s) => s.companyId === companyId), 150);
+    return (data as any[]).map((r) => ({
+      id: r.id,
+      createdAt: r.created_at ?? '',
+      level: (r.level ?? 'info') as OmsLogLevel,
+      action: r.action ?? '',
+      corridaId: r.corrida_id ?? null,
+      message: r.message ?? '',
+      detail: r.detail ?? null,
+      actor: r.actor ?? 'system',
+    }));
   },
-  // Crea o actualiza una simulación (upsert por id). No toca el flag `active`.
-  saveSimulation(sim: Simulation): Promise<Simulation> {
-    const all = readLS<Simulation[]>(SIMS_KEY, []);
-    const i = all.findIndex((s) => s.id === sim.id);
-    if (i >= 0) all[i] = sim;
-    else all.push(sim);
-    writeLS(SIMS_KEY, all);
-    return delay(sim, 150);
+  // Limpia la bitácora del OMS (oms_logs) en un RANGO de fechas. Solo la dispara
+  // el rol developer desde la consola de Auditoría. `fromIso`/`toIso` son límites
+  // ISO; el backend exige al menos un filtro en el DELETE, así que siempre se pasa
+  // alguno (si faltara el rango, se usa created_at >= época = todo). Devuelve
+  // cuántas filas borró.
+  async clearOmsLogs(range?: { fromIso?: string; toIso?: string }): Promise<number> {
+    let q = apiClient.from('oms_logs').delete();
+    if (range?.fromIso) q = q.gte('created_at', range.fromIso);
+    if (range?.toIso) q = q.lt('created_at', range.toIso);
+    if (!range?.fromIso && !range?.toIso) q = q.gte('created_at', '1900-01-01');
+    const { data, error } = await q.select('id');
+    if (error) throw new Error(error.message);
+    return Array.isArray(data) ? data.length : 0;
   },
-  // Activa UNA simulación; desactiva cualquier otra de la MISMA compañía
-  // (invariante: solo una activa por compañía).
-  activateSimulation(companyId: string, simId: string): Promise<Simulation[]> {
-    const all = readLS<Simulation[]>(SIMS_KEY, []);
-    for (const s of all) {
-      if (s.companyId !== companyId) continue;
-      s.active = s.id === simId;
+  // --- Panel del motor del OMS (dashboard real sobre orders + oms_logs) ---
+
+  // Embudo del día + "por liberar pronto". Lee las columnas mínimas de los pedidos
+  // ABIERTOS (closed_at IS NULL) y agrupa en el cliente: el cliente propio no tiene
+  // operador "IS NOT NULL", y con el volumen actual (~cientos) traer y contar aquí
+  // es barato y evita filtros que el backend genérico no expone. El scope operativo
+  // (almacén/compañía del header) ya lo aplica el backend por headers.
+  async getPanelResumen(): Promise<{ pipeline: OmsPipeline; proximas: ProximaLiberacion[] }> {
+    const { data, error } = await apiClient.from('orders').select(PANEL_SELECT).is('closed_at', null);
+    if (error || !data) throw new Error(error?.message ?? 'No se pudo leer orders');
+    const rows = data as any[];
+    const hoyIso = new Date().toISOString().slice(0, 10);
+
+    const conPlan = (r: any) => r.planning_run_id != null;
+    const sinLiberar = (r: any) => r.oms_processed_at == null;
+    const priorizado = (r: any) => r.prioritization_run_id != null;
+
+    const pipeline: OmsPipeline = {
+      abiertos: rows.length,
+      enCola: rows.filter((r) => conPlan(r) && sinLiberar(r) && !priorizado(r)).length,
+      priorizados: rows.filter((r) => conPlan(r) && sinLiberar(r) && priorizado(r)).length,
+      liberadosHoy: rows.filter((r) => r.oms_processed_at != null && isoDay(r.oms_processed_at) === hoyIso).length,
+      // Indicadores de atención (reunión 2026-11-03):
+      //  - sin fecha de entrega: cualquier pedido abierto sin delivery_date (anomalía);
+      //  - sin fecha de salida: SOLO los ya planificados (planning_run_id) sin dispatch_date
+      //    (los de bandeja sin planificar legítimamente no la tienen → no son anomalía);
+      //  - modificaciones de fecha: suma del contador por pedido (0 hasta que exista la
+      //    edición de fecha con aprobación; ver sql/56).
+      sinFechaEntrega: rows.filter((r) => r.delivery_date == null).length,
+      sinFechaSalida: rows.filter((r) => conPlan(r) && r.dispatch_date == null).length,
+      modificacionesFecha: rows.reduce((acc, r) => acc + (Number(r.delivery_date_change_count) || 0), 0),
+    };
+
+    // "Por liberar pronto": priorizados-no-liberados por fecha de salida del viaje.
+    // La ventana de liberación abre dispatch_date − dias_prep_picking (default 1).
+    const porFecha = new Map<string, { pedidos: number; viajes: Set<string> }>();
+    for (const r of rows) {
+      if (!(conPlan(r) && sinLiberar(r) && priorizado(r))) continue;
+      const salida = isoDay(r.dispatch_date);
+      if (!salida) continue;
+      const g = porFecha.get(salida) ?? { pedidos: 0, viajes: new Set<string>() };
+      g.pedidos += 1;
+      if (r.numero_viaje) g.viajes.add(String(r.numero_viaje));
+      porFecha.set(salida, g);
     }
-    writeLS(SIMS_KEY, all);
-    return delay(all.filter((s) => s.companyId === companyId), 150);
+    const proximas: ProximaLiberacion[] = [...porFecha.entries()]
+      .map(([dispatchDate, g]) => {
+        const ventanaAbre = restarDias(dispatchDate, DIAS_PREP_PICKING_DEFECTO);
+        return { dispatchDate, ventanaAbre, abreHoy: ventanaAbre <= hoyIso, pedidos: g.pedidos, viajes: g.viajes.size };
+      })
+      .sort((a, b) => a.dispatchDate.localeCompare(b.dispatchDate))
+      .slice(0, 8);
+
+    return { pipeline, proximas };
   },
 
-  // Historial de ejecuciones de una compañía (más recientes primero).
-  getExecutions(companyId: string): Promise<SimulationExecution[]> {
-    const all = readLS<SimulationExecution[]>(EXEC_KEY, []);
-    const rows = all.filter((e) => e.companyId === companyId).sort((a, b) => b.executedAt.localeCompare(a.executedAt));
-    return delay(rows, 150);
-  },
-  logExecution(exec: SimulationExecution): Promise<SimulationExecution> {
-    const all = readLS<SimulationExecution[]>(EXEC_KEY, []);
-    all.push(exec);
-    writeLS(EXEC_KEY, all);
-    return delay(exec, 150);
+  // Latido del motor: últimas corridas (filas 'barrido' de oms_logs con sus totales
+  // de detail) + conteo de errores de las últimas 24 h. Si no hay backend/tabla,
+  // devuelve vacío (no inventa corridas).
+  async getMotorActividad(limit = 10): Promise<OmsMotorActividad> {
+    const { data, error } = await apiClient
+      .from('oms_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(120);
+    if (error || !data) {
+      console.warn('[OMS] oms_logs no disponible para el panel:', error?.message);
+      return { ultima: null, corridas: [], erroresRecientes: 0 };
+    }
+    const logs = data as any[];
+    const toCorrida = (r: any): OmsCorrida => {
+      const d = parseDetail(r.detail);
+      const num = (k: string) => (typeof d[k] === 'number' ? (d[k] as number) : null);
+      return {
+        id: r.id,
+        createdAt: r.created_at ?? '',
+        corridaId: r.corrida_id ?? null,
+        actor: r.actor ?? 'system',
+        level: (r.level ?? 'info') as OmsLogLevel,
+        action: r.action ?? '',
+        total: num('total'),
+        priorizados: num('priorizados'),
+        liberados: num('liberados'),
+        pendientes: num('pendientes'),
+        reconciliados: num('reconciliados'),
+        message: r.message ?? '',
+      };
+    };
+    // Historial OMS: acciones de negocio (corrida automática + acciones manuales).
+    const corridas = logs.filter((r) => HISTORIAL_ACTIONS.has(r.action)).slice(0, limit).map(toCorrida);
+    // La snapshot superior refleja la última corrida AUTOMÁTICA (barrido).
+    const ultima = corridas.find((c) => c.action === 'barrido') ?? null;
+    const hace24h = Date.now() - 24 * 60 * 60 * 1000;
+    const erroresRecientes = logs.filter(
+      (r) => r.level === 'error' && r.created_at && new Date(r.created_at).getTime() >= hace24h,
+    ).length;
+    return { ultima, corridas, erroresRecientes };
   },
 };

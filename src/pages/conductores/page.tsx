@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { supabase } from '../../lib/supabase';
+import { apiClient } from '../../lib/api-client';
 import Button from '../../components/base/Button';
 import Badge from '../../components/base/Badge';
 import Card from '../../components/base/Card';
@@ -45,7 +45,7 @@ export default function ConductoresPage() {
   const loadDrivers = async () => {
     setLoading(true);
     try {
-      const { data } = await supabase
+      const { data } = await apiClient
         .from('drivers')
         .select(`
           *,
@@ -67,7 +67,7 @@ export default function ConductoresPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('¿Estás seguro de eliminar este conductor?')) return;
 
-    const { error } = await supabase
+    const { error } = await apiClient
       .from('drivers')
       .delete()
       .eq('id', id);
@@ -329,7 +329,7 @@ export default function ConductoresPage() {
         ]}
         transformRow={async (row: any) => {
           // Resolver carrier_code -> carrier_id
-          const { data: carrier } = await supabase
+          const { data: carrier } = await apiClient
             .from('carriers')
             .select('id')
             .eq('code', row.carrier_code)
@@ -340,8 +340,8 @@ export default function ConductoresPage() {
           }
 
           // Obtener organization_id del usuario actual
-          const { data: { user } } = await supabase.auth.getUser();
-          const { data: appUser } = await supabase
+          const { data: { user } } = await apiClient.auth.getUser();
+          const { data: appUser } = await apiClient
             .from('app_users')
             .select('organization_id')
             .eq('id', user?.id)

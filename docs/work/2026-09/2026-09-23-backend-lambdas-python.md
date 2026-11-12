@@ -2,7 +2,7 @@
 
 ## What changed
 
-Todo el API de `server/` (Express) quedó reimplementado como Lambdas Python 3.13 en `backend/`, en forma de monorepo SAM: `common-services` (API Gateway HTTP compartido, authorizer JWT, Layer `tms_common`, rol IAM), un stack por módulo (`auth`, `data`, `context`, `eflow`) y un template aparte de secretos. El contrato HTTP es el mismo; el único cambio en el frontend es que `src/lib/supabase.ts` antepone `VITE_API_BASE`. Además, coordinación Claude↔Kiro: canal `.agents/CANAL.md`, Orca instalado y la guía `docs/guides/coordinacion-claude-kiro.md`.
+Todo el API de `server/` (Express) quedó reimplementado como Lambdas Python 3.13 en `backend/`, en forma de monorepo SAM: `common-services` (API Gateway HTTP compartido, authorizer JWT, Layer `tms_common`, rol IAM), un stack por módulo (`auth`, `data`, `context`, `eflow`) y un template aparte de secretos. El contrato HTTP es el mismo; el único cambio en el frontend es que `src/lib/api-client.ts` antepone `VITE_API_BASE`. Además, coordinación Claude↔Kiro: canal `.agents/CANAL.md`, Orca instalado y la guía `docs/guides/coordinacion-claude-kiro.md`.
 
 ## Why
 

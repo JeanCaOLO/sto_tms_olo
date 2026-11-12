@@ -3,22 +3,24 @@
 import { db, UniqueViolationError, type Row } from '../data';
 import { notLiquidableReason } from '../tripContext';
 import { getTrip } from '../tripsDataSource';
-import { auditar } from './audit';
+import { auditRow } from './audit';
 import { buildRowValues } from './buildRowValues';
 import { mapToDomain } from './mapToDomain';
 import { nextNumber, newSettlementId } from './numberingAndIds';
 import { resumen } from './summary';
-import type { EmitSettlementResult, SettlementInput } from '../types';
+import type { EmitSettlementResult, SettlementInput, TripRecord } from '../types';
 
 interface ValidationResult {
   error: string | null;
   errorType: 'invalid' | 'blocked' | 'failed' | null;
   actual: Row | null;
+  /** El viaje ya leído al validar: no se vuelve a pedir. */
+  trip?: TripRecord;
 }
 
 async function validateBeforeReliquiudate(currentId: string, input: SettlementInput, reason: string): Promise<ValidationResult> {
   if (!reason.trim()) {
-    return { error: 'Indicá por qué se re-liquida el viaje.', errorType: 'invalid', actual: null };
+    return { error: 'Indica por qué se re-liquida el viaje.', errorType: 'invalid', actual: null };
   }
 
   const actual = await db().findOne('settlement', currentId);
@@ -30,6 +32,18 @@ async function validateBeforeReliquiudate(currentId: string, input: SettlementIn
     return { error: 'La liquidación a reemplazar es de otro viaje.', errorType: 'failed', actual: null };
   }
 
+  // Una liquidación dentro de una proforma no se reemplaza por debajo: la proforma quedaría apuntando a una anulada.
+  const inProforma = await db().find('proformaItem', {
+    where: [{ column: 'settlement_id', op: 'eq', value: currentId }, { column: 'state', op: 'neq', value: 'excluded' }],
+    limit: 1,
+  });
+  if (inProforma.length > 0) {
+    return {
+      error: 'Esta liquidación está dentro de una proforma. Exclúyela de la proforma (o anula la proforma) y vuelve a re-liquidar.',
+      errorType: 'blocked', actual: null,
+    };
+  }
+
   const trip = await getTrip(input.trip.id);
   if (!trip) {
     return { error: 'El viaje ya no existe.', errorType: 'blocked', actual: null };
@@ -38,7 +52,7 @@ async function validateBeforeReliquiudate(currentId: string, input: SettlementIn
     return { error: notLiquidableReason(trip) ?? 'El viaje no está completado.', errorType: 'blocked', actual: null };
   }
 
-  return { error: null, errorType: null, actual };
+  return { error: null, errorType: null, actual, trip };
 }
 
 export async function attemptReliquidate(
@@ -58,7 +72,7 @@ export async function attemptReliquidate(
   }
   const actual = validation.actual!;
 
-  const trip = (await getTrip(input.trip.id))!;
+  const trip = validation.trip!;
   const ahora = new Date().toISOString();
 
   let saved;
@@ -75,16 +89,17 @@ export async function attemptReliquidate(
           superseded_by: newId,
           updated_at: ahora,
         });
-        return tx.insert('settlement', {
+        const row = await tx.insert('settlement', {
           id: newId,
           ...buildRowValues(input, trip, ahora),
           number,
           created_at: ahora,
         });
+        // La bitácora va en la misma transacción: anular, emitir y dejar rastro son una sola unidad.
+        await tx.insert('auditLog', auditRow('UPDATE', currentId, { status: actual.status }, { status: 'Anulado', superseded_by: newId }, reason));
+        await tx.insert('auditLog', auditRow('CREATE', String(row.id), null, resumen(row), `Re-liquidación de ${actual.number}: ${reason}`));
+        return row;
       });
-
-      await auditar('UPDATE', currentId, { status: actual.status }, { status: 'Anulado', superseded_by: newId }, reason);
-      await auditar('CREATE', String(saved.id), null, resumen(saved), `Re-liquidación de ${actual.number}: ${reason}`);
 
       // El driver HTTP devuelve dentro de la transacción lo enviado; se relee la fila definitiva.
       const definitiva = await db().findOne('settlement', saved.id);

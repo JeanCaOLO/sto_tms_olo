@@ -32,7 +32,7 @@ const linea = (seq: number, stage: TraceLine['stage'], final: string): TraceLine
 // ── Sin destildar nada ────────────────────────────────────────────────────────────────────────
 
 describe('con todas las líneas incluidas', () => {
-  const trace = [linea(1, 'BASE', '400.00'), linea(2, 'VARIABLE', '80.00'), linea(3, 'SURCHARGE', '30.00')];
+  const trace = [linea(1, 'BASE', '400.00'), linea(2, 'VARIABLE', '80.00'), linea(3, 'ADJUSTMENT', '30.00')];
 
   it('el total es la suma', () => {
     expect(computeSettlementTotals(trace, [], PAIS).total).toBe('510.00');
@@ -42,7 +42,7 @@ describe('con todas las líneas incluidas', () => {
     const totals = computeSettlementTotals(trace, [], PAIS);
     expect(totals.stageSubtotals.BASE).toBe('400.00');
     expect(totals.stageSubtotals.VARIABLE).toBe('80.00');
-    expect(totals.stageSubtotals.SURCHARGE).toBe('30.00');
+    expect(totals.stageSubtotals.ADJUSTMENT).toBe('30.00');
     expect(totals.stageSubtotals.TAX).toBe('0.00');
   });
 
@@ -57,7 +57,7 @@ describe('con todas las líneas incluidas', () => {
 // ── Destildando ───────────────────────────────────────────────────────────────────────────────
 
 describe('con líneas destildadas', () => {
-  const trace = [linea(1, 'BASE', '400.00'), linea(2, 'VARIABLE', '80.00'), linea(3, 'SURCHARGE', '30.00')];
+  const trace = [linea(1, 'BASE', '400.00'), linea(2, 'VARIABLE', '80.00'), linea(3, 'ADJUSTMENT', '30.00')];
 
   it('el total baja y dice cuánto se quitó', () => {
     const totals = computeSettlementTotals(trace, [2, 3], PAIS);
@@ -118,7 +118,7 @@ describe('differsFromEngine', () => {
       trip: makeTrip(),
       rules: [
         makeRule({ code: 'BASE', stage: 'BASE', expression: { op: 'FIXED', amount: '400.00' } }),
-        makeRule({ code: 'EXTRA', stage: 'SURCHARGE', expression: { op: 'FIXED', amount: '30.00' } }),
+        makeRule({ code: 'EXTRA', stage: 'VARIABLE', expression: { op: 'FIXED', amount: '30.00' } }),
       ],
       zones, zoneGroups, locations,
       ...makeOwnCostStructure(),

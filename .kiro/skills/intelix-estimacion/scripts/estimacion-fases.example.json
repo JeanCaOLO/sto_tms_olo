@@ -1,0 +1,73 @@
+{
+  "_descripcion": "Parametros de fase de la estimacion. La fecha de inicio de inception se toma del aidlc-state.md del registro AI-DLC activo (Start Date), compatible con v1 y v2. El resto se registra aqui a medida que las fases avanzan. Este archivo SI es escribible por la estimacion; aidlc-state.md es solo lectura.",
+  "inception_fin_real": "2026-01-15",
+  "_inception_fin_real_nota": "Fecha real en que finalizo la fase de inception. Dejar en null si inception sigue en curso.",
+  "construccion_inicio_real": "2026-01-16",
+  "_construccion_inicio_real_nota": "Fecha real de inicio de la fase de construccion AI-DLC. null = aun no solicitada.",
+  "personas": [
+    {
+      "nombre": "Lider de proyecto",
+      "roles": ["lider_proyecto", "responsable_solicitud", "responsable_documentacion"],
+      "dedicacion": "20%",
+      "fecha_inicio_participacion": "2026-01-16",
+      "ejecuta_desarrollo": false,
+      "asignacion": { "tipo": "global" }
+    },
+    {
+      "nombre": "Especialista tecnico",
+      "roles": ["especialista_tecnico", "desarrollador"],
+      "dedicacion": "80%",
+      "fecha_inicio_participacion": "2026-01-16",
+      "ejecuta_desarrollo": true,
+      "agentes": 1,
+      "asignacion": { "tipo": "global" }
+    },
+    {
+      "nombre": "Programador principal",
+      "roles": ["programador_principal", "desarrollador"],
+      "dedicacion": "100%",
+      "fecha_inicio_participacion": "2026-01-16",
+      "ejecuta_desarrollo": true,
+      "agentes": 1,
+      "asignacion": { "tipo": "global" }
+    },
+    {
+      "nombre": "Especialista de integracion",
+      "roles": ["especialista_integracion", "desarrollador"],
+      "dedicacion": "20%",
+      "fecha_inicio_participacion": "2026-02-02",
+      "ejecuta_desarrollo": true,
+      "agentes": 1,
+      "asignacion": {
+        "tipo": "entregables",
+        "entregables": ["Integracion con el ERP"],
+        "exclusivo": false
+      }
+    }
+  ],
+  "modo_asignacion": "por_tarea",
+  "roles_por_tarea": {
+    "Definir especificaciones tecnicas": ["especialista_tecnico"],
+    "Elaborar la ficha de la solicitud": ["responsable_documentacion"]
+  },
+  "responsables_funcionales": [
+    { "nombre": "Usuario responsable", "area": "Negocio" }
+  ],
+  "dependencias": {},
+  "dependencias_externas": [
+    {
+      "area": "Base de datos",
+      "necesidad": "Aprovisionar PostgreSQL, esquema y usuarios de la aplicacion",
+      "contacto": "Administrador de BD",
+      "estado": "pendiente",
+      "bloquea": "Integracion con el ERP"
+    },
+    {
+      "area": "Infraestructura",
+      "necesidad": "VPC, subredes privadas y balanceadores",
+      "contacto": "Equipo de Infraestructura",
+      "estado": "pendiente"
+    }
+  ],
+  "_personas_nota": "Cada persona tiene una sola dedicacion y calendario aunque cumpla varios roles. La fecha limita cuando puede comenzar. asignacion.tipo puede ser global o entregables; exclusivo=false permite apoyo general. roles_por_tarea limita actividades concretas a roles habilitados. lider_solicitud y responsable_solicitud siguen aceptados como aliases compatibles, pero los roles dentro de personas son el formato recomendado. Los responsables funcionales atienden reglas de negocio y no suman capacidad tecnica."
+}

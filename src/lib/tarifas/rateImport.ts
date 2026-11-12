@@ -153,7 +153,7 @@ export function parseRateRows(
       skipped.push({
         sourceRow,
         truckType,
-        reason: `Repetido: ya aparece en la fila ${previo}. Dejá una sola tarifa por tipo de vehículo.`,
+        reason: `Repetido: ya aparece en la fila ${previo}. Deja una sola tarifa por tipo de vehículo.`,
       });
       continue;
     }
