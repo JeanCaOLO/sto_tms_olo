@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { isGroup, isSection, navItems, type NavItem } from './sidebar-nav-items';
 import SidebarNavGroup from './SidebarNavGroup';
 import SidebarNavLink from './SidebarNavLink';
+import { canAccessModule } from './module-routes';
 
 export default function Sidebar() {
   const location = useLocation();
@@ -19,7 +20,7 @@ export default function Sidebar() {
   // Solo se muestran los módulos con `view` (los "Coming Soon" quedan visibles
   // pero apagados; se controla en el render, no acá). Un grupo aparece si al
   // menos un hijo es visible.
-  const canSee = (permKey?: string) => !permKey || can(permKey, 'view');
+  const canSee = (permKey?: string) => canAccessModule(permKey, can);
   const filtered: NavItem[] = navItems
     .map((item) =>
       isGroup(item) ? { ...item, children: item.children.filter((c) => canSee(c.permKey)) } : item,

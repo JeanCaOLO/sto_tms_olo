@@ -24,7 +24,7 @@ import admin_returns_sql as sql
 MODULE = "devoluciones"
 CONDITIONS = ("Bueno", "Dañado", "Incompleto")
 RETURN_KINDS = ("devolucion", "reparacion", "cambio")
-STATES = ("pendientes", "recibidos", "todos")
+STATES = ("pendientes", "recibidos", "todos", "novedades")
 FORM_NUMBER_ATTEMPTS = 3
 MAX_FORM_RETURNS = 500
 MAX_TRIPS_PAGE = 500
@@ -154,9 +154,11 @@ def list_trips(event: dict) -> dict:
     limit = int(raw_limit)
     filters, values = "", [org]
     if state == "pendientes":
-        filters += " AND pending_returns > 0"
+        filters += " AND open_returns > 0"
     elif state == "recibidos":
         filters += " AND pending_returns = 0"
+    elif state == "novedades":
+        filters += " AND incident_returns > 0"
     since, until = _iso_date(params.get("desde"), "desde"), _iso_date(params.get("hasta"), "hasta")
     if since:
         filters, values = filters + " AND route_date >= %s", [*values, since]
@@ -242,7 +244,10 @@ def receive_return(event: dict) -> dict:
     elif current["status"] not in ("pending", "approved"):
         raise HttpError(409, f'Una devolución en estado "{current["status"]}" no se puede recibir.')
     else:
-        updated = pg.query(sql.RECEIVE_SQL, [caller.app_user_id, quantity, _condition(body), return_id, org])
+        condition = _condition(body)
+        if condition != 'Bueno' or (current['quantity'] is not None and quantity != current['quantity']):
+            raise HttpError(400,'Para mercancía incompleta, averiada o con diferencia de cantidad, registre una novedad con su explicación.')
+        updated = pg.query(sql.RECEIVE_SQL, [caller.app_user_id, quantity, condition, return_id, org])
         if not updated:
             raise HttpError(409, "La devolución cambió de estado; recarga e inténtalo de nuevo.")
         received = updated[0]
@@ -255,7 +260,10 @@ def receive_all(event: dict) -> dict:
     caller, org = _caller(event, "edit")
     route_id = path_param(event, "routeId")
     _trip(caller, org, route_id)
-    updated = pg.query(sql.RECEIVE_ALL_SQL, [caller.app_user_id, _condition(_body(event)), route_id, org])
+    condition = _condition(_body(event))
+    if condition != 'Bueno':
+        raise HttpError(400,'Registre las devoluciones incompletas o averiadas como novedades individuales con su explicación.')
+    updated = pg.query(sql.RECEIVE_ALL_SQL, [caller.app_user_id, condition, route_id, org])
     if updated:
         audit.record(event, "update", module_key=MODULE, entity_table="tbl_routes", entity_id=route_id,
                      metadata={"action": "recibir-todas", "received": len(updated)})
@@ -275,7 +283,7 @@ def reject_return(event: dict) -> dict:
         raise HttpError(400, "El motivo de rechazo es obligatorio.")
     if len(reason) > 500:
         raise HttpError(400, "El motivo admite hasta 500 caracteres.")
-    if current["status"] in ("received", "completed"):
+    if current["status"] in ("received", "completed", "in_review"):
         raise HttpError(409, f'Una devolución en estado "{current["status"]}" no se puede rechazar.')
     if current["status"] in ("rejected", "cancelled"):
         rejected = None  # Idempotente
@@ -345,10 +353,16 @@ def create_form(event: dict) -> dict:
     taken = [row for row in chosen if row["form_id"] is not None]
     if taken:
         raise HttpError(409, f"{len(taken)} devolución(es) marcada(s) ya van en otro formulario; desmárcalas.")
+    if any(row.get('status') == 'in_review' for row in chosen):
+        raise HttpError(409, 'Una devolución en revisión no puede añadirse a un formulario hasta su aceptación interna.')
     fields = _form_fields(body)
     sections = _sections(body, {str(row["dispatch_guide_id"]) for row in chosen})
 
     with pg.transaction() as run:
+        # Comparte el bloqueo de la devolución con el registro de novedades.
+        locked = run(sql.SELECTED_RETURNS_SQL + ' ORDER BY rt.id FOR UPDATE OF rt', [route_id, org, ids])
+        if len(locked) != len(ids) or any(row.get('status') == 'in_review' or row['form_id'] is not None for row in locked):
+            raise HttpError(409, 'Una devolución marcada cambió de estado o ya pertenece a otro formulario; recargue la lista.')
         saved = []
         for _ in range(FORM_NUMBER_ATTEMPTS):
             number = _next_form_number(run, org)

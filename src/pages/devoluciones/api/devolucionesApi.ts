@@ -6,6 +6,11 @@ import type {
 
 const BASE = '/v1/devoluciones';
 
+export class ReturnApiError extends Error {
+  readonly status: number;
+  constructor(status: number, message: string) {super(message);this.status=status;this.name='ReturnApiError';}
+}
+
 type FetchInit = NonNullable<Parameters<typeof apiFetch>[1]>;
 
 function errorMessage(status: number, body: any): string {
@@ -14,7 +19,7 @@ function errorMessage(status: number, body: any): string {
 
 async function call<T>(path: string, init: FetchInit = {}): Promise<T> {
   const { ok, status, body } = await apiFetch(path, init);
-  if (!ok) throw new Error(errorMessage(status, body));
+  if (!ok) throw new ReturnApiError(status, errorMessage(status, body));
   return body?.data as T;
 }
 
@@ -66,6 +71,11 @@ export async function listTripsPage(query: TripQuery, cursor?: string): Promise<
 }
 
 export const getTrip = (routeId: string) => call<TripDetail>(`${BASE}/viajes/${routeId}`);
+
+export const recordIncident = (returnId: string, explanation: string, idempotencyKey: string) =>
+  call<{incident: {id: string;explanation: string};trip: ReturnTrip}>(`${BASE}/${encodeURIComponent(returnId)}/novedades`, {
+    method:'POST',body:JSON.stringify({explanation,idempotency_key:idempotencyKey}),
+  });
 
 export const receiveReturn = (returnId: string, quantity: number, condition: ReturnCondition) =>
   call<{ return: unknown; trip: ReturnTrip }>(`${BASE}/${returnId}/recibir`, send('POST', { received_quantity: quantity, condition }));

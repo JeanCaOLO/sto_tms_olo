@@ -1,6 +1,6 @@
 // Tipos del módulo Devoluciones (API backend/admin: /api/v1/devoluciones/*). Un viaje = una ruta.
 
-export type ReturnStatus = 'pending' | 'approved' | 'received' | 'completed' | 'rejected' | 'cancelled';
+export type ReturnStatus = 'pending' | 'approved' | 'received' | 'completed' | 'rejected' | 'cancelled' | 'in_review';
 export type ReturnCondition = 'Bueno' | 'Dañado' | 'Incompleto';
 export type ReturnKind = 'devolucion' | 'reparacion' | 'cambio';
 
@@ -11,6 +11,7 @@ export interface ReturnSummary {
   returns_total: number;
   returns_pending: number;
   returns_received: number;
+  returns_incidents?: number;
 }
 
 export interface ReturnTrip {
@@ -28,6 +29,8 @@ export interface ReturnTrip {
   last_return_at: string | null;
   /** Formularios que ya tiene el viaje (puede ser más de uno). */
   forms_count: number;
+  open_returns?: number;
+  incident_returns?: number;
 }
 
 export interface ReturnLine {
@@ -53,6 +56,9 @@ export interface ReturnLine {
   /** Formulario que ya la lleva; null = todavía sin formulario (se puede marcar para uno nuevo). */
   form_id: string | null;
   form_number: string | null;
+  incident_id?: string | null;
+  incident_explanation?: string | null;
+  incident_reported_at?: string | null;
 }
 
 /** Una parada del viaje con devoluciones: cliente y factura. Lo capturado manda sobre lo que sabe el tracking. */
@@ -112,7 +118,7 @@ export interface FormView {
   defaults: { transport: string | null };
 }
 
-export type TripFilter = 'pendientes' | 'recibidos' | 'todos';
+export type TripFilter = 'pendientes' | 'recibidos' | 'todos' | 'novedades';
 
 /** Lo que se edita en el formulario: todo como texto de input. */
 export interface SectionDraft {

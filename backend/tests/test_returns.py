@@ -127,14 +127,14 @@ def trips_database(monkeypatch):
     connection = sqlite3.connect(":memory:")
     connection.row_factory = sqlite3.Row
     connection.execute("CREATE TABLE vw_return_trips (route_id TEXT, route_date TEXT, route_number TEXT, "
-                       "organization_id TEXT, country_id TEXT, pending_returns INTEGER)")
+                       "organization_id TEXT, country_id TEXT, pending_returns INTEGER, open_returns INTEGER, incident_returns INTEGER)")
     rows = [{"route_id": f"11111111-1111-4111-8111-{index:012d}",
              "route_date": None if index % 11 == 0 else "2026-11-12",
              "route_number": None if index % 7 == 0 else "R-1",
              "organization_id": ORG, "country_id": COUNTRY if index % 5 else "other-country",
-             "pending_returns": index % 3} for index in range(1201)]
+             "pending_returns": index % 3, "open_returns": index % 3, "incident_returns": 0} for index in range(1201)]
     connection.executemany("INSERT INTO vw_return_trips VALUES (:route_id, :route_date, :route_number, "
-                           ":organization_id, :country_id, :pending_returns)", rows)
+                           ":organization_id, :country_id, :pending_returns, :open_returns, :incident_returns)", rows)
     original = pg.query
 
     def query(statement, params=()):
@@ -258,11 +258,19 @@ def test_receiving_a_return_defaults_to_the_reported_quantity_and_is_audited(app
     assert any(c[0] == "record" and c[2]["metadata"]["action"] == "recibir" for c in audit_calls)
 
 
-def test_receiving_with_a_different_quantity_and_condition(app, db, caller_permissions):
+def test_incomplete_or_damaged_receipt_requires_a_text_incident(app, db, caller_permissions):
     caller_permissions.set(RECEIVER)
-    call(app, "POST /api/v1/devoluciones/{returnId}/recibir", path={"returnId": RETURN},
+    response = call(app, "POST /api/v1/devoluciones/{returnId}/recibir", path={"returnId": RETURN},
          body={"received_quantity": 1, "condition": "Dañado"})
-    assert writes(db, "SET status = 'received'")[0][1:3] == [1, "Dañado"]
+    assert response['statusCode'] == 400
+    assert not writes(db, "SET status = 'received'")
+
+
+def test_receive_all_cannot_accept_damaged_goods_without_incident_text(app, db, caller_permissions):
+    caller_permissions.set(RECEIVER)
+    response = call(app, "POST /api/v1/devoluciones/viajes/{routeId}/recibir-todas", path={"routeId": ROUTE}, body={"condition":"Dañado"})
+    assert response['statusCode'] == 400
+    assert not writes(db, "UPDATE tbl_returns")
 
 
 @pytest.mark.parametrize("body", [{"received_quantity": -1}, {"received_quantity": "2"}, {"condition": "Roto"},
@@ -378,6 +386,14 @@ def test_reading_a_form_returns_it_with_its_returns_and_sections(app, db, caller
     db.form = {"id": "form-1", "form_number": "DEV-2026-11-0001", "route_id": ROUTE}
     data = body_of(call(app, "GET /api/v1/devoluciones/formularios/{formId}", path={"formId": "form-1"}))["data"]
     assert data["form"]["form_number"] == "DEV-2026-11-0001" and data["trip"]["route_id"] == ROUTE
+
+
+def test_cannot_add_a_return_in_review_to_a_new_form(app, db, caller_permissions):
+    caller_permissions.set(RECEIVER)
+    db.selected[0]['status'] = 'in_review'
+    response = _create(app, {'return_ids': [RETURN]})
+    assert response['statusCode'] == 409
+    assert not writes(db, 'INSERT INTO tbl_return_forms')
 
 
 def test_reading_an_unknown_form_is_a_404(app, caller_permissions):

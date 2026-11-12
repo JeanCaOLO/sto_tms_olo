@@ -14,11 +14,13 @@ export const STATUS_LABELS: Record<ReturnStatus, string> = {
   completed: 'Completada',
   rejected: 'Rechazada',
   cancelled: 'Cancelada',
+  in_review: 'En revisión',
 };
 
 type Variant = 'warning' | 'success' | 'danger' | 'default';
 const STATUS_VARIANTS: Record<ReturnStatus, Variant> = {
   pending: 'warning', approved: 'warning', received: 'success', completed: 'success', rejected: 'danger', cancelled: 'default',
+  in_review: 'warning',
 };
 
 export const statusLabel = (status: string): string => STATUS_LABELS[status as ReturnStatus] ?? status;
@@ -29,13 +31,13 @@ const TYPE_LABELS: Record<string, string> = { contracamion: 'Contracamión', rec
 /** Origen de la devolución: `contracamion` (la registra el chofer en la app), `recolecta` (la pide Atención al Cliente). */
 export const returnTypeLabel = (type: string | null | undefined): string => TYPE_LABELS[type ?? ''] ?? type ?? '-';
 
-/** Estados de una devolución que falta recibir. Solo ésas impiden liquidar el viaje (igual que el backend). */
+/** Estados que admiten recepción normal. Las novedades en revisión bloquean, pero no se reciben por esta acción. */
 export const OPEN_STATUSES = ['pending', 'approved'];
 export const isOpen = (status: string): boolean => OPEN_STATUSES.includes(status);
 
 /** El viaje puede pasar a liquidación: tiene devoluciones y ya no queda ninguna por recibir. */
-export const isReadyToSettle = (trip: Pick<ReturnTrip, 'total_returns' | 'pending_returns'>): boolean =>
-  trip.total_returns > 0 && trip.pending_returns === 0;
+export const isReadyToSettle = (trip: Pick<ReturnTrip, 'total_returns' | 'pending_returns' | 'incident_returns'>): boolean =>
+  trip.total_returns > 0 && trip.pending_returns === 0 && (trip.incident_returns ?? 0) === 0;
 
 export function tripProgress(trip: Pick<ReturnTrip, 'total_returns' | 'received_returns'>): { label: string; percent: number } {
   const total = Math.max(0, trip.total_returns);
@@ -127,7 +129,8 @@ export function toFormPayload(draft: FormDraft): FormDraft {
 export const reasonsOf = (lines: ReturnLine[]): string => [...new Set(lines.map((l) => l.reason).filter(Boolean))].join('; ');
 
 export const receivedQuantity = (line: ReturnLine): number | null =>
-  line.status === 'received' || line.status === 'completed' ? (line.received_quantity ?? line.quantity) : null;
+  line.status === 'received' || line.status === 'completed' ? (line.received_quantity ?? line.quantity)
+    : line.status === 'in_review' ? line.received_quantity : null;
 
 /** Cantidad inicial del diálogo de recepción: lo registrado por el conductor. */
 export const defaultReceiveQuantity = (line: ReturnLine): number => line.received_quantity ?? line.quantity ?? 0;
@@ -143,7 +146,7 @@ export function parseQuantity(raw: string): number | null {
 // ── Selección de devoluciones para un formulario nuevo ─────────────────────────────────────────
 
 /** Solo se pueden marcar las devoluciones que todavía no van en ningún formulario. */
-export const isSelectable = (line: Pick<ReturnLine, 'form_id'>): boolean => line.form_id === null;
+export const isSelectable = (line: Pick<ReturnLine, 'form_id'> & {status?: ReturnStatus}): boolean => line.form_id === null && line.status !== 'in_review';
 
 /** Marca o desmarca una devolución (devuelve un conjunto nuevo). */
 export function toggleSelection(selected: ReadonlySet<string>, id: string): Set<string> {

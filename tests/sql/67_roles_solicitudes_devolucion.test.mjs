@@ -111,9 +111,11 @@ test('keeps legacy rows and adds decision and traceability schema', async () => 
 
 test('forward is idempotent and old backend SQL still reads and writes', async () => {
   await migrate(); await migrate();
-  const create = pythonSQL('backend/admin/src/admin_return_requests_sql.py', 'INSERT_REQUEST_SQL');
+  // Contrato histórico anterior a la autoaprobación; debe seguir funcionando con defaults legacy.
+  const create = 'INSERT INTO tbl_return_requests(organization_id,customer_id,requested_by,request_number) VALUES($1,$2,$3,$4) RETURNING *';
   const created = await db.query(create, [orgA, companyA, authorA, 'SOL-TEST-NEW']);
   assert.equal(created.rows[0].status, 'pendiente_asignacion');
+  await db.exec(readFileSync(join(root,'sql/69_return_request_auto_approval.sql'),'utf8'));
   const mine = pythonSQL('backend/admin/src/admin_return_requests_sql.py', 'MINE_SQL');
   assert.equal((await db.query(mine, [orgA, companyA, authorA])).rows.length, 2);
   const mobile = pythonSQL('backend/mobile/src/mobile_api/sql.py', 'INSERT_RETURN_SQL');
@@ -163,9 +165,10 @@ test('request identity and historical destination cannot be reassigned', async (
 
 test('new requests reject a company or author from another organization', async () => {
   await migrate();
+  await db.exec(readFileSync(join(root,'sql/69_return_request_auto_approval.sql'),'utf8'));
   const create = pythonSQL('backend/admin/src/admin_return_requests_sql.py', 'INSERT_REQUEST_SQL');
-  await denied(() => db.query(create, [orgA, companyB, authorA, 'SOL-BAD-COMPANY']));
-  await denied(() => db.query(create, [orgA, companyA, authorB, 'SOL-BAD-AUTHOR']));
+  await denied(() => db.query(create, [orgA, companyB, authorA, 'SOL-BAD-COMPANY',authorA]));
+  await denied(() => db.query(create, [orgA, companyA, authorB, 'SOL-BAD-AUTHOR',authorB]));
 });
 
 test('physical links require an approved request and matching operational identity', async () => {

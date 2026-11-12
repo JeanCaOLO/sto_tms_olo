@@ -28,6 +28,11 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('RouteGuard', () => {
+  it('permite a Cliente entrar a Devoluciones con permiso de solicitudes',()=>{
+    permissions.state={loading:false,can:(module)=>module==='devoluciones_solicitud'};
+    renderAt('/devoluciones');
+    expect(screen.getByText('contenido protegido')).toBeTruthy();
+  });
   it('no monta la página protegida mientras cargan los permisos', () => {
     permissions.state = { loading: true, can: () => true };
     renderAt('/tracking');

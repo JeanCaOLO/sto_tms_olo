@@ -10,6 +10,7 @@ import { tabPanelProps } from '../../components/base/tabPanelProps';
 import {useAuth} from '../../hooks/useAuth';
 import {usePermissions} from '../../hooks/usePermissions';
 import RequestDetail from './components/RequestDetail';
+import type {RequestAttempt,RequestDraftJournal} from './requestDraftJournal';
 import {
   ACCEPT_ATTR, CODE_LIMIT, DESCRIPTION_LIMIT, MAX_FILES_PER_ITEM, MAX_ITEMS, NAME_LIMIT, REASONS, fileProblem,
   isVideo, newDraftItem, requestStatus, toPayloadItem, validateAll, type DraftItem, type ItemErrors, type ReasonCode, type RequestItemPayload,
@@ -44,15 +45,25 @@ const tabClass = (active: boolean) =>
     active ? 'border-teal-600 text-teal-700 font-semibold' : 'border-transparent text-slate-500 hover:text-slate-700'
   }`;
 
-export default function MisDevolucionesPage() {
-  const {user,loading}=useAuth();
-  if(loading||!user)return <p role="status">Cargando sesión…</p>;
-  return <ClientRequests key={user.id}/>;
+interface RequestPageProps {
+  mode?: 'full' | 'create' | 'history';
+  company?: ClientAssignment;
+  onCreated?: (request: CreatedRequest) => void;
+  onBusyChange?: (busy: boolean) => void;
+  journal?: RequestDraftJournal;
 }
 
-function ClientRequests() {
-  const {can,loading:permissionsLoading}=usePermissions();
-  const canCreate=can('devoluciones_solicitud','create');
+export default function MisDevolucionesPage(props: RequestPageProps) {
+  const {user,loading}=useAuth();
+  if(loading||!user)return <p role="status">Cargando sesión…</p>;
+  return <ClientRequests key={user.id} {...props}/>;
+}
+
+function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: RequestPageProps) {
+  const {user}=useAuth();
+  const {can,loading:permissionsLoading,isAdmin,permissions}=usePermissions();
+  const operatorCreator=(isAdmin||permissions?.role?.name==='Gerente')&&can('devoluciones','create');
+  const canCreate=can('devoluciones_solicitud','create')||!!company&&operatorCreator;
   const canRead=can('devoluciones_solicitud','view');
   const [assignment,setAssignment]=useState<ClientAssignment|null>(null);
   const [assignmentLoading,setAssignmentLoading]=useState(false);
@@ -63,9 +74,12 @@ function ClientRequests() {
   const inFlight=useRef(false);
   const lifecycle=useRef(0);
   useEffect(()=>()=>{lifecycle.current++;},[]);
-  const attempt=useRef<{key:string;payload:RequestItemPayload[]|null}|null>(null);
+  const attempt=useRef<RequestAttempt|null>(null);
+  const localJournal=useRef<RequestDraftJournal>(new Map());
+  const drafts=journal??localJournal.current;
+  const draftKey=user&&assignment?`${user.id}:${assignment.id}`:null;
   const [pendingConfirmation,setPendingConfirmation]=useState(false);
-  const [tab, setTab] = useState<TabKey>('nueva');
+  const [tab, setTab] = useState<TabKey>(mode==='history'?'historial':'nueva');
   const counter = useRef(0);
   const nextId = () => `n${++counter.current}`;
   const [items, setItems] = useState<DraftItem[]>(() => [newDraftItem(nextId())]);
@@ -74,8 +88,17 @@ function ClientRequests() {
   const [formError, setFormError] = useState('');
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState<CreatedRequest | null>(null);
+  useEffect(()=>{onBusyChange?.(sending||pendingConfirmation&&!done);},[sending,pendingConfirmation,done,onBusyChange]);
+  useEffect(()=>()=>{onBusyChange?.(false);},[onBusyChange]);
   // Archivos ya subidos a S3 (id del borrador -> llave): si el envío falla y se reintenta, no se suben de nuevo.
   const uploaded = useRef(new Map<string, string>());
+  useEffect(()=>{
+    if(!draftKey)return;
+    const saved=drafts.get(draftKey);
+    if(saved){attempt.current=saved.attempt;uploaded.current=saved.uploaded;setItems(saved.items);
+      counter.current=Math.max(counter.current,saved.counter);
+      setPendingConfirmation(!!saved.attempt.payload);}
+  },[draftKey,drafts]);
 
   // Historial de solicitudes del cliente
   const [history, setHistory] = useState<MyReturnRequest[]>([]);
@@ -100,16 +123,17 @@ function ClientRequests() {
     const generation=++assignmentGeneration.current;
     setAssignment(null);setAssignmentLoading(true);setAssignmentError('');
     try {
-      const value=await getClientAssignment();
+      const value=company??await getClientAssignment();
       if(!value?.id||!value.name?.trim())throw new Error('No se pudo confirmar la empresa asignada.');
       if(generation===assignmentGeneration.current)setAssignment(value);
     } catch(e){if(generation===assignmentGeneration.current)setAssignmentError(e instanceof Error?e.message:'No se pudo consultar la empresa asignada.');}
     finally{if(generation===assignmentGeneration.current)setAssignmentLoading(false);}
-  },[]);
+  },[company]);
+  const invalidateLoads=useCallback(()=>{assignmentGeneration.current++;historyGeneration.current++;},[]);
   useEffect(()=>{
     if(!permissionsLoading&&(canRead||canCreate))void loadAssignment();
-    return ()=>{assignmentGeneration.current++;historyGeneration.current++;};
-  },[permissionsLoading,canRead,canCreate,loadAssignment]);
+    return invalidateLoads;
+  },[permissionsLoading,canRead,canCreate,loadAssignment,invalidateLoads]);
 
   useEffect(() => {
     if (tab === 'historial' && canRead) {
@@ -144,6 +168,7 @@ function ClientRequests() {
   const removeItem = (id: string) => setItems((prev) => prev.filter((item) => item.id !== id));
 
   const reset = () => {
+    if(draftKey)drafts.delete(draftKey);
     attempt.current=null;setPendingConfirmation(false);
     uploaded.current.clear();
     setItems([newDraftItem(nextId())]);
@@ -166,6 +191,7 @@ function ClientRequests() {
     setSending(true);
     try {
       if(!attempt.current)attempt.current={key:crypto.randomUUID(),payload:null};
+      if(draftKey)drafts.set(draftKey,{attempt:attempt.current,items,uploaded:uploaded.current,counter:counter.current});
       let payload=attempt.current.payload;
       if(!payload){
        payload=[];
@@ -174,7 +200,7 @@ function ClientRequests() {
         for (const draft of item.files) {
           let key = uploaded.current.get(draft.id);
           if (!key) {
-            key = (await uploadFile(draft.file)).key;
+            key = (await (company?uploadFile(draft.file,company.id):uploadFile(draft.file))).key;
             if(generation!==lifecycle.current)return;
             uploaded.current.set(draft.id, key);
           }
@@ -185,14 +211,17 @@ function ClientRequests() {
        attempt.current.payload=payload;
        setPendingConfirmation(true);
       }
-      const created = await createRequest(payload,attempt.current.key);
+      const created = await (company?createRequest(payload,attempt.current.key,company.id):createRequest(payload,attempt.current.key));
       if(generation!==lifecycle.current)return;
       setDone(created);
-      if(canRead)void loadHistory();
+      if(draftKey)drafts.delete(draftKey);
+      onCreated?.(created);
+      if(canRead&&mode==='full')void loadHistory();
     } catch (err) {
       if(generation!==lifecycle.current)return;
       setFormError(err instanceof Error?err.message:'No se pudo enviar la solicitud.');
       if(err instanceof RequestApiError&&[400,403,404,422].includes(err.status)){
+        if(draftKey)drafts.delete(draftKey);
         attempt.current=null;uploaded.current.clear();setPendingConfirmation(false);
         if(err.status===403)void loadAssignment();
       }
@@ -203,15 +232,15 @@ function ClientRequests() {
   };
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className={mode==='full'?'p-6 max-w-3xl mx-auto space-y-6':'space-y-6'}>
+      {mode==='full'&&<div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold text-slate-800">Mis devoluciones</h1>
           <p className="text-sm text-slate-500">
             Solicite devoluciones de mercadería y consulte el estado de sus trámites.
           </p>
         </div>
-      </div>
+      </div>}
 
       <Card className="space-y-2 text-sm">
         <Badge>Recolecta</Badge>
@@ -223,7 +252,7 @@ function ClientRequests() {
         <p className="text-slate-500">El código se ingresa manualmente mientras no haya un catálogo de productos disponible.</p>
       </Card>
 
-      <Card className="p-0">
+      {mode==='full'&&<Card className="p-0">
         <TabBar<TabKey>
           tabs={canRead?TABS:TABS.filter(t=>t.key==='nueva')}
           value={tab}
@@ -233,9 +262,9 @@ function ClientRequests() {
           tabClassName={tabClass}
           className="flex gap-2 border-b border-slate-200 px-4 pt-2"
         />
-      </Card>
+      </Card>}
 
-      <div {...tabPanelProps('mis-devoluciones', tab)}>
+      <div {...(mode==='full'?tabPanelProps('mis-devoluciones', tab):{})}>
         {tab === 'historial' && canRead && (
           <div className="space-y-4">
             {loadingHistory && <p role="status" className="text-sm text-slate-500">Cargando solicitudes…</p>}
@@ -248,13 +277,13 @@ function ClientRequests() {
               <Card className="text-center py-8 space-y-3">
                 <i className="ri-inbox-line text-3xl text-slate-400"></i>
                 <p className="text-sm text-slate-600">Aún no tiene solicitudes de devolución registradas.</p>
-                <Button size="sm" onClick={() => setTab('nueva')}>Crear mi primera solicitud</Button>
+                {mode==='full'&&canCreate&&<Button size="sm" onClick={() => setTab('nueva')}>Crear mi primera solicitud</Button>}
               </Card>
             )}
             {!loadingHistory && !historyError && history.length > 0 && (
               <div className="space-y-3">
                 {history.map((req) => {
-                  const statusInfo = requestStatus(req.status);
+                  const statusInfo = requestStatus(req.status,req.approval_mode);
                   return (
                     <Card key={req.id} className="flex flex-wrap items-center justify-between gap-3">
                       <div>
@@ -282,13 +311,13 @@ function ClientRequests() {
               <i className="ri-checkbox-circle-line text-3xl text-teal-600"></i>
             </div>
             <h2 className="text-xl font-semibold text-slate-800">Solicitud registrada</h2>
-            <Badge variant={requestStatus(done.status).variant}>{requestStatus(done.status).label}</Badge>
+            <Badge variant={requestStatus(done.status,done.approval_mode).variant}>{requestStatus(done.status,done.approval_mode).label}</Badge>
             <p className="text-sm text-slate-600">
               Recibimos su solicitud de devolución <span className="font-semibold">{done.request_number}</span>.
             </p>
             <div className="flex justify-center gap-3 pt-2">
               <Button onClick={reset}>Nueva solicitud</Button>
-              {canRead&&<Button variant="secondary" onClick={() => { reset(); setTab('historial'); }}>
+              {canRead&&mode==='full'&&<Button variant="secondary" onClick={() => { reset(); setTab('historial'); }}>
                 Ver mis solicitudes
               </Button>}
             </div>

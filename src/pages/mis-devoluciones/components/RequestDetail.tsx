@@ -56,7 +56,7 @@ export default function RequestDetail({requestId,onClose,notice,renderActions}:R
       .finally(()=>{if(active)setLoading(false);});
     return ()=>{active=false;};
   },[requestId,retry]);
-  const status=detail?requestStatus(detail.request.status):null;
+  const status=detail?requestStatus(detail.request.status,detail.request.approval_mode):null;
   return <Modal isOpen onClose={onClose} title="Detalle de solicitud de recolecta">
     <div className="space-y-4 p-5">
       <div className="flex items-center justify-between gap-3">
@@ -73,7 +73,9 @@ export default function RequestDetail({requestId,onClose,notice,renderActions}:R
           <Badge variant={status!.variant}>{status!.label}</Badge> <Badge>Recolecta</Badge>
           <p>Empresa destinataria: <strong>{detail.request.customer_name}</strong></p>
           <p>Solicitada: {new Date(detail.request.created_at).toLocaleString('es-CR')}</p>
-          {detail.request.decided_at&&<p>Decisión registrada por {detail.request.decided_by_name||'Devoluciones'} el {new Date(detail.request.decided_at).toLocaleString('es-CR')}</p>}
+          {detail.request.approval_mode==='automatic'
+            ?<p>Aprobación automática al registrar la solicitud. Pendiente de integración con Planificación.</p>
+            :detail.request.decided_at&&<p>Decisión registrada por {detail.request.decided_by_name||'Devoluciones'} el {new Date(detail.request.decided_at).toLocaleString('es-CR')}</p>}
           {detail.request.status==='aprobada'&&<p>Aprobada para recolecta. La recepción en almacén se confirma por separado.</p>}
           {detail.request.rejection_reason&&<p className="rounded bg-red-50 p-3 text-red-700">{detail.request.rejection_reason}</p>}
         </div>

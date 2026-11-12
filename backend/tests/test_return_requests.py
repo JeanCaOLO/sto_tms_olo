@@ -29,7 +29,9 @@ class FakeDb:
         if "AS next FROM tbl_return_requests" in sql.replace("\n", " "):
             return [{"next": 7}]
         if sql.lstrip().startswith("INSERT INTO tbl_return_requests"):
-            return [{"id": "req-1", "request_number": params[3], "status": "pendiente_asignacion"}]
+            automatic = 'approval_mode' in sql
+            return [{"id": "req-1", "request_number": params[3], "status": "aprobada" if automatic else "pendiente_asignacion",
+                     "approval_mode": "automatic" if automatic else "legacy"}]
         if sql.lstrip().startswith("INSERT INTO tbl_return_request_items"):
             return [{"id": f"item-{params[1]}"}]
         if "FROM tbl_return_requests r" in sql:
@@ -78,6 +80,18 @@ def test_cliente_crea_solicitud_con_foto_y_video(app, db, caller_permissions, au
     files = [p for s, p in db.calls if "INSERT INTO tbl_return_request_files" in s]
     assert [(f[1], f[2]) for f in files] == [(KEY_A, "photo"), (KEY_B, "video")]
     assert any(c[0] == "record" for c in audit_calls)
+
+
+def test_creation_is_automatically_approved_and_audited_as_automatic(app, db, caller_permissions, audit_calls):
+    caller_permissions.set(CLIENT)
+    response = post(app, {"items": [item()]})
+    assert response["statusCode"] == 201
+    assert body_of(response)["data"]["status"] == "aprobada"
+    assert body_of(response)["data"]["approval_mode"] == "automatic"
+    statement, params = next((s, p) for s, p in db.calls if s.lstrip().startswith("INSERT INTO tbl_return_requests"))
+    assert "decided_by" in statement and "decided_at" in statement
+    assert params[-1] == "app-user"
+    assert any(c[0] == 'record' and c[2]['metadata'].get('approval_mode') == 'automatic' for c in audit_calls)
 
 
 def test_organizacion_y_empresa_salen_del_usuario_no_del_cuerpo(app, db, caller_permissions):

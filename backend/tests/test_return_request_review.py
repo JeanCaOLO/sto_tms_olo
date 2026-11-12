@@ -44,7 +44,9 @@ class Db:
             return [deepcopy(self.row)]
         if statement.lstrip().startswith('INSERT INTO tbl_return_requests'):
             self.created = True
-            self.row['id'] = params[0] if len(params) == 5 else REQ
+            self.row['id'] = params[0] if 'INSERT INTO tbl_return_requests (id,' in statement else REQ
+            if 'approval_mode' in statement:
+                self.row.update(status='aprobada',approval_mode='automatic',decided_by=params[-1],decided_at='2026-11-12T15:00:00Z')
             return [deepcopy(self.row)]
         if statement.lstrip().startswith('INSERT INTO tbl_return_request_items'):
             return [dict(id='item-1')]

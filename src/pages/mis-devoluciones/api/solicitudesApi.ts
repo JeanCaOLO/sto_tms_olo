@@ -27,12 +27,13 @@ export interface CreatedRequest {
   id: string;
   request_number: string;
   status: string;
+  approval_mode?: 'legacy' | 'automatic';
 }
 
 /** Sube UN archivo directo a S3 con un formulario firmado y devuelve su llave. */
-export async function uploadFile(file: File): Promise<UploadedFile> {
+export async function uploadFile(file: File, customerId?: string): Promise<UploadedFile> {
   const form = await call<UploadForm>(`${BASE}/archivos/url`, {
-    method: 'POST', body: JSON.stringify({ mime_type: file.type }),
+    method: 'POST', body: JSON.stringify({ mime_type: file.type, ...(customerId ? {customer_id: customerId} : {}) }),
   });
   const data = new FormData();
   Object.entries(form.fields).forEach(([name, value]) => data.append(name, value));
@@ -42,13 +43,15 @@ export async function uploadFile(file: File): Promise<UploadedFile> {
   return { key: form.key };
 }
 
-export const createRequest = (items: RequestItemPayload[], idempotencyKey: string) =>
-  call<CreatedRequest>(BASE, { method: 'POST', body: JSON.stringify({ items, idempotency_key: idempotencyKey }) });
+export const createRequest = (items: RequestItemPayload[], idempotencyKey: string, customerId?: string) =>
+  call<CreatedRequest>(BASE, { method: 'POST', body: JSON.stringify({ items, idempotency_key: idempotencyKey,
+    ...(customerId ? {customer_id: customerId} : {}) }) });
 
 export interface MyReturnRequest {
   id: string;
   request_number: string;
   status: string;
+  approval_mode?: 'legacy' | 'automatic';
   created_at: string;
   items: number;
   decided_by?: string | null;
@@ -68,6 +71,11 @@ export interface RequestDetail {
 }
 export interface SignedRequestFile {url: string; kind: 'photo' | 'video'; mime_type: string; expires_in: number}
 export const getClientAssignment = () => call<ClientAssignment>(`${BASE}/asignacion`, {cache: 'no-store'});
+export const getCreationCompanies = (countryId?: string | null) => {
+  const params = new URLSearchParams({empresas: '1'});
+  if (countryId) params.set('pais', countryId);
+  return call<ClientAssignment[]>(`${BASE}/asignacion?${params}`, {cache: 'no-store'});
+};
 export const getRequest = (id: string) => call<RequestDetail>(`${BASE}/${encodeURIComponent(id)}`, {cache: 'no-store'});
 export const getFileUrl = (requestId: string, fileId: string) => call<SignedRequestFile>(
   `${BASE}/${encodeURIComponent(requestId)}/archivos/${encodeURIComponent(fileId)}/url`, {cache: 'no-store'});
