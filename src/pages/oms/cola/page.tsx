@@ -6,7 +6,7 @@ import DataTable, { type DataTableColumn } from '../../../components/base/DataTa
 import PriorityBadge from '../components/PriorityBadge';
 import { priorityLabel, type QueueOrder } from '../types';
 import OrderDetailModal from './OrderDetailModal';
-import OverrideModal from './OverrideModal';
+import LiberarPedidoModal from './OverrideModal';
 import { useColaController } from './useColaController';
 
 const money = (n: number) => n.toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -15,7 +15,7 @@ const money = (n: number) => n.toLocaleString('es-CR', { minimumFractionDigits: 
 const soloFecha = (v: string) => (v ? v.slice(0, 10) : '');
 
 // Pantalla Cola de Priorización (FR2/FR3): tabla completa + filtros.
-// El detalle del pedido se muestra en un modal (con el botón de override dentro).
+// El detalle del pedido se muestra en un modal (con el botón Liberar pedido dentro).
 // El país queda fijo internamente (ver useColaController); el filtro visible es
 // Compañía, dentro del bloque de filtros (no hay selector de país en el header).
 // La lista es un DataTable (estándar del sistema: búsqueda, filtros por columna,
@@ -27,7 +27,7 @@ export default function OmsColaPage() {
     filters, setFilter, resetFilters, filtersActive, options,
     selectedId, setSelectedId, selected,
     detailOpen, setDetailOpen,
-    overrideOpen, setOverrideOpen, applyOverride,
+    liberarOpen, setLiberarOpen, abrirLiberar, liberarPedido, liberando, liberarError,
   } = useColaController();
 
   const opt = (all: string[], allLabel: string) => [
@@ -118,17 +118,18 @@ export default function OmsColaPage() {
       {detailOpen && selected && (
         <OrderDetailModal
           order={selected}
-          onOverride={() => { setDetailOpen(false); setOverrideOpen(true); }}
+          onLiberar={() => { setDetailOpen(false); abrirLiberar(); }}
           onClose={() => { setDetailOpen(false); setSelectedId(null); }}
         />
       )}
 
-      {overrideOpen && selected && (
-        <OverrideModal
+      {liberarOpen && selected && (
+        <LiberarPedidoModal
           orderId={selected.ref}
-          currentPriority={selected.priority}
-          onConfirm={applyOverride}
-          onCancel={() => setOverrideOpen(false)}
+          busy={liberando}
+          error={liberarError}
+          onConfirm={liberarPedido}
+          onCancel={() => setLiberarOpen(false)}
         />
       )}
     </div>

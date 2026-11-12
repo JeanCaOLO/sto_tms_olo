@@ -1,7 +1,7 @@
 version = 0.1
 # Deploy en dev/qa: lo hace el equipo (python scripts/sandbox/deploy_backend.py oms).
 # W1/W2/W3 cableados (2026-10-21). dev corre en live (lee orders, escribe a
-# sim_expedicionescabecera) con barrido frecuente para probar. qa/prod: ajustar.
+# sim_expedicionescabecera) con barrido cada 3 horas (rate(3 hours)). qa/prod: ajustar.
 
 [dev.deploy.parameters]
 stack_name = "dev-tms-oms"
@@ -16,7 +16,7 @@ parameter_overrides = [
   "SubnetIds=/dev/tms/network/subnets",
   "SecurityGroupId=/dev/tms/network/lambda-sg",
   "OmsSource=live",
-  "BarridoSchedule=rate(15 minutes)"
+  "BarridoSchedule=rate(3 hours)"
 ]
 tags = ["Project=TMS", "Environment=DEV", "Name=dev-tms-oms"]
 

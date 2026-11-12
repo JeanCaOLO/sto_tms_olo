@@ -36,8 +36,7 @@ Parameters:
     Default: cron(0 12,15,18,21,23 * * ? *)
     Description: >
       Expresion de EventBridge para el barrido (W1). Default = 5x/dia (UTC) para
-      qa/prod. En dev se usa algo frecuente (p. ej. rate(15 minutes)) via samconfig
-      para no esperar horas al probar.
+      qa/prod. En dev se usa rate(3 hours) via samconfig (antes rate(15 minutes)).
   SubnetIds:
     Type: AWS::SSM::Parameter::Value<List<String>>
   SecurityGroupId:
@@ -144,6 +143,19 @@ Resources:
       ApiId:
         Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
       RouteKey: POST /api/v1/oms/viajes/{numero_viaje}/procesar
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${OmsApiIntegration}
+
+  # Accion manual "Liberar pedido" (por pedido, DECIDED 2026-11-04). Gated por rol en el
+  # codigo (permissions.require("oms","edit") en liberar_pedidos), igual que la de viaje.
+  OmsLiberarPedidosRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/v1/oms/pedidos/liberar
       AuthorizationType: CUSTOM
       AuthorizerId:
         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId

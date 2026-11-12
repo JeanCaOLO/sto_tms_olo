@@ -5,6 +5,7 @@
 const ACTION_LABELS: Record<string, string> = {
   barrido: 'Ejecución automática',
   procesar_viaje: 'Procesar a Eflow',
+  liberar_pedido: 'Liberar pedido',
   override_manual: 'Override manual',
   planif_ingesta_bandeja: 'Actualizar bandeja',
   planif_replan_programado: 'Replan programado',

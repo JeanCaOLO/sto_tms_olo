@@ -55,6 +55,8 @@ un marcador `last_synced_priority` (o entrega garantizada) para no perder un cam
 
 ## PENDIENTE — La interacción manual pasa a ser "liberar el pedido"
 
+> **Actualización 2026-11-09**: implementado, ver `2026-11-09-liberar-pedido-manual-oms.md`.
+
 **Ajuste del negocio (2026-11-04):** la prioridad va atada a la fecha de salida, y **no
 podemos alterar ni la fecha de salida ni la de entrega**. Por eso desaparece el "alterar
 prioridad a un número arbitrario": no tendría respaldo en una fecha. La **única
