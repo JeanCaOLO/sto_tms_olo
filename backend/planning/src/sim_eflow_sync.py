@@ -25,7 +25,10 @@ def _upsert(r: dict) -> None:
     updates = ", ".join(f'"{c}"=EXCLUDED."{c}"' for c in cols if c not in _NO_PISAR)
     conflict = ", ".join(f'"{c}"' for c in _KEY)
     sql = (f'INSERT INTO sim_expedicionescabecera ({colnames}) VALUES ({placeholders}) '
-           f'ON CONFLICT ({conflict}) DO UPDATE SET {updates}, escrito_en=now()')
+           f'ON CONFLICT ({conflict}) DO UPDATE SET {updates}, escrito_en=now() '
+           # Liberado por el OMS (TPEXSI='GENE', su write-back simulado): el sync no lo pisa.
+           # eFlow real sigue DISP/DISP porque el OMS aún no le escribe (EPRAC pendiente).
+           """WHERE sim_expedicionescabecera."TPEXSI" IS DISTINCT FROM 'GENE'""")
     pg.query(sql, [_val(c, r[c]) for c in cols])
 
 
