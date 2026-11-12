@@ -3,6 +3,7 @@
 // (Liquidaciones no deja liquidar un viaje con devoluciones sin recibir). Cada viaje tiene su formulario imprimible.
 import { useState } from 'react';
 import Card from '../../components/base/Card';
+import Button from '../../components/base/Button';
 import TabBar from '../../components/base/TabBar';
 import { tabPanelProps } from '../../components/base/tabPanelProps';
 import DateRangeFilter from '../../components/feature/DateRangeFilter';
@@ -33,7 +34,7 @@ export default function DevolucionesPage() {
   const [tab, setTab] = useState<TripFilter>('pendientes');
   // Por defecto sin límite de fechas: una devolución pendiente de hace semanas no puede quedar oculta.
   const [range, setRange] = useState<DateRange>(() => rangeFor('all'));
-  const { summary, trips, loading, error, reload } = useReturnTrips(tab, range.from, range.to);
+  const { summary, trips, loading, error, reload, hasMore, loadingMore, loadMoreError, loadMore } = useReturnTrips(tab, range.from, range.to);
 
   return (
     <div className="space-y-6">
@@ -70,6 +71,14 @@ export default function DevolucionesPage() {
         {trips.map((trip) => (
           <TripCard key={trip.route_id} trip={trip} canEdit={canEdit} canPrint={canExport} onChanged={reload} />
         ))}
+        {loadMoreError && <p role="alert" className="text-sm text-red-600">{loadMoreError}</p>}
+        {hasMore && (
+          <div className="flex justify-center">
+            <Button variant="secondary" disabled={loading || loadingMore} onClick={() => void loadMore()}>
+              {loadingMore ? 'Cargando más…' : loadMoreError ? 'Reintentar cargar más' : 'Cargar más viajes'}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -31,11 +31,31 @@ export interface TripQuery {
 
 export const getSummary = () => call<ReturnSummary>(`${BASE}/resumen`);
 
-export function listTrips({ state, from, to }: TripQuery) {
+function tripParams({ state, from, to }: TripQuery) {
   const params = new URLSearchParams({ estado: state });
   if (from) params.set('desde', from);
   if (to) params.set('hasta', to);
-  return call<ReturnTrip[]>(`${BASE}/viajes?${params.toString()}`);
+  return params;
+}
+
+export function listTrips(query: TripQuery) {
+  return call<ReturnTrip[]>(`${BASE}/viajes?${tripParams(query).toString()}`);
+}
+
+export interface TripsPage {
+  trips: ReturnTrip[];
+  nextCursor: string | null;
+}
+
+/** La lista carga páginas pequeñas; el contrato data:[] sigue siendo compatible con los clientes anteriores. */
+export async function listTripsPage(query: TripQuery, cursor?: string): Promise<TripsPage> {
+  const params = tripParams(query);
+  params.set('limit', '100');
+  if (cursor) params.set('cursor', cursor);
+  const { ok, status, body } = await apiFetch(`${BASE}/viajes?${params.toString()}`);
+  if (!ok) throw new Error(errorMessage(status, body));
+  if (!Array.isArray(body?.data)) throw new Error('La respuesta de viajes no contiene una lista válida.');
+  return { trips: body.data, nextCursor: body.next_cursor ?? null };
 }
 
 export const getTrip = (routeId: string) => call<TripDetail>(`${BASE}/viajes/${routeId}`);

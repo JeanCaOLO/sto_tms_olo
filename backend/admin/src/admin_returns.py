@@ -7,7 +7,10 @@ Un viaje puede tener VARIOS formularios: cada uno lleva solo las devoluciones qu
 devolución va en un único formulario.
 """
 
+import base64
+import json
 from datetime import date, datetime, timezone
+from uuid import UUID
 
 from tms_common import audit, pg, permissions
 from tms_common.errors import HttpError
@@ -23,6 +26,7 @@ RETURN_KINDS = ("devolucion", "reparacion", "cambio")
 STATES = ("pendientes", "recibidos", "todos")
 FORM_NUMBER_ATTEMPTS = 3
 MAX_FORM_RETURNS = 500
+MAX_TRIPS_PAGE = 500
 FORM_TEXT_LIMITS = {"physical_receipt_number": 50, "branch": 100, "merchandise_for": 255, "transport": 255,
                     "guide_number": 100, "received_by_name": 255}
 SECTION_TEXT_LIMITS = {"invoice_number": 100, "customer_code": 100, "customer_name": 255, "phone": 50,
@@ -91,12 +95,47 @@ def summary(event: dict) -> dict:
     return _ok(pg.query(sql.SUMMARY_SQL.format(scope=scope), [org, *extra])[0])
 
 
+def _trips_cursor(raw: str) -> list:
+    """Clave de la última fila recibida: fecha/número opcionales y UUID de desempate."""
+    try:
+        if not isinstance(raw, str) or len(raw) > 2048:
+            raise ValueError()
+        values = json.loads(base64.b64decode(raw + "=" * (-len(raw) % 4), altchars=b"-_", validate=True))
+        if not isinstance(values, list) or len(values) != 3:
+            raise ValueError()
+        day, number, route_id = values
+        if day is not None and (not isinstance(day, str) or len(day) != 10):
+            raise ValueError()
+        if number is not None and (not isinstance(number, str) or len(number) > 255):
+            raise ValueError()
+        if number is not None:
+            if "\x00" in number:
+                raise ValueError()
+            number.encode("utf-8")
+        if not isinstance(route_id, str):
+            raise ValueError()
+        parsed_day = date.fromisoformat(day) if day is not None else date.min
+        return [day is None, parsed_day, number is None, number or "", str(UUID(route_id))]
+    except (ValueError, TypeError, UnicodeDecodeError) as error:
+        raise HttpError(400, "cursor de viajes inválido.") from error
+
+
+def _next_trips_cursor(row: dict) -> str:
+    day = row.get("route_date")
+    values = [day.isoformat() if isinstance(day, date) else day, row.get("route_number"), str(row["route_id"])]
+    return base64.urlsafe_b64encode(json.dumps(values, ensure_ascii=False).encode("utf-8")).decode("ascii").rstrip("=")
+
+
 def list_trips(event: dict) -> dict:
     caller, org = _caller(event, "view")
     params = query_params(event)
     state = params.get("estado") or "todos"
     if state not in STATES:
         raise HttpError(400, f"estado debe ser uno de: {', '.join(STATES)}")
+    raw_limit = params.get("limit", str(MAX_TRIPS_PAGE))
+    if not isinstance(raw_limit, str) or len(raw_limit) > 3 or not raw_limit.isdecimal() or not 1 <= int(raw_limit) <= MAX_TRIPS_PAGE:
+        raise HttpError(400, f"limit debe ser un entero entre 1 y {MAX_TRIPS_PAGE}.")
+    limit = int(raw_limit)
     filters, values = "", [org]
     if state == "pendientes":
         filters += " AND pending_returns > 0"
@@ -107,8 +146,16 @@ def list_trips(event: dict) -> dict:
         filters, values = filters + " AND route_date >= %s", [*values, since]
     if until:
         filters, values = filters + " AND route_date <= %s", [*values, until]
+    if "cursor" in params:
+        cursor_values = _trips_cursor(params["cursor"])
+        filters += f" AND {sql.TRIP_SORT_KEY} < (%s::boolean, %s::date, %s::boolean, %s::text, %s::uuid)"
+        values.extend(cursor_values)
     scope, extra = _scope(caller)
-    return _ok(pg.query(sql.TRIPS_SQL.format(filters=filters, scope=scope), [*values, *extra]))
+    rows = pg.query(sql.TRIPS_SQL.format(filters=filters, scope=scope), [*values, *extra, limit + 1])
+    items = rows[:limit]
+    cursor = _next_trips_cursor(items[-1]) if len(rows) > limit else None
+    # data sigue siendo un array para los consumidores anteriores; el cursor es metadata adicional.
+    return json_response(200, {"data": items, "error": None, "next_cursor": cursor})
 
 
 def get_trip(event: dict) -> dict:

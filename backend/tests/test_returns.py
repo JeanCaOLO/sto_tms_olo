@@ -1,7 +1,11 @@
 """Devoluciones: recepción por viaje y formulario (backend/admin/src/admin_returns.py)."""
 
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+import base64
+import json
+import re
+import sqlite3
 
 import pytest
 
@@ -108,7 +112,101 @@ def test_a_role_limited_to_some_countries_filters_every_read_by_them(app, db, ca
     caller_permissions.set(make_permissions({"devoluciones": ["view"]}, countries=[COUNTRY]))
     call(app, "GET /api/v1/devoluciones/viajes")
     sql, params = next(c for c in db.calls if "FROM vw_return_trips" in c[0] and "ORDER BY" in c[0])
-    assert "country_id = ANY(%s::uuid[])" in sql and params[-1] == [COUNTRY]
+    assert "country_id = ANY(%s::uuid[])" in sql and params[-2] == [COUNTRY]
+
+
+@pytest.fixture
+def trips_database(monkeypatch):
+    """Ejecuta la consulta de paginación sobre filas reales locales, sin conexión a Aurora.
+
+    Solo adapta placeholders, casts y ANY al dialecto SQLite. La comparación
+    de claves y el ORDER BY los ejecuta SQL, no un doble que imite el cursor.
+    """
+    connection = sqlite3.connect(":memory:")
+    connection.row_factory = sqlite3.Row
+    connection.execute("CREATE TABLE vw_return_trips (route_id TEXT, route_date TEXT, route_number TEXT, "
+                       "organization_id TEXT, country_id TEXT, pending_returns INTEGER)")
+    rows = [{"route_id": f"11111111-1111-4111-8111-{index:012d}",
+             "route_date": None if index % 11 == 0 else "2026-11-12",
+             "route_number": None if index % 7 == 0 else "R-1",
+             "organization_id": ORG, "country_id": COUNTRY if index % 5 else "other-country",
+             "pending_returns": index % 3} for index in range(1201)]
+    connection.executemany("INSERT INTO vw_return_trips VALUES (:route_id, :route_date, :route_number, "
+                           ":organization_id, :country_id, :pending_returns)", rows)
+    original = pg.query
+
+    def query(statement, params=()):
+        if "FROM vw_return_trips" not in statement:
+            return original(statement, params)
+        bound = []
+        for value in params:
+            if isinstance(value, list):
+                statement = statement.replace("= ANY(%s::uuid[])", "IN (" + ",".join(["%s"] * len(value)) + ")", 1)
+                bound.extend(value)
+            else:
+                bound.append(value.isoformat() if isinstance(value, date) else value)
+        statement = re.sub(r"::(?:uuid|boolean|date|text|int)", "", statement)
+        statement = statement.replace("DATE '0001-01-01'", "'0001-01-01'").replace("%s", "?")
+        return [dict(row) for row in connection.execute(statement, bound)]
+
+    monkeypatch.setattr(pg, "query", query)
+    yield rows
+    connection.close()
+
+
+def _all_trip_pages(app, query):
+    cursor, rows = None, []
+    for _ in range(100):
+        response = call(app, "GET /api/v1/devoluciones/viajes", query={**query, **({"cursor": cursor} if cursor else {})})
+        assert response["statusCode"] == 200, body_of(response)
+        body = body_of(response)
+        rows.extend(body["data"])
+        cursor = body.get("next_cursor")
+        if cursor is None:
+            return rows
+    pytest.fail("La paginación no termina")
+
+
+def test_trip_pages_reach_every_row_past_500_with_tied_and_null_keys(app, trips_database, caller_permissions):
+    caller_permissions.set(READER)
+    rows = _all_trip_pages(app, {"limit": "100"})
+    assert len(rows) == len(trips_database) == len({row["route_id"] for row in rows})
+    ordered = sorted(trips_database, key=lambda row: (
+        row["route_date"] is None, row["route_date"] or "0001-01-01",
+        row["route_number"] is None, row["route_number"] or "", row["route_id"]), reverse=True)
+    assert [row["route_id"] for row in rows] == [row["route_id"] for row in ordered]
+
+
+@pytest.mark.parametrize("state", ["pendientes", "recibidos"])
+def test_trip_pagination_keeps_country_dates_and_state_on_every_page(app, trips_database, caller_permissions, state):
+    caller_permissions.set(make_permissions({"devoluciones": ["view"]}, countries=[COUNTRY]))
+    rows = _all_trip_pages(app, {"limit": "17", "estado": state, "desde": "2026-11-01", "hasta": "2026-11-30"})
+    expected = [row for row in trips_database if row["country_id"] == COUNTRY and row["route_date"] is not None
+                and ((row["pending_returns"] > 0) == (state == "pendientes"))]
+    assert {row["route_id"] for row in rows} == {row["route_id"] for row in expected}
+    assert len(rows) == len(expected)
+
+
+def test_legacy_trip_list_still_returns_an_array_of_at_most_500(app, trips_database, caller_permissions):
+    caller_permissions.set(READER)
+    body = body_of(call(app, "GET /api/v1/devoluciones/viajes"))
+    assert isinstance(body["data"], list) and len(body["data"]) == 500
+    assert body.get("next_cursor")
+
+
+@pytest.mark.parametrize("query", [{"limit": value} for value in ("0", "-1", "501", "1.5", "x", "9" * 5000)] + [
+    {"cursor": "not-a-cursor"}, {"cursor": "e30"}, {"cursor": "x" * 2049},
+])
+def test_trip_pagination_rejects_invalid_parameters(app, caller_permissions, query):
+    caller_permissions.set(READER)
+    assert call(app, "GET /api/v1/devoluciones/viajes", query=query)["statusCode"] == 400
+
+
+@pytest.mark.parametrize("number", ["R\x00invalid", "R\ud800invalid"])
+def test_trip_cursor_rejects_text_postgres_cannot_store(app, caller_permissions, number):
+    caller_permissions.set(READER)
+    cursor = base64.urlsafe_b64encode(json.dumps(["2026-11-12", number, "11111111-1111-4111-8111-111111111111"]).encode()).decode()
+    assert call(app, "GET /api/v1/devoluciones/viajes", query={"cursor": cursor})["statusCode"] == 400
 
 
 def test_a_trip_outside_the_role_countries_is_not_found(app, db, caller_permissions):

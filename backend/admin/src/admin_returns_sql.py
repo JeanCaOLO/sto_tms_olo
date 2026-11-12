@@ -14,12 +14,15 @@ FROM vw_return_trips
 WHERE organization_id = %s{scope}
 """
 
+# Mismo orden descendente de antes (NULLS FIRST), con route_id como desempate único.
+# Los indicadores de nulidad permiten comparar también las filas antiguas sin fecha o número.
+TRIP_SORT_COLUMNS = ("route_date IS NULL", "COALESCE(route_date, DATE '0001-01-01')",
+                     "route_number IS NULL", "COALESCE(route_number, '')", "route_id")
+TRIP_SORT_KEY = "(" + ", ".join(TRIP_SORT_COLUMNS) + ")"
 TRIPS_SQL = """
 SELECT * FROM vw_return_trips
 WHERE organization_id = %s{filters}{scope}
-ORDER BY route_date DESC, route_number DESC
-LIMIT 500
-"""
+ORDER BY """ + ", ".join(f"{column} DESC" for column in TRIP_SORT_COLUMNS) + "\nLIMIT %s\n"
 
 TRIP_SQL = """
 SELECT * FROM vw_return_trips
