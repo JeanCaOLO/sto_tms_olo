@@ -137,7 +137,7 @@ export function parseQuantity(raw: string): number | null {
   const value = raw.trim();
   if (!/^\d+$/.test(value)) return null;
   const quantity = Number(value);
-  return Number.isSafeInteger(quantity) ? quantity : null;
+  return Number.isSafeInteger(quantity) && quantity <= 2_147_483_647 ? quantity : null;
 }
 
 // ── Selección de devoluciones para un formulario nuevo ─────────────────────────────────────────

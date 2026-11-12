@@ -1,6 +1,6 @@
 // Un viaje con devoluciones: resumen y progreso; al abrirlo muestra sus devoluciones por parada, las acciones de recepción,
 // las casillas para armar un formulario con las devoluciones elegidas y los formularios que el viaje ya tiene.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Badge from '../../../components/base/Badge';
 import Button from '../../../components/base/Button';
 import Card from '../../../components/base/Card';
@@ -31,9 +31,13 @@ export default function TripCard({ trip, canEdit, canPrint, onChanged }: Props) 
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [formView, setFormView] = useState<FormView | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const formRequest = useRef(0);
   const { detail, loading, error, reload } = useTripDetail(open ? trip.route_id : null);
   const progress = tripProgress(trip);
   const ready = isReadyToSettle(trip);
+
+  // Al plegar, cambiar de viaje o desmontar la tarjeta, una respuesta pendiente ya no debe abrir un formulario.
+  useEffect(() => () => { formRequest.current++; }, [open, trip.route_id]);
 
   // Si otra persona le creó un formulario a una devolución marcada, deja de estar marcada.
   useEffect(() => {
@@ -50,11 +54,13 @@ export default function TripCard({ trip, canEdit, canPrint, onChanged }: Props) 
   };
 
   const openForm = async (formId: string) => {
+    const request = ++formRequest.current;
     setFormError(null);
     try {
-      setFormView(await getForm(formId));
+      const view = await getForm(formId);
+      if (request === formRequest.current) setFormView(view);
     } catch (e) {
-      setFormError(e instanceof Error ? e.message : 'No se pudo abrir el formulario.');
+      if (request === formRequest.current) setFormError(e instanceof Error ? e.message : 'No se pudo abrir el formulario.');
     }
   };
 
@@ -103,7 +109,7 @@ export default function TripCard({ trip, canEdit, canPrint, onChanged }: Props) 
                 <div className="flex flex-wrap gap-2">
                   {canEdit && (
                     <Button size="sm" variant="secondary" disabled={selected.size === 0}
-                      onClick={() => setFormView(newFormView(detail, selected))}>
+                      onClick={() => { formRequest.current++; setFormError(null); setFormView(newFormView(detail, selected)); }}>
                       <i className="ri-file-add-line" aria-hidden="true" />Crear formulario ({selected.size})
                     </Button>
                   )}
@@ -139,7 +145,8 @@ export default function TripCard({ trip, canEdit, canPrint, onChanged }: Props) 
         onConfirm={confirm}
       />
       {formView && (
-        <ReturnFormModal detail={formView} canEdit={canEdit} canPrint={canPrint} onClose={() => setFormView(null)}
+        <ReturnFormModal detail={formView} canEdit={canEdit} canPrint={canPrint}
+          onClose={() => { formRequest.current++; setFormView(null); }}
           onSaved={(saved) => {
             // Un formulario recién creado deja de estar "marcado" y pasa a la lista del viaje.
             if (!formView.form) setSelected(new Set());

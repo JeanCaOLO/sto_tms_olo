@@ -169,8 +169,8 @@ def receive_return(event: dict) -> dict:
         raise HttpError(404, "Devolución no encontrada.")
     current = rows[0]
     quantity = body.get("received_quantity", current["quantity"])
-    if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity < 0:
-        raise HttpError(400, "received_quantity debe ser un entero mayor o igual a 0.")
+    if isinstance(quantity, bool) or not isinstance(quantity, int) or not 0 <= quantity <= 2147483647:
+        raise HttpError(400, "received_quantity debe ser un entero entre 0 y 2147483647.")
     if current["status"] == "received":
         received = None  # ya estaba recibida: es idempotente, no se pisa quién ni cuándo
     elif current["status"] not in ("pending", "approved"):

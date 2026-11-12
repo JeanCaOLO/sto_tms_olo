@@ -165,7 +165,8 @@ def test_receiving_with_a_different_quantity_and_condition(app, db, caller_permi
     assert writes(db, "SET status = 'received'")[0][1:3] == [1, "Dañado"]
 
 
-@pytest.mark.parametrize("body", [{"received_quantity": -1}, {"received_quantity": "2"}, {"condition": "Roto"}])
+@pytest.mark.parametrize("body", [{"received_quantity": -1}, {"received_quantity": "2"}, {"condition": "Roto"},
+                                  {"received_quantity": 2147483648}])
 def test_receiving_rejects_invalid_quantity_or_condition(app, db, caller_permissions, body):
     caller_permissions.set(RECEIVER)
     response = call(app, "POST /api/v1/devoluciones/{returnId}/recibir", path={"returnId": RETURN}, body=body)
