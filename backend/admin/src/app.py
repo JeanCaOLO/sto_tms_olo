@@ -11,6 +11,7 @@ import admin_audit as audit_log
 import admin_permissions as permissions
 import admin_return_requests as return_requests
 import admin_returns as returns
+import admin_return_incidents as incidents
 import admin_roles as roles
 import admin_users as users
 
@@ -39,6 +40,8 @@ ROUTES = {
     "PUT /api/v1/devoluciones/formularios/{formId}": returns.update_form,
     "POST /api/v1/devoluciones/viajes/{routeId}/recibir-todas": returns.receive_all,
     "POST /api/v1/devoluciones/{returnId}/recibir": returns.receive_return,
+    "POST /api/v1/devoluciones/{returnId}/novedades": incidents.record,
+    "GET /api/v1/devoluciones/{returnId}/novedades": incidents.history,
     "POST /api/v1/devoluciones/{returnId}/rechazar": returns.reject_return,
     "POST /api/v1/solicitudes-devolucion": return_requests.create_request,
     "POST /api/v1/solicitudes-devolucion/archivos/url": return_requests.upload_url,

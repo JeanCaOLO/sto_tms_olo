@@ -2,6 +2,8 @@
 
 **Estado:** pendiente de implementación. El documento define alcance y secuencia; no certifica que los cambios estén hechos.
 
+> **Prioridad funcional, actualización posterior del 2026-11-12:** [plan de Solicitudes automáticas y Novedades](PLAN_SOLICITUDES_Y_NOVEDADES_2026-11-12.md). Sustituye «Asesor de ventas» por Cliente y agrega captura para superusuarios/gerentes, autoaprobación, seguimiento y Novedades con bloqueo del gate. [Configurar Planificación](PENDIENTE_PLANIFICACION_RECOLECTAS.md) queda pendiente explícito de su responsable.
+
 ## Objetivo
 
 Dar soporte al rol **Asesor de ventas** para solicitar devoluciones y a **Devoluciones** para controlar su avance y confirmar la mercancía recibida en almacén. La decisión comercial de aprobar/rechazar deja de formar parte del flujo. La planificación y la ejecución del viaje pertenecen a sus módulos; el módulo Devoluciones consume y muestra esos avances.

@@ -4,11 +4,13 @@
 // la pantalla hasta pulsar el fondo o la X).
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, useNavigate } from 'react-router-dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SidebarProvider, useSidebar } from '../../hooks/useSidebar';
 import Sidebar from './Sidebar';
 
-vi.mock('../../hooks/usePermissions', () => ({ usePermissions: () => ({ can: () => true }) }));
+const grants=vi.hoisted(()=>({clientOnly:false}));
+vi.mock('../../hooks/usePermissions', () => ({ usePermissions: () => ({ can: (module:string) => !grants.clientOnly||module==='devoluciones_solicitud' }) }));
+beforeEach(()=>{grants.clientOnly=false;});
 
 function Harness() {
   const { mobileOpen, setMobileOpen } = useSidebar();
@@ -33,6 +35,11 @@ const abierto = () => screen.getByTestId('abierto').textContent;
 afterEach(cleanup);
 
 describe('Sidebar en móvil', () => {
+  it('Cliente encuentra Devoluciones sin una segunda entrada Mis Devoluciones',()=>{
+    grants.clientOnly=true;open();
+    expect(screen.getByRole('link',{name:'Devoluciones'}).getAttribute('href')).toBe('/devoluciones');
+    expect(screen.queryByRole('link',{name:'Mis Devoluciones'})).toBeNull();
+  });
   it('se cierra al navegar a otro módulo', () => {
     open();
     fireEvent.click(screen.getByText('abrir menú'));

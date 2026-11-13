@@ -1,6 +1,7 @@
 import { Navigate } from 'react-router-dom';
 import { usePermissions } from '../../hooks/usePermissions';
 import { DEFAULT_LANDING, landingPath } from '../../lib/landing';
+import { canAccessModule } from './module-routes';
 
 // "/" entra al primer módulo que la persona puede ver (Dashboard si lo tiene). Mientras se cargan los permisos
 // espera; si fallaron, va a /dashboard, donde RouteGuard muestra el aviso con reintento.
@@ -13,5 +14,5 @@ export default function LandingRedirect() {
       </div>
     );
   }
-  return <Navigate to={error ? DEFAULT_LANDING : landingPath((permKey) => can(permKey, 'view'))} replace />;
+  return <Navigate to={error ? DEFAULT_LANDING : landingPath((permKey) => canAccessModule(permKey, can))} replace />;
 }

@@ -7,7 +7,10 @@ Un viaje puede tener VARIOS formularios: cada uno lleva solo las devoluciones qu
 devolución va en un único formulario.
 """
 
+import base64
+import json
 from datetime import date, datetime, timezone
+from uuid import UUID
 import re
 
 from tms_common import audit, pg, permissions
@@ -21,9 +24,10 @@ import admin_returns_sql as sql
 MODULE = "devoluciones"
 CONDITIONS = ("Bueno", "Dañado", "Incompleto")
 RETURN_KINDS = ("devolucion", "reparacion", "cambio")
-STATES = ("pendientes", "recibidos", "todos")
+STATES = ("pendientes", "recibidos", "todos", "novedades")
 FORM_NUMBER_ATTEMPTS = 3
 MAX_FORM_RETURNS = 500
+MAX_TRIPS_PAGE = 500
 FORM_TEXT_LIMITS = {"physical_receipt_number": 50, "branch": 100, "merchandise_for": 255, "transport": 255,
                     "guide_number": 100, "received_by_name": 255}
 SECTION_TEXT_LIMITS = {"invoice_number": 100, "customer_code": 100, "customer_name": 255, "phone": 50,
@@ -107,28 +111,72 @@ def summary(event: dict) -> dict:
     return _ok(pg.query(sql.SUMMARY_SQL.format(filters=country_sql, scope=scope), [org, *country_val, *extra])[0])
 
 
+def _trips_cursor(raw: str) -> list:
+    """Clave de la última fila recibida: fecha/número opcionales y UUID de desempate."""
+    try:
+        if not isinstance(raw, str) or len(raw) > 2048:
+            raise ValueError()
+        values = json.loads(base64.b64decode(raw + "=" * (-len(raw) % 4), altchars=b"-_", validate=True))
+        if not isinstance(values, list) or len(values) != 3:
+            raise ValueError()
+        day, number, route_id = values
+        if day is not None and (not isinstance(day, str) or len(day) != 10):
+            raise ValueError()
+        if number is not None and (not isinstance(number, str) or len(number) > 255):
+            raise ValueError()
+        if number is not None:
+            if "\x00" in number:
+                raise ValueError()
+            number.encode("utf-8")
+        if not isinstance(route_id, str):
+            raise ValueError()
+        parsed_day = date.fromisoformat(day) if day is not None else date.min
+        return [day is None, parsed_day, number is None, number or "", str(UUID(route_id))]
+    except (ValueError, TypeError, UnicodeDecodeError) as error:
+        raise HttpError(400, "cursor de viajes inválido.") from error
+
+
+def _next_trips_cursor(row: dict) -> str:
+    day = row.get("route_date")
+    values = [day.isoformat() if isinstance(day, date) else day, row.get("route_number"), str(row["route_id"])]
+    return base64.urlsafe_b64encode(json.dumps(values, ensure_ascii=False).encode("utf-8")).decode("ascii").rstrip("=")
+
+
 def list_trips(event: dict) -> dict:
     caller, org = _caller(event, "view")
     params = query_params(event)
     state = params.get("estado") or "todos"
     if state not in STATES:
         raise HttpError(400, f"estado debe ser uno de: {', '.join(STATES)}")
+    raw_limit = params.get("limit", str(MAX_TRIPS_PAGE))
+    if not isinstance(raw_limit, str) or len(raw_limit) > 3 or not raw_limit.isdecimal() or not 1 <= int(raw_limit) <= MAX_TRIPS_PAGE:
+        raise HttpError(400, f"limit debe ser un entero entre 1 y {MAX_TRIPS_PAGE}.")
+    limit = int(raw_limit)
     filters, values = "", [org]
     if state == "pendientes":
-        filters += " AND pending_returns > 0"
+        filters += " AND open_returns > 0"
     elif state == "recibidos":
         filters += " AND pending_returns = 0"
+    elif state == "novedades":
+        filters += " AND incident_returns > 0"
     since, until = _iso_date(params.get("desde"), "desde"), _iso_date(params.get("hasta"), "hasta")
     if since:
         filters, values = filters + " AND route_date >= %s", [*values, since]
     if until:
         filters, values = filters + " AND route_date <= %s", [*values, until]
+    if "cursor" in params:
+        cursor_values = _trips_cursor(params["cursor"])
+        filters += f" AND {sql.TRIP_SORT_KEY} < (%s::boolean, %s::date, %s::boolean, %s::text, %s::uuid)"
+        values.extend(cursor_values)
     country_sql, country_val = _country_filter(params.get("pais"))
-    if country_sql:
-        filters += country_sql
-        values.extend(country_val)
+    filters += country_sql
+    values.extend(country_val)
     scope, extra = _scope(caller)
-    return _ok(pg.query(sql.TRIPS_SQL.format(filters=filters, scope=scope), [*values, *extra]))
+    rows = pg.query(sql.TRIPS_SQL.format(filters=filters, scope=scope), [*values, *extra, limit + 1])
+    items = rows[:limit]
+    cursor = _next_trips_cursor(items[-1]) if len(rows) > limit else None
+    # data sigue siendo un array para los consumidores anteriores; el cursor es metadata adicional.
+    return json_response(200, {"data": items, "error": None, "next_cursor": cursor})
 
 
 def get_trip(event: dict) -> dict:
@@ -189,14 +237,17 @@ def receive_return(event: dict) -> dict:
         raise HttpError(404, "Devolución no encontrada.")
     current = rows[0]
     quantity = body.get("received_quantity", current["quantity"])
-    if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity < 0:
-        raise HttpError(400, "received_quantity debe ser un entero mayor o igual a 0.")
+    if isinstance(quantity, bool) or not isinstance(quantity, int) or not 0 <= quantity <= 2147483647:
+        raise HttpError(400, "received_quantity debe ser un entero entre 0 y 2147483647.")
     if current["status"] == "received":
         received = None  # ya estaba recibida: es idempotente, no se pisa quién ni cuándo
     elif current["status"] not in ("pending", "approved"):
         raise HttpError(409, f'Una devolución en estado "{current["status"]}" no se puede recibir.')
     else:
-        updated = pg.query(sql.RECEIVE_SQL, [caller.app_user_id, quantity, _condition(body), return_id, org])
+        condition = _condition(body)
+        if condition != 'Bueno' or (current['quantity'] is not None and quantity != current['quantity']):
+            raise HttpError(400,'Para mercancía incompleta, averiada o con diferencia de cantidad, registre una novedad con su explicación.')
+        updated = pg.query(sql.RECEIVE_SQL, [caller.app_user_id, quantity, condition, return_id, org])
         if not updated:
             raise HttpError(409, "La devolución cambió de estado; recarga e inténtalo de nuevo.")
         received = updated[0]
@@ -209,7 +260,10 @@ def receive_all(event: dict) -> dict:
     caller, org = _caller(event, "edit")
     route_id = path_param(event, "routeId")
     _trip(caller, org, route_id)
-    updated = pg.query(sql.RECEIVE_ALL_SQL, [caller.app_user_id, _condition(_body(event)), route_id, org])
+    condition = _condition(_body(event))
+    if condition != 'Bueno':
+        raise HttpError(400,'Registre las devoluciones incompletas o averiadas como novedades individuales con su explicación.')
+    updated = pg.query(sql.RECEIVE_ALL_SQL, [caller.app_user_id, condition, route_id, org])
     if updated:
         audit.record(event, "update", module_key=MODULE, entity_table="tbl_routes", entity_id=route_id,
                      metadata={"action": "recibir-todas", "received": len(updated)})
@@ -229,7 +283,7 @@ def reject_return(event: dict) -> dict:
         raise HttpError(400, "El motivo de rechazo es obligatorio.")
     if len(reason) > 500:
         raise HttpError(400, "El motivo admite hasta 500 caracteres.")
-    if current["status"] in ("received", "completed"):
+    if current["status"] in ("received", "completed", "in_review"):
         raise HttpError(409, f'Una devolución en estado "{current["status"]}" no se puede rechazar.')
     if current["status"] in ("rejected", "cancelled"):
         rejected = None  # Idempotente
@@ -299,10 +353,16 @@ def create_form(event: dict) -> dict:
     taken = [row for row in chosen if row["form_id"] is not None]
     if taken:
         raise HttpError(409, f"{len(taken)} devolución(es) marcada(s) ya van en otro formulario; desmárcalas.")
+    if any(row.get('status') == 'in_review' for row in chosen):
+        raise HttpError(409, 'Una devolución en revisión no puede añadirse a un formulario hasta su aceptación interna.')
     fields = _form_fields(body)
     sections = _sections(body, {str(row["dispatch_guide_id"]) for row in chosen})
 
     with pg.transaction() as run:
+        # Comparte el bloqueo de la devolución con el registro de novedades.
+        locked = run(sql.SELECTED_RETURNS_SQL + ' ORDER BY rt.id FOR UPDATE OF rt', [route_id, org, ids])
+        if len(locked) != len(ids) or any(row.get('status') == 'in_review' or row['form_id'] is not None for row in locked):
+            raise HttpError(409, 'Una devolución marcada cambió de estado o ya pertenece a otro formulario; recargue la lista.')
         saved = []
         for _ in range(FORM_NUMBER_ATTEMPTS):
             number = _next_form_number(run, org)

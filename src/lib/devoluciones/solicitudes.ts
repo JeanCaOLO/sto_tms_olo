@@ -130,9 +130,9 @@ export function toPayloadItem(item: DraftItem, files: UploadedFile[]): RequestIt
   };
 }
 
-export const requestStatus = (status: string): {label: string; variant: 'warning' | 'success' | 'danger' | 'default'} => {
+export const requestStatus = (status: string, approvalMode?: 'legacy' | 'automatic'): {label: string; variant: 'warning' | 'success' | 'danger' | 'default'} => {
   if (status === 'pendiente_asignacion') return {label: 'Pendiente de revisión', variant: 'warning'};
-  if (status === 'aprobada') return {label: 'Aprobada', variant: 'success'};
+  if (status === 'aprobada') return {label: approvalMode==='automatic'?'Aprobada automáticamente':'Aprobada', variant: 'success'};
   if (status === 'rechazada') return {label: 'Rechazada', variant: 'danger'};
   return {label: status, variant: 'default'};
 };

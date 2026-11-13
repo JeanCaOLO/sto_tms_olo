@@ -539,13 +539,16 @@ def list_mis_entregas(event: dict) -> dict:
     rows = _rq(sql.CLIENT_GUIDES_SQL, [caller.app_user_id, org_id, org_id, logic.ACTIVE_STATUS_SQL_VALUES, since])
     by_route: dict[str, list] = {}
     for row in rows:
-        by_route.setdefault(str(row["route_id"]), []).append(row)
+        if logic.route_state(row["route_status"]) in ("active", "completed"):
+            by_route.setdefault(str(row["route_id"]), []).append(row)
+    guides_by_route: dict[str, list] = {}
+    # El ETA solo necesita estados y coordenadas: una lectura para todos los viajes del cliente.
+    for guide in (_rq(sql.STOPS_BATCH_SQL, [list(by_route)]) if by_route else []):
+        guides_by_route.setdefault(str(guide["route_id"]), []).append(guide)
     items = []
     for route_id, mine in by_route.items():
         state = logic.route_state(mine[0]["route_status"])
-        if state not in ("active", "completed"):
-            continue
-        guides = _rq(sql.GUIDES_SQL, [route_id])
+        guides = guides_by_route.get(route_id, [])
         position = _coords(mine[0]["last_lat"], mine[0]["last_lng"])
         live = _live(state, position, guides, now, mine[0]["last_position_at"])
         done = sum(logic.guide_state(g["delivery_status"], g["status"]) != logic.GUIDE_PENDING for g in guides)

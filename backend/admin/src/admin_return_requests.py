@@ -150,8 +150,9 @@ def _head(key: str) -> dict | None:
 
 def upload_url(event: dict) -> dict:
     """Formulario firmado (5 min) para subir UN archivo directo a S3."""
-    caller, org, customer = _caller(event, "create")
-    mime = _body(event).get("mime_type")
+    body = _body(event)
+    caller, org, customer = access.creator(event, body.get('customer_id'))
+    mime = body.get("mime_type")
     if not isinstance(mime, str) or mime not in FILE_MIME:
         raise HttpError(400, "Solo se aceptan fotos JPG/PNG o videos MP4/MOV.")
     bucket = _bucket()
@@ -182,8 +183,8 @@ def _next_number(run, org: str) -> str:
 
 
 def create_request(event: dict) -> dict:
-    caller, org, customer = _caller(event, "create")
     body = _body(event)
+    caller, org, customer = access.creator(event, body.get('customer_id'))
     items = parse_items(body)
     for item in items:
         for key in item['keys']:
@@ -209,7 +210,7 @@ def create_request(event: dict) -> dict:
         created = []
         for _ in range(NUMBER_ATTEMPTS):
             params = [org, customer, caller.app_user_id, _next_number(run, org)]
-            created = run(sql.INSERT_IDEMPOTENT_SQL, [stable_id, *params]) if stable_id else run(sql.INSERT_REQUEST_SQL, params)
+            created = run(sql.INSERT_IDEMPOTENT_SQL, [stable_id, *params, caller.app_user_id]) if stable_id else run(sql.INSERT_REQUEST_SQL, [*params, caller.app_user_id])
             if created:
                 break
         if not created:
@@ -221,12 +222,13 @@ def create_request(event: dict) -> dict:
             for key, (kind, mime, size) in zip(item["keys"], stored[item["line"]]):
                 run(sql.INSERT_FILE_SQL, [row[0]["id"], key, kind, mime, size])  # unique(s3_key): reuso -> 409
         audit.record(event, "create", module_key=MODULE, entity_table="tbl_return_requests", entity_id=str(request_id),
-                     metadata={"request_number": created[0]["request_number"], "items": len(items)})
+                     metadata={"request_number": created[0]["request_number"], "items": len(items), "approval_mode": "automatic"})
     return _created(created[0], 201)
 
 
 def _created(row, status):
-    return _ok({key: str(row[key]) for key in ('id', 'request_number', 'status')}, status)
+    return _ok({**{key: str(row[key]) for key in ('id', 'request_number', 'status')},
+                'approval_mode': row.get('approval_mode', 'legacy')}, status)
 
 
 def _require_same_payload(run, request, incoming):
@@ -247,6 +249,11 @@ def list_mine(event: dict) -> dict:
 
 def get_assignment(event):
     """Solo la empresa asignada al propio usuario; sin catalogo ni selector."""
+    params = query_params(event)
+    if params.get('empresas') == '1':
+        country = _uuid_param(params['pais'], 'pais') if params.get('pais') else None
+        _, _, rows = access.creation_companies(event, country=country)
+        return _ok(rows)
     _, row = access.client_context(event, None)
     return _ok({'id': str(row['customer_id']), 'name': row['customer_name']})
 

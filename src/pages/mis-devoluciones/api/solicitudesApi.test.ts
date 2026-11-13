@@ -1,6 +1,6 @@
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import {apiFetch} from '../../../lib/api-client';
-import {createRequest,getClientAssignment,getRequest,getFileUrl,uploadFile,RequestApiError,listRequestInbox,approveRequest,rejectRequest} from './solicitudesApi';
+import {createRequest,getClientAssignment,getCreationCompanies,getRequest,getFileUrl,uploadFile,RequestApiError,listRequestInbox,approveRequest,rejectRequest} from './solicitudesApi';
 vi.mock('../../../lib/api-client',()=>({apiFetch:vi.fn()}));
 beforeEach(()=>{vi.resetAllMocks();vi.mocked(apiFetch).mockResolvedValue({ok:true,status:200,body:{data:{id:'req-a'},error:null}});});
 afterEach(()=>vi.unstubAllGlobals());
@@ -10,6 +10,14 @@ it('envia clave idempotente y articulos sin un destino elegible en el cuerpo',as
  const [path,init]=vi.mocked(apiFetch).mock.calls[0];
  expect(path).toBe('/v1/solicitudes-devolucion');
  expect(JSON.parse(init!.body as string)).toEqual({items,idempotency_key:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'});
+});
+it('captura del operador envia empresa seleccionada y pide catalogo autorizado con pais',async()=>{
+ await createRequest([],'test-key','company-a');
+ expect(JSON.parse(vi.mocked(apiFetch).mock.calls[0][1]!.body as string)).toEqual({items:[],idempotency_key:'test-key',customer_id:'company-a'});
+ await getCreationCompanies('country-a');
+ const [path,init]=vi.mocked(apiFetch).mock.calls[1];
+ expect(Object.fromEntries(new URL(path,'https://test.invalid').searchParams)).toEqual({empresas:'1',pais:'country-a'});
+ expect(init?.cache).toBe('no-store');
 });
 it('consulta asignacion, detalle y URL por ID sin cache y sin firmar llaves libres',async()=>{
  await getClientAssignment();await getRequest('req/a');await getFileUrl('req/a','file/b');

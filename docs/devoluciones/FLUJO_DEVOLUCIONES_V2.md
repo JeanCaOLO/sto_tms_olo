@@ -1,5 +1,7 @@
 # Flujo v2 de devoluciones
 
+> **Actualización posterior del usuario, 2026-11-12:** [plan vigente de Solicitudes y Novedades](PLAN_SOLICITUDES_Y_NOVEDADES_2026-11-12.md). «Asesor de ventas» se llama Cliente; la aprobación de solicitudes nuevas será automática, sin decisión manual. La entrega de Tracking pasa a Por recibir; mercancía incompleta/averiada va a Novedades con explicación y bloquea liquidación mientras esté en revisión, con gate activo. Los apartados anteriores al cambio se conservan como propuesta histórica donde difieran.
+
 **Estado:** especificación funcional para revisión e implementación. No describe funciones ya implementadas ni autoriza migraciones compartidas o despliegues.
 
 ## Cambio respecto al flujo anterior

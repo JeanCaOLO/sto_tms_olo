@@ -12,7 +12,9 @@ const source=readFileSync(join(root,'backend/admin/src/admin_return_requests_sql
 const u=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 function sql(name){
  const found=source.match(new RegExp(name+' = """([\\s\\S]*?)"""'));
- assert.ok(found,name); return found[1];
+ if(found)return found[1];
+ const single=source.match(new RegExp(name+' = ("[^"\\n]*")'));
+ assert.ok(single,name);return JSON.parse(single[1]);
 }
 function placeholders(query){let n=0; return query.replace(/%s/g,()=>`$${++n}`);}
 function inbox({countries=null,limit=100,offset=0,filter='',values=[]}={}){
@@ -48,6 +50,7 @@ beforeEach(async()=>{
  }
  await db.query('INSERT INTO tbl_app_users VALUES($1,$2,NULL,$3)',[u(20),u(1),'Operador sintetico']);
  await db.exec(readFileSync(join(root,'sql/67_roles_solicitudes_devolucion.sql'),'utf8'));
+ await db.exec(readFileSync(join(root,'sql/69_return_request_auto_approval.sql'),'utf8'));
 });
 async function scope({company=null,warehouse=null,country=null}={}){
  await db.query('INSERT INTO tbl_user_scopes VALUES($1,$2,$3,$4)',[u(20),company&&u(company),warehouse&&u(warehouse),country&&u(country)]);
@@ -95,7 +98,7 @@ test('conditional decision permits only one effective transition and creates no 
 });
 test('deterministic request id and organization number cannot be duplicated',async()=>{
  const insert=placeholders(sql('INSERT_IDEMPOTENT_SQL'));
- const params=[u(50),u(1),u(9),u(21),'TEST-NEW'];
+ const params=[u(50),u(1),u(9),u(21),'TEST-NEW',u(21)];
  assert.equal((await db.query(insert,params)).rows.length,1);
  assert.equal((await db.query(insert,params)).rows.length,0);
  assert.equal((await db.query(insert,[u(51),...params.slice(1)])).rows.length,0);
@@ -123,4 +126,25 @@ test('company options are distinct across requests and intersect selected countr
   .replace('{filters}',' AND COALESCE(c.country_id,w.country_id) = %s::uuid'));
  assert.deepEqual((await db.query(query,[u(1),u(20),[u(3)],u(3)])).rows.map(r=>r.id).sort(),[u(9),u(10)]);
  assert.deepEqual((await db.query(query,[u(1),u(20),[u(3)],u(4)])).rows,[]);
+});
+function creationCatalog({countries=null,country=null,company=null}={}){
+ let access=sql('OPERATOR_SCOPE_SQL').replaceAll('r.organization_id','c.organization_id').replaceAll('r.customer_id','c.id');
+ const params=[u(1),u(20)];let filters='';
+ if(countries!==null){access+=sql('COUNTRY_SCOPE_SQL');params.push(countries.map(u));}
+ if(country!==null){filters+=' AND COALESCE(c.country_id,w.country_id) = %s::uuid';params.push(u(country));}
+ if(company!==null){filters+=' AND c.id = %s::uuid';params.push(u(company));}
+ return {query:placeholders(sql('CREATION_COMPANIES_SQL').replace('{access}',access).replace('{filters}',filters)),params};
+}
+test('creation catalog includes companies without requests and excludes foreign or inconsistent relationships',async()=>{
+ await scope();await db.exec('DELETE FROM tbl_return_requests');
+ const {query,params}=creationCatalog();
+ assert.deepEqual((await db.query(query,params)).rows.map(r=>r.id).sort(),[u(9),u(10),u(11)]);
+});
+test('creation catalog intersects role countries, selected country and company scopes',async()=>{
+ await scope({company:9});
+ for(const options of [{countries:[3],country:4},{countries:[]},{company:10}]){
+  const {query,params}=creationCatalog(options);assert.deepEqual((await db.query(query,params)).rows,[]);
+ }
+ const {query,params}=creationCatalog({countries:[3],country:3,company:9});
+ assert.deepEqual((await db.query(query,params)).rows.map(r=>r.id),[u(9)]);
 });
