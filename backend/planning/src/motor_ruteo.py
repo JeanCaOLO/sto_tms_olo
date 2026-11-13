@@ -96,24 +96,27 @@ def motor_activo() -> str:
 
 
 def asignar_y_ordenar(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_CR,
-                      usos_previos: dict | None = None, informe: dict | None = None) -> list[dict]:
+                      usos_previos: dict | None = None, informe: dict | None = None,
+                      costos: dict | None = None) -> list[dict]:
     """Reparte los pedidos de UN día en viajes con camión y ordena sus paradas.
     Requiere flota si hay pedidos; los 'cliente retira' no entran aquí (no se rutean).
     `usos_previos` = {vehicle_id: viajes que ese camión ya tiene el día} (congelados u otras
     compañías del almacén): se usan primero los camiones libres. `informe`, si se pasa, recibe
-    qué motor corrió de verdad (`motor`), la fuente de la matriz, los km y el error del solver."""
+    qué motor corrió de verdad (`motor`), la fuente de la matriz, los km y el error del solver.
+    `costos` (fase 6) solo lo usa el solver. La heurística no usa terceros: solo flota propia."""
     informe = {} if informe is None else informe
     informe.update({"motor_solicitado": motor_activo(), "motor": MOTOR_HEURISTICO, "error": None})
     if pedidos and motor_activo() == MOTOR_ORTOOLS:
         try:
             import motor_ortools  # tardío: la librería pesa y solo se carga si el motor está activo
-            viajes = motor_ortools.asignar_y_ordenar(pedidos, flota, sede, usos_previos, informe)
+            viajes = motor_ortools.asignar_y_ordenar(pedidos, flota, sede, usos_previos, informe, costos)
             informe["motor"] = MOTOR_ORTOOLS
             return viajes
         except Exception as e:  # noqa: BLE001 — cualquier fallo del solver cae al respaldo, con rastro en el log
             log.exception("motor ortools falló con %s pedidos: se usa la heurística", len(pedidos))
             informe["error"] = f"{type(e).__name__}: {e}"[:500]
-    return heuristico(pedidos, flota, sede, usos_previos)
+    propios = [c for c in flota if c.get("propio", True)]  # la heurística no usa terceros
+    return heuristico(pedidos, propios or flota, sede, usos_previos)
 
 
 def heuristico(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_CR,

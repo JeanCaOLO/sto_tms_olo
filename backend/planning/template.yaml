@@ -25,6 +25,16 @@ Parameters:
     Default: heuristico
     AllowedValues: [heuristico, ortools]
     Description: Motor que arma los viajes. heuristico = el de siempre; ortools = solver sobre distancias de carretera (si falla, ese día sale con la heurística).
+  CostosModo:
+    Type: String
+    Default: fijo
+    AllowedValues: [fijo, reales]
+    Description: Qué minimiza el solver. fijo = km + 300 km por viaje; reales = colones con el costo por km y por día de cada tipo de camión (tablas de costeo, solo Costa Rica). Fase 6.
+  UsarTerceros:
+    Type: String
+    Default: "no"
+    AllowedValues: ["no", "si"]
+    Description: si = el solver puede usar camiones de transportistas terceros del país cuando la flota propia ya tiene viaje ese día (costo propio equivalente x 1,3). Fase 6.
   TnModo:
     Type: String
     Default: linea
@@ -79,6 +89,8 @@ Resources:
           OSRM_URL: !Ref OsrmUrl
           MOTOR_RUTEO: !Ref MotorRuteo
           TN_MODO: !Ref TnModo
+          COSTOS_MODO: !Ref CostosModo
+          USAR_TERCEROS: !Ref UsarTerceros
           TN_MIN_POR_DIA: !Ref TnMinPorDia
           TMS_DB_SECRET_NAME:
             Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName

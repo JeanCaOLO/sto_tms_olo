@@ -66,8 +66,8 @@ def test_el_motor_recibe_la_sede_del_almacen(monkeypatch):
     monkeypatch.setattr(pb.recolectas, "agendar", lambda *a: 0)
     real = pb.motor_ruteo.asignar_y_ordenar
     monkeypatch.setattr(pb.motor_ruteo, "asignar_y_ordenar",
-                        lambda pedidos, flota, sede, usos, informe: recibidas.append(sede) or real(pedidos, flota, sede, usos,
-                                                                                                informe=informe))
+                        lambda pedidos, flota, sede, usos, informe, costos: recibidas.append(sede) or real(
+                            pedidos, flota, sede, usos, informe=informe, costos=costos))
 
     pb.construir_y_persistir("org", "ve", "wh", "cust", "2026-11-20", "user")
     assert recibidas[0].deposito == (10.2, -68.0) and recibidas[0].region == "VN" and recibidas[0].origen == "almacen"
@@ -109,7 +109,7 @@ def test_el_motor_recibe_los_camiones_que_ya_tienen_viaje_ese_dia(monkeypatch):
     monkeypatch.setattr(pb.viajes_liberados, "plan_vigente", lambda *a: (None, 0))
     monkeypatch.setattr(pb.recolectas, "agendar", lambda *a: 0)
     monkeypatch.setattr(pb.motor_ruteo, "asignar_y_ordenar",
-                        lambda pedidos, flota, sede, usos, informe: recibidos.append(usos) or [])
+                        lambda pedidos, flota, sede, usos, informe, costos: recibidos.append(usos) or [])
 
     pb.construir_y_persistir("org", "cr", "wh", "cust", "2026-11-20", "user")
     assert recibidos == [{"V1": 1, "V9": 2}]

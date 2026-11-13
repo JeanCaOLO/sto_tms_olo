@@ -11,6 +11,10 @@ Qué decide el solver y qué no:
   ya hizo en el día encarece volver a usarlo (`COSTO_REUSO_KM`): las vueltas se
   reparten entre camiones y un camión solo repite cuando no queda otro que sirva.
 - Un pedido que no cabe en ningún camión va solo en el más grande (la UI avisa).
+- Costo (fase 6): con `costos` (de `costos.por_vehiculo`, COSTOS_MODO=reales) el solver
+  minimiza COLONES: km × costo por km del tipo de camión + costo diario del camión. Sin
+  `costos`, minimiza km + `COSTO_FIJO_VIAJE_KM` por viaje (comportamiento anterior).
+  Los camiones de terceros llegan marcados `propio: False` y más caros.
 
 Determinismo (el replan horario no debe reordenar lo que no cambió): búsqueda local
 hasta el óptimo local, SIN metaheurística con reloj. El tiempo límite es solo una
@@ -39,6 +43,7 @@ COSTO_FIJO_VIAJE_KM = 300
 # chofer en el modelo, dos vueltas largas podrían no caber en un día).
 COSTO_REUSO_KM = 5000
 PENALIZACION_SIN_ASIGNAR_M = 10**9  # dejar un pedido fuera cuesta más que cualquier ruta
+PENALIZACION_SIN_ASIGNAR_CENTIMOS = 10**13  # ídem con costos en céntimos de colón
 TIEMPO_LIMITE_S = 10
 ESCALA = 100  # peso (kg) y volumen (m³) a enteros de centésimas
 
@@ -54,9 +59,10 @@ def _tiene_coords(o: dict) -> bool:
 
 
 def _resolver(pedidos: list[dict], camiones: list[dict], usos: list[int],
-              sede: Sede = SEDE_CR) -> tuple[list[tuple[int, list[dict]]], list[dict], dict]:
+              sede: Sede = SEDE_CR, costos: list[dict] | None = None) -> tuple[list[tuple[int, list[dict]]], list[dict], dict]:
     """Un VRP: reparte `pedidos` entre `camiones` (un viaje cada uno, como mucho);
-    `usos[v]` = viajes que el camión v ya hizo en el día (encarece repetirlo).
+    `usos[v]` = viajes que el camión v ya hizo en el día (encarece repetirlo); `costos[v]`
+    = {"km", "dia"} en colones del camión v, o None para minimizar km.
     Devuelve (rutas, sin_asignar, datos): rutas = [(índice del camión, pedidos en orden)]."""
     # Nodo 0 = depósito. Un pedido sin coordenadas se ubica en el depósito: ocupa
     # capacidad pero no mueve la ruta (luego va al final del viaje).
@@ -66,7 +72,15 @@ def _resolver(pedidos: list[dict], camiones: list[dict], usos: list[int],
 
     manager = pywrapcp.RoutingIndexManager(len(puntos), len(camiones), 0)
     routing = pywrapcp.RoutingModel(manager)
-    routing.SetArcCostEvaluatorOfAllVehicles(routing.RegisterTransitMatrix(metros))
+    if costos is None:
+        routing.SetArcCostEvaluatorOfAllVehicles(routing.RegisterTransitMatrix(metros))
+    else:  # céntimos de colón: metros/1000 × ₡/km × 100; una matriz por costo/km distinto
+        por_costo: dict = {}
+        for v, c in enumerate(costos):
+            if c["km"] not in por_costo:
+                por_costo[c["km"]] = routing.RegisterTransitMatrix(
+                    [[round(m * c["km"] / 10) for m in fila] for fila in metros])
+            routing.SetArcCostEvaluatorOfVehicle(por_costo[c["km"]], v)
 
     def dimension(nombre: str, demanda: list[int], capacidad: list[int]) -> None:
         routing.AddDimensionWithVehicleCapacity(routing.RegisterUnaryTransitVector(demanda), 0, capacidad, True, nombre)
@@ -77,10 +91,20 @@ def _resolver(pedidos: list[dict], camiones: list[dict], usos: list[int],
               [math.floor(c["cv"] * motor_ruteo.MARGEN_VOLUMEN * ESCALA) for c in camiones])
     dimension("paradas", [0] + [1] * len(pedidos), [motor_ruteo.MAX_PARADAS] * len(camiones))
 
-    for v, c in enumerate(camiones):  # + capacidad en metros: a igual recorrido, el camión más chico que alcance
-        routing.SetFixedCostOfVehicle((COSTO_FIJO_VIAJE_KM + usos[v] * COSTO_REUSO_KM) * 1000 + round(c["cw"]), v)
+    if costos is None:
+        for v, c in enumerate(camiones):  # + capacidad en metros: a igual recorrido, el camión más chico que alcance
+            routing.SetFixedCostOfVehicle((COSTO_FIJO_VIAJE_KM + usos[v] * COSTO_REUSO_KM) * 1000 + round(c["cw"]), v)
+        penalizacion = PENALIZACION_SIN_ASIGNAR_M
+    else:
+        # El costo diario solo pesa la primera vez que el camión sale en el día; repetirlo
+        # cuesta COSTO_REUSO_KM al costo/km más caro de la flota (último recurso, igual que antes).
+        reuso = round(COSTO_REUSO_KM * max(c["km"] for c in costos) * 100)
+        for v, (c, k) in enumerate(zip(camiones, costos)):
+            fijo = round(k["dia"] * 100) if usos[v] == 0 else 0
+            routing.SetFixedCostOfVehicle(fijo + usos[v] * reuso + round(c["cw"]), v)
+        penalizacion = PENALIZACION_SIN_ASIGNAR_CENTIMOS
     for nodo in range(1, len(puntos)):
-        routing.AddDisjunction([manager.NodeToIndex(nodo)], PENALIZACION_SIN_ASIGNAR_M)
+        routing.AddDisjunction([manager.NodeToIndex(nodo)], penalizacion)
 
     params = pywrapcp.DefaultRoutingSearchParameters()
     params.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PARALLEL_CHEAPEST_INSERTION
@@ -93,7 +117,7 @@ def _resolver(pedidos: list[dict], camiones: list[dict], usos: list[int],
         raise RuntimeError(f"OR-Tools no cerró la búsqueda (status={routing.status()}, "
                            f"{segundos:.1f} s, pedidos={len(pedidos)})")
 
-    rutas, asignados, total_m = [], set(), 0
+    rutas, asignados, total_m, colones = [], set(), 0, 0.0
     for v in range(len(camiones)):
         nodos, i = [], solucion.Value(routing.NextVar(routing.Start(v)))
         while not routing.IsEnd(i):
@@ -106,11 +130,14 @@ def _resolver(pedidos: list[dict], camiones: list[dict], usos: list[int],
         if metros[0][nodos[-1]] < metros[0][nodos[0]] and _largo(metros, nodos[::-1]) <= _largo(metros, nodos):
             nodos.reverse()
         total_m += _largo(metros, nodos)
+        if costos is not None:
+            colones += _largo(metros, nodos) / 1000 * costos[v]["km"] + (costos[v]["dia"] if usos[v] == 0 else 0)
         asignados.update(nodos)
         en_ruta = [pedidos[n - 1] for n in nodos]
         rutas.append((v, [o for o in en_ruta if _tiene_coords(o)] + [o for o in en_ruta if not _tiene_coords(o)]))
     sin_asignar = [o for n, o in enumerate(pedidos, start=1) if n not in asignados]
-    return rutas, sin_asignar, {"km": total_m / 1000, "fuente": matriz["fuente"]}
+    return rutas, sin_asignar, {"km": total_m / 1000, "fuente": matriz["fuente"],
+                                "colones": colones if costos is not None else None}
 
 
 def _largo(metros: list[list[int]], nodos: list[int]) -> int:
@@ -125,23 +152,30 @@ def _viaje(zona: str, camion: dict, pedidos: list[dict], sede: Sede) -> dict:
 
 
 def asignar_y_ordenar(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_CR,
-                      usos_previos: dict | None = None, informe: dict | None = None) -> list[dict]:
+                      usos_previos: dict | None = None, informe: dict | None = None,
+                      costos: dict | None = None) -> list[dict]:
     """`usos_previos` = {vehicle_id: viajes que ya tiene ese día} (viajes congelados u otras
     compañías del almacén): arrancan encareciendo esos camiones. `informe` (si se pasa) recibe
-    km y fuente de la matriz de la corrida."""
+    km, colones y fuente de la matriz de la corrida. `costos` = {vehicle_id: {"km", "dia"}}
+    (todos los camiones) para minimizar colones; si falta alguno se ignora."""
     viajes: list[dict] = []
     previos = usos_previos or {}
     usos = [previos.get(c["id"], 0) for c in flota]  # viajes de cada camión en el día (compartido entre grupos)
-    km, fuentes = 0.0, set()
+    por_camion = [costos.get(c["id"]) for c in flota] if costos else None
+    if por_camion is not None and any(c is None for c in por_camion):
+        log.warning("motor ortools: faltan costos de %s camiones; se minimizan km", sum(c is None for c in por_camion))
+        por_camion = None
+    km, colones, fuentes = 0.0, 0.0, set()
     for zona, grupo in sorted(motor_ruteo.agrupar_por_zona(pedidos).items()):
         pendientes = grupo
         while pendientes:  # más de una pasada solo si el grupo necesita más viajes que camiones hay
-            rutas, resto, datos = _resolver(pendientes, flota, usos, sede)
+            rutas, resto, datos = _resolver(pendientes, flota, usos, sede, por_camion)
             if not rutas:  # ningún camión puede con lo que queda: el primero va solo en el más grande
                 mayor = max(range(len(flota)), key=lambda i: (flota[i]["cw"], -usos[i]))
                 rutas, resto = [(mayor, [pendientes[0]])], pendientes[1:]
             else:
                 km += datos["km"]
+                colones += datos["colones"] or 0.0
                 fuentes.add(datos["fuente"])
             viajes += [_viaje(zona, flota[v], peds, sede) for v, peds in rutas]
             for v, _ in rutas:
@@ -150,5 +184,7 @@ def asignar_y_ordenar(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_
     log.info("motor ortools: %s pedidos → %s viajes, %.1f km (matriz: %s)",
              len(pedidos), len(viajes), km, ",".join(sorted(fuentes)) or "-")
     if informe is not None:
-        informe.update({"km": round(km, 1), "fuente_matriz": ",".join(sorted(fuentes)) or None})
+        informe.update({"km": round(km, 1), "fuente_matriz": ",".join(sorted(fuentes)) or None,
+                        "costo_colones": round(colones) if por_camion is not None else None,
+                        "terceros": sum(1 for v in viajes if v["veh"] and not v["veh"].get("propio", True))})
     return viajes

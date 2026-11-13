@@ -15,6 +15,7 @@ import sys
 import time
 import uuid
 
+import costos
 import motor_ruteo
 import recolectas
 import tiempo_salida
@@ -63,6 +64,28 @@ WHERE v.organization_id = %s AND v.status = 'active'
   AND COALESCE(v.country_id, ca.country_id) = (SELECT w.country_id FROM tbl_warehouses w WHERE w.id = %s)
 ORDER BY v.capacity_weight DESC, v.plate
 """
+
+# Camiones de transportistas TERCEROS del país del almacén (fase 6, USAR_TERCEROS=si): segunda
+# opción del solver cuando la flota propia ya tiene viaje ese día.
+_TERCEROS = """
+SELECT v.id, v.plate, v.capacity_weight::float AS cw, v.capacity_volume::float AS cv, false AS propio
+FROM tbl_vehicles v
+JOIN tbl_carriers ca ON ca.id = v.carrier_id
+WHERE v.organization_id = %s AND v.status = 'active' AND NOT COALESCE(ca.is_flota_propia, false)
+  AND COALESCE(ca.status, 'active') = 'active'
+  AND v.capacity_weight IS NOT NULL AND v.capacity_volume IS NOT NULL
+  AND COALESCE(v.country_id, ca.country_id) = (SELECT w.country_id FROM tbl_warehouses w WHERE w.id = %s)
+ORDER BY v.capacity_weight DESC, v.plate
+"""
+
+
+def flota_del_almacen(org: str, warehouse: str) -> list[dict]:
+    """Flota propia del país del almacén y, con USAR_TERCEROS=si, los terceros (propio=False)."""
+    flota = [{**c, "propio": True} for c in pg.query(_FLOTA, [org, warehouse])]
+    if costos.usar_terceros():
+        flota += [dict(c) for c in pg.query(_TERCEROS, [org, warehouse])]
+    return flota
+
 
 # Sede del almacén: de dónde salen los camiones y con qué mapa se miden (ruta_geo.sede_de).
 _ALMACEN = """
@@ -125,7 +148,8 @@ VALUES (%s,%s,%s,%s,%s::date,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s::json
 def _parametros() -> dict:
     p = {"margen_peso": motor_ruteo.MARGEN_PESO, "margen_volumen": motor_ruteo.MARGEN_VOLUMEN,
          "max_paradas": motor_ruteo.MAX_PARADAS, "tn_modo": tiempo_salida.modo(),
-         "tn_min_por_dia": tiempo_salida.min_por_dia()}
+         "tn_min_por_dia": tiempo_salida.min_por_dia(), "costos_modo": costos.modo(),
+         "usar_terceros": costos.usar_terceros(), "factor_tercero": costos.FACTOR_TERCERO}
     mo, ort = sys.modules.get("motor_ortools"), sys.modules.get("ortools")
     if mo is not None:  # solo si el solver se cargó en esta corrida
         p.update({"costo_fijo_viaje_km": mo.COSTO_FIJO_VIAJE_KM, "costo_reuso_km": mo.COSTO_REUSO_KM,
@@ -136,12 +160,12 @@ def _parametros() -> dict:
 
 
 def registrar_corrida(run, contexto: dict, pedidos: list[dict], flota: list[dict], sede, usos: dict,
-                      viajes: list[dict], informe: dict, duracion_ms: int) -> None:
+                      viajes: list[dict], informe: dict, duracion_ms: int, costos_flota: dict | None = None) -> None:
     """Una fila en tbl_routing_runs con lo necesario para explicar y reproducir el plan.
     Corre en la transacción del plan: si el plan se revierte, el registro también."""
     entrada = {"sede": {"deposito": list(sede.deposito), "region": sede.region, "origen": sede.origen},
-               "flota": [{"id": c["id"], "cw": c["cw"], "cv": c["cv"]} for c in flota],
-               "usos_previos": usos,
+               "flota": [{"id": c["id"], "cw": c["cw"], "cv": c["cv"], "propio": c.get("propio", True)} for c in flota],
+               "usos_previos": usos, "costos": costos_flota,
                "pedidos": [{"id": o["id"], "lat": o["lat"], "lng": o["lng"], "peso": o["weight"],
                             "volumen": o["volume"], "grupo": motor_ruteo.clave(o)} for o in pedidos]}
     resultado = [{"zona": v["zona"], "camion": v["veh"]["id"] if v["veh"] else None,
@@ -151,7 +175,9 @@ def registrar_corrida(run, contexto: dict, pedidos: list[dict], flota: list[dict
                        contexto["fecha"], contexto["plan_id"], informe.get("motor"), informe.get("motor_solicitado"),
                        sede.region, sede.origen, informe.get("fuente_matriz"), len(pedidos), len(viajes),
                        informe.get("km"), duracion_ms, informe.get("error"),
-                       json.dumps(_parametros()), json.dumps(entrada, default=str),
+                       json.dumps({**_parametros(), "informe": {k: informe.get(k) for k in
+                                                                ("costo_colones", "terceros", "tn_modo")}}),
+                       json.dumps(entrada, default=str),
                        json.dumps(resultado, default=str), contexto["created_by"]])
 
 
@@ -161,9 +187,10 @@ def _persistir_viaje(run, plan_id: str, seq: int, viaje: dict, run_id: str, nume
     veh = viaje["veh"]  # None = viaje de cliente-retira (sin camión)
     zona, lead = viaje["zona"], viaje["lead"]
     wmh = int(numero.replace("-", ""))  # NUMEROVIAJEWMH es bigint (nº de viaje sin guion)
+    propio = veh is not None and veh.get("propio", True)  # un tercero (fase 6) no es flota propia
     trip_id = run(_INS_TRIP, [plan_id, veh["id"] if veh else None, zona, seq, viaje["peso"], viaje["volumen"],
                               veh["plate"] if veh else None, veh["cw"] if veh else None,
-                              veh["cv"] if veh else None, veh is not None, numero, lead])[0]["id"]
+                              veh["cv"] if veh else None, propio, numero, lead])[0]["id"]
     for i, o in enumerate(viaje["pedidos"], start=1):
         run(_INS_STOP, [trip_id, o["id"], i, o["order_number"], o["customer_name"], o["delivery_city"],
                         o["delivery_zone"], o["lat"], o["lng"], o["weight"], o["volume"], o["es_cliente_retira"]])
@@ -191,11 +218,12 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
         return None
     retira = [o for o in pedidos if o["es_cliente_retira"]]
     normales = [o for o in pedidos if not o["es_cliente_retira"]]
-    flota = pg.query(_FLOTA, [org, warehouse])
+    flota = flota_del_almacen(org, warehouse)
     if not flota and normales:
         from tms_common.errors import HttpError
         raise HttpError(409, "No hay flota propia activa del país del almacén para planificar")
     sede = sede_del_almacen(warehouse, pedidos)
+    costos_flota = costos.por_vehiculo(flota, sede.region)  # None salvo COSTOS_MODO=reales en Costa Rica
 
     run_id = str(uuid.uuid4())
     # Nº de viaje = fecha-compañía-secuencia: cada compañía numera su plan desde 001, y sin la
@@ -213,7 +241,7 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
         usos = usos_del_dia(run, org, warehouse, fecha)  # ya sin los viajes no liberados de esta compañía
         informe: dict = {}
         inicio = time.monotonic()
-        viajes = motor_ruteo.asignar_y_ordenar(normales, flota, sede, usos, informe=informe)
+        viajes = motor_ruteo.asignar_y_ordenar(normales, flota, sede, usos, informe=informe, costos=costos_flota)
         tiempo_salida.ajustar(viajes, sede, informe)  # T-n por carretera si TN_MODO=carretera (fase 5)
         duracion_ms = round((time.monotonic() - inicio) * 1000)
         for viaje in viajes:
@@ -222,7 +250,7 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
         if normales:
             registrar_corrida(run, {"run_id": run_id, "org": org, "warehouse": warehouse, "customer": customer,
                                     "fecha": fecha, "plan_id": plan_id, "created_by": created_by},
-                              normales, flota, sede, usos, viajes, informe, duracion_ms)
+                              normales, flota, sede, usos, viajes, informe, duracion_ms, costos_flota)
         recolectas.agendar(run, org, warehouse, customer, fecha, motor_ruteo.clave)  # devoluciones → paradas collection
         if retira:  # grupo de cliente-retira: zona RETIRA, sin camión
             seq += 1
