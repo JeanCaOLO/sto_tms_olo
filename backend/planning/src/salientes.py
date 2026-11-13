@@ -5,6 +5,7 @@ un pedido, deja de venir y en `orders` quedaba DISP/DISP para siempre (bandeja c
 pedidos viejos). Aquí: los DISP/DISP de Aurora que no están en la cola se consultan
 en eFlow por su llave y se copian TPEXES/TPEXSI → wms_status/wms_situation.
 Si siguen DISP/DISP en eFlow (fecha vencida) no cambian: siguen pendientes de verdad.
+Solo pedidos NO liberados: lo liberado por el OMS queda como lo dejó el OMS.
 Read-only contra eFlow.
 """
 
@@ -14,12 +15,12 @@ _EN_BANDEJA = """
 SELECT eflow_id_expedicion AS exp, eflow_id_compania AS cia
 FROM tbl_orders
 WHERE organization_id = %s AND eflow_id_expedicion IS NOT NULL
-  AND wms_status = 'DISP' AND wms_situation = 'DISP'"""
+  AND wms_status = 'DISP' AND wms_situation = 'DISP' AND oms_processed_at IS NULL"""
 
 _UPD = """
 UPDATE tbl_orders SET wms_status = %s, wms_situation = %s, updated_at = now()
 WHERE organization_id = %s AND eflow_id_expedicion = %s AND eflow_id_compania = %s
-  AND wms_status = 'DISP' AND wms_situation = 'DISP'"""
+  AND wms_status = 'DISP' AND wms_situation = 'DISP' AND oms_processed_at IS NULL"""
 
 _LOTE = 200
 
