@@ -7,16 +7,18 @@ Qué decide el solver y qué no:
   comparten camión y en qué orden se visitan, minimizando viajes y kilómetros de
   carretera (ida y vuelta al depósito) con la matriz de `matriz_distancias`.
 - Capacidad: peso y volumen con los márgenes de `motor_ruteo`, y el tope de paradas.
-- Flota: cada camión hace un viaje por vuelta; cuando se acaban los camiones libres
-  se vuelve a repartir la flota completa (segunda vuelta), como la heurística.
+- Flota: toda la flota está disponible en cada grupo, pero cada viaje que un camión
+  ya hizo en el día encarece volver a usarlo (`COSTO_REUSO_KM`): las vueltas se
+  reparten entre camiones y un camión solo repite cuando no queda otro que sirva.
 - Un pedido que no cabe en ningún camión va solo en el más grande (la UI avisa).
 
 Determinismo (el replan horario no debe reordenar lo que no cambió): búsqueda local
 hasta el óptimo local, SIN metaheurística con reloj. El tiempo límite es solo una
 red de seguridad: si se alcanza, la corrida se descarta y `motor_ruteo` usa la
 heurística. Se detecta midiendo el reloj, no por el status: OR-Tools devuelve
-"óptimo local no alcanzado" también en problemas triviales que cerró al instante. ponytail: mejor calidad = GUIDED_LOCAL_SEARCH, pero su corte por tiempo
-da resultados distintos según la máquina; activarlo exige no re-resolver días sin cambios.
+"óptimo local no alcanzado" también en problemas triviales que cerró al instante.
+ponytail: mejor calidad = GUIDED_LOCAL_SEARCH, pero su corte por tiempo da resultados
+distintos según la máquina; activarlo exige no re-resolver días sin cambios.
 """
 
 import logging
@@ -32,6 +34,10 @@ from ruta_geo import DEPOT_CR
 # ahorra más que esto en recorrido. ponytail: valor de arranque; calibrar con el
 # costo real por tipo de camión (tablas de costeo) en la fase 6.
 COSTO_FIJO_VIAJE_KM = 300
+# Recargo por cada viaje que el camión ya hizo en el día: muy por encima de cualquier
+# ahorro de recorrido, para que repetir camión sea el último recurso (sin jornada del
+# chofer en el modelo, dos vueltas largas podrían no caber en un día).
+COSTO_REUSO_KM = 5000
 PENALIZACION_SIN_ASIGNAR_M = 10**9  # dejar un pedido fuera cuesta más que cualquier ruta
 TIEMPO_LIMITE_S = 10
 ESCALA = 100  # peso (kg) y volumen (m³) a enteros de centésimas
@@ -47,8 +53,9 @@ def _tiene_coords(o: dict) -> bool:
     return o["lat"] is not None and o["lng"] is not None
 
 
-def _resolver(pedidos: list[dict], camiones: list[dict]) -> tuple[list[tuple[int, list[dict]]], list[dict], dict]:
-    """Un VRP: reparte `pedidos` entre `camiones` (un viaje cada uno, como mucho).
+def _resolver(pedidos: list[dict], camiones: list[dict], usos: list[int]) -> tuple[list[tuple[int, list[dict]]], list[dict], dict]:
+    """Un VRP: reparte `pedidos` entre `camiones` (un viaje cada uno, como mucho);
+    `usos[v]` = viajes que el camión v ya hizo en el día (encarece repetirlo).
     Devuelve (rutas, sin_asignar, datos): rutas = [(índice del camión, pedidos en orden)]."""
     # Nodo 0 = depósito. Un pedido sin coordenadas se ubica en el depósito: ocupa
     # capacidad pero no mueve la ruta (luego va al final del viaje).
@@ -70,7 +77,7 @@ def _resolver(pedidos: list[dict], camiones: list[dict]) -> tuple[list[tuple[int
     dimension("paradas", [0] + [1] * len(pedidos), [motor_ruteo.MAX_PARADAS] * len(camiones))
 
     for v, c in enumerate(camiones):  # + capacidad en metros: a igual recorrido, el camión más chico que alcance
-        routing.SetFixedCostOfVehicle(COSTO_FIJO_VIAJE_KM * 1000 + round(c["cw"]), v)
+        routing.SetFixedCostOfVehicle((COSTO_FIJO_VIAJE_KM + usos[v] * COSTO_REUSO_KM) * 1000 + round(c["cw"]), v)
     for nodo in range(1, len(puntos)):
         routing.AddDisjunction([manager.NodeToIndex(nodo)], PENALIZACION_SIN_ASIGNAR_M)
 
@@ -93,15 +100,21 @@ def _resolver(pedidos: list[dict], camiones: list[dict]) -> tuple[list[tuple[int
             i = solucion.Value(routing.NextVar(i))
         if not nodos:
             continue
-        # Mismo recorrido en el sentido que empieza por el extremo más cercano al depósito.
-        if metros[0][nodos[-1]] < metros[0][nodos[0]]:
+        # Las paradas se numeran desde la más cercana al depósito, pero la matriz de
+        # carretera no es simétrica: solo se invierte si el recorrido no se alarga.
+        if metros[0][nodos[-1]] < metros[0][nodos[0]] and _largo(metros, nodos[::-1]) <= _largo(metros, nodos):
             nodos.reverse()
-        total_m += metros[0][nodos[0]] + sum(metros[a][b] for a, b in zip(nodos, nodos[1:])) + metros[nodos[-1]][0]
+        total_m += _largo(metros, nodos)
         asignados.update(nodos)
         en_ruta = [pedidos[n - 1] for n in nodos]
         rutas.append((v, [o for o in en_ruta if _tiene_coords(o)] + [o for o in en_ruta if not _tiene_coords(o)]))
     sin_asignar = [o for n, o in enumerate(pedidos, start=1) if n not in asignados]
     return rutas, sin_asignar, {"km": total_m / 1000, "fuente": matriz["fuente"]}
+
+
+def _largo(metros: list[list[int]], nodos: list[int]) -> int:
+    """Metros de depósito → nodos (en ese orden) → depósito."""
+    return metros[0][nodos[0]] + sum(metros[a][b] for a, b in zip(nodos, nodos[1:])) + metros[nodos[-1]][0]
 
 
 def _viaje(zona: str, camion: dict, pedidos: list[dict]) -> dict:
@@ -112,26 +125,21 @@ def _viaje(zona: str, camion: dict, pedidos: list[dict]) -> dict:
 
 def asignar_y_ordenar(pedidos: list[dict], flota: list[dict]) -> list[dict]:
     viajes: list[dict] = []
-    libres: list[dict] = []  # camiones sin viaje en la vuelta en curso (compartidos entre grupos)
+    usos = [0] * len(flota)  # viajes de cada camión en el día (compartido entre grupos)
     km, fuentes = 0.0, set()
     for zona, grupo in sorted(motor_ruteo.agrupar_por_zona(pedidos).items()):
         pendientes = grupo
-        while pendientes:
-            if not libres:
-                libres = list(flota)
-            rutas, resto, datos = _resolver(pendientes, libres)
-            if not rutas and len(libres) < len(flota):
-                libres = []  # no cabe en los que quedan: nueva vuelta con la flota completa
-                continue
-            if not rutas:  # ni con toda la flota: el pedido excede a cualquier camión y va solo en el más grande
-                mayor = max(range(len(libres)), key=lambda i: libres[i]["cw"])
+        while pendientes:  # más de una pasada solo si el grupo necesita más viajes que camiones hay
+            rutas, resto, datos = _resolver(pendientes, flota, usos)
+            if not rutas:  # ningún camión puede con lo que queda: el primero va solo en el más grande
+                mayor = max(range(len(flota)), key=lambda i: (flota[i]["cw"], -usos[i]))
                 rutas, resto = [(mayor, [pendientes[0]])], pendientes[1:]
             else:
                 km += datos["km"]
                 fuentes.add(datos["fuente"])
-            viajes += [_viaje(zona, libres[v], peds) for v, peds in rutas]
-            usados = {v for v, _ in rutas}
-            libres = [c for i, c in enumerate(libres) if i not in usados]
+            viajes += [_viaje(zona, flota[v], peds) for v, peds in rutas]
+            for v, _ in rutas:
+                usos[v] += 1
             pendientes = resto
     log.info("motor ortools: %s pedidos → %s viajes, %.1f km (matriz: %s)",
              len(pedidos), len(viajes), km, ",".join(sorted(fuentes)) or "-")

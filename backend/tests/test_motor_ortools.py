@@ -86,12 +86,35 @@ def test_prefiere_el_camion_mas_chico_que_alcance(motores):
     assert [v["veh"]["id"] for v in viajes] == ["CHICO"]
 
 
-def test_mas_viajes_que_camiones_da_otra_vuelta_a_la_flota(motores):
+def test_mas_viajes_que_camiones_reparte_las_vueltas_entre_la_flota(motores):
     mr, mo = motores
     pedidos = [_pedido(i, peso=800.0, dlat=0.01 * (i + 1)) for i in range(5)]  # uno por camión
     viajes = mo.asignar_y_ordenar(pedidos, [_camion("A"), _camion("B")])
     _validar(mr, viajes, pedidos)
-    assert sorted(v["veh"]["id"] for v in viajes) == ["A", "A", "A", "B", "B"]
+    assert sorted([v["veh"]["id"] for v in viajes].count(c) for c in "AB") == [2, 3]
+
+
+def test_no_repite_camion_mientras_haya_otro_que_sirva(motores):
+    mr, mo = motores
+    # Dos zonas con un pedido pesado obligan a repetir el GRANDE (el único que puede). Las zonas
+    # livianas deben ir cada una en un camión chico distinto, no repetir el primero.
+    pedidos = [_pedido("liviano0", "Z0", peso=50.0, dlat=0.05), _pedido("pesado1", "Z1", peso=3000.0, dlat=0.10),
+               _pedido("pesado2", "Z2", peso=3000.0, dlat=0.15), _pedido("liviano3", "Z3", peso=50.0, dlat=0.20)]
+    flota = [_camion("GRANDE", cw=8000.0)] + [_camion(f"CHICO{i}", cw=500.0) for i in range(3)]
+    viajes = mo.asignar_y_ordenar(pedidos, flota)
+    _validar(mr, viajes, pedidos)
+    camion = {_ids(v)[0]: v["veh"]["id"] for v in viajes}
+    assert camion["pesado1"] == camion["pesado2"] == "GRANDE"
+    assert camion["liviano0"] != camion["liviano3"]
+
+
+def test_solo_invierte_el_sentido_si_no_alarga_el_recorrido(motores, monkeypatch):
+    _, mo = motores
+    # Matriz asimétrica: 0→1→2→0 = 3 km; al revés (0→2→1→0) = 201 km, aunque 2 esté más cerca del depósito.
+    km = [[0, 2, 1], [100, 0, 0.5], [0.5, 100, 0]]
+    monkeypatch.setattr(mo.matriz_distancias, "construir", lambda puntos: {"km": km, "fuente": "osrm"})
+    viajes = mo.asignar_y_ordenar([_pedido(1, dlat=0.1), _pedido(2, dlat=0.2)], [_camion("A")])
+    assert [_ids(v) for v in viajes] == [[1, 2]]
 
 
 def test_un_pedido_que_excede_a_todos_va_solo_en_el_camion_mas_grande(motores):

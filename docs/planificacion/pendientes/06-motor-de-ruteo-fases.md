@@ -1,4 +1,4 @@
-# 06 — Motor de ruteo: fases 4 a 7
+# 06 — Motor de ruteo: activar el solver y fases 5 a 7
 
 **Estado:** pendiente por implementar
 
@@ -9,11 +9,16 @@ La fase 2 (OSRM propio) también: stack `dev-tms-osrm` en el sandbox y
 `matriz_distancias.construir(puntos)` en el backend, con respaldo en línea recta.
 La fase 3 (motor con OR-Tools) también: `motor_ortools.py`, elegido con la variable
 `MOTOR_RUTEO=ortools` y con la heurística como respaldo. **El interruptor está apagado** en
-el sandbox: nadie lo usa todavía. Faltan, en orden:
+el sandbox: nadie lo usa todavía.
+La fase 4 (comparación en sombra) también: en 23 días reales de Cofersa el solver arma los
+mismos viajes con los mismos camiones y 9,4 % menos km de carretera, ningún día peor y sin
+errores (`docs/work/2026-11/2026-11-13-motor-ruteo-fase4-comparacion.md`). Para repetirla:
+invocar la Lambda con `{"accion": "comparar_motores", "dias_atras": 45}`. Faltan, en orden:
 
-4. **Comparar en sombra** con días reales de Cofersa: km, camiones usados, paradas por viaje.
-   Correr los dos motores sobre los mismos pedidos SIN persistir el del solver y guardar o
-   reportar las métricas. Con eso se decide si se activa `MotorRuteo=ortools`.
+- **Decidir y activar el solver** en el sandbox: `MotorRuteo=ortools` en
+  `backend/planning/samconfig.toml` (dev) y `python scripts/sandbox/deploy_backend.py planning`.
+  Desde el siguiente replan, los viajes no liberados se rearman con el solver. Volver atrás es
+  el mismo cambio con `heuristico`.
 5. **T-n con tiempo real de carretera** en vez de 70 km/día en línea recta. Coordinar con el
    OMS: mueve `dispatch_date`, que es lo que usa para liberar.
 6. **Costos y terceros:** costo/km por tipo de camión (tablas de costeo) y transportistas
@@ -71,3 +76,17 @@ completo: `analisis-motor-de-ruteo-tms.pdf` (raíz del repo, 2026-11-13).
   hace falta espacio o el arranque en frío molesta. No se midió el arranque en frío.
 - **QA y producción:** el `sam build` de Intelix debe poder instalar `ortools` (ruedas
   `manylinux_2_28`); el parámetro `MotorRuteo` queda en `heuristico` por defecto.
+
+**Sueltos de la fase 4 (comparación):**
+- **EPA sin coordenadas.** Sus pedidos (41 en 9 días) no tienen latitud ni longitud: ningún
+  motor puede ordenarlos ni medirlos. Revisar de dónde salen las coordenadas de las tiendas
+  (`tbl_final_customers` / puntos de entrega) en la ingesta.
+- **Peso y volumen incompletos.** 20 % de los pedidos de Cofersa sin peso y 51 % sin
+  volumen; ocupación de peso por viaje ≤ 7 %. La capacidad nunca limita, así que el solver no
+  puede ahorrar viajes, solo km. Completar esos datos en la ingesta (`ingest_orders.py`,
+  `ingest_items.py`) antes de calibrar la fase 6.
+- **Más viajes que camiones** en 6 de 23 días (hasta 2,7 por camión), con los dos motores.
+  Agregar jornada del chofer (ventanas de tiempo) al solver o revisar el tope de 16 paradas.
+- **La comparación mide recorridos planificados, no kilómetros manejados.** Contrastar con las
+  posiciones GPS de Tracking (`tbl_tracking_positions`) cuando haya viajes ejecutados con el
+  solver activo.

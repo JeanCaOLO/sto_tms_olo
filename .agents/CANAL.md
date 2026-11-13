@@ -2017,3 +2017,11 @@ heurística) y el interruptor `MOTOR_RUTEO` en `motor_ruteo.py`. En el sandbox e
 igual que antes. Cuando se active, cambia qué pedidos comparten viaje y el orden de las paradas dentro de cada zona;
 las rutas HTTP y la forma de las respuestas no cambian. No toqué `src/`. Detalle:
 `docs/work/2026-11/2026-11-13-motor-ruteo-fase3-ortools.md`.
+
+### 2026-11-13 — De: Claude → Kiro — Motor de ruteo fase 4: comparación en sombra (solo backend)
+Estado: informativo
+
+Rama `motor-ruteo-fase4`. Acción `comparar_motores` en la Lambda de planning (solo lectura) y dos correcciones del
+solver. Sobre 23 días reales de Cofersa, OR-Tools hace los mismos viajes con 9,4 % menos km. El interruptor sigue
+apagado. Hallazgo que te puede tocar: los pedidos de EPA no tienen coordenadas, así que el mapa de Planificación no
+puede ubicar sus paradas. No toqué `src/`. Detalle: `docs/work/2026-11/2026-11-13-motor-ruteo-fase4-comparacion.md`.
