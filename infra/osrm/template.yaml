@@ -1,0 +1,166 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  TMS - OSRM | Motor de calles propio (OSRM con el mapa de Costa Rica) para el motor de ruteo de
+  Planificación. Una EC2 dentro de la VPC de Aurora, alcanzable solo desde las Lambdas del TMS.
+  Reemplaza al servidor público de demostración (sin SLA) para el backend.
+
+# Fase 2 del motor de ruteo (docs/planificacion/pendientes/06-motor-de-ruteo-fases.md).
+# - Las Lambdas están en subnets privadas SIN NAT: no pueden salir a un OSRM público, por eso el
+#   servidor vive en la misma VPC y se consume por su IP privada.
+# - La instancia va en una subnet pública SOLO para tener salida a internet en el primer arranque
+#   (imagen de Docker Hub + mapa de Geofabrik). No acepta entrada desde internet: el security group
+#   solo abre el puerto 5000 a las Lambdas.
+# - Mismo horario que Aurora (infra/horarios): L-V 04:45-17:00 hora de Costa Rica. Al apagar y
+#   encender conserva el disco (mapa ya procesado) y la IP privada.
+# - Sin llave SSH ni perfil de instancia. Para diagnosticar el arranque:
+#   aws ec2 get-console-output --instance-id <id> --latest
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-0a8252dbb12741364
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-0ec6329b88ede025c
+    Description: Subnet pública (us-east-2c) con salida por el internet gateway.
+  LambdaSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Default: sg-06b3986a1f95d2f19
+    Description: Security group de las Lambdas del TMS (único origen permitido).
+  ImageId:
+    Type: AWS::EC2::Image::Id
+    Default: ami-0df8a753693e6366d
+    Description: >-
+      Amazon Linux 2023 x86_64 (us-east-2, resuelta el 2026-11-13). Fija a propósito: cambiarla
+      REEMPLAZA la instancia (reprocesa el mapa y cambia la IP privada → redesplegar planning).
+  InstanceType:
+    Type: String
+    Default: t3.medium
+    Description: 4 GB de RAM; el preprocesamiento del mapa de Costa Rica no cabe holgado en menos.
+  MapUrl:
+    Type: String
+    Default: https://download.geofabrik.de/central-america/costa-rica-latest.osm.pbf
+  MapName:
+    Type: String
+    Default: costa-rica-latest
+  StartCron:
+    Type: String
+    Default: cron(45 4 ? * MON-FRI *)
+  StopCron:
+    Type: String
+    Default: cron(0 17 ? * MON-FRI *)
+  TimeZone:
+    Type: String
+    Default: America/Costa_Rica
+
+Resources:
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${AWS::StackName}
+      GroupDescription: OSRM del TMS - puerto 5000 solo desde las Lambdas del TMS
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          SourceSecurityGroupId: !Ref LambdaSecurityGroupId
+          Description: Lambdas del TMS
+
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref ImageId
+      InstanceType: !Ref InstanceType
+      NetworkInterfaces:
+        - DeviceIndex: "0"
+          SubnetId: !Ref SubnetId
+          GroupSet: [!Ref SecurityGroup]
+          AssociatePublicIpAddress: true
+      MetadataOptions:
+        HttpTokens: required
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs: { VolumeSize: 16, VolumeType: gp3, Encrypted: true, DeleteOnTermination: true }
+      Tags:
+        - { Key: Name, Value: !Sub "${AWS::StackName}" }
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          # Primer arranque: instala Docker, baja el mapa, lo procesa y deja OSRM sirviendo en :5000.
+          # En los arranques siguientes Docker levanta solo el contenedor (--restart unless-stopped).
+          exec > >(tee /var/log/osrm-setup.log /dev/console) 2>&1
+          set -euxo pipefail
+          dnf install -y docker
+          systemctl enable --now docker
+          # 2 GB de swap: colchón para osrm-extract.
+          fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+          echo "/swapfile none swap sw 0 0" >> /etc/fstab
+          mkdir -p /data && cd /data
+          curl -fL --retry 5 -o ${MapName}.osm.pbf "${MapUrl}"
+          IMG=osrm/osrm-backend:latest
+          docker pull $IMG
+          docker run --rm -v /data:/data $IMG osrm-extract -p /opt/car.lua /data/${MapName}.osm.pbf
+          docker run --rm -v /data:/data $IMG osrm-partition /data/${MapName}.osrm
+          docker run --rm -v /data:/data $IMG osrm-customize /data/${MapName}.osrm
+          rm -f ${MapName}.osm.pbf
+          docker run -d --name osrm --restart unless-stopped -p 5000:5000 -v /data:/data $IMG \
+            osrm-routed --algorithm mld --max-table-size 1000 /data/${MapName}.osrm
+          echo "[osrm-setup] LISTO"
+
+  SchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: scheduler.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals: { "aws:SourceAccount": !Ref AWS::AccountId }
+      Policies:
+        - PolicyName: encender-apagar-osrm
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [ec2:StartInstances, ec2:StopInstances]
+                Resource: !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${Instance}
+
+  StartOsrm:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: !Sub ${AWS::StackName}-encender
+      Description: Enciende el OSRM del TMS lunes a viernes 04:45 CR
+      ScheduleExpression: !Ref StartCron
+      ScheduleExpressionTimezone: !Ref TimeZone
+      FlexibleTimeWindow: { Mode: "OFF" }
+      Target:
+        Arn: arn:aws:scheduler:::aws-sdk:ec2:startInstances
+        RoleArn: !GetAtt SchedulerRole.Arn
+        Input: !Sub '{"InstanceIds": ["${Instance}"]}'
+        RetryPolicy: { MaximumRetryAttempts: 3, MaximumEventAgeInSeconds: 3600 }
+
+  StopOsrm:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: !Sub ${AWS::StackName}-apagar
+      Description: Apaga el OSRM del TMS lunes a viernes 17:00 CR
+      ScheduleExpression: !Ref StopCron
+      ScheduleExpressionTimezone: !Ref TimeZone
+      FlexibleTimeWindow: { Mode: "OFF" }
+      Target:
+        Arn: arn:aws:scheduler:::aws-sdk:ec2:stopInstances
+        RoleArn: !GetAtt SchedulerRole.Arn
+        Input: !Sub '{"InstanceIds": ["${Instance}"]}'
+        RetryPolicy: { MaximumRetryAttempts: 3, MaximumEventAgeInSeconds: 3600 }
+
+Outputs:
+  OsrmUrl:
+    Description: URL privada del OSRM (solo alcanzable desde las Lambdas del TMS). La consume el stack planning.
+    Value: !Sub http://${Instance.PrivateIp}:5000
+  InstanceId:
+    Value: !Ref Instance
+  Horario:
+    Value: "Lunes a viernes 04:45-17:00 America/Costa_Rica"

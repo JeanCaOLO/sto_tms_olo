@@ -20,6 +20,10 @@ Parameters:
     Type: String
     Default: ""
     Description: app_users.id que firma los planes del replan horario. Vacío = el app_user activo más antiguo de la org.
+  OsrmUrl:
+    Type: String
+    Default: ""
+    Description: URL del OSRM propio dentro de la VPC (ej. http://172.31.x.x:5000, output del stack osrm). Vacío = distancias en línea recta.
 
 Conditions:
   IsProduction: !Equals [!Ref Environment, prod]
@@ -58,6 +62,7 @@ Resources:
         Variables:
           ENVIRONMENT: !Ref Environment
           REPLAN_APP_USER_ID: !Ref ReplanAppUserId
+          OSRM_URL: !Ref OsrmUrl
           TMS_DB_SECRET_NAME:
             Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName
           # Ingesta de pedidos y artículos del pedido leen eFlow en vivo (eflow_db).

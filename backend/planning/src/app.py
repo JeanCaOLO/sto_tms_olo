@@ -19,6 +19,7 @@ import bandeja
 import cambio_fecha
 import bitacora
 import ingest_orders
+import matriz_distancias
 import pedido_articulos
 import plan_builder
 import plans_read
@@ -169,6 +170,7 @@ ROUTES = {
 _http_handler = tms_handler(ROUTES)
 REPLAN_PROGRAMADO = "replan_programado"  # Input del Scheduler en template.yaml
 INGESTA_BANDEJA = "ingesta_bandeja"  # Input del Scheduler en template.yaml
+ESTADO_RUTEO = "estado_ruteo"  # Diagnóstico a mano (aws lambda invoke): ¿la Lambda llega al OSRM?
 
 
 def handler(event: dict, context: object) -> dict:
@@ -177,4 +179,6 @@ def handler(event: dict, context: object) -> dict:
         return replan.ingestar_programado()
     if isinstance(event, dict) and event.get("accion") == REPLAN_PROGRAMADO:
         return replan.replanificar_programado()
+    if isinstance(event, dict) and event.get("accion") == ESTADO_RUTEO:
+        return matriz_distancias.estado()
     return _http_handler(event, context)

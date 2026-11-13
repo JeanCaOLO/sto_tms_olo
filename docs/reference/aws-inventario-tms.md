@@ -150,6 +150,31 @@ Stack `dev-tms-horarios` (`infra/horarios/template.yaml`, se despliega con `depl
   `aws rds start-db-cluster --db-cluster-identifier db-tms-olo --region us-east-2`) y el bastión (EC2 → Start). Se
   vuelve a apagar sola a las 17:00 del siguiente día hábil. `ext.claude` hoy no tiene permiso para encenderla a mano.
 
+## 2c. OSRM propio: motor de calles para Planificación (2026-11-13)
+
+Stack `dev-tms-osrm` (`infra/osrm/template.yaml`, se despliega con `python scripts/sandbox/deploy_backend.py osrm`).
+Da distancias y tiempos reales por carretera al backend de Planificación (fase 2 del motor de ruteo).
+
+| Recurso | Identificador | Detalle |
+|---|---|---|
+| Instancia EC2 | `i-062c1072f4217a10c` (`dev-tms-osrm`) | `t3.medium`, Amazon Linux 2023 (`ami-0df8a753693e6366d`, fija en la plantilla), disco 16 GB gp3 cifrado. Docker con `osrm/osrm-backend` y el mapa de Costa Rica (Geofabrik) ya procesado en `/data`. Sin llave SSH ni perfil de instancia; IMDSv2 obligatorio. |
+| Subnet | `subnet-0ec6329b88ede025c` (us-east-2c, pública) | Solo para tener salida a internet en el primer arranque (imagen y mapa). IP pública efímera; nadie la usa. |
+| IP privada / URL | `172.31.36.131` → `http://172.31.36.131:5000` | Se conserva al apagar y encender. Es el output `OsrmUrl` del stack; `deploy_backend.py` la pasa a `dev-tms-planning` como `OSRM_URL`. |
+| Security group | `sg-0d436b25f50487ffe` (`dev-tms-osrm`) | Entrada: solo TCP 5000 desde el SG de las Lambdas (`sg-06b3986a1f95d2f19`). Nada desde internet. |
+| Schedules | `dev-tms-osrm-encender`, `dev-tms-osrm-apagar` | L-V 04:45 y 17:00 hora de Costa Rica (igual que Aurora). |
+| Rol | `dev-tms-osrm-SchedulerRole-643O5voZRIbX` | Solo puede encender y apagar esa instancia. |
+
+- **Quién lo usa:** la Lambda `dev-tms-planning-planning-api` (`matriz_distancias.py`). Si no responde, el backend
+  cae a línea recta; nada se detiene. El **frontend no lo usa** (no es alcanzable desde el navegador): sigue con
+  `VITE_OSRM_URL` o el servidor público.
+- **Comprobar:** `aws lambda invoke --function-name dev-tms-planning-planning-api --cli-binary-format raw-in-base64-out --payload '{"accion":"estado_ruteo"}' salida.json`
+  → `"fuente": "osrm"`. Registro del arranque: `aws ec2 get-console-output --instance-id i-062c1072f4217a10c --latest`.
+- **Cuidado:** cambiar `ImageId`, la subnet o el `UserData` de la plantilla **reemplaza** la instancia: reprocesa el
+  mapa (unos minutos) y puede cambiar la IP → redesplegar `planning` después.
+- **Actualizar el mapa o agregar Venezuela:** hoy exige reemplazar la instancia (ver README de `infra/osrm/`).
+- **Costo estimado (no medido):** ~265 h/mes de `t3.medium` ≈ USD 11, disco ≈ USD 1,3, IPv4 pública ≈ USD 1,3 →
+  unos USD 14 al mes.
+
 ## 3. En la cuenta pero NO son del TMS (no tocar)
 
 | Recurso | Nota |
@@ -193,3 +218,4 @@ Stack `dev-tms-horarios` (`infra/horarios/template.yaml`, se despliega con `depl
 | 2026-10-12 | Nuevo stack **`dev-tms-alerts`** (API de vencimientos, digest y correo diario L-V 07:00 CR por SES). Probado: API 200, digest y mailer OK (hoy sin vencimientos → no envía). **Pendiente:** SES en sandbox → hay que **verificar `jbonilla@ologistics.com` y `rperez@ologistics.com` en SES** (o pedir acceso de producción de SES); `ext.claude` no tiene `ses:CreateEmailIdentity`. | Claude |
 | 2026-10-27 | Nuevo stack **`dev-tms-mobile`** (backend de la app del chofer migrado de `TRACKING_TMS/backend` a `backend/mobile`, aditivo: no cambia ningún stack existente) + secreto `/dev/tms/mobile-jwt`. Migraciones móviles `m01`–`m03` ya estaban aplicadas (tabla `mobile_migrations`); sin cambios de BD. Probado: `GET salud` 200, login con credenciales malas = `invalid_credentials` (llega a Aurora), ruta privada sin token = `no_token`; logs sin errores. | Claude |
 | 2026-10-27 | `dev-tms-mobile`: bucket propio **`dev-tms-mobile-evidencias-758837481569`** para fotos y firmas por pedido (ya no sube al de tracking). Aurora: `sql/54` (`tracking_evidences.order_id`/`order_number`/`storage_bucket`, rellenadas las 4 existentes). `dev-tms-tracking`: lee del bucket móvil (solo `s3:GetObject` en `pedidos/*`, variable `MOBILE_EVIDENCE_BUCKET`). Probado punta a punta con un chofer demo: upload-url → S3 204 → confirmar 201 → fila con pedido y bucket + metadatos del objeto; la prueba se borró. | Claude |
+| 2026-11-13 | Nuevo stack **`dev-tms-osrm`** (§2c): EC2 `i-062c1072f4217a10c` con OSRM y el mapa de Costa Rica, SG `sg-0d436b25f50487ffe`, schedules de encendido/apagado y su rol. `dev-tms-planning` redesplegado con la variable `OSRM_URL` y la acción `estado_ruteo`. Probado desde la Lambda: `fuente: osrm`, también tras apagar y encender la instancia. | Claude |

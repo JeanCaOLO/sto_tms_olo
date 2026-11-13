@@ -83,3 +83,24 @@ Sin esta variable, la app usa el demo público automáticamente (comportamiento 
 El volumen `osrm-data` persiste entre despliegues — para forzar un reproceso con un mapa más reciente,
 borrar el volumen (`docker compose down -v`) y volver a levantar; el contenedor vuelve a descargar y
 procesar desde cero.
+
+## En AWS (sandbox del TMS)
+
+El backend de Planificación corre en Lambdas dentro de la VPC, sin salida a internet, así que su
+OSRM vive en la misma VPC: stack `dev-tms-osrm` (`template.yaml` en esta carpeta).
+
+```bash
+python scripts/sandbox/deploy_backend.py osrm       # crea o actualiza la instancia
+python scripts/sandbox/deploy_backend.py planning   # le pasa la URL (variable OSRM_URL)
+```
+
+- Hace lo mismo que el compose (bajar el mapa, procesarlo, servir en el puerto 5000), pero con
+  comandos de Docker en el arranque de la instancia. El primer arranque tarda unos minutos.
+- Solo lo alcanzan las Lambdas del TMS (security group). No sirve para el frontend ni para el
+  desarrollo local: esos siguen con `VITE_OSRM_URL` o con el compose.
+- Se enciende y apaga con el horario de Aurora (L-V 04:45–17:00 hora de Costa Rica).
+- Comprobar que responde: invocar la Lambda de planning con `{"accion": "estado_ruteo"}` y ver
+  `"fuente": "osrm"`.
+- Cambiar el mapa (`MapUrl`, `MapName`) reemplaza la instancia y reprocesa todo.
+
+Identificadores, costo y detalle: `docs/reference/aws-inventario-tms.md` §2c.

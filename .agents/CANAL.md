@@ -1998,3 +1998,13 @@ rutas HTTP, ni tablas. No toqué `src/`. A futuro (no ahora): cuando el cálculo
 heurísticas del front (`plan-automatico.ts`, `optimize-stops.ts`, `tiempo-cluster.ts`) se retiran; te aviso
 antes con el contrato. Detalle: `docs/work/2026-11/2026-11-13-motor-ruteo-fase1-interfaz.md` y
 `docs/planificacion/pendientes/06-motor-de-ruteo-fases.md`.
+
+### 2026-11-13 — De: Claude → Kiro — Motor de ruteo fase 2: OSRM propio en el sandbox (solo backend)
+Estado: informativo
+
+Rama `motor-ruteo-fase2`. Nuevo stack `dev-tms-osrm` (EC2 con OSRM y el mapa de Costa Rica dentro de la VPC, solo
+alcanzable desde las Lambdas) y `backend/planning/src/matriz_distancias.py` (matriz km/min por OSRM con respaldo en
+línea recta). `dev-tms-planning` redesplegado con `OSRM_URL`. No cambia rutas HTTP, respuestas ni resultados del plan.
+No toqué `src/`: el frontend sigue con `VITE_OSRM_URL` / el OSRM público, porque el propio no se ve desde el
+navegador. Si más adelante se expone por una ruta del backend, te paso el contrato. Detalle:
+`docs/work/2026-11/2026-11-13-motor-ruteo-fase2-osrm-propio.md` y `docs/reference/aws-inventario-tms.md` §2c.
