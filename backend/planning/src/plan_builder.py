@@ -74,6 +74,23 @@ def sede_del_almacen(warehouse: str, pedidos: list[dict]):
     return sede_de(a["pais"], a["lat"], a["lng"], pedidos)
 
 
+# Camiones que ya tienen viaje ese día en el almacén (viajes congelados de esta compañía y
+# planes de las otras): el motor usa primero los libres. ponytail: aproxima "el mismo día"
+# por fecha de entrega (plan_date), no por fecha de salida; hacerlo por salida exige conocer
+# el T-n del viaje nuevo antes de armarlo.
+_USOS_DEL_DIA = """
+SELECT t.vehicle_id::text AS id, count(*) AS n
+FROM tbl_plan_trips t JOIN tbl_route_plans p ON p.id = t.plan_id
+WHERE p.organization_id = %s AND p.warehouse_id = %s AND p.plan_date = %s::date
+  AND t.vehicle_id IS NOT NULL AND t.status <> 'cancelled'
+GROUP BY t.vehicle_id
+"""
+
+
+def usos_del_dia(run, org: str, warehouse: str, fecha: str) -> dict:
+    return {r["id"]: r["n"] for r in run(_USOS_DEL_DIA, [org, warehouse, fecha])}
+
+
 # dispatch_date = salida = delivery_date - lead_time_days; lead nunca es NULL, siempre hay salida.
 _UPD_ORDER = "UPDATE tbl_orders SET numero_viaje=%s, lead_time_days=%s, dispatch_date=(delivery_date - make_interval(days => %s))::date, planning_run_id=%s, updated_at=now() WHERE id=%s"
 # Write-back del nº de viaje a la tabla espejo de eFlow. UPDATE (no insert): solo sobre
@@ -148,7 +165,8 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
             plan_id = run("""INSERT INTO tbl_route_plans (organization_id, country_id, warehouse_id, customer_id, plan_date, status, created_by)
                              VALUES (%s,%s,%s,%s,%s::date,'confirmed',%s) RETURNING id""",
                           [org, country, warehouse, customer, fecha, created_by])[0]["id"]
-        for viaje in motor_ruteo.asignar_y_ordenar(normales, flota, sede):
+        usos = usos_del_dia(run, org, warehouse, fecha)  # ya sin los viajes no liberados de esta compañía
+        for viaje in motor_ruteo.asignar_y_ordenar(normales, flota, sede, usos):
             seq += 1
             _persistir_viaje(run, plan_id, seq, viaje, run_id, f"{prefijo}-{seq:03d}")
         recolectas.agendar(run, org, warehouse, customer, fecha, motor_ruteo.clave)  # devoluciones → paradas collection

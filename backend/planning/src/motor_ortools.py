@@ -124,9 +124,14 @@ def _viaje(zona: str, camion: dict, pedidos: list[dict], sede: Sede) -> dict:
                              round(sum(o["volume"] or 0.0 for o in pedidos), 2), sede)
 
 
-def asignar_y_ordenar(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_CR) -> list[dict]:
+def asignar_y_ordenar(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_CR,
+                      usos_previos: dict | None = None, informe: dict | None = None) -> list[dict]:
+    """`usos_previos` = {vehicle_id: viajes que ya tiene ese día} (viajes congelados u otras
+    compañías del almacén): arrancan encareciendo esos camiones. `informe` (si se pasa) recibe
+    km y fuente de la matriz de la corrida."""
     viajes: list[dict] = []
-    usos = [0] * len(flota)  # viajes de cada camión en el día (compartido entre grupos)
+    previos = usos_previos or {}
+    usos = [previos.get(c["id"], 0) for c in flota]  # viajes de cada camión en el día (compartido entre grupos)
     km, fuentes = 0.0, set()
     for zona, grupo in sorted(motor_ruteo.agrupar_por_zona(pedidos).items()):
         pendientes = grupo
@@ -144,4 +149,6 @@ def asignar_y_ordenar(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_
             pendientes = resto
     log.info("motor ortools: %s pedidos → %s viajes, %.1f km (matriz: %s)",
              len(pedidos), len(viajes), km, ",".join(sorted(fuentes)) or "-")
+    if informe is not None:
+        informe.update({"km": round(km, 1), "fuente_matriz": ",".join(sorted(fuentes)) or None})
     return viajes

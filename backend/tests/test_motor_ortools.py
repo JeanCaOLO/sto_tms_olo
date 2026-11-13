@@ -207,3 +207,31 @@ def test_venezuela_sale_de_su_deposito_y_usa_su_mapa(motores, monkeypatch):
     assert regiones == [((10.1620, -68.0077), "VN")]
     assert viajes[0]["lead"] == 1  # desde Valencia; desde San José serían ~19 días
     assert mr.heuristico(pedidos, [_camion("A")], valencia)[0]["lead"] == 1
+
+
+def test_no_usa_el_camion_de_un_viaje_congelado_si_hay_otro_libre(motores):
+    mr, mo = motores
+    pedidos = [_pedido(1, peso=100.0, dlat=0.1)]
+    flota = [_camion("CHICO", cw=500.0), _camion("GRANDE", cw=8000.0)]
+    # Sin usos previos va en el CHICO (el más chico que alcanza); si el CHICO ya está en un
+    # viaje liberado ese día, va en el GRANDE.
+    assert [v["veh"]["id"] for v in mo.asignar_y_ordenar(pedidos, flota)] == ["CHICO"]
+    assert [v["veh"]["id"] for v in mo.asignar_y_ordenar(pedidos, flota, usos_previos={"CHICO": 1})] == ["GRANDE"]
+    # La heurística también arranca por los libres.
+    assert [v["veh"]["id"] for v in mr.heuristico(pedidos, flota, usos_previos={"CHICO": 1})] == ["GRANDE"]
+
+
+def test_el_informe_dice_que_motor_corrio_y_con_que_matriz(motores, monkeypatch):
+    mr, mo = motores
+    monkeypatch.setenv("MOTOR_RUTEO", "ortools")
+    informe = {}
+    mr.asignar_y_ordenar(PEDIDOS, FLOTA, informe=informe)
+    assert informe["motor"] == informe["motor_solicitado"] == "ortools"
+    assert informe["fuente_matriz"] == "haversine" and informe["km"] > 0 and informe["error"] is None
+
+    def revienta(*a):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(mo, "_resolver", revienta)
+    informe = {}
+    mr.asignar_y_ordenar(PEDIDOS, FLOTA, informe=informe)
+    assert (informe["motor_solicitado"], informe["motor"], informe["error"]) == ("ortools", "heuristico", "RuntimeError: boom")
