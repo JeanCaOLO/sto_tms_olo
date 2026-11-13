@@ -181,7 +181,14 @@ function mapOrderToQueueOrder(row: any, country: Country, passThrough: Set<strin
     // Las compañías pass-through (EPA) son false: tienen prioridad pero no score del OMS.
     // La pertenencia a la cola y el badge de prioridad se rigen por `priority != null`.
     prioritized: priorizadoOms,
-    released: row.oms_processed_at != null || row.wms_situation === 'GENE',
+    // `released` = el OMS liberó el pedido a eFlow. Se lee SOLO de `oms_processed_at`,
+    // que únicamente escribe el OMS al liberar. NO se mira `wms_situation === 'GENE'`:
+    // esa columna es el espejo de eFlow y Planificación la pisa (salientes copia
+    // TPEXES/TPEXSI), así que un GENE puede venir de eFlow sin que el OMS haya liberado
+    // (falso positivo) y un pedido liberado que eFlow avanzó a TERM/EXPA perdería el GENE
+    // (falso negativo → reaparecería en la cola). `oms_processed_at` es inmune a eso.
+    // El Panel y la Bandeja ya leen "liberado" solo de aquí; esto alinea la cola.
+    released: row.oms_processed_at != null,
     intakeTime: row.created_at ?? '',
     appliedRules: [],
     history: [],
@@ -236,6 +243,13 @@ export const omsApi = {
         // Datos REALES de orders (aunque vengan vacíos): es lo que pidió negocio.
         const passThrough = await passThroughCustomers();
         return data
+          // Solo pedidos PLANIFICADOS (planning_run_id no nulo): la cola del OMS = la
+          // del barrido (cola_candidatos exige planning_run_id IS NOT NULL), y el
+          // barrido/liberación no pueden tocar lo no planificado. Filtrar aquí por
+          // planning_run_id (no por wms_situation) nos hace inmunes a que Planificación
+          // pise la situación desde eFlow (salientes copia TPEXES/TPEXSI): ese ruido
+          // está siempre en pedidos sin planning_run_id, así que se va con este filtro.
+          .filter((row: any) => row.planning_run_id != null)
           .map((row: any) => mapOrderToQueueOrder(row, country, passThrough))
           .sort((a, b) => b.score - a.score);
       }
