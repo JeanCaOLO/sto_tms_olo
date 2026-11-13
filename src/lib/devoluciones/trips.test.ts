@@ -118,6 +118,11 @@ describe('recepción', () => {
   it.each([['3', 3], [' 0 ', 0], ['', null], ['-1', null], ['1.5', null], ['abc', null]])('parseQuantity(%j)', (raw, expected) => {
     expect(parseQuantity(raw)).toBe(expected);
   });
+  it('acepta el máximo integer de PostgreSQL y rechaza cantidades que no se pueden guardar', () => {
+    expect(parseQuantity('2147483647')).toBe(2147483647);
+    expect(parseQuantity('2147483648')).toBeNull();
+    expect(parseQuantity('9007199254740991')).toBeNull();
+  });
   it('motivos distintos', () => {
     expect(reasonsOf([line(), line({ id: 'x' }), line({ id: 'y', reason: 'Error de despacho' })])).toBe('Producto dañado; Error de despacho');
   });
@@ -133,6 +138,10 @@ describe('documento imprimible', () => {
     expect(html).toContain('DEV-2026-10-0001');
     expect(html).toContain('Inversiones S.A.');
     expect(html).toContain('9054404');
+    expect(html).toContain('Origen:');
+    expect(html).toContain('Devolución');
+    expect(html).toContain('Motivo:');
+    expect(html).toContain('Producto dañado');
     expect(html).toContain('garantías');
     expect(html).toContain('__________________');
   });

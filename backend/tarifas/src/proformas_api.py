@@ -17,6 +17,7 @@ import tarifas_carrier
 import tarifas_db
 import tarifas_perms
 import tarifas_sql
+from tarifas_proforma_content import LOCK_PARENT_SQL
 
 MODULE = "tarifas.proformas"
 PROFORMAS = "tarifas_proformas"
@@ -36,6 +37,8 @@ def check_direct_write(table: str, kind: str, values: object) -> None:
     """La API genérica no puede saltarse el flujo: ni cambiar fases ni el estado de una proforma."""
     if table == CLAIMS and kind in ("insert", "update", "delete"):
         raise HttpError(405, "Los reclamos cambian solo con la decisión de la proforma (rechazar, apelar, reiniciar).")
+    if table == ITEMS and kind == "delete":
+        raise HttpError(405, "Un ítem de proforma no se borra: se excluye con motivo.")
     if table == PHASES and kind in ("update", "delete"):
         raise HttpError(405, DIRECT_STATUS_MESSAGE)
     if table == PROFORMAS and kind == "delete":
@@ -44,20 +47,21 @@ def check_direct_write(table: str, kind: str, values: object) -> None:
         raise HttpError(405, DIRECT_STATUS_MESSAGE)
 
 
-def _load(proforma_id: str, caller: permissions.Permissions) -> tuple[dict, list[dict]]:
+def _load(proforma_id: str, caller: permissions.Permissions, run=None) -> tuple[dict, list[dict]]:
     sql, params = "SELECT id, country_id, carrier_id, status FROM tbl_tarifas_proformas WHERE id = %s", [proforma_id]
-    rows = tarifas_db.query(sql, params)
+    query = run or tarifas_db.query
+    rows = query(LOCK_PARENT_SQL if run else sql, params)
     if not rows or not _in_scope(caller, rows[0]["country_id"]) or not tarifas_carrier.owns(caller, rows[0]["carrier_id"]):
         raise HttpError(404, "Proforma no encontrada.")
-    phases = tarifas_db.query(
+    phases = query(
         "SELECT id, position, name, state, approver_type, role_name, user_id FROM tbl_tarifas_proforma_phases "
         "WHERE proforma_id = %s ORDER BY position", [proforma_id])
     return rows[0], phases
 
 
-def _open_claim(proforma_id: str) -> dict | None:
+def _open_claim(proforma_id: str, run=None) -> dict | None:
     """El reclamo vigente de la proforma: abierto (espera al liquidador) o apelado (espera a la fase)."""
-    rows = tarifas_db.query(
+    rows = (run or tarifas_db.query)(
         "SELECT id, phase_id, status, reason FROM tbl_tarifas_proforma_claims "
         "WHERE proforma_id = %s AND status IN ('abierto', 'apelado') ORDER BY created_at DESC LIMIT 1", [proforma_id])
     return rows[0] if rows else None
@@ -104,6 +108,10 @@ def decide(event: dict) -> dict:
     comment = str(body.get("comment") or "").strip() or None
 
     def apply(run) -> list:
+        nonlocal proforma, phases, claim, plan
+        proforma, phases = _load(proforma_id, caller, run)
+        claim = _open_claim(proforma_id, run) if action in ("approve", "reject", "appeal", "restart") else None
+        plan = _plan(proforma, phases, action, body, caller, claim)
         for phase_id, fields in plan["changes"]:
             sql, params = _phase_sql(fields, actor)
             rows = run(sql, params + [phase_id])

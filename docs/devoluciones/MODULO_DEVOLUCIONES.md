@@ -1,5 +1,7 @@
 # Módulo Devoluciones — documentación completa
 
+> **Estado actual:** consultar [la matriz reconciliada](ESTADO_ACTUAL.md), con evidencia de código, pruebas, Aurora y sandbox del 2026-11-11. Este documento describe el baseline del 5 de noviembre y no certifica despliegues posteriores.
+
 > Ruta web: `/devoluciones` · Código: `src/pages/devoluciones/` (pantalla) y `src/lib/devoluciones/` (lógica pura) ·
 > Backend: `backend/admin/` (rutas `/api/v1/devoluciones/*`) · Permiso: módulo `devoluciones` (`view`, `edit`, `export`).
 > Migraciones: `sql/60`, `sql/61`, `sql/62`.
@@ -493,17 +495,10 @@ Las migraciones `sql/60` y `sql/62` deben estar aplicadas antes de desplegar `ba
 
 ## 10. Fotos de devolución: precauciones (hallazgo verificado)
 
-### 10.1 La restricción de la BD compartida NO admite `photo_return` (bloquea la devolución, no solo la foto)
+### 10.1 La restricción de la BD compartida ya admite `photo_return` (m08 aplicada)
 
-- `backend/mobile/sql/m08_photo_return.sql` amplía `ck_tracking_evidence_kind` con `'photo_return'`. Es **aditiva e idempotente** y **no está aplicada**
-  en la BD compartida (Aurora `tms_olo`). Según `docs/tarifador/demo-data/MOCK_FLUJO_3_MODULOS.md:48`, verificado el 2026-11-05 con un
-  `INSERT` revertido; **no se volvió a verificar en esta tarea** (no se consultó la BD).
-- Efecto en cadena (según el código, no probado en dispositivo):
-  1. `evidence.confirm` inserta `kind='photo_return'` en `tbl_tracking_evidences` → falla el `CHECK` → error de servidor.
-  2. En el outbox, la evidencia no se confirma y la devolución depende de ella (`outbox.ts:39`, `:173-180`).
-  3. El `flush` se detiene al primer error reintentable (`outbox.ts:191-197`: `return sent`), así que **los elementos siguientes del outbox del chofer quedan esperando**.
-  4. La devolución **no llega** a Devoluciones mientras no se aplique `m08`. No es solo "sin foto".
-- **Aplicar antes de probar:** `python scripts/migrate.py sql/m08_photo_return.sql --execute` (dry-run por defecto). Ver `pendientes/01-despliegue-contracamion.md`.
+- `backend/mobile/sql/m08_photo_return.sql` amplía `ck_tracking_evidence_kind` con `'photo_return'`. Es **aditiva e idempotente** y **fue aplicada en Aurora `tms_olo`**: el 2026-11-06 se leyó la restricción real y lista `photo_return` (el 2026-11-05 aún no la admitía).
+- Antes de aplicarla, `evidence.confirm` fallaba el `CHECK` y la devolución quedaba esperando en el outbox del chofer (`outbox.ts:39`, `:173-197`). Ya no ocurre en la BD; falta desplegar `backend/mobile` y `backend/admin` y dar el permiso S3 (`pendientes/01-despliegue-contracamion.md`).
 - Rollback de `m08` (solo sin filas `photo_return`): en el encabezado del archivo.
 
 ### 10.2 Otras precauciones de la foto
@@ -611,7 +606,7 @@ Carpeta: [`docs/devoluciones/pendientes/`](./pendientes/README.md). Regla del eq
 
 | # | Pendiente | Estado |
 |---|---|---|
-| 01 | [Aplicar m08, desplegar y dar permiso S3 al módulo](./pendientes/01-despliegue-contracamion.md) | Pendiente por verificar |
+| 01 | [Desplegar y dar permiso S3 al módulo (m08 ya aplicada)](./pendientes/01-despliegue-contracamion.md) | Pendiente por verificar |
 | 02 | [Flujo «recolecta» (Atención al Cliente → viaje)](./pendientes/02-flujo-recolecta.md) | Pendiente por implementar (bloqueado: cuadrar con Planificación) |
 | 03 | [Validar cantidad devuelta contra el pedido](./pendientes/03-validar-cantidad-contra-pedido.md) | Pendiente por implementar |
 | 04 | [Formulario impreso: mostrar origen y foto](./pendientes/04-formulario-impreso-origen.md) | Idea |

@@ -1,5 +1,7 @@
 # 02 — Flujo «recolecta» (Atención al Cliente → viaje)
 
+> Reconciliado 2026-11-11: el flujo interno y el contrato con Planificación siguen abiertos (F01/F02 de [estado actual](../ESTADO_ACTUAL.md)). No confundir las solicitudes Cliente ya implementadas localmente con una bandeja interna operativa.
+
 **Estado:** pendiente por implementar — **bloqueado: hay que cuadrarlo con el encargado de Planificación** (decisión del 2026-11-05: no se construye hasta acordar los puntos de abajo).
 
 ## Qué existe hoy (no hay que rehacerlo)

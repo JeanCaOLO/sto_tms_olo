@@ -26,7 +26,8 @@ const AuditoriaPage = lazy(() => import('../pages/auditoria/page'));
 // página del bundle y `/seed` cae al 404.
 const SeedPage = import.meta.env.DEV ? lazy(() => import('../pages/seed/page')) : null;
 const NotFoundPage = lazy(() => import('../pages/NotFound'));
-const DevolucionesPage = lazy(() => import('../pages/devoluciones/page'));const GuiasPage = lazy(() => import('../pages/guias/page'));
+const DevolucionesPage = lazy(() => import('../pages/devoluciones/page'));
+const GuiasPage = lazy(() => import('../pages/guias/page'));
 const TrackingPage = lazy(() => import('../pages/tracking/page'));
 // Contratos y Reportes están "Coming Soon": la ruta muestra el placeholder en
 // vez del módulo (las páginas reales siguen en el repo para cuando se habiliten).
@@ -129,6 +130,10 @@ const routes: RouteObject[] = [
   {
     path: '/devoluciones',
     element: <DevolucionesPage />
+  },
+  {
+    path: '/mis-devoluciones',
+    element: <Navigate to="/devoluciones" replace />
   },
   {
     path: '/guias',

@@ -11,7 +11,7 @@ El chofer **inicia su propio viaje** (plan confirmado de hoy), recorre las parad
 | App (`TRACKING_TMS/frontend`) | Hecha. APK vía GitHub Actions o EAS; iOS por TestFlight. |
 | Backend `backend/mobile` | Hecho y **desplegado en el sandbox** (stack `dev-tms-mobile`, us-east-2). Producción la lleva Intelix. |
 | Migraciones `m01`–`m03` | Aplicadas en Aurora (según `TRACKING_TMS/DEPLOY.md`). |
-| Migraciones `m04`–`m08` | **Por verificar** que estén aplicadas — ver [pendientes/03](./pendientes/03-aplicar-migraciones-mobile.md). |
+| Migraciones `m04`–`m08` | Aplicadas en Aurora (sandbox `tms_olo`, 2026-11-05; historial en `mobile_migrations`). |
 | Push remoto | **No existe.** Solo aviso en pantalla y notificación del servicio GPS. |
 | Prueba en teléfono real contra Aurora | Pendiente — ver [pendientes](./pendientes/README.md). |
 

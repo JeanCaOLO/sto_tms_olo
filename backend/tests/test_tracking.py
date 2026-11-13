@@ -1263,7 +1263,7 @@ def test_stop_view_exposes_the_time_on_site_detected_by_gps():
 CLIENT_GUIDES = ("FROM tbl_dispatch_guides g JOIN tbl_routes r ON r.id = g.route_id JOIN tbl_orders o ON o.id = g.order_id "
                  "JOIN tracking_client_access")
 CLIENT_PLANNED = "FROM tbl_plan_stops ps JOIN tbl_orders o ON o.id = ps.order_id JOIN tracking_client_access"
-ALL_GUIDES = "COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,"
+ALL_GUIDES = "SELECT g.route_id, g.id, g.sequence_number, g.delivery_status, g.status, g.planned_arrival_time,"
 MINE = "00000000-0000-4000-8000-000000000002"
 MY_ENTREGAS = "GET /api/v1/tracking/mis-entregas"
 
@@ -1349,3 +1349,35 @@ def test_client_sees_todays_planned_delivery_as_ready(client):
                                 "delivery_city": "Cartago", "point_name": "EPA Cartago", "plan_date": date(2026, 10, 16)}])
     item = body_of(app.handler(_event(MY_ENTREGAS), None))["data"]["items"][0]
     assert item["status"] == "listo" and item["point_name"] == "EPA Cartago" and item["truck"] is None
+
+
+@pytest.mark.parametrize("route_count", [1, 3, 20])
+def test_client_delivery_guides_are_loaded_once_for_all_routes(client, monkeypatch, route_count):
+    app, _ = client
+    route_ids = [f"11111111-1111-4111-8111-{index:012d}" for index in range(route_count)]
+    mine = [_client_row(id=f"mine-{index}", route_id=route_id) for index, route_id in enumerate(route_ids)]
+    stops = [_full_stop(1, sid=f"mine-{index}", route=route_id) for index, route_id in enumerate(route_ids)]
+    # Solo la primera ruta tiene una parada anterior de otro cliente.
+    mine[0]["sequence_number"] = 2
+    stops[0]["sequence_number"] = 2
+    stops.append(_full_stop(1, sid="other-client", route=route_ids[0]))
+    reads = []
+    original = app._rq
+
+    def query(statement, params=()):
+        if statement == app.sql.CLIENT_GUIDES_SQL:
+            return mine
+        if statement in (app.sql.GUIDES_SQL, app.sql.STOPS_BATCH_SQL):
+            reads.append((statement, params))
+            selected = params[0] if isinstance(params[0], list) else [params[0]]
+            return [stop for stop in stops if stop["route_id"] in selected]
+        return original(statement, params)
+
+    monkeypatch.setattr(app, "_rq", query)
+    data = body_of(app.handler(_event(MY_ENTREGAS), None))["data"]
+    assert len(data["items"]) == route_count
+    assert data["items"][0]["stops_ahead"] == 1
+    assert all(item["stops_ahead"] == 0 for item in data["items"][1:])
+    assert "other-client" not in repr(data)
+    assert len(reads) == 1
+    assert reads[0][1] == [route_ids]
