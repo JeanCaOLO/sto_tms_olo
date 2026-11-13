@@ -235,3 +235,15 @@ def test_el_informe_dice_que_motor_corrio_y_con_que_matriz(motores, monkeypatch)
     informe = {}
     mr.asignar_y_ordenar(PEDIDOS, FLOTA, informe=informe)
     assert (informe["motor_solicitado"], informe["motor"], informe["error"]) == ("ortools", "heuristico", "RuntimeError: boom")
+
+
+def test_los_usos_previos_casan_aunque_la_flota_traiga_uuid_y_los_usos_texto(motores):
+    # Caso real del 2026-11-16: pg8000 devuelve vehicles.id como UUID y la consulta de usos como texto.
+    import uuid
+    mr, mo = motores
+    chico, grande = uuid.uuid4(), uuid.uuid4()
+    flota = [{"id": chico, "plate": "CHICO", "cw": 500.0, "cv": 100.0}, {"id": grande, "plate": "GRANDE", "cw": 8000.0, "cv": 100.0}]
+    usos = {str(chico): 1}
+    pedidos = [_pedido(1, peso=100.0, dlat=0.1)]
+    assert [v["veh"]["id"] for v in mo.asignar_y_ordenar(pedidos, flota, usos_previos=usos)] == [grande]
+    assert [v["veh"]["id"] for v in mr.heuristico(pedidos, flota, usos_previos=usos)] == [grande]

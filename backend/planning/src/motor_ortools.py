@@ -159,8 +159,9 @@ def asignar_y_ordenar(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_
     km, colones y fuente de la matriz de la corrida. `costos` = {vehicle_id: {"km", "dia"}}
     (todos los camiones) para minimizar colones; si falta alguno se ignora."""
     viajes: list[dict] = []
-    previos = usos_previos or {}
-    usos = [previos.get(c["id"], 0) for c in flota]  # viajes de cada camión en el día (compartido entre grupos)
+    # Ids comparados como texto: la flota trae UUID de la base y los usos pueden venir como texto.
+    previos = {str(k): n for k, n in (usos_previos or {}).items()}
+    usos = [previos.get(str(c["id"]), 0) for c in flota]  # viajes de cada camión en el día (compartido entre grupos)
     por_camion = [costos.get(c["id"]) for c in flota] if costos else None
     if por_camion is not None and any(c is None for c in por_camion):
         log.warning("motor ortools: faltan costos de %s camiones; se minimizan km", sum(c is None for c in por_camion))

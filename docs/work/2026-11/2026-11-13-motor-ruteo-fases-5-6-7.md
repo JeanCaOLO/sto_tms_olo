@@ -68,5 +68,10 @@ jornada, el plan con terceros es el único realista. Reporte completo:
 - Sandbox: `dev-tms-planning` redesplegado; variables `MOTOR_RUTEO=ortools`, `TN_MODO=linea`,
   `TN_MIN_POR_DIA=135`, `COSTOS_MODO=fijo`, `USAR_TERCEROS=no`. Comparación de 45 días sin
   errores, con el mismo −9,4 % de km de antes.
-- No se verificó todavía una fila real en `tbl_routing_runs` (se escribe en el próximo
-  replan horario).
+- Replan real (invocado a mano, el mismo del Scheduler): quedó la fila en `tbl_routing_runs`
+  (2026-11-16, `ortools`, matriz `osrm`, 62 pedidos, 9 viajes, 325,8 km, 205 ms) con los usos
+  previos del camión del viaje congelado.
+- **El arreglo de camiones congelados no funcionaba en el caso real:** los usos llegaban como
+  texto y la flota trae los ids como UUID desde pg8000, así que nunca casaban (las pruebas usaban
+  ids de texto). Corregido comparando como texto, con una prueba con UUID reales que falla con
+  el código anterior. Tras redesplegar: 2026-11-16 con 10 viajes y 10 camiones (antes 9).

@@ -124,7 +124,8 @@ def heuristico(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_CR,
     """Motor de siempre: agrupar por zona, empaque voraz y vecino más cercano. Con
     `usos_previos`, la rotación empieza por los camiones que todavía no tienen viaje."""
     if usos_previos:
-        flota = sorted(flota, key=lambda c: usos_previos.get(c["id"], 0))  # estable: respeta el orden de capacidad
+        previos = {str(k): n for k, n in usos_previos.items()}  # UUID de la base o texto: se comparan como texto
+        flota = sorted(flota, key=lambda c: previos.get(str(c["id"]), 0))  # estable: respeta el orden de capacidad
     viajes: list[dict] = []
     vi = 0
     for zona, ped_zona in sorted(agrupar_por_zona(pedidos).items()):
