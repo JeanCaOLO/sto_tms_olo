@@ -39,6 +39,7 @@ def test_comparar_dia_corre_los_dos_motores_sobre_los_mismos_pedidos(cm):
     flota = [{"id": "A", "plate": "A", "cw": 1000.0, "cv": 100.0}, {"id": "B", "plate": "B", "cw": 1000.0, "cv": 100.0}]
     r = cm.comparar_dia(pedidos, flota)
     assert (r["pedidos"], r["cliente_retira"], r["sin_coordenadas"], r["matriz"]) == (9, 1, 1, "haversine")
+    assert (r["region"], r["deposito"]) == ("CR", "defecto_cr")
     assert r["heuristico"]["viajes_fuera_de_capacidad"] == r["ortools"]["viajes_fuera_de_capacidad"] == 0
     assert r["ortools"]["km"] < r["heuristico"]["km"] and r["ahorro_km_pct"] > 0
 
@@ -62,6 +63,8 @@ def test_comparar_todo_solo_lee(cm, monkeypatch):
             return [{"org": "o", "wh": "w", "cust": "c", "compania": "COFERSA", "d": "2026-11-14"}]
         if "tbl_vehicles" in sql:
             return [{"id": "A", "plate": "A", "cw": 1000.0, "cv": 100.0}]
+        if "w.latitude" in sql:
+            return [{"lat": None, "lng": None, "pais": "CR"}]
         return [_pedido(i, 0.05 * (i + 1)) for i in range(5)]
 
     monkeypatch.setattr(cm.pg, "query", query)

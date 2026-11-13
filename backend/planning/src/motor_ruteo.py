@@ -14,6 +14,8 @@ Contrato:
 - pedido: dict con `weight`, `volume`, `lat`, `lng`, `delivery_zone`,
   `customer_name`, `customer_type` (los demás campos pasan intactos).
 - vehículo: dict con `id`, `plate`, `cw` (kg) y `cv` (m³).
+- sede (`ruta_geo.Sede`): depósito del almacén y región del mapa (CR, VN). Por
+  defecto, Costa Rica (San José).
 - viaje devuelto: `{"zona", "veh", "pedidos", "peso", "volumen", "lead"}`, con
   `pedidos` YA en orden de visita y `lead` = días de anticipación de la salida.
 - Los viajes salen en el orden en que se numeran. Mismo input → mismo output
@@ -23,7 +25,7 @@ Contrato:
 import logging
 import os
 
-from ruta_geo import lead_time_dias, ordenar_por_ruta
+from ruta_geo import SEDE_CR, Sede, lead_time_dias, ordenar_por_ruta
 
 MOTOR_HEURISTICO = "heuristico"
 MOTOR_ORTOOLS = "ortools"
@@ -76,40 +78,42 @@ def _empacar(pedidos: list[dict], flota: list[dict], vi: int) -> tuple[list[dict
     return viajes, vi
 
 
-def viaje(zona: str, veh: dict | None, pedidos: list[dict], peso: float, volumen: float) -> dict:
+def viaje(zona: str, veh: dict | None, pedidos: list[dict], peso: float, volumen: float,
+          sede: Sede = SEDE_CR) -> dict:
     """El viaje del contrato, con `pedidos` YA en orden de visita."""
     return {"zona": zona, "veh": veh, "pedidos": pedidos, "peso": peso, "volumen": volumen,
-            "lead": lead_time_dias(pedidos)}
+            "lead": lead_time_dias(pedidos, sede.deposito)}
 
 
-def cerrar_viaje(zona: str, veh: dict | None, pedidos: list[dict], peso: float, volumen: float) -> dict:
+def cerrar_viaje(zona: str, veh: dict | None, pedidos: list[dict], peso: float, volumen: float,
+                 sede: Sede = SEDE_CR) -> dict:
     """Viaje con las paradas ordenadas por vecino más cercano (heurística y cliente retira)."""
-    return viaje(zona, veh, ordenar_por_ruta(pedidos), peso, volumen)
+    return viaje(zona, veh, ordenar_por_ruta(pedidos, sede.deposito), peso, volumen, sede)
 
 
 def motor_activo() -> str:
     return MOTOR_ORTOOLS if os.environ.get("MOTOR_RUTEO", "").strip().lower() == MOTOR_ORTOOLS else MOTOR_HEURISTICO
 
 
-def asignar_y_ordenar(pedidos: list[dict], flota: list[dict]) -> list[dict]:
+def asignar_y_ordenar(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_CR) -> list[dict]:
     """Reparte los pedidos de UN día en viajes con camión y ordena sus paradas.
     Requiere flota si hay pedidos; los 'cliente retira' no entran aquí (no se rutean)."""
     if pedidos and motor_activo() == MOTOR_ORTOOLS:
         try:
             import motor_ortools  # tardío: la librería pesa y solo se carga si el motor está activo
-            return motor_ortools.asignar_y_ordenar(pedidos, flota)
+            return motor_ortools.asignar_y_ordenar(pedidos, flota, sede)
         except Exception:  # noqa: BLE001 — cualquier fallo del solver cae al respaldo, con rastro en el log
             log.exception("motor ortools falló con %s pedidos: se usa la heurística", len(pedidos))
-    return heuristico(pedidos, flota)
+    return heuristico(pedidos, flota, sede)
 
 
-def heuristico(pedidos: list[dict], flota: list[dict]) -> list[dict]:
+def heuristico(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_CR) -> list[dict]:
     """Motor de siempre: agrupar por zona, empaque voraz y vecino más cercano."""
     viajes: list[dict] = []
     vi = 0
     for zona, ped_zona in sorted(agrupar_por_zona(pedidos).items()):
         empacados, vi = _empacar(ped_zona, flota, vi)
-        viajes += [cerrar_viaje(zona, e["veh"], e["pedidos"], e["peso"], e["volumen"]) for e in empacados]
+        viajes += [cerrar_viaje(zona, e["veh"], e["pedidos"], e["peso"], e["volumen"], sede) for e in empacados]
     return viajes
 
 

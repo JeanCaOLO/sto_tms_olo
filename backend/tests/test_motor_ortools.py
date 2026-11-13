@@ -112,7 +112,7 @@ def test_solo_invierte_el_sentido_si_no_alarga_el_recorrido(motores, monkeypatch
     _, mo = motores
     # Matriz asimétrica: 0→1→2→0 = 3 km; al revés (0→2→1→0) = 201 km, aunque 2 esté más cerca del depósito.
     km = [[0, 2, 1], [100, 0, 0.5], [0.5, 100, 0]]
-    monkeypatch.setattr(mo.matriz_distancias, "construir", lambda puntos: {"km": km, "fuente": "osrm"})
+    monkeypatch.setattr(mo.matriz_distancias, "construir", lambda puntos, region: {"km": km, "fuente": "osrm"})
     viajes = mo.asignar_y_ordenar([_pedido(1, dlat=0.1), _pedido(2, dlat=0.2)], [_camion("A")])
     assert [_ids(v) for v in viajes] == [[1, 2]]
 
@@ -191,3 +191,19 @@ def test_el_diagnostico_de_la_lambda_dice_que_motor_esta_activo_y_si_el_solver_r
     assert mr.estado() == {"motor": "heuristico", "ortools": {"ok": True, "version": mr.estado()["ortools"]["version"], "viajes": 1}}
     monkeypatch.setitem(sys.modules, "motor_ortools", None)
     assert mr.estado()["ortools"]["ok"] is False
+
+
+def test_venezuela_sale_de_su_deposito_y_usa_su_mapa(motores, monkeypatch):
+    mr, mo = motores
+    ruta_geo = load_stack_module("planning", "ruta_geo")
+    valencia = ruta_geo.Sede((10.1620, -68.0077), "VN", "almacen")
+    pedidos = [{"id": i, "delivery_zone": "CARABOBO", "weight": 100.0, "volume": 1.0, "customer_name": "F",
+                "customer_type": "MAYOREO", "lat": 10.16 + 0.02 * i, "lng": -68.0} for i in range(3)]
+    regiones = []
+    real = mo.matriz_distancias.construir
+    monkeypatch.setattr(mo.matriz_distancias, "construir",
+                        lambda puntos, region: regiones.append((puntos[0], region)) or real(puntos, region=region))
+    viajes = mo.asignar_y_ordenar(pedidos, [_camion("A")], valencia)
+    assert regiones == [((10.1620, -68.0077), "VN")]
+    assert viajes[0]["lead"] == 1  # desde Valencia; desde San José serían ~19 días
+    assert mr.heuristico(pedidos, [_camion("A")], valencia)[0]["lead"] == 1

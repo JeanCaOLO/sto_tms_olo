@@ -153,27 +153,28 @@ Stack `dev-tms-horarios` (`infra/horarios/template.yaml`, se despliega con `depl
 ## 2c. OSRM propio: motor de calles para Planificación (2026-11-13)
 
 Stack `dev-tms-osrm` (`infra/osrm/template.yaml`, se despliega con `python scripts/sandbox/deploy_backend.py osrm`).
-Da distancias y tiempos reales por carretera al backend de Planificación (fase 2 del motor de ruteo).
+Da distancias y tiempos reales por carretera al motor de ruteo de Planificación, con un mapa por país.
 
 | Recurso | Identificador | Detalle |
 |---|---|---|
-| Instancia EC2 | `i-062c1072f4217a10c` (`dev-tms-osrm`) | `t3.medium`, Amazon Linux 2023 (`ami-0df8a753693e6366d`, fija en la plantilla), disco 16 GB gp3 cifrado. Docker con `osrm/osrm-backend` y el mapa de Costa Rica (Geofabrik) ya procesado en `/data`. Sin llave SSH ni perfil de instancia; IMDSv2 obligatorio. |
-| Subnet | `subnet-0ec6329b88ede025c` (us-east-2c, pública) | Solo para tener salida a internet en el primer arranque (imagen y mapa). IP pública efímera; nadie la usa. |
-| IP privada / URL | `172.31.36.131` → `http://172.31.36.131:5000` | Se conserva al apagar y encender. Es el output `OsrmUrl` del stack; `deploy_backend.py` la pasa a `dev-tms-planning` como `OSRM_URL`. |
-| Security group | `sg-0d436b25f50487ffe` (`dev-tms-osrm`) | Entrada: solo TCP 5000 desde el SG de las Lambdas (`sg-06b3986a1f95d2f19`). Nada desde internet. |
-| Schedules | `dev-tms-osrm-encender`, `dev-tms-osrm-apagar` | L-V 04:45 y 17:00 hora de Costa Rica (igual que Aurora). |
+| Instancia EC2 | `i-08c1c00ca6a64bc99` (`dev-tms-osrm`) | `t3.medium` + 6 GB de swap, Amazon Linux 2023 (`ami-0df8a753693e6366d`, fija en la plantilla), disco 24 GB gp3 cifrado. Docker con dos contenedores `osrm/osrm-backend`: `osrm-costa-rica` (:5000) y `osrm-venezuela` (:5001), mapas de Geofabrik ya procesados en `/data/<país>`. Sin llave SSH ni perfil de instancia; IMDSv2 obligatorio. Reemplazó a `i-062c1072f4217a10c` (solo Costa Rica, terminada el 2026-11-13). |
+| Subnet | `subnet-0ec6329b88ede025c` (us-east-2c, pública) | Solo para tener salida a internet en el primer arranque (imagen y mapas). IP pública efímera; nadie la usa. |
+| IP privada / URL | `172.31.45.147` → `CR=http://172.31.45.147:5000;VN=http://172.31.45.147:5001` | Se conserva al apagar y encender. Es el output `OsrmUrl` del stack; `deploy_backend.py` lo pasa a `dev-tms-planning` como `OSRM_URL`. |
+| Security group | `sg-0d436b25f50487ffe` (`dev-tms-osrm`) | Entrada: solo TCP 5000-5001 desde el SG de las Lambdas (`sg-06b3986a1f95d2f19`). Nada desde internet. |
+| Schedules | `dev-tms-osrm-encender`, `dev-tms-osrm-apagar` | L-V 04:45 y 17:00 hora de Costa Rica (igual que Aurora; 06:45 y 19:00 en Venezuela). |
 | Rol | `dev-tms-osrm-SchedulerRole-643O5voZRIbX` | Solo puede encender y apagar esa instancia. |
 
-- **Quién lo usa:** la Lambda `dev-tms-planning-planning-api` (`matriz_distancias.py`). Si no responde, el backend
-  cae a línea recta; nada se detiene. El **frontend no lo usa** (no es alcanzable desde el navegador): sigue con
-  `VITE_OSRM_URL` o el servidor público.
+- **Quién lo usa:** la Lambda `dev-tms-planning-planning-api` (`matriz_distancias.py`), que elige el mapa por el país
+  del almacén. Si no responde, el backend cae a línea recta; nada se detiene. El **frontend no lo usa** (no es
+  alcanzable desde el navegador): sigue con `VITE_OSRM_URL` o el servidor público.
 - **Comprobar:** `aws lambda invoke --function-name dev-tms-planning-planning-api --cli-binary-format raw-in-base64-out --payload '{"accion":"estado_ruteo"}' salida.json`
-  → `"fuente": "osrm"`. Registro del arranque: `aws ec2 get-console-output --instance-id i-062c1072f4217a10c --latest`.
-- **Cuidado:** cambiar `ImageId`, la subnet o el `UserData` de la plantilla **reemplaza** la instancia: reprocesa el
-  mapa (unos minutos) y puede cambiar la IP → redesplegar `planning` después.
-- **Actualizar el mapa o agregar Venezuela:** hoy exige reemplazar la instancia (ver README de `infra/osrm/`).
-- **Costo estimado (no medido):** ~265 h/mes de `t3.medium` ≈ USD 11, disco ≈ USD 1,3, IPv4 pública ≈ USD 1,3 →
-  unos USD 14 al mes.
+  → `regiones.CR.fuente` y `regiones.VN.fuente` = `osrm`. Registro del arranque:
+  `aws ec2 get-console-output --instance-id i-08c1c00ca6a64bc99 --latest`.
+- **Cuidado:** cambiar `ImageId`, la subnet o el `UserData` de la plantilla **reemplaza** la instancia (el `UserData`
+  solo corre en el primer arranque: para que un cambio aplique se renombra el recurso lógico). Reprocesa los mapas
+  (Costa Rica unos minutos, Venezuela más) y cambia la IP → redesplegar `planning` después.
+- **Costo estimado (no medido):** ~265 h/mes de `t3.medium` ≈ USD 11, disco 24 GB ≈ USD 2, IPv4 pública ≈ USD 1,3 →
+  unos USD 15 al mes.
 
 ## 3. En la cuenta pero NO son del TMS (no tocar)
 
@@ -221,3 +222,5 @@ Da distancias y tiempos reales por carretera al backend de Planificación (fase 
 | 2026-11-13 | Nuevo stack **`dev-tms-osrm`** (§2c): EC2 `i-062c1072f4217a10c` con OSRM y el mapa de Costa Rica, SG `sg-0d436b25f50487ffe`, schedules de encendido/apagado y su rol. `dev-tms-planning` redesplegado con la variable `OSRM_URL` y la acción `estado_ruteo`. Probado desde la Lambda: `fuente: osrm`, también tras apagar y encender la instancia. | Claude |
 | 2026-11-13 | `dev-tms-planning` redesplegado con OR-Tools 9.14 en el paquete (178 MB sin comprimir, 58 MB comprimido) y la variable `MOTOR_RUTEO=heuristico` (interruptor del motor de ruteo, apagado). Sin recursos nuevos. Probado: la acción `estado_ruteo` reporta el solver en buen estado y usando el OSRM. | Claude |
 | 2026-11-13 | `dev-tms-planning` redesplegado (tres veces) con la comparación en sombra de motores de ruteo (acción `comparar_motores`, solo lectura) y dos correcciones del solver. Interruptor sigue en `heuristico`. Sin recursos nuevos. | Claude |
+| 2026-11-13 | Aurora `tms_olo`: aplicada `sql/66_vehiculos_pais.sql` (`tbl_vehicles.country_id` + FK e índice; relleno: vehículos de transportista → país del transportista, flota propia → Costa Rica). | Claude |
+| 2026-11-13 | `dev-tms-osrm`: instancia reemplazada por `i-08c1c00ca6a64bc99` con los mapas de **Costa Rica (:5000) y Venezuela (:5001)**; disco 24 GB, 6 GB de swap, SG abre 5000-5001. La anterior `i-062c1072f4217a10c` quedó terminada. `dev-tms-planning` redesplegado con `OSRM_URL` por región y **`MOTOR_RUTEO=ortools` (solver activo)**. | Claude |

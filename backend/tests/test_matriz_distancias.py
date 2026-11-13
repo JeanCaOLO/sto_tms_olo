@@ -92,4 +92,71 @@ def test_la_accion_estado_ruteo_de_la_lambda_devuelve_el_diagnostico(monkeypatch
     app = load_stack_module("planning", "app")
     monkeypatch.delenv("OSRM_URL", raising=False)
     res = app.handler({"accion": "estado_ruteo"}, None)
-    assert res["fuente"] == "haversine" and res["osrm_url"] == "" and res["san_jose_liberia"]["km"] > 150
+    assert res["osrm_url"] == "" and set(res["regiones"]) == {"CR", "VN"}
+    assert res["regiones"]["CR"]["fuente"] == "haversine" and res["regiones"]["CR"]["km"] > 150
+    assert res["regiones"]["VN"]["tramo"] == "valencia_caracas" and res["regiones"]["VN"]["km"] > 100
+
+
+@pytest.mark.parametrize("config, region, esperado", [
+    ("http://uno:5000", "CR", "http://uno:5000"),               # URL sola: sirve a todas las regiones
+    ("http://uno:5000", "VN", "http://uno:5000"),
+    ("CR=http://a:5000;VN=http://a:5001", "CR", "http://a:5000"),
+    ("CR=http://a:5000;VN=http://a:5001", "vn", "http://a:5001"),
+    ("CR=http://a:5000", "VN", ""),                             # región sin mapa → línea recta
+    ("CR=http://a:5000", None, ""),
+    ("", "CR", ""),
+])
+def test_url_por_region(md, config, region, esperado):
+    assert md.url_de(region, config) == esperado
+
+
+def test_cada_region_consulta_su_propio_osrm(md, monkeypatch):
+    monkeypatch.setenv("OSRM_URL", "CR=http://a:5000;VN=http://a:5001")
+    urls = []
+    _responde(monkeypatch, md, {"code": "Ok", "distances": [[0, 1000], [1000, 0]], "durations": [[0, 60], [60, 0]]}, urls)
+    md.construir(PUNTOS[:2], region="VN")
+    md.construir(PUNTOS[:2], region="CR")
+    assert [u.split("/table")[0] for u in urls] == ["http://a:5001", "http://a:5000"]
+
+
+def _osrm_falso(llamadas):
+    """OSRM de mentira: distancia = |Δlng| en metros×1e5, duración = la mitad. Respeta sources/destinations."""
+    import urllib.parse
+
+    def urlopen(url, timeout):
+        partes = urllib.parse.urlsplit(url)
+        coords = [tuple(map(float, c.split(","))) for c in partes.path.split("/driving/")[1].split(";")]
+        q = urllib.parse.parse_qs(partes.query)
+        origenes = [int(i) for i in q["sources"][0].split(";")] if "sources" in q else range(len(coords))
+        destinos = [int(i) for i in q["destinations"][0].split(";")] if "destinations" in q else range(len(coords))
+        llamadas.append(len(coords))
+        d = [[abs(coords[i][0] - coords[j][0]) * 1e5 for j in destinos] for i in origenes]
+        return io.BytesIO(json.dumps({"code": "Ok", "distances": d, "durations": [[x / 2 for x in f] for f in d]}).encode())
+    return urlopen
+
+
+def test_un_dia_grande_se_pide_por_bloques_y_arma_la_misma_matriz(md, monkeypatch):
+    llamadas = []
+    monkeypatch.setattr(md.urllib.request, "urlopen", _osrm_falso(llamadas))
+    puntos = [(10.0 + i * 0.001, -68.0 + (i * 37 % 251) * 0.001) for i in range(250)]  # 250 > BLOQUE (100)
+    m = md.construir(puntos, "http://osrm:5001", region="VN")
+    assert m["fuente"] == "osrm" and len(llamadas) == 9  # 3 bloques × 3 bloques
+    assert max(llamadas) <= 2 * md.BLOQUE
+    for i, j in [(0, 249), (249, 0), (120, 7), (5, 5), (199, 200)]:
+        assert m["km"][i][j] == pytest.approx(abs(puntos[i][1] - puntos[j][1]) * 100)
+        assert m["min"][i][j] == pytest.approx(m["km"][i][j] * 1000 / 2 / 60)
+
+
+def test_si_un_bloque_falla_todo_el_dia_cae_a_linea_recta(md, monkeypatch):
+    llamadas = []
+    bueno = _osrm_falso(llamadas)
+
+    def urlopen(url, timeout):
+        if len(llamadas) == 4:
+            llamadas.append("falla")
+            raise TimeoutError()
+        return bueno(url, timeout)
+    monkeypatch.setattr(md, "HILOS", 1)
+    monkeypatch.setattr(md.urllib.request, "urlopen", urlopen)
+    puntos = [(10.0, -68.0 + i * 0.001) for i in range(250)]
+    assert md.construir(puntos, "http://osrm:5001")["fuente"] == "haversine"

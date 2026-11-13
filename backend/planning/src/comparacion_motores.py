@@ -21,7 +21,8 @@ import matriz_distancias
 import motor_ruteo
 import plan_builder
 import replan
-from ruta_geo import DEPOT_CR
+from plan_builder import PUNTO_ENTREGA
+from ruta_geo import SEDE_CR, Sede
 from tms_common import pg
 
 # Mismos días que replanifica el replan (ventana desde mañana), por almacén y compañía.
@@ -45,12 +46,14 @@ ORDER BY d, compania"""
 # Mismas columnas que plan_builder._ORDERS, pero de los pedidos de entrega de un plan ya armado.
 _PEDIDOS_HISTORICOS = """
 SELECT o.id, o.order_number, o.delivery_city, o.delivery_zone,
-       o.delivery_latitude::float AS lat, o.delivery_longitude::float AS lng,
+       COALESCE(o.delivery_latitude, pe.latitude)::float AS lat,
+       COALESCE(o.delivery_longitude, pe.longitude)::float AS lng,
        o.total_weight::float AS weight, o.total_volume::float AS volume, o.priority,
        o.final_customer_id, fc.name AS customer_name, fc.customer_type, o.es_cliente_retira,
        o.eflow_id_compania, o.eflow_id_almacen, o.eflow_id_sucursal, o.eflow_id_expedicion
 FROM tbl_orders o
 LEFT JOIN tbl_final_customers fc ON fc.id = o.final_customer_id
+""" + PUNTO_ENTREGA + """
 WHERE o.id IN (SELECT s.order_id FROM tbl_plan_stops s
                JOIN tbl_plan_trips t ON t.id = s.trip_id JOIN tbl_route_plans p ON p.id = t.plan_id
                WHERE p.organization_id = %s AND p.warehouse_id = %s AND p.customer_id = %s
@@ -84,11 +87,11 @@ def medir(viajes: list[dict], km_entre) -> dict:
             "viajes_fuera_de_capacidad": excedidos}
 
 
-def comparar_dia(pedidos: list[dict], flota: list[dict]) -> dict:
+def comparar_dia(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_CR) -> dict:
     """Corre los dos motores sobre los mismos pedidos (sin cliente retira) y los mide igual."""
     normales = [o for o in pedidos if not o["es_cliente_retira"]]
     con = [o for o in normales if _con_coords(o)]
-    matriz = matriz_distancias.construir([DEPOT_CR] + [(o["lat"], o["lng"]) for o in con])
+    matriz = matriz_distancias.construir([sede.deposito] + [(o["lat"], o["lng"]) for o in con], region=sede.region)
     indice = {None: 0, **{o["id"]: i for i, o in enumerate(con, start=1)}}
 
     def km_entre(a, b):
@@ -98,16 +101,17 @@ def comparar_dia(pedidos: list[dict], flota: list[dict]) -> dict:
            "sin_coordenadas": len(normales) - len(con),
            "sin_peso": sum(1 for o in normales if not o["weight"]),
            "sin_volumen": sum(1 for o in normales if not o["volume"]),
-           "camiones_flota": len(flota), "matriz": matriz["fuente"]}
+           "camiones_flota": len(flota), "matriz": matriz["fuente"],
+           "region": sede.region, "deposito": sede.origen}
     if not normales or not flota:
         return res
     t = time.perf_counter()
-    res["heuristico"] = medir(motor_ruteo.heuristico(normales, flota), km_entre)
+    res["heuristico"] = medir(motor_ruteo.heuristico(normales, flota, sede), km_entre)
     res["heuristico"]["segundos"] = round(time.perf_counter() - t, 2)
     t = time.perf_counter()
     try:
         import motor_ortools
-        res["ortools"] = medir(motor_ortools.asignar_y_ordenar(normales, flota), km_entre)
+        res["ortools"] = medir(motor_ortools.asignar_y_ordenar(normales, flota, sede), km_entre)
     except Exception as e:  # noqa: BLE001 — la comparación reporta el fallo, no lo esconde ni lo lanza
         log.exception("comparación: OR-Tools falló con %s pedidos", len(normales))
         res["ortools"] = {"error": f"{type(e).__name__}: {e}"}
@@ -136,13 +140,14 @@ def comparar_todo(dias_atras: int = 0) -> dict:
         fuentes.append(("historico", _DIAS_HISTORICOS, [dias_atras], _PEDIDOS_HISTORICOS))
     for origen, sql_dias, params, sql_pedidos in fuentes:
         for r in pg.query(sql_dias, params):
-            if r["org"] not in flotas:
-                flotas[r["org"]] = pg.query(plan_builder._FLOTA, [r["org"]])
+            if (r["org"], r["wh"]) not in flotas:
+                flotas[(r["org"], r["wh"])] = pg.query(plan_builder._FLOTA, [r["org"], r["wh"]])
             pedidos = pg.query(sql_pedidos, [r["org"], r["wh"], r["cust"], r["d"]])
             if not pedidos:
                 continue
+            sede = plan_builder.sede_del_almacen(r["wh"], pedidos)
             dias.append({"origen": origen, "dia": r["d"], "compania": r["compania"], "almacen": r["wh"],
-                         **comparar_dia(pedidos, flotas[r["org"]])})
+                         **comparar_dia(pedidos, flotas[(r["org"], r["wh"])], sede)})
     comparables = [d for d in dias if "km" in d.get("heuristico", {}) and "km" in d.get("ortools", {})]
     h, o = _sumar(comparables, "heuristico"), _sumar(comparables, "ortools")
     total = {"dias_comparados": len(comparables), "heuristico": h, "ortools": o,

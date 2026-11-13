@@ -2025,3 +2025,15 @@ Rama `motor-ruteo-fase4`. Acción `comparar_motores` en la Lambda de planning (s
 solver. Sobre 23 días reales de Cofersa, OR-Tools hace los mismos viajes con 9,4 % menos km. El interruptor sigue
 apagado. Hallazgo que te puede tocar: los pedidos de EPA no tienen coordenadas, así que el mapa de Planificación no
 puede ubicar sus paradas. No toqué `src/`. Detalle: `docs/work/2026-11/2026-11-13-motor-ruteo-fase4-comparacion.md`.
+
+### 2026-11-13 — De: Claude → Kiro — Solver OR-Tools ACTIVO en el sandbox + Venezuela en el motor de ruteo
+Estado: informativo
+
+Rama `motor-ruteo-fase4`. Desde hoy el replan del sandbox arma los viajes con OR-Tools (`MOTOR_RUTEO=ortools`): los
+viajes no liberados pueden cambiar de camión y de orden de paradas dentro de cada zona. Rutas HTTP y forma de las
+respuestas sin cambios. Además, el motor quedó por país: depósito del almacén, mapa OSRM de Costa Rica o Venezuela y
+flota propia del país. Migración `sql/66` (aplicada): `tbl_vehicles.country_id`. Te toca a futuro (no ahora):
+- La pantalla de vehículos no pide país: hoy lo toma del transportista; un camión propio SIN transportista necesita
+  `country_id` o no entra a ningún plan. Un selector de país en `VehicleModal.tsx` lo resolvería.
+- Los almacenes de Venezuela (`MICHELENA`, `SAN-DIEGO`) necesitan coordenadas (`tbl_warehouses.latitude/longitude`).
+Detalle: `docs/planificacion/pendientes/07-venezuela-ruteo.md`. No toqué `src/`.

@@ -28,7 +28,7 @@ import time
 import matriz_distancias
 import motor_ruteo
 from ortools.constraint_solver import pywrapcp, routing_enums_pb2
-from ruta_geo import DEPOT_CR
+from ruta_geo import SEDE_CR, Sede
 
 # Costo de abrir un viaje, en km equivalentes: un camión más solo se justifica si
 # ahorra más que esto en recorrido. ponytail: valor de arranque; calibrar con el
@@ -53,14 +53,15 @@ def _tiene_coords(o: dict) -> bool:
     return o["lat"] is not None and o["lng"] is not None
 
 
-def _resolver(pedidos: list[dict], camiones: list[dict], usos: list[int]) -> tuple[list[tuple[int, list[dict]]], list[dict], dict]:
+def _resolver(pedidos: list[dict], camiones: list[dict], usos: list[int],
+              sede: Sede = SEDE_CR) -> tuple[list[tuple[int, list[dict]]], list[dict], dict]:
     """Un VRP: reparte `pedidos` entre `camiones` (un viaje cada uno, como mucho);
     `usos[v]` = viajes que el camión v ya hizo en el día (encarece repetirlo).
     Devuelve (rutas, sin_asignar, datos): rutas = [(índice del camión, pedidos en orden)]."""
     # Nodo 0 = depósito. Un pedido sin coordenadas se ubica en el depósito: ocupa
     # capacidad pero no mueve la ruta (luego va al final del viaje).
-    puntos = [DEPOT_CR] + [(o["lat"], o["lng"]) if _tiene_coords(o) else DEPOT_CR for o in pedidos]
-    matriz = matriz_distancias.construir(puntos)
+    puntos = [sede.deposito] + [(o["lat"], o["lng"]) if _tiene_coords(o) else sede.deposito for o in pedidos]
+    matriz = matriz_distancias.construir(puntos, region=sede.region)
     metros = [[round(km * 1000) for km in fila] for fila in matriz["km"]]
 
     manager = pywrapcp.RoutingIndexManager(len(puntos), len(camiones), 0)
@@ -117,27 +118,27 @@ def _largo(metros: list[list[int]], nodos: list[int]) -> int:
     return metros[0][nodos[0]] + sum(metros[a][b] for a, b in zip(nodos, nodos[1:])) + metros[nodos[-1]][0]
 
 
-def _viaje(zona: str, camion: dict, pedidos: list[dict]) -> dict:
+def _viaje(zona: str, camion: dict, pedidos: list[dict], sede: Sede) -> dict:
     return motor_ruteo.viaje(zona, camion, pedidos,
                              round(sum(o["weight"] or 0.0 for o in pedidos), 2),
-                             round(sum(o["volume"] or 0.0 for o in pedidos), 2))
+                             round(sum(o["volume"] or 0.0 for o in pedidos), 2), sede)
 
 
-def asignar_y_ordenar(pedidos: list[dict], flota: list[dict]) -> list[dict]:
+def asignar_y_ordenar(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_CR) -> list[dict]:
     viajes: list[dict] = []
     usos = [0] * len(flota)  # viajes de cada camión en el día (compartido entre grupos)
     km, fuentes = 0.0, set()
     for zona, grupo in sorted(motor_ruteo.agrupar_por_zona(pedidos).items()):
         pendientes = grupo
         while pendientes:  # más de una pasada solo si el grupo necesita más viajes que camiones hay
-            rutas, resto, datos = _resolver(pendientes, flota, usos)
+            rutas, resto, datos = _resolver(pendientes, flota, usos, sede)
             if not rutas:  # ningún camión puede con lo que queda: el primero va solo en el más grande
                 mayor = max(range(len(flota)), key=lambda i: (flota[i]["cw"], -usos[i]))
                 rutas, resto = [(mayor, [pendientes[0]])], pendientes[1:]
             else:
                 km += datos["km"]
                 fuentes.add(datos["fuente"])
-            viajes += [_viaje(zona, flota[v], peds) for v, peds in rutas]
+            viajes += [_viaje(zona, flota[v], peds, sede) for v, peds in rutas]
             for v, _ in rutas:
                 usos[v] += 1
             pendientes = resto

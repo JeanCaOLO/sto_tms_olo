@@ -91,16 +91,21 @@ OSRM vive en la misma VPC: stack `dev-tms-osrm` (`template.yaml` en esta carpeta
 
 ```bash
 python scripts/sandbox/deploy_backend.py osrm       # crea o actualiza la instancia
-python scripts/sandbox/deploy_backend.py planning   # le pasa la URL (variable OSRM_URL)
+python scripts/sandbox/deploy_backend.py planning   # le pasa las URLs (variable OSRM_URL)
 ```
 
-- Hace lo mismo que el compose (bajar el mapa, procesarlo, servir en el puerto 5000), pero con
-  comandos de Docker en el arranque de la instancia. El primer arranque tarda unos minutos.
+- Un contenedor por país: **Costa Rica en :5000 y Venezuela en :5001**. El backend elige el mapa
+  por el país del almacén (`OSRM_URL = "CR=http://<ip>:5000;VN=http://<ip>:5001"`).
+- Hace lo mismo que el compose (bajar el mapa, procesarlo, servir), pero con comandos de Docker
+  en el primer arranque de la instancia. Costa Rica tarda unos minutos; Venezuela, más.
 - Solo lo alcanzan las Lambdas del TMS (security group). No sirve para el frontend ni para el
   desarrollo local: esos siguen con `VITE_OSRM_URL` o con el compose.
 - Se enciende y apaga con el horario de Aurora (L-V 04:45–17:00 hora de Costa Rica).
-- Comprobar que responde: invocar la Lambda de planning con `{"accion": "estado_ruteo"}` y ver
-  `"fuente": "osrm"`.
-- Cambiar el mapa (`MapUrl`, `MapName`) reemplaza la instancia y reprocesa todo.
+- Comprobar: invocar la Lambda de planning con `{"accion": "estado_ruteo"}` y ver
+  `regiones.CR.fuente` y `regiones.VN.fuente` = `"osrm"`.
+- **Agregar un país o actualizar un mapa:** editar la función `mapa` del `UserData` y renombrar
+  el recurso lógico de la instancia (el `UserData` solo corre en el primer arranque). Se crea una
+  instancia nueva y la IP cambia: redesplegar `planning` después. Si el país es nuevo, sumarlo a
+  `REGIONES` en `backend/planning/src/ruta_geo.py`.
 
 Identificadores, costo y detalle: `docs/reference/aws-inventario-tms.md` §2c.
