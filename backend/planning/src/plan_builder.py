@@ -5,31 +5,39 @@ Reemplaza el agrupamiento fijo de la demo: los pedidos de una zona se consolidan
 en la flota propia (vehicles) por peso/volumen con margen legal CR, no por un
 número fijo de paradas. Idempotente: re-planificar un día borra lo no liberado y lo
 reconstruye con la cola vigente (replan); lo ya liberado a eFlow no se toca.
+
+Qué pedido va en qué camión y en qué orden lo decide `motor_ruteo`; aquí solo se
+leen los pedidos y la flota, y se persiste lo que el motor devuelve.
 """
 
 import uuid
 
+import motor_ruteo
 import recolectas
 import viajes_liberados
-from ruta_geo import lead_time_dias, ordenar_por_ruta
+from ruta_geo import sede_de
 from tms_common import pg
 
-# Márgenes de seguridad (ver capacity-fit.ts / Decreto 31363-MOPT): el peso es
-# límite legal, el volumen solo geometría de carga.
-MARGEN_PESO = 0.85
-MARGEN_VOLUMEN = 0.95
-# Tope de pedidos por viaje: ~16/camión (reunión 2026-10-13 Ana/Eduardo: "~16
-# pedidos y ~80% capacidad; al superar → nuevo viaje"). Antes 25 → salían de 24.
-MAX_PARADAS = 16
+# Coordenadas del punto de entrega por defecto del cliente destino (tbl_delivery_points →
+# tbl_addresses). Respaldo cuando eFlow no trae lat/lng en el pedido: Venezuela carga sus
+# ~20 mil puntos geocodificados por CSV (backend/local/ingest_delivery_points.py).
+PUNTO_ENTREGA = """
+LEFT JOIN LATERAL (
+  SELECT a.latitude, a.longitude FROM tbl_delivery_points dp JOIN tbl_addresses a ON a.id = dp.address_id
+  WHERE dp.final_customer_id = o.final_customer_id AND dp.active AND a.latitude IS NOT NULL AND a.longitude IS NOT NULL
+  ORDER BY dp.is_default DESC, dp.created_at LIMIT 1) pe ON true
+"""
 
 _ORDERS = """
 SELECT o.id, o.order_number, o.delivery_city, o.delivery_zone,
-       o.delivery_latitude::float AS lat, o.delivery_longitude::float AS lng,
+       COALESCE(o.delivery_latitude, pe.latitude)::float AS lat,
+       COALESCE(o.delivery_longitude, pe.longitude)::float AS lng,
        o.total_weight::float AS weight, o.total_volume::float AS volume, o.priority,
        o.final_customer_id, fc.name AS customer_name, fc.customer_type, o.es_cliente_retira,
        o.eflow_id_compania, o.eflow_id_almacen, o.eflow_id_sucursal, o.eflow_id_expedicion
 FROM tbl_orders o
 LEFT JOIN tbl_final_customers fc ON fc.id = o.final_customer_id
+""" + PUNTO_ENTREGA + """
 WHERE o.organization_id = %s AND o.warehouse_id = %s AND o.customer_id = %s
   AND o.eflow_id_expedicion IS NOT NULL
   AND o.wms_status = 'DISP' AND o.wms_situation = 'DISP'
@@ -37,50 +45,33 @@ WHERE o.organization_id = %s AND o.warehouse_id = %s AND o.customer_id = %s
 ORDER BY COALESCE(o.delivery_zone, 'ZZZ'), o.priority NULLS LAST, o.total_weight DESC NULLS LAST
 """
 
+# Flota propia DEL PAÍS del almacén: un plan de Venezuela no usa camiones de Costa Rica.
+# Propia = sin transportista, o de un transportista marcado como flota propia
+# (tbl_carriers.is_flota_propia, sql/08): la pantalla de vehículos siempre pide
+# transportista. País = el del vehículo (sql/66) o, si no lo tiene, el del transportista.
 _FLOTA = """
-SELECT id, plate, capacity_weight::float AS cw, capacity_volume::float AS cv
-FROM tbl_vehicles
-WHERE organization_id = %s AND status = 'active' AND carrier_id IS NULL
-ORDER BY capacity_weight DESC NULLS LAST
+SELECT v.id, v.plate, v.capacity_weight::float AS cw, v.capacity_volume::float AS cv
+FROM tbl_vehicles v
+LEFT JOIN tbl_carriers ca ON ca.id = v.carrier_id
+WHERE v.organization_id = %s AND v.status = 'active'
+  AND (v.carrier_id IS NULL OR ca.is_flota_propia)
+  AND v.capacity_weight IS NOT NULL AND v.capacity_volume IS NOT NULL
+  AND COALESCE(v.country_id, ca.country_id) = (SELECT w.country_id FROM tbl_warehouses w WHERE w.id = %s)
+ORDER BY v.capacity_weight DESC, v.plate
+"""
+
+# Sede del almacén: de dónde salen los camiones y con qué mapa se miden (ruta_geo.sede_de).
+_ALMACEN = """
+SELECT w.latitude::float AS lat, w.longitude::float AS lng, c.code AS pais
+FROM tbl_warehouses w JOIN tbl_countries c ON c.id = w.country_id
+WHERE w.id = %s
 """
 
 
-def _empacar(pedidos: list[dict], flota: list[dict], vi: int) -> tuple[list[dict], int]:
-    """Un viaje por pasada: llena el camión en turno con los pedidos que entren
-    (peso+volumen+tope de paradas) y rota de camión. `vi` rota GLOBAL entre zonas
-    para no asignar el mismo camión a dos viajes del día."""
-    viajes: list[dict] = []
-    restantes = list(pedidos)
-    while restantes:
-        veh = flota[vi % len(flota)]
-        max_w, max_v = veh["cw"] * MARGEN_PESO, veh["cv"] * MARGEN_VOLUMEN
-        dentro, fuera, w, v = [], [], 0.0, 0.0
-        for o in restantes:
-            ow, ov = o["weight"] or 0.0, o["volume"] or 0.0
-            if len(dentro) < MAX_PARADAS and w + ow <= max_w and v + ov <= max_v:
-                dentro.append(o); w += ow; v += ov
-            else:
-                fuera.append(o)
-        if not dentro:  # un pedido solo excede el camión: va igual (la UI avisa)
-            dentro, fuera = [restantes[0]], restantes[1:]
-            w, v = dentro[0]["weight"] or 0.0, dentro[0]["volume"] or 0.0
-        viajes.append({"veh": veh, "pedidos": dentro, "peso": round(w, 2), "volumen": round(v, 2)})
-        restantes = fuera
-        vi += 1
-    return viajes, vi
-
-
-def _clave(o: dict) -> str:
-    """Mayoreo (Cofersa) se consolida por zona; una TIENDA (EPA) va en viaje directo,
-    camión lleno a una sola tienda, así que su grupo es la tienda (reunión 2026-11-03)."""
-    return o["customer_name"] if o.get("customer_type") == "TIENDA" else (o["delivery_zone"] or "S/R")
-
-
-def _agrupar_por_zona(pedidos: list[dict]) -> dict:
-    zonas: dict = {}
-    for o in pedidos:
-        zonas.setdefault(_clave(o), []).append(o)
-    return zonas
+def sede_del_almacen(warehouse: str, pedidos: list[dict]):
+    filas = pg.query(_ALMACEN, [warehouse])
+    a = filas[0] if filas else {"lat": None, "lng": None, "pais": None}
+    return sede_de(a["pais"], a["lat"], a["lng"], pedidos)
 
 
 # dispatch_date = salida = delivery_date - lead_time_days; lead nunca es NULL, siempre hay salida.
@@ -102,15 +93,16 @@ INSERT INTO tbl_plan_stops (trip_id, order_id, stop_order, order_number, custome
 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
 
 
-def _persistir_viaje(run, plan_id: str, zona: str, seq: int, viaje: dict, run_id: str, numero: str) -> None:
-    """Inserta el viaje y sus paradas, y estampa el resultado en orders + eFlow sim."""
+def _persistir_viaje(run, plan_id: str, seq: int, viaje: dict, run_id: str, numero: str) -> None:
+    """Inserta un viaje del motor (paradas ya en orden de visita) y estampa el
+    resultado en orders + eFlow sim."""
     veh = viaje["veh"]  # None = viaje de cliente-retira (sin camión)
-    lead = lead_time_dias(viaje["pedidos"])
+    zona, lead = viaje["zona"], viaje["lead"]
     wmh = int(numero.replace("-", ""))  # NUMEROVIAJEWMH es bigint (nº de viaje sin guion)
     trip_id = run(_INS_TRIP, [plan_id, veh["id"] if veh else None, zona, seq, viaje["peso"], viaje["volumen"],
                               veh["plate"] if veh else None, veh["cw"] if veh else None,
                               veh["cv"] if veh else None, veh is not None, numero, lead])[0]["id"]
-    for i, o in enumerate(ordenar_por_ruta(viaje["pedidos"]), start=1):
+    for i, o in enumerate(viaje["pedidos"], start=1):
         run(_INS_STOP, [trip_id, o["id"], i, o["order_number"], o["customer_name"], o["delivery_city"],
                         o["delivery_zone"], o["lat"], o["lng"], o["weight"], o["volume"], o["es_cliente_retira"]])
         run(_UPD_ORDER, [numero, lead, lead, run_id, o["id"]])  # denormaliza al pedido para el OMS (lead dos veces: col + intervalo)
@@ -119,11 +111,11 @@ def _persistir_viaje(run, plan_id: str, zona: str, seq: int, viaje: dict, run_id
                            o["eflow_id_sucursal"], o["eflow_id_expedicion"]])
 
 
-def _viaje_retira(pedidos: list[dict]) -> dict:
+def _viaje_retira(pedidos: list[dict], sede) -> dict:
     """Pseudo-viaje de cliente-retira: sin camión, sin capacidad; solo la lista."""
     peso = round(sum(o["weight"] or 0.0 for o in pedidos), 2)
     vol = round(sum(o["volume"] or 0.0 for o in pedidos), 2)
-    return {"veh": None, "pedidos": pedidos, "peso": peso, "volumen": vol}
+    return motor_ruteo.cerrar_viaje(ZONA_RETIRA, None, pedidos, peso, vol, sede)
 
 
 def construir_y_persistir(org: str, country: str, warehouse: str, customer: str, fecha: str, created_by: str) -> str | None:
@@ -133,14 +125,15 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
     pedidos = pg.query(_ORDERS, [org, warehouse, customer, fecha])
     if not pedidos:
         pg.run_in_transaction(lambda run: (viajes_liberados.borrar_no_liberado(run, org, warehouse, customer, fecha),
-                                           recolectas.agendar(run, org, warehouse, customer, fecha, _clave)))  # viajes congelados
+                                           recolectas.agendar(run, org, warehouse, customer, fecha, motor_ruteo.clave)))  # viajes congelados
         return None
     retira = [o for o in pedidos if o["es_cliente_retira"]]
     normales = [o for o in pedidos if not o["es_cliente_retira"]]
-    flota = pg.query(_FLOTA, [org])
+    flota = pg.query(_FLOTA, [org, warehouse])
     if not flota and normales:
         from tms_common.errors import HttpError
-        raise HttpError(409, "No hay flota propia activa para planificar")
+        raise HttpError(409, "No hay flota propia activa del país del almacén para planificar")
+    sede = sede_del_almacen(warehouse, pedidos)
 
     run_id = str(uuid.uuid4())
     # Nº de viaje = fecha-compañía-secuencia: cada compañía numera su plan desde 001, y sin la
@@ -155,16 +148,13 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
             plan_id = run("""INSERT INTO tbl_route_plans (organization_id, country_id, warehouse_id, customer_id, plan_date, status, created_by)
                              VALUES (%s,%s,%s,%s,%s::date,'confirmed',%s) RETURNING id""",
                           [org, country, warehouse, customer, fecha, created_by])[0]["id"]
-        vi = 0
-        for zona, ped_zona in sorted(_agrupar_por_zona(normales).items()):
-            viajes, vi = _empacar(ped_zona, flota, vi)
-            for viaje in viajes:
-                seq += 1
-                _persistir_viaje(run, plan_id, zona, seq, viaje, run_id, f"{prefijo}-{seq:03d}")
-        recolectas.agendar(run, org, warehouse, customer, fecha, _clave)  # devoluciones → paradas collection
+        for viaje in motor_ruteo.asignar_y_ordenar(normales, flota, sede):
+            seq += 1
+            _persistir_viaje(run, plan_id, seq, viaje, run_id, f"{prefijo}-{seq:03d}")
+        recolectas.agendar(run, org, warehouse, customer, fecha, motor_ruteo.clave)  # devoluciones → paradas collection
         if retira:  # grupo de cliente-retira: zona RETIRA, sin camión
             seq += 1
-            _persistir_viaje(run, plan_id, ZONA_RETIRA, seq, _viaje_retira(retira), run_id, f"{prefijo}-{seq:03d}")
+            _persistir_viaje(run, plan_id, seq, _viaje_retira(retira, sede), run_id, f"{prefijo}-{seq:03d}")
         return plan_id
 
     return str(pg.run_in_transaction(trabajo))

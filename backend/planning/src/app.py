@@ -17,8 +17,11 @@ import re
 
 import bandeja
 import cambio_fecha
+import comparacion_motores
 import bitacora
 import ingest_orders
+import matriz_distancias
+import motor_ruteo
 import pedido_articulos
 import plan_builder
 import plans_read
@@ -169,6 +172,8 @@ ROUTES = {
 _http_handler = tms_handler(ROUTES)
 REPLAN_PROGRAMADO = "replan_programado"  # Input del Scheduler en template.yaml
 INGESTA_BANDEJA = "ingesta_bandeja"  # Input del Scheduler en template.yaml
+ESTADO_RUTEO = "estado_ruteo"  # Diagnóstico a mano (aws lambda invoke): motor activo, solver y OSRM
+COMPARAR_MOTORES = "comparar_motores"  # A mano: heurística vs OR-Tools sobre los pedidos reales, sin persistir
 
 
 def handler(event: dict, context: object) -> dict:
@@ -177,4 +182,8 @@ def handler(event: dict, context: object) -> dict:
         return replan.ingestar_programado()
     if isinstance(event, dict) and event.get("accion") == REPLAN_PROGRAMADO:
         return replan.replanificar_programado()
+    if isinstance(event, dict) and event.get("accion") == ESTADO_RUTEO:
+        return {**motor_ruteo.estado(), **matriz_distancias.estado()}
+    if isinstance(event, dict) and event.get("accion") == COMPARAR_MOTORES:
+        return comparacion_motores.comparar_todo(int(event.get("dias_atras") or 0))
     return _http_handler(event, context)
