@@ -6,7 +6,7 @@
 // reglas es de SOLO LECTURA (DECIDED 2026-11-05): las reglas son fijas en código.
 // Patrón §11: Page -> Controller -> Api.
 
-import { apiClient } from '../../../lib/api-client';
+import { apiClient, apiFetch } from '../../../lib/api-client';
 import { calcularPrioridad } from '../engine/priorityEngine';
 import {
   auditEntries,
@@ -108,8 +108,9 @@ const DIAS_PREP_PICKING_DEFECTO = 1;
 // + acciones manuales). Los logs internos/por pedido quedan fuera del historial.
 // Incluye las corridas de Planificación (prefijo `planif_`, backend/planning/src/bitacora.py),
 // que escriben en la misma bitácora: el panel las muestra con Tipo = Planificación.
+// `override_manual` ya no se escribe (lo reemplazó `liberar_pedido`); se conserva por los logs históricos.
 const HISTORIAL_ACTIONS = new Set([
-  'barrido', 'procesar_viaje', 'override_manual',
+  'barrido', 'procesar_viaje', 'liberar_pedido', 'override_manual',
   'planif_ingesta_bandeja', 'planif_replan_programado', 'planif_replan_manual', 'planif_plan_dia',
 ]);
 
@@ -249,6 +250,19 @@ export const omsApi = {
       .slice()
       .sort((a, b) => b.score - a.score);
     return delay(rows);
+  },
+  // Acción manual "Liberar pedido" (DECIDED 2026-11-04): POST /api/v1/oms/pedidos/liberar.
+  // Cofersa → prioridad 0 + GENE; EPA conserva su prioridad. Lanza si el backend rechaza
+  // o si ningún pedido quedó liberado (p. ej. ya no estaba en la cola).
+  async liberarPedidos(idExpediciones: string[], motivo?: string): Promise<{ liberados: number; pendientes: number }> {
+    const { ok, body } = await apiFetch('/v1/oms/pedidos/liberar', {
+      method: 'POST',
+      body: JSON.stringify({ id_expediciones: idExpediciones, ...(motivo ? { motivo } : {}) }),
+    });
+    if (!ok) throw new Error(body?.error?.message ?? 'No se pudo liberar el pedido.');
+    const data = body?.data ?? {};
+    if (!data.liberados && !data.pendientes) throw new Error('El pedido ya no está en la cola, no se liberó.');
+    return { liberados: data.liberados ?? 0, pendientes: data.pendientes ?? 0 };
   },
   getEngineRules(): Promise<EngineRule[]> {
     return delay(engineRules);

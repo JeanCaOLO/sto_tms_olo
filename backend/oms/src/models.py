@@ -54,6 +54,11 @@ class PedidoCandidato:
       (pedido sin plan todavía) → no se libera.
     - observaciones: orders.observaciones, texto libre que lee AnalizadorObservaciones.
     - delivery_zone: orders.delivery_zone (EFLOW RUTA). Parte del scope de reglas.
+    - dias_anticipo: tbl_zones.dias_anticipo de la ZONA TMS del pedido (match por
+      orders.tms_zone_id, lo calcula Planificación por geocerca). Es la FUENTE de los
+      días de anticipo de la ventana de liberación, que reemplaza al fijo por scope
+      `dias_prep_picking`. None = el pedido no hizo match de zona (tms_zone_id NULL o
+      fuera de toda geocerca) → el barrido cae al default `config.dias_prep_picking`.
     - customer_type: final_customers.customer_type ('TIENDA' | 'MAYOREO').
     - peso_total/cubicaje_total: orders.total_weight/total_volume float NULL
       (OQ-8: pueden venir null; null = desconocido, nunca 0).
@@ -73,6 +78,7 @@ class PedidoCandidato:
     dispatch_date: datetime | None = None
     observaciones: str | None = None
     delivery_zone: str | None = None
+    dias_anticipo: int | None = None
     customer_type: str | None = None
     peso_total: float | None = None
     cubicaje_total: float | None = None

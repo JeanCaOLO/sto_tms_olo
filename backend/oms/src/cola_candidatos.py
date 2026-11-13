@@ -46,6 +46,7 @@ SELECT o.eflow_id_almacen,
        o.dispatch_date,
        o.observaciones,
        o.delivery_zone,
+       z.dias_anticipo,
        fc.customer_type,
        o.total_weight,
        o.total_volume,
@@ -54,6 +55,7 @@ SELECT o.eflow_id_almacen,
        o.priority
 FROM tbl_orders o
 LEFT JOIN tbl_final_customers fc ON fc.id = o.final_customer_id
+LEFT JOIN tbl_zones z ON z.id = o.tms_zone_id
 WHERE o.planning_run_id IS NOT NULL
   AND o.oms_processed_at IS NULL
 ORDER BY o.delivery_date NULLS LAST
@@ -94,6 +96,7 @@ def _desde_fila(fila: dict) -> PedidoCandidato:
         dispatch_date=fila.get("dispatch_date"),
         observaciones=fila.get("observaciones"),
         delivery_zone=fila.get("delivery_zone"),
+        dias_anticipo=fila.get("dias_anticipo"),
         customer_type=fila.get("customer_type"),
         peso_total=fila.get("total_weight"),
         cubicaje_total=fila.get("total_volume"),

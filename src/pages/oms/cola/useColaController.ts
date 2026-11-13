@@ -52,7 +52,7 @@ function dentroVentanaCola(o: QueueOrder, hoyIso: string): boolean {
 }
 
 // Controller de la Cola de Priorización (FR2/FR3). Maneja filtros, selección de
-// pedido y el override manual local (única intervención humana; sin backend).
+// pedido y la liberación manual del pedido (única intervención humana, vía backend).
 export function useColaController() {
   const country = 'CR' as const;
   const { selectedCountryId, selectedWarehouseId, selectedCustomerId, warehouses } = useOperationalContext();
@@ -61,7 +61,10 @@ export function useColaController() {
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [overrideOpen, setOverrideOpen] = useState(false);
+  const [liberarOpen, setLiberarOpen] = useState(false);
+  const [liberando, setLiberando] = useState(false);
+  const [liberarError, setLiberarError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [filters, setFilters] = useState<ColaFilters>(EMPTY_FILTERS);
 
   // País seleccionado sin almacén concreto → filtrar por los almacenes de ese
@@ -90,7 +93,7 @@ export function useColaController() {
       .catch(() => { if (!cancelled) setError('No se pudo cargar la cola.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [selectedWarehouseId, selectedCustomerId, countryWarehouseIds]);
+  }, [selectedWarehouseId, selectedCustomerId, countryWarehouseIds, reloadKey]);
 
   // Opciones de filtro derivadas de los pedidos cargados.
   const options = useMemo(() => {
@@ -142,32 +145,25 @@ export function useColaController() {
 
   const selected = orders.find((o) => o.id === selectedId) ?? null;
 
-  // Override manual local (FR3.4/FR3.5): fija una nueva prioridad numérica (0..n),
-  // reordena y registra en el historial del pedido. Mock: no persiste fuera de la
-  // sesión. El score es ilustrativo (menor prioridad = más urgente = mayor score).
-  const applyOverride = (priority: number, reason: string) => {
+  // Liberar pedido (FR4, DECIDED 2026-11-04): única intervención manual. Llama al backend
+  // (Cofersa → prioridad 0 + GENE; EPA conserva la suya) y recarga la cola: el liberado
+  // sale porque queda `released`. Sin recálculo local de score ni reordenamiento.
+  const liberarPedido = async (motivo: string) => {
     if (!selected) return;
-    const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
-    const score = Math.max(0, 1000 - priority * 50);
-    setOrders((prev) =>
-      prev
-        .map((o) =>
-          o.id === selected.id
-            ? {
-                ...o,
-                priority,
-                score,
-                prioritized: true,
-                history: [...o.history, { at: now, from: o.priority ?? ('sin asignar' as const), to: priority, type: 'manual' as const, reason }],
-              }
-            : o,
-        )
-        .sort((a, b) => b.score - a.score),
-    );
-    setOverrideOpen(false);
-    setDetailOpen(true); // vuelve al detalle con la prioridad actualizada
+    setLiberando(true);
+    setLiberarError(null);
+    try {
+      await omsApi.liberarPedidos([selected.ref], motivo || undefined);
+      setLiberarOpen(false);
+      setSelectedId(null);
+      setReloadKey((k) => k + 1);
+    } catch (e) {
+      setLiberarError(e instanceof Error ? e.message : 'No se pudo liberar el pedido.');
+    } finally {
+      setLiberando(false);
+    }
   };
-
+  const abrirLiberar = () => { setLiberarError(null); setLiberarOpen(true); };
   return {
     // `orders` es el set FILTRADO completo (sin paginar) - DataTable hace su
     // propia paginación/orden/búsqueda internamente (ver src/components/base/DataTable.tsx);
@@ -176,6 +172,6 @@ export function useColaController() {
     filters, setFilter, resetFilters, filtersActive, options,
     selectedId, setSelectedId, selected,
     detailOpen, setDetailOpen,
-    overrideOpen, setOverrideOpen, applyOverride,
+    liberarOpen, setLiberarOpen, abrirLiberar, liberarPedido, liberando, liberarError,
   };
 }

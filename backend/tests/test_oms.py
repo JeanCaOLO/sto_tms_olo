@@ -532,6 +532,65 @@ def test_barrido_sincroniza_solo_la_prioridad_cambiada_y_no_liberada(monkeypatch
     assert resumen["liberados"] == 1         # A
 
 
+# --- (f') Días de anticipo por ZONA (handoff Planificación 2026-11-09) ---
+
+def test_offset_liberacion_prefiere_zona_y_cae_al_default_por_scope():
+    """`_offset_liberacion`: usa pedido.dias_anticipo (de tbl_zones) si hay match; si es
+    None (pedido sin zona), cae a config.dias_prep_picking."""
+    app = load_stack_module("oms", "app")
+    models = load_stack_module("oms", "models")
+    config = models.ConfiguracionReglas(pesos={}, priorizar=True, dias_prep_picking=1)
+
+    def ped(dias_anticipo):
+        return models.PedidoCandidato(
+            id_almacen="0001", id_compania="0109", id_sucursal="0001", id_expedicion="1",
+            fecha_expedicion_planificada=datetime(2026, 10, 10, tzinfo=timezone.utc),
+            dias_anticipo=dias_anticipo, customer_id="cofersa")
+
+    assert app._offset_liberacion(ped(3), config) == 3        # la zona manda
+    assert app._offset_liberacion(ped(None), config) == 1     # sin zona => default por scope
+
+
+def test_barrido_usa_dias_anticipo_de_la_zona_sobre_el_default(monkeypatch):
+    """El barrido toma los días de anticipo de la ZONA del pedido para la ventana. Con el
+    mismo dispatch, el que trae dias_anticipo=3 (zona lejana) libera y el que no trae zona
+    (None → default dias_prep_picking=1) todavía no."""
+    app = load_stack_module("oms", "app")
+    models = load_stack_module("oms", "models")
+
+    cofersa = models.ConfiguracionReglas(pesos={"fecha_t1": 1.0}, priorizar=True,
+                                         estrategia="dias_hasta_salida", dias_prep_picking=1)
+
+    def mk(exp, dispatch, dias_anticipo):
+        return models.PedidoCandidato(
+            id_almacen="0001", id_compania="0109", id_sucursal="0001", id_expedicion=exp,
+            fecha_expedicion_planificada=datetime(dispatch.year, dispatch.month, dispatch.day, tzinfo=timezone.utc),
+            lead_time_days=1, numero_viaje=f"v-{exp}", planning_run_id="plan-1",
+            dispatch_date=datetime(dispatch.year, dispatch.month, dispatch.day, tzinfo=timezone.utc),
+            dias_anticipo=dias_anticipo, customer_id="cofersa")
+
+    # hoy=10-01, dispatch 10-03 para ambos.
+    # Z: dias_anticipo=3 => apertura 09-30 => 10-01>=09-30 => LIBERA (con el default 1 NO libraría).
+    # N: dias_anticipo=None => cae a dias_prep_picking=1 => apertura 10-02 => 10-01<10-02 => NO libera.
+    pedidos = [mk("Z", date(2026, 10, 3), 3), mk("N", date(2026, 10, 3), None)]
+    monkeypatch.setattr(app.cola_candidatos, "candidatos", lambda *a, **k: pedidos)
+
+    liberados = []
+    monkeypatch.setattr(app.handoff_pedidos, "priorizar_pedido", lambda *a, **k: None)
+    monkeypatch.setattr(app.handoff_pedidos, "sincronizar_prioridad", lambda *a, **k: None)
+
+    def _libera(pedido, registro, **kw):
+        liberados.append(pedido.id_expedicion)
+        return app.handoff_pedidos.ESTADO_COMPLETADO
+
+    monkeypatch.setattr(app.handoff_pedidos, "liberar_pedido", _libera)
+
+    resumen = app.correr(hoy=date(2026, 10, 1), resolver_config=lambda _p: cofersa)
+
+    assert liberados == ["Z"]            # solo Z: su zona (3 días) abre la ventana
+    assert resumen["liberados"] == 1
+
+
 # --- (f) Ventana de liberación (predicado puro) — falla si se rompe el predicado ---
 
 def test_en_ventana_borde_dia_de_liberacion_es_true():
@@ -685,6 +744,70 @@ def test_procesar_viaje_manual_requiere_permiso(monkeypatch, caller_permissions)
                        path={"numero_viaje": "20261002-001"})
     with pytest.raises(HttpError) as exc:
         app.procesar_viaje(event)
+    assert exc.value.status == 403
+
+
+def _liberar_pedidos_con(monkeypatch, app, *, priorizar: bool, body: dict):
+    """Ejecuta `liberar_pedidos` con config fija; devuelve (resp, kw de liberar, logs)."""
+    models = load_stack_module("oms", "models")
+    config = models.ConfiguracionReglas(pesos={}, priorizar=priorizar)
+    monkeypatch.setattr(app.reglas_config, "cargar_resolver", lambda: (lambda _p: config))
+    capturado, logs = [], []
+    monkeypatch.setattr(app.handoff_pedidos, "liberar_pedido",
+                        lambda pedido, registro, **kw: capturado.append((pedido.id_expedicion, registro.prioridad, kw))
+                        or app.handoff_pedidos.ESTADO_COMPLETADO)
+    monkeypatch.setattr(app.oms_log, "registrar", lambda *a, **kw: logs.append((a, kw)))
+    event = http_event("POST /api/v1/oms/pedidos/liberar", body=body)
+    return app.liberar_pedidos(event), capturado, logs
+
+
+def test_liberar_pedidos_cofersa_estampa_cero_y_audita_manual(monkeypatch):
+    """Cofersa (priorizar=true): prioridad 0 (+GENE vía liberar_pedido), ignora la ventana,
+    y el motivo queda en el log con actor='manual'."""
+    app = load_stack_module("oms", "app")
+    resp, capturado, logs = _liberar_pedidos_con(
+        monkeypatch, app, priorizar=True,
+        body={"id_expediciones": ["1002"], "motivo": "cliente urgente"})
+    data = body_of(resp)["data"]
+    assert data["total"] == 1 and data["liberados"] == 1 and data["no_encontrados"] == []
+    assert [c[0] for c in capturado] == ["1002"]
+    assert capturado[0][2]["prioridad_liberacion"] == 0
+    assert data["prioridades"][0]["prioridad"] == 0
+    (_args, kw) = logs[-1]
+    assert kw["actor"] == "manual" and kw["detail"]["motivo"] == "cliente urgente"
+
+
+def test_liberar_pedidos_epa_conserva_prioridad_de_origen(monkeypatch):
+    """EPA (pass-through): NUNCA 0; conserva la prioridad de origen (1/2) y no recalcula."""
+    app = load_stack_module("oms", "app")
+    resp, capturado, _logs = _liberar_pedidos_con(
+        monkeypatch, app, priorizar=False, body={"id_expediciones": ["1002"]})
+    data = body_of(resp)["data"]
+    assert data["liberados"] == 1
+    assert capturado[0][2]["prioridad_liberacion"] is None
+    assert data["prioridades"][0]["prioridad"] == capturado[0][1] != 0
+
+
+def test_liberar_pedidos_reporta_no_encontrados_y_valida_body(monkeypatch):
+    from tms_common.errors import HttpError
+
+    app = load_stack_module("oms", "app")
+    resp, capturado, _ = _liberar_pedidos_con(
+        monkeypatch, app, priorizar=True, body={"id_expediciones": ["9999"]})
+    assert body_of(resp)["data"]["no_encontrados"] == ["9999"] and capturado == []
+    with pytest.raises(HttpError) as exc:
+        app.liberar_pedidos(http_event("POST /api/v1/oms/pedidos/liberar", body={"id_expediciones": []}))
+    assert exc.value.status == 400
+
+
+def test_liberar_pedidos_requiere_permiso(caller_permissions):
+    from tms_common.errors import HttpError
+
+    app = load_stack_module("oms", "app")
+    caller_permissions.set(make_permissions({"oms": ("view",)}))
+    with pytest.raises(HttpError) as exc:
+        app.liberar_pedidos(http_event("POST /api/v1/oms/pedidos/liberar",
+                                       body={"id_expediciones": ["1002"]}))
     assert exc.value.status == 403
 
 
