@@ -25,6 +25,15 @@ Parameters:
     Default: heuristico
     AllowedValues: [heuristico, ortools]
     Description: Motor que arma los viajes. heuristico = el de siempre; ortools = solver sobre distancias de carretera (si falla, ese día sale con la heurística).
+  TnModo:
+    Type: String
+    Default: linea
+    AllowedValues: [linea, carretera]
+    Description: Cómo se calculan los días de anticipación de la salida (T-n). linea = 1 + km en línea recta / 70; carretera = 1 + minutos de manejo / TnMinPorDia (fase 5). Mueve dispatch_date, que usa el OMS.
+  TnMinPorDia:
+    Type: Number
+    Default: 135
+    Description: Minutos de manejo por día adicional de anticipación (solo con TnModo=carretera). 135 reproduce el T-n actual en el 90 % de los viajes reales (calibrado 2026-11-13).
   OsrmUrl:
     Type: String
     Default: ""
@@ -69,6 +78,8 @@ Resources:
           REPLAN_APP_USER_ID: !Ref ReplanAppUserId
           OSRM_URL: !Ref OsrmUrl
           MOTOR_RUTEO: !Ref MotorRuteo
+          TN_MODO: !Ref TnModo
+          TN_MIN_POR_DIA: !Ref TnMinPorDia
           TMS_DB_SECRET_NAME:
             Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName
           # Ingesta de pedidos y artículos del pedido leen eFlow en vivo (eflow_db).

@@ -123,6 +123,25 @@ def construir(puntos: list[tuple[float, float]], base_url: str | None = None, re
     return _linea_recta(puntos)
 
 
+def desde(origen: tuple[float, float], destinos: list[tuple[float, float]], region: str | None = "CR") -> list[float] | None:
+    """Minutos de manejo por carretera de `origen` a cada destino (una fila de la matriz, por
+    bloques). None si no hay OSRM para la región o no respondió: aquí NO se cae a línea recta,
+    porque quien lo usa (el T-n por carretera) tiene su propio respaldo."""
+    base_url = url_de(region)
+    if not base_url or not destinos:
+        return None
+    bloques = [destinos[i:i + BLOQUE] for i in range(0, len(destinos), BLOQUE)]
+
+    def pedir(bloque):
+        return _tabla([origen] + bloque, base_url, [0], list(range(1, len(bloque) + 1)))
+
+    with ThreadPoolExecutor(HILOS) as pool:
+        partes = list(pool.map(pedir, bloques))
+    if any(p is None for p in partes):
+        return None
+    return [s / 60 for _, segundos in partes for s in segundos[0]]
+
+
 # Diagnóstico: un tramo de prueba por región (origen → destino).
 _PRUEBAS = {"CR": ("san_jose_liberia", (9.9281, -84.0907), (10.6350, -85.4377)),
             "VN": ("valencia_caracas", (10.1620, -68.0077), (10.4806, -66.9036))}

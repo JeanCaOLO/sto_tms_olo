@@ -21,6 +21,7 @@ import matriz_distancias
 import motor_ruteo
 import plan_builder
 import replan
+import tiempo_salida
 from plan_builder import PUNTO_ENTREGA
 from ruta_geo import SEDE_CR, Sede
 from tms_common import pg
@@ -109,9 +110,11 @@ def comparar_dia(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_CR) -
     res["heuristico"] = medir(motor_ruteo.heuristico(normales, flota, sede), km_entre)
     res["heuristico"]["segundos"] = round(time.perf_counter() - t, 2)
     t = time.perf_counter()
+    viajes_o = None
     try:
         import motor_ortools
-        res["ortools"] = medir(motor_ortools.asignar_y_ordenar(normales, flota, sede), km_entre)
+        viajes_o = motor_ortools.asignar_y_ordenar(normales, flota, sede)
+        res["ortools"] = medir(viajes_o, km_entre)
     except Exception as e:  # noqa: BLE001 — la comparación reporta el fallo, no lo esconde ni lo lanza
         log.exception("comparación: OR-Tools falló con %s pedidos", len(normales))
         res["ortools"] = {"error": f"{type(e).__name__}: {e}"}
@@ -119,7 +122,28 @@ def comparar_dia(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_CR) -
     h, o = res["heuristico"], res["ortools"]
     if "km" in o and h["km"]:
         res["ahorro_km_pct"] = round((1 - o["km"] / h["km"]) * 100, 1)
+    if viajes_o and matriz["fuente"] == "osrm":
+        res["tn"] = sombra_tn(viajes_o, lambda pid: matriz["min"][0][indice[pid]])
     return res
+
+
+def sombra_tn(viajes: list[dict], minutos_desde_deposito) -> dict:
+    """Fase 5 en sombra: por viaje, T-n actual (línea recta) vs T-n por carretera con
+    `TN_MIN_POR_DIA`, y los minutos de manejo a la parada más lejana (para calibrar)."""
+    por_dia = tiempo_salida.min_por_dia()
+    detalle, cambian, pedidos_cambian = [], 0, 0
+    for v in viajes:
+        mins = [minutos_desde_deposito(o["id"]) for o in v["pedidos"] if _con_coords(o)]
+        if not mins:
+            continue
+        maximo = max(mins)
+        carretera = tiempo_salida.lead_por_minutos(maximo, por_dia)
+        detalle.append([v["lead"], round(maximo, 1), carretera])
+        if carretera != v["lead"]:
+            cambian += 1
+            pedidos_cambian += len(v["pedidos"])
+    return {"min_por_dia": por_dia, "viajes": len(detalle), "viajes_cambian": cambian,
+            "pedidos_cambian": pedidos_cambian, "detalle": detalle}
 
 
 def _sumar(dias: list[dict], motor: str) -> dict:
@@ -150,8 +174,13 @@ def comparar_todo(dias_atras: int = 0) -> dict:
                          **comparar_dia(pedidos, flotas[(r["org"], r["wh"])], sede)})
     comparables = [d for d in dias if "km" in d.get("heuristico", {}) and "km" in d.get("ortools", {})]
     h, o = _sumar(comparables, "heuristico"), _sumar(comparables, "ortools")
+    tn = [d["tn"] for d in dias if "tn" in d]
     total = {"dias_comparados": len(comparables), "heuristico": h, "ortools": o,
              "ahorro_km_pct": round((1 - o["km"] / h["km"]) * 100, 1) if h["km"] else None,
-             "dias_con_error_ortools": sum(1 for d in dias if "error" in d.get("ortools", {}))}
+             "dias_con_error_ortools": sum(1 for d in dias if "error" in d.get("ortools", {})),
+             "tn_carretera": {"min_por_dia": tiempo_salida.min_por_dia(),
+                              "viajes": sum(t["viajes"] for t in tn),
+                              "viajes_cambian": sum(t["viajes_cambian"] for t in tn),
+                              "pedidos_cambian": sum(t["pedidos_cambian"] for t in tn)}}
     log.info("comparación de motores: %s", total)
     return {"total": total, "dias": dias}

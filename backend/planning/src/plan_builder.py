@@ -10,10 +10,14 @@ Qué pedido va en qué camión y en qué orden lo decide `motor_ruteo`; aquí so
 leen los pedidos y la flota, y se persiste lo que el motor devuelve.
 """
 
+import json
+import sys
+import time
 import uuid
 
 import motor_ruteo
 import recolectas
+import tiempo_salida
 import viajes_liberados
 from ruta_geo import sede_de
 from tms_common import pg
@@ -110,6 +114,47 @@ INSERT INTO tbl_plan_stops (trip_id, order_id, stop_order, order_number, custome
 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
 
 
+# Registro de la corrida (sql/72, ADR-005/ADR-007): entrada, resultado y parámetros del motor.
+_INS_CORRIDA = """
+INSERT INTO tbl_routing_runs (planning_run_id, organization_id, warehouse_id, customer_id, plan_date, plan_id,
+  motor, motor_solicitado, region, deposito_origen, fuente_matriz, pedidos, viajes, km, duracion_ms, error,
+  parametros, entrada, resultado, created_by)
+VALUES (%s,%s,%s,%s,%s::date,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s::jsonb,%s)"""
+
+
+def _parametros() -> dict:
+    p = {"margen_peso": motor_ruteo.MARGEN_PESO, "margen_volumen": motor_ruteo.MARGEN_VOLUMEN,
+         "max_paradas": motor_ruteo.MAX_PARADAS, "tn_modo": tiempo_salida.modo(),
+         "tn_min_por_dia": tiempo_salida.min_por_dia()}
+    mo, ort = sys.modules.get("motor_ortools"), sys.modules.get("ortools")
+    if mo is not None:  # solo si el solver se cargó en esta corrida
+        p.update({"costo_fijo_viaje_km": mo.COSTO_FIJO_VIAJE_KM, "costo_reuso_km": mo.COSTO_REUSO_KM,
+                  "tiempo_limite_s": mo.TIEMPO_LIMITE_S})
+    if ort is not None:
+        p["ortools"] = getattr(ort, "__version__", None)
+    return p
+
+
+def registrar_corrida(run, contexto: dict, pedidos: list[dict], flota: list[dict], sede, usos: dict,
+                      viajes: list[dict], informe: dict, duracion_ms: int) -> None:
+    """Una fila en tbl_routing_runs con lo necesario para explicar y reproducir el plan.
+    Corre en la transacción del plan: si el plan se revierte, el registro también."""
+    entrada = {"sede": {"deposito": list(sede.deposito), "region": sede.region, "origen": sede.origen},
+               "flota": [{"id": c["id"], "cw": c["cw"], "cv": c["cv"]} for c in flota],
+               "usos_previos": usos,
+               "pedidos": [{"id": o["id"], "lat": o["lat"], "lng": o["lng"], "peso": o["weight"],
+                            "volumen": o["volume"], "grupo": motor_ruteo.clave(o)} for o in pedidos]}
+    resultado = [{"zona": v["zona"], "camion": v["veh"]["id"] if v["veh"] else None,
+                  "pedidos": [o["id"] for o in v["pedidos"]], "peso": v["peso"], "volumen": v["volumen"],
+                  "lead": v["lead"]} for v in viajes]
+    run(_INS_CORRIDA, [contexto["run_id"], contexto["org"], contexto["warehouse"], contexto["customer"],
+                       contexto["fecha"], contexto["plan_id"], informe.get("motor"), informe.get("motor_solicitado"),
+                       sede.region, sede.origen, informe.get("fuente_matriz"), len(pedidos), len(viajes),
+                       informe.get("km"), duracion_ms, informe.get("error"),
+                       json.dumps(_parametros()), json.dumps(entrada, default=str),
+                       json.dumps(resultado, default=str), contexto["created_by"]])
+
+
 def _persistir_viaje(run, plan_id: str, seq: int, viaje: dict, run_id: str, numero: str) -> None:
     """Inserta un viaje del motor (paradas ya en orden de visita) y estampa el
     resultado en orders + eFlow sim."""
@@ -166,9 +211,18 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
                              VALUES (%s,%s,%s,%s,%s::date,'confirmed',%s) RETURNING id""",
                           [org, country, warehouse, customer, fecha, created_by])[0]["id"]
         usos = usos_del_dia(run, org, warehouse, fecha)  # ya sin los viajes no liberados de esta compañía
-        for viaje in motor_ruteo.asignar_y_ordenar(normales, flota, sede, usos):
+        informe: dict = {}
+        inicio = time.monotonic()
+        viajes = motor_ruteo.asignar_y_ordenar(normales, flota, sede, usos, informe=informe)
+        tiempo_salida.ajustar(viajes, sede, informe)  # T-n por carretera si TN_MODO=carretera (fase 5)
+        duracion_ms = round((time.monotonic() - inicio) * 1000)
+        for viaje in viajes:
             seq += 1
             _persistir_viaje(run, plan_id, seq, viaje, run_id, f"{prefijo}-{seq:03d}")
+        if normales:
+            registrar_corrida(run, {"run_id": run_id, "org": org, "warehouse": warehouse, "customer": customer,
+                                    "fecha": fecha, "plan_id": plan_id, "created_by": created_by},
+                              normales, flota, sede, usos, viajes, informe, duracion_ms)
         recolectas.agendar(run, org, warehouse, customer, fecha, motor_ruteo.clave)  # devoluciones → paradas collection
         if retira:  # grupo de cliente-retira: zona RETIRA, sin camión
             seq += 1
