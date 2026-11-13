@@ -2,10 +2,13 @@
 orden. Módulo PURO (sin base de datos): recibe pedidos y flota, devuelve viajes.
 
 Es la costura para cambiar de motor (ADR-005): `plan_builder` solo conoce
-`asignar_y_ordenar`. Hoy la implementa la heurística de siempre (agrupar por zona,
-empaque voraz por capacidad, vecino más cercano en línea recta); un solver
-(OR-Tools/PyVRP) entra aquí respetando el mismo contrato, sin tocar la
-persistencia ni el replan.
+`asignar_y_ordenar`. Hay dos motores con el mismo contrato y la variable de entorno
+`MOTOR_RUTEO` elige:
+- `heuristico` (por defecto): agrupar por zona, empaque voraz por capacidad y
+  vecino más cercano en línea recta. Es además el RESPALDO del otro.
+- `ortools`: solver de `motor_ortools` sobre distancias de carretera. Si falla por
+  lo que sea (librería ausente, tiempo límite, error), ese día se arma con la
+  heurística: el planificador nunca se queda sin plan.
 
 Contrato:
 - pedido: dict con `weight`, `volume`, `lat`, `lng`, `delivery_zone`,
@@ -17,7 +20,14 @@ Contrato:
   (el replan horario depende de eso).
 """
 
+import logging
+import os
+
 from ruta_geo import lead_time_dias, ordenar_por_ruta
+
+MOTOR_HEURISTICO = "heuristico"
+MOTOR_ORTOOLS = "ortools"
+log = logging.getLogger(__name__)
 
 # Márgenes de seguridad (ver capacity-fit.ts / Decreto 31363-MOPT): el peso es
 # límite legal, el volumen solo geometría de carga.
@@ -66,18 +76,54 @@ def _empacar(pedidos: list[dict], flota: list[dict], vi: int) -> tuple[list[dict
     return viajes, vi
 
 
+def viaje(zona: str, veh: dict | None, pedidos: list[dict], peso: float, volumen: float) -> dict:
+    """El viaje del contrato, con `pedidos` YA en orden de visita."""
+    return {"zona": zona, "veh": veh, "pedidos": pedidos, "peso": peso, "volumen": volumen,
+            "lead": lead_time_dias(pedidos)}
+
+
 def cerrar_viaje(zona: str, veh: dict | None, pedidos: list[dict], peso: float, volumen: float) -> dict:
-    """Arma el viaje del contrato: paradas en orden de visita y días de anticipación."""
-    return {"zona": zona, "veh": veh, "pedidos": ordenar_por_ruta(pedidos), "peso": peso,
-            "volumen": volumen, "lead": lead_time_dias(pedidos)}
+    """Viaje con las paradas ordenadas por vecino más cercano (heurística y cliente retira)."""
+    return viaje(zona, veh, ordenar_por_ruta(pedidos), peso, volumen)
+
+
+def motor_activo() -> str:
+    return MOTOR_ORTOOLS if os.environ.get("MOTOR_RUTEO", "").strip().lower() == MOTOR_ORTOOLS else MOTOR_HEURISTICO
 
 
 def asignar_y_ordenar(pedidos: list[dict], flota: list[dict]) -> list[dict]:
     """Reparte los pedidos de UN día en viajes con camión y ordena sus paradas.
     Requiere flota si hay pedidos; los 'cliente retira' no entran aquí (no se rutean)."""
+    if pedidos and motor_activo() == MOTOR_ORTOOLS:
+        try:
+            import motor_ortools  # tardío: la librería pesa y solo se carga si el motor está activo
+            return motor_ortools.asignar_y_ordenar(pedidos, flota)
+        except Exception:  # noqa: BLE001 — cualquier fallo del solver cae al respaldo, con rastro en el log
+            log.exception("motor ortools falló con %s pedidos: se usa la heurística", len(pedidos))
+    return heuristico(pedidos, flota)
+
+
+def heuristico(pedidos: list[dict], flota: list[dict]) -> list[dict]:
+    """Motor de siempre: agrupar por zona, empaque voraz y vecino más cercano."""
     viajes: list[dict] = []
     vi = 0
     for zona, ped_zona in sorted(agrupar_por_zona(pedidos).items()):
         empacados, vi = _empacar(ped_zona, flota, vi)
         viajes += [cerrar_viaje(zona, e["veh"], e["pedidos"], e["peso"], e["volumen"]) for e in empacados]
     return viajes
+
+
+def estado() -> dict:
+    """Diagnóstico (acción `estado_ruteo` de la Lambda): qué motor está activo y si el
+    solver carga y resuelve en este entorno (aunque el interruptor esté apagado)."""
+    try:
+        import motor_ortools
+        import ortools
+        prueba = motor_ortools.asignar_y_ordenar(
+            [{"id": i, "delivery_zone": "PRUEBA", "customer_name": "prueba", "customer_type": "MAYOREO",
+              "weight": 10.0, "volume": 0.1, "lat": 9.9 + i * 0.01, "lng": -84.0} for i in range(3)],
+            [{"id": "prueba", "plate": "PRUEBA", "cw": 1000.0, "cv": 10.0}])
+        solver = {"ok": True, "version": ortools.__version__, "viajes": len(prueba)}
+    except Exception as e:  # noqa: BLE001 — es un diagnóstico: el error se devuelve, no se lanza
+        solver = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    return {"motor": motor_activo(), "ortools": solver}

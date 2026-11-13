@@ -53,6 +53,10 @@ SSM_LAMBDA_SG = f"/{ENV}/tms/network/lambda-sg"
 AWS_CLI = shutil.which("aws") or "aws"
 PIP_PLATFORM = ["--platform", "manylinux2014_x86_64", "--python-version", "3.13",
                 "--implementation", "cp", "--only-binary=:all:", "--no-compile"]
+# OR-Tools solo publica ruedas manylinux_2_27/2_28 (glibc de Amazon Linux 2023, el runtime python3.13). Solo
+# para los stacks que lo usan: así los demás siguen bajando exactamente las mismas ruedas que antes.
+PIP_PLATFORM_GLIBC_228 = ["--platform", "manylinux_2_28_x86_64", "--platform", "manylinux_2_27_x86_64", *PIP_PLATFORM]
+STACKS_GLIBC_228 = {"planning"}
 # Las Lambdas con `Architectures: [arm64]` (mobile) llevan las dependencias compiladas para Graviton.
 PIP_PLATFORM_ARM64 = ["--platform", "manylinux2014_aarch64", *PIP_PLATFORM[2:]]
 SSM_LAYER_ARN = f"/{ENV}/tms/common-layer-arn"
@@ -169,6 +173,8 @@ def build_stack(stack: str) -> Path:
     out.mkdir(parents=True)
     text = (stack_dir / "template.yaml").read_text(encoding="utf-8")
     platform = PIP_PLATFORM_ARM64 if re.search(r"Architectures:\s*\[\s*arm64\s*\]", text) else PIP_PLATFORM
+    if stack in STACKS_GLIBC_228:
+        platform = PIP_PLATFORM_GLIBC_228
 
     def replace_uri(match: re.Match) -> str:
         key, rel = match.group(1), match.group(2).strip().rstrip("/")
