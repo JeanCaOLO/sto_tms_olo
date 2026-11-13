@@ -1,5 +1,5 @@
 -- ============================================================================
--- 66 — País de cada vehículo (tbl_vehicles.country_id), para planificar por país (2026-11-13).
+-- 71 — País de cada vehículo (tbl_vehicles.country_id), para planificar por país (2026-11-13).
 --
 -- El motor de ruteo de Planificación arma los viajes con la flota propia
 -- (carrier_id IS NULL). Hasta hoy la tomaba de TODA la organización, así que un plan
@@ -19,9 +19,12 @@
 -- La vista de compatibilidad public.vehicles (sql/59) es `select *` y NO expone la
 -- columna nueva hasta recrearse; no se toca aquí porque el backend lee tbl_vehicles.
 --
--- Aplicar con: node --env-file=.env.local scripts/run-migration.mjs sql/66_vehiculos_pais.sql [--execute]
--- Deshacer con: sql/66_vehiculos_pais_rollback.sql
+-- Aplicar con: node --env-file=.env.local scripts/run-migration.mjs sql/71_vehiculos_pais.sql [--execute]
+-- Deshacer con: sql/71_vehiculos_pais_rollback.sql
 -- Idempotente.
+-- Renumerada de 66 a 71 el 2026-11-13 al mergear a main (el 66 lo tomó
+-- sql/66_devoluciones_rechazo.sql). En schema_migrations se registró primero como
+-- 66_vehiculos_pais.sql; re-correrla como 71 no cambia nada (todo es "if not exists" / "is null").
 -- ============================================================================
 
 begin;
@@ -34,7 +37,7 @@ alter table tbl_vehicles
 create index if not exists idx_vehicles_country_id on tbl_vehicles (country_id);
 
 comment on column tbl_vehicles.country_id is
-  'Pais donde opera el vehiculo. Planificacion arma los viajes de un almacen solo con la flota propia de su pais (sql/66).';
+  'Pais donde opera el vehiculo. Planificacion arma los viajes de un almacen solo con la flota propia de su pais (sql/71).';
 
 -- Relleno: transportista → su país.
 update tbl_vehicles v
@@ -55,7 +58,7 @@ declare sin_pais int;
 begin
   select count(*) into sin_pais from tbl_vehicles where carrier_id is null and status = 'active' and country_id is null;
   if sin_pais > 0 then
-    raise exception '66: % vehiculos propios activos quedaron sin pais', sin_pais;
+    raise exception '71: % vehiculos propios activos quedaron sin pais', sin_pais;
   end if;
 end $$;
 

@@ -12,7 +12,7 @@ país. Por cada almacén toma:
   Venezuela :5001). La matriz se pide por bloques de 100, así que un día de miles de pedidos no
   choca con el tope del servidor.
 - **Flota:** la flota propia del país del almacén: vehículos sin transportista o de un
-  transportista con `is_flota_propia`, cuyo país (`tbl_vehicles.country_id`, sql/66, o el del
+  transportista con `is_flota_propia`, cuyo país (`tbl_vehicles.country_id`, sql/71, o el del
   transportista) sea el del almacén. Si no hay, el plan responde 409.
 - **Coordenadas del pedido:** las que traiga eFlow y, si no trae, las del punto de entrega del
   cliente destino (`tbl_delivery_points` → `tbl_addresses`).

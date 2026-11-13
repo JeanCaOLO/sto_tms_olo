@@ -48,7 +48,7 @@ ORDER BY COALESCE(o.delivery_zone, 'ZZZ'), o.priority NULLS LAST, o.total_weight
 # Flota propia DEL PAÍS del almacén: un plan de Venezuela no usa camiones de Costa Rica.
 # Propia = sin transportista, o de un transportista marcado como flota propia
 # (tbl_carriers.is_flota_propia, sql/08): la pantalla de vehículos siempre pide
-# transportista. País = el del vehículo (sql/66) o, si no lo tiene, el del transportista.
+# transportista. País = el del vehículo (sql/71) o, si no lo tiene, el del transportista.
 _FLOTA = """
 SELECT v.id, v.plate, v.capacity_weight::float AS cw, v.capacity_volume::float AS cv
 FROM tbl_vehicles v

@@ -23,7 +23,7 @@ almacenes nuevos con coordenadas, su flota y ~20 mil puntos de entrega).
   punto de entrega activo del cliente destino (`PUNTO_ENTREGA` en `plan_builder`; también en la
   comparación histórica). Hoy no cambia nada en Costa Rica (ningún pedido sin coordenadas tiene
   punto geocodificado); sirve a Venezuela, cuyos puntos están geocodificados.
-- **Migración `sql/66_vehiculos_pais.sql`** (aplicada en Aurora; rollback incluido):
+- **Migración `sql/71_vehiculos_pais.sql`** (aplicada en Aurora; rollback incluido):
   `tbl_vehicles.country_id` con FK e índice. Relleno: vehículos de transportista → país del
   transportista; flota propia → Costa Rica (supuesto: los 12 camiones propios operan en Costa
   Rica). Validación: ningún camión propio activo quedó sin país.

@@ -1,10 +1,10 @@
 -- ============================================================================
--- 66 ROLLBACK — Retira tbl_vehicles.country_id (revierte sql/66).
+-- 71 ROLLBACK — Retira tbl_vehicles.country_id (revierte sql/71).
 --
 -- OJO: el backend de Planificación desde la rama motor-ruteo-fase4 filtra la flota por
 -- esta columna (plan_builder._FLOTA). Desplegar antes un backend que no la use.
 -- Idempotente (if exists).
--- Aplicar con: node --env-file=.env.local scripts/run-migration.mjs sql/66_vehiculos_pais_rollback.sql [--execute]
+-- Aplicar con: node --env-file=.env.local scripts/run-migration.mjs sql/71_vehiculos_pais_rollback.sql [--execute]
 -- ============================================================================
 
 begin;
