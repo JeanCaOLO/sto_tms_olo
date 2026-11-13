@@ -30,7 +30,10 @@ def test_medir_cuenta_km_ida_y_vuelta_viajes_y_capacidad(cm):
     km = {(None, 1): 10, (1, 2): 5, (2, None): 12, (None, 4): 3, (4, 5): 1, (5, None): 3}
     m = cm.medir(viajes, lambda a, b: km[(a, b)])
     assert m == {"viajes": 2, "camiones": 1, "km": 34.0, "paradas_prom": 2.5, "paradas_max": 3,
-                 "ocupacion_peso_prom": 0.7, "viajes_fuera_de_capacidad": 1}
+                 "ocupacion_peso_prom": 0.7, "viajes_fuera_de_capacidad": 1, "terceros": 0, "costo_colones": None}
+    # Con costos: km de cada viaje × costo/km de su camión + el día del camión una sola vez.
+    con_costo = cm.medir(viajes, lambda a, b: km[(a, b)], {"A": {"km": 100.0, "dia": 5000.0}})
+    assert con_costo["costo_colones"] == round(34 * 100.0 + 5000.0)
 
 
 def test_comparar_dia_corre_los_dos_motores_sobre_los_mismos_pedidos(cm):
@@ -75,3 +78,18 @@ def test_comparar_todo_solo_lee(cm, monkeypatch):
     r = cm.comparar_todo(dias_atras=10)  # suma los días ya planificados
     assert [d["origen"] for d in r["dias"]] == ["ventana", "historico"] and r["total"]["dias_comparados"] == 2
     assert all(s.lstrip().upper().startswith("SELECT") for s in sql_vistos)
+
+
+def test_en_costa_rica_mide_los_tres_planes_en_colones(cm, monkeypatch):
+    costos = load_stack_module("planning", "costos")
+    tabla = {"A": {"tipo": "t1", "km": 114.0, "dia": 37000.0}, "B": {"tipo": "t1", "km": 114.0, "dia": 37000.0},
+             "T": {"tipo": "t1", "km": 148.0, "dia": 48000.0}}
+    monkeypatch.setattr(costos, "por_vehiculo", lambda flota, region, forzar=False: tabla if region == "CR" else None)
+    pedidos = [_pedido(i, (0.30 if i % 2 else -0.30) + i * 0.001) for i in range(8)]
+    flota = [{"id": c, "plate": c, "cw": 1000.0, "cv": 100.0, "propio": True} for c in "AB"]
+    r = cm.comparar_dia(pedidos, flota, terceros=[{"id": "T", "plate": "T", "cw": 1000.0, "cv": 100.0, "propio": False}])
+    assert all(r[m]["costo_colones"] > 0 for m in ("heuristico", "ortools", "ortools_costos", "ortools_costos_terceros"))
+    assert r["ortools_costos"]["costo_colones"] <= r["ortools"]["costo_colones"]
+    assert r["ortools_costos"]["terceros"] == 0  # la variante sin terceros solo usa flota propia
+    sin = cm.comparar_dia(pedidos, flota, load_stack_module("planning", "ruta_geo").Sede((10.2, -68.0), "VN", "almacen"))
+    assert "ortools_costos" not in sin  # Venezuela: sin tablas de costeo

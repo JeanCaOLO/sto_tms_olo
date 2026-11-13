@@ -95,20 +95,37 @@ def motor_activo() -> str:
     return MOTOR_ORTOOLS if os.environ.get("MOTOR_RUTEO", "").strip().lower() == MOTOR_ORTOOLS else MOTOR_HEURISTICO
 
 
-def asignar_y_ordenar(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_CR) -> list[dict]:
+def asignar_y_ordenar(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_CR,
+                      usos_previos: dict | None = None, informe: dict | None = None,
+                      costos: dict | None = None) -> list[dict]:
     """Reparte los pedidos de UN día en viajes con camión y ordena sus paradas.
-    Requiere flota si hay pedidos; los 'cliente retira' no entran aquí (no se rutean)."""
+    Requiere flota si hay pedidos; los 'cliente retira' no entran aquí (no se rutean).
+    `usos_previos` = {vehicle_id: viajes que ese camión ya tiene el día} (congelados u otras
+    compañías del almacén): se usan primero los camiones libres. `informe`, si se pasa, recibe
+    qué motor corrió de verdad (`motor`), la fuente de la matriz, los km y el error del solver.
+    `costos` (fase 6) solo lo usa el solver. La heurística no usa terceros: solo flota propia."""
+    informe = {} if informe is None else informe
+    informe.update({"motor_solicitado": motor_activo(), "motor": MOTOR_HEURISTICO, "error": None})
     if pedidos and motor_activo() == MOTOR_ORTOOLS:
         try:
             import motor_ortools  # tardío: la librería pesa y solo se carga si el motor está activo
-            return motor_ortools.asignar_y_ordenar(pedidos, flota, sede)
-        except Exception:  # noqa: BLE001 — cualquier fallo del solver cae al respaldo, con rastro en el log
+            viajes = motor_ortools.asignar_y_ordenar(pedidos, flota, sede, usos_previos, informe, costos)
+            informe["motor"] = MOTOR_ORTOOLS
+            return viajes
+        except Exception as e:  # noqa: BLE001 — cualquier fallo del solver cae al respaldo, con rastro en el log
             log.exception("motor ortools falló con %s pedidos: se usa la heurística", len(pedidos))
-    return heuristico(pedidos, flota, sede)
+            informe["error"] = f"{type(e).__name__}: {e}"[:500]
+    propios = [c for c in flota if c.get("propio", True)]  # la heurística no usa terceros
+    return heuristico(pedidos, propios or flota, sede, usos_previos)
 
 
-def heuristico(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_CR) -> list[dict]:
-    """Motor de siempre: agrupar por zona, empaque voraz y vecino más cercano."""
+def heuristico(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_CR,
+               usos_previos: dict | None = None) -> list[dict]:
+    """Motor de siempre: agrupar por zona, empaque voraz y vecino más cercano. Con
+    `usos_previos`, la rotación empieza por los camiones que todavía no tienen viaje."""
+    if usos_previos:
+        previos = {str(k): n for k, n in usos_previos.items()}  # UUID de la base o texto: se comparan como texto
+        flota = sorted(flota, key=lambda c: previos.get(str(c["id"]), 0))  # estable: respeta el orden de capacidad
     viajes: list[dict] = []
     vi = 0
     for zona, ped_zona in sorted(agrupar_por_zona(pedidos).items()):

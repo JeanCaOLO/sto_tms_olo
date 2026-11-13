@@ -1,6 +1,9 @@
 # ADR-007 — Auditabilidad de decisiones automáticas
 
-**Estado:** Propuesto
+**Estado:** Propuesto. Implementado en parte (2026-11-13): las corridas del motor de ruteo
+(`optimization_runs` de este ADR) quedan en `tbl_routing_runs` (sql/72), una fila por
+(compañía, día) con entrada, resultado y parámetros, en la misma transacción que el plan.
+Siguen pendientes `decision_logs`/`decision_factors` (razones por pedido) y la retención.
 
 ## Contexto
 

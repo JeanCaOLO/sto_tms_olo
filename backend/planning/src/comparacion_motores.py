@@ -17,10 +17,12 @@ ocupación de peso y si el plan respeta capacidad y tope.
 import logging
 import time
 
+import costos
 import matriz_distancias
 import motor_ruteo
 import plan_builder
 import replan
+import tiempo_salida
 from plan_builder import PUNTO_ENTREGA
 from ruta_geo import SEDE_CR, Sede
 from tms_common import pg
@@ -68,12 +70,19 @@ def _con_coords(o: dict) -> bool:
     return o["lat"] is not None and o["lng"] is not None
 
 
-def medir(viajes: list[dict], km_entre) -> dict:
-    """Métricas de un plan. `km_entre(a, b)` da los km de carretera entre dos ids (None = depósito)."""
-    km = 0.0
+def medir(viajes: list[dict], km_entre, costos_flota: dict | None = None) -> dict:
+    """Métricas de un plan. `km_entre(a, b)` da los km de carretera entre dos ids (None = depósito).
+    Con `costos_flota` ({vehicle_id: {"km", "dia"}}) suma además el costo en colones: km de cada
+    viaje × costo/km de su camión + costo diario de cada camión usado."""
+    km, colones = 0.0, 0.0
     for v in viajes:
         ids = [None] + [o["id"] for o in v["pedidos"] if _con_coords(o)] + [None]
-        km += sum(km_entre(a, b) for a, b in zip(ids, ids[1:]))
+        km_viaje = sum(km_entre(a, b) for a, b in zip(ids, ids[1:]))
+        km += km_viaje
+        if costos_flota and v["veh"]:
+            colones += km_viaje * costos_flota[v["veh"]["id"]]["km"]
+    if costos_flota:
+        colones += sum(costos_flota[c]["dia"] for c in {v["veh"]["id"] for v in viajes if v["veh"]})
     paradas = [len(v["pedidos"]) for v in viajes]
     ocupacion = [v["peso"] / v["veh"]["cw"] for v in viajes if v["veh"] and v["veh"]["cw"]]
     excedidos = sum(1 for v in viajes if len(v["pedidos"]) > 1 and (
@@ -84,11 +93,16 @@ def medir(viajes: list[dict], km_entre) -> dict:
             "km": round(km, 1), "paradas_prom": round(sum(paradas) / len(paradas), 1) if paradas else 0,
             "paradas_max": max(paradas, default=0),
             "ocupacion_peso_prom": round(sum(ocupacion) / len(ocupacion), 2) if ocupacion else None,
-            "viajes_fuera_de_capacidad": excedidos}
+            "viajes_fuera_de_capacidad": excedidos,
+            "terceros": sum(1 for v in viajes if v["veh"] and not v["veh"].get("propio", True)),
+            "costo_colones": round(colones) if costos_flota else None}
 
 
-def comparar_dia(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_CR) -> dict:
-    """Corre los dos motores sobre los mismos pedidos (sin cliente retira) y los mide igual."""
+def comparar_dia(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_CR,
+                 terceros: list[dict] | None = None) -> dict:
+    """Corre los dos motores sobre los mismos pedidos (sin cliente retira) y los mide igual.
+    En Costa Rica agrega `ortools_costos` (fase 6 en sombra): el solver minimizando colones con
+    la flota propia + `terceros`, y mide todos los planes con la misma tabla de costos."""
     normales = [o for o in pedidos if not o["es_cliente_retira"]]
     con = [o for o in normales if _con_coords(o)]
     matriz = matriz_distancias.construir([sede.deposito] + [(o["lat"], o["lng"]) for o in con], region=sede.region)
@@ -109,9 +123,11 @@ def comparar_dia(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_CR) -
     res["heuristico"] = medir(motor_ruteo.heuristico(normales, flota, sede), km_entre)
     res["heuristico"]["segundos"] = round(time.perf_counter() - t, 2)
     t = time.perf_counter()
+    viajes_o = None
     try:
         import motor_ortools
-        res["ortools"] = medir(motor_ortools.asignar_y_ordenar(normales, flota, sede), km_entre)
+        viajes_o = motor_ortools.asignar_y_ordenar(normales, flota, sede)
+        res["ortools"] = medir(viajes_o, km_entre)
     except Exception as e:  # noqa: BLE001 — la comparación reporta el fallo, no lo esconde ni lo lanza
         log.exception("comparación: OR-Tools falló con %s pedidos", len(normales))
         res["ortools"] = {"error": f"{type(e).__name__}: {e}"}
@@ -119,7 +135,43 @@ def comparar_dia(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_CR) -
     h, o = res["heuristico"], res["ortools"]
     if "km" in o and h["km"]:
         res["ahorro_km_pct"] = round((1 - o["km"] / h["km"]) * 100, 1)
+    if viajes_o and matriz["fuente"] == "osrm":
+        res["tn"] = sombra_tn(viajes_o, lambda pid: matriz["min"][0][indice[pid]])
+    con_terceros = flota + (terceros or [])
+    tabla = costos.por_vehiculo(con_terceros, sede.region, forzar=True)
+    if tabla and viajes_o:
+        res["ortools"]["costo_colones"] = medir(viajes_o, km_entre, tabla)["costo_colones"]
+        res["heuristico"]["costo_colones"] = medir(motor_ruteo.heuristico(normales, flota, sede), km_entre, tabla)["costo_colones"]
+        variantes = [("ortools_costos", flota)] + ([("ortools_costos_terceros", con_terceros)] if terceros else [])
+        for nombre, camiones in variantes:
+            t = time.perf_counter()
+            try:
+                import motor_ortools
+                res[nombre] = medir(motor_ortools.asignar_y_ordenar(normales, camiones, sede, costos=tabla), km_entre, tabla)
+            except Exception as e:  # noqa: BLE001
+                log.exception("comparación: OR-Tools (%s) falló con %s pedidos", nombre, len(normales))
+                res[nombre] = {"error": f"{type(e).__name__}: {e}"}
+            res[nombre]["segundos"] = round(time.perf_counter() - t, 2)
     return res
+
+
+def sombra_tn(viajes: list[dict], minutos_desde_deposito) -> dict:
+    """Fase 5 en sombra: por viaje, T-n actual (línea recta) vs T-n por carretera con
+    `TN_MIN_POR_DIA`, y los minutos de manejo a la parada más lejana (para calibrar)."""
+    por_dia = tiempo_salida.min_por_dia()
+    detalle, cambian, pedidos_cambian = [], 0, 0
+    for v in viajes:
+        mins = [minutos_desde_deposito(o["id"]) for o in v["pedidos"] if _con_coords(o)]
+        if not mins:
+            continue
+        maximo = max(mins)
+        carretera = tiempo_salida.lead_por_minutos(maximo, por_dia)
+        detalle.append([v["lead"], round(maximo, 1), carretera])
+        if carretera != v["lead"]:
+            cambian += 1
+            pedidos_cambian += len(v["pedidos"])
+    return {"min_por_dia": por_dia, "viajes": len(detalle), "viajes_cambian": cambian,
+            "pedidos_cambian": pedidos_cambian, "detalle": detalle}
 
 
 def _sumar(dias: list[dict], motor: str) -> dict:
@@ -130,28 +182,52 @@ def _sumar(dias: list[dict], motor: str) -> dict:
             "segundos": round(sum(m["segundos"] for m in medidos), 2)}
 
 
+def _sumar_costos(dias: list[dict]) -> dict | None:
+    """Fase 6 en sombra: los tres planes en colones, solo en los días con costos."""
+    con = [d for d in dias if "km" in d.get("ortools_costos", {}) and d["ortools"].get("costo_colones")]
+    if not con:
+        return None
+
+    def suma(motor, campo):
+        return round(sum(d[motor][campo] or 0 for d in con), 1)
+    planes = ["heuristico", "ortools", "ortools_costos"]
+    if all("km" in d.get("ortools_costos_terceros", {}) for d in con):
+        planes.append("ortools_costos_terceros")
+    return {"dias": len(con), "nota": "el costo cuenta el día de cada camión una vez: repetir camión sale gratis",
+            **{m: {"viajes": suma(m, "viajes"), "km": suma(m, "km"), "costo_colones": suma(m, "costo_colones"),
+                   "camiones_dia": sum(d[m]["camiones"] for d in con), "terceros": suma(m, "terceros")} for m in planes}}
+
+
 def comparar_todo(dias_atras: int = 0) -> dict:
     """Los (compañía, día) de la ventana del replan y, con `dias_atras`, los ya
     planificados de esas fechas. Devuelve el detalle y los totales."""
     dias = []
     flotas: dict = {}
+    terceros: dict = {}
     fuentes = [("ventana", _DIAS, [replan.HORIZONTE_DIAS], plan_builder._ORDERS)]
     if dias_atras > 0:
         fuentes.append(("historico", _DIAS_HISTORICOS, [dias_atras], _PEDIDOS_HISTORICOS))
     for origen, sql_dias, params, sql_pedidos in fuentes:
         for r in pg.query(sql_dias, params):
             if (r["org"], r["wh"]) not in flotas:
-                flotas[(r["org"], r["wh"])] = pg.query(plan_builder._FLOTA, [r["org"], r["wh"]])
+                flotas[(r["org"], r["wh"])] = [{**c, "propio": True} for c in pg.query(plan_builder._FLOTA, [r["org"], r["wh"]])]
+                terceros[(r["org"], r["wh"])] = [dict(c) for c in pg.query(plan_builder._TERCEROS, [r["org"], r["wh"]])]
             pedidos = pg.query(sql_pedidos, [r["org"], r["wh"], r["cust"], r["d"]])
             if not pedidos:
                 continue
             sede = plan_builder.sede_del_almacen(r["wh"], pedidos)
             dias.append({"origen": origen, "dia": r["d"], "compania": r["compania"], "almacen": r["wh"],
-                         **comparar_dia(pedidos, flotas[(r["org"], r["wh"])], sede)})
+                         **comparar_dia(pedidos, flotas[(r["org"], r["wh"])], sede, terceros[(r["org"], r["wh"])])})
     comparables = [d for d in dias if "km" in d.get("heuristico", {}) and "km" in d.get("ortools", {})]
     h, o = _sumar(comparables, "heuristico"), _sumar(comparables, "ortools")
+    tn = [d["tn"] for d in dias if "tn" in d]
     total = {"dias_comparados": len(comparables), "heuristico": h, "ortools": o,
              "ahorro_km_pct": round((1 - o["km"] / h["km"]) * 100, 1) if h["km"] else None,
-             "dias_con_error_ortools": sum(1 for d in dias if "error" in d.get("ortools", {}))}
+             "dias_con_error_ortools": sum(1 for d in dias if "error" in d.get("ortools", {})),
+             "tn_carretera": {"min_por_dia": tiempo_salida.min_por_dia(),
+                              "viajes": sum(t["viajes"] for t in tn),
+                              "viajes_cambian": sum(t["viajes_cambian"] for t in tn),
+                              "pedidos_cambian": sum(t["pedidos_cambian"] for t in tn)},
+             "costos": _sumar_costos(dias)}
     log.info("comparación de motores: %s", total)
     return {"total": total, "dias": dias}
