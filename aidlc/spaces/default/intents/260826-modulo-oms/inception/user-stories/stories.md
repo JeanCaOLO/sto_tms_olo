@@ -438,8 +438,14 @@ prioridad a un número arbitrario.
   como acción **manual** (coherente con US33).
 - Given un **motivo** (opcional), When libero, Then el formulario lo acepta vacío; ya
   **no** se pide un nuevo valor de prioridad (la prioridad no se altera a mano).
-- **UX**: Given el modal "Liberar pedido", When se muestra, Then confirma la acción
-  (no hay campo de prioridad editable); el foco entra y queda atrapado, `Esc` cierra.
+- Given la acción, When se invoca, Then llama a **`POST /api/v1/oms/pedidos/liberar`**
+  (`{"id_expediciones": [...], "motivo": "opcional"}`, gated por `("oms","edit")`), y la
+  Cola se **recarga**: el pedido liberado sale (sin recálculo local de score).
+- **UX**: Given el modal "Liberar pedido — {pedido}", When se muestra, Then explica que
+  envía el pedido a eFlow como `GENE` (prioridad 0 para Cofersa, la de origen para EPA),
+  no hay campo de prioridad editable y el único campo es el motivo opcional; el foco
+  entra y queda atrapado, `Esc` cierra.
+- *Implementado (2026-11-09)*: `app.liberar_pedidos` + `LiberarPedidoModal` (Cola).
 
 ### US15 — Impedir la liberación manual sin permiso `[1ª entrega]` (FR4.3, FR14)
 Como responsable de seguridad, quiero que solo roles autorizados liberen pedidos,

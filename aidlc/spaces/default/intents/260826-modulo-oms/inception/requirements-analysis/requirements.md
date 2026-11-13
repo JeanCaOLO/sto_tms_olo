@@ -477,8 +477,9 @@ entrega. Aplica a Cofersa/mayoreo; NO aplica a EPA (ver FR6b).**
 > **Estado:** Implementado (con nota)
 >
 > *(La liberación **por viaje** `POST /api/v1/oms/viajes/{numero_viaje}/procesar`
-> ya existe (implementada); la liberación manual **por pedido** es diseño aún no
-> implementado — FR4.5.)*
+> y la liberación manual **por pedido** `POST /api/v1/oms/pedidos/liberar` están
+> implementadas (backend `app.liberar_pedidos` + modal "Liberar pedido" en la Cola,
+> 2026-11-09) — FR4.5. Pendiente de deploy por Intelix.)*
 
 Como **Responsable del OMS** (rol autorizado), quiero **liberar** un pedido de la
 cola (adelantar su alistamiento) para casos extraordinarios (camión accidentado,
@@ -513,10 +514,18 @@ urgencia), sin alterar la prioridad a un número arbitrario.
   Planificación** (replanifica), no por el OMS.
 - **FR4.5 (grano pedido y viaje)** La liberación manual existe **por viaje**
   (`POST /api/v1/oms/viajes/{numero_viaje}/procesar`, ya implementada) y **por
-  pedido** (la cola es a grano pedido; ruta análoga p. ej.
-  `POST /api/v1/oms/pedidos/liberar`, **diseño — aún no implementada**). Ambas reusan
-  la misma pasada de liberación (costura `EscritorSituacion`) ignorando la ventana
-  temporal.
+  pedido** (la cola es a grano pedido):
+  `POST /api/v1/oms/pedidos/liberar`, gated por `("oms","edit")`, body
+  `{"id_expediciones": ["..."], "motivo": "opcional"}` (uno o varios pedidos; lista
+  vacía → 400). Filtra la cola por `id_expedicion`, reusa `_resolver_registros` +
+  `_liberar` y registra en `oms_logs` la acción `liberar_pedido` con `actor='manual'` y
+  el motivo en `detail`. Ambas reusan la misma pasada de liberación (costura
+  `EscritorSituacion`; solo la tabla propia y el espejo `sim_expedicionescabecera`,
+  nunca el EFLOW real) ignorando la ventana temporal.
+- **FR4.6 (UI)** En la Cola, el detalle del pedido ofrece **"Liberar pedido"**, que abre
+  un modal **"Liberar pedido — {pedido}"** sin input numérico, con **motivo opcional**,
+  que explica que el pedido se envía a eFlow como `GENE` (prioridad 0 para Cofersa,
+  prioridad conservada para EPA). Tras liberar, la cola se recarga y el pedido sale.
 
 ### FR5 — Motor de Reglas (catálogo informativo, solo lectura)
 

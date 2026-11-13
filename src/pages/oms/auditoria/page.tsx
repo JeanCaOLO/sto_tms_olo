@@ -21,9 +21,9 @@ const LEVEL_CONSOLE: Record<OmsLogLevel, string> = {
 };
 
 // Acciones de NEGOCIO que ve la auditoría principal: la corrida automática del
-// OMS (barrido) y las acciones MANUALES (override de prioridad, "Procesar a
+// OMS (barrido) y las acciones MANUALES ("Liberar pedido", "Procesar a
 // Eflow"). El resto (etapas internas, detalle por pedido) solo lo ve developer.
-const BUSINESS_ACTIONS = new Set(['barrido', 'procesar_viaje', 'override_manual']);
+const BUSINESS_ACTIONS = new Set(['barrido', 'procesar_viaje', 'liberar_pedido']);
 
 // Automático = la corrida del motor; manual = lo que dispara una persona.
 const esManual = (action: string) => action !== 'barrido';
@@ -137,7 +137,7 @@ export default function OmsAuditoriaPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">{t('omsAudit.title')}</h1>
         <p className="text-sm text-slate-600 mt-1">
-          Acciones del OMS: ejecuciones automáticas y acciones manuales (override, Procesar a Eflow).
+          Acciones del OMS: ejecuciones automáticas y acciones manuales (Liberar pedido, Procesar a Eflow).
         </p>
       </div>
 

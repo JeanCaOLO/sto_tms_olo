@@ -15,6 +15,7 @@ Read-only contra eFlow; escribe el UPSERT en `orders` y sus líneas en `order_it
 
 import cliente_retira
 import ingest_items
+import salientes
 import sim_eflow_sync
 from tms_common import eflow_db, pg
 
@@ -92,7 +93,10 @@ DO UPDATE SET
   delivery_zone = EXCLUDED.delivery_zone, priority = EXCLUDED.priority,
   wms_status = EXCLUDED.wms_status, wms_situation = EXCLUDED.wms_situation,
   observaciones = EXCLUDED.observaciones, es_cliente_retira = EXCLUDED.es_cliente_retira,
-  final_customer_id = EXCLUDED.final_customer_id, updated_at = now()"""
+  final_customer_id = EXCLUDED.final_customer_id, updated_at = now()
+-- Liberado por el OMS = congelado: eFlow real sigue en DISP/DISP (el OMS aún no le escribe) y
+-- pisaba el GENE del OMS y los datos de un viaje ya liberado. Tras liberar, la ingesta no lo toca.
+WHERE orders.oms_processed_at IS NULL"""
 
 
 def _coord(v) -> float | None:
@@ -141,8 +145,11 @@ def ingest_cr(limite: int = 500, dry_run: bool = False) -> dict:
                 str(r["IDEXPEDICION"]), str(r["IDCLIENTE"]) if r["IDCLIENTE"] is not None else None,
             ])
         upserted += 1
+    # Los que salieron de la cola (despachados/cerrados en eFlow) dejan la bandeja.
+    salidos = 0 if dry_run else salientes.refrescar(
+        PAIS, ORG_CR, {(str(r["IDEXPEDICION"]), str(r["IDCOMPANIA"])) for r in filas})
     # Espejo de la cabecera de eFlow (sim_expedicionescabecera) para el write-back.
     espejadas = 0 if dry_run else sim_eflow_sync.sincronizar()
     lineas = 0 if dry_run else ingest_items.sincronizar(ORG_CR, [str(r["IDEXPEDICION"]) for r in filas])
-    return {"leidos": len(filas), "upserted": upserted, "saltados": len(faltantes), "espejadas": espejadas,
+    return {"leidos": len(filas), "upserted": upserted, "saltados": len(faltantes), "salidos": salidos, "espejadas": espejadas,
             "lineas": lineas, "faltantes": faltantes[:20], "dry_run": dry_run}
