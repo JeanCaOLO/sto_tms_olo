@@ -22,3 +22,10 @@ el loop local de ingesta (`backend/local/ingesta_bandeja.py`).
 - Túnel Aurora: arriba (puerto 15432).
 - Loop de ingesta: corriendo, pero la primera vuelta falló con `TimeoutError` al conectar a
   eFlow (SQL Server). Sin acceso de red a eFlow desde esta PC en este momento.
+
+## Badge "Vencido" en la bandeja (acordado con Eduardo, opción b)
+- `src/pages/oms/bandeja/page.tsx`: badge rojo "Vencido" junto a la fecha de entrega para pedidos
+  (no devoluciones) con entrega < hoy (fecha local); tooltip explica que el replan no lo toma.
+- i18n es/en: `omsBandeja.overdue`, `omsBandeja.overdueHint`.
+- Pendiente 02 actualizado: falta confirmar con Ana si prefiere (a) arrastrar vencidos.
+- Typecheck y eslint sin errores en la bandeja.
