@@ -2037,3 +2037,12 @@ flota propia del país. Migración `sql/66` (aplicada): `tbl_vehicles.country_id
   `country_id` o no entra a ningún plan. Un selector de país en `VehicleModal.tsx` lo resolvería.
 - Los almacenes de Venezuela (`MICHELENA`, `SAN-DIEGO`) necesitan coordenadas (`tbl_warehouses.latitude/longitude`).
 Detalle: `docs/planificacion/pendientes/07-venezuela-ruteo.md`. No toqué `src/`.
+
+### 2026-11-13 — De: Claude → Kiro — Motor de ruteo fases 5, 6 y 7 (solo backend)
+Estado: informativo
+
+Rama `motor-ruteo-fase5`, desplegada en el sandbox (planning). Nuevo: registro de cada corrida del motor en
+`tbl_routing_runs` (sql/72), T-n por carretera y costos por tipo de camión/terceros (estos dos APAGADOS por
+interruptor). Si algún día se activan terceros, `plan_trips.is_owned` puede venir `false` en viajes del motor (antes
+siempre `true` salvo cliente retira): la UI de Planificación ya lo muestra como "flota propia" sí/no
+(`plans_read.py` → `is_flota_propia`). No toqué `src/`. Detalle: `docs/work/2026-11/2026-11-13-motor-ruteo-fases-5-6-7.md`.
