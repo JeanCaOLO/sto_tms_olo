@@ -61,3 +61,10 @@ técnicas; coordenadas de Michelena, San Diego y las tiendas de EPA.
   ninguno, pero hacen 64 viajes (varios por día cada uno). T-n: 19 de 216 viajes cambian de
   fecha de salida.
 - El OSRM se encendió solo el lunes a las 04:45 (schedule verificado).
+
+## Terceros también con una vuelta (decisión del usuario, 2026-11-16)
+`TERCEROS_UNA_VUELTA=si` (`TercerosUnaVuelta`): un camión de tercero tampoco repite viaje en el
+día. Medido en 34 días (`2026-11-16-comparacion-motores-terceros-una-vuelta.json`): 236 viajes
+(18 en terceros) y 347 pedidos sin camión en 6 días; los peores, 2026-11-12 (165 de 332) y
+2026-11-13 (137 de 275). Con más transportistas cargados ese número baja. Replan real del
+2026-11-19 sin cambios (5 viajes propios).

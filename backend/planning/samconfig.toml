@@ -16,6 +16,7 @@ parameter_overrides = [
   "CostosModo=reales",
   "UsarTerceros=si",
   "PropiosUnaVuelta=si",
+  "TercerosUnaVuelta=si",
   "CommonStackName=dev-tms-common-services",
   "CommonLayerArn=/dev/tms/common-layer-arn",
   "SubnetIds=/dev/tms/network/subnets",
@@ -42,6 +43,7 @@ parameter_overrides = [
   "CostosModo=reales",
   "UsarTerceros=si",
   "PropiosUnaVuelta=si",
+  "TercerosUnaVuelta=si",
   "OsrmUrl="
 ]
 # QA igual que el sandbox (dev). OsrmUrl: el output del stack qa-tms-osrm (ver
@@ -67,6 +69,7 @@ parameter_overrides = [
   "CostosModo=fijo",
   "UsarTerceros=no",
   "PropiosUnaVuelta=no",
+  "TercerosUnaVuelta=no",
   "OsrmUrl="
 ]
 # Producción arranca con el comportamiento anterior: copiar los valores de QA cuando QA esté

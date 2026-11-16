@@ -13,17 +13,19 @@ decisión del usuario. Detalle: `docs/work/2026-11/2026-11-16-motor-ruteo-activa
 | Costos por tipo de camión | Encendido (`CostosModo=reales`) |
 | Terceros con tarifa del tarifario | Encendido (`UsarTerceros=si`), solo cuando la flota propia ya salió |
 | Una vuelta por camión propio | Encendido (`PropiosUnaVuelta=si`) |
+| Una vuelta por camión de tercero | Encendido (`TercerosUnaVuelta=si`, 2026-11-16) |
 | Registro de corridas | Encendido, con retención de 90 días |
 
 Volver atrás: cambiar el interruptor en `samconfig.toml` y `python scripts/sandbox/deploy_backend.py planning`.
 
 ## Por verificar con datos reales
-- **Una vuelta por camión propio deja pedidos sin camión si faltan terceros.** En 34 días
-  medidos, sin terceros quedarían 499 pedidos sin viaje en los días grandes. Con los terceros
-  de prueba no queda ninguno, pero los 3 camiones de prueba (1.000 kg) harían 64 viajes, varios
-  por día cada uno. Un pedido sin camión queda en la bandeja sin número de viaje y el replan de
-  cada hora lo reintenta; queda en `tbl_routing_runs.parametros->'informe'->'sin_camion'`.
-  Decidir si los terceros también hacen una sola vuelta por día.
+- **Faltan camiones en los días grandes.** Con una vuelta por camión (propios y terceros,
+  decisión del 2026-11-16) y los 3 terceros de prueba, en 34 días quedarían 347 pedidos sin
+  camión, en 6 días: 2026-11-12 (165 de 332), 2026-11-13 (137 de 275), 2026-11-06 (39 de 159)
+  y 1 a 4 en otros tres. Un pedido sin camión queda en la bandeja sin número de viaje, el OMS no
+  lo libera y el replan de cada hora lo reintenta; queda en
+  `tbl_routing_runs.parametros->'informe'->'sin_camion'`. Hace falta cargar más transportistas
+  (con camiones y tarifa) para cubrir esos días.
 - **Tarifas de terceros de prueba.** Los transportistas de Costa Rica con vehículos son datos
   de prueba (2026-11-16, confirmado por el usuario). Sin `rate_type`, el motor usa su tarifa
   fija o la tabla zona × camión. Revisar con las tarifas reales.

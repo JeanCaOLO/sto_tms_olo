@@ -96,9 +96,23 @@ def motor_activo() -> str:
     return MOTOR_ORTOOLS if os.environ.get("MOTOR_RUTEO", "").strip().lower() == MOTOR_ORTOOLS else MOTOR_HEURISTICO
 
 
+def _si(variable: str) -> bool:
+    return os.environ.get(variable, "").strip().lower() in ("si", "sí", "1", "true")
+
+
 def propios_una_vuelta() -> bool:
     """PROPIOS_UNA_VUELTA=si: cada camión propio hace un solo viaje por día (jornada del chofer)."""
-    return os.environ.get("PROPIOS_UNA_VUELTA", "").strip().lower() in ("si", "sí", "1", "true")
+    return _si("PROPIOS_UNA_VUELTA")
+
+
+def terceros_una_vuelta() -> bool:
+    """TERCEROS_UNA_VUELTA=si: cada camión de un tercero también hace un solo viaje por día."""
+    return _si("TERCEROS_UNA_VUELTA")
+
+
+def una_vuelta(camion: dict) -> bool:
+    """¿Este camión puede hacer un solo viaje por día?"""
+    return propios_una_vuelta() if camion.get("propio", True) else terceros_una_vuelta()
 
 
 def asignar_y_ordenar(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_CR,
@@ -143,6 +157,9 @@ def _rotacion(flota: list[dict], previos: dict):
 
     def camiones():
         yield from libres
+        if terceros_una_vuelta():
+            yield from (c for c in terceros if previos.get(str(c["id"]), 0) == 0)
+            return
         while terceros:
             yield from terceros
     it = camiones()

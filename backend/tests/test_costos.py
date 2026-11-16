@@ -254,3 +254,17 @@ def test_si_ningun_propio_libre_puede_con_el_pedido_va_en_el_tercero(cs, mo):
     viajes = mo.asignar_y_ordenar([_pedido(1, peso=3000.0)], flota, costos=cs.por_vehiculo(flota, "CR"))
     assert [v["veh"]["id"] for v in viajes] == ["TERCERO_GRANDE"]
 
+
+def test_con_una_vuelta_para_terceros_tampoco_repiten(cs, mo, monkeypatch):
+    monkeypatch.setenv("PROPIOS_UNA_VUELTA", "si")
+    monkeypatch.setenv("TERCEROS_UNA_VUELTA", "si")
+    flota = [_camion("P1", 2500), _camion("T", 2500, False, "C-FIJO")]
+    pedidos = [_pedido(i, f"Z{i}", dlat=0.05 * (i + 1)) for i in range(3)]  # tres zonas = tres viajes
+    informe = {}
+    viajes = mo.asignar_y_ordenar(pedidos, flota, informe=informe, costos=cs.por_vehiculo(flota, "CR"))
+    assert sorted(v["veh"]["id"] for v in viajes) == ["P1", "T"] and len(informe["sin_camion"]) == 1
+    # La heurística igual.
+    mr = load_stack_module("planning", "motor_ruteo")
+    viajes = mr.heuristico(pedidos, flota, informe=informe)
+    assert [v["veh"]["id"] for v in viajes] == ["P1", "T"] and len(informe["sin_camion"]) == 1
+

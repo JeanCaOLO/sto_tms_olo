@@ -186,7 +186,8 @@ def asignar_y_ordenar(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_
     ya salió (o si ningún propio libre puede con un pedido), aunque su tarifa sea más barata.
 
     Con PROPIOS_UNA_VUELTA=si un camión propio hace UN viaje por día: los que ya tienen uno
-    salen de la lista; los terceros pueden repetir como último recurso. Si no queda ningún
+    salen de la lista. Con TERCEROS_UNA_VUELTA=si, también los terceros; si no, repiten como
+    último recurso. Si no queda ningún
     camión, los pedidos que faltan quedan sin viaje (`informe["sin_camion"]`) y el próximo
     replan los vuelve a intentar."""
     viajes: list[dict] = []
@@ -197,13 +198,11 @@ def asignar_y_ordenar(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_
     if por_camion is not None and any(c is None for c in por_camion):
         log.warning("motor ortools: faltan costos de %s camiones; se minimizan km", sum(c is None for c in por_camion))
         por_camion = None
-    una_vuelta = motor_ruteo.propios_una_vuelta()
     km, colones, fuentes, sin_camion = 0.0, 0.0, set(), []
     for zona, grupo in sorted(motor_ruteo.agrupar_por_zona(pedidos).items()):
         pendientes = grupo
         while pendientes:  # más de una pasada solo si el grupo necesita más viajes que camiones hay
-            disponibles = [i for i, c in enumerate(flota)
-                           if not (una_vuelta and c.get("propio", True) and usos[i] >= 1)]
+            disponibles = [i for i, c in enumerate(flota) if not (usos[i] >= 1 and motor_ruteo.una_vuelta(c))]
             if not disponibles:
                 sin_camion += pendientes
                 break

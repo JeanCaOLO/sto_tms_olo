@@ -48,6 +48,11 @@ Parameters:
     Type: Number
     Default: 3
     Description: Tope de días de anticipación con TnModo=carretera (rutas cercanas T-1, lejanas T-2 o T-3).
+  TercerosUnaVuelta:
+    Type: String
+    Default: "no"
+    AllowedValues: ["no", "si"]
+    Description: si = cada camión de un tercero también hace un solo viaje por día; lo que no cabe queda sin viaje hasta el próximo replan.
   PropiosUnaVuelta:
     Type: String
     Default: "no"
@@ -108,6 +113,7 @@ Resources:
           TN_MAX_DIAS: !Ref TnMaxDias
           ROUTING_RUNS_RETENCION_DIAS: !Ref RoutingRunsRetencionDias
           PROPIOS_UNA_VUELTA: !Ref PropiosUnaVuelta
+          TERCEROS_UNA_VUELTA: !Ref TercerosUnaVuelta
           TMS_DB_SECRET_NAME:
             Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName
           # Ingesta de pedidos y artículos del pedido leen eFlow en vivo (eflow_db).

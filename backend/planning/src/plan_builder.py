@@ -155,7 +155,8 @@ def _parametros() -> dict:
          "max_paradas": motor_ruteo.MAX_PARADAS, "tn_modo": tiempo_salida.modo(),
          "tn_min_por_dia": tiempo_salida.min_por_dia(), "tn_max_dias": tiempo_salida.max_dias(),
          "costos_modo": costos.modo(), "usar_terceros": costos.usar_terceros(),
-         "propios_una_vuelta": motor_ruteo.propios_una_vuelta(), "factor_tercero": costos.FACTOR_TERCERO}
+         "propios_una_vuelta": motor_ruteo.propios_una_vuelta(),
+         "terceros_una_vuelta": motor_ruteo.terceros_una_vuelta(), "factor_tercero": costos.FACTOR_TERCERO}
     mo, ort = sys.modules.get("motor_ortools"), sys.modules.get("ortools")
     if mo is not None:  # solo si el solver se cargó en esta corrida
         p.update({"costo_fijo_viaje_km": mo.COSTO_FIJO_VIAJE_KM, "costo_reuso_km": mo.COSTO_REUSO_KM,
