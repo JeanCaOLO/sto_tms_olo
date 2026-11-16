@@ -77,6 +77,21 @@ export const recordIncident = (returnId: string, explanation: string, idempotenc
     method:'POST',body:JSON.stringify({explanation,idempotency_key:idempotencyKey}),
   });
 
+export interface ResolveInput {
+  incident_id: string;
+  outcome: 'accepted' | 'restored';
+  note: string;
+  received_quantity?: number;
+  condition?: ReturnCondition;
+}
+
+/** Saca la devolución de Novedades; la clave idempotente permite reintentar una respuesta perdida. */
+export const resolveIncident = (returnId: string, input: ResolveInput, idempotencyKey: string) =>
+  call<{resolution: {id: string;outcome: string};return: unknown;trip: ReturnTrip}>(
+    `${BASE}/${encodeURIComponent(returnId)}/novedades/resolver`,
+    send('POST', {...input, idempotency_key: idempotencyKey}),
+  );
+
 export const receiveReturn = (returnId: string, quantity: number, condition: ReturnCondition) =>
   call<{ return: unknown; trip: ReturnTrip }>(`${BASE}/${returnId}/recibir`, send('POST', { received_quantity: quantity, condition }));
 
