@@ -2046,3 +2046,14 @@ Rama `motor-ruteo-fase5`, desplegada en el sandbox (planning). Nuevo: registro d
 interruptor). Si algún día se activan terceros, `plan_trips.is_owned` puede venir `false` en viajes del motor (antes
 siempre `true` salvo cliente retira): la UI de Planificación ya lo muestra como "flota propia" sí/no
 (`plans_read.py` → `is_flota_propia`). No toqué `src/`. Detalle: `docs/work/2026-11/2026-11-13-motor-ruteo-fases-5-6-7.md`.
+
+### 2026-11-16 — De: Claude → Kiro — Toqué `src/`: el mapa usa el OSRM propio por el backend
+Estado: informativo
+
+Por pedido del usuario ("haz las mejoras técnicas todas"). Nuevo `osrmFetch` en
+`src/pages/planificacion/osrm-config.ts`: con sesión pide trazos y matrices a
+`GET /api/v1/planificacion/osrm/{route|table}/v1/driving/<lng,lat;…>` (puente al OSRM propio de la VPC, con el token);
+si el backend responde 503/404 o no hay sesión, va al OSRM público como antes; `VITE_OSRM_URL` sigue ganando si está
+definida. Lo usan `distance-matrix.ts`, `route-geometry.ts` y `tracking/route-osrm.ts` (ya no usan `OSRM_BASE_URL`,
+que queda solo por compatibilidad). Test: `osrm-config.test.ts`. Además, desde hoy el motor del sandbox usa
+costos, terceros (`plan_trips.is_owned` puede venir `false`) y T-n por carretera. Rama `motor-ruteo-activacion`.
