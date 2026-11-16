@@ -171,7 +171,9 @@ def registrar_corrida(run, contexto: dict, pedidos: list[dict], flota: list[dict
     Corre en la transacción del plan: si el plan se revierte, el registro también."""
     entrada = {"sede": {"deposito": list(sede.deposito), "region": sede.region, "origen": sede.origen},
                "flota": [{"id": c["id"], "cw": c["cw"], "cv": c["cv"], "propio": c.get("propio", True)} for c in flota],
-               "usos_previos": usos, "costos": costos_flota,
+               # Llaves como texto: los ids de vehículo llegan como UUID y JSON no acepta esas llaves.
+               "usos_previos": {str(k): n for k, n in usos.items()},
+               "costos": {str(k): c for k, c in costos_flota.items()} if costos_flota else None,
                "pedidos": [{"id": o["id"], "lat": o["lat"], "lng": o["lng"], "peso": o["weight"],
                             "volumen": o["volume"], "grupo": motor_ruteo.clave(o)} for o in pedidos]}
     resultado = [{"zona": v["zona"], "camion": v["veh"]["id"] if v["veh"] else None,

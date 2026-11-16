@@ -238,3 +238,19 @@ def test_el_viaje_trae_su_duracion_estimada(mo):
     viajes = mo.asignar_y_ordenar([_pedido(1, dlat=0.1), _pedido(2, dlat=0.2)], [_camion("A", 2500)])
     assert viajes[0]["minutos"] >= 2 * mo.MIN_POR_PARADA
 
+
+def test_flota_propia_primero_aunque_el_tercero_sea_mas_barato(cs, mo):
+    # El tercero cobra 25.500 por viaje en la zona 02 (más barato que el día de un propio), pero
+    # mientras haya un propio libre el viaje va en el propio.
+    flota = [_camion("TERCERO", 2500, False, "C-ZONA", "Camión"), _camion("PROPIO", 2500)]
+    costos = cs.por_vehiculo(flota, "CR")
+    assert costos["TERCERO"]["por_zona"]["02"] < costos["PROPIO"]["dia"]
+    viajes = mo.asignar_y_ordenar([_pedido(1, "02")], flota, costos=costos)
+    assert [v["veh"]["id"] for v in viajes] == ["PROPIO"]
+
+
+def test_si_ningun_propio_libre_puede_con_el_pedido_va_en_el_tercero(cs, mo):
+    flota = [_camion("PROPIO_CHICO", 500), _camion("TERCERO_GRANDE", 8000, False, "C-FIJO")]
+    viajes = mo.asignar_y_ordenar([_pedido(1, peso=3000.0)], flota, costos=cs.por_vehiculo(flota, "CR"))
+    assert [v["veh"]["id"] for v in viajes] == ["TERCERO_GRANDE"]
+

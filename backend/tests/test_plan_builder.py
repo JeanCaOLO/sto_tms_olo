@@ -145,3 +145,19 @@ def test_cada_corrida_queda_registrada_con_entrada_resultado_y_motor(monkeypatch
     assert resultado[0]["camion"] == "V1" and sorted(resultado[0]["pedidos"]) == [1, 2]
     assert json.loads(r[16])["max_paradas"] == pb.motor_ruteo.MAX_PARADAS
     assert r[19] == "user"
+
+
+def test_el_registro_acepta_ids_uuid_en_costos_y_usos():
+    # Caso real del 2026-11-16: vehicles.id llega como UUID y era llave del JSON de costos.
+    import json
+    import uuid
+    pb = load_stack_module("planning", "plan_builder")
+    rg = load_stack_module("planning", "ruta_geo")
+    vid = uuid.uuid4()
+    llamadas = []
+    pb.registrar_corrida(lambda sql, params: llamadas.append(params), {"run_id": "r", "org": "o", "warehouse": "w",
+                         "customer": "c", "fecha": "2026-11-20", "plan_id": "p", "created_by": "u"},
+                         [], [{"id": vid, "cw": 1.0, "cv": 1.0}], rg.SEDE_CR, {vid: 1}, [], {}, 5,
+                         {vid: {"km": 1.0, "dia": 2.0}})
+    entrada = json.loads(llamadas[0][17])
+    assert entrada["costos"] == {str(vid): {"km": 1.0, "dia": 2.0}} and entrada["usos_previos"] == {str(vid): 1}

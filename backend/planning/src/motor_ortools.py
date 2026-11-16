@@ -181,6 +181,10 @@ def asignar_y_ordenar(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_
     km, colones, fuente de la matriz, viajes en terceros y pedidos sin camión. `costos` =
     {vehicle_id: costo} (todos los camiones) para minimizar colones; si falta alguno se ignora.
 
+    Flota propia primero (mandato del 2026-09-21): mientras quede un camión propio sin viaje
+    ese día, el solver solo ve camiones propios; los terceros entran cuando la flota propia
+    ya salió (o si ningún propio libre puede con un pedido), aunque su tarifa sea más barata.
+
     Con PROPIOS_UNA_VUELTA=si un camión propio hace UN viaje por día: los que ya tienen uno
     salen de la lista; los terceros pueden repetir como último recurso. Si no queda ningún
     camión, los pedidos que faltan quedan sin viaje (`informe["sin_camion"]`) y el próximo
@@ -198,13 +202,21 @@ def asignar_y_ordenar(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_
     for zona, grupo in sorted(motor_ruteo.agrupar_por_zona(pedidos).items()):
         pendientes = grupo
         while pendientes:  # más de una pasada solo si el grupo necesita más viajes que camiones hay
-            libres = [i for i, c in enumerate(flota) if not (una_vuelta and c.get("propio", True) and usos[i] >= 1)]
-            if not libres:
+            disponibles = [i for i, c in enumerate(flota)
+                           if not (una_vuelta and c.get("propio", True) and usos[i] >= 1)]
+            if not disponibles:
                 sin_camion += pendientes
                 break
-            sub = [flota[i] for i in libres]
-            rutas, resto, datos = _resolver(pendientes, sub, [usos[i] for i in libres], sede,
-                                            [por_camion[i] for i in libres] if por_camion else None, zona)
+            propios_libres = [i for i in disponibles if flota[i].get("propio", True) and usos[i] == 0]
+            # Escalones: primero solo propios sin viaje; si ninguno puede, todos los disponibles.
+            escalones = [propios_libres, disponibles] if propios_libres and len(propios_libres) < len(disponibles) \
+                else [disponibles]
+            for libres in escalones:
+                sub = [flota[i] for i in libres]
+                rutas, resto, datos = _resolver(pendientes, sub, [usos[i] for i in libres], sede,
+                                                [por_camion[i] for i in libres] if por_camion else None, zona)
+                if rutas:
+                    break
             if not rutas:  # ningún camión libre puede con lo que queda: el primero va solo en el más grande
                 mayor = max(range(len(sub)), key=lambda j: (sub[j]["cw"], -usos[libres[j]]))
                 rutas, resto, minutos = [(mayor, [pendientes[0]])], pendientes[1:], {}
