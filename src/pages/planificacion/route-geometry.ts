@@ -1,4 +1,4 @@
-import { OSRM_BASE_URL } from './osrm-config';
+import { osrmFetch } from './osrm-config';
 
 const OSRM_ROUTE_TIMEOUT_MS = 5000;
 
@@ -41,8 +41,8 @@ export async function obtenerGeometriaRutaPorLeg(paradas: ParadaConNumero[]): Pr
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), OSRM_ROUTE_TIMEOUT_MS);
   try {
-    const res = await fetch(
-      `${OSRM_BASE_URL}/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=true`,
+    const res = await osrmFetch(
+      `route/v1/driving/${coords}?overview=full&geometries=geojson&steps=true`,
       { signal: controller.signal },
     );
     if (!res.ok) return rectos;
@@ -79,7 +79,7 @@ export async function obtenerGeometriaRuta(paradas: ParadaConCoords[]): Promise<
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), OSRM_ROUTE_TIMEOUT_MS);
   try {
-    const res = await fetch(`${OSRM_BASE_URL}/route/v1/driving/${coords}?overview=full&geometries=geojson`, {
+    const res = await osrmFetch(`route/v1/driving/${coords}?overview=full&geometries=geojson`, {
       signal: controller.signal,
     });
     if (!res.ok) return lineaRecta;

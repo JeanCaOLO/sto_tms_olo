@@ -21,6 +21,7 @@ import comparacion_motores
 import bitacora
 import ingest_orders
 import matriz_distancias
+import osrm_proxy
 import motor_ruteo
 import pedido_articulos
 import plan_builder
@@ -158,6 +159,15 @@ def replan_todo(event: dict) -> dict:
     return json_response(200, {"data": res, "error": None})
 
 
+def osrm(event: dict) -> dict:
+    """Puente al OSRM propio para el mapa del frontend (osrm_proxy). Cualquier usuario con
+    sesión: lo usan Planificación y Tracking. Devuelve el JSON de OSRM tal cual."""
+    auth_user(event)  # exige sesión (el authorizer ya validó el token)
+    status, cuerpo = osrm_proxy.reenviar(path_param(event, "proxy"), query_params(event))
+    return {"statusCode": status, "headers": {"Content-Type": "application/json", "Cache-Control": "private, max-age=300"},
+            "body": cuerpo.decode("utf-8", "replace")}
+
+
 ROUTES = {
     "GET /api/v1/planificacion/pedidos": list_orders,
     "GET /api/v1/planificacion/bandeja": list_bandeja,
@@ -167,6 +177,7 @@ ROUTES = {
     "GET /api/v1/planificacion/planes/{id}": get_plan,
     "POST /api/v1/planificacion/planes": build_plan,
     "POST /api/v1/planificacion/planes/replanificar": replan_todo,
+    "GET /api/v1/planificacion/osrm/{proxy+}": osrm,
 }
 
 _http_handler = tms_handler(ROUTES)

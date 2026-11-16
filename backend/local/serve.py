@@ -84,7 +84,9 @@ def build_routes() -> list[tuple[str, re.Pattern, str, object, bool]]:
         app = load_module(f"{stack}_app", src / "app.py")
         for key in app.ROUTES:
             method, path = key.split(" ", 1)
-            pattern = re.compile("^" + re.sub(r"\{(\w+)\}", r"(?P<\1>[^/]+)", path) + "$")
+            # {nombre+} (proxy de API Gateway) toma el resto de la ruta, barras incluidas.
+            con_proxy = re.sub(r"\{(\w+)\+\}", r"(?P<\1>.+)", path)
+            pattern = re.compile("^" + re.sub(r"\{(\w+)\}", r"(?P<\1>[^/]+)", con_proxy) + "$")
             is_public = stack in PUBLIC_STACKS or key in PUBLIC_ROUTES
             routes.append((method, pattern, key, app.handler, is_public))
     return routes

@@ -14,6 +14,9 @@ KM_POR_DIA = 70
 # Región del mapa de carreteras (OSRM) según el código de país del almacén. Los
 # países MOCK usan el mapa del país real. Un país sin región se mide en línea recta.
 REGIONES = {"CR": "CR", "DCR": "CR", "VN": "VN", "DVE": "VN"}
+# Caja aproximada (lat, lng) de cada región, para saber de qué mapa es un punto suelto (el
+# puente de OSRM del frontend). Las mismas cajas que valida la carga de puntos de entrega.
+CAJAS = {"CR": ((8.0, 11.3), (-86.0, -82.5)), "VN": ((0.5, 12.3), (-73.5, -59.5))}
 
 log = logging.getLogger(__name__)
 
@@ -48,6 +51,14 @@ def sede_de(pais: str | None, lat: float | None, lng: float | None, pedidos: lis
     centro = (sum(p[0] for p in con) / len(con), sum(p[1] for p in con) / len(con))
     log.warning("almacén de %s sin coordenadas: depósito = centro de %s pedidos %s", pais, len(con), centro)
     return Sede(centro, region, "centro_pedidos")
+
+
+def region_de_punto(lat: float, lng: float) -> str | None:
+    """Región del mapa que contiene el punto, o None si no cae en ninguna."""
+    for region, ((lat_min, lat_max), (lng_min, lng_max)) in CAJAS.items():
+        if lat_min <= lat <= lat_max and lng_min <= lng <= lng_max:
+            return region
+    return None
 
 
 def haversine_km(a: tuple[float, float], b: tuple[float, float]) -> float:
