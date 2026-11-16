@@ -1,0 +1,92 @@
+{
+  "captured_at": "2026-11-12T13:25:30.578Z",
+  "scope": "T04: API local; sin nuevas migraciones ni despliegues",
+  "backend": {
+    "passed": 168,
+    "failed": 0,
+    "exit_code": 0,
+    "junit": ".test/devoluciones/t04-backend.xml",
+    "suites": [
+      "test_return_request_review",
+      "test_return_requests",
+      "test_returns",
+      "test_returns_gate",
+      "test_routes_wired",
+      "test_permissions",
+      "test_audit"
+    ]
+  },
+  "sql": {
+    "passed": 29,
+    "new_t04": 11,
+    "existing_t03": 18,
+    "failed": 0,
+    "exit_code": 0,
+    "engine": "PostgreSQL 18.6 (PGlite 0.5.16), memory://",
+    "command": "node --test tests/sql/return_requests_access.test.mjs tests/sql/67_roles_solicitudes_devolucion.test.mjs"
+  },
+  "red": {
+    "api": {
+      "failed": 23,
+      "passed": 37,
+      "log": ".test/devoluciones/t04-red.log"
+    },
+    "s3_lock": {
+      "failed": 2,
+      "passed": 22,
+      "log": ".test/devoluciones/t04-red-s3-lock.log"
+    },
+    "sql_scopes": {
+      "failed": 4,
+      "passed": 7,
+      "log": ".test/devoluciones/t04-sql-red.log"
+    }
+  },
+  "review": {
+    "method": "Revisor independiente, contexto acotado, solo lectura",
+    "result": "Sin hallazgos en el alcance revisado",
+    "limits": "Estatica; no ejecuto pruebas ni AWS/BD"
+  },
+  "rulings": [
+    "Continuar checkout autorizado dylan-tarifas conservando cambios previos, backup selectivo Temp/tms-t04-20261112-091340",
+    "idempotency_key UUID opcional en cuerpo; T05 debe generarla una vez por envio y mantenerla durante reintentos",
+    "UUIDv5 usando PK existente y advisory lock por organizacion, sin nuevas tablas/DDL",
+    "Scoping SQL: organizacion, cadena coherente, paises del rol y scope jerarquico; global explicito no omite organizacion/paises",
+    "Llaves nuevas por autor; lecturas historicas solo desde relacion persistida autorizada",
+    "Auditoria dentro de transaccion y S3 fuera del bloqueo de numeracion"
+  ],
+  "sam": {
+    "new_routes": 5,
+    "wiring_verified": true,
+    "authorization": "CUSTOM y authorizer compartido, revisados estaticamente",
+    "iam_changed": false,
+    "full_sam_lint_run": false,
+    "reason": "sam/cfn-lint no disponibles"
+  },
+  "limits": [
+    "No concurrencia multiconexion real: carreras simuladas y SQL condicional; validar staging con Jean",
+    "No IAM/S3/RLS Aurora ni E2E real",
+    "UI T05/T06 pendiente; sin idempotency_key cliente anterior no garantiza deduplicar reintentos",
+    "Frontend/build no reejecutados: solo backend, plantilla y documentacion modificados"
+  ],
+  "aws_calls": 0,
+  "external_database_connections": 0,
+  "shared_migrations_applied": 0,
+  "deployments": 0,
+  "applied_sql67_checksum_unchanged": true,
+  "logs": [
+    ".test/devoluciones/t04-green.log",
+    ".test/devoluciones/t04-sql-green.log"
+  ],
+  "hashes": {
+    "backend/admin/src/admin_return_requests.py": "eae1cee88bec1393bb0ec8a5c3aa3349430772c5b935e9a7330e797cbd336777",
+    "backend/admin/src/admin_return_requests_sql.py": "d19c9f1c13fdb33a97f631f72e551130f59d4b44bafa6fa82662f79f27710765",
+    "backend/admin/src/admin_return_request_access.py": "83c3f5315d547f3f0ca7c8d9eb3cc7748ffcaf94d054f1d12154ede84e83a14f",
+    "backend/admin/src/app.py": "5ce73ef4047cda814f34f4e5481c94603a1d14141fbc8c6b22d8ce7e511b5475",
+    "backend/admin/template.yaml": "2a815eaac6852b3f1f8171015ef7e5d6794f27c5ac0a818da2299876bca17a17",
+    "backend/tests/test_return_requests.py": "34c2d5f8fde2ca0a4c7bd71708153a61fefc116b72d082738ca0b37446cd42d6",
+    "backend/tests/test_return_request_review.py": "e36e25d05b714d18a7173de7621cc696e51ff0b5c82144c338a03548109a6cc7",
+    "backend/tests/conftest.py": "d1da63e184b44eb3d3460f2a06b68dec8bd66f3a7e4c4ed7005cd4870ea6a2f3",
+    "tests/sql/return_requests_access.test.mjs": "66970b61b8e20b36d3445cfc07817dd06ae6bbcb524f77f3109bd12c7561921e"
+  }
+}

@@ -20,3 +20,9 @@ export function permKeyForPath(pathname: string): string | undefined {
   const normalized = pathname.toLowerCase().replace(/\/+$/, '') || '/';
   return permByPath.get(pathname) ?? permByPath.get(normalized);
 }
+
+/** Devoluciones reúne la recepción operativa y las solicitudes propias, con permisos separados dentro. */
+export function canAccessModule(permKey: string | undefined, can: (module: string, action: 'view' | 'create') => boolean): boolean {
+  return !permKey || can(permKey, 'view') || permKey === 'devoluciones'
+    && (can('devoluciones_solicitud', 'view') || can('devoluciones_solicitud', 'create'));
+}

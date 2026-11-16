@@ -5,31 +5,46 @@ Reemplaza el agrupamiento fijo de la demo: los pedidos de una zona se consolidan
 en la flota propia (vehicles) por peso/volumen con margen legal CR, no por un
 número fijo de paradas. Idempotente: re-planificar un día borra lo no liberado y lo
 reconstruye con la cola vigente (replan); lo ya liberado a eFlow no se toca.
+
+Qué pedido va en qué camión y en qué orden lo decide `motor_ruteo`; aquí solo se
+leen los pedidos y la flota, y se persiste lo que el motor devuelve.
 """
 
+import json
+import sys
+import time
 import uuid
 
+import costos
+import logging
+
+import motor_ruteo
 import recolectas
+import tiempo_salida
 import viajes_liberados
-from ruta_geo import lead_time_dias, ordenar_por_ruta
+from ruta_geo import sede_de
 from tms_common import pg
 
-# Márgenes de seguridad (ver capacity-fit.ts / Decreto 31363-MOPT): el peso es
-# límite legal, el volumen solo geometría de carga.
-MARGEN_PESO = 0.85
-MARGEN_VOLUMEN = 0.95
-# Tope de pedidos por viaje: ~16/camión (reunión 2026-10-13 Ana/Eduardo: "~16
-# pedidos y ~80% capacidad; al superar → nuevo viaje"). Antes 25 → salían de 24.
-MAX_PARADAS = 16
+# Coordenadas del punto de entrega por defecto del cliente destino (tbl_delivery_points →
+# tbl_addresses). Respaldo cuando eFlow no trae lat/lng en el pedido: Venezuela carga sus
+# ~20 mil puntos geocodificados por CSV (backend/local/ingest_delivery_points.py).
+PUNTO_ENTREGA = """
+LEFT JOIN LATERAL (
+  SELECT a.latitude, a.longitude FROM tbl_delivery_points dp JOIN tbl_addresses a ON a.id = dp.address_id
+  WHERE dp.final_customer_id = o.final_customer_id AND dp.active AND a.latitude IS NOT NULL AND a.longitude IS NOT NULL
+  ORDER BY dp.is_default DESC, dp.created_at LIMIT 1) pe ON true
+"""
 
 _ORDERS = """
 SELECT o.id, o.order_number, o.delivery_city, o.delivery_zone,
-       o.delivery_latitude::float AS lat, o.delivery_longitude::float AS lng,
+       COALESCE(o.delivery_latitude, pe.latitude)::float AS lat,
+       COALESCE(o.delivery_longitude, pe.longitude)::float AS lng,
        o.total_weight::float AS weight, o.total_volume::float AS volume, o.priority,
        o.final_customer_id, fc.name AS customer_name, fc.customer_type, o.es_cliente_retira,
        o.eflow_id_compania, o.eflow_id_almacen, o.eflow_id_sucursal, o.eflow_id_expedicion
 FROM tbl_orders o
 LEFT JOIN tbl_final_customers fc ON fc.id = o.final_customer_id
+""" + PUNTO_ENTREGA + """
 WHERE o.organization_id = %s AND o.warehouse_id = %s AND o.customer_id = %s
   AND o.eflow_id_expedicion IS NOT NULL
   AND o.wms_status = 'DISP' AND o.wms_situation = 'DISP'
@@ -37,50 +52,73 @@ WHERE o.organization_id = %s AND o.warehouse_id = %s AND o.customer_id = %s
 ORDER BY COALESCE(o.delivery_zone, 'ZZZ'), o.priority NULLS LAST, o.total_weight DESC NULLS LAST
 """
 
+# Flota propia DEL PAÍS del almacén: un plan de Venezuela no usa camiones de Costa Rica.
+# Propia = sin transportista, o de un transportista marcado como flota propia
+# (tbl_carriers.is_flota_propia, sql/08): la pantalla de vehículos siempre pide
+# transportista. País = el del vehículo (sql/71) o, si no lo tiene, el del transportista.
 _FLOTA = """
-SELECT id, plate, capacity_weight::float AS cw, capacity_volume::float AS cv
-FROM tbl_vehicles
-WHERE organization_id = %s AND status = 'active' AND carrier_id IS NULL
-ORDER BY capacity_weight DESC NULLS LAST
+SELECT v.id, v.plate, v.capacity_weight::float AS cw, v.capacity_volume::float AS cv
+FROM tbl_vehicles v
+LEFT JOIN tbl_carriers ca ON ca.id = v.carrier_id
+WHERE v.organization_id = %s AND v.status = 'active'
+  AND (v.carrier_id IS NULL OR ca.is_flota_propia)
+  AND v.capacity_weight IS NOT NULL AND v.capacity_volume IS NOT NULL
+  AND COALESCE(v.country_id, ca.country_id) = (SELECT w.country_id FROM tbl_warehouses w WHERE w.id = %s)
+ORDER BY v.capacity_weight DESC, v.plate
+"""
+
+# Camiones de transportistas TERCEROS del país del almacén (fase 6, USAR_TERCEROS=si): segunda
+# opción del solver cuando la flota propia ya tiene viaje ese día.
+_TERCEROS = """
+SELECT v.id, v.plate, v.capacity_weight::float AS cw, v.capacity_volume::float AS cv, false AS propio,
+       v.carrier_id::text AS carrier_id, v.vehicle_type
+FROM tbl_vehicles v
+JOIN tbl_carriers ca ON ca.id = v.carrier_id
+WHERE v.organization_id = %s AND v.status = 'active' AND NOT COALESCE(ca.is_flota_propia, false)
+  AND COALESCE(ca.status, 'active') = 'active'
+  AND v.capacity_weight IS NOT NULL AND v.capacity_volume IS NOT NULL
+  AND COALESCE(v.country_id, ca.country_id) = (SELECT w.country_id FROM tbl_warehouses w WHERE w.id = %s)
+ORDER BY v.capacity_weight DESC, v.plate
 """
 
 
-def _empacar(pedidos: list[dict], flota: list[dict], vi: int) -> tuple[list[dict], int]:
-    """Un viaje por pasada: llena el camión en turno con los pedidos que entren
-    (peso+volumen+tope de paradas) y rota de camión. `vi` rota GLOBAL entre zonas
-    para no asignar el mismo camión a dos viajes del día."""
-    viajes: list[dict] = []
-    restantes = list(pedidos)
-    while restantes:
-        veh = flota[vi % len(flota)]
-        max_w, max_v = veh["cw"] * MARGEN_PESO, veh["cv"] * MARGEN_VOLUMEN
-        dentro, fuera, w, v = [], [], 0.0, 0.0
-        for o in restantes:
-            ow, ov = o["weight"] or 0.0, o["volume"] or 0.0
-            if len(dentro) < MAX_PARADAS and w + ow <= max_w and v + ov <= max_v:
-                dentro.append(o); w += ow; v += ov
-            else:
-                fuera.append(o)
-        if not dentro:  # un pedido solo excede el camión: va igual (la UI avisa)
-            dentro, fuera = [restantes[0]], restantes[1:]
-            w, v = dentro[0]["weight"] or 0.0, dentro[0]["volume"] or 0.0
-        viajes.append({"veh": veh, "pedidos": dentro, "peso": round(w, 2), "volumen": round(v, 2)})
-        restantes = fuera
-        vi += 1
-    return viajes, vi
+def flota_del_almacen(org: str, warehouse: str) -> list[dict]:
+    """Flota propia del país del almacén y, con USAR_TERCEROS=si, los terceros (propio=False)."""
+    flota = [{**c, "propio": True} for c in pg.query(_FLOTA, [org, warehouse])]
+    if costos.usar_terceros():
+        flota += [dict(c) for c in pg.query(_TERCEROS, [org, warehouse])]
+    return flota
 
 
-def _clave(o: dict) -> str:
-    """Mayoreo (Cofersa) se consolida por zona; una TIENDA (EPA) va en viaje directo,
-    camión lleno a una sola tienda, así que su grupo es la tienda (reunión 2026-11-03)."""
-    return o["customer_name"] if o.get("customer_type") == "TIENDA" else (o["delivery_zone"] or "S/R")
+# Sede del almacén: de dónde salen los camiones y con qué mapa se miden (ruta_geo.sede_de).
+_ALMACEN = """
+SELECT w.latitude::float AS lat, w.longitude::float AS lng, c.code AS pais
+FROM tbl_warehouses w JOIN tbl_countries c ON c.id = w.country_id
+WHERE w.id = %s
+"""
 
 
-def _agrupar_por_zona(pedidos: list[dict]) -> dict:
-    zonas: dict = {}
-    for o in pedidos:
-        zonas.setdefault(_clave(o), []).append(o)
-    return zonas
+def sede_del_almacen(warehouse: str, pedidos: list[dict]):
+    filas = pg.query(_ALMACEN, [warehouse])
+    a = filas[0] if filas else {"lat": None, "lng": None, "pais": None}
+    return sede_de(a["pais"], a["lat"], a["lng"], pedidos)
+
+
+# Camiones que ya tienen viaje ese día en el almacén (viajes congelados de esta compañía y
+# planes de las otras): el motor usa primero los libres. ponytail: aproxima "el mismo día"
+# por fecha de entrega (plan_date), no por fecha de salida; hacerlo por salida exige conocer
+# el T-n del viaje nuevo antes de armarlo.
+_USOS_DEL_DIA = """
+SELECT t.vehicle_id::text AS id, count(*) AS n
+FROM tbl_plan_trips t JOIN tbl_route_plans p ON p.id = t.plan_id
+WHERE p.organization_id = %s AND p.warehouse_id = %s AND p.plan_date = %s::date
+  AND t.vehicle_id IS NOT NULL AND t.status <> 'cancelled'
+GROUP BY t.vehicle_id
+"""
+
+
+def usos_del_dia(run, org: str, warehouse: str, fecha: str) -> dict:
+    return {r["id"]: r["n"] for r in run(_USOS_DEL_DIA, [org, warehouse, fecha])}
 
 
 # dispatch_date = salida = delivery_date - lead_time_days; lead nunca es NULL, siempre hay salida.
@@ -102,15 +140,68 @@ INSERT INTO tbl_plan_stops (trip_id, order_id, stop_order, order_number, custome
 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
 
 
-def _persistir_viaje(run, plan_id: str, zona: str, seq: int, viaje: dict, run_id: str, numero: str) -> None:
-    """Inserta el viaje y sus paradas, y estampa el resultado en orders + eFlow sim."""
+log = logging.getLogger(__name__)
+
+# Registro de la corrida (sql/72, ADR-005/ADR-007): entrada, resultado y parámetros del motor.
+_INS_CORRIDA = """
+INSERT INTO tbl_routing_runs (planning_run_id, organization_id, warehouse_id, customer_id, plan_date, plan_id,
+  motor, motor_solicitado, region, deposito_origen, fuente_matriz, pedidos, viajes, km, duracion_ms, error,
+  parametros, entrada, resultado, created_by)
+VALUES (%s,%s,%s,%s,%s::date,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s::jsonb,%s)"""
+
+
+def _parametros() -> dict:
+    p = {"margen_peso": motor_ruteo.MARGEN_PESO, "margen_volumen": motor_ruteo.MARGEN_VOLUMEN,
+         "max_paradas": motor_ruteo.MAX_PARADAS, "tn_modo": tiempo_salida.modo(),
+         "tn_min_por_dia": tiempo_salida.min_por_dia(), "tn_max_dias": tiempo_salida.max_dias(),
+         "costos_modo": costos.modo(), "usar_terceros": costos.usar_terceros(),
+         "propios_una_vuelta": motor_ruteo.propios_una_vuelta(),
+         "terceros_una_vuelta": motor_ruteo.terceros_una_vuelta(), "factor_tercero": costos.FACTOR_TERCERO}
+    mo, ort = sys.modules.get("motor_ortools"), sys.modules.get("ortools")
+    if mo is not None:  # solo si el solver se cargó en esta corrida
+        p.update({"costo_fijo_viaje_km": mo.COSTO_FIJO_VIAJE_KM, "costo_reuso_km": mo.COSTO_REUSO_KM,
+                  "tiempo_limite_s": mo.TIEMPO_LIMITE_S})
+    if ort is not None:
+        p["ortools"] = getattr(ort, "__version__", None)
+    return p
+
+
+def registrar_corrida(run, contexto: dict, pedidos: list[dict], flota: list[dict], sede, usos: dict,
+                      viajes: list[dict], informe: dict, duracion_ms: int, costos_flota: dict | None = None) -> None:
+    """Una fila en tbl_routing_runs con lo necesario para explicar y reproducir el plan.
+    Corre en la transacción del plan: si el plan se revierte, el registro también."""
+    entrada = {"sede": {"deposito": list(sede.deposito), "region": sede.region, "origen": sede.origen},
+               "flota": [{"id": c["id"], "cw": c["cw"], "cv": c["cv"], "propio": c.get("propio", True)} for c in flota],
+               # Llaves como texto: los ids de vehículo llegan como UUID y JSON no acepta esas llaves.
+               "usos_previos": {str(k): n for k, n in usos.items()},
+               "costos": {str(k): c for k, c in costos_flota.items()} if costos_flota else None,
+               "pedidos": [{"id": o["id"], "lat": o["lat"], "lng": o["lng"], "peso": o["weight"],
+                            "volumen": o["volume"], "grupo": motor_ruteo.clave(o)} for o in pedidos]}
+    resultado = [{"zona": v["zona"], "camion": v["veh"]["id"] if v["veh"] else None,
+                  "pedidos": [o["id"] for o in v["pedidos"]], "peso": v["peso"], "volumen": v["volumen"],
+                  "lead": v["lead"], "minutos": v.get("minutos")} for v in viajes]
+    run(_INS_CORRIDA, [contexto["run_id"], contexto["org"], contexto["warehouse"], contexto["customer"],
+                       contexto["fecha"], contexto["plan_id"], informe.get("motor"), informe.get("motor_solicitado"),
+                       sede.region, sede.origen, informe.get("fuente_matriz"), len(pedidos), len(viajes),
+                       informe.get("km"), duracion_ms, informe.get("error"),
+                       json.dumps({**_parametros(), "informe": {k: informe.get(k) for k in
+                                                                ("costo_colones", "terceros", "tn_modo", "sin_camion")}},
+                                  default=str),
+                       json.dumps(entrada, default=str),
+                       json.dumps(resultado, default=str), contexto["created_by"]])
+
+
+def _persistir_viaje(run, plan_id: str, seq: int, viaje: dict, run_id: str, numero: str) -> None:
+    """Inserta un viaje del motor (paradas ya en orden de visita) y estampa el
+    resultado en orders + eFlow sim."""
     veh = viaje["veh"]  # None = viaje de cliente-retira (sin camión)
-    lead = lead_time_dias(viaje["pedidos"])
+    zona, lead = viaje["zona"], viaje["lead"]
     wmh = int(numero.replace("-", ""))  # NUMEROVIAJEWMH es bigint (nº de viaje sin guion)
+    propio = veh is not None and veh.get("propio", True)  # un tercero (fase 6) no es flota propia
     trip_id = run(_INS_TRIP, [plan_id, veh["id"] if veh else None, zona, seq, viaje["peso"], viaje["volumen"],
                               veh["plate"] if veh else None, veh["cw"] if veh else None,
-                              veh["cv"] if veh else None, veh is not None, numero, lead])[0]["id"]
-    for i, o in enumerate(ordenar_por_ruta(viaje["pedidos"]), start=1):
+                              veh["cv"] if veh else None, propio, numero, lead])[0]["id"]
+    for i, o in enumerate(viaje["pedidos"], start=1):
         run(_INS_STOP, [trip_id, o["id"], i, o["order_number"], o["customer_name"], o["delivery_city"],
                         o["delivery_zone"], o["lat"], o["lng"], o["weight"], o["volume"], o["es_cliente_retira"]])
         run(_UPD_ORDER, [numero, lead, lead, run_id, o["id"]])  # denormaliza al pedido para el OMS (lead dos veces: col + intervalo)
@@ -119,11 +210,11 @@ def _persistir_viaje(run, plan_id: str, zona: str, seq: int, viaje: dict, run_id
                            o["eflow_id_sucursal"], o["eflow_id_expedicion"]])
 
 
-def _viaje_retira(pedidos: list[dict]) -> dict:
+def _viaje_retira(pedidos: list[dict], sede) -> dict:
     """Pseudo-viaje de cliente-retira: sin camión, sin capacidad; solo la lista."""
     peso = round(sum(o["weight"] or 0.0 for o in pedidos), 2)
     vol = round(sum(o["volume"] or 0.0 for o in pedidos), 2)
-    return {"veh": None, "pedidos": pedidos, "peso": peso, "volumen": vol}
+    return motor_ruteo.cerrar_viaje(ZONA_RETIRA, None, pedidos, peso, vol, sede)
 
 
 def construir_y_persistir(org: str, country: str, warehouse: str, customer: str, fecha: str, created_by: str) -> str | None:
@@ -133,14 +224,16 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
     pedidos = pg.query(_ORDERS, [org, warehouse, customer, fecha])
     if not pedidos:
         pg.run_in_transaction(lambda run: (viajes_liberados.borrar_no_liberado(run, org, warehouse, customer, fecha),
-                                           recolectas.agendar(run, org, warehouse, customer, fecha, _clave)))  # viajes congelados
+                                           recolectas.agendar(run, org, warehouse, customer, fecha, motor_ruteo.clave)))  # viajes congelados
         return None
     retira = [o for o in pedidos if o["es_cliente_retira"]]
     normales = [o for o in pedidos if not o["es_cliente_retira"]]
-    flota = pg.query(_FLOTA, [org])
+    flota = flota_del_almacen(org, warehouse)
     if not flota and normales:
         from tms_common.errors import HttpError
-        raise HttpError(409, "No hay flota propia activa para planificar")
+        raise HttpError(409, "No hay flota propia activa del país del almacén para planificar")
+    sede = sede_del_almacen(warehouse, pedidos)
+    costos_flota = costos.por_vehiculo(flota, sede.region)  # None salvo COSTOS_MODO=reales en Costa Rica
 
     run_id = str(uuid.uuid4())
     # Nº de viaje = fecha-compañía-secuencia: cada compañía numera su plan desde 001, y sin la
@@ -155,16 +248,25 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
             plan_id = run("""INSERT INTO tbl_route_plans (organization_id, country_id, warehouse_id, customer_id, plan_date, status, created_by)
                              VALUES (%s,%s,%s,%s,%s::date,'confirmed',%s) RETURNING id""",
                           [org, country, warehouse, customer, fecha, created_by])[0]["id"]
-        vi = 0
-        for zona, ped_zona in sorted(_agrupar_por_zona(normales).items()):
-            viajes, vi = _empacar(ped_zona, flota, vi)
-            for viaje in viajes:
-                seq += 1
-                _persistir_viaje(run, plan_id, zona, seq, viaje, run_id, f"{prefijo}-{seq:03d}")
-        recolectas.agendar(run, org, warehouse, customer, fecha, _clave)  # devoluciones → paradas collection
+        usos = usos_del_dia(run, org, warehouse, fecha)  # ya sin los viajes no liberados de esta compañía
+        informe: dict = {}
+        inicio = time.monotonic()
+        viajes = motor_ruteo.asignar_y_ordenar(normales, flota, sede, usos, informe=informe, costos=costos_flota)
+        tiempo_salida.ajustar(viajes, sede, informe)  # T-n por carretera si TN_MODO=carretera (fase 5)
+        if informe.get("sin_camion"):  # PROPIOS_UNA_VUELTA sin terceros suficientes: el próximo replan reintenta
+            log.warning("plan %s %s: %s pedidos sin camión disponible", customer, fecha, len(informe["sin_camion"]))
+        duracion_ms = round((time.monotonic() - inicio) * 1000)
+        for viaje in viajes:
+            seq += 1
+            _persistir_viaje(run, plan_id, seq, viaje, run_id, f"{prefijo}-{seq:03d}")
+        if normales:
+            registrar_corrida(run, {"run_id": run_id, "org": org, "warehouse": warehouse, "customer": customer,
+                                    "fecha": fecha, "plan_id": plan_id, "created_by": created_by},
+                              normales, flota, sede, usos, viajes, informe, duracion_ms, costos_flota)
+        recolectas.agendar(run, org, warehouse, customer, fecha, motor_ruteo.clave)  # devoluciones → paradas collection
         if retira:  # grupo de cliente-retira: zona RETIRA, sin camión
             seq += 1
-            _persistir_viaje(run, plan_id, ZONA_RETIRA, seq, _viaje_retira(retira), run_id, f"{prefijo}-{seq:03d}")
+            _persistir_viaje(run, plan_id, seq, _viaje_retira(retira, sede), run_id, f"{prefijo}-{seq:03d}")
         return plan_id
 
     return str(pg.run_in_transaction(trabajo))

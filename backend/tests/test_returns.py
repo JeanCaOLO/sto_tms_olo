@@ -1,7 +1,11 @@
 """Devoluciones: recepción por viaje y formulario (backend/admin/src/admin_returns.py)."""
 
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+import base64
+import json
+import re
+import sqlite3
 
 import pytest
 
@@ -42,6 +46,8 @@ class FakeDb:
             return [self.return_row] if self.return_row else []
         if sql.lstrip().startswith("UPDATE tbl_returns\nSET status = 'received'"):
             return [{"id": params[3], "status": "received", "received_quantity": params[1]}]
+        if sql.lstrip().startswith("UPDATE tbl_returns\nSET status = 'rejected'"):
+            return [{"id": params[2], "status": "rejected", "rejection_reason": params[0]}]
         if sql.lstrip().startswith("UPDATE tbl_returns rt"):
             return self.received_all
         if sql.lstrip().startswith("SELECT * FROM tbl_return_forms WHERE id"):
@@ -108,7 +114,101 @@ def test_a_role_limited_to_some_countries_filters_every_read_by_them(app, db, ca
     caller_permissions.set(make_permissions({"devoluciones": ["view"]}, countries=[COUNTRY]))
     call(app, "GET /api/v1/devoluciones/viajes")
     sql, params = next(c for c in db.calls if "FROM vw_return_trips" in c[0] and "ORDER BY" in c[0])
-    assert "country_id = ANY(%s::uuid[])" in sql and params[-1] == [COUNTRY]
+    assert "country_id = ANY(%s::uuid[])" in sql and params[-2] == [COUNTRY]
+
+
+@pytest.fixture
+def trips_database(monkeypatch):
+    """Ejecuta la consulta de paginación sobre filas reales locales, sin conexión a Aurora.
+
+    Solo adapta placeholders, casts y ANY al dialecto SQLite. La comparación
+    de claves y el ORDER BY los ejecuta SQL, no un doble que imite el cursor.
+    """
+    connection = sqlite3.connect(":memory:")
+    connection.row_factory = sqlite3.Row
+    connection.execute("CREATE TABLE vw_return_trips (route_id TEXT, route_date TEXT, route_number TEXT, "
+                       "organization_id TEXT, country_id TEXT, pending_returns INTEGER, open_returns INTEGER, incident_returns INTEGER)")
+    rows = [{"route_id": f"11111111-1111-4111-8111-{index:012d}",
+             "route_date": None if index % 11 == 0 else "2026-11-12",
+             "route_number": None if index % 7 == 0 else "R-1",
+             "organization_id": ORG, "country_id": COUNTRY if index % 5 else "other-country",
+             "pending_returns": index % 3, "open_returns": index % 3, "incident_returns": 0} for index in range(1201)]
+    connection.executemany("INSERT INTO vw_return_trips VALUES (:route_id, :route_date, :route_number, "
+                           ":organization_id, :country_id, :pending_returns, :open_returns, :incident_returns)", rows)
+    original = pg.query
+
+    def query(statement, params=()):
+        if "FROM vw_return_trips" not in statement:
+            return original(statement, params)
+        bound = []
+        for value in params:
+            if isinstance(value, list):
+                statement = statement.replace("= ANY(%s::uuid[])", "IN (" + ",".join(["%s"] * len(value)) + ")", 1)
+                bound.extend(value)
+            else:
+                bound.append(value.isoformat() if isinstance(value, date) else value)
+        statement = re.sub(r"::(?:uuid|boolean|date|text|int)", "", statement)
+        statement = statement.replace("DATE '0001-01-01'", "'0001-01-01'").replace("%s", "?")
+        return [dict(row) for row in connection.execute(statement, bound)]
+
+    monkeypatch.setattr(pg, "query", query)
+    yield rows
+    connection.close()
+
+
+def _all_trip_pages(app, query):
+    cursor, rows = None, []
+    for _ in range(100):
+        response = call(app, "GET /api/v1/devoluciones/viajes", query={**query, **({"cursor": cursor} if cursor else {})})
+        assert response["statusCode"] == 200, body_of(response)
+        body = body_of(response)
+        rows.extend(body["data"])
+        cursor = body.get("next_cursor")
+        if cursor is None:
+            return rows
+    pytest.fail("La paginación no termina")
+
+
+def test_trip_pages_reach_every_row_past_500_with_tied_and_null_keys(app, trips_database, caller_permissions):
+    caller_permissions.set(READER)
+    rows = _all_trip_pages(app, {"limit": "100"})
+    assert len(rows) == len(trips_database) == len({row["route_id"] for row in rows})
+    ordered = sorted(trips_database, key=lambda row: (
+        row["route_date"] is None, row["route_date"] or "0001-01-01",
+        row["route_number"] is None, row["route_number"] or "", row["route_id"]), reverse=True)
+    assert [row["route_id"] for row in rows] == [row["route_id"] for row in ordered]
+
+
+@pytest.mark.parametrize("state", ["pendientes", "recibidos"])
+def test_trip_pagination_keeps_country_dates_and_state_on_every_page(app, trips_database, caller_permissions, state):
+    caller_permissions.set(make_permissions({"devoluciones": ["view"]}, countries=[COUNTRY]))
+    rows = _all_trip_pages(app, {"limit": "17", "estado": state, "desde": "2026-11-01", "hasta": "2026-11-30"})
+    expected = [row for row in trips_database if row["country_id"] == COUNTRY and row["route_date"] is not None
+                and ((row["pending_returns"] > 0) == (state == "pendientes"))]
+    assert {row["route_id"] for row in rows} == {row["route_id"] for row in expected}
+    assert len(rows) == len(expected)
+
+
+def test_legacy_trip_list_still_returns_an_array_of_at_most_500(app, trips_database, caller_permissions):
+    caller_permissions.set(READER)
+    body = body_of(call(app, "GET /api/v1/devoluciones/viajes"))
+    assert isinstance(body["data"], list) and len(body["data"]) == 500
+    assert body.get("next_cursor")
+
+
+@pytest.mark.parametrize("query", [{"limit": value} for value in ("0", "-1", "501", "1.5", "x", "9" * 5000)] + [
+    {"cursor": "not-a-cursor"}, {"cursor": "e30"}, {"cursor": "x" * 2049},
+])
+def test_trip_pagination_rejects_invalid_parameters(app, caller_permissions, query):
+    caller_permissions.set(READER)
+    assert call(app, "GET /api/v1/devoluciones/viajes", query=query)["statusCode"] == 400
+
+
+@pytest.mark.parametrize("number", ["R\x00invalid", "R\ud800invalid"])
+def test_trip_cursor_rejects_text_postgres_cannot_store(app, caller_permissions, number):
+    caller_permissions.set(READER)
+    cursor = base64.urlsafe_b64encode(json.dumps(["2026-11-12", number, "11111111-1111-4111-8111-111111111111"]).encode()).decode()
+    assert call(app, "GET /api/v1/devoluciones/viajes", query={"cursor": cursor})["statusCode"] == 400
 
 
 def test_a_trip_outside_the_role_countries_is_not_found(app, db, caller_permissions):
@@ -158,14 +258,23 @@ def test_receiving_a_return_defaults_to_the_reported_quantity_and_is_audited(app
     assert any(c[0] == "record" and c[2]["metadata"]["action"] == "recibir" for c in audit_calls)
 
 
-def test_receiving_with_a_different_quantity_and_condition(app, db, caller_permissions):
+def test_incomplete_or_damaged_receipt_requires_a_text_incident(app, db, caller_permissions):
     caller_permissions.set(RECEIVER)
-    call(app, "POST /api/v1/devoluciones/{returnId}/recibir", path={"returnId": RETURN},
+    response = call(app, "POST /api/v1/devoluciones/{returnId}/recibir", path={"returnId": RETURN},
          body={"received_quantity": 1, "condition": "Dañado"})
-    assert writes(db, "SET status = 'received'")[0][1:3] == [1, "Dañado"]
+    assert response['statusCode'] == 400
+    assert not writes(db, "SET status = 'received'")
 
 
-@pytest.mark.parametrize("body", [{"received_quantity": -1}, {"received_quantity": "2"}, {"condition": "Roto"}])
+def test_receive_all_cannot_accept_damaged_goods_without_incident_text(app, db, caller_permissions):
+    caller_permissions.set(RECEIVER)
+    response = call(app, "POST /api/v1/devoluciones/viajes/{routeId}/recibir-todas", path={"routeId": ROUTE}, body={"condition":"Dañado"})
+    assert response['statusCode'] == 400
+    assert not writes(db, "UPDATE tbl_returns")
+
+
+@pytest.mark.parametrize("body", [{"received_quantity": -1}, {"received_quantity": "2"}, {"condition": "Roto"},
+                                  {"received_quantity": 2147483648}])
 def test_receiving_rejects_invalid_quantity_or_condition(app, db, caller_permissions, body):
     caller_permissions.set(RECEIVER)
     response = call(app, "POST /api/v1/devoluciones/{returnId}/recibir", path={"returnId": RETURN}, body=body)
@@ -279,6 +388,14 @@ def test_reading_a_form_returns_it_with_its_returns_and_sections(app, db, caller
     assert data["form"]["form_number"] == "DEV-2026-11-0001" and data["trip"]["route_id"] == ROUTE
 
 
+def test_cannot_add_a_return_in_review_to_a_new_form(app, db, caller_permissions):
+    caller_permissions.set(RECEIVER)
+    db.selected[0]['status'] = 'in_review'
+    response = _create(app, {'return_ids': [RETURN]})
+    assert response['statusCode'] == 409
+    assert not writes(db, 'INSERT INTO tbl_return_forms')
+
+
 def test_reading_an_unknown_form_is_a_404(app, caller_permissions):
     caller_permissions.set(READER)
     assert call(app, "GET /api/v1/devoluciones/formularios/{formId}", path={"formId": "x"})["statusCode"] == 404
@@ -304,3 +421,80 @@ def test_updating_a_form_rejects_a_section_of_a_stop_it_does_not_cover(app, db, 
 def test_updating_an_unknown_form_is_a_404(app, caller_permissions):
     caller_permissions.set(RECEIVER)
     assert call(app, "PUT /api/v1/devoluciones/formularios/{formId}", path={"formId": "x"}, body={})["statusCode"] == 404
+
+
+def test_country_query_param_filters_summary_and_trips(app, db, caller_permissions):
+    caller_permissions.set(READER)
+    valid_country = "11111111-1111-1111-1111-111111111111"
+    # Resumen con filtro de país
+    res_summary = call(app, "GET /api/v1/devoluciones/resumen", query={"pais": valid_country})
+    assert res_summary["statusCode"] == 200
+    sql_summary, params_summary = next(c for c in db.calls if "FROM vw_return_trips" in c[0] and "WHERE" in c[0])
+    assert "country_id = %s::uuid" in sql_summary and valid_country in params_summary
+
+    # Viajes con filtro de país
+    res_trips = call(app, "GET /api/v1/devoluciones/viajes", query={"pais": valid_country})
+    assert res_trips["statusCode"] == 200
+    sql_trips, params_trips = next(c for c in reversed(db.calls) if "FROM vw_return_trips" in c[0] and "ORDER BY" in c[0])
+    assert "country_id = %s::uuid" in sql_trips and valid_country in params_trips
+
+    # País inválido da 400
+    assert call(app, "GET /api/v1/devoluciones/resumen", query={"pais": "no-uuid"})["statusCode"] == 400
+
+
+def test_cursor_and_selected_country_keep_role_scope_together(app, db, caller_permissions):
+    country = "11111111-1111-1111-1111-111111111111"
+    route_id = "22222222-2222-2222-2222-222222222222"
+    caller_permissions.set(make_permissions({"devoluciones": ["view"]}, countries=[country]))
+    cursor = base64.urlsafe_b64encode(json.dumps(["2026-11-12", "R-2", route_id]).encode()).decode().rstrip("=")
+    response = call(app, "GET /api/v1/devoluciones/viajes", query={"pais": country, "cursor": cursor, "limit": "100"})
+    assert response["statusCode"] == 200
+    statement, params = next(c for c in reversed(db.calls) if "FROM vw_return_trips" in c[0] and "ORDER BY" in c[0])
+    assert "country_id = %s::uuid" in statement
+    assert "country_id = ANY(%s::uuid[])" in statement
+    assert "%s::boolean, %s::date, %s::boolean, %s::text, %s::uuid" in statement
+    assert params == [ORG, False, date(2026, 11, 12), False, "R-2", route_id, country, [country], 101]
+
+
+def test_rejecting_a_return_requires_reason_and_is_audited(app, db, caller_permissions, audit_calls):
+    caller_permissions.set(RECEIVER)
+    response = call(app, "POST /api/v1/devoluciones/{returnId}/rechazar", path={"returnId": RETURN},
+                    body={"reason": "Mercadería extraviada antes de cargar"})
+    assert response["statusCode"] == 200
+    assert body_of(response)["data"]["return"]["status"] == "rejected"
+    assert next(c for c in db.calls if "UPDATE tbl_returns" in c[0] and "status = 'rejected'" in c[0])
+    assert any(c[0] == "record" and c[2]["metadata"]["action"] == "rechazar" for c in audit_calls)
+
+
+def test_rejecting_requires_reason(app, caller_permissions):
+    caller_permissions.set(RECEIVER)
+    assert call(app, "POST /api/v1/devoluciones/{returnId}/rechazar", path={"returnId": RETURN},
+                body={})["statusCode"] == 400
+    assert call(app, "POST /api/v1/devoluciones/{returnId}/rechazar", path={"returnId": RETURN},
+                body={"reason": "   "})["statusCode"] == 400
+    assert call(app, "POST /api/v1/devoluciones/{returnId}/rechazar", path={"returnId": RETURN},
+                body={"reason": "x" * 501})["statusCode"] == 400
+
+
+def test_cannot_reject_a_received_return(app, db, caller_permissions):
+    caller_permissions.set(RECEIVER)
+    db.return_row = {"id": RETURN, "quantity": 1, "status": "received", "route_id": ROUTE}
+    assert call(app, "POST /api/v1/devoluciones/{returnId}/rechazar", path={"returnId": RETURN},
+                body={"reason": "ya se recibió"})["statusCode"] == 409
+
+
+def test_rejecting_already_rejected_is_idempotent(app, db, caller_permissions):
+    caller_permissions.set(RECEIVER)
+    db.return_row = {"id": RETURN, "quantity": 1, "status": "rejected", "route_id": ROUTE}
+    res = call(app, "POST /api/v1/devoluciones/{returnId}/rechazar", path={"returnId": RETURN},
+               body={"reason": "no existe"})
+    assert res["statusCode"] == 200
+    assert body_of(res)["data"]["return"] is None
+
+
+def test_a_reader_cannot_reject_a_return(app, caller_permissions):
+    caller_permissions.set(READER)
+    assert call(app, "POST /api/v1/devoluciones/{returnId}/rechazar", path={"returnId": RETURN},
+                body={"reason": "motivo"})["statusCode"] == 403
+
+

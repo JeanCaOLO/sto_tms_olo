@@ -25,6 +25,8 @@ from tms_common.db_names import physical
 from tms_common.errors import HttpError
 
 from tarifas_schema import Table, quote
+from tarifas_business_rules import MARKS_TABLE, mark_guard, validate_mark
+from tarifas_proforma_content import ITEMS, PARENTS, PARENT_MUTABLE, validate_item
 
 MAX_ROWS = 5000  # tope por consulta: protege a la Lambda de un find() sin límite
 MAX_INSERT_ROWS = 5000  # filas de una operación `insert_many`
@@ -231,6 +233,14 @@ def _values(table: Table, values) -> dict:
 
 def build_insert(table: Table, values) -> tuple[str, list]:
     row = dict(_values(table, values))
+    if table.name == MARKS_TABLE:
+        row = validate_mark(row, creating=True)
+    if table.name == ITEMS:
+        validate_item(row, creating=True)
+    if table.name == PARENTS:
+        if row.get("status", "Borrador") not in ("Borrador", "En Revisión"):
+            raise HttpError(400, "Una proforma nueva debe estar en Borrador o En Revisión.")
+        row["total_amount"] = "0"
     pk = table.primary_key
     if row.get(pk) in (None, ""):
         if table.column_type(pk) != "text":
@@ -257,6 +267,14 @@ def build_insert_many(table: Table, rows) -> list[tuple[str, list]]:
     prepared = []
     for values in rows:
         row = dict(_values(table, values))
+        if table.name == MARKS_TABLE:
+            row = validate_mark(row, creating=True)
+        if table.name == ITEMS:
+            validate_item(row, creating=True)
+        if table.name == PARENTS:
+            if row.get("status", "Borrador") not in ("Borrador", "En Revisión"):
+                raise HttpError(400, "Una proforma nueva debe estar en Borrador o En Revisión.")
+            row["total_amount"] = "0"
         if row.get(pk) in (None, ""):
             if table.column_type(pk) != "text":
                 raise HttpError(400, f'"{table.name}" requiere el id')
@@ -323,15 +341,29 @@ def build_update(table: Table, row_id: str, values, countries: tuple[str, ...] |
     pk = table.primary_key
     # El id nunca se reemplaza desde el payload (mismo criterio que el driver JSON).
     fields = {c: v for c, v in _values(table, values).items() if c != pk}
+    if table.name == MARKS_TABLE:
+        fields = validate_mark(fields, creating=False)
+    if table.name == ITEMS:
+        validate_item(fields, creating=False)
+    if table.name == PARENTS:
+        frozen = sorted(set(fields) - PARENT_MUTABLE)
+        if frozen:
+            raise HttpError(403, "La identidad de una proforma es inmutable: no se puede modificar " + ", ".join(frozen) + ".")
     if not fields:
         raise HttpError(400, "update requiere al menos un campo además del id")
-    set_clause = ", ".join(f"{quote(c)} = {placeholder(table, c)}" for c in fields)
+    derived_total = table.name == PARENTS and "total_amount" in fields
+    set_clause = ", ".join(
+        ('"total_amount" = (SELECT COALESCE(SUM(amount), 0) FROM tbl_tarifas_proforma_items '
+         'WHERE proforma_id = "tbl_tarifas_proformas"."id" AND state <> \'excluded\')')
+        if derived_total and c == "total_amount" else f"{quote(c)} = {placeholder(table, c)}" for c in fields)
     where, where_params = build_where(table, [{"column": pk, "op": "eq", "value": row_id}], countries)
     extra = _settlement_guard(fields) if table.name == SETTLEMENTS_TABLE else None
+    if table.name == MARKS_TABLE:
+        extra = mark_guard(fields)
     if extra:
         where = f"{where} AND {extra[0]}"
         where_params = where_params + extra[1]
-    params = [param(table, c, v) for c, v in fields.items()] + where_params
+    params = [param(table, c, v) for c, v in fields.items() if not (derived_total and c == "total_amount")] + where_params
     return f"UPDATE {quote(physical(table.name))} SET {set_clause} WHERE {where} RETURNING *", params
 
 

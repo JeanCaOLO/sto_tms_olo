@@ -1,8 +1,8 @@
 // Ruta por calles del viaje (sede → paradas en secuencia) con OSRM, partida por tramo para pintar lo recorrido y
-// lo pendiente. Misma base que Planificación (VITE_OSRM_URL, ver planificacion/osrm-config.ts). SIN línea recta
+// lo pendiente. Mismo OSRM que Planificación (osrmFetch, ver planificacion/osrm-config.ts). SIN línea recta
 // de respaldo: si OSRM no responde no se dibuja ruta (el mapa queda con las paradas destacadas).
 // Se pide UNA vez por viaje y paradas (caché en memoria), no en cada refresco.
-import { OSRM_BASE_URL } from '../planificacion/osrm-config';
+import { osrmFetch } from '../planificacion/osrm-config';
 
 const TIMEOUT_MS = 6000;
 const MAX_CACHE = 50;
@@ -17,7 +17,7 @@ async function pedir(puntos: [number, number][]): Promise<Tramo[]> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(`${OSRM_BASE_URL}/route/v1/driving/${coords}?overview=false&geometries=geojson&steps=true`, { signal: controller.signal });
+    const res = await osrmFetch(`route/v1/driving/${coords}?overview=false&geometries=geojson&steps=true`, { signal: controller.signal });
     if (!res.ok) return [];
     const legs = (await res.json())?.routes?.[0]?.legs;
     if (!Array.isArray(legs) || legs.length !== puntos.length - 1) return [];

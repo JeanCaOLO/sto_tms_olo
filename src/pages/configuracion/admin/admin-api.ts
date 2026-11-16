@@ -28,6 +28,9 @@ export interface AdminUser {
   // Solo el rol Transportista: la empresa de la que ve las proformas.
   carrier_id: string | null;
   carrier_name: string | null;
+  // Solo el rol Cliente: la empresa (compañía) a nombre de la que solicita devoluciones.
+  customer_id: string | null;
+  customer_name: string | null;
   status: UserStatus;
   created_at: string;
   scopes: UserScope[];
@@ -46,6 +49,7 @@ export interface UserPayload {
   status: UserStatus;
   scopes: ScopeInput[];
   carrier_id?: string | null;
+  customer_id?: string | null;
   email?: string;
   password?: string;
 }

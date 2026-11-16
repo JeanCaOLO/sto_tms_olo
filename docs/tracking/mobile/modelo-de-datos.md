@@ -36,7 +36,7 @@ Una guía (`dispatch_guides`) se crea **al iniciar** el viaje, una por pedido de
 | `m07_tracking_client_access.sql` | `tbl_tracking_client_access` + vista (rol Cliente) |
 | `m08_photo_return.sql` | Admite `photo_return` en el CHECK de evidencias |
 
-Se aplican con `backend/mobile/scripts/migrate.py` (usa credenciales admin `DB_ADMIN_*`). Estado de aplicación: [pendientes/03](./pendientes/03-aplicar-migraciones-mobile.md).
+Se aplican con `backend/mobile/scripts/migrate.py` (usa credenciales admin `DB_ADMIN_*`). Las ocho (`m01`–`m08`) están aplicadas en Aurora (2026-11-05); el historial queda en `mobile_migrations`, con checksum.
 
 ## Migraciones del TMS que sustentan el módulo (`sto_tms_olo/sql/`)
 

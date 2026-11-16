@@ -1,0 +1,127 @@
+{
+  "generated_at": "2026-11-12T15:35:08.647788-04:00",
+  "scope": "Local; sin despliegue, sin SQL compartido, sin escrituras reales de navegador",
+  "vitest_three_runs_before_final_label_adjustment": [
+    {
+      "passed": 1820,
+      "skipped": 12,
+      "log": "auto-incidents-vitest-1.log"
+    },
+    {
+      "passed": 1820,
+      "skipped": 12,
+      "log": "auto-incidents-vitest-2.log"
+    },
+    {
+      "passed": 1820,
+      "skipped": 12,
+      "log": "auto-incidents-vitest-3.log"
+    }
+  ],
+  "vitest_final_after_label_adjustment": {
+    "passed": 1821,
+    "skipped": 12,
+    "log": "auto-incidents-vitest-final.log"
+  },
+  "vitest_note": "Se retiraron nueve casos de acciones manuales eliminadas; se agregaron casos de lectura y novedades. El ajuste final de etiqueta agrega otro caso.",
+  "excluded_real_database_tests": [
+    "src/__tests__/db-connectivity.test.ts",
+    "src/__tests__/multi-tenant-isolation.test.ts"
+  ],
+  "backend": {
+    "passed": 807,
+    "log": "auto-incidents-backend-final-2.log",
+    "intermediate": "799 pasadas y 8 errores de permisos en el temporal del sistema; resuelto usando --basetemp dentro de TMS/.test"
+  },
+  "sql": {
+    "passed": 66,
+    "engine": "PostgreSQL 18.6 en PGlite 0.5.16, memoria, una instancia",
+    "log": "auto-incidents-sql-final.log"
+  },
+  "typescript": {
+    "errors": 0,
+    "log": "auto-incidents-tsc-final.log"
+  },
+  "eslint": {
+    "errors": 16,
+    "warnings": 22,
+    "baseline_unchanged": true,
+    "log": "auto-incidents-lint-final.log"
+  },
+  "build": {
+    "js_files": 71,
+    "js_bytes": 4091537,
+    "entry_js_bytes": {
+      "index-DLaCt8EH.js": 450182
+    },
+    "large_chunk_warning": true,
+    "log": "auto-incidents-build-final.log"
+  },
+  "browser": {
+    "kind": "synthetic-only",
+    "backend_calls_forwarded": 0,
+    "roles": [
+      {
+        "role": "Cliente",
+        "submitted": [
+          {
+            "item_count": 1,
+            "selected_company": null
+          }
+        ],
+        "page_errors": [],
+        "status": "passed"
+      },
+      {
+        "role": "Gerente",
+        "submitted": [
+          {
+            "item_count": 1,
+            "selected_company": "22222222-2222-2222-2222-222222222222"
+          }
+        ],
+        "page_errors": [],
+        "incident": {
+          "text_only": true,
+          "status": "in_review"
+        },
+        "status": "passed"
+      },
+      {
+        "role": "SuperUsuario",
+        "submitted": [
+          {
+            "item_count": 1,
+            "selected_company": "22222222-2222-2222-2222-222222222222"
+          }
+        ],
+        "page_errors": [],
+        "incident": {
+          "text_only": true,
+          "status": "in_review"
+        },
+        "status": "passed"
+      }
+    ]
+  },
+  "review": "Revision estatica independiente de permisos, idempotencia y cierre de ambos hallazgos; sin hallazgos nuevos en los cierres.",
+  "red_logs": [
+    "auto-approval-red.log",
+    "sql69-red.log",
+    "incidents-red.log",
+    "sql70-red.log",
+    "incidents-ui-red.log",
+    "receipt-novelty-red.log",
+    "request-readonly-red.log",
+    "incident-form-red.log",
+    "incident-ledger-red.log",
+    "incident-label-red.log"
+  ],
+  "pending": [
+    "Planificacion consumidor/acuse/asignacion",
+    "Tracking: correlacion, entrega real y foto hasta Por recibir",
+    "Aceptacion interna de novedades",
+    "SQL68/69/70 y publicacion por responsable",
+    "Concurrencia de dos conexiones y pruebas reales"
+  ]
+}

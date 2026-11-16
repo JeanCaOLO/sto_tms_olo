@@ -1,0 +1,70 @@
+{
+  "captured_at": "2026-11-12T17:20:10.029318+00:00",
+  "source": "admin_returns.get_trip",
+  "environment": "local Python; synthetic query results and signed URLs; 12 measured iterations after warmup",
+  "database_queries_executed": 0,
+  "s3_calls_executed": 0,
+  "network_calls_executed": 0,
+  "limits": [
+    "No PostgreSQL engine or query plan measured",
+    "No real signing time or AWS latency measured",
+    "Synthetic compression is not a forecast for real photo keys or signatures"
+  ],
+  "measurements": [
+    {
+      "returns": 10,
+      "sections": 1,
+      "forms": 1,
+      "query_calls": 5,
+      "signed_photo_calls": 10,
+      "payload_bytes": 9922,
+      "gzip_bytes_synthetic": 836,
+      "serializer_median_ms": 0.038,
+      "serializer_max_ms": 0.067
+    },
+    {
+      "returns": 100,
+      "sections": 10,
+      "forms": 1,
+      "query_calls": 5,
+      "signed_photo_calls": 100,
+      "payload_bytes": 92176,
+      "gzip_bytes_synthetic": 2567,
+      "serializer_median_ms": 0.394,
+      "serializer_max_ms": 0.751
+    },
+    {
+      "returns": 500,
+      "sections": 50,
+      "forms": 5,
+      "query_calls": 5,
+      "signed_photo_calls": 500,
+      "payload_bytes": 461676,
+      "gzip_bytes_synthetic": 9565,
+      "serializer_median_ms": 1.554,
+      "serializer_max_ms": 1.864
+    },
+    {
+      "returns": 1000,
+      "sections": 100,
+      "forms": 10,
+      "query_calls": 5,
+      "signed_photo_calls": 1000,
+      "payload_bytes": 923554,
+      "gzip_bytes_synthetic": 18141,
+      "serializer_median_ms": 3.059,
+      "serializer_max_ms": 3.759
+    },
+    {
+      "returns": 5000,
+      "sections": 500,
+      "forms": 50,
+      "query_calls": 5,
+      "signed_photo_calls": 5000,
+      "payload_bytes": 4651834,
+      "gzip_bytes_synthetic": 85577,
+      "serializer_median_ms": 15.766,
+      "serializer_max_ms": 19.513
+    }
+  ]
+}

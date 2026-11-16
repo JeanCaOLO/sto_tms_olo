@@ -1,0 +1,98 @@
+{
+  "captured_at": "2026-11-12T18:40:06.917666+00:00",
+  "commit": "3e2908a",
+  "vitest": [
+    {
+      "run": 1,
+      "passed": 1822,
+      "skipped": 12,
+      "source": "closure-vitest-1.log"
+    },
+    {
+      "run": 2,
+      "passed": 1822,
+      "skipped": 12,
+      "source": "closure-vitest-2.log"
+    },
+    {
+      "run": 3,
+      "passed": 1822,
+      "skipped": 12,
+      "source": "closure-vitest-3.log"
+    }
+  ],
+  "backend": {
+    "passed": 793
+  },
+  "sql": {
+    "passed": 53,
+    "engine": "PostgreSQL 18.6 / PGlite 0.5.16",
+    "external_connections": 0
+  },
+  "mobile_backend": {
+    "passed": 158,
+    "skipped": 24
+  },
+  "mobile_frontend": {
+    "passed": 174,
+    "suites": 20,
+    "typescript": "passed",
+    "lint": "passed",
+    "provenance": "console execution in this continuation"
+  },
+  "web_typescript": "passed",
+  "web_lint": {
+    "errors": 16,
+    "warnings": 22,
+    "errors_preexisting": true
+  },
+  "bundle": {
+    "js_files": 71,
+    "js_total_bytes": 4092997,
+    "entry": "/assets/index-DFxTv0oZ.js",
+    "entry_bytes": 450182,
+    "source_maps_bytes": 13384507
+  },
+  "browser": {
+    "kind": "synthetic-only",
+    "backend_calls_forwarded": 0,
+    "roles": [
+      {
+        "role": "Cliente",
+        "submitted": [
+          {
+            "item_count": 1,
+            "selected_company": null
+          }
+        ],
+        "page_errors": [],
+        "status": "passed"
+      },
+      {
+        "role": "Gerente",
+        "submitted": [
+          {
+            "item_count": 1,
+            "selected_company": "22222222-2222-2222-2222-222222222222"
+          }
+        ],
+        "page_errors": [],
+        "status": "passed"
+      },
+      {
+        "role": "SuperUsuario",
+        "submitted": [
+          {
+            "item_count": 1,
+            "selected_company": "22222222-2222-2222-2222-222222222222"
+          }
+        ],
+        "page_errors": [],
+        "status": "passed"
+      }
+    ]
+  },
+  "deployed": false,
+  "shared_migrations_applied": false,
+  "next_business_plan": "PLAN_SOLICITUDES_Y_NOVEDADES_2026-11-12.md"
+}

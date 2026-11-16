@@ -80,9 +80,9 @@ def test_a_trip_with_every_return_received_or_none_is_settled_as_before(api, mon
     assert gate_queries(db) and inserts(db)
 
 
-def test_the_check_only_counts_pending_and_approved_returns_of_that_route(api):
+def test_the_check_counts_pending_approved_and_review_returns_of_that_route(api):
     sql = load_stack_module("tarifas", "returns_gate").OPEN_RETURNS_SQL
-    assert "g.route_id = %s" in sql and "IN ('pending', 'approved')" in sql
+    assert "g.route_id = %s" in sql and "IN ('pending', 'approved', 'in_review')" in sql
 
 
 def test_a_transaction_that_inserts_a_blocked_settlement_opens_no_transaction(api, monkeypatch):

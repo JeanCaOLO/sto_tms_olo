@@ -12,6 +12,7 @@ import os
 import bitacora
 import ingest_orders
 import plan_builder
+import retencion
 from tms_common import pg
 
 # Ventana de planificación (reunión 2026-10-26): mañana + los siguientes, 3 días en
@@ -94,4 +95,5 @@ def replanificar_programado() -> dict:
     bitacora.registrar_corrida("planif_replan_programado", "Replan programado", None, None,
                                [d for r in res.values() for d in r["planificados"]],
                                [d for r in res.values() for d in r["bloqueados"]], "system")
+    retencion.purgar()  # registro de corridas del motor de más de ROUTING_RUNS_RETENCION_DIAS
     return res

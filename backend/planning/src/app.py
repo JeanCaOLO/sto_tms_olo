@@ -17,8 +17,12 @@ import re
 
 import bandeja
 import cambio_fecha
+import comparacion_motores
 import bitacora
 import ingest_orders
+import matriz_distancias
+import osrm_proxy
+import motor_ruteo
 import pedido_articulos
 import plan_builder
 import plans_read
@@ -155,6 +159,15 @@ def replan_todo(event: dict) -> dict:
     return json_response(200, {"data": res, "error": None})
 
 
+def osrm(event: dict) -> dict:
+    """Puente al OSRM propio para el mapa del frontend (osrm_proxy). Cualquier usuario con
+    sesión: lo usan Planificación y Tracking. Devuelve el JSON de OSRM tal cual."""
+    auth_user(event)  # exige sesión (el authorizer ya validó el token)
+    status, cuerpo = osrm_proxy.reenviar(path_param(event, "proxy"), query_params(event))
+    return {"statusCode": status, "headers": {"Content-Type": "application/json", "Cache-Control": "private, max-age=300"},
+            "body": cuerpo.decode("utf-8", "replace")}
+
+
 ROUTES = {
     "GET /api/v1/planificacion/pedidos": list_orders,
     "GET /api/v1/planificacion/bandeja": list_bandeja,
@@ -164,11 +177,14 @@ ROUTES = {
     "GET /api/v1/planificacion/planes/{id}": get_plan,
     "POST /api/v1/planificacion/planes": build_plan,
     "POST /api/v1/planificacion/planes/replanificar": replan_todo,
+    "GET /api/v1/planificacion/osrm/{proxy+}": osrm,
 }
 
 _http_handler = tms_handler(ROUTES)
 REPLAN_PROGRAMADO = "replan_programado"  # Input del Scheduler en template.yaml
 INGESTA_BANDEJA = "ingesta_bandeja"  # Input del Scheduler en template.yaml
+ESTADO_RUTEO = "estado_ruteo"  # Diagnóstico a mano (aws lambda invoke): motor activo, solver y OSRM
+COMPARAR_MOTORES = "comparar_motores"  # A mano: heurística vs OR-Tools sobre los pedidos reales, sin persistir
 
 
 def handler(event: dict, context: object) -> dict:
@@ -177,4 +193,8 @@ def handler(event: dict, context: object) -> dict:
         return replan.ingestar_programado()
     if isinstance(event, dict) and event.get("accion") == REPLAN_PROGRAMADO:
         return replan.replanificar_programado()
+    if isinstance(event, dict) and event.get("accion") == ESTADO_RUTEO:
+        return {**motor_ruteo.estado(), **matriz_distancias.estado()}
+    if isinstance(event, dict) and event.get("accion") == COMPARAR_MOTORES:
+        return comparacion_motores.comparar_todo(int(event.get("dias_atras") or 0))
     return _http_handler(event, context)

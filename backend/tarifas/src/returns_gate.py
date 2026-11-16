@@ -21,7 +21,7 @@ OPEN_RETURNS_SQL = """
 SELECT count(*)::int AS open_returns
 FROM tbl_returns rt
 JOIN tbl_dispatch_guides g ON g.id = rt.dispatch_guide_id
-WHERE g.route_id = %s AND COALESCE(rt.status, 'pending') IN ('pending', 'approved')
+WHERE g.route_id = %s AND COALESCE(rt.status, 'pending') IN ('pending', 'approved', 'in_review')
 """
 
 
