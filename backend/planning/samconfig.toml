@@ -10,10 +10,13 @@ resolve_s3 = true
 parameter_overrides = [
   "Environment=dev",
   "MotorRuteo=ortools",
-  "TnModo=linea",
+  "TnModo=carretera",
   "TnMinPorDia=135",
-  "CostosModo=fijo",
-  "UsarTerceros=no",
+  "TnMaxDias=3",
+  "CostosModo=reales",
+  "UsarTerceros=si",
+  "PropiosUnaVuelta=si",
+  "TercerosUnaVuelta=si",
   "CommonStackName=dev-tms-common-services",
   "CommonLayerArn=/dev/tms/common-layer-arn",
   "SubnetIds=/dev/tms/network/subnets",
@@ -32,8 +35,19 @@ parameter_overrides = [
   "CommonStackName=qa-tms-common-services",
   "CommonLayerArn=/qa/tms/common-layer-arn",
   "SubnetIds=/qa/tms/network/subnets",
-  "SecurityGroupId=/qa/tms/network/lambda-sg"
+  "SecurityGroupId=/qa/tms/network/lambda-sg",
+  "MotorRuteo=ortools",
+  "TnModo=carretera",
+  "TnMinPorDia=135",
+  "TnMaxDias=3",
+  "CostosModo=reales",
+  "UsarTerceros=si",
+  "PropiosUnaVuelta=si",
+  "TercerosUnaVuelta=si",
+  "OsrmUrl="
 ]
+# QA igual que el sandbox (dev). OsrmUrl: el output del stack qa-tms-osrm (ver
+# docs/guides/motor-ruteo-qa-produccion.md); vacío = distancias en línea recta.
 tags = ["Project=TMS", "Environment=QA", "Name=qa-tms-planning"]
 
 [prod.deploy.parameters]
@@ -47,6 +61,17 @@ parameter_overrides = [
   "CommonStackName=prod-tms-common-services",
   "CommonLayerArn=/prod/tms/common-layer-arn",
   "SubnetIds=/prod/tms/network/subnets",
-  "SecurityGroupId=/prod/tms/network/lambda-sg"
+  "SecurityGroupId=/prod/tms/network/lambda-sg",
+  "MotorRuteo=heuristico",
+  "TnModo=linea",
+  "TnMinPorDia=135",
+  "TnMaxDias=3",
+  "CostosModo=fijo",
+  "UsarTerceros=no",
+  "PropiosUnaVuelta=no",
+  "TercerosUnaVuelta=no",
+  "OsrmUrl="
 ]
+# Producción arranca con el comportamiento anterior: copiar los valores de QA cuando QA esté
+# validado y exista prod-tms-osrm (docs/guides/motor-ruteo-qa-produccion.md).
 tags = ["Project=TMS", "Environment=PROD", "Name=prod-tms-planning"]

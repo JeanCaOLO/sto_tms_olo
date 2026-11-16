@@ -38,7 +38,7 @@ def _validar(mr, viajes, pedidos):
     assert sorted(i for v in viajes for i in _ids(v)) == sorted(o["id"] for o in pedidos)
     for v in viajes:
         assert {mr.clave(o) for o in v["pedidos"]} == {v["zona"]}
-        assert set(v) == {"zona", "veh", "pedidos", "peso", "volumen", "lead"}
+        assert set(v) == {"zona", "veh", "pedidos", "peso", "volumen", "lead", "minutos"}
         if len(v["pedidos"]) > 1:
             assert len(v["pedidos"]) <= mr.MAX_PARADAS
             assert v["peso"] <= v["veh"]["cw"] * mr.MARGEN_PESO + 1e-6
@@ -112,7 +112,7 @@ def test_solo_invierte_el_sentido_si_no_alarga_el_recorrido(motores, monkeypatch
     _, mo = motores
     # Matriz asimétrica: 0→1→2→0 = 3 km; al revés (0→2→1→0) = 201 km, aunque 2 esté más cerca del depósito.
     km = [[0, 2, 1], [100, 0, 0.5], [0.5, 100, 0]]
-    monkeypatch.setattr(mo.matriz_distancias, "construir", lambda puntos, region: {"km": km, "fuente": "osrm"})
+    monkeypatch.setattr(mo.matriz_distancias, "construir", lambda puntos, region: {"km": km, "min": km, "fuente": "osrm"})
     viajes = mo.asignar_y_ordenar([_pedido(1, dlat=0.1), _pedido(2, dlat=0.2)], [_camion("A")])
     assert [_ids(v) for v in viajes] == [[1, 2]]
 

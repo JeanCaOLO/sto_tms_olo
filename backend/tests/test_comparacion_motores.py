@@ -30,7 +30,7 @@ def test_medir_cuenta_km_ida_y_vuelta_viajes_y_capacidad(cm):
     km = {(None, 1): 10, (1, 2): 5, (2, None): 12, (None, 4): 3, (4, 5): 1, (5, None): 3}
     m = cm.medir(viajes, lambda a, b: km[(a, b)])
     assert m == {"viajes": 2, "camiones": 1, "km": 34.0, "paradas_prom": 2.5, "paradas_max": 3,
-                 "ocupacion_peso_prom": 0.7, "viajes_fuera_de_capacidad": 1, "terceros": 0, "costo_colones": None}
+                 "ocupacion_peso_prom": 0.7, "viajes_fuera_de_capacidad": 1, "terceros": 0, "pedidos_en_viajes": 5, "costo_colones": None}
     # Con costos: km de cada viaje × costo/km de su camión + el día del camión una sola vez.
     con_costo = cm.medir(viajes, lambda a, b: km[(a, b)], {"A": {"km": 100.0, "dia": 5000.0}})
     assert con_costo["costo_colones"] == round(34 * 100.0 + 5000.0)

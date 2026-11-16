@@ -1,75 +1,54 @@
-# 06 — Motor de ruteo: decisiones de activación y mejoras
+# 06 — Motor de ruteo: lo que queda
 
-**Estado:** pendiente por verificar (las fases están construidas; faltan decisiones de negocio)
+**Estado:** pendiente por verificar
 
-**Dónde estamos (2026-11-13):**
+**Dónde estamos (2026-11-16):** todas las fases construidas y encendidas en el sandbox por
+decisión del usuario. Detalle: `docs/work/2026-11/2026-11-16-motor-ruteo-activacion.md`.
 
-| Fase | Estado | Interruptor (sandbox, `backend/planning/samconfig.toml`) |
-|---|---|---|
-| 1. Interfaz única (`motor_ruteo.asignar_y_ordenar`) | Hecha | — |
-| 2. OSRM propio, Costa Rica y Venezuela | Hecha | `OsrmUrl` (lo pone el deploy) |
-| 3. Motor OR-Tools | Hecha, **activo** | `MotorRuteo=ortools` |
-| 4. Comparación en sombra | Hecha: −9,4 % km, mismos viajes | `{"accion": "comparar_motores", "dias_atras": 45}` |
-| Venezuela (sede, mapa y flota por país) | Hecha; faltan datos e ingesta: [07](07-venezuela-ruteo.md) | — |
-| Camiones de viajes congelados | Hecha (corrección) | — |
-| 5. T-n por carretera | Hecha, **apagada** | `TnModo=linea`, `TnMinPorDia=135` |
-| 6. Costos por tipo de camión y terceros | Hecha, **apagada** | `CostosModo=fijo`, `UsarTerceros=no` |
-| 7. Registro de corridas (`tbl_routing_runs`) y ADR-005 aceptado | Hecha, activa | — |
+| Pieza | Estado en el sandbox (`backend/planning/samconfig.toml`, dev) |
+|---|---|
+| Motor OR-Tools | Encendido (`MotorRuteo=ortools`) |
+| OSRM propio, Costa Rica y Venezuela | Encendido; el frontend también lo usa (ruta `/api/v1/planificacion/osrm/...`) |
+| T-n por carretera | Encendido (`TnModo=carretera`, 135 min por día, tope `TnMaxDias=3`) |
+| Costos por tipo de camión | Encendido (`CostosModo=reales`) |
+| Terceros con tarifa del tarifario | Encendido (`UsarTerceros=si`), solo cuando la flota propia ya salió |
+| Una vuelta por camión propio | Encendido (`PropiosUnaVuelta=si`) |
+| Una vuelta por camión de tercero | Encendido (`TercerosUnaVuelta=si`, 2026-11-16) |
+| Registro de corridas | Encendido, con retención de 90 días |
 
-Para cambiar un interruptor: editar `samconfig.toml` (dev) y
-`python scripts/sandbox/deploy_backend.py planning`. Detalle y números:
-`docs/work/2026-11/2026-11-13-motor-ruteo-fases-5-6-7.md`.
+Volver atrás: cambiar el interruptor en `samconfig.toml` y `python scripts/sandbox/deploy_backend.py planning`.
 
-## Decisiones de negocio pendientes
+## Por verificar con datos reales
+- **Faltan camiones en los días grandes.** Con una vuelta por camión (propios y terceros,
+  decisión del 2026-11-16) y los 3 terceros de prueba, en 34 días quedarían 347 pedidos sin
+  camión, en 6 días: 2026-11-12 (165 de 332), 2026-11-13 (137 de 275), 2026-11-06 (39 de 159)
+  y 1 a 4 en otros tres. Un pedido sin camión queda en la bandeja sin número de viaje, el OMS no
+  lo libera y el replan de cada hora lo reintenta; queda en
+  `tbl_routing_runs.parametros->'informe'->'sin_camion'`. Hace falta cargar más transportistas
+  (con camiones y tarifa) para cubrir esos días.
+- **Tarifas de terceros de prueba.** Los transportistas de Costa Rica con vehículos son datos
+  de prueba (2026-11-16, confirmado por el usuario). Sin `rate_type`, el motor usa su tarifa
+  fija o la tabla zona × camión. Revisar con las tarifas reales.
+- **"TIENDA 001 CD" de EPA sin coordenadas** (el usuario indicó "la misma que la de cliro": por
+  confirmar a qué punto se refiere).
 
-1. **¿Activar el T-n por carretera (`TnModo=carretera`)?** Con 135 min de manejo por día
-   coincide con el T-n actual en 213 de 236 viajes; 23 viajes (206 pedidos) cambian de
-   fecha de salida. Mueve `dispatch_date`, que es lo que usa el OMS para liberar: coordinar
-   con Eduardo (OMS) antes. Para Venezuela es casi obligatorio (70 km/día en línea recta no
-   tiene base allá).
-2. **¿Activar costos (`CostosModo=reales`)?** Con flota propia el plan cuesta 0,2 % menos que
-   minimizando km (₡14,60 M vs ₡14,63 M en 32 días). Poco efecto hoy porque los viajes se
-   cortan por zona y tope de paradas; pesa más cuando haya peso y volumen completos.
-3. **¿Activar terceros (`UsarTerceros=si`)?** Con terceros, 32 de 272 viajes irían en
-   camiones de terceros en vez de repetir un camión propio ese día (+₡0,77 M, +5 %, si
-   repetir camión propio fuera gratis). Decide si un camión propio puede hacer 2 o 3
-   vueltas en un día. Ojo: los únicos terceros de Costa Rica hoy son 3 camiones de 1.000 kg
-   creados el 2026-11-13 (`MV261113-02/03/04`, "Pedro Hernández Castro"); revisar si son
-   datos de prueba.
-
-## Mejoras pendientes
-
-- **Tarifa real de terceros.** Hoy un tercero cuesta el propio equivalente × 1,3
-  (`costos.FACTOR_TERCERO`). Conectar el tarifario de cada transportista
-  (`tarifas_rate_tables`, tipos km/unidad/fija/volumen/tendering).
-- **Costos de Venezuela.** Las tablas de costeo son solo de Costa Rica (colones). Sin
-  ellas, Venezuela minimiza km.
-- **Jornada del chofer y ventanas de tiempo.** El solver no verifica que varias vueltas del
-  mismo camión quepan en un día (`tbl_parametros_globales.horas_max = 16` existe).
-- **"Mismo día" por fecha de salida.** `plan_builder.usos_del_dia` cuenta los viajes del
-  camión por fecha de entrega, no de salida.
-- **Retención de `tbl_routing_runs`** (≈ 70 filas por día hábil, con JSON de entrada y
-  resultado). Definir cuánto se guarda y una limpieza programada.
-- **Zona como frontera dura.** El solver no mezcla zonas en un camión. Mezclarlas puede
-  ahorrar más, pero cambia `plan_trips.delivery_zone`, las recolectas y los días de anticipo
-  por zona. Decisión de negocio.
-- **Sin metaheurística.** `GUIDED_LOCAL_SEARCH` daría mejores rutas pero corta por reloj;
-  usarla exige no re-resolver los días cuyos pedidos no cambiaron.
-- **Frontend en el OSRM público.** El propio solo es alcanzable desde las Lambdas: exponerlo
-  por una ruta del backend o un dominio con certificado (`src/pages/planificacion/osrm-config.ts`,
-  `src/pages/tracking/route-osrm.ts`). Retirar además la heurística del frontend
-  (`plan-automatico.ts`, `optimize-stops.ts`, `tiempo-cluster.ts`).
-- **QA y producción.** Intelix debe decidir dónde vive el OSRM, pasar `OsrmUrl`, que el
-  `sam build` instale `ortools` (ruedas `manylinux_2_28`) y aplicar sql/71 y sql/72.
-- **Paquete de la Lambda:** 178 MB de 250 MB; `numpy` y `pandas` (~100 MB) se pueden excluir.
-- **Checksum de migraciones con CRLF.** `scripts/run-migration.mjs` calcula el checksum del
-  archivo tal cual: el mismo archivo con saltos de línea de Windows (CRLF) y de Linux (LF) da
-  distinto (pasó con sql/67). Aceptar ambas formas al comparar.
+## Mejoras que quedan
+- **Jornada en horas.** La regla de una vuelta resuelve la jornada de los propios; el motor no
+  limita la duración de un viaje (ya la estima: manejo + 15 min por parada, en el registro).
+- **"Mismo día" por fecha de salida.** `plan_builder.usos_del_dia` cuenta los viajes del camión
+  por fecha de entrega, no de salida.
+- **Tarifa de terceros completa.** El motor traduce la regla BASE del tarifario (km, fija, por
+  parada, por volumen, tabla zona × camión); no aplica recargos, descuentos ni reglas con
+  condiciones. TENDERING usa la tarifa fija.
+- **Costos de Venezuela.** Las tablas de costeo son solo de Costa Rica.
+- **Zona como frontera dura y sin metaheurística** (decisiones de diseño; ver ADR-005).
+- **QA y producción:** ver `docs/guides/motor-ruteo-qa-produccion.md`.
+- **Heurística del frontend** (`plan-automatico.ts`, `optimize-stops.ts`, `tiempo-cluster.ts`):
+  sigue en el código; retirarla cuando nadie use la pestaña de plan automático del navegador.
 
 ## Datos que limitan al motor
-
-- **EPA sin coordenadas** (pedidos y sus 9.711 puntos de entrega): ningún motor los ordena.
 - **Peso y volumen incompletos** (20 % y 51 % de los pedidos de Cofersa): la capacidad nunca
   limita y el solver solo ahorra km, no viajes.
+- **Almacén OLO-CR sin coordenadas:** Costa Rica sale de un punto fijo de San José.
 - **La comparación mide recorridos planificados**, no km manejados: contrastar con el GPS de
-  Tracking (`tbl_tracking_positions`) cuando haya viajes ejecutados con el solver.
+  Tracking (`tbl_tracking_positions`) cuando haya viajes ejecutados con el motor.

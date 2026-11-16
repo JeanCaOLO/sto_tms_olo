@@ -41,7 +41,15 @@ const rawSql = readFileSync(filePath, 'utf8');
 // runner abre para el modo dry-run, y el ROLLBACK posterior ya no revierte
 // nada porque no hay transacción abierta. Este runner es ahora el ÚNICO
 // dueño de la transacción — la aplica él, nunca el archivo.
-const checksum = createHash('sha256').update(rawSql).digest('hex');
+//
+// Saltos de línea: el mismo archivo sale con CRLF en un checkout de Windows y con LF en
+// Linux/Mac, y el checksum crudo cambiaba sin que nadie editara nada (pasó con sql/67).
+// Desde 2026-11-16 se registra el checksum con los saltos normalizados a LF, y al comparar
+// se acepta también el crudo y el crudo con CRLF (registros anteriores a este cambio).
+const sha = (texto) => createHash('sha256').update(texto).digest('hex');
+const sqlLf = rawSql.replace(/\r\n/g, '\n');
+const checksum = sha(sqlLf);
+const checksumsEquivalentes = new Set([checksum, sha(rawSql), sha(sqlLf.replace(/\n/g, '\r\n'))]);
 const name = basename(filePath);
 const sql = rawSql
   .replace(/^\s*begin\s*;\s*/i, '')
@@ -82,7 +90,7 @@ try {
 
   const previous = await alreadyApplied(client);
   if (previous && !force) {
-    if (previous.checksum === checksum) {
+    if (checksumsEquivalentes.has(previous.checksum)) {
       console.log(`"${name}" ya fue aplicada con el mismo contenido (checksum idéntico). No se hace nada.`);
       await client.query('ROLLBACK');
       process.exit(0);

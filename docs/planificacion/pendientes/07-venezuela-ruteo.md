@@ -19,10 +19,8 @@ país. Por cada almacén toma:
 
 ## Qué falta cargar para los dos almacenes nuevos
 
-1. **Almacenes con coordenadas.** `MICHELENA` y `SAN-DIEGO` ya existen (país `VN`, activos) pero
-   sin coordenadas. Cargarlas desde la pantalla de almacenes o con:
-   `UPDATE tbl_warehouses SET latitude = <lat>, longitude = <lng>, updated_at = now() WHERE code = '<CÓDIGO>';`
-   Sin ellas el depósito sale del centro de los pedidos y el T-n queda corto.
+1. ~~Almacenes con coordenadas.~~ **Hecho el 2026-11-16** (`sql/73`): MICHELENA
+   10.17822, -67.95059 y SAN-DIEGO 10.17837, -67.95088. El motor sale de ahí.
 2. **Flota propia de Venezuela.** Crear (o usar) un transportista con `is_flota_propia = true` y
    país Venezuela, y cargar sus camiones con capacidad de peso y volumen. Hoy Venezuela tiene 0
    camiones propios. La pantalla de vehículos no pide país: lo toma del transportista, así que el
@@ -43,6 +41,10 @@ país. Por cada almacén toma:
   `SAN-DIEGO`, compañías y sucursales de Venezuela, y credenciales `EFLOW_VE_*`. Sin esto no
   entra ningún pedido de Venezuela a la bandeja. Archivos: `ingest_orders.py`, `ingest_items.py`,
   `salientes.py`, `sim_eflow_sync.py`, `replan.py` (`ingestar_programado`).
+- **Terceros de Venezuela.** Con `UsarTerceros=si` el motor usa terceros del país cuando la flota
+  propia ya salió; hoy Venezuela solo tiene el transportista "Transporte Demo Venezuela" (sin
+  tarifa: cuesta el propio equivalente × 1,3, y sin tablas de costeo en Venezuela el motor
+  minimiza km).
 - **Zona horaria.** La ventana del replan (`replan._PENDIENTES`) y la comparación usan la fecha de
   Costa Rica. Venezuela va 2 horas adelante: tomar la zona horaria del almacén
   (`tbl_warehouses.timezone`).

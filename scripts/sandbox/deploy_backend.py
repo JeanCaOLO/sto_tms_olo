@@ -57,6 +57,10 @@ PIP_PLATFORM = ["--platform", "manylinux2014_x86_64", "--python-version", "3.13"
 # para los stacks que lo usan: así los demás siguen bajando exactamente las mismas ruedas que antes.
 PIP_PLATFORM_GLIBC_228 = ["--platform", "manylinux_2_28_x86_64", "--platform", "manylinux_2_27_x86_64", *PIP_PLATFORM]
 STACKS_GLIBC_228 = {"planning"}
+# Dependencias que ortools instala pero el motor de ruteo no importa (solo pywrapcp): fuera del
+# zip para no pagar ~100 MB en el paquete ni en el arranque en frío. Si algún día se usa
+# ortools.math_opt o pandas en planning, sacarlas de aquí.
+PODAR = {"planning": ["numpy", "numpy.libs", "pandas", "pandas.libs", "tzdata", "dateutil"]}
 # Las Lambdas con `Architectures: [arm64]` (mobile) llevan las dependencias compiladas para Graviton.
 PIP_PLATFORM_ARM64 = ["--platform", "manylinux2014_aarch64", *PIP_PLATFORM[2:]]
 SSM_LAYER_ARN = f"/{ENV}/tms/common-layer-arn"
@@ -166,6 +170,15 @@ def build_dir(source: Path, target: Path, platform: list[str] = PIP_PLATFORM) ->
     return target
 
 
+def podar(stack: str, target: Path) -> None:
+    """Borra del paquete las dependencias de PODAR (con sus dist-info)."""
+    for nombre in PODAR.get(stack, []):
+        for ruta in [target / nombre, *target.glob(f"{nombre}-*.dist-info"),
+                     *target.glob(f"python_{nombre}-*.dist-info")]:
+            if ruta.exists():
+                shutil.rmtree(ruta, ignore_errors=True)
+
+
 def build_stack(stack: str) -> Path:
     """Copia el template con CodeUri/ContentUri apuntando a carpetas ya armadas."""
     stack_dir, out = BACKEND / stack, BUILD / stack
@@ -189,6 +202,7 @@ def build_stack(stack: str) -> Path:
             target = out / name
             if not target.exists():
                 build_dir(stack_dir / rel, target, platform)
+                podar(stack, target)
         return f"{key}: {target.as_posix()}"
 
     text = re.sub(r"(CodeUri|ContentUri): (\S+)", replace_uri, text)

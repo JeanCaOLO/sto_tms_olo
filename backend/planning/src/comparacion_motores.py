@@ -72,17 +72,20 @@ def _con_coords(o: dict) -> bool:
 
 def medir(viajes: list[dict], km_entre, costos_flota: dict | None = None) -> dict:
     """Métricas de un plan. `km_entre(a, b)` da los km de carretera entre dos ids (None = depósito).
-    Con `costos_flota` ({vehicle_id: {"km", "dia"}}) suma además el costo en colones: km de cada
-    viaje × costo/km de su camión + costo diario de cada camión usado."""
+    Con `costos_flota` ({vehicle_id: costo}, `costos.por_vehiculo`) suma además el costo en
+    colones: por viaje, km × costo/km + paradas × cargo por parada + tarifa por viaje (terceros,
+    por zona si la tiene); y una vez por camión usado, su costo diario (propios)."""
     km, colones = 0.0, 0.0
     for v in viajes:
         ids = [None] + [o["id"] for o in v["pedidos"] if _con_coords(o)] + [None]
         km_viaje = sum(km_entre(a, b) for a, b in zip(ids, ids[1:]))
         km += km_viaje
         if costos_flota and v["veh"]:
-            colones += km_viaje * costos_flota[v["veh"]["id"]]["km"]
+            k = costos_flota[v["veh"]["id"]]
+            por_viaje = (k.get("por_zona") or {}).get(v.get("zona"), k.get("viaje", 0.0))
+            colones += km_viaje * k["km"] + len(v["pedidos"]) * k.get("parada", 0.0) + por_viaje
     if costos_flota:
-        colones += sum(costos_flota[c]["dia"] for c in {v["veh"]["id"] for v in viajes if v["veh"]})
+        colones += sum(costos_flota[c].get("dia", 0.0) for c in {v["veh"]["id"] for v in viajes if v["veh"]})
     paradas = [len(v["pedidos"]) for v in viajes]
     ocupacion = [v["peso"] / v["veh"]["cw"] for v in viajes if v["veh"] and v["veh"]["cw"]]
     excedidos = sum(1 for v in viajes if len(v["pedidos"]) > 1 and (
@@ -95,6 +98,7 @@ def medir(viajes: list[dict], km_entre, costos_flota: dict | None = None) -> dic
             "ocupacion_peso_prom": round(sum(ocupacion) / len(ocupacion), 2) if ocupacion else None,
             "viajes_fuera_de_capacidad": excedidos,
             "terceros": sum(1 for v in viajes if v["veh"] and not v["veh"].get("propio", True)),
+            "pedidos_en_viajes": sum(len(v["pedidos"]) for v in viajes),
             "costo_colones": round(colones) if costos_flota else None}
 
 
@@ -195,7 +199,8 @@ def _sumar_costos(dias: list[dict]) -> dict | None:
         planes.append("ortools_costos_terceros")
     return {"dias": len(con), "nota": "el costo cuenta el día de cada camión una vez: repetir camión sale gratis",
             **{m: {"viajes": suma(m, "viajes"), "km": suma(m, "km"), "costo_colones": suma(m, "costo_colones"),
-                   "camiones_dia": sum(d[m]["camiones"] for d in con), "terceros": suma(m, "terceros")} for m in planes}}
+                   "camiones_dia": sum(d[m]["camiones"] for d in con), "terceros": suma(m, "terceros"),
+                   "pedidos_sin_camion": sum(d["pedidos"] - d[m]["pedidos_en_viajes"] for d in con)} for m in planes}}
 
 
 def comparar_todo(dias_atras: int = 0) -> dict:
