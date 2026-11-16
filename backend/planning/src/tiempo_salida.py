@@ -4,7 +4,10 @@ Hoy el T-n sale de la distancia en LÍNEA RECTA de la parada más lejana al dep�
 (`ruta_geo.lead_time_dias`: 1 día + 1 por cada 70 km). Con `TN_MODO=carretera` sale
 del tiempo de MANEJO por carretera (OSRM) del depósito a la parada más lejana:
 
-    lead = 1 + minutos_de_manejo_max // TN_MIN_POR_DIA
+    lead = min(1 + minutos_de_manejo_max // TN_MIN_POR_DIA, TN_MAX_DIAS)
+
+Con 135 min por día: hasta 2 h 15 de manejo → T-1 (rutas cercanas), hasta 4 h 30 → T-2 y
+de ahí en adelante T-3, el tope (`TN_MAX_DIAS`, 3 por defecto: decisión del 2026-11-16).
 
 `dispatch_date = delivery_date - lead` es lo que usa el OMS para liberar el pedido a
 eFlow: cambiar el modo mueve fechas de salida. Por eso viene APAGADO (`linea`) y la
@@ -26,6 +29,7 @@ MODO_CARRETERA = "carretera"
 # carretera coincide con el actual en 213 (90 %). Los otros 23 son inconsistencias de la regla en
 # línea recta (viajes T-1 con hasta 3 h de manejo y T-2 con menos de 2 h).
 MIN_POR_DIA_DEFECTO = 135.0
+MAX_DIAS_DEFECTO = 3
 
 
 def modo() -> str:
@@ -40,10 +44,19 @@ def min_por_dia() -> float:
         return MIN_POR_DIA_DEFECTO
 
 
-def lead_por_minutos(minutos: float | None, por_dia: float | None = None) -> int:
-    """1 día + uno más por cada `por_dia` minutos de manejo; sin dato → piso de 1 día."""
+def max_dias() -> int:
+    try:
+        valor = int(os.environ.get("TN_MAX_DIAS", "") or MAX_DIAS_DEFECTO)
+        return valor if valor >= 1 else MAX_DIAS_DEFECTO
+    except ValueError:
+        return MAX_DIAS_DEFECTO
+
+
+def lead_por_minutos(minutos: float | None, por_dia: float | None = None, tope: int | None = None) -> int:
+    """1 día + uno más por cada `por_dia` minutos de manejo, sin pasar de `tope`; sin dato → 1."""
     por_dia = min_por_dia() if por_dia is None else por_dia
-    return 1 if minutos is None else 1 + int(minutos // por_dia)
+    tope = max_dias() if tope is None else tope
+    return 1 if minutos is None else min(1 + int(minutos // por_dia), tope)
 
 
 def minutos_maximos(viajes: list[dict], sede: Sede) -> list[float | None]:

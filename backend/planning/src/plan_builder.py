@@ -16,6 +16,8 @@ import time
 import uuid
 
 import costos
+import logging
+
 import motor_ruteo
 import recolectas
 import tiempo_salida
@@ -68,7 +70,8 @@ ORDER BY v.capacity_weight DESC, v.plate
 # Camiones de transportistas TERCEROS del país del almacén (fase 6, USAR_TERCEROS=si): segunda
 # opción del solver cuando la flota propia ya tiene viaje ese día.
 _TERCEROS = """
-SELECT v.id, v.plate, v.capacity_weight::float AS cw, v.capacity_volume::float AS cv, false AS propio
+SELECT v.id, v.plate, v.capacity_weight::float AS cw, v.capacity_volume::float AS cv, false AS propio,
+       v.carrier_id::text AS carrier_id, v.vehicle_type
 FROM tbl_vehicles v
 JOIN tbl_carriers ca ON ca.id = v.carrier_id
 WHERE v.organization_id = %s AND v.status = 'active' AND NOT COALESCE(ca.is_flota_propia, false)
@@ -137,6 +140,8 @@ INSERT INTO tbl_plan_stops (trip_id, order_id, stop_order, order_number, custome
 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"""
 
 
+log = logging.getLogger(__name__)
+
 # Registro de la corrida (sql/72, ADR-005/ADR-007): entrada, resultado y parámetros del motor.
 _INS_CORRIDA = """
 INSERT INTO tbl_routing_runs (planning_run_id, organization_id, warehouse_id, customer_id, plan_date, plan_id,
@@ -148,8 +153,9 @@ VALUES (%s,%s,%s,%s,%s::date,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s::json
 def _parametros() -> dict:
     p = {"margen_peso": motor_ruteo.MARGEN_PESO, "margen_volumen": motor_ruteo.MARGEN_VOLUMEN,
          "max_paradas": motor_ruteo.MAX_PARADAS, "tn_modo": tiempo_salida.modo(),
-         "tn_min_por_dia": tiempo_salida.min_por_dia(), "costos_modo": costos.modo(),
-         "usar_terceros": costos.usar_terceros(), "factor_tercero": costos.FACTOR_TERCERO}
+         "tn_min_por_dia": tiempo_salida.min_por_dia(), "tn_max_dias": tiempo_salida.max_dias(),
+         "costos_modo": costos.modo(), "usar_terceros": costos.usar_terceros(),
+         "propios_una_vuelta": motor_ruteo.propios_una_vuelta(), "factor_tercero": costos.FACTOR_TERCERO}
     mo, ort = sys.modules.get("motor_ortools"), sys.modules.get("ortools")
     if mo is not None:  # solo si el solver se cargó en esta corrida
         p.update({"costo_fijo_viaje_km": mo.COSTO_FIJO_VIAJE_KM, "costo_reuso_km": mo.COSTO_REUSO_KM,
@@ -170,13 +176,14 @@ def registrar_corrida(run, contexto: dict, pedidos: list[dict], flota: list[dict
                             "volumen": o["volume"], "grupo": motor_ruteo.clave(o)} for o in pedidos]}
     resultado = [{"zona": v["zona"], "camion": v["veh"]["id"] if v["veh"] else None,
                   "pedidos": [o["id"] for o in v["pedidos"]], "peso": v["peso"], "volumen": v["volumen"],
-                  "lead": v["lead"]} for v in viajes]
+                  "lead": v["lead"], "minutos": v.get("minutos")} for v in viajes]
     run(_INS_CORRIDA, [contexto["run_id"], contexto["org"], contexto["warehouse"], contexto["customer"],
                        contexto["fecha"], contexto["plan_id"], informe.get("motor"), informe.get("motor_solicitado"),
                        sede.region, sede.origen, informe.get("fuente_matriz"), len(pedidos), len(viajes),
                        informe.get("km"), duracion_ms, informe.get("error"),
                        json.dumps({**_parametros(), "informe": {k: informe.get(k) for k in
-                                                                ("costo_colones", "terceros", "tn_modo")}}),
+                                                                ("costo_colones", "terceros", "tn_modo", "sin_camion")}},
+                                  default=str),
                        json.dumps(entrada, default=str),
                        json.dumps(resultado, default=str), contexto["created_by"]])
 
@@ -243,6 +250,8 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
         inicio = time.monotonic()
         viajes = motor_ruteo.asignar_y_ordenar(normales, flota, sede, usos, informe=informe, costos=costos_flota)
         tiempo_salida.ajustar(viajes, sede, informe)  # T-n por carretera si TN_MODO=carretera (fase 5)
+        if informe.get("sin_camion"):  # PROPIOS_UNA_VUELTA sin terceros suficientes: el próximo replan reintenta
+            log.warning("plan %s %s: %s pedidos sin camión disponible", customer, fecha, len(informe["sin_camion"]))
         duracion_ms = round((time.monotonic() - inicio) * 1000)
         for viaje in viajes:
             seq += 1

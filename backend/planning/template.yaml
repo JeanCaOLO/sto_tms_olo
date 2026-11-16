@@ -40,6 +40,15 @@ Parameters:
     Default: linea
     AllowedValues: [linea, carretera]
     Description: Cómo se calculan los días de anticipación de la salida (T-n). linea = 1 + km en línea recta / 70; carretera = 1 + minutos de manejo / TnMinPorDia (fase 5). Mueve dispatch_date, que usa el OMS.
+  TnMaxDias:
+    Type: Number
+    Default: 3
+    Description: Tope de días de anticipación con TnModo=carretera (rutas cercanas T-1, lejanas T-2 o T-3).
+  PropiosUnaVuelta:
+    Type: String
+    Default: "no"
+    AllowedValues: ["no", "si"]
+    Description: si = cada camión propio hace un solo viaje por día; lo que no cabe va en terceros o queda sin viaje hasta el próximo replan.
   TnMinPorDia:
     Type: Number
     Default: 135
@@ -92,6 +101,8 @@ Resources:
           COSTOS_MODO: !Ref CostosModo
           USAR_TERCEROS: !Ref UsarTerceros
           TN_MIN_POR_DIA: !Ref TnMinPorDia
+          TN_MAX_DIAS: !Ref TnMaxDias
+          PROPIOS_UNA_VUELTA: !Ref PropiosUnaVuelta
           TMS_DB_SECRET_NAME:
             Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName
           # Ingesta de pedidos y artículos del pedido leen eFlow en vivo (eflow_db).

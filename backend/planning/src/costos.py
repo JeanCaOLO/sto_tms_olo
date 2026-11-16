@@ -6,10 +6,16 @@ Por tipo de camión (`tbl_tipos_camion`: t1, t3, t5) en colones de Costa Rica:
 - por día = costo fijo mensual sin ayudante (`vw_costo_fijo_mensual`) / `dias_operativos`.
 
 Un camión toma el tipo más chico cuya capacidad alcanza su capacidad de peso (si ninguno
-alcanza, el más grande). Un camión de un transportista TERCERO cuesta lo mismo que el
-propio equivalente × `FACTOR_TERCERO`: aproximación hasta conectar el tarifario de cada
-transportista (pendiente). Solo hay datos de Costa Rica: en otra región devuelve None y
-el motor sigue con su costo fijo por viaje en km.
+alcanza, el más grande). Solo hay tablas de costeo de Costa Rica: en otra región devuelve
+None y el motor sigue con su costo fijo por viaje en km.
+
+Un camión de un transportista TERCERO cuesta lo que dice su TARIFARIO (`tarifas_terceros`):
+la regla BASE de su transportista que corresponde a su `rate_type`. Sin tarifa cargada,
+cuesta el propio equivalente × `FACTOR_TERCERO`.
+
+Forma del costo de un camión (colones): `km` por km recorrido, `dia` la primera vez que sale
+en el día (propios), `viaje` por cada viaje (terceros), `parada` por cada cliente atendido
+(terceros por parada) y `por_zona` {zona: monto por viaje} (tabla zona × camión).
 """
 
 import logging
@@ -63,6 +69,102 @@ def tipo_de(capacidad_kg: float, tipos: list[dict]) -> dict:
     return next((t for t in tipos if t["kg"] >= capacidad_kg), tipos[-1])
 
 
+# Reglas BASE activas del tarifario de cada transportista (tbl_tarifas_*, liquidaciones).
+_REGLAS_BASE = """
+SELECT ca.id::text AS carrier, ca.rate_type, sp.id AS party, r.code, r.base_method, r.expression
+FROM tbl_carriers ca
+JOIN tbl_tarifas_settlement_parties sp ON sp.carrier_id = ca.id
+JOIN tbl_tarifas_pricing_rules r ON r.party_id = sp.id AND r.active AND upper(r.stage) = 'BASE'
+WHERE ca.id::text = ANY(%s)
+ORDER BY r.priority, r.code"""
+_TABLAS = """
+SELECT t.party_id AS party, t.code, r.key, r.amount::float AS amount
+FROM tbl_tarifas_rate_tables t JOIN tbl_tarifas_rate_table_rows r ON r.table_id = t.id AND r.active
+WHERE t.party_id = ANY(%s) AND t.active"""
+# rate_type del transportista → base_method de la regla que se usa. Sin rate_type (o TENDERING,
+# que se adjudica viaje a viaje): la tarifa fija por viaje y, si no hay, la de km.
+_METODO = {"FIXED": ["FIXED"], "PER_KM": ["PER_KM"], "PER_UNIT": ["PER_UNIT"], "VOLUME": ["VOLUME"]}
+_PREFERENCIA_SIN_TIPO = ["FIXED", "PER_KM", "PER_UNIT", "VOLUME"]
+
+
+def _numero(x) -> float:
+    try:
+        return float(x)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _llave(clave) -> list:
+    """[zona, tipo de camión] de una fila de tabla; lo que falte vale '*' (cualquiera)."""
+    return (list(clave or []) + ["*", "*"])[:2]
+
+
+def _costo_de_expresion(expr: dict, camion: dict, tablas: dict) -> dict | None:
+    """Traduce una expresión BASE del tarifario a la forma de costo del motor (o None si no se
+    sabe traducir: se prueba la siguiente regla o el factor)."""
+    op = (expr or {}).get("op")
+    if op == "FIXED":
+        return {"km": 0.0, "viaje": _numero(expr.get("amount")), "parada": 0.0}
+    if op == "PER_KM":
+        return {"km": _numero(expr.get("rate")), "viaje": 0.0, "parada": 0.0}
+    if op == "PER_UNIT" and expr.get("unit") == "clientCount":
+        return {"km": 0.0, "viaje": 0.0, "parada": _numero(expr.get("rate"))}
+    if op == "PER_UNIT" and expr.get("unit") == "truckVolumeM3":
+        return {"km": 0.0, "viaje": _numero(expr.get("rate")) * (camion.get("cv") or 0.0), "parada": 0.0}
+    if op == "LOOKUP_TABLE":
+        base = _costo_de_expresion(expr.get("fallback") or {}, camion, tablas) or {"km": 0.0, "viaje": 0.0, "parada": 0.0}
+        filas = tablas.get(expr.get("table"), [])
+        tipo = camion.get("vehicle_type")
+        por_zona: dict = {}
+        exactas: set = set()
+        for clave, monto in filas:
+            zona, tipo_fila = _llave(clave)
+            if zona == "*" or tipo_fila not in (tipo, "*"):
+                continue
+            if tipo_fila == tipo:  # la fila del tipo exacto gana sobre el comodín
+                por_zona[zona] = monto
+                exactas.add(zona)
+            elif zona not in exactas:
+                por_zona[zona] = monto
+        comodin = next((m for c, m in filas if _llave(c) in (["*", tipo], ["*", "*"])), None)
+        if comodin is not None:  # zona no listada: el monto de la fila comodín por viaje
+            base = {"km": 0.0, "viaje": comodin, "parada": 0.0}
+        return {**base, "por_zona": por_zona}
+    return None
+
+
+def tarifas_terceros(terceros: list[dict]) -> dict:
+    """{vehicle_id: costo} de los camiones de terceros según su tarifario; los que no tienen
+    tarifa traducible no aparecen (el llamador usa el factor). Cada costo lleva `fuente`."""
+    if not terceros:
+        return {}
+    carriers = sorted({str(c["carrier_id"]) for c in terceros if c.get("carrier_id")})
+    reglas = pg.query(_REGLAS_BASE, [carriers]) if carriers else []
+    partes = sorted({r["party"] for r in reglas})
+    tablas: dict = {}
+    for f in (pg.query(_TABLAS, [partes]) if partes else []):
+        tablas.setdefault((f["party"], f["code"]), []).append((f["key"], f["amount"]))
+    por_carrier: dict = {}
+    for r in reglas:
+        por_carrier.setdefault(r["carrier"], []).append(r)
+    costos = {}
+    for c in terceros:
+        suyas = por_carrier.get(str(c.get("carrier_id")), [])
+        if not suyas:
+            continue
+        orden = _METODO.get((suyas[0]["rate_type"] or "").upper(), _PREFERENCIA_SIN_TIPO)
+        candidatas = sorted((r for r in suyas if (r["base_method"] or "").upper() in orden),
+                            key=lambda r: (orden.index(r["base_method"].upper()),
+                                           0 if (r["expression"] or {}).get("op") == "LOOKUP_TABLE" else 1))
+        for r in candidatas:
+            tablas_party = {code: filas for (party, code), filas in tablas.items() if party == r["party"]}
+            costo = _costo_de_expresion(r["expression"], c, tablas_party)
+            if costo is not None:
+                costos[c["id"]] = {**costo, "dia": 0.0, "tipo": "tercero", "fuente": f"tarifario:{r['code']}"}
+                break
+    return costos
+
+
 def por_vehiculo(flota: list[dict], region: str | None, forzar: bool = False) -> dict | None:
     """{vehicle_id: {"tipo", "km", "dia"}} en colones, o None si no aplica (modo fijo, región sin
     datos, tablas vacías o error al leerlas: el motor sigue con el costo fijo en km).
@@ -76,9 +178,21 @@ def por_vehiculo(flota: list[dict], region: str | None, forzar: bool = False) ->
         return None
     if not tipos:
         return None
+    try:
+        tarifados = tarifas_terceros([c for c in flota if not c.get("propio", True)])
+    except Exception:  # noqa: BLE001 — sin tarifario los terceros cuestan el propio equivalente × factor
+        log.exception("costos: no se pudo leer el tarifario de los terceros; se usa el factor")
+        tarifados = {}
     costos = {}
     for c in flota:
+        if c["id"] in tarifados:
+            costos[c["id"]] = tarifados[c["id"]]
+            continue
         t = tipo_de(c["cw"], tipos)
-        factor = 1.0 if c.get("propio", True) else FACTOR_TERCERO
-        costos[c["id"]] = {"tipo": t["codigo"], "km": round(t["km"] * factor, 2), "dia": round(t["dia"] * factor, 2)}
+        if c.get("propio", True):
+            costos[c["id"]] = {"tipo": t["codigo"], "km": round(t["km"], 2), "dia": round(t["dia"], 2),
+                               "viaje": 0.0, "parada": 0.0, "fuente": "costeo"}
+        else:  # tercero sin tarifa: el propio equivalente × factor, cobrado por viaje
+            costos[c["id"]] = {"tipo": t["codigo"], "km": round(t["km"] * FACTOR_TERCERO, 2), "dia": 0.0,
+                               "viaje": round(t["dia"] * FACTOR_TERCERO, 2), "parada": 0.0, "fuente": "factor"}
     return costos

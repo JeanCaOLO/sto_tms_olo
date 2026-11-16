@@ -53,14 +53,16 @@ def agrupar_por_zona(pedidos: list[dict]) -> dict:
     return zonas
 
 
-def _empacar(pedidos: list[dict], flota: list[dict], vi: int) -> tuple[list[dict], int]:
-    """Un viaje por pasada: llena el camión en turno con los pedidos que entren
-    (peso+volumen+tope de paradas) y rota de camión. `vi` rota GLOBAL entre zonas
-    para no asignar el mismo camión a dos viajes del día."""
+def _empacar(pedidos: list[dict], siguiente) -> tuple[list[dict], list[dict]]:
+    """Un viaje por pasada: llena el camión que da `siguiente()` con los pedidos que entren
+    (peso+volumen+tope de paradas). `siguiente` rota GLOBAL entre zonas; si devuelve None no
+    quedan camiones y el resto queda sin viaje. Devuelve (viajes, pedidos sin camión)."""
     viajes: list[dict] = []
     restantes = list(pedidos)
     while restantes:
-        veh = flota[vi % len(flota)]
+        veh = siguiente()
+        if veh is None:
+            return viajes, restantes
         max_w, max_v = veh["cw"] * MARGEN_PESO, veh["cv"] * MARGEN_VOLUMEN
         dentro, fuera, w, v = [], [], 0.0, 0.0
         for o in restantes:
@@ -74,15 +76,14 @@ def _empacar(pedidos: list[dict], flota: list[dict], vi: int) -> tuple[list[dict
             w, v = dentro[0]["weight"] or 0.0, dentro[0]["volume"] or 0.0
         viajes.append({"veh": veh, "pedidos": dentro, "peso": round(w, 2), "volumen": round(v, 2)})
         restantes = fuera
-        vi += 1
-    return viajes, vi
+    return viajes, []
 
 
 def viaje(zona: str, veh: dict | None, pedidos: list[dict], peso: float, volumen: float,
           sede: Sede = SEDE_CR) -> dict:
     """El viaje del contrato, con `pedidos` YA en orden de visita."""
     return {"zona": zona, "veh": veh, "pedidos": pedidos, "peso": peso, "volumen": volumen,
-            "lead": lead_time_dias(pedidos, sede.deposito)}
+            "lead": lead_time_dias(pedidos, sede.deposito), "minutos": None}
 
 
 def cerrar_viaje(zona: str, veh: dict | None, pedidos: list[dict], peso: float, volumen: float,
@@ -93,6 +94,11 @@ def cerrar_viaje(zona: str, veh: dict | None, pedidos: list[dict], peso: float, 
 
 def motor_activo() -> str:
     return MOTOR_ORTOOLS if os.environ.get("MOTOR_RUTEO", "").strip().lower() == MOTOR_ORTOOLS else MOTOR_HEURISTICO
+
+
+def propios_una_vuelta() -> bool:
+    """PROPIOS_UNA_VUELTA=si: cada camión propio hace un solo viaje por día (jornada del chofer)."""
+    return os.environ.get("PROPIOS_UNA_VUELTA", "").strip().lower() in ("si", "sí", "1", "true")
 
 
 def asignar_y_ordenar(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_CR,
@@ -115,22 +121,48 @@ def asignar_y_ordenar(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_
         except Exception as e:  # noqa: BLE001 — cualquier fallo del solver cae al respaldo, con rastro en el log
             log.exception("motor ortools falló con %s pedidos: se usa la heurística", len(pedidos))
             informe["error"] = f"{type(e).__name__}: {e}"[:500]
-    propios = [c for c in flota if c.get("propio", True)]  # la heurística no usa terceros
-    return heuristico(pedidos, propios or flota, sede, usos_previos)
+    return heuristico(pedidos, flota, sede, usos_previos, informe)
+
+
+def _rotacion(flota: list[dict], previos: dict):
+    """Camiones de la heurística, en orden. Sin PROPIOS_UNA_VUELTA: solo la flota propia (o toda,
+    si no hay propia), los libres primero y rotando sin fin. Con PROPIOS_UNA_VUELTA: cada propio
+    libre una vez y después los terceros rotando; sin terceros, se acaba (None)."""
+    propios = [c for c in flota if c.get("propio", True)]
+    if not propios_una_vuelta():
+        orden = sorted(propios or flota, key=lambda c: previos.get(str(c["id"]), 0))  # estable: respeta la capacidad
+        vi = 0
+
+        def siguiente():
+            nonlocal vi
+            vi += 1
+            return orden[(vi - 1) % len(orden)]
+        return siguiente
+    libres = [c for c in propios if previos.get(str(c["id"]), 0) == 0]
+    terceros = [c for c in flota if not c.get("propio", True)]
+
+    def camiones():
+        yield from libres
+        while terceros:
+            yield from terceros
+    it = camiones()
+    return lambda: next(it, None)
 
 
 def heuristico(pedidos: list[dict], flota: list[dict], sede: Sede = SEDE_CR,
-               usos_previos: dict | None = None) -> list[dict]:
+               usos_previos: dict | None = None, informe: dict | None = None) -> list[dict]:
     """Motor de siempre: agrupar por zona, empaque voraz y vecino más cercano. Con
     `usos_previos`, la rotación empieza por los camiones que todavía no tienen viaje."""
-    if usos_previos:
-        previos = {str(k): n for k, n in usos_previos.items()}  # UUID de la base o texto: se comparan como texto
-        flota = sorted(flota, key=lambda c: previos.get(str(c["id"]), 0))  # estable: respeta el orden de capacidad
+    previos = {str(k): n for k, n in (usos_previos or {}).items()}  # UUID de la base o texto: se comparan como texto
+    siguiente = _rotacion(flota, previos)
     viajes: list[dict] = []
-    vi = 0
+    sin_camion: list[dict] = []
     for zona, ped_zona in sorted(agrupar_por_zona(pedidos).items()):
-        empacados, vi = _empacar(ped_zona, flota, vi)
+        empacados, resto = _empacar(ped_zona, siguiente)
         viajes += [cerrar_viaje(zona, e["veh"], e["pedidos"], e["peso"], e["volumen"], sede) for e in empacados]
+        sin_camion += resto
+    if informe is not None:
+        informe["sin_camion"] = [o["id"] for o in sin_camion]
     return viajes
 
 

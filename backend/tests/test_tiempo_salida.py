@@ -31,7 +31,7 @@ def test_por_defecto_no_toca_el_lead(ts, monkeypatch):
 
 @pytest.mark.parametrize("minutos, esperado", [(None, 1), (0, 1), (119.9, 1), (120, 2), (243, 3), (480, 5)])
 def test_lead_por_minutos(ts, minutos, esperado):
-    assert ts.lead_por_minutos(minutos, 120) == esperado
+    assert ts.lead_por_minutos(minutos, 120, tope=9) == esperado
 
 
 def test_con_modo_carretera_usa_la_parada_mas_lejana_en_tiempo(ts, monkeypatch):
@@ -76,3 +76,16 @@ def test_desde_pide_una_fila_por_bloques_y_sin_osrm_devuelve_none(monkeypatch):
     assert all("sources=0" in u for u in urls)
     assert minutos[0] == 10.0 and minutos[100] == 10.0 and minutos[99] == 10.0 + 99
     assert md.desde((9.93, -84.09), destinos, region="VN") is None  # sin OSRM para la región
+
+
+@pytest.mark.parametrize("minutos, esperado", [(60, 1), (134, 1), (135, 2), (269, 2), (270, 3), (600, 3), (2000, 3)])
+def test_rutas_cercanas_t1_y_lejanas_t2_o_t3_con_tope(ts, minutos, esperado):
+    assert ts.lead_por_minutos(minutos, 135, 3) == esperado
+
+
+def test_el_tope_viene_de_la_variable(ts, monkeypatch):
+    monkeypatch.setenv("TN_MAX_DIAS", "2")
+    assert ts.lead_por_minutos(600, 135) == 2
+    monkeypatch.setenv("TN_MAX_DIAS", "x")
+    assert ts.max_dias() == ts.MAX_DIAS_DEFECTO
+
