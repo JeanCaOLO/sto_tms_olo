@@ -11,6 +11,7 @@ vi.mock('../../hooks/usePermissions',()=>({usePermissions:()=>({loading:false,
 vi.mock('./api/solicitudesApi',async(importOriginal)=>({
  ...await importOriginal<typeof import('./api/solicitudesApi')>(),
  getClientAssignment:vi.fn(),createRequest:vi.fn(),uploadFile:vi.fn(),listMyRequests:vi.fn(),getRequest:vi.fn(),getFileUrl:vi.fn(),
+ getRequestOrigins:vi.fn(),getOrderBalance:vi.fn(),
 }));
 const created={id:'req-a',request_number:'SOL-2026-11-0001',status:'pendiente_asignacion'};
 const summary={...created,created_at:'2026-11-12T13:00:00Z',items:1};
@@ -19,8 +20,17 @@ const detail={request:{...summary,customer_id:'company-a',customer_name:'Empresa
  items:[{id:'item-a',line_number:1,product_code:'COD-1',product_name:'Producto',quantity:2,reason_code:'danado',description:'Roto',
  files:[{id:'file-photo',kind:'photo',mime_type:'image/jpeg',size_bytes:12},{id:'file-video',kind:'video',mime_type:'video/mp4',size_bytes:20}]}]};
 function deferred<T>(){let resolve!:(value:T)=>void;const promise=new Promise<T>(r=>{resolve=r;});return {promise,resolve};}
-async function ready(){render(<MisDevolucionesPage/>);await screen.findByText('Empresa A');}
+async function chooseOrigin(){
+ const select=await screen.findByLabelText(/Pedido y punto de recolecta/);
+ await within(select).findByRole('option',{name:/PED-1.*Punto A/});
+ fireEvent.change(select,{target:{value:'order-a:point-a'}});
+ const line=await screen.findByLabelText(/Línea del pedido/);
+ await within(line).findByRole('option',{name:/COD-1/});
+ fireEvent.change(line,{target:{value:'order-item-a'}});
+}
+async function ready(){render(<MisDevolucionesPage/>);await screen.findByText('Empresa A');await chooseOrigin();}
 function fill(){
+ fireEvent.change(screen.getByLabelText(/Línea del pedido/),{target:{value:'order-item-a'}});
  fireEvent.change(screen.getByLabelText(/Código del artículo/),{target:{value:'COD-1'}});
  fireEvent.change(screen.getByLabelText(/Nombre del artículo/),{target:{value:'Producto'}});
  fireEvent.change(screen.getByLabelText(/Cantidad a devolver/),{target:{value:'2'}});
@@ -33,8 +43,11 @@ async function openDetail(){
  await screen.findByText('Falta evidencia del empaque');
 }
 beforeEach(()=>{
- vi.clearAllMocks();state.user={id:'client-a'};state.canCreate=true;
+ vi.resetAllMocks();state.user={id:'client-a'};state.canCreate=true;
  vi.mocked(api.getClientAssignment).mockResolvedValue({id:'company-a',name:'Empresa A'});
+ vi.mocked(api.getRequestOrigins).mockResolvedValue([{order_id:'order-a',order_number:'PED-1',delivery_point_id:'point-a',
+  point_name:'Punto A',address:'Calle A',final_customer_name:'Destinatario',zone_name:'Zona A',country_id:'country-a',warehouse_id:'warehouse-a'}]);
+ vi.mocked(api.getOrderBalance).mockResolvedValue([{id:'order-item-a',line_number:1,product_code:'COD-1',product_name:'Producto',presentation:'CAJA',quantity:10,remaining:10}]);
  vi.mocked(api.listMyRequests).mockResolvedValue([summary]);
  vi.mocked(api.createRequest).mockResolvedValue(created);
  vi.mocked(api.getRequest).mockResolvedValue(detail as Awaited<ReturnType<typeof api.getRequest>>);
@@ -44,10 +57,34 @@ beforeEach(()=>{
 afterEach(()=>{cleanup();vi.useRealTimers();});
 
 describe('Cliente T05',()=>{
+ it('cambiar el punto tras fallar una subida conserva el nuevo origen al reintentar',async()=>{
+  const first=(await vi.mocked(api.getRequestOrigins).getMockImplementation()!())[0];
+  vi.mocked(api.getRequestOrigins).mockResolvedValue([first,{...first,delivery_point_id:'point-b',point_name:'Punto B'}]);
+  vi.mocked(api.uploadFile).mockRejectedValueOnce(new Error('Fallo de foto')).mockResolvedValue({key:'photo-key'});
+  await ready();fill();fireEvent.change(screen.getByLabelText('Archivos del artículo 1'),{
+   target:{files:[new File(['x'],'foto.jpg',{type:'image/jpeg'})]}});
+  submit();await screen.findByText('Fallo de foto');
+  fireEvent.change(screen.getByLabelText(/Pedido y punto de recolecta/),{target:{value:'order-a:point-b'}});
+  await within(screen.getByLabelText(/Línea del pedido/)).findByRole('option',{name:/COD-1/});fill();submit();
+  await screen.findByText(/Recibimos su solicitud/);
+  expect(api.createRequest).toHaveBeenCalledWith(expect.any(Array),expect.any(String),undefined,'order-a','point-b');
+ });
+ it('reintenta un envío incierto aunque el punto ya no aparezca en el catálogo',async()=>{
+  const journal=new Map();
+  vi.mocked(api.createRequest).mockRejectedValueOnce(new Error('Respuesta perdida')).mockResolvedValue(created);
+  const page=render(<MisDevolucionesPage journal={journal}/>);
+  await screen.findByText('Empresa A');await chooseOrigin();fill();submit();await screen.findByText('Respuesta perdida');
+  const original=vi.mocked(api.createRequest).mock.calls[0];page.unmount();
+  vi.mocked(api.getRequestOrigins).mockResolvedValue([]);
+  render(<MisDevolucionesPage journal={journal}/>);await screen.findByText('Empresa A');
+  await waitFor(()=>expect((screen.getByLabelText(/Nombre del artículo/) as HTMLInputElement).value).toBe('Producto'));
+  submit();await screen.findByText(/Recibimos su solicitud/);
+  expect(vi.mocked(api.createRequest).mock.calls[1]).toEqual(original);
+ });
  it('muestra empresa asignada fija y etiqueta recolecta',async()=>{
   await ready();expect(screen.getByText('Recolecta')).toBeTruthy();
   expect(screen.queryByRole('combobox',{name:/Empresa/})).toBeNull();
-  expect(screen.getByText(/código se ingresa manualmente/i)).toBeTruthy();
+  expect(screen.getByText(/servidor comprueba el saldo acumulado/i)).toBeTruthy();
  });
  it('exige nombre antes de subir archivos o crear',async()=>{
   await ready();fill();fireEvent.change(screen.getByLabelText(/Nombre del artículo/),{target:{value:' '}});submit();
@@ -116,11 +153,11 @@ describe('Cliente T05',()=>{
   expect(api.getFileUrl).not.toHaveBeenCalled();
  });
  it('sin permiso create solo consulta y no muestra formulario de captura',async()=>{
-  state.canCreate=false;await ready();expect(screen.queryByRole('button',{name:'Enviar solicitud'})).toBeNull();
+  state.canCreate=false;render(<MisDevolucionesPage/>);await screen.findByText('Empresa A');expect(screen.queryByRole('button',{name:'Enviar solicitud'})).toBeNull();
   fireEvent.click(screen.getByRole('tab',{name:'Mis solicitudes'}));expect(await screen.findByText(created.request_number)).toBeTruthy();
  });
  it('al cambiar de usuario elimina borrador y resultados de la sesion anterior',async()=>{
-  const page=render(<MisDevolucionesPage/>);await screen.findByText('Empresa A');fill();
+  const page=render(<MisDevolucionesPage/>);await screen.findByText('Empresa A');await chooseOrigin();fill();
   state.user={id:'client-b'};vi.mocked(api.getClientAssignment).mockResolvedValue({id:'company-b',name:'Empresa B'});
   page.rerender(<MisDevolucionesPage/>);await screen.findByText('Empresa B');
   expect((screen.getByLabelText(/Código del artículo/) as HTMLInputElement).value).toBe('');
@@ -128,7 +165,7 @@ describe('Cliente T05',()=>{
  });
  it('no completa un envio pendiente si el usuario cambia durante la subida',async()=>{
   const upload=deferred<{key:string}>();vi.mocked(api.uploadFile).mockReturnValue(upload.promise);
-  const page=render(<MisDevolucionesPage/>);await screen.findByText('Empresa A');fill();
+  const page=render(<MisDevolucionesPage/>);await screen.findByText('Empresa A');await chooseOrigin();fill();
   fireEvent.change(screen.getByLabelText('Archivos del artículo 1'),{target:{files:[new File(['x'],'foto.jpg',{type:'image/jpeg'})]}});
   submit();await waitFor(()=>expect(api.uploadFile).toHaveBeenCalledTimes(1));
   state.user={id:'client-b'};vi.mocked(api.getClientAssignment).mockResolvedValue({id:'company-b',name:'Empresa B'});

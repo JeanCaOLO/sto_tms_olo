@@ -4,6 +4,7 @@ import Button from '../../../components/base/Button';
 import Badge from '../../../components/base/Badge';
 import {REASONS,requestStatus} from '../../../lib/devoluciones/solicitudes';
 import {getFileUrl,getRequest,type RequestFile,type RequestDetail as Detail,type SignedRequestFile} from '../api/solicitudesApi';
+import OperationalProgress from './OperationalProgress';
 
 function Evidence({requestId,file,index}:{requestId:string;file:RequestFile;index:number}) {
   const [signed,setSigned]=useState<SignedRequestFile|null>(null);
@@ -74,9 +75,10 @@ export default function RequestDetail({requestId,onClose,notice,renderActions}:R
           <p>Empresa destinataria: <strong>{detail.request.customer_name}</strong></p>
           <p>Solicitada: {new Date(detail.request.created_at).toLocaleString('es-CR')}</p>
           {detail.request.approval_mode==='automatic'
-            ?<p>Aprobación automática al registrar la solicitud. Pendiente de integración con Planificación.</p>
+            ?<p>Aprobación automática al registrar la solicitud.</p>
             :detail.request.decided_at&&<p>Decisión registrada por {detail.request.decided_by_name||'Devoluciones'} el {new Date(detail.request.decided_at).toLocaleString('es-CR')}</p>}
           {detail.request.status==='aprobada'&&<p>Aprobada para recolecta. La recepción en almacén se confirma por separado.</p>}
+          {detail.request.status==='aprobada'&&<OperationalProgress request={detail.request}/>}
           {detail.request.rejection_reason&&<p className="rounded bg-red-50 p-3 text-red-700">{detail.request.rejection_reason}</p>}
         </div>
         {renderActions?.(detail,()=>setRetry(v=>v+1))}

@@ -24,6 +24,16 @@ class FakeDb:
 
     def query(self, sql, params=()):
         self.calls.append((sql, list(params)))
+        if 'SELECT r.id AS request_id,ob.status' in sql:
+            return []
+        if 'INSERT INTO tbl_return_request_outbox' in sql:
+            return [{'id': UUID_B}]
+        if 'SELECT id FROM tbl_orders' in sql:
+            return [{'id': UUID_A}]
+        if 'return_balance_72' in sql:
+            return [{'id': UUID_A, 'product_code': 'ART-1', 'remaining': 10}]
+        if 'FROM tbl_orders o' in sql:
+            return [{'order_id': UUID_A, 'delivery_point_id': UUID_B}]
         if "FROM tbl_app_users u LEFT JOIN tbl_customers" in sql:
             return [{"organization_id": ORG, "customer_id": self.customer_id, "customer_organization_id": ORG}]
         if "AS next FROM tbl_return_requests" in sql.replace("\n", " "):
@@ -62,10 +72,12 @@ def app(db, monkeypatch):
 
 
 def item(**extra):
-    return {"product_code": "ART-1", "product_name": "Articulo de prueba", "quantity": 2, "reason_code": "danado", **extra}
+    return {"order_item_id": UUID_A, "product_code": "ART-1", "product_name": "Articulo de prueba", "quantity": 2, "reason_code": "danado", **extra}
 
 
 def post(app, body, route="POST /api/v1/solicitudes-devolucion"):
+    if route == 'POST /api/v1/solicitudes-devolucion':
+        body = {'order_id': UUID_A, 'delivery_point_id': UUID_B, **body}
     return app.handler(http_event(route, body=body, user=USER), None)
 
 

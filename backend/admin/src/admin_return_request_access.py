@@ -89,6 +89,13 @@ def read_filter(event):
     caller = permissions.for_event(event)
     if caller.can(OPERATOR_MODULE, 'view'):
         org = str(identity(caller)['organization_id'])
-        return operator_filter(caller, org)
+        return request_operator_filter(caller, org)
     caller, org, company = client(event, 'view')
     return sql.CLIENT_SCOPE_SQL, [org, company, caller.app_user_id]
+
+
+def request_operator_filter(caller,org):
+    statement,params=operator_filter(caller,org)
+    statement=statement.replace('s.warehouse_id = w.id',f's.warehouse_id = {sql.OPERATIONAL_WAREHOUSE}')
+    statement=statement.replace('COALESCE(c.country_id,w.country_id)',sql.OPERATIONAL_COUNTRY)
+    return statement,params

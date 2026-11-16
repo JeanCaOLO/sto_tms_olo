@@ -374,6 +374,7 @@ def test_return_requires_fields_and_active_trip(call, fake_db):
 
 
 def test_return_is_inserted_with_guide_and_order_and_is_idempotent(call, fake_db):
+    return_balance(fake_db)
     route = "POST /api/mobile/v1/paradas/{id}/devoluciones"
     client_id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
     body = {"product_name": "Pintura 4L", "quantity": 2, "reason": "Empaque dañado", "client_id": client_id}
@@ -385,12 +386,16 @@ def test_return_is_inserted_with_guide_and_order_and_is_idempotent(call, fake_db
     assert params[:4] == [ORG, GUIDE, ORDER, f"DV-{client_id}"] and params[6] == "Pintura 4L" and params[7] == 2
     assert fake_db.wrote("INSERT INTO tbl_tracking_events")[0][1][3] == "return"
     fake_db.answer("INSERT INTO tbl_returns", [])
+    fake_db.answer('FROM tbl_returns WHERE organization_id', [{'id':'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        'return_number':f'DV-{client_id}','product_code':'A-1','product_name':'Pintura 4L','order_item_id':UUID1,
+        'quantity':2,'reason':body['reason'],'photo_url':None,'notes':None,'dispatch_guide_id':GUIDE}])
     again = call(route, path={"id": GUIDE}, body=body)
     assert again["statusCode"] == 200 and body_of(again)["data"]["duplicate"] is True
     assert len(fake_db.wrote("INSERT INTO tbl_tracking_events")) == 1
 
 
 def test_return_with_several_items_writes_one_row_each_with_photo_and_type(call, fake_db):
+    return_balance(fake_db)
     route = "POST /api/mobile/v1/paradas/{id}/devoluciones"
     client_id = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
     photo = f"{FOLDER}photo_return-{'b' * 36}.jpg"
@@ -404,12 +409,13 @@ def test_return_with_several_items_writes_one_row_each_with_photo_and_type(call,
     rows = fake_db.wrote("INSERT INTO tbl_returns")
     assert "'contracamion'" in rows[0][0]
     assert [r[1][3] for r in rows] == [f"DV-{client_id}-1", f"DV-{client_id}-2"]
-    assert rows[0][1][5:8] == ["A-1", "Pintura 4L", 2] and rows[1][1][5] is None
+    assert rows[0][1][5:8] == ["A-1", "Pintura 4L", 2] and rows[1][1][5] == 'B-2'
     assert all(r[1][8] == photo and r[1][9] == "golpeado" for r in rows)
     assert len(fake_db.wrote("INSERT INTO tbl_tracking_events")) == 1
 
 
 def test_return_photo_is_resolved_from_the_evidence_client_id(call, fake_db):
+    return_balance(fake_db)
     route = "POST /api/mobile/v1/paradas/{id}/devoluciones"
     photo_id = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
     key = f"{FOLDER}photo_return-{photo_id}.jpg"
@@ -424,6 +430,39 @@ def test_return_photo_is_resolved_from_the_evidence_client_id(call, fake_db):
     assert call(route, path={"id": GUIDE}, body={**body, "photo_client_id": "no-uuid"})["statusCode"] == 400
 
 
+def return_balance(fake_db):
+    fake_db.answer('SELECT id FROM tbl_orders', [{'id': ORDER}])
+    fake_db.answer('return_balance_72', [
+        {'id': UUID1, 'product_code': 'A-1', 'product_name': 'Pintura 4L', 'remaining': 10},
+        {'id': TRIP, 'product_code': 'B-2', 'product_name': 'Rodillo', 'remaining': 10},
+        {'id': ROUTE, 'product_code': 'C-3', 'product_name': 'Pintura', 'remaining': 10},
+    ])
+
+
+def test_return_rejects_repeated_lines_over_balance_and_unknown_manual_product(call, fake_db):
+    return_balance(fake_db)
+    fake_db.answer('FROM tbl_dispatch_guides g JOIN tbl_routes r', [guide_row()])
+    route = 'POST /api/mobile/v1/paradas/{id}/devoluciones'
+    response = call(route, path={'id': GUIDE}, body={'reason': 'x', 'items': [
+        {'product_code': 'A-1', 'quantity': 6}, {'product_code': 'A-1', 'quantity': 6}]})
+    assert response['statusCode'] == 409
+    response = call(route, path={'id': GUIDE}, body={'reason': 'x', 'product_name': 'Manual', 'quantity': 1})
+    assert response['statusCode'] == 422
+    assert not fake_db.wrote('INSERT INTO tbl_returns')
+
+
+def test_legacy_return_replay_without_code_or_order_line_survives_rollout_and_closed_trip(call,fake_db):
+    fake_db.answer('FROM tbl_dispatch_guides g JOIN tbl_routes r',[guide_row(route_status='Completada')])
+    fake_db.answer('FROM tbl_returns WHERE organization_id',[{'id':UUID1,'return_number':f'DV-{UUID1}',
+        'product_code':None,'product_name':'Producto histórico','order_item_id':None,'quantity':2,
+        'reason':'x','photo_url':None,'notes':None,'dispatch_guide_id':GUIDE}])
+    body={'client_id':UUID1,'product_name':'Producto histórico','quantity':2,'reason':'x'}
+    route='POST /api/mobile/v1/paradas/{id}/devoluciones'
+    assert call(route,path={'id':GUIDE},body=body)['statusCode']==200
+    assert call(route,path={'id':GUIDE},body={**body,'quantity':3})['statusCode']==409
+    assert not fake_db.wrote('INSERT INTO tbl_returns')
+
+
 def test_return_items_are_validated(call, fake_db):
     route = "POST /api/mobile/v1/paradas/{id}/devoluciones"
     fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row()])
@@ -435,15 +474,15 @@ def test_return_items_are_validated(call, fake_db):
 def test_stop_items_lists_order_lines_only_while_active(call, fake_db):
     route = "GET /api/mobile/v1/paradas/{id}/articulos"
     fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row()])
-    fake_db.answer("FROM tbl_order_items", [
-        {"line_number": 1, "product_code": "A-1", "product_name": "Pintura 4L", "quantity": 3},
-        {"line_number": 2, "product_code": "B-2", "product_name": None, "quantity": 1}])
+    fake_db.answer("return_balance_72", [
+        {'id':UUID1,'presentation':'CAJA','remaining':2,"line_number": 1, "product_code": "A-1", "product_name": "Pintura 4L", "quantity": 3},
+        {'id':TRIP,'presentation':None,'remaining':1,"line_number": 2, "product_code": "B-2", "product_name": None, "quantity": 1}])
     res = call(route, path={"id": GUIDE})
     assert res["statusCode"] == 200
     items = body_of(res)["data"]["items"]
-    assert items[0] == {"line_number": 1, "product_code": "A-1", "product_name": "Pintura 4L", "quantity": 3}
+    assert items[0] == {'order_item_id':UUID1,'presentation':'CAJA','remaining':2,"line_number": 1, "product_code": "A-1", "product_name": "Pintura 4L", "quantity": 3}
     assert items[1]["product_name"] == "B-2"
-    assert fake_db.wrote("SELECT i.line_number")[0][1] == [ORDER]
+    assert next(params for statement,params in fake_db.calls if 'return_balance_72' in statement) == [ORG,ORDER]
     fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row(route_status="Completada")])
     assert call(route, path={"id": GUIDE})["statusCode"] == 409
 

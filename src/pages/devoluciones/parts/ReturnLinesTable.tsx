@@ -14,6 +14,8 @@ interface Props {
   onReloadPhotos?: () => void;
   onReject?: (line: ReturnLine) => void;
   onIncident?: (line: ReturnLine) => void;
+  /** Resolver una novedad abierta (solo quien puede recibir). */
+  onResolve?: (line: ReturnLine) => void;
   /** Casillas de selección (solo quien puede editar); sin esta prop no se muestran. */
   selection?: {
     selected: ReadonlySet<string>;
@@ -22,7 +24,7 @@ interface Props {
   };
 }
 
-export default function ReturnLinesTable({ groups, canReceive, onReceive, onReloadPhotos, onIncident, selection }: Props) {
+export default function ReturnLinesTable({ groups, canReceive, onReceive, onReloadPhotos, onIncident, onResolve, selection }: Props) {
   if (groups.length === 0) return <p className="text-sm text-slate-500">Este viaje no tiene devoluciones.</p>;
   return (
     <div className="space-y-4">
@@ -94,6 +96,9 @@ export default function ReturnLinesTable({ groups, canReceive, onReceive, onRelo
                           </Button>}
                           {onIncident&&<Button size="sm" variant="secondary" onClick={()=>onIncident(line)}>Registrar novedad</Button>}
                         </div>
+                      )}
+                      {canReceive && onResolve && line.status === 'in_review' && (
+                        <Button size="sm" variant="secondary" onClick={() => onResolve(line)}>Resolver novedad</Button>
                       )}
                     </td>
                   </tr>

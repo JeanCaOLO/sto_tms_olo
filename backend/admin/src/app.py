@@ -10,6 +10,7 @@ from tms_common.handler import tms_handler
 import admin_audit as audit_log
 import admin_permissions as permissions
 import admin_return_requests as return_requests
+import admin_return_collection as collection
 import admin_returns as returns
 import admin_return_incidents as incidents
 import admin_roles as roles
@@ -42,12 +43,16 @@ ROUTES = {
     "POST /api/v1/devoluciones/{returnId}/recibir": returns.receive_return,
     "POST /api/v1/devoluciones/{returnId}/novedades": incidents.record,
     "GET /api/v1/devoluciones/{returnId}/novedades": incidents.history,
+    "POST /api/v1/devoluciones/{returnId}/novedades/resolver": incidents.resolve,
     "POST /api/v1/devoluciones/{returnId}/rechazar": returns.reject_return,
     "POST /api/v1/solicitudes-devolucion": return_requests.create_request,
     "POST /api/v1/solicitudes-devolucion/archivos/url": return_requests.upload_url,
     "GET /api/v1/solicitudes-devolucion/mias": return_requests.list_mine,
     "GET /api/v1/solicitudes-devolucion/asignacion": return_requests.get_assignment,
     "GET /api/v1/solicitudes-devolucion": return_requests.list_inbox,
+    "POST /api/v1/solicitudes-devolucion/eventos/reclamar": collection.claim,
+    "POST /api/v1/solicitudes-devolucion/{requestId}/eventos": collection.accept,
+    "POST /api/v1/solicitudes-devolucion/{requestId}/reintentar-envio": collection.retry,
     "GET /api/v1/solicitudes-devolucion/{requestId}": return_requests.get_request,
     "POST /api/v1/solicitudes-devolucion/{requestId}/aprobar": return_requests.approve_request,
     "POST /api/v1/solicitudes-devolucion/{requestId}/rechazar": return_requests.reject_request,
