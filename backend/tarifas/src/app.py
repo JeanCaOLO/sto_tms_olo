@@ -39,11 +39,13 @@ from tms_common.handler import tms_handler
 from tms_common.responses import empty_response, json_response
 
 import tarifas_carrier
+from tarifas_business_rules import MARKS_TABLE, MARK_CONFLICT
 import tarifas_db
 import tarifas_metrics
 import proformas_api
 import returns_gate
 import tarifas_perms
+import tarifas_proforma_content as proforma_content
 from tarifas_schema import Table, table as table_def
 from tarifas_sql import MAX_ROWS, build_delete, build_find, build_get, build_insert, build_insert_many, build_update
 
@@ -125,7 +127,11 @@ def _stamp_actor(caller: permissions.Permissions, event: dict, table: Table, val
 
     El cliente manda `user_name` y `role` como respaldo; acá se sobrescriben con el correo del token y el
     rol del que llama, así una entrada de bitácora no se puede escribir a nombre de otra persona."""
-    if table.name != AUDIT_TABLE or not isinstance(values, dict):
+    if not isinstance(values, dict):
+        return values
+    if table.name == MARKS_TABLE:
+        return {**values, "actor": caller.role_name or caller.app_user_id}
+    if table.name != AUDIT_TABLE:
         return values
     stamped = dict(values)
     email = auth_user(event).get("email")
@@ -226,16 +232,27 @@ def insert_row(event: dict) -> dict:
     proformas_api.check_direct_write(table.name, "insert", values)
     _require_country(caller, table, values, creating=True)
     returns_gate.check(table.name, values)
-    return json_response(200, tarifas_db.query(*build_insert(table, values))[0])
+    statement = build_insert(table, values)
+    if proforma_content.handles(table.name):
+        op = {"op": "insert", "table": table.name, "values": values}
+        return json_response(200, _execute_writes(caller, [(op, [("insert", statement)])])[0])
+    return json_response(200, tarifas_db.query(*statement)[0])
 
 
 def update_row(event: dict) -> dict:
     caller, table = _writer(event, path_param(event, "table"), "edit", "update")
-    values = _body(event)
+    values = _stamp_actor(caller, event, table, _body(event))
     proformas_api.check_direct_write(table.name, "update", values)
     _require_country(caller, table, values)
-    rows = tarifas_db.query(*build_update(table, path_param(event, "id"), values, caller.country_filter))
+    row_id = path_param(event, "id")
+    statement = build_update(table, row_id, values, caller.country_filter)
+    if proforma_content.handles(table.name):
+        op = {"op": "update", "table": table.name, "id": row_id, "values": values}
+        return json_response(200, _execute_writes(caller, [(op, [("update", statement)])])[0])
+    rows = tarifas_db.query(*statement)
     if not rows:
+        if table.name == MARKS_TABLE:
+            raise HttpError(409, MARK_CONFLICT)
         if table.name == "tarifas_settlements" and isinstance(values, dict) and "status" in values:
             # O no existe, o el estado actual no permite ese cambio (otro usuario se adelantó).
             raise HttpError(409, f"{table.label}: no existe o su estado actual no permite pasar a \"{values['status']}\".")
@@ -289,24 +306,33 @@ def run_transaction(event: dict) -> dict:
     ops = _body(event).get("ops")
     if not isinstance(ops, list) or not ops:
         raise HttpError(400, '"ops" debe ser una lista no vacía')
-    planned = [statement for op in ops for statement in _planned(caller, op, event)]
+    planned = [(op, _planned(caller, op, event)) for op in ops]
+    return json_response(200, _execute_writes(caller, planned))
+
+
+def _execute_writes(caller, planned):
 
     def apply(run) -> list:
         results: list = []
-        for kind, (sql, params) in planned:
-            rows = run(sql, params)
-            if kind not in ("insert", "insert_many") and not rows:
-                # Lanzar acá dispara el ROLLBACK: o se aplica todo o nada.
-                raise HttpError(404, "Una de las filas de la transacción no existe: no se guardó nada.")
-            if kind == "insert_many":
-                results.extend(rows)
-            else:
-                results.append(rows[0] if kind != "delete" else None)
+        content = proforma_content.ContentChanges(run, caller)
+        for op, statements in planned:
+            content.before(op)
+            for kind, (sql, params) in statements:
+                rows = run(sql, params)
+                if kind not in ("insert", "insert_many") and not rows:
+                    if op["table"] == MARKS_TABLE and kind == "update":
+                        raise HttpError(409, MARK_CONFLICT)
+                    # Lanzar acá dispara el ROLLBACK: o se aplica todo o nada.
+                    raise HttpError(404, "Una de las filas de la transacción no existe: no se guardó nada.")
+                if kind == "insert_many":
+                    results.extend(rows)
+                else:
+                    results.append(rows[0] if kind != "delete" else None)
+        content.finish()
         return results
 
     # Las operaciones ya están planificadas (solo SQL), así que repetir ante deadlock es seguro.
-    results = tarifas_db.run_in_transaction(apply, retries=TX_RETRIES)
-    return json_response(200, results)
+    return tarifas_db.run_in_transaction(apply, retries=TX_RETRIES)
 
 
 # El orden importa para el servidor local (serve.py busca la primera ruta que

@@ -5,21 +5,25 @@ ORGANIZATION_SQL = "SELECT organization_id FROM tbl_app_users WHERE id = %s"
 # {scope} = "" o " AND country_id = ANY(%s::uuid[])" (países que el rol ve).
 SUMMARY_SQL = """
 SELECT count(*)::int AS trips,
-       (count(*) FILTER (WHERE pending_returns > 0))::int AS trips_pending,
+       (count(*) FILTER (WHERE open_returns > 0))::int AS trips_pending,
        (count(*) FILTER (WHERE pending_returns = 0))::int AS trips_ready,
        COALESCE(sum(total_returns), 0)::int AS returns_total,
-       COALESCE(sum(pending_returns), 0)::int AS returns_pending,
-       COALESCE(sum(received_returns), 0)::int AS returns_received
+       COALESCE(sum(open_returns), 0)::int AS returns_pending,
+       COALESCE(sum(received_returns), 0)::int AS returns_received,
+       COALESCE(sum(incident_returns), 0)::int AS returns_incidents
 FROM vw_return_trips
-WHERE organization_id = %s{scope}
+WHERE organization_id = %s{filters}{scope}
 """
 
+# Mismo orden descendente de antes (NULLS FIRST), con route_id como desempate único.
+# Los indicadores de nulidad permiten comparar también las filas antiguas sin fecha o número.
+TRIP_SORT_COLUMNS = ("route_date IS NULL", "COALESCE(route_date, DATE '0001-01-01')",
+                     "route_number IS NULL", "COALESCE(route_number, '')", "route_id")
+TRIP_SORT_KEY = "(" + ", ".join(TRIP_SORT_COLUMNS) + ")"
 TRIPS_SQL = """
 SELECT * FROM vw_return_trips
 WHERE organization_id = %s{filters}{scope}
-ORDER BY route_date DESC, route_number DESC
-LIMIT 500
-"""
+ORDER BY """ + ", ".join(f"{column} DESC" for column in TRIP_SORT_COLUMNS) + "\nLIMIT %s\n"
 
 TRIP_SQL = """
 SELECT * FROM vw_return_trips
@@ -31,12 +35,18 @@ SELECT rt.id, rt.return_number, rt.return_type, rt.return_date, rt.reason, rt.pr
        rt.quantity, rt.photo_url, rt.notes, COALESCE(rt.status, 'pending') AS status,
        rt.received_at, rt.received_by, rt.received_quantity, rt.received_condition,
        g.id AS dispatch_guide_id, g.sequence_number, o.order_number, o.invoice_number,
-       i.form_id, f.form_number
+       i.form_id, f.form_number,
+       n.id AS incident_id, n.explanation AS incident_explanation, n.reported_at AS incident_reported_at
 FROM tbl_returns rt
 JOIN tbl_dispatch_guides g ON g.id = rt.dispatch_guide_id
 JOIN tbl_orders o ON o.id = rt.order_id
 LEFT JOIN tbl_return_form_items i ON i.return_id = rt.id
 LEFT JOIN tbl_return_forms f ON f.id = i.form_id
+LEFT JOIN LATERAL (
+ SELECT id,explanation,reported_at FROM tbl_return_incidents history
+ WHERE history.return_id = rt.id AND history.organization_id = rt.organization_id
+ ORDER BY reported_at DESC,id DESC LIMIT 1
+) n ON true
 """
 
 # Devoluciones del viaje, con el formulario al que ya pertenecen (form_id NULL = todavía sin formulario).
@@ -105,7 +115,7 @@ FORM_BY_ID_SQL = "SELECT * FROM tbl_return_forms WHERE id = %s AND organization_
 
 # Devoluciones elegidas para un formulario nuevo: del viaje, y con el formulario que ya las tenga (si alguno).
 SELECTED_RETURNS_SQL = """
-SELECT rt.id, rt.dispatch_guide_id, i.form_id
+SELECT rt.id, rt.dispatch_guide_id, i.form_id, rt.status
 FROM tbl_returns rt
 JOIN tbl_dispatch_guides g ON g.id = rt.dispatch_guide_id
 LEFT JOIN tbl_return_form_items i ON i.return_id = rt.id
@@ -154,7 +164,7 @@ SET sort_order = EXCLUDED.sort_order, invoice_number = EXCLUDED.invoice_number,
 
 # La devolución solo se puede recibir dentro del país que el rol ve.
 RETURN_SQL = """
-SELECT rt.id, rt.quantity, COALESCE(rt.status, 'pending') AS status, g.route_id
+SELECT rt.id, rt.quantity, rt.received_quantity, rt.received_condition, COALESCE(rt.status, 'pending') AS status, g.route_id
 FROM tbl_returns rt
 JOIN tbl_dispatch_guides g ON g.id = rt.dispatch_guide_id
 JOIN tbl_routes r ON r.id = g.route_id
@@ -168,6 +178,13 @@ SET status = 'received', received_at = now(), received_by = %s, received_quantit
     updated_at = now()
 WHERE id = %s AND organization_id = %s AND COALESCE(status, 'pending') IN ('pending', 'approved')
 RETURNING id, status, received_at, received_quantity, received_condition
+"""
+
+REJECT_SQL = """
+UPDATE tbl_returns
+SET status = 'rejected', rejection_reason = %s, rejected_by = %s, rejected_at = now(), updated_at = now()
+WHERE id = %s AND organization_id = %s AND COALESCE(status, 'pending') IN ('pending', 'approved')
+RETURNING id, status, rejection_reason, rejected_at
 """
 
 # received_quantity = lo que vino registrado: recibir todo de un viaje no reinterpreta cantidades.

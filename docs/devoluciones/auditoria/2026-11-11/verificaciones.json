@@ -1,0 +1,32 @@
+{
+    "captured_at":  "2026-11-11T18:22:08.2965823Z",
+    "frontend":  {
+                     "success":  true,
+                     "command":  "npm test -- src/lib/devoluciones --reporter=json --outputFile=.test/devoluciones/frontend-results-2026-11-11.json (via rtk test)",
+                     "failed":  0,
+                     "passed":  54
+                 },
+    "backend":  {
+                    "observed":  "Expected HTTP 503, received 500; ModuleNotFoundError: boto3 before _bucket()",
+                    "failed_test":  "test_upload_url_sin_bucket_es_503",
+                    "errors":  0,
+                    "command":  "backend/.venv/Scripts/python.exe -m pytest backend/tests/test_returns.py backend/tests/test_return_requests.py backend/tests/test_returns_gate.py -q --tb=short",
+                    "failures":  1,
+                    "tests":  82,
+                    "skipped":  0
+                },
+    "typecheck":  {
+                      "exit_code":  2,
+                      "TS2580":  42,
+                      "command":  "npm run type-check",
+                      "errors":  92,
+                      "devoluciones_page_diagnostics":  0,
+                      "TS2307":  50
+                  },
+    "not_run":  [
+                    "global lint",
+                    "browser E2E",
+                    "device E2E",
+                    "visual PDF comparison"
+                ]
+}

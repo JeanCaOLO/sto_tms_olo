@@ -1,0 +1,41 @@
+{
+    "captured_at":  "2026-11-12T12:45:54.8661146Z",
+    "scope":  "T03: preparacion local de esquema, no aplicado a Aurora",
+    "engine":  "PostgreSQL 18.6 (PGlite 0.5.16), memory://",
+    "pglite_install":  "Temp/tms-t03-postgres-tools; exact 0.5.16; ignore-scripts; fuera de dependencias de aplicacion",
+    "command":  "node --test tests/sql/67_roles_solicitudes_devolucion.test.mjs",
+    "tests":  18,
+    "passed":  18,
+    "failed":  0,
+    "exit_code":  0,
+    "red":  {
+                "result":  "Missing decided_by antes de agregar SQL 67",
+                "log":  ".test/devoluciones/t03-red-2026-11-12.log"
+            },
+    "green_log":  ".test/devoluciones/t03-green-2026-11-12.log",
+    "coverage":  [
+                     "SQL 64 real para solicitudes/items/files",
+                     "SQL anterior de crear/consultar solicitud y crear contracamion mobile",
+                     "Estados, actor, fecha, motivo y organizacion",
+                     "Identidad historica y vinculos operativos coherentes",
+                     "Idempotencia y datos sinteticos preservados",
+                     "Rollback rechazado tras decisiones o vinculos",
+                     "Rollback de transaccion exterior compatible con runner",
+                     "FK RESTRICT preserva evidencia ante borrado en memoria"
+                 ],
+    "limits":  [
+                   "Fixtures minimos de tablas base; no esquema completo ni auditoria/RLS de Aurora",
+                   "PostgreSQL 18.6 en WASM; version destino debe validarla Jean",
+                   "No prueba concurrencia multi-conexion ni IAM ni locks bajo carga",
+                   "Backend de roles/scopes y APIs nuevas pendientes de T04",
+                   "Planificacion y recepcion pendientes de sus tareas"
+               ],
+    "external_database_connections":  0,
+    "shared_migrations_applied":  0,
+    "deployments":  0,
+    "hashes":  {
+                   "tests/sql/67_roles_solicitudes_devolucion.test.mjs":  "c10aef808808a02b2219094c6112829e2ef03000b10d7ae0e59ba184b97fe05e",
+                   "sql/67_roles_solicitudes_devolucion.sql":  "7b5aa0e4b024b1ca9f6d2f63c11028d8ed32c15434f321f9c3173c741c165e0d",
+                   "sql/67_roles_solicitudes_devolucion_rollback.sql":  "7ef99f8143e64b2d2c974eea46ab3beabc19b3eefa3c96432300f96dc1216c93"
+               }
+}

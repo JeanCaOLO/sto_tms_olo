@@ -37,10 +37,10 @@ REGION = "us-east-2"
 ACCOUNT = "758837481569"
 ENV = "dev"
 ARTIFACTS_BUCKET = f"tms-sandbox-artifacts-{ACCOUNT}"
-STACKS = ["common-services", "auth", "data", "context", "eflow", "admin", "planning", "oms", "tarifas", "realtime",
-          "documents", "tracking", "alerts", "horarios", "mobile"]
+STACKS = ["common-services", "auth", "data", "context", "eflow", "admin", "osrm", "planning", "oms", "tarifas",
+          "realtime", "documents", "tracking", "alerts", "horarios", "mobile"]  # osrm antes de planning: le pasa su URL
 # Stacks de infraestructura sin código (template en infra/<nombre>/, sin samconfig).
-INFRA_STACKS = {"horarios": ROOT / "infra" / "horarios"}
+INFRA_STACKS = {"horarios": ROOT / "infra" / "horarios", "osrm": ROOT / "infra" / "osrm"}
 # El secreto de BD del sandbox es el del rol de la app (sql/18), no el del dueño.
 PARAM_OVERRIDES = {"DbSecretName": "/dev/tms/db-app"}
 
@@ -53,6 +53,10 @@ SSM_LAMBDA_SG = f"/{ENV}/tms/network/lambda-sg"
 AWS_CLI = shutil.which("aws") or "aws"
 PIP_PLATFORM = ["--platform", "manylinux2014_x86_64", "--python-version", "3.13",
                 "--implementation", "cp", "--only-binary=:all:", "--no-compile"]
+# OR-Tools solo publica ruedas manylinux_2_27/2_28 (glibc de Amazon Linux 2023, el runtime python3.13). Solo
+# para los stacks que lo usan: así los demás siguen bajando exactamente las mismas ruedas que antes.
+PIP_PLATFORM_GLIBC_228 = ["--platform", "manylinux_2_28_x86_64", "--platform", "manylinux_2_27_x86_64", *PIP_PLATFORM]
+STACKS_GLIBC_228 = {"planning"}
 # Las Lambdas con `Architectures: [arm64]` (mobile) llevan las dependencias compiladas para Graviton.
 PIP_PLATFORM_ARM64 = ["--platform", "manylinux2014_aarch64", *PIP_PLATFORM[2:]]
 SSM_LAYER_ARN = f"/{ENV}/tms/common-layer-arn"
@@ -169,6 +173,8 @@ def build_stack(stack: str) -> Path:
     out.mkdir(parents=True)
     text = (stack_dir / "template.yaml").read_text(encoding="utf-8")
     platform = PIP_PLATFORM_ARM64 if re.search(r"Architectures:\s*\[\s*arm64\s*\]", text) else PIP_PLATFORM
+    if stack in STACKS_GLIBC_228:
+        platform = PIP_PLATFORM_GLIBC_228
 
     def replace_uri(match: re.Match) -> str:
         key, rel = match.group(1), match.group(2).strip().rstrip("/")
@@ -198,6 +204,8 @@ def dev_parameters(stack: str) -> tuple[str, list[str], list[str]]:
     params = config[ENV]["deploy"]["parameters"]
     overrides = dict(item.split("=", 1) for item in params.get("parameter_overrides", []))
     overrides.update({k: v for k, v in PARAM_OVERRIDES.items() if k in overrides})
+    if stack == "planning" and osrm_url():
+        overrides["OsrmUrl"] = osrm_url()  # OSRM propio del sandbox (stack osrm); sin él, línea recta
     return params["stack_name"], [f"{k}={v}" for k, v in overrides.items()], params.get("tags", [])
 
 
@@ -244,6 +252,13 @@ def sync_layer_parameter() -> None:
 def api_url() -> str:
     return aws("cloudformation", "describe-stacks", "--stack-name", f"{ENV}-tms-common-services", "--query",
                "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue", "--output", "text").stdout.strip()
+
+
+def osrm_url() -> str:
+    """URL privada del OSRM del sandbox; vacío si el stack osrm no está desplegado."""
+    res = aws("cloudformation", "describe-stacks", "--stack-name", f"{ENV}-tms-osrm", "--query",
+              "Stacks[0].Outputs[?OutputKey=='OsrmUrl'].OutputValue", "--output", "text", check=False)
+    return res.stdout.strip() if res.returncode == 0 else ""
 
 
 def mobile_api_url() -> str:

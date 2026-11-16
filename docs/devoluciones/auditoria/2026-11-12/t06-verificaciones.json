@@ -1,0 +1,91 @@
+{
+  "captured_at": "2026-11-12T14:27:36.989Z",
+  "scope": "T06: bandeja Operador local, conservando recepcion por viajes; sin nuevas migraciones ni despliegues",
+  "frontend": {
+    "passed": 114,
+    "failed": 0,
+    "exit_code": 0,
+    "report": ".test/devoluciones/t06-frontend.json",
+    "t06_tests": 19
+  },
+  "backend": {
+    "passed": 173,
+    "failed": 0,
+    "exit_code": 0,
+    "junit": ".test/devoluciones/t06-backend.xml"
+  },
+  "sql": {
+    "passed": 32,
+    "failed": 0,
+    "exit_code": 0,
+    "engine": "PostgreSQL 18.6 (PGlite 0.5.16), memory://",
+    "command": "node --test tests/sql/return_requests_access.test.mjs tests/sql/67_roles_solicitudes_devolucion.test.mjs"
+  },
+  "types": {
+    "errors": 0,
+    "exit_code": 0,
+    "command": "npm.cmd run type-check",
+    "configuration_relaxed": false
+  },
+  "build": {
+    "exit_code": 0,
+    "command": "npm.cmd run build",
+    "warning": "Chunks mayores a 500kB; advertencia existente"
+  },
+  "review": {
+    "initial_findings": [
+      {
+        "severity": "Important",
+        "problem": "Cerrar/reabrir o cambiar de pesta?a perdia intento pendiente, habilitando decision contraria ante POST lento/timeout",
+        "verified_red": ".test/devoluciones/t06-review-red.log",
+        "fix": "Journal por usuario/solicitud en Workspace, fuera del modal, con accion/motivo/inFlight y conciliacion al resolver o leer estado final",
+        "green": ".test/devoluciones/t06-review-green.log"
+      }
+    ],
+    "second_review": "Important resuelto; sin nuevas regresiones Critical/Important",
+    "method": "Revisor independiente solo lectura; no ejecuto pruebas ni AWS/BD"
+  },
+  "rulings": [
+    "Continuar checkout autorizado con backup Temp/tms-t06-20261112-101046 y conservar cambios previos",
+    "Reutilizar RequestDetail y visor de fotos/videos T05 con slots de aviso/acciones; Cliente permanece sin acciones",
+    "companies se deriva de solicitudes con mismo scope/pais, independiente de pagina; no catalogo global ni rutas/DDL nuevas",
+    "Pais operativo estrecha paises del rol y scopes, sin sustituirlos",
+    "Registro de decision pendiente en memoria por usuario/solicitud, persiste cerrar modal/pesta?a/pais dentro Workspace, se pierde al abandonar pantalla/recargar/cambiar cuenta",
+    "Recepcion por viajes sigue montada y conserva filtros; no condiciona solicitudes comerciales"
+  ],
+  "limits": [
+    "No QA visual ni E2E real en navegador/dispositivo",
+    "No prueba multiconexion/IAM/RLS/S3 en Aurora: staging con Jean pendiente",
+    "Journal no persiste al abandonar la pantalla o recargar; volver a consultar estado",
+    "T07 recepcion/trazabilidad, T08 entrega y T09 cierre siguen pendientes",
+    "No lint SAM completo: sin nuevas rutas ni cambios IAM en T06"
+  ],
+  "aws_calls": 0,
+  "external_database_connections": 0,
+  "shared_migrations_applied": 0,
+  "deployments": 0,
+  "real_data_changes": 0,
+  "applied_sql67_checksum_unchanged": true,
+  "logs": [
+    ".test/devoluciones/t06-red.log",
+    ".test/devoluciones/t06-backend-red.log",
+    ".test/devoluciones/t06-green.log",
+    ".test/devoluciones/t06-backend.log",
+    ".test/devoluciones/t06-sql.log",
+    ".test/devoluciones/t06-types.log",
+    ".test/devoluciones/t06-build.log"
+  ],
+  "hashes": {
+    "src/pages/devoluciones/page.tsx": "693899e24c17abe81d13417d6e5db5d958f06b384ad5a49dbcc0193a57479cfb",
+    "src/pages/devoluciones/solicitudes/RequestInbox.tsx": "ff495b01ccc3f556bd79d2b4d285dec576ebb92ab34a9773cb5ae8b201359ada",
+    "src/pages/devoluciones/solicitudes/DecisionActions.tsx": "b68161a288ac8ba311c00d35431a9d381d2a4f079d760b30a70d0248118e8c15",
+    "src/pages/devoluciones/solicitudes/RequestInbox.test.tsx": "9e0ed13d1ad6f2c764688e9ae9af50c4b0ae2c4221c53f50580906a6ad432803",
+    "src/pages/mis-devoluciones/components/RequestDetail.tsx": "4cd811baf695f7bf700e2c69045715657ca567892a3e5feec4fc0149d0ee5ebe",
+    "src/pages/mis-devoluciones/api/solicitudesApi.ts": "6f1bbc6ec2730e7a5705a6af48823d98acea292892ddca508f382dd9dcad5adc",
+    "src/pages/mis-devoluciones/api/solicitudesApi.test.ts": "736e5fb0d2eed2722caad1455bcbafc8c0d461d342e0a80aee33be215288bad7",
+    "backend/admin/src/admin_return_requests.py": "52ea1ca9ae68f4cb8ee8bf1721f995ac49b992f642859095e42c7602827f22b3",
+    "backend/admin/src/admin_return_requests_sql.py": "53e670063628c8b0854163218cb3ec6b87db93ef6f21c32de9c480afba024fca",
+    "backend/tests/test_return_request_review.py": "7847f4f9fd7106358b151bd6b08d617ef89b5880927493874486a7be903ad2ad",
+    "tests/sql/return_requests_access.test.mjs": "6edb4cc1fde831c0930774709bad828903275600c19bd4001d3e71b75b40f74a"
+  }
+}

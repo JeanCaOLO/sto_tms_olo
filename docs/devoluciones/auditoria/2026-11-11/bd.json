@@ -1,0 +1,83 @@
+{
+  "captured_at": "2026-11-11T18:14:51.423Z",
+  "read_only": true,
+  "checks": {
+    "transaction_read_only": "on",
+    "tables": [
+      {
+        "table_name": "mobile_migrations"
+      },
+      {
+        "table_name": "tbl_return_form_items"
+      },
+      {
+        "table_name": "tbl_return_forms"
+      },
+      {
+        "table_name": "tbl_return_request_files"
+      },
+      {
+        "table_name": "tbl_return_request_items"
+      },
+      {
+        "table_name": "tbl_return_requests"
+      },
+      {
+        "table_name": "tbl_returns"
+      }
+    ],
+    "columns": [
+      {
+        "table_name": "tbl_app_users",
+        "column_name": "customer_id",
+        "data_type": "uuid"
+      },
+      {
+        "table_name": "tbl_returns",
+        "column_name": "photo_url",
+        "data_type": "text"
+      },
+      {
+        "table_name": "tbl_returns",
+        "column_name": "received_at",
+        "data_type": "timestamp with time zone"
+      },
+      {
+        "table_name": "tbl_returns",
+        "column_name": "received_by",
+        "data_type": "uuid"
+      },
+      {
+        "table_name": "tbl_returns",
+        "column_name": "received_condition",
+        "data_type": "character varying"
+      },
+      {
+        "table_name": "tbl_returns",
+        "column_name": "received_quantity",
+        "data_type": "integer"
+      },
+      {
+        "table_name": "tbl_returns",
+        "column_name": "return_type",
+        "data_type": "character varying"
+      }
+    ],
+    "constraints": [
+      {
+        "conname": "ck_return_request_status",
+        "definition": "CHECK (((status)::text = 'pendiente_asignacion'::text))"
+      },
+      {
+        "conname": "ck_tracking_evidence_kind",
+        "definition": "CHECK ((kind = ANY (ARRAY['photo_invoice'::text, 'photo_product'::text, 'photo_return'::text, 'signature'::text, 'photo_other'::text])))"
+      }
+    ],
+    "return_trips_view": [
+      {
+        "definition": " SELECT r.id AS route_id,\n    r.organization_id,\n    r.route_number,\n    r.route_date,\n    r.plan_trip_id,\n    r.status AS route_status,\n    r.driver_id,\n    d.full_name AS driver_name,\n    r.carrier_id,\n    c.name AS carrier_name,\n    s.country_id,\n    (count(rt.id))::integer AS total_returns,\n    (count(rt.id) FILTER (WHERE ((rt.status)::text = 'received'::text)))::integer AS received_returns,\n    (count(rt.id) FILTER (WHERE ((COALESCE(rt.status, 'pending'::character varying))::text <> ALL ((ARRAY['received'::character varying, 'rejected'::character varying, 'cancelled'::character varying])::text[]))))::integer AS pending_returns,\n    max(rt.return_date) AS last_return_at,\n    ( SELECT (count(*))::integer AS count\n           FROM tbl_return_forms f\n          WHERE (f.route_id = r.id)) AS forms_count\n   FROM (((((tbl_routes r\n     JOIN tbl_stores s ON ((s.id = r.store_id)))\n     JOIN tbl_dispatch_guides g ON ((g.route_id = r.id)))\n     JOIN tbl_returns rt ON ((rt.dispatch_guide_id = g.id)))\n     LEFT JOIN tbl_drivers d ON ((d.id = r.driver_id)))\n     LEFT JOIN tbl_carriers c ON ((c.id = r.carrier_id)))\n  GROUP BY r.id, r.organization_id, r.route_number, r.route_date, r.plan_trip_id, r.status, r.driver_id, d.full_name, r.carrier_id, c.name, s.country_id;"
+      }
+    ]
+  },
+  "status": "verified"
+}

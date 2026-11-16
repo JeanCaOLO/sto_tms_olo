@@ -1,6 +1,7 @@
 """Proformas del tarifador: decisiones por fase y protección de la API genérica."""
 
 import json
+from contextlib import contextmanager
 
 import pytest
 
@@ -24,16 +25,34 @@ class Script(FakeDb):
     def __init__(self, proforma, phases, claim=None):
         super().__init__()
         self.proforma, self.phases, self.claim = proforma, phases, claim
+        self.locked_proforma = None
 
     def query(self, sql, params=()):
         self.calls.append((sql, list(params)))
         if "FROM tbl_tarifas_proformas WHERE id" in sql:
-            return [self.proforma] if self.proforma else []
+            row = self.locked_proforma if "FOR UPDATE" in sql and self.locked_proforma else self.proforma
+            return [row] if row else []
+        if "FROM tbl_tarifas_settlements WHERE id" in sql:
+            return [{"id": params[0], "total_amount": "10.00", "country_id": PROFORMA["country_id"], "carrier_id": CARRIER}]
+        if "COUNT(*)" in sql and "FROM tbl_tarifas_proforma_items" in sql:
+            return [{"included_count": 1}]
         if "FROM tbl_tarifas_proforma_phases" in sql:
             return self.phases
         if "FROM tbl_tarifas_proforma_claims" in sql:
             return [self.claim] if self.claim else []
         return self.rows
+
+    @contextmanager
+    def transaction(self):
+        def run(statement, params=()):
+            self.tx_calls.append((statement, list(params)))
+            return self.query(statement, params)
+        try:
+            yield run
+            self.tx_state = "commit"
+        except BaseException:
+            self.tx_state = "rollback"
+            raise
 
 
 @pytest.fixture
@@ -67,6 +86,17 @@ def test_el_aprobador_del_rol_avanza_a_la_siguiente_fase(api, caller_permissions
     assert db.tx_state == "commit"
     sql = " ".join(s for s, _ in db.tx_calls)
     assert "UPDATE tbl_tarifas_proforma_phases" in sql and "UPDATE tbl_tarifas_proformas" in sql and "tarifas_audit_log" in sql
+
+
+def test_decision_reloads_parent_after_waiting_for_content_lock(api, caller_permissions):
+    app, db = api()
+    as_role(caller_permissions, "Jefe")
+    db.locked_proforma = {**PROFORMA, "status": "Pagado"}
+    response = decide(app, {"action": "approve", "phaseId": "f1"})
+    assert response["statusCode"] == 409
+    assert db.tx_state == "rollback"
+    assert any("FOR UPDATE" in statement for statement, _ in db.tx_calls)
+    assert not any(statement.startswith("UPDATE") for statement, _ in db.tx_calls)
 
 
 def test_la_ultima_fase_aprobada_deja_la_proforma_aprobada(api, caller_permissions):
@@ -207,7 +237,8 @@ def test_quien_liquida_puede_crear_y_sumar_a_proformas_pero_no_cambiar_fases(api
     as_role(caller_permissions, "Liquidador", modules={"tarifas": "*"})  # sin tarifas.proformas
     ok = app.handler(http_event("POST /api/tarifas/tx", body={"ops": [
         {"op": "insert", "table": "tarifas_proformas", "values": {"id": "pro_9", "status": "En Revisión"}},
-        {"op": "insert", "table": "tarifas_proforma_items", "values": {"id": "pri_1", "proforma_id": "pro_9"}},
+        {"op": "insert", "table": "tarifas_proforma_items", "values": {
+            "id": "pri_1", "proforma_id": "pro_9", "settlement_id": "liq_1", "state": "included", "amount": "10.00"}},
         {"op": "update", "table": "tarifas_proformas", "id": "pro_9", "values": {"total_amount": "10.00"}}]}, user=USER), None)
     assert ok["statusCode"] == 200
     phases = app.handler(http_event("POST /api/tarifas/tx", body={"ops": [

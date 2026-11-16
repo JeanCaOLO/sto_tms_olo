@@ -4,11 +4,16 @@ import Badge from '../../../components/base/Badge';
 import Button from '../../../components/base/Button';
 import { isOpen, isSelectable, receivedQuantity, returnTypeLabel, statusLabel, statusVariant, type SectionGroup } from '../../../lib/devoluciones/trips';
 import type { ReturnLine } from '../../../lib/devoluciones/types';
+import PhotoPreview from '../components/PhotoPreview';
 
 interface Props {
   groups: SectionGroup[];
   canReceive: boolean;
   onReceive: (line: ReturnLine) => void;
+  /** Recarga el viaje para renovar las URLs firmadas de las fotos cuando vencen. */
+  onReloadPhotos?: () => void;
+  onReject?: (line: ReturnLine) => void;
+  onIncident?: (line: ReturnLine) => void;
   /** Casillas de selección (solo quien puede editar); sin esta prop no se muestran. */
   selection?: {
     selected: ReadonlySet<string>;
@@ -17,7 +22,7 @@ interface Props {
   };
 }
 
-export default function ReturnLinesTable({ groups, canReceive, onReceive, selection }: Props) {
+export default function ReturnLinesTable({ groups, canReceive, onReceive, onReloadPhotos, onIncident, selection }: Props) {
   if (groups.length === 0) return <p className="text-sm text-slate-500">Este viaje no tiene devoluciones.</p>;
   return (
     <div className="space-y-4">
@@ -70,10 +75,10 @@ export default function ReturnLinesTable({ groups, canReceive, onReceive, select
                     <td className="px-2 py-2 text-slate-800">
                       {line.product_name ?? '-'}
                       {line.product_code && <span className="ml-1 text-xs text-slate-500">({line.product_code})</span>}
+                      {line.incident_explanation&&<p className="mt-1 text-sm text-amber-800">{line.incident_explanation}</p>}
                       {line.photo_url && (
-                        <a href={line.photo_url} target="_blank" rel="noopener noreferrer" className="ml-2 text-xs text-teal-700 hover:underline">
-                          <i className="ri-image-line" aria-hidden="true" /> Ver foto
-                        </a>
+                        <PhotoPreview url={line.photo_url} onReload={onReloadPhotos}
+                          label={`${line.return_number} · ${line.product_name ?? 'Producto'}`} />
                       )}
                     </td>
                     <td className="px-2 py-2 text-slate-600">{line.reason}</td>
@@ -82,10 +87,13 @@ export default function ReturnLinesTable({ groups, canReceive, onReceive, select
                     <td className="px-2 py-2"><Badge size="sm" variant={statusVariant(line.status)}>{statusLabel(line.status)}</Badge></td>
                     <td className="px-2 py-2 font-mono text-xs text-slate-600">{line.form_number ?? '-'}</td>
                     <td className="px-4 py-2 text-right">
-                      {canReceive && isOpen(line.status) && (
-                        <Button size="sm" variant="success" onClick={() => onReceive(line)}>
-                          <i className="ri-check-line" aria-hidden="true" />Recibido
-                        </Button>
+                      {canReceive && (isOpen(line.status)||line.status==='received'||line.status==='completed') && (
+                        <div className="flex items-center justify-end gap-1.5">
+                          {isOpen(line.status)&&<Button size="sm" variant="success" onClick={() => onReceive(line)}>
+                            <i className="ri-check-line" aria-hidden="true" />Recibir
+                          </Button>}
+                          {onIncident&&<Button size="sm" variant="secondary" onClick={()=>onIncident(line)}>Registrar novedad</Button>}
+                        </div>
                       )}
                     </td>
                   </tr>

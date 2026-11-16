@@ -1,0 +1,48 @@
+{
+    "captured_at":  "2026-11-12T12:24:39.6984081Z",
+    "scope":  "T02, correcciones locales; sin AWS, BD, migraciones o despliegue",
+    "backend":  {
+                    "before":  "2 regresiones fallaron antes del cambio: upload URL y creacion con adjuntos sin bucket",
+                    "command":  "backend/.venv/Scripts/python.exe -m pytest backend/tests/test_returns.py backend/tests/test_return_requests.py backend/tests/test_returns_gate.py -q --tb=short",
+                    "after":  {
+                                  "errors":  0,
+                                  "tests":  83,
+                                  "failures":  0
+                              }
+                },
+    "frontend":  {
+                     "command":  "npm test -- src/lib/devoluciones src/pages/devoluciones/components/PhotoPreview.test.tsx",
+                     "failed":  0,
+                     "passed":  59
+                 },
+    "typecheck":  {
+                      "command":  "npm run type-check",
+                      "after_errors":  0,
+                      "tsconfig_changed":  false,
+                      "before_errors":  92,
+                      "exit_code":  0
+                  },
+    "build":  {
+                  "command":  "npm run build",
+                  "warning":  "Chunks mayores a 500 kB despues de minificacion",
+                  "exit_code":  0
+              },
+    "dependency":  {
+                       "version":  "26.2.0",
+                       "name":  "@types/node",
+                       "direct_dev_dependency_added":  true,
+                       "install_scripts_executed":  false,
+                       "existing_in_pnpm_lock_before":  true,
+                       "npm_secondary_lock":  "sincronizado; incluye metadatos de las tres dependencias Turf ya presentes en package.json",
+                       "pnpm_frozen_offline_check":  "passed"
+                   },
+    "backup":  "C:/Users/dsosa/AppData/Local/Temp/tms-t02-20261112-081728",
+    "local_logs":  [
+                       ".test/devoluciones/t02-backend-red-2026-11-12.log",
+                       ".test/devoluciones/t02-backend-green-2026-11-12.xml",
+                       ".test/devoluciones/t02-frontend-2026-11-12.json",
+                       ".test/devoluciones/t02-types-before-2026-11-12.log",
+                       ".test/devoluciones/t02-types-after-2026-11-12.log",
+                       ".test/devoluciones/t02-build-2026-11-12.log"
+                   ]
+}

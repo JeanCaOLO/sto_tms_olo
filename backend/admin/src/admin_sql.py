@@ -5,7 +5,7 @@ app_users guarda el estado como `is_active` (boolean); la API lo expone como
 """
 
 USERS_SQL = """
-SELECT u.id, u.full_name, u.email, u.role_id, r.name AS role_name, u.carrier_id, ca.name AS carrier_name,
+SELECT u.id, u.full_name, u.email, u.role_id, r.name AS role_name, u.carrier_id, ca.name AS carrier_name, u.customer_id, cc.name AS customer_name,
        CASE WHEN COALESCE(u.is_active, true) THEN 'active' ELSE 'inactive' END AS status, u.created_at,
        COALESCE((
          SELECT jsonb_agg(jsonb_build_object(
@@ -20,6 +20,7 @@ SELECT u.id, u.full_name, u.email, u.role_id, r.name AS role_name, u.carrier_id,
 FROM tbl_app_users u
 LEFT JOIN tbl_roles r ON r.id = u.role_id
 LEFT JOIN tbl_carriers ca ON ca.id = u.carrier_id
+LEFT JOIN tbl_customers cc ON cc.id = u.customer_id
 WHERE u.organization_id = %s {filter}
 ORDER BY u.created_at DESC
 """
@@ -27,14 +28,16 @@ ORDER BY u.created_at DESC
 USER_OWNER_SQL = "SELECT id, auth_user_id FROM tbl_app_users WHERE id = %s AND organization_id = %s"
 EMAIL_TAKEN_SQL = "SELECT 1 FROM tbl_auth_credentials WHERE email = %s"
 ROLE_EXISTS_SQL = "SELECT 1 FROM tbl_roles WHERE id = %s"
-USER_ROLE_CARRIER_SQL = "SELECT role_id, carrier_id FROM tbl_app_users WHERE id = %s"
+USER_ROLE_CARRIER_SQL = "SELECT role_id, carrier_id, customer_id FROM tbl_app_users WHERE id = %s"
 ROLE_NAME_SQL = "SELECT name FROM tbl_roles WHERE id = %s"
 CARRIER_EXISTS_SQL = "SELECT 1 FROM tbl_carriers WHERE id = %s"
+CUSTOMER_EXISTS_SQL = "SELECT 1 FROM tbl_customers WHERE id = %s"
 
 INSERT_CREDENTIAL_SQL = "INSERT INTO tbl_auth_credentials (auth_user_id, email, password_hash) VALUES (%s, %s, %s)"
 INSERT_USER_SQL = """
-INSERT INTO tbl_app_users (auth_user_id, organization_id, full_name, email, role_id, is_active, carrier_id)
-VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
+INSERT INTO tbl_app_users (auth_user_id, organization_id, full_name, email, role_id, is_active, carrier_id,
+                           customer_id)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
 """
 INSERT_SCOPE_SQL = """
 INSERT INTO tbl_user_scopes (app_user_id, role_id, country_id, warehouse_id, customer_id)

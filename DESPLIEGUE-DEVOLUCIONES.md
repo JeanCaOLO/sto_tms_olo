@@ -1,5 +1,7 @@
 # Despliegue del módulo Devoluciones
 
+> **Guía histórica de la primera entrega.** Antes de ejecutar, consultar [estado reconciliado del 2026-11-11](docs/devoluciones/ESTADO_ACTUAL.md): también hay SQL 64–66, solicitudes Cliente, rechazo, filtro de país y permisos/bucket/CORS pendientes. No aplicar todas las migraciones por suposición. El archivo móvil comparado ya coincide con sandbox; no requiere redespliegue solo por esta auditoría.
+
 Guía para quien despliega (Intelix). El módulo recibe en bodega la mercadería devuelta por los conductores, por viaje,
 y **impide liquidar un viaje con devoluciones sin recibir**. Si se despliega en otro orden, el módulo queda a medias (ver
 "Qué pasa si se invierte el orden").

@@ -1,0 +1,146 @@
+{
+  "captured_at": "2026-11-12T12:59:54.308Z",
+  "authorization": "Usuario autorizo expresamente dry run y aplicacion de SQL 67 si pasaba; excepcion puntual al limite anterior, sin autorizar despliegues ni otras migraciones.",
+  "target": {
+    "account": "758837481569",
+    "profile": "tms-sandbox",
+    "region": "us-east-2",
+    "cluster": "db-tms-olo",
+    "database": "tms_olo",
+    "version": "PostgreSQL 17.7 on x86_64-pc-linux-gnu, compiled by x86_64-pc-linux-gnu-gcc (GCC) 10.5.0, 64-bit",
+    "backup_retention_days": 7,
+    "latest_restorable_time_observed": "2026-11-12T12:52:23.401000+00:00"
+  },
+  "migration": {
+    "name": "67_roles_solicitudes_devolucion.sql",
+    "checksum": "7b5aa0e4b024b1ca9f6d2f63c11028d8ed32c15434f321f9c3173c741c165e0d",
+    "applied_at": "2026-11-12T12:57:43.053Z"
+  },
+  "dry_run": {
+    "command": "node --env-file=.env.local scripts/run-migration.mjs sql/67_roles_solicitudes_devolucion.sql",
+    "exit_code": 0,
+    "ddl_rolled_back": true,
+    "schema_and_data_unchanged": true,
+    "captured_at": "2026-11-12T12:58:25.821Z"
+  },
+  "apply": {
+    "command": "node --env-file=.env.local scripts/run-migration.mjs sql/67_roles_solicitudes_devolucion.sql --execute",
+    "exit_code": 0,
+    "committed": true
+  },
+  "preservation": {
+    "before": {
+      "tbl_return_requests": {
+        "rows": 0,
+        "digest": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "tbl_return_request_items": {
+        "rows": 0,
+        "digest": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "tbl_return_request_files": {
+        "rows": 0,
+        "digest": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "tbl_returns": {
+        "rows": 29,
+        "digest": "700cfbc8b1346185eeddd69bd7c66d03"
+      }
+    },
+    "after": {
+      "tbl_return_requests": {
+        "rows": 0,
+        "digest": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "tbl_return_request_items": {
+        "rows": 0,
+        "digest": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "tbl_return_request_files": {
+        "rows": 0,
+        "digest": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      "tbl_returns": {
+        "rows": 29,
+        "digest": "700cfbc8b1346185eeddd69bd7c66d03"
+      }
+    },
+    "matched": true,
+    "method": "Conteos y MD5 agregado determinista de filas JSON por ID, excluyendo exclusivamente campos nuevos de SQL 67; preflight confirmo ausencia de rejection_reason fisico."
+  },
+  "verification": {
+    "new_columns": [
+      {
+        "table_name": "tbl_return_requests",
+        "column_name": "decided_by",
+        "data_type": "uuid"
+      },
+      {
+        "table_name": "tbl_return_requests",
+        "column_name": "decided_at",
+        "data_type": "timestamp with time zone"
+      },
+      {
+        "table_name": "tbl_return_requests",
+        "column_name": "rejection_reason",
+        "data_type": "text"
+      },
+      {
+        "table_name": "tbl_returns",
+        "column_name": "request_item_id",
+        "data_type": "uuid"
+      }
+    ],
+    "constraints": [
+      {
+        "relation": "tbl_return_requests",
+        "conname": "ck_return_request_decision",
+        "definition": "CHECK (((((status)::text = 'pendiente_asignacion'::text) AND (decided_by IS NULL) AND (decided_at IS NULL) AND (rejection_reason IS NULL)) OR (((status)::text = 'aprobada'::text) AND (decided_by IS NOT NULL) AND (decided_at IS NOT NULL) AND (rejection_reason IS NULL)) OR (((status)::text = 'rechazada'::text) AND (decided_by IS NOT NULL) AND (decided_at IS NOT NULL) AND (rejection_reason IS NOT NULL) AND ((length(btrim(rejection_reason)) >= 1) AND (length(btrim(rejection_reason)) <= 500)) AND (length(rejection_reason) <= 500))))"
+      },
+      {
+        "relation": "tbl_return_requests",
+        "conname": "ck_return_request_status",
+        "definition": "CHECK (((status)::text = ANY ((ARRAY['pendiente_asignacion'::character varying, 'aprobada'::character varying, 'rechazada'::character varying])::text[])))"
+      },
+      {
+        "relation": "tbl_return_requests",
+        "conname": "tbl_return_requests_decided_by_fkey",
+        "definition": "FOREIGN KEY (decided_by) REFERENCES tbl_app_users(id) ON DELETE RESTRICT"
+      },
+      {
+        "relation": "tbl_returns",
+        "conname": "tbl_returns_request_item_id_fkey",
+        "definition": "FOREIGN KEY (request_item_id) REFERENCES tbl_return_request_items(id) ON DELETE RESTRICT"
+      }
+    ],
+    "triggers": [
+      {
+        "tgname": "tr_return_request_decision_67"
+      },
+      {
+        "tgname": "tr_return_request_link_67"
+      }
+    ],
+    "unique_index": "uq_returns_request_item_guide_67",
+    "new_usage": {
+      "decisions": 0,
+      "links": 0
+    }
+  },
+  "test_data_inserted": 0,
+  "real_data_updated_or_deleted": 0,
+  "application_deployments": 0,
+  "other_migrations_applied": [],
+  "limits": [
+    "No prueba funcional E2E ni concurrencia real; backend nuevo T04 pendiente",
+    "No snapshot manual creado; se comprobo retencion y punto restaurable automatico existente",
+    "No se ejecuto rollback sobre Aurora: rollback local comprobado previamente"
+  ],
+  "local_logs": [
+    ".test/devoluciones/sql67-aurora-dry-run.log",
+    ".test/devoluciones/sql67-aurora-apply.log",
+    ".test/devoluciones/sql67-aurora-pre.json",
+    ".test/devoluciones/sql67-aurora-dry.json",
+    ".test/devoluciones/sql67-aurora-post.json"
+  ]
+}

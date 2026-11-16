@@ -6,6 +6,7 @@ export default {
   'menu.sectionAdmin': 'Administración y Análisis',
   'menu.pedidos': 'Pedidos',
   'menu.devoluciones': 'Devoluciones',
+  'menu.misDevoluciones': 'Mis Devoluciones',
   'menu.guias': 'Guías de Despacho',
   'menu.planificacion': 'Planificación',
   'menu.tracking': 'Tracking',

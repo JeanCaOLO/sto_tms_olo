@@ -1,0 +1,102 @@
+{
+  "captured_at": "2026-11-12T14:03:03.004Z",
+  "scope": "T05: pantalla Cliente y consulta limitada de empresa propia; sin AWS, migraciones ni despliegues",
+  "frontend": {
+    "passed": 93,
+    "failed": 0,
+    "exit_code": 0,
+    "report": ".test/devoluciones/t05-frontend.json",
+    "command": "npm.cmd test -- src/lib/devoluciones src/pages/mis-devoluciones src/pages/devoluciones/components/PhotoPreview.test.tsx src/lib/tarifas/__tests__/devolucionesSinRecibir.test.ts"
+  },
+  "backend": {
+    "passed": 172,
+    "failed": 0,
+    "exit_code": 0,
+    "junit": ".test/devoluciones/t05-backend.xml",
+    "suites": [
+      "test_return_request_review",
+      "test_return_requests",
+      "test_returns",
+      "test_returns_gate",
+      "test_routes_wired",
+      "test_permissions",
+      "test_audit"
+    ]
+  },
+  "sql": {
+    "passed": 30,
+    "failed": 0,
+    "exit_code": 0,
+    "engine": "PostgreSQL 18.6, PGlite 0.5.16, memory://",
+    "command": "node --test tests/sql/return_requests_access.test.mjs tests/sql/67_roles_solicitudes_devolucion.test.mjs"
+  },
+  "types": {
+    "errors": 0,
+    "exit_code": 0,
+    "command": "npm.cmd run type-check",
+    "config_relaxed": false
+  },
+  "build": {
+    "exit_code": 0,
+    "command": "npm.cmd run build",
+    "warning": "Chunks mayores a 500 kB, advertencia existente"
+  },
+  "red": {
+    "ui_initial": ".test/devoluciones/t05-red.log",
+    "ui_initial_failed": 6,
+    "assignment": ".test/devoluciones/t05-assignment-red.log",
+    "assignment_failed": 2,
+    "owner_change": ".test/devoluciones/t05-owner-red.log",
+    "actor_label": ".test/devoluciones/t05-actor-red.log",
+    "actor_sql": ".test/devoluciones/t05-actor-sql-red.log"
+  },
+  "review": {
+    "method": "Revisor independiente acotado, solo lectura",
+    "result": "Sin hallazgos Critical/Important",
+    "executed_tests": false
+  },
+  "rulings": [
+    "GET /asignacion propio con view o create Cliente; reutiliza validacion existente, sin exponer catalogo ni selector; ruta CUSTOM preparada",
+    "Borrador y clave en memoria por usuario/envio; resultado incierto congela payload para reintento identico; errores confirmados permiten corregir",
+    "Ref inFlight impide doble submit antes del render; lifecycle corta continuacion tras cambio de usuario/unmount",
+    "Fotos/video renuevan URL por IDs autorizados y retiran URL vencida; no se firman llaves libres",
+    "Detalle muestra nombre del decisor de la misma organizacion, con fallback Devoluciones; no expone UUID como nombre",
+    "Se conserva checkout autorizado y backup selectivo Temp/tms-t05-20261112-094812; no se sustituyeron cambios previos"
+  ],
+  "limits": [
+    "API y S3 simuladas; sin E2E real ni QA visual en navegador",
+    "No valida concurrencia multiconexion/IAM/RLS del destino",
+    "Borrador y clave no persisten al recargar/cerrar pesta?a: consultar historial ante resultado incierto",
+    "SAM revisado por cableado y diff/authorizer; sin sam/cfn-lint instalados",
+    "T06 bandeja Operador y T07 recepcion/trazabilidad siguen pendientes"
+  ],
+  "aws_calls": 0,
+  "external_database_connections": 0,
+  "shared_migrations_applied": 0,
+  "deployments": 0,
+  "real_data_changes": 0,
+  "applied_sql67_checksum_unchanged": true,
+  "logs": [
+    ".test/devoluciones/t05-green.log",
+    ".test/devoluciones/t05-backend.log",
+    ".test/devoluciones/t05-sql.log",
+    ".test/devoluciones/t05-types.log",
+    ".test/devoluciones/t05-build.log"
+  ],
+  "hashes": {
+    "src/lib/devoluciones/solicitudes.ts": "230c1f40e3a39f60f6ded8be481b442c4fa9ad201a96e966572a9cbb09ecafd5",
+    "src/lib/devoluciones/solicitudes.test.ts": "23dcc5010b1f71c37979ad0836bc109c3801d2476193021d97d47cddc211cd2d",
+    "src/pages/mis-devoluciones/page.tsx": "aff8729a1a157e7c8dca515edfe30d4464e87a6fb0ada67798962f02e914fd22",
+    "src/pages/mis-devoluciones/page.test.tsx": "d2bc44acffa4f51b84b45a4b3d0f9ea949d308a218c2fb7296cb2fca1f444d48",
+    "src/pages/mis-devoluciones/components/RequestDetail.tsx": "51117a3544f925ae3534e11036cc767f32f6ef8dc85c4c78a3a3a8e92a4973b5",
+    "src/pages/mis-devoluciones/api/solicitudesApi.ts": "ef3496cc8909c5677043d8e69c70feea9e0af42b53bf6b5ae2453aef1f4cf521",
+    "src/pages/mis-devoluciones/api/solicitudesApi.test.ts": "5af8edc142d3e5b32080b9788139f79fe374e2a8af004b33fd417204b372e20f",
+    "backend/admin/src/admin_return_request_access.py": "c88017009542358094167aab5e556458f770c9ae614996a510d74d46e005ccdc",
+    "backend/admin/src/admin_return_requests.py": "151a5a72e85ed034e4dd5c3708e88e2eb5bacdf5cdd3a1730ad4f12c4d5f53c7",
+    "backend/admin/src/admin_return_requests_sql.py": "4968f58f35a4d2bcae5e464a1ad31038a3b08a062cfc57927f10f94d10b9a060",
+    "backend/admin/src/app.py": "19c2d01bf59ceab18e0e8bf8d3a341fe6c5a0c2c7c4f42fab7c2518d838a48f0",
+    "backend/admin/template.yaml": "0e9e19ce8c9d0a8b2cfbe9b585b2d83041bbd8771d04955ec95189bdca11e4d4",
+    "backend/tests/test_return_request_review.py": "f88cbeb9d6d828ded3b75565db66b92cff8f8f3de18429f07333bc41c8d8698c",
+    "tests/sql/return_requests_access.test.mjs": "1b6969be57349c90e0460407805082e7bbd37da02de1d5bfab4277014b0de402"
+  }
+}

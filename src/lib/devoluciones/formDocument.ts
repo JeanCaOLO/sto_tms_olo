@@ -2,7 +2,7 @@
 // cabecera con el número DEV-AAAA-MM-####, una sección por parada (cliente + factura) con su tabla de artículos,
 // comentarios y las líneas de fecha/recibido. Es una cadena HTML con estilos en línea para imprimir en otra ventana.
 
-import { KIND_LABELS, groupBySection, reasonsOf, receivedQuantity } from './trips';
+import { KIND_LABELS, groupBySection, reasonsOf, receivedQuantity, returnTypeLabel } from './trips';
 import type { FormDraft, FormView, ReturnLine, SectionDraft } from './types';
 
 const ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -36,13 +36,15 @@ function linesTable(lines: ReturnLine[]): string {
 }
 
 function sectionBlock(section: SectionDraft, lines: ReturnLine[], draft: FormDraft): string {
+  const origins = [...new Set(lines.map((l) => returnTypeLabel(l.return_type)))].join('; ');
   return `<h2>Parada: ${escapeHtml(section.customer_name || section.invoice_number || section.dispatch_guide_id)}</h2>
     <div class="grid">
       ${field('Código Cliente', section.customer_code)}${field('Nombre del Cliente', section.customer_name)}
       ${field('Teléfono', section.phone)}${field('Ruta', section.route_label)}
       ${field('Dirección', section.address)}${field('Sucursal', draft.branch)}
-      ${field('Tipo', reasonsOf(lines))}${field('Vendedor', section.sellers)}
+      ${field('Origen', origins)}${field('Motivo', reasonsOf(lines))}
       ${field('Devolución', lines.map((l) => l.return_number).join(', '))}${field('Factura', section.invoice_number)}
+      ${field('Vendedor', section.sellers)}
     </div>${linesTable(lines)}`;
 }
 
