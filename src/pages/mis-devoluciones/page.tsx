@@ -10,6 +10,7 @@ import { tabPanelProps } from '../../components/base/tabPanelProps';
 import {useAuth} from '../../hooks/useAuth';
 import {usePermissions} from '../../hooks/usePermissions';
 import RequestDetail from './components/RequestDetail';
+import OperationalProgress from './components/OperationalProgress';
 import type {RequestAttempt,RequestDraftJournal} from './requestDraftJournal';
 import {
   ACCEPT_ATTR, CODE_LIMIT, DESCRIPTION_LIMIT, MAX_FILES_PER_ITEM, MAX_ITEMS, NAME_LIMIT, REASONS, fileProblem,
@@ -17,6 +18,7 @@ import {
 } from '../../lib/devoluciones/solicitudes';
 import {
   createRequest, getClientAssignment, listMyRequests, uploadFile, RequestApiError, type ClientAssignment, type CreatedRequest, type MyReturnRequest,
+  getRequestOrigins,getOrderBalance,type RequestOrigin,type OrderBalance,
 } from './api/solicitudesApi';
 
 const formatSize = (bytes: number) =>
@@ -88,6 +90,27 @@ function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: Re
   const [formError, setFormError] = useState('');
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState<CreatedRequest | null>(null);
+  const [origins,setOrigins]=useState<RequestOrigin[]>([]);
+  const [originKey,setOriginKey]=useState('');
+  const [balance,setBalance]=useState<OrderBalance[]>([]);
+  const [originError,setOriginError]=useState('');
+  const selectedOrigin=origins.find(row=>`${row.order_id}:${row.delivery_point_id}`===originKey);
+  useEffect(()=>{
+    let active=true;
+    if(!assignment||!canCreate)return;
+    setOrigins([]);setOriginError('');
+    getRequestOrigins(company?.id).then(rows=>{if(active)setOrigins(rows);})
+      .catch(error=>{if(active)setOriginError(error instanceof Error?error.message:'No se pudo cargar el origen.');});
+    return()=>{active=false;};
+  },[assignment,canCreate,company?.id]);
+  useEffect(()=>{
+    let active=true;
+    setBalance([]);
+    if(!selectedOrigin)return;
+    getOrderBalance(selectedOrigin.order_id,company?.id).then(rows=>{if(active)setBalance(rows);})
+      .catch(error=>{if(active)setOriginError(error instanceof Error?error.message:'No se pudo cargar el saldo.');});
+    return()=>{active=false;};
+  },[selectedOrigin,company?.id]);
   useEffect(()=>{onBusyChange?.(sending||pendingConfirmation&&!done);},[sending,pendingConfirmation,done,onBusyChange]);
   useEffect(()=>()=>{onBusyChange?.(false);},[onBusyChange]);
   // Archivos ya subidos a S3 (id del borrador -> llave): si el envío falla y se reintenta, no se suben de nuevo.
@@ -96,6 +119,7 @@ function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: Re
     if(!draftKey)return;
     const saved=drafts.get(draftKey);
     if(saved){attempt.current=saved.attempt;uploaded.current=saved.uploaded;setItems(saved.items);
+      if(saved.attempt.orderId&&saved.attempt.pointId)setOriginKey(`${saved.attempt.orderId}:${saved.attempt.pointId}`);
       counter.current=Math.max(counter.current,saved.counter);
       setPendingConfirmation(!!saved.attempt.payload);}
   },[draftKey,drafts]);
@@ -182,6 +206,9 @@ function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: Re
     event.preventDefault();
     if(inFlight.current||done)return;
     if(!canCreate||!assignment){setFormError('Necesita permiso y una empresa asignada para enviar.');return;}
+    if(!attempt.current?.payload&&(!selectedOrigin||items.some(item=>!item.orderItemId))){
+      setFormError('Seleccione un pedido, su punto de recolecta y las líneas del pedido.');return;
+    }
     const check = validateAll(items);
     setErrors(check.errors);
     setFormError(check.message);
@@ -190,10 +217,12 @@ function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: Re
     inFlight.current=true;
     setSending(true);
     try {
-      if(!attempt.current)attempt.current={key:crypto.randomUUID(),payload:null};
+      if(!attempt.current)attempt.current={key:crypto.randomUUID(),payload:null,
+        orderId:selectedOrigin?.order_id,pointId:selectedOrigin?.delivery_point_id};
       if(draftKey)drafts.set(draftKey,{attempt:attempt.current,items,uploaded:uploaded.current,counter:counter.current});
       let payload=attempt.current.payload;
       if(!payload){
+       attempt.current.orderId=selectedOrigin!.order_id;attempt.current.pointId=selectedOrigin!.delivery_point_id;
        payload=[];
        for (const item of items) {
         const keys = [];
@@ -211,7 +240,7 @@ function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: Re
        attempt.current.payload=payload;
        setPendingConfirmation(true);
       }
-      const created = await (company?createRequest(payload,attempt.current.key,company.id):createRequest(payload,attempt.current.key));
+      const created = await createRequest(payload,attempt.current.key,company?.id,attempt.current.orderId,attempt.current.pointId);
       if(generation!==lifecycle.current)return;
       setDone(created);
       if(draftKey)drafts.delete(draftKey);
@@ -249,7 +278,7 @@ function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: Re
         {assignment&&<p>{assignment.name}</p>}
         {assignmentError&&<div role="alert" className="text-red-600"><p>{assignmentError}</p>
           <Button type="button" variant="secondary" size="sm" onClick={loadAssignment}>Reintentar empresa</Button></div>}
-        <p className="text-slate-500">El código se ingresa manualmente mientras no haya un catálogo de productos disponible.</p>
+        <p className="text-slate-500">Seleccione artículos del pedido; el servidor comprueba el saldo acumulado.</p>
       </Card>
 
       {mode==='full'&&<Card className="p-0">
@@ -291,6 +320,7 @@ function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: Re
                           <span className="font-mono text-sm font-semibold text-slate-800">{req.request_number}</span>
                           <Badge size="sm" variant={statusInfo.variant}>{statusInfo.label}</Badge>
                         </div>
+                        {req.status==='aprobada'&&<OperationalProgress request={req}/>}
                         <p className="text-xs text-slate-500 mt-1">
                           Registrada el {formatIso(req.created_at)} · {req.items} {req.items === 1 ? 'artículo' : 'artículos'}
                         </p>
@@ -327,6 +357,15 @@ function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: Re
         {tab==='nueva'&&!done&&!canCreate&&!permissionsLoading&&<p>{canRead?'No tiene permiso para crear solicitudes; puede consultar su historial.':'No tiene permiso para acceder a las solicitudes.'}</p>}
         {tab === 'nueva' && !done && canCreate && (
           <form onSubmit={submit} className="space-y-4" noValidate>
+            <Select label="Pedido y punto de recolecta *" value={originKey} disabled={editingDisabled}
+              onChange={event=>{setOriginKey(event.target.value);setItems([newDraftItem(nextId())]);}}
+              options={[{value:'',label:'Seleccionar pedido y punto'},...origins.map(row=>({
+                value:`${row.order_id}:${row.delivery_point_id}`,
+                label:`${row.order_number} · ${row.final_customer_name} · ${row.point_name} · ${row.address} · ${row.zone_name}`,
+              }))]}/>
+            {originError&&<p role="alert">{originError}</p>}
+            {selectedOrigin&&<p className="text-sm text-slate-600">{selectedOrigin.address} · {selectedOrigin.zone_name}.
+              Cantidades enteras en la presentación de cada línea del pedido.</p>}
             {formError && (
               <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2 text-sm text-red-700">
                 <i className="ri-error-warning-line text-lg"></i>
@@ -345,8 +384,13 @@ function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: Re
                   )}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Select label="Línea del pedido *" value={item.orderItemId??''} disabled={editingDisabled||!selectedOrigin}
+                    options={[{value:'',label:'Seleccionar artículo'},...balance.map(row=>({value:row.id,
+                      label:`${row.line_number} · ${row.product_code} · ${row.presentation??'unidad del pedido'} · Saldo ${row.remaining}`}))]}
+                    onChange={event=>{const row=balance.find(value=>value.id===event.target.value);
+                      patch(item.id,{orderItemId:row?.id,productCode:row?.product_code??'',productName:row?.product_name??row?.product_code??''});}}/>
                   <Input
-                    disabled={editingDisabled}
+                    disabled
                     label="Código del artículo *" value={item.productCode} maxLength={CODE_LIMIT}
                     onChange={(e) => patch(item.id, { productCode: e.target.value })} error={errors[item.id]?.productCode}
                   />

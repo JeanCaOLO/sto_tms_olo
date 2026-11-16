@@ -443,6 +443,7 @@ def _stop_view(g: dict, live: dict, evidences: dict, driver: bool) -> dict:
         "id": sid, "guide_number": g["guide_number"], "sequence": g["sequence_number"],
         "state": logic.guide_state(g["delivery_status"], g["status"]),
         "type": g.get("stop_type") if g.get("stop_type") in ("delivery", "collection") else "delivery",
+        **({'collection':g['collection']} if g.get('collection') else {}),
         "order_number": g["order_number"], "invoice_number": g["invoice_number"],
         "customer_name": g["customer_name"], "company_name": g.get("company_name"),
         "address": g["delivery_address"], "city": g["delivery_city"],
@@ -822,6 +823,9 @@ def transition_stop(event: dict) -> dict:
     event_status = {"delivered": "success", "failed": "error", "pending": "info"}[target]
 
     def work(run):
+        run(sql.COLLECTION_GUIDE_LOCK_SQL,[guide_id])
+        if run(sql.COLLECTION_LINK_SQL,[guide_id]):
+            raise HttpError(409, 'Esta recolecta se ejecuta desde la app con cantidades e identidades por intento.')
         run(sql.UPDATE_GUIDE_SQL, [target, logic.GUIDE_STATUS_TEXT[target], None if target == "pending" else when,
                                    receiver, note, guide_id])
         counts = run(sql.COUNT_DONE_SQL, [route_id])[0]

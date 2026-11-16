@@ -278,8 +278,11 @@ SELECT r.id FROM tbl_routes r
 LEFT JOIN tbl_plan_trips pt ON pt.id = r.plan_trip_id
 WHERE r.organization_id = %s AND r.driver_id = %s AND lower(r.status) = ANY(%s)
   AND (pt.status IS NULL OR pt.status NOT IN ('completed', 'cancelled'))
-  AND EXISTS (SELECT 1 FROM tbl_dispatch_guides g WHERE g.route_id = r.id
+  AND (EXISTS (SELECT 1 FROM tbl_dispatch_guides g WHERE g.route_id = r.id
               AND NOT ({_GUIDE_STATE} IN {DELIVERED_SQL} OR {_GUIDE_STATE} IN {FAILED_SQL}))
+       OR EXISTS(SELECT 1 FROM tbl_return_collection_assignments a
+         JOIN tbl_return_collection_results cr ON cr.attempt_id=a.attempt_id
+         WHERE a.route_id=r.id AND cr.quantity>0 AND cr.delivered_event_id IS NULL))
 LIMIT 1
 """
 ORIGIN_STORE_SQL = """
@@ -326,8 +329,8 @@ RETURNING id
 
 INSERT_RETURN_SQL = """
 INSERT INTO tbl_returns (organization_id, dispatch_guide_id, order_id, return_number, return_type, reason,
-                     product_code, product_name, quantity, photo_url, notes)
-VALUES (%s, %s, %s, %s, 'contracamion', %s, %s, %s, %s, %s, %s)
+                     product_code, product_name, quantity, photo_url, notes, order_item_id)
+VALUES (%s, %s, %s, %s, 'contracamion', %s, %s, %s, %s, %s, %s, %s)
 ON CONFLICT (organization_id, return_number) DO NOTHING
 RETURNING id
 """
@@ -336,6 +339,13 @@ RETURNING id
 RETURN_PHOTO_SQL = """
 SELECT storage_key FROM tbl_tracking_evidences
 WHERE dispatch_guide_id = %s AND kind = 'photo_return' AND client_id = %s
+"""
+
+RETURN_ORDER_LOCK_SQL = "SELECT id FROM tbl_orders WHERE id=%s AND organization_id=%s FOR UPDATE"
+RETURN_BALANCE_SQL = "SELECT * FROM return_balance_72(%s::uuid,%s::uuid) ORDER BY line_number"
+RETURN_REPLAY_SQL = """
+SELECT id,return_number,dispatch_guide_id,product_code,quantity,reason,photo_url,notes,order_item_id,product_name
+FROM tbl_returns WHERE organization_id=%s AND return_number=ANY(%s::text[]) ORDER BY return_number
 """
 
 # Artículos del pedido de la parada: lo que el chofer elige al registrar una devolución contracamión.

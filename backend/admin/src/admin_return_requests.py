@@ -5,6 +5,7 @@ Organizacion, autor y empresa provienen del usuario autenticado, nunca del paylo
 """
 
 import os
+import json
 import re
 import uuid
 from datetime import datetime, timezone
@@ -16,6 +17,7 @@ from tms_common.responses import json_response
 
 import admin_return_requests_sql as sql
 import admin_return_request_access as access
+import admin_return_tracking as tracking
 
 MODULE = "devoluciones_solicitud"
 REASONS = ("no_solicitado", "danado", "cantidad_de_mas", "rechazado", "otro")
@@ -111,6 +113,7 @@ def parse_items(body: dict) -> list[dict]:
         if len(set(keys)) != len(keys):
             raise HttpError(400, f"{label}: archivo repetido.")
         items.append({"line": position,
+                      "order_item_id": _uuid_param(entry.get('order_item_id'), f'{label}: order_item_id'),
                       "code": _text(entry.get("product_code"), f"{label}: el código", CODE_LIMIT, required=True),
                       "name": _text(entry.get("product_name"), f"{label}: el nombre", NAME_LIMIT, required=True),
                       "quantity": quantity, "reason": reason, "description": description, "keys": keys})
@@ -182,10 +185,29 @@ def _next_number(run, org: str) -> str:
     return f"{prefix}{run(sql.NEXT_NUMBER_SQL, [org, prefix])[0]['next']:04d}"
 
 
+def _origins(run, caller, org, customer, order_id=None, point_id=None):
+    filters, values = '', [org,customer]
+    if access.can_choose_company(caller):
+        filters += sql.ORIGIN_SCOPE_SQL
+        values.append(caller.app_user_id)
+    if caller.country_filter is not None:
+        filters += ' AND a.country_id=ANY(%s::uuid[])'
+        values.append(list(caller.country_filter))
+    if order_id:
+        filters += ' AND o.id=%s'
+        values.append(order_id)
+    if point_id:
+        filters += ' AND dp.id=%s'
+        values.append(point_id)
+    return run(sql.ORIGINS_SQL.format(filters=filters),values)
+
+
 def create_request(event: dict) -> dict:
     body = _body(event)
     caller, org, customer = access.creator(event, body.get('customer_id'))
     items = parse_items(body)
+    order_id = _uuid_param(body.get('order_id'), 'order_id')
+    point_id = _uuid_param(body.get('delivery_point_id'), 'delivery_point_id')
     for item in items:
         for key in item['keys']:
             require_file_key(org, customer, caller.app_user_id, key)
@@ -197,7 +219,7 @@ def create_request(event: dict) -> dict:
     if stable_id:
         previous = pg.query(sql.IDEMPOTENT_SQL, [stable_id, org, customer, caller.app_user_id])
         if previous:
-            _require_same_payload(pg.query, previous[0], items)
+            _require_same_payload(pg.query, previous[0], items, order_id, point_id)
             return _created(previous[0], 200)
     stored = {item['line']: [_uploaded(key) for key in item['keys']] for item in items}
     with pg.transaction() as run:
@@ -205,8 +227,22 @@ def create_request(event: dict) -> dict:
         if stable_id:
             previous = run(sql.IDEMPOTENT_SQL, [stable_id, org, customer, caller.app_user_id])
             if previous:
-                _require_same_payload(run, previous[0], items)
+                _require_same_payload(run, previous[0], items, order_id, point_id)
                 return _created(previous[0], 200)
+        if not run(sql.ORDER_LOCK_SQL, [order_id, org, customer]):
+            raise HttpError(404, 'Pedido no encontrado dentro de la empresa autorizada.')
+        origins = _origins(run,caller,org,customer,order_id,point_id)
+        if not origins:
+            raise HttpError(422, 'El pedido no tiene un punto operativo completo y autorizado.')
+        balance = {str(row['id']): row for row in run(sql.BALANCE_SQL, [org, order_id])}
+        totals = {}
+        for item in items:
+            row = balance.get(item['order_item_id'])
+            if not row or item['code'] != row['product_code']:
+                raise HttpError(422, 'El artículo debe corresponder a una línea del pedido.')
+            totals[item['order_item_id']] = totals.get(item['order_item_id'], 0) + item['quantity']
+        if any(total > balance[key]['remaining'] for key, total in totals.items()):
+            raise HttpError(409, 'La cantidad acumulada supera el saldo del pedido.')
         created = []
         for _ in range(NUMBER_ATTEMPTS):
             params = [org, customer, caller.app_user_id, _next_number(run, org)]
@@ -216,13 +252,17 @@ def create_request(event: dict) -> dict:
         if not created:
             raise HttpError(409, "No se pudo generar el número de la solicitud; inténtalo de nuevo.")
         request_id = created[0]["id"]
+        run(sql.INSERT_ORIGIN_SQL, [request_id, order_id, point_id, json.dumps(origins[0], default=str)])
         for item in items:
             row = run(sql.INSERT_ITEM_SQL, [request_id, item["line"], item["code"], item["name"], item["quantity"],
                                             item["reason"], item["description"]])
+            run(sql.LINK_ITEM_SQL, [item['order_item_id'], row[0]['id']])
             for key, (kind, mime, size) in zip(item["keys"], stored[item["line"]]):
                 run(sql.INSERT_FILE_SQL, [row[0]["id"], key, kind, mime, size])  # unique(s3_key): reuso -> 409
         audit.record(event, "create", module_key=MODULE, entity_table="tbl_return_requests", entity_id=str(request_id),
                      metadata={"request_number": created[0]["request_number"], "items": len(items), "approval_mode": "automatic"})
+        import admin_return_collection
+        admin_return_collection.enqueue(run, request_id)
     return _created(created[0], 201)
 
 
@@ -231,9 +271,13 @@ def _created(row, status):
                 'approval_mode': row.get('approval_mode', 'legacy')}, status)
 
 
-def _require_same_payload(run, request, incoming):
+def _require_same_payload(run, request, incoming, order_id, point_id):
+    origins = run(sql.ORIGIN_SQL, [request['id']])
+    if not origins or str(origins[0]['order_id']) != order_id or str(origins[0]['delivery_point_id']) != point_id:
+        raise HttpError(409, 'La clave idempotente ya se uso con otro origen.')
     files = run(sql.FILES_SQL, [request['id']])
     saved = [{"line": row['line_number'], 'code': row['product_code'], 'name': row['product_name'],
+              'order_item_id': str(row['order_item_id']),
               'quantity': row['quantity'], 'reason': row['reason_code'], 'description': row['description'],
               'keys': sorted(f['s3_key'] for f in files if f['item_id'] == row['id'])}
              for row in run(sql.ITEMS_SQL, [request['id']])]
@@ -244,12 +288,22 @@ def _require_same_payload(run, request, incoming):
 
 def list_mine(event: dict) -> dict:
     caller, org, customer = _caller(event, "view")
-    return _ok(pg.query(sql.MINE_SQL, [org, customer, caller.app_user_id]))
+    return _ok(tracking.attach(pg.query,pg.query(sql.MINE_SQL, [org, customer, caller.app_user_id])))
 
 
 def get_assignment(event):
     """Solo la empresa asignada al propio usuario; sin catalogo ni selector."""
     params = query_params(event)
+    if params.get('origenes') == '1':
+        caller, org, customer = access.creator(event, params.get('customer_id'))
+        if params.get('order_id'):
+            order_id = _uuid_param(params['order_id'], 'order_id')
+            if not pg.query(sql.ORDER_LOCK_SQL.replace(' FOR UPDATE', ''), [order_id, org, customer]):
+                raise HttpError(404, 'Pedido no encontrado.')
+            if not _origins(pg.query,caller,org,customer,order_id):
+                raise HttpError(404, 'Pedido sin origen operativo autorizado.')
+            return _ok(pg.query(sql.BALANCE_SQL, [org, order_id]))
+        return _ok(_origins(pg.query,caller,org,customer))
     if params.get('empresas') == '1':
         country = _uuid_param(params['pais'], 'pais') if params.get('pais') else None
         _, _, rows = access.creation_companies(event, country=country)
@@ -276,6 +330,7 @@ def _request(event, run, scope, *, lock=False):
 
 def get_request(event):
     request = _request(event, pg.query, access.read_filter(event))
+    tracking.attach(pg.query,[request])
     items = pg.query(sql.ITEMS_SQL, [request['id']])
     files = pg.query(sql.FILES_SQL, [request['id']])
     return _ok({'request': request, 'items': [{**item, 'files': [
@@ -291,12 +346,12 @@ def _page_number(raw, label, minimum, maximum):
 
 def list_inbox(event):
     caller, org = access.operator(event, 'view')
-    scope, values = access.operator_filter(caller, org)
+    scope, values = access.request_operator_filter(caller, org)
     params = query_params(event)
     scope_values = list(values)
     country_filters, country_values = '', []
     if params.get('pais'):
-        country_filters = ' AND COALESCE(c.country_id,w.country_id) = %s::uuid'
+        country_filters = f' AND {sql.OPERATIONAL_COUNTRY} = %s::uuid'
         country_values = [_uuid_param(params['pais'], 'pais')]
     limit = _page_number(params.get('limit', '25'), 'limit', 1, 100)
     offset = _page_number(params.get('offset', '0'), 'offset', 0, 1_000_000)
@@ -315,14 +370,14 @@ def list_inbox(event):
                     [*values, limit + 1, offset])
     companies = pg.query(sql.INBOX_COMPANIES_SQL.format(source=sql.REQUEST_FROM_SQL, access=scope,
                           filters=country_filters), [*scope_values, *country_values])
-    return _ok({'items': rows[:limit], 'companies': companies, 'limit': limit, 'offset': offset, 'has_more': len(rows) > limit})
+    return _ok({'items': tracking.attach(pg.query,rows[:limit]), 'companies': companies, 'limit': limit, 'offset': offset, 'has_more': len(rows) > limit})
 
 
 def _decide(event, target):
     caller, org = access.operator(event, 'edit')
     reason = _text(_body(event).get('reason'), 'El motivo de rechazo', 500, required=True) if target == 'rechazada' else None
     with pg.transaction() as run:
-        request = _request(event, run, access.operator_filter(caller, org), lock=True)
+        request = _request(event, run, access.request_operator_filter(caller, org), lock=True)
         if request['status'] == target and request['rejection_reason'] == reason:
             return _ok(request)
         if request['status'] != 'pendiente_asignacion':

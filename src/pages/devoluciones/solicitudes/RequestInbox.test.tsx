@@ -16,6 +16,7 @@ vi.mock('../../mis-devoluciones/api/solicitudesApi',async(original)=>({
  ...await original<typeof import('../../mis-devoluciones/api/solicitudesApi')>(),
  listRequestInbox:vi.fn(),approveRequest:vi.fn(),rejectRequest:vi.fn(),getRequest:vi.fn(),getFileUrl:vi.fn(),
  getCreationCompanies:vi.fn(),getClientAssignment:vi.fn(),createRequest:vi.fn(),listMyRequests:vi.fn(),uploadFile:vi.fn(),
+ getRequestOrigins:vi.fn(),getOrderBalance:vi.fn(),
 }));
 const company='22222222-2222-2222-2222-222222222222';
 const row={id:'req-a',request_number:'SOL-A',status:'pendiente_asignacion',created_at:'2026-11-12T14:00:00Z',
@@ -27,6 +28,12 @@ const inbox={items:[row],companies:[{id:company,name:'Empresa A'}],limit:25,offs
 function deferred<T>(){let resolve!:(value:T)=>void;const promise=new Promise<T>(r=>{resolve=r;});return {promise,resolve};}
 async function ready(){render(<DevolucionesPage/>);fireEvent.click(screen.getByRole('tab',{name:'Solicitudes'}));await screen.findByText('SOL-A');}
 async function open(){fireEvent.click(screen.getByRole('button',{name:'Revisar SOL-A'}));await screen.findByText('CODE');}
+async function chooseOrigin(){
+ const select=await screen.findByLabelText(/Pedido y punto de recolecta/);
+ await within(select).findByRole('option',{name:/PED-1/});fireEvent.change(select,{target:{value:'order-a:point-a'}});
+ const line=await screen.findByLabelText(/Línea del pedido/);
+ await within(line).findByRole('option',{name:/TEST-1/});fireEvent.change(line,{target:{value:'order-item-a'}});
+}
 beforeEach(()=>{
  vi.clearAllMocks();state.user={id:'operator-a'};state.canEdit=true;state.canView=true;state.country=null;
  state.canCreateClient=false;state.canCreateOperator=false;state.isAdmin=false;state.role='Devoluciones';
@@ -37,6 +44,9 @@ beforeEach(()=>{
  vi.mocked(api.getFileUrl).mockResolvedValue({url:'https://evidence.invalid/file',kind:'photo',mime_type:'image/jpeg',expires_in:300});
  vi.mocked(api.getCreationCompanies).mockResolvedValue([{id:company,name:'Empresa A'}]);
  vi.mocked(api.getClientAssignment).mockResolvedValue({id:company,name:'Empresa A'});
+ vi.mocked(api.getRequestOrigins).mockResolvedValue([{order_id:'order-a',order_number:'PED-1',delivery_point_id:'point-a',
+  point_name:'Punto A',address:'Calle A',final_customer_name:'Destinatario',zone_name:'Zona A',country_id:'country-a',warehouse_id:'warehouse-a'}]);
+ vi.mocked(api.getOrderBalance).mockResolvedValue([{id:'order-item-a',line_number:1,product_code:'TEST-1',product_name:'Producto',presentation:'CAJA',quantity:10,remaining:10}]);
  vi.mocked(api.createRequest).mockResolvedValue({id:'req-new',request_number:'SOL-NUEVA',status:'pendiente_asignacion'});
  vi.mocked(api.listMyRequests).mockResolvedValue([]);
 });
@@ -45,7 +55,7 @@ it('es solo seguimiento incluso con permiso edit: no ofrece aprobar ni rechazar'
  await ready();fireEvent.click(screen.getByRole('button',{name:'Revisar SOL-A'}));await screen.findByText('CODE');
  expect(screen.queryByRole('button',{name:'Aprobar solicitud'})).toBeNull();
  expect(screen.queryByRole('button',{name:'Rechazar solicitud'})).toBeNull();
- expect(screen.getByText(/integración de Planificación está pendiente/)).toBeTruthy();
+ expect(screen.getByText(/hechos confirmados por el servidor/)).toBeTruthy();
 });
 it.each(['Gerente','SuperUsuario'])('permite a %s crear desde Solicitudes para una empresa autorizada',async(role)=>{
  state.role=role;state.isAdmin=role==='SuperUsuario';state.canCreateOperator=true;
@@ -53,13 +63,14 @@ it.each(['Gerente','SuperUsuario'])('permite a %s crear desde Solicitudes para u
  expect(await screen.findByRole('dialog',{name:'Crear solicitud'})).toBeTruthy();
  const companySelect=await screen.findByRole('combobox',{name:'Empresa destinataria'});
  await within(companySelect).findByRole('option',{name:'Empresa A'});fireEvent.change(companySelect,{target:{value:company}});
+ await chooseOrigin();
  fireEvent.change(await screen.findByLabelText(/Código del artículo/),{target:{value:'TEST-1'}});
  fireEvent.change(screen.getByLabelText(/Nombre del artículo/),{target:{value:'Producto'}});
  fireEvent.change(screen.getByLabelText(/Cantidad a devolver/),{target:{value:'2'}});
  fireEvent.change(screen.getByLabelText(/Motivo \*/),{target:{value:'danado'}});
  fireEvent.click(screen.getByRole('button',{name:'Enviar solicitud'}));
  await screen.findByText('Solicitud registrada');
- expect(api.createRequest).toHaveBeenCalledWith(expect.any(Array),expect.any(String),company);
+ expect(api.createRequest).toHaveBeenCalledWith(expect.any(Array),expect.any(String),company,'order-a','point-a');
  await waitFor(()=>expect(api.listRequestInbox).toHaveBeenCalledTimes(2));
 });
 it('Cliente entra a Solicitudes y crea con empresa fija sin abrir la bandeja operativa',async()=>{
@@ -80,6 +91,7 @@ it('conserva clave y borrador al reabrir tras un envio incierto y cambiar pais',
  await screen.findByText('SOL-A');fireEvent.click(screen.getByRole('button',{name:'Crear solicitud'}));
  let companySelect=await screen.findByRole('combobox',{name:'Empresa destinataria'});
  await within(companySelect).findByRole('option',{name:'Empresa A'});fireEvent.change(companySelect,{target:{value:company}});
+ await chooseOrigin();
  fireEvent.change(await screen.findByLabelText(/Código del artículo/),{target:{value:'TEST-ORIGINAL'}});
  fireEvent.change(screen.getByLabelText(/Nombre del artículo/),{target:{value:'Producto original'}});
  fireEvent.change(screen.getByLabelText(/Cantidad a devolver/),{target:{value:'2'}});

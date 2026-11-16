@@ -233,7 +233,7 @@ def insert_row(event: dict) -> dict:
     _require_country(caller, table, values, creating=True)
     returns_gate.check(table.name, values)
     statement = build_insert(table, values)
-    if proforma_content.handles(table.name):
+    if proforma_content.handles(table.name) or returns_gate.guards(table.name):
         op = {"op": "insert", "table": table.name, "values": values}
         return json_response(200, _execute_writes(caller, [(op, [("insert", statement)])])[0])
     return json_response(200, tarifas_db.query(*statement)[0])
@@ -314,6 +314,7 @@ def _execute_writes(caller, planned):
 
     def apply(run) -> list:
         results: list = []
+        returns_gate.recheck(run, [op for op, _ in planned])
         content = proforma_content.ContentChanges(run, caller)
         for op, statements in planned:
             content.before(op)

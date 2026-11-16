@@ -133,6 +133,12 @@ SELECT g.id, g.guide_number, g.sequence_number, g.status, g.delivery_status,
        COALESCE(dp.name, fc.name) AS customer_name, cu.name AS company_name,
        COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,
        g.stop_type,
+       (SELECT jsonb_agg(jsonb_build_object('request_id',i.request_id,'request_item_id',i.id,
+          'assignment_id',a.id,'attempt_id',a.attempt_id,'assigned_quantity',a.quantity,
+          'collected_quantity',cr.quantity,'delivered',cr.delivered_event_id IS NOT NULL))
+        FROM tbl_return_collection_assignments a JOIN tbl_return_request_items i ON i.id=a.request_item_id
+        LEFT JOIN tbl_return_collection_results cr ON cr.attempt_id=a.attempt_id
+        WHERE a.dispatch_guide_id=g.id) AS collection,
        v.arrived_at AS site_arrived_at, v.departed_at AS site_departed_at, v.dwell_seconds
 FROM tbl_dispatch_guides g
 JOIN tbl_routes r ON r.id = g.route_id
@@ -208,6 +214,8 @@ RETURNING id
 """
 # Una recolecta (stop_type collection, sql/60) queda amarrada a la guía que la ejecuta.
 LINK_RETURN_SQL = "UPDATE tbl_returns SET dispatch_guide_id = %s, updated_at = now() WHERE id = %s"
+COLLECTION_LINK_SQL = "SELECT id FROM tbl_return_collection_assignments WHERE dispatch_guide_id=%s LIMIT 1"
+COLLECTION_GUIDE_LOCK_SQL = "SELECT id FROM tbl_dispatch_guides WHERE id=%s FOR UPDATE"
 
 INSERT_EVENT_SQL = """
 INSERT INTO tbl_tracking_events (organization_id, route_id, dispatch_guide_id, event_type, event_status,

@@ -10,6 +10,7 @@ from tms_common.handler import tms_handler
 import admin_audit as audit_log
 import admin_permissions as permissions
 import admin_return_requests as return_requests
+import admin_return_collection as collection
 import admin_returns as returns
 import admin_return_incidents as incidents
 import admin_roles as roles
@@ -49,6 +50,9 @@ ROUTES = {
     "GET /api/v1/solicitudes-devolucion/mias": return_requests.list_mine,
     "GET /api/v1/solicitudes-devolucion/asignacion": return_requests.get_assignment,
     "GET /api/v1/solicitudes-devolucion": return_requests.list_inbox,
+    "POST /api/v1/solicitudes-devolucion/eventos/reclamar": collection.claim,
+    "POST /api/v1/solicitudes-devolucion/{requestId}/eventos": collection.accept,
+    "POST /api/v1/solicitudes-devolucion/{requestId}/reintentar-envio": collection.retry,
     "GET /api/v1/solicitudes-devolucion/{requestId}": return_requests.get_request,
     "POST /api/v1/solicitudes-devolucion/{requestId}/aprobar": return_requests.approve_request,
     "POST /api/v1/solicitudes-devolucion/{requestId}/rechazar": return_requests.reject_request,

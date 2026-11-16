@@ -118,7 +118,11 @@ test('forward is idempotent and old backend SQL still reads and writes', async (
   await db.exec(readFileSync(join(root,'sql/69_return_request_auto_approval.sql'),'utf8'));
   const mine = pythonSQL('backend/admin/src/admin_return_requests_sql.py', 'MINE_SQL');
   assert.equal((await db.query(mine, [orgA, companyA, authorA])).rows.length, 2);
-  const mobile = pythonSQL('backend/mobile/src/mobile_api/sql.py', 'INSERT_RETURN_SQL');
+  // Escritor histórico anterior a SQL72: las columnas aditivas no deben exigirle una línea nueva.
+  const mobile = `INSERT INTO tbl_returns(organization_id,dispatch_guide_id,order_id,return_number,return_type,
+    reason,product_code,product_name,quantity,photo_url,notes)
+    VALUES($1,$2,$3,$4,'contracamion',$5,$6,$7,$8,$9,$10)
+    ON CONFLICT(organization_id,return_number) DO NOTHING RETURNING id`;
   assert.equal((await db.query(mobile, [orgA, guideA, orderA, 'TEST-MOBILE', 'danado','CODE','Nombre',1,null,null])).rows.length, 1);
 });
 
