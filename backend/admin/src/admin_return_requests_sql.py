@@ -22,8 +22,8 @@ FROM tbl_return_requests WHERE organization_id = %s AND left(request_number, 12)
 
 INSERT_REQUEST_SQL = """
 INSERT INTO tbl_return_requests (organization_id, customer_id, requested_by, request_number,
-                               status, decided_by, decided_at, approval_mode)
-VALUES (%s, %s, %s, %s, 'aprobada', %s, now(), 'automatic')
+                               status, decided_by, decided_at, approval_mode, collection_contract_version)
+VALUES (%s, %s, %s, %s, 'aprobada', %s, now(), 'automatic', 2)
 ON CONFLICT (organization_id, request_number) DO NOTHING
 RETURNING id, request_number, status, created_at, approval_mode
 """
@@ -52,8 +52,8 @@ LIMIT 50
 CREATE_LOCK_SQL = "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))"
 INSERT_IDEMPOTENT_SQL = """
 INSERT INTO tbl_return_requests (id, organization_id, customer_id, requested_by, request_number,
-                               status, decided_by, decided_at, approval_mode)
-VALUES (%s, %s, %s, %s, %s, 'aprobada', %s, now(), 'automatic')
+                               status, decided_by, decided_at, approval_mode, collection_contract_version)
+VALUES (%s, %s, %s, %s, %s, 'aprobada', %s, now(), 'automatic', 2)
 ON CONFLICT DO NOTHING
 RETURNING id, request_number, status, created_at, approval_mode
 """
@@ -147,7 +147,11 @@ ORIGIN_SCOPE_SQL = """
   OR (s.customer_id IS NULL AND s.warehouse_id IS NULL AND s.country_id IS NULL)))
 """
 ORDER_LOCK_SQL = "SELECT id FROM tbl_orders WHERE id=%s AND organization_id=%s AND customer_id=%s FOR UPDATE"
-BALANCE_SQL = "SELECT * FROM return_balance_72(%s::uuid,%s::uuid) ORDER BY line_number"
+PLANNING_ITEMS_SQL = """
+SELECT id,product_code,presentation,quantity,weight,volume
+FROM tbl_order_items WHERE order_id=%s ORDER BY id FOR SHARE
+"""
+BALANCE_SQL = "SELECT * FROM return_balance_76(%s::uuid,%s::uuid) ORDER BY line_number"
 INSERT_ORIGIN_SQL = """
 INSERT INTO tbl_return_request_origins(request_id,order_id,delivery_point_id,snapshot)
 VALUES(%s,%s,%s,%s::jsonb)

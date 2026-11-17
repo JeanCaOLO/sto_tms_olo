@@ -9,6 +9,7 @@ import json
 import re
 import uuid
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation, ROUND_UP
 
 from tms_common import audit, pg, permissions
 from tms_common.errors import HttpError
@@ -202,6 +203,54 @@ def _origins(run, caller, org, customer, order_id=None, point_id=None):
     return run(sql.ORIGINS_SQL.format(filters=filters),values)
 
 
+def _planning_snapshot(origin: dict, source_items: list[dict], totals: dict) -> dict:
+    """Capacidad por línea/presentación de eFlow, congelada junto al origen autorizado.
+
+    weight/volume son totales de la línea original, no magnitudes unitarias. Se
+    prorratea únicamente dentro de esa misma línea y se redondea hacia arriba a
+    la precisión de origen (kg: 2 decimales; m³: 4). Un dato faltante o inválido
+    sigue siendo desconocido; nunca se convierte en capacidad cero disponible.
+    """
+    def positive(value):
+        try:
+            number = Decimal(str(value))
+            return number if number.is_finite() and number > 0 else None
+        except InvalidOperation:
+            return None
+
+    sources = {str(row['id']): row for row in source_items}
+    items, missing = [], []
+    for identifier, requested in totals.items():
+        row = sources.get(identifier, {})
+        quantity = row.get('quantity')
+        if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity <= 0:
+            quantity = None
+        entry = {'order_item_id': identifier, 'product_code': row.get('product_code'),
+                 'presentation': row.get('presentation'), 'source_quantity': quantity,
+                 'requested_quantity': requested}
+        for field, source, precision in (('weight_kg', 'weight', '0.01'), ('volume_m3', 'volume', '0.0001')):
+            value = positive(row.get(source))
+            entry['source_' + field] = str(value) if value is not None else None
+            try:
+                computed = ((value * requested / quantity).quantize(Decimal(precision), rounding=ROUND_UP)
+                            if value is not None and quantity is not None else None)
+            except InvalidOperation:
+                computed = None
+            entry[field] = str(computed) if computed is not None else None
+        absent = [field for field in ('presentation', 'source_quantity', 'weight_kg', 'volume_m3')
+                  if entry[field] is None or entry[field] == '']
+        if absent:
+            missing.append({'order_item_id': identifier, 'fields': absent})
+        items.append(entry)
+    result = {'assignment_policy': 'whole_request', 'return_warehouse_id': origin.get('warehouse_id'),
+              'capacity_source': 'order_items', 'capacity_complete': bool(items) and not missing,
+              'items': items, 'missing_data': missing}
+    for field in ('weight_kg', 'volume_m3'):
+        result[field] = (str(sum((Decimal(entry[field]) for entry in items), Decimal(0)))
+                         if items and all(entry[field] is not None for entry in items) else None)
+    return result
+
+
 def create_request(event: dict) -> dict:
     body = _body(event)
     caller, org, customer = access.creator(event, body.get('customer_id'))
@@ -234,6 +283,8 @@ def create_request(event: dict) -> dict:
         origins = _origins(run,caller,org,customer,order_id,point_id)
         if not origins:
             raise HttpError(422, 'El pedido no tiene un punto operativo completo y autorizado.')
+        # El ingest puede actualizar magnitudes: fijar las líneas antes de leer saldo y snapshot.
+        source_items = run(sql.PLANNING_ITEMS_SQL, [order_id])
         balance = {str(row['id']): row for row in run(sql.BALANCE_SQL, [org, order_id])}
         totals = {}
         for item in items:
@@ -252,7 +303,8 @@ def create_request(event: dict) -> dict:
         if not created:
             raise HttpError(409, "No se pudo generar el número de la solicitud; inténtalo de nuevo.")
         request_id = created[0]["id"]
-        run(sql.INSERT_ORIGIN_SQL, [request_id, order_id, point_id, json.dumps(origins[0], default=str)])
+        origin = {**origins[0], 'planning': _planning_snapshot(origins[0], source_items, totals)}
+        run(sql.INSERT_ORIGIN_SQL, [request_id, order_id, point_id, json.dumps(origin, default=str)])
         for item in items:
             row = run(sql.INSERT_ITEM_SQL, [request_id, item["line"], item["code"], item["name"], item["quantity"],
                                             item["reason"], item["description"]])
@@ -261,8 +313,6 @@ def create_request(event: dict) -> dict:
                 run(sql.INSERT_FILE_SQL, [row[0]["id"], key, kind, mime, size])  # unique(s3_key): reuso -> 409
         audit.record(event, "create", module_key=MODULE, entity_table="tbl_return_requests", entity_id=str(request_id),
                      metadata={"request_number": created[0]["request_number"], "items": len(items), "approval_mode": "automatic"})
-        import admin_return_collection
-        admin_return_collection.enqueue(run, request_id)
     return _created(created[0], 201)
 
 

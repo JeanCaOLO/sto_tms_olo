@@ -19,9 +19,9 @@ do $$ begin
     end if;
   end if;
 end $$;
-drop function if exists public.return_balance_72(uuid,uuid);
+drop function if exists public.return_balance_76(uuid,uuid);
 drop table if exists public.tbl_return_request_origins;
-drop function if exists public.guard_return_origin_72();
+drop function if exists public.guard_return_origin_76();
 alter table public.tbl_return_request_items drop column if exists order_item_id;
 alter table public.tbl_returns drop column if exists order_item_id;
 commit;

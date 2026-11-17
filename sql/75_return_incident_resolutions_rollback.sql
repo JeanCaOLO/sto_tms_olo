@@ -10,9 +10,9 @@ begin
  end if;
 end;
 $$;
-drop trigger if exists tr_return_leaves_review_71 on public.tbl_returns;
+drop trigger if exists tr_return_leaves_review_75 on public.tbl_returns;
 drop table if exists public.tbl_return_incident_resolutions;
-drop function if exists public.guard_return_leaves_review_71();
-drop function if exists public.guard_return_incident_resolution_71();
-drop function if exists public.check_return_incident_resolution_71();
+drop function if exists public.guard_return_leaves_review_75();
+drop function if exists public.guard_return_incident_resolution_75();
+drop function if exists public.check_return_incident_resolution_75();
 commit;

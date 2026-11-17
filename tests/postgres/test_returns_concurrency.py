@@ -62,17 +62,23 @@ class Database:
         run(connection,f'CREATE SCHEMA {self.schema}')
         run(connection,f'SET search_path TO {self.schema},public')
         run(connection,'''
-CREATE TABLE tbl_app_users(id uuid PRIMARY KEY);
-CREATE TABLE tbl_orders(id uuid PRIMARY KEY,organization_id uuid,customer_id uuid);
+CREATE TABLE tbl_app_users(id uuid PRIMARY KEY,organization_id uuid);
+CREATE TABLE tbl_orders(id uuid PRIMARY KEY,organization_id uuid,customer_id uuid,warehouse_id uuid);
 CREATE TABLE tbl_order_items(id uuid PRIMARY KEY,order_id uuid,line_number int,product_code text,
  product_name text,presentation text,quantity int,quantity_cancelled int);
 CREATE TABLE tbl_delivery_points(id uuid PRIMARY KEY);
 CREATE TABLE tbl_return_requests(id uuid PRIMARY KEY,organization_id uuid,customer_id uuid,status text,created_at timestamptz DEFAULT now());
 CREATE TABLE tbl_return_request_items(id uuid PRIMARY KEY,request_id uuid,line_number int,product_code text,product_name text,
  quantity int,reason_code text,description text);
-CREATE TABLE tbl_routes(id uuid PRIMARY KEY,organization_id uuid);
-CREATE TABLE tbl_dispatch_guides(id uuid PRIMARY KEY,route_id uuid,organization_id uuid,order_id uuid);
-CREATE TABLE tbl_tracking_evidences(id uuid PRIMARY KEY);
+CREATE TABLE tbl_warehouses(id uuid PRIMARY KEY,organization_id uuid,country_id uuid);
+CREATE TABLE tbl_route_plans(id uuid PRIMARY KEY,organization_id uuid,customer_id uuid,warehouse_id uuid,country_id uuid,status text);
+CREATE TABLE tbl_plan_trips(id uuid PRIMARY KEY,plan_id uuid,vehicle_id uuid,status text,
+ vehicle_capacity_weight numeric,vehicle_capacity_volume numeric,total_weight numeric,total_volume numeric);
+CREATE TABLE tbl_plan_stops(id uuid PRIMARY KEY,trip_id uuid,order_id uuid,stop_type text,return_id uuid,stop_order int,
+ weight numeric,volume numeric,es_cliente_retira boolean DEFAULT false,latitude numeric,longitude numeric);
+CREATE TABLE tbl_routes(id uuid PRIMARY KEY,organization_id uuid,plan_trip_id uuid);
+CREATE TABLE tbl_dispatch_guides(id uuid PRIMARY KEY,route_id uuid,organization_id uuid,order_id uuid,stop_type text DEFAULT 'delivery');
+CREATE TABLE tbl_tracking_evidences(id uuid PRIMARY KEY,organization_id uuid,dispatch_guide_id uuid,kind text,storage_key text);
 CREATE TABLE tbl_returns(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),organization_id uuid,dispatch_guide_id uuid,
  order_id uuid,request_item_id uuid,return_number text,return_type text,reason text,product_code text,product_name text,
  quantity int,photo_url text,notes text,status text DEFAULT 'pending',received_at timestamptz,received_by uuid,
@@ -81,21 +87,21 @@ CREATE TABLE tbl_return_forms(id uuid PRIMARY KEY,route_id uuid);
 CREATE TABLE tbl_return_form_items(return_id uuid PRIMARY KEY,form_id uuid);
 CREATE TABLE tbl_tarifas_settlements(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),trip_id uuid);
 ''')
-        for migration in ('72_return_request_origin_balance.sql','73_return_collection_contract.sql'):
+        for migration in ('76_return_request_origin_balance.sql','77_return_collection_contract.sql'):
             text=(ROOT/'sql'/migration).read_text(encoding='utf-8').replace('public.',self.schema+'.')
             # El test posee la transacción y mantiene todos los nombres en su esquema privado.
             text=text.replace('begin;','',1).rsplit('commit;',1)[0]
             run(connection,text)
-        run(connection,'INSERT INTO tbl_app_users VALUES(%s)',[self.actor])
-        run(connection,'INSERT INTO tbl_orders VALUES(%s,%s,%s)',[self.order,self.org,self.org])
+        run(connection,'INSERT INTO tbl_app_users VALUES(%s,%s)',[self.actor,self.org])
+        run(connection,'INSERT INTO tbl_orders(id,organization_id,customer_id) VALUES(%s,%s,%s)',[self.order,self.org,self.org])
         run(connection,"INSERT INTO tbl_order_items VALUES(%s,%s,1,'SKU','Producto','CAJA',10,0)",[self.item,self.order])
         run(connection,'INSERT INTO tbl_delivery_points VALUES(%s)',[self.point])
         run(connection,"INSERT INTO tbl_return_requests(id,organization_id,customer_id,status) VALUES(%s,%s,%s,'aprobada')",
             [self.request,self.org,self.org])
         run(connection,"INSERT INTO tbl_return_request_origins(request_id,order_id,delivery_point_id,snapshot) VALUES(%s,%s,%s,'{}')",
             [self.request,self.order,self.point])
-        run(connection,'INSERT INTO tbl_routes VALUES(%s,%s)',[self.route,self.org])
-        run(connection,'INSERT INTO tbl_dispatch_guides VALUES(%s,%s,%s,%s)',[self.guide,self.route,self.org,self.order])
+        run(connection,'INSERT INTO tbl_routes(id,organization_id) VALUES(%s,%s)',[self.route,self.org])
+        run(connection,'INSERT INTO tbl_dispatch_guides(id,route_id,organization_id,order_id) VALUES(%s,%s,%s,%s)',[self.guide,self.route,self.org,self.order])
         connection.commit()
         self.tables={row['table_name'] for row in run(connection,
             'SELECT table_name FROM information_schema.tables WHERE table_schema=%s',[self.schema])}
@@ -151,7 +157,7 @@ def test_simultaneous_quantities_never_exceed_order(database):
     lock=sql('backend/mobile/src/mobile_api/sql.py','RETURN_ORDER_LOCK_SQL')
     def reserve(connection):
         run(connection,lock,[database.order,database.org])
-        balance=run(connection,'SELECT * FROM return_balance_72(%s,%s)',[database.org,database.order])[0]
+        balance=run(connection,'SELECT * FROM return_balance_76(%s,%s)',[database.org,database.order])[0]
         if balance['remaining']<7:
             connection.rollback();return False
         run(connection,"INSERT INTO tbl_return_request_items(id,request_id,line_number,product_code,quantity,order_item_id) VALUES(%s,%s,1,'SKU',7,%s)",
@@ -162,13 +168,13 @@ def test_simultaneous_quantities_never_exceed_order(database):
     with ThreadPoolExecutor(max_workers=1) as pool:
         future=pool.submit(reserve,second);blocked(first,worker_pid);first.commit()
         assert future.result(timeout=5) is False
-    assert run(first,'SELECT remaining FROM return_balance_72(%s,%s)',[database.org,database.order])[0]['remaining']==3
+    assert run(first,'SELECT remaining FROM return_balance_76(%s,%s)',[database.org,database.order])[0]['remaining']==3
 
 
 def test_duplicate_event_is_one_accepted_fact(database):
     first,second=database.connect(),database.connect()
     event_id=str(uuid4());cause=str(uuid4());payload={'schema_version':1,'attempt':'duplicate'}
-    run(first,"INSERT INTO tbl_return_request_outbox(id,request_id,payload) VALUES(%s,%s,'{}')",[cause,database.request]);first.commit()
+    run(first,"INSERT INTO tbl_return_collection_events VALUES(%s,%s,NULL,'planning.failed','{}',%s,now(),now())",[cause,database.request,database.actor]);first.commit()
     lock=sql('backend/mobile/src/mobile_api/collections.py','REQUEST_LOCK_SQL')
     insert=sql('backend/mobile/src/mobile_api/collections.py','INSERT_EVENT_SQL')
     def accept(connection):
@@ -182,7 +188,7 @@ def test_duplicate_event_is_one_accepted_fact(database):
     with ThreadPoolExecutor(max_workers=1) as pool:
         future=pool.submit(accept,second);blocked(first,worker_pid);first.commit()
         assert future.result(timeout=5)=='duplicate'
-    assert len(run(first,'SELECT * FROM tbl_return_collection_events'))==1
+    assert len(run(first,'SELECT * FROM tbl_return_collection_events WHERE id=%s',[event_id]))==1
 
 
 def test_receipt_waits_for_incident_and_cannot_receive_review(database):

@@ -9,8 +9,8 @@ import {fileURLToPath,pathToFileURL} from 'node:url';
 const root=fileURLToPath(new URL('../../',import.meta.url));
 const {PGlite}=await import(pathToFileURL(resolve(process.env.TMS_T03_PGLITE_MODULE||join(tmpdir(),'tms-t03-postgres-tools/node_modules/@electric-sql/pglite/dist/index.js'))).href);
 const forward70=readFileSync(join(root,'sql/70_return_incidents.sql'),'utf8');
-const forward=readFileSync(join(root,'sql/71_return_incident_resolutions.sql'),'utf8');
-const rollback=readFileSync(join(root,'sql/71_return_incident_resolutions_rollback.sql'),'utf8');
+const forward=readFileSync(join(root,'sql/75_return_incident_resolutions.sql'),'utf8');
+const rollback=readFileSync(join(root,'sql/75_return_incident_resolutions_rollback.sql'),'utf8');
 const source=JSON.parse(execFileSync('python',['-c',`import json,runpy,sys
 root=sys.argv[1]
 m=runpy.run_path(root+'/backend/admin/src/admin_returns_sql.py')

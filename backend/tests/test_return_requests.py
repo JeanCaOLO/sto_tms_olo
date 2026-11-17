@@ -24,13 +24,13 @@ class FakeDb:
 
     def query(self, sql, params=()):
         self.calls.append((sql, list(params)))
-        if 'SELECT r.id AS request_id,ob.status' in sql:
+        if 'SELECT r.id AS request_id,r.collection_contract_version' in sql:
             return []
         if 'INSERT INTO tbl_return_request_outbox' in sql:
             return [{'id': UUID_B}]
         if 'SELECT id FROM tbl_orders' in sql:
             return [{'id': UUID_A}]
-        if 'return_balance_72' in sql:
+        if 'return_balance_76' in sql:
             return [{'id': UUID_A, 'product_code': 'ART-1', 'remaining': 10}]
         if 'FROM tbl_orders o' in sql:
             return [{'order_id': UUID_A, 'delivery_point_id': UUID_B}]

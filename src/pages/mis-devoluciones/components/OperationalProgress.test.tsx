@@ -5,12 +5,20 @@ import OperationalProgress from './OperationalProgress';
 const request={id:'r1',request_number:'SOL-1',status:'aprobada',created_at:'2026-11-13T15:00:00Z',items:1};
 afterEach(cleanup);
 it.each([
- ['pending_send','Pendiente de envío a Planificación'],['awaiting_ack','Esperando acuse de Planificación'],
- ['planning','En Planificación'],['no_candidate','Sin viaje candidato'],['planning_failed','Fallo de Planificación'],
+ ['needs_data','Datos pendientes para planificar'],['pending_planning','Pendiente de evaluación por Planificación'],
+ ['scheduled','Programada en un viaje'],['no_candidate','Sin viaje candidato'],['planning_failed','Fallo de Planificación'],
  ['tracking','En Tracking'],['partially_delivered','Entregada parcialmente'],['delivered','Entregada'],
 ])('representa el hecho del servidor %s', (status,label)=>{
  render(<OperationalProgress request={{...request,operational_status:status}}/>);
  expect(screen.getByText(label)).toBeTruthy();
+});
+it('muestra viaje y parada planificados antes de existir ejecución',()=>{
+ render(<OperationalProgress request={{...request,operational_status:'scheduled',tracking:[{
+  assignment_id:'a',attempt_id:'t',request_item_id:'i',route_id:null,stop_id:null,
+  plan_trip_id:'plan-viaje-1',plan_stop_id:'plan-parada-1',assigned_quantity:2,
+  collected_quantity:null,delivered:false,return_id:null,
+ }]}}/>);
+ expect(screen.getByText(/Viaje planificado plan-viaje-1.*Parada plan-parada-1/)).toBeTruthy();
 });
 it('separa presentaciones, muestra origen, viaje, parada y actualización',()=>{
  render(<OperationalProgress request={{...request,operational_status:'tracking',operational_updated_at:request.created_at,

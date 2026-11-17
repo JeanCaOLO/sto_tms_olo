@@ -33,13 +33,13 @@ class Db:
 
     def query(self, statement, params=()):
         self.calls.append((statement, list(params)))
-        if 'SELECT r.id AS request_id,ob.status' in statement:
+        if 'SELECT r.id AS request_id,r.collection_contract_version' in statement:
             return []
         if 'INSERT INTO tbl_return_request_outbox' in statement:
             return [{'id': FILE}]
         if 'SELECT id FROM tbl_orders' in statement:
             return [{'id': REQ}]
-        if 'return_balance_72' in statement:
+        if 'return_balance_76' in statement:
             return [{'id': REQ, 'product_code': 'CODE', 'remaining': 10}]
         if 'FROM tbl_orders o' in statement:
             return [{'order_id': REQ, 'delivery_point_id': FILE}]

@@ -21,7 +21,7 @@ def test_origin_and_balance_rejections(app, db, monkeypatch, caller_permissions,
             return []
         if mode == 'incomplete' and 'FROM tbl_orders o' in statement:
             return []
-        if 'return_balance_72' in statement:
+        if 'return_balance_76' in statement:
             return [{'id': UUID_A, 'product_code': 'ART-1', 'remaining': 3}]
         return original(statement, params)
     monkeypatch.setattr(db, 'query', query)

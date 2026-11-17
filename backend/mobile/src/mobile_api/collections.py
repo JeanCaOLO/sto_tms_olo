@@ -8,14 +8,13 @@ from .errors import HttpError
 ASSIGNMENTS_SQL = """
 SELECT a.id AS assignment_id,a.attempt_id,a.request_item_id,a.quantity AS assigned_quantity,
  a.route_id,a.dispatch_guide_id,i.request_id,i.order_item_id,i.product_code,i.product_name,i.quantity AS requested_quantity,
- ob.id AS causation_id,r.organization_id,r.customer_id,ro.order_id,
+ a.event_id AS causation_id,r.organization_id,r.customer_id,ro.order_id,
  result.quantity AS collected_quantity,result.delivered_event_id,
  ro.snapshot
-FROM tbl_return_collection_assignments a
+FROM vw_return_collection_assignments a
 JOIN tbl_return_request_items i ON i.id=a.request_item_id
 JOIN tbl_return_requests r ON r.id=i.request_id
 JOIN tbl_return_request_origins ro ON ro.request_id=r.id
-JOIN tbl_return_request_outbox ob ON ob.request_id=r.id
 LEFT JOIN tbl_return_collection_results result ON result.attempt_id=a.attempt_id
 WHERE a.dispatch_guide_id=ANY(%s::uuid[]) AND r.organization_id=%s
 ORDER BY r.id,a.id
@@ -42,13 +41,13 @@ VALUES(%s,%s,%s,%s,%s)
 """
 UNDELIVERED_SQL = """
 SELECT 1 FROM tbl_return_collection_results result
-JOIN tbl_return_collection_assignments a ON a.attempt_id=result.attempt_id
+JOIN vw_return_collection_assignments a ON a.attempt_id=result.attempt_id
 WHERE a.route_id=%s AND result.quantity>0 AND result.delivered_event_id IS NULL LIMIT 1
 """
 DELIVERY_RESULT_SQL = """
 SELECT result.*,e.storage_key AS photo_key,w.latitude AS warehouse_lat,w.longitude AS warehouse_lng
 FROM tbl_return_collection_results result
-JOIN tbl_return_collection_assignments a ON a.attempt_id=result.attempt_id
+JOIN vw_return_collection_assignments a ON a.attempt_id=result.attempt_id
 JOIN tbl_return_request_items i ON i.id=a.request_item_id
 JOIN tbl_return_request_origins ro ON ro.request_id=i.request_id
 JOIN tbl_orders o ON o.id=ro.order_id
@@ -91,6 +90,7 @@ def execute(run, driver, guide, body, target, when, *, replay_only=False):
     assignments = run(ASSIGNMENTS_SQL, [[str(guide['id'])],driver.organization_id])
     if not assignments:
         return False
+    run(ROUTE_LOCK_SQL,[guide['route_id'],driver.organization_id])
     for request_id in sorted({str(row['request_id']) for row in assignments}):
         run(REQUEST_LOCK_SQL, [request_id,driver.organization_id])
     run(GUIDE_LOCK_SQL,[guide['id'],driver.organization_id])
@@ -155,6 +155,7 @@ def deliver(run,driver,guide,body,when):
     selected=[row for row in assignments if str(row['attempt_id']) in attempts]
     if len(selected)!=len(attempts) or guide.get('stop_type')!='collection':
         raise HttpError(422,'Los intentos no corresponden a esta parada de recolecta.')
+    run(ROUTE_LOCK_SQL,[guide['route_id'],driver.organization_id])
     for request_id in sorted({str(row['request_id']) for row in selected}):
         run(REQUEST_LOCK_SQL,[request_id,driver.organization_id])
     run(GUIDE_LOCK_SQL,[guide['id'],driver.organization_id])
@@ -186,7 +187,7 @@ def deliver(run,driver,guide,body,when):
         distance=logic.distance_to_stop_m(lat,lng,result['warehouse_lat'],result['warehouse_lng'])
         if (distance is None or distance>logic.GEOFENCE_M) and not (reason or '').strip():
             raise HttpError(422,'Confirme el motivo de entrega cuando no se pueda verificar la ubicación del almacén.')
-        run(INSERT_EVENT_SQL,[event_id,assignment['request_id'],assignment['causation_id'],'tracking.delivered',
+        run(INSERT_EVENT_SQL,[event_id,assignment['request_id'],result['event_id'],'tracking.delivered',
                               json.dumps(payload),driver.app_user_id,when])
         physical=run(INSERT_PHYSICAL_SQL,[driver.organization_id,guide['id'],assignment['order_id'],f'DV-COL-{attempt}',
             'Entrega de recolecta de solicitud',assignment['product_code'],assignment['product_name'],

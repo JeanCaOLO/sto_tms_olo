@@ -432,7 +432,7 @@ def test_return_photo_is_resolved_from_the_evidence_client_id(call, fake_db):
 
 def return_balance(fake_db):
     fake_db.answer('SELECT id FROM tbl_orders', [{'id': ORDER}])
-    fake_db.answer('return_balance_72', [
+    fake_db.answer('return_balance_76', [
         {'id': UUID1, 'product_code': 'A-1', 'product_name': 'Pintura 4L', 'remaining': 10},
         {'id': TRIP, 'product_code': 'B-2', 'product_name': 'Rodillo', 'remaining': 10},
         {'id': ROUTE, 'product_code': 'C-3', 'product_name': 'Pintura', 'remaining': 10},
@@ -474,7 +474,7 @@ def test_return_items_are_validated(call, fake_db):
 def test_stop_items_lists_order_lines_only_while_active(call, fake_db):
     route = "GET /api/mobile/v1/paradas/{id}/articulos"
     fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row()])
-    fake_db.answer("return_balance_72", [
+    fake_db.answer("return_balance_76", [
         {'id':UUID1,'presentation':'CAJA','remaining':2,"line_number": 1, "product_code": "A-1", "product_name": "Pintura 4L", "quantity": 3},
         {'id':TRIP,'presentation':None,'remaining':1,"line_number": 2, "product_code": "B-2", "product_name": None, "quantity": 1}])
     res = call(route, path={"id": GUIDE})
@@ -482,7 +482,7 @@ def test_stop_items_lists_order_lines_only_while_active(call, fake_db):
     items = body_of(res)["data"]["items"]
     assert items[0] == {'order_item_id':UUID1,'presentation':'CAJA','remaining':2,"line_number": 1, "product_code": "A-1", "product_name": "Pintura 4L", "quantity": 3}
     assert items[1]["product_name"] == "B-2"
-    assert next(params for statement,params in fake_db.calls if 'return_balance_72' in statement) == [ORG,ORDER]
+    assert next(params for statement,params in fake_db.calls if 'return_balance_76' in statement) == [ORG,ORDER]
     fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row(route_status="Completada")])
     assert call(route, path={"id": GUIDE})["statusCode"] == 409
 

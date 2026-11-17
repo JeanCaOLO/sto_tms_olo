@@ -33,7 +33,7 @@ create index if not exists idx_return_incident_resolution_return
 alter table public.tbl_return_incident_resolutions add column if not exists resolved_in_transaction bigint;
 
 -- La resolucion solo cierra la ultima novedad de una devolucion que sigue en revision.
-create or replace function public.guard_return_incident_resolution_71()
+create or replace function public.guard_return_incident_resolution_75()
 returns trigger language plpgsql as $$
 declare current_status text; current_org uuid; latest uuid; incident_org uuid; incident_return uuid;
 begin
@@ -66,12 +66,12 @@ begin
  return NEW;
 end;
 $$;
-drop trigger if exists tr_return_incident_resolution_71 on public.tbl_return_incident_resolutions;
-create trigger tr_return_incident_resolution_71 before insert or update or delete on public.tbl_return_incident_resolutions
- for each row execute function public.guard_return_incident_resolution_71();
+drop trigger if exists tr_return_incident_resolution_75 on public.tbl_return_incident_resolutions;
+create trigger tr_return_incident_resolution_75 before insert or update or delete on public.tbl_return_incident_resolutions
+ for each row execute function public.guard_return_incident_resolution_75();
 
 -- Al terminar la transaccion, la devolucion resuelta ya no puede seguir en revision.
-create or replace function public.check_return_incident_resolution_71()
+create or replace function public.check_return_incident_resolution_75()
 returns trigger language plpgsql as $$
 begin
  if not exists (select 1 from public.tbl_returns r
@@ -83,12 +83,12 @@ begin
  return NEW;
 end;
 $$;
-drop trigger if exists tr_return_incident_resolution_check_71 on public.tbl_return_incident_resolutions;
-create constraint trigger tr_return_incident_resolution_check_71 after insert on public.tbl_return_incident_resolutions
- deferrable initially deferred for each row execute function public.check_return_incident_resolution_71();
+drop trigger if exists tr_return_incident_resolution_check_75 on public.tbl_return_incident_resolutions;
+create constraint trigger tr_return_incident_resolution_check_75 after insert on public.tbl_return_incident_resolutions
+ deferrable initially deferred for each row execute function public.check_return_incident_resolution_75();
 
 -- Una devolucion solo sale de 'in_review' con una resolucion de su ultima novedad en la misma transaccion.
-create or replace function public.guard_return_leaves_review_71()
+create or replace function public.guard_return_leaves_review_75()
 returns trigger language plpgsql as $$
 begin
  if OLD.status = 'in_review' and NEW.status is distinct from 'in_review' then
@@ -108,9 +108,9 @@ begin
  return NEW;
 end;
 $$;
-drop trigger if exists tr_return_leaves_review_71 on public.tbl_returns;
-create trigger tr_return_leaves_review_71 before update of status on public.tbl_returns
- for each row execute function public.guard_return_leaves_review_71();
+drop trigger if exists tr_return_leaves_review_75 on public.tbl_returns;
+create trigger tr_return_leaves_review_75 before update of status on public.tbl_returns
+ for each row execute function public.guard_return_leaves_review_75();
 
 do $$
 begin

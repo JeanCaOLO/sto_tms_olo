@@ -1,5 +1,9 @@
 # Contrato `returns.collection.v1`
 
+> Archivo histórico. El transporte HTTP se retiró del código local el 2026-11-17.
+> Para implementar el consumidor usar `ENTREGA_PLANIFICACION_BD_V2.md` y SQL75–77.
+> No aplicar las preparaciones antiguas 71/72/73 de este diseño ni crear su outbox.
+
 Productor: Devoluciones. Consumidor: equipo de Planificación, fuera de esta implementación.
 SQL72 y SQL73 son preparaciones locales. Solo Intelix/Jean las aplica. No se reejecutan SQL60–70.
 

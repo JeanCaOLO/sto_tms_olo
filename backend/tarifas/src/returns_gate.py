@@ -24,7 +24,7 @@ JOIN tbl_dispatch_guides g ON g.id = rt.dispatch_guide_id
 WHERE g.route_id = %s AND COALESCE(rt.status, 'pending') IN ('pending', 'approved', 'in_review')
 """
 OPEN_COLLECTIONS_SQL = """
-SELECT count(*)::int AS open_collections FROM tbl_return_collection_assignments a
+SELECT count(*)::int AS open_collections FROM vw_return_collection_assignments a
 LEFT JOIN tbl_return_collection_results cr ON cr.attempt_id=a.attempt_id
 WHERE a.route_id=%s AND (cr.attempt_id IS NULL OR (cr.quantity>0 AND cr.delivered_event_id IS NULL))
 """
@@ -52,7 +52,7 @@ FOR SHARE OF rt
 OPEN_STATUSES = ("pending", "approved", "in_review")
 LOCK_ROUTE_SQL = "SELECT id FROM tbl_routes WHERE id=%s FOR UPDATE"
 LOCK_COLLECTIONS_SQL = """
-SELECT a.id FROM tbl_return_collection_assignments a
+SELECT a.id FROM vw_return_collection_assignments a
 LEFT JOIN tbl_return_collection_results cr ON cr.attempt_id=a.attempt_id
 WHERE a.route_id=%s AND (cr.attempt_id IS NULL OR (cr.quantity>0 AND cr.delivered_event_id IS NULL))
 ORDER BY a.id FOR SHARE OF a

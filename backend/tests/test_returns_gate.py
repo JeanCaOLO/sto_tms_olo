@@ -37,7 +37,7 @@ class FakeDb:
             self.tx_calls.append((sql, list(params)))
             if "FOR SHARE OF rt" in sql:
                 return [{"status": status} for status in self.locked_statuses]
-            if 'FROM tbl_return_collection_assignments a' in sql:
+            if 'FROM vw_return_collection_assignments a' in sql:
                 return self.open_collections
             return [{"id": "x"}]
         yield run

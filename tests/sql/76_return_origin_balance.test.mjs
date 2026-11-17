@@ -6,8 +6,8 @@ import {join,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 const modulePath=process.env.TMS_T03_PGLITE_MODULE||join(tmpdir(),'tms-t03-postgres-tools/node_modules/@electric-sql/pglite/dist/index.js');
 const {PGlite}=await import(pathToFileURL(resolve(modulePath)).href);
-const forward=readFileSync(new URL('../../sql/72_return_request_origin_balance.sql',import.meta.url),'utf8');
-const rollback=readFileSync(new URL('../../sql/72_return_request_origin_balance_rollback.sql',import.meta.url),'utf8');
+const forward=readFileSync(new URL('../../sql/76_return_request_origin_balance.sql',import.meta.url),'utf8');
+const rollback=readFileSync(new URL('../../sql/76_return_request_origin_balance_rollback.sql',import.meta.url),'utf8');
 const u=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 let db;
 before(async()=>{db=new PGlite('memory://');await db.waitReady;});
@@ -27,7 +27,7 @@ beforeEach(async()=>{
  INSERT INTO tbl_delivery_points VALUES('${u(5)}');`);
  await db.exec(forward);
 });
-async function remaining(){return Number((await db.query('SELECT remaining FROM return_balance_72($1,$2)',[u(2),u(1)])).rows[0].remaining);}
+async function remaining(){return Number((await db.query('SELECT remaining FROM return_balance_76($1,$2)',[u(2),u(1)])).rows[0].remaining);}
 async function reserve(quantity=3){await db.exec(`INSERT INTO tbl_return_requests VALUES('${u(6)}','${u(2)}','aprobada');
  INSERT INTO tbl_return_request_origins(request_id,order_id,delivery_point_id,snapshot) VALUES('${u(6)}','${u(1)}','${u(5)}','{}');
  INSERT INTO tbl_return_request_items VALUES('${u(7)}','${u(6)}','SKU',${quantity},'${u(4)}');`);}
@@ -37,13 +37,13 @@ test('saldo descuenta anulaciones, reservas y físico histórico sin doble consu
  assert.equal(await remaining(),6);
  await db.exec(`INSERT INTO tbl_returns VALUES('${u(9)}','${u(2)}','${u(1)}',NULL,'SKU','Producto',2,'received',NULL)`);
  assert.equal(await remaining(),4);
- assert.equal((await db.query('SELECT * FROM return_balance_72($1,$2)',[u(99),u(1)])).rows.length,0);
+ assert.equal((await db.query('SELECT * FROM return_balance_76($1,$2)',[u(99),u(1)])).rows.length,0);
 });
 test('líneas repetidas conservan presentación y las reservas suman',async()=>{
  await reserve(2);
  await db.exec(`INSERT INTO tbl_order_items VALUES('${u(10)}','${u(1)}',2,'SKU','Producto','UNIDAD',20,0);
  INSERT INTO tbl_return_request_items VALUES('${u(11)}','${u(6)}','SKU',3,'${u(4)}');`);
- const rows=(await db.query('SELECT * FROM return_balance_72($1,$2) ORDER BY line_number',[u(2),u(1)])).rows;
+ const rows=(await db.query('SELECT * FROM return_balance_76($1,$2) ORDER BY line_number',[u(2),u(1)])).rows;
  assert.deepEqual(rows.map(r=>[r.presentation,Number(r.remaining)]),[['CAJA',4],['UNIDAD',20]]);
 });
 test('forward repetible, rollback sin uso y rechazo del rollback con historial',async()=>{

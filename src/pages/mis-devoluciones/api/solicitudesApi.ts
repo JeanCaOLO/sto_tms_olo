@@ -64,7 +64,9 @@ export interface MyReturnRequest {
   origin?:{order_number:string;final_customer_name:string;address:string;zone_name:string}|null;
   item_progress?:{request_item_id:string;product_code:string;presentation:string|null;requested:number;
     assigned:number;collected:number;delivered:number;received:number}[]|null;
-  tracking?:{assignment_id:string;attempt_id:string;request_item_id:string;route_id:string;stop_id:string;
+  collection_contract_version?:2|null;
+  tracking?:{assignment_id:string;attempt_id:string;request_item_id:string;route_id:string|null;stop_id:string|null;
+    plan_trip_id?:string|null;plan_stop_id?:string|null;allocation_state?:string;
     assigned_quantity:number;collected_quantity:number|null;delivered:boolean;return_id:string|null}[]|null;
   planning_issue?:string|null;
 }

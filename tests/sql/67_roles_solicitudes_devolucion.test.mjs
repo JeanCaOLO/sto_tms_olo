@@ -170,6 +170,8 @@ test('request identity and historical destination cannot be reassigned', async (
 test('new requests reject a company or author from another organization', async () => {
   await migrate();
   await db.exec(readFileSync(join(root,'sql/69_return_request_auto_approval.sql'),'utf8'));
+  // Dependencia aditiva del escritor vigente; no modifica la migracion historica SQL67.
+  await db.exec('ALTER TABLE tbl_return_requests ADD COLUMN collection_contract_version smallint');
   const create = pythonSQL('backend/admin/src/admin_return_requests_sql.py', 'INSERT_REQUEST_SQL');
   await denied(() => db.query(create, [orgA, companyB, authorA, 'SOL-BAD-COMPANY',authorA]));
   await denied(() => db.query(create, [orgA, companyA, authorB, 'SOL-BAD-AUTHOR',authorB]));

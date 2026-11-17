@@ -13,13 +13,13 @@ alter table public.tbl_return_request_items add column if not exists order_item_
   references public.tbl_order_items(id) on delete restrict;
 alter table public.tbl_returns add column if not exists order_item_id uuid
   references public.tbl_order_items(id) on delete restrict;
-create index if not exists idx_return_request_origin_order_72 on public.tbl_return_request_origins(order_id);
-create index if not exists idx_return_order_item_72 on public.tbl_returns(order_item_id);
+create index if not exists idx_return_request_origin_order_76 on public.tbl_return_request_origins(order_id);
+create index if not exists idx_return_order_item_76 on public.tbl_returns(order_item_id);
 
 -- Cada escritor bloquea primero tbl_orders FOR UPDATE y luego lee este saldo.
 -- Las solicitudes reservan unidades; una devolución vinculada no las consume otra vez.
 -- El historial físico sin línea se descuenta de cada línea compatible: nunca se adivina una presentación.
-create or replace function public.return_balance_72(p_org uuid, p_order uuid)
+create or replace function public.return_balance_76(p_org uuid, p_order uuid)
 returns table(id uuid, line_number integer, product_code text, product_name text, presentation text,
               quantity bigint, remaining bigint) language sql stable as $$
  select i.id,i.line_number,i.product_code::text,i.product_name::text,i.presentation::text,
@@ -42,13 +42,13 @@ returns table(id uuid, line_number integer, product_code text, product_name text
  from public.tbl_order_items i join public.tbl_orders o on o.id=i.order_id
  where o.id=p_order and o.organization_id=p_org;
 $$;
-create or replace function public.guard_return_origin_72() returns trigger language plpgsql as $$
+create or replace function public.guard_return_origin_76() returns trigger language plpgsql as $$
 begin
   raise exception 'El origen operativo es historial inmutable' using errcode='23514';
 end $$;
-drop trigger if exists tr_return_origin_72 on public.tbl_return_request_origins;
-create trigger tr_return_origin_72 before update or delete on public.tbl_return_request_origins
-for each row execute function public.guard_return_origin_72();
+drop trigger if exists tr_return_origin_76 on public.tbl_return_request_origins;
+create trigger tr_return_origin_76 before update or delete on public.tbl_return_request_origins
+for each row execute function public.guard_return_origin_76();
 do $$ begin
   if exists(select 1 from pg_roles where rolname='tms_app') then
     grant select,insert on public.tbl_return_request_origins to tms_app;

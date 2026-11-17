@@ -16,7 +16,7 @@ def assignment(fake_db):
          'causation_id':UUID1,'organization_id':ORG,'customer_id':UUID1,'order_id':ORDER,
          'collected_quantity':None,'delivered_event_id':None,'snapshot':POINT}
     fake_db.answer('FROM tbl_dispatch_guides g JOIN tbl_routes r', [guide_row(stop_type='collection',evidence_kinds=['photo_product','signature'])])
-    fake_db.answer('FROM tbl_return_collection_assignments a', [row])
+    fake_db.answer('FROM vw_return_collection_assignments a', [row])
     fake_db.answer('FROM tbl_dispatch_guides g WHERE g.route_id', [{'done':1,'pending':1}])
     fake_db.answer('FROM tbl_tracking_evidences WHERE dispatch_guide_id', [{'id':UUID1}])
     return row
@@ -61,9 +61,9 @@ DELIVER='POST /api/mobile/v1/paradas/{id}/recolectas/entregar'
 
 
 def test_delivery_creates_one_pending_return_with_exact_attempt_photo(call,fake_db,assignment):
-    stored={'quantity':3,'photo_key':'pedidos/ORDER/photo-product-attempt.jpg','warehouse_lat':9.93,
+    stored={'event_id':UUID1,'quantity':3,'photo_key':'pedidos/ORDER/photo-product-attempt.jpg','warehouse_lat':9.93,
             'warehouse_lng':-84.08,'return_id':None,'delivered_event_id':None}
-    fake_db.answer('FROM tbl_return_collection_results result JOIN tbl_return_collection_assignments',lambda params:[dict(stored)])
+    fake_db.answer('FROM tbl_return_collection_results result JOIN vw_return_collection_assignments',lambda params:[dict(stored)])
     fake_db.answer('INSERT INTO tbl_returns', [{'id':UUID1}])
     def update(params):
         stored.update(delivered_event_id=params[0],return_id=params[1]);return [{'attempt_id':TRIP}]
@@ -85,8 +85,8 @@ def test_delivery_rejects_wrong_attempt_unconfirmed_pickup_and_missing_warehouse
     assert call(DELIVER,path={'id':GUIDE},body=body)['statusCode']==422
     body['attempt_ids']=[TRIP]
     assert call(DELIVER,path={'id':GUIDE},body=body)['statusCode']==409
-    fake_db.answer('FROM tbl_return_collection_results result JOIN tbl_return_collection_assignments',[{
-        'quantity':3,'photo_key':'own-photo','warehouse_lat':None,'warehouse_lng':None,
+    fake_db.answer('FROM tbl_return_collection_results result JOIN vw_return_collection_assignments',[{
+        'event_id':UUID1,'quantity':3,'photo_key':'own-photo','warehouse_lat':None,'warehouse_lng':None,
         'return_id':None,'delivered_event_id':None}])
     assert call(DELIVER,path={'id':GUIDE},body=body)['statusCode']==422
     assert not fake_db.wrote('INSERT INTO tbl_returns')
