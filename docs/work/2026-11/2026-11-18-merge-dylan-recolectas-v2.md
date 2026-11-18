@@ -30,3 +30,12 @@ Pendientes: `docs/planificacion/pendientes/08-recolectas-contrato-v2.md`.
   (7807 m³); la función de Dylan los rechaza. El consumidor ahora prueba el siguiente viaje compatible.
 - Con la 78 dentro de la transacción: asignación, no-cancelación en viaje congelado, cancelación,
   reasignación y cancelación por replan en viaje no congelado, todo OK. Nada quedó en Aurora.
+
+## Aplicado en Aurora (autorizado por el usuario)
+- `sql/78_recolecta_v2_sin_return_id.sql` aplicada con `--execute` (registrada en schema_migrations).
+- Solicitudes de prueba persistidas (artículo con descripción «PRUEBA v2», 1 unidad):
+  - SOL-2026-11-0001 (pedido P023408426111661634-M) → el replan real la asignó al viaje
+    20261119-0109-005, parada 3, 0,24 kg.
+  - SOL-2026-11-0002 (pedido AM0023650-O) → `planning.failed` (magnitudes incompletas en su viaje del
+    19) y `planning.no_candidate` el 20.
+- Con solicitudes v2 en la BD, el rollback de sql/77 ya no se puede correr.

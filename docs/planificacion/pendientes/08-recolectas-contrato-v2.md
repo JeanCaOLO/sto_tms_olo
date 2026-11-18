@@ -30,7 +30,7 @@ solicitud en un viaje con paradas sin peso queda `planning.failed` («Magnitudes
 
 ## Qué falta
 
-- **Aplicar sql/78 en Aurora.** Sin ella ninguna recolecta v2 se puede asignar.
+- Pruebas en Aurora: SOL-2026-11-0001 (asignada, viaje 20261119-0109-005) y SOL-2026-11-0002 (falla por magnitudes). Verlas en la UI de Planificación y Devoluciones.
 - **Datos de los viajes** (bloquea v2 en la práctica): el 2026-11-18, de 29 viajes futuros solo 12
   tenían todas las paradas con peso y volumen; el resto rechaza cualquier recolecta v2. Además hay
   volúmenes absurdos de eFlow (viaje 20261119-0109-004: 7807 m³ contra 30 m³ de capacidad) que
