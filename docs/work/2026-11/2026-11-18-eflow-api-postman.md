@@ -9,3 +9,9 @@
 - Postman (My Workspace): colección "eFlow API General (EPRAC)" con script que guarda el token, tests
   de status y los POST en una carpeta "Escritura (no correr sin coordinar)"; entorno "eFlow EPRAC"
   con BaseUrl y Usuario/Password como secretos vacíos (no se subieron credenciales a Postman).
+
+## Verificación migraciones 75/76/77 de devoluciones (Aurora)
+- Se relevantó el túnel (AWS lo había cortado) y se revisó solo lectura: no existen
+  `tbl_return_collection_results`, `vw_return_collection_candidates`,
+  `vw_return_collection_assignments`, las funciones `*_return_collection_v2`,
+  `return_balance_76` ni el trigger `tr_return_leaves_review_75`. Siguen sin aplicar.
