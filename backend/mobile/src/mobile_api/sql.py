@@ -108,10 +108,10 @@ LIMIT 10
 GUIDES_BY_ROUTES_SQL = """
 SELECT g.id, g.route_id, g.guide_number, g.sequence_number, g.status, g.delivery_status,
        g.planned_arrival_time, g.actual_arrival_time, g.recipient_name,
-       o.order_number, o.invoice_number, o.total_items, o.total_weight, o.delivery_address, o.delivery_city,
-       COALESCE(o.delivery_latitude, ps.latitude) AS latitude,
-       COALESCE(o.delivery_longitude, ps.longitude) AS longitude,
-       COALESCE(dp.name, fc.name) AS customer_name, cu.name AS company_name,
+       o.order_number, o.invoice_number, o.total_items, CASE WHEN ps.stop_type='collection' THEN ps.weight ELSE o.total_weight END AS total_weight, COALESCE(ro.snapshot->>'address',o.delivery_address) AS delivery_address, COALESCE(ro.snapshot->>'city',o.delivery_city) AS delivery_city,
+       COALESCE((ro.snapshot->>'latitude')::numeric,o.delivery_latitude,ps.latitude) AS latitude,
+       COALESCE((ro.snapshot->>'longitude')::numeric,o.delivery_longitude,ps.longitude) AS longitude,
+       COALESCE(ro.snapshot->>'final_customer_name',dp.name,fc.name) AS customer_name, cu.name AS company_name,
        COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone,
        COALESCE((SELECT array_agg(DISTINCT e.kind) FROM tbl_tracking_evidences e WHERE e.dispatch_guide_id = g.id),
                 ARRAY[]::text[]) AS evidence_kinds,
@@ -122,7 +122,10 @@ LEFT JOIN tbl_orders o ON o.id = g.order_id
 LEFT JOIN tbl_customers cu ON cu.id = o.customer_id
 LEFT JOIN tbl_final_customers fc ON fc.id = o.final_customer_id
 LEFT JOIN tbl_delivery_points dp ON dp.id = o.delivery_point_id
-LEFT JOIN tbl_plan_stops ps ON ps.trip_id = r.plan_trip_id AND ps.order_id = g.order_id
+LEFT JOIN tbl_return_collection_allocations ca ON ca.dispatch_guide_id=g.id
+LEFT JOIN tbl_return_request_origins ro ON ro.request_id=ca.request_id
+LEFT JOIN tbl_plan_stops ps ON (ca.id IS NOT NULL AND ps.id=ca.plan_stop_id)
+ OR (ca.id IS NULL AND ps.trip_id=r.plan_trip_id AND ps.order_id=g.order_id AND ps.stop_type=g.stop_type)
 WHERE g.route_id = ANY(%s::uuid[])
 ORDER BY g.route_id, g.sequence_number
 """
@@ -142,13 +145,15 @@ LIMIT 10
 """
 
 MY_PLANNED_STOPS_SQL = """
-SELECT ps.trip_id, ps.stop_order, o.id AS order_id, o.order_number, o.invoice_number, o.total_items, o.total_weight,
-       o.delivery_address, o.delivery_city,
-       COALESCE(o.delivery_latitude, ps.latitude) AS latitude, COALESCE(o.delivery_longitude, ps.longitude) AS longitude,
-       COALESCE(dp.name, fc.name) AS customer_name, cu.name AS company_name,
+SELECT ps.trip_id, ps.stop_order, o.id AS order_id, o.order_number, o.invoice_number, o.total_items, CASE WHEN ps.stop_type='collection' THEN ps.weight ELSE o.total_weight END AS total_weight,
+       COALESCE(ro.snapshot->>'address',o.delivery_address) AS delivery_address, COALESCE(ro.snapshot->>'city',o.delivery_city) AS delivery_city,
+       COALESCE((ro.snapshot->>'latitude')::numeric,o.delivery_latitude,ps.latitude) AS latitude, COALESCE((ro.snapshot->>'longitude')::numeric,o.delivery_longitude,ps.longitude) AS longitude,
+       COALESCE(ro.snapshot->>'final_customer_name',dp.name,fc.name) AS customer_name, cu.name AS company_name,
        COALESCE(dp.contact_phone, fc.phone, cu.phone) AS customer_phone
 FROM tbl_plan_stops ps
 JOIN tbl_orders o ON o.id = ps.order_id
+LEFT JOIN tbl_return_collection_allocations ca ON ca.plan_stop_id=ps.id
+LEFT JOIN tbl_return_request_origins ro ON ro.request_id=ca.request_id
 LEFT JOIN tbl_customers cu ON cu.id = o.customer_id
 LEFT JOIN tbl_final_customers fc ON fc.id = o.final_customer_id
 LEFT JOIN tbl_delivery_points dp ON dp.id = o.delivery_point_id
@@ -193,27 +198,33 @@ WHERE tracking_last_positions.recorded_at <= EXCLUDED.recorded_at
 GUIDE_ROW_SQL = """
 SELECT g.id, g.route_id, g.organization_id, g.order_id, o.order_number, g.delivery_status, g.notes,
        r.status AS route_status, r.driver_id,
-       COALESCE(o.delivery_latitude, ps.latitude) AS stop_lat, COALESCE(o.delivery_longitude, ps.longitude) AS stop_lng,
+       COALESCE((ro.snapshot->>'latitude')::numeric,o.delivery_latitude,ps.latitude) AS stop_lat, COALESCE((ro.snapshot->>'longitude')::numeric,o.delivery_longitude,ps.longitude) AS stop_lng,
        COALESCE((SELECT array_agg(DISTINCT e.kind) FROM tbl_tracking_evidences e WHERE e.dispatch_guide_id = g.id),
                 ARRAY[]::text[]) AS evidence_kinds,
        g.stop_type
 FROM tbl_dispatch_guides g
 JOIN tbl_routes r ON r.id = g.route_id
 LEFT JOIN tbl_orders o ON o.id = g.order_id
-LEFT JOIN tbl_plan_stops ps ON ps.trip_id = r.plan_trip_id AND ps.order_id = g.order_id
+LEFT JOIN tbl_return_collection_allocations ca ON ca.dispatch_guide_id=g.id
+LEFT JOIN tbl_return_request_origins ro ON ro.request_id=ca.request_id
+LEFT JOIN tbl_plan_stops ps ON (ca.id IS NOT NULL AND ps.id=ca.plan_stop_id)
+ OR (ca.id IS NULL AND ps.trip_id=r.plan_trip_id AND ps.order_id=g.order_id AND ps.stop_type=g.stop_type)
 WHERE g.id = %s
 """
 
 # Paradas de los viajes con su visita (si ya hay): lo que `logic.detect_visits` necesita para marcar llegada y salida.
 VISIT_STOPS_SQL = """
 SELECT g.id, g.route_id, g.delivery_status, g.status, g.actual_arrival_time,
-       COALESCE(o.delivery_latitude, ps.latitude) AS latitude,
-       COALESCE(o.delivery_longitude, ps.longitude) AS longitude,
+       COALESCE((ro.snapshot->>'latitude')::numeric,o.delivery_latitude,ps.latitude) AS latitude,
+       COALESCE((ro.snapshot->>'longitude')::numeric,o.delivery_longitude,ps.longitude) AS longitude,
        v.arrived_at, v.departed_at
 FROM tbl_dispatch_guides g
 JOIN tbl_routes r ON r.id = g.route_id
 LEFT JOIN tbl_orders o ON o.id = g.order_id
-LEFT JOIN tbl_plan_stops ps ON ps.trip_id = r.plan_trip_id AND ps.order_id = g.order_id
+LEFT JOIN tbl_return_collection_allocations ca ON ca.dispatch_guide_id=g.id
+LEFT JOIN tbl_return_request_origins ro ON ro.request_id=ca.request_id
+LEFT JOIN tbl_plan_stops ps ON (ca.id IS NOT NULL AND ps.id=ca.plan_stop_id)
+ OR (ca.id IS NULL AND ps.trip_id=r.plan_trip_id AND ps.order_id=g.order_id AND ps.stop_type=g.stop_type)
 LEFT JOIN tracking_stop_visits v ON v.guide_id = g.id
 WHERE g.route_id = ANY(%s::uuid[])
 """
@@ -278,8 +289,11 @@ SELECT r.id FROM tbl_routes r
 LEFT JOIN tbl_plan_trips pt ON pt.id = r.plan_trip_id
 WHERE r.organization_id = %s AND r.driver_id = %s AND lower(r.status) = ANY(%s)
   AND (pt.status IS NULL OR pt.status NOT IN ('completed', 'cancelled'))
-  AND EXISTS (SELECT 1 FROM tbl_dispatch_guides g WHERE g.route_id = r.id
+  AND (EXISTS (SELECT 1 FROM tbl_dispatch_guides g WHERE g.route_id = r.id
               AND NOT ({_GUIDE_STATE} IN {DELIVERED_SQL} OR {_GUIDE_STATE} IN {FAILED_SQL}))
+       OR EXISTS(SELECT 1 FROM tbl_return_collection_assignments a
+         JOIN tbl_return_collection_results cr ON cr.attempt_id=a.attempt_id
+         WHERE a.route_id=r.id AND cr.quantity>0 AND cr.delivered_event_id IS NULL))
 LIMIT 1
 """
 ORIGIN_STORE_SQL = """
@@ -288,7 +302,7 @@ ORDER BY code LIMIT 1
 """
 ZONE_SQL = "SELECT id FROM tbl_zones WHERE organization_id = %s AND (name = %s OR code = %s) LIMIT 1"
 PLAN_STOPS_SQL = """
-SELECT ps.order_id, ps.stop_type, ps.return_id, COALESCE(o.delivery_latitude, ps.latitude) AS lat, COALESCE(o.delivery_longitude, ps.longitude) AS lng
+SELECT ps.order_id, ps.stop_type, ps.return_id, ps.id AS plan_stop_id, CASE WHEN ps.stop_type='collection' THEN ps.latitude ELSE COALESCE(o.delivery_latitude, ps.latitude) END AS lat, CASE WHEN ps.stop_type='collection' THEN ps.longitude ELSE COALESCE(o.delivery_longitude, ps.longitude) END AS lng
 FROM tbl_plan_stops ps LEFT JOIN tbl_orders o ON o.id = ps.order_id
 WHERE ps.trip_id = %s ORDER BY ps.stop_order
 """
@@ -326,8 +340,8 @@ RETURNING id
 
 INSERT_RETURN_SQL = """
 INSERT INTO tbl_returns (organization_id, dispatch_guide_id, order_id, return_number, return_type, reason,
-                     product_code, product_name, quantity, photo_url, notes)
-VALUES (%s, %s, %s, %s, 'contracamion', %s, %s, %s, %s, %s, %s)
+                     product_code, product_name, quantity, photo_url, notes, order_item_id)
+VALUES (%s, %s, %s, %s, 'contracamion', %s, %s, %s, %s, %s, %s, %s)
 ON CONFLICT (organization_id, return_number) DO NOTHING
 RETURNING id
 """
@@ -336,6 +350,13 @@ RETURNING id
 RETURN_PHOTO_SQL = """
 SELECT storage_key FROM tbl_tracking_evidences
 WHERE dispatch_guide_id = %s AND kind = 'photo_return' AND client_id = %s
+"""
+
+RETURN_ORDER_LOCK_SQL = "SELECT id FROM tbl_orders WHERE id=%s AND organization_id=%s FOR UPDATE"
+RETURN_BALANCE_SQL = "SELECT * FROM return_balance_76(%s::uuid,%s::uuid) ORDER BY line_number"
+RETURN_REPLAY_SQL = """
+SELECT id,return_number,dispatch_guide_id,product_code,quantity,reason,photo_url,notes,order_item_id,product_name
+FROM tbl_returns WHERE organization_id=%s AND return_number=ANY(%s::text[]) ORDER BY return_number
 """
 
 # Artículos del pedido de la parada: lo que el chofer elige al registrar una devolución contracamión.
@@ -366,3 +387,9 @@ ON CONFLICT (app_user_id, version) DO NOTHING
 RETURNING consented_at
 """
 CONSENT_SQL = "SELECT consented_at FROM tbl_tracking_consents WHERE app_user_id = %s AND version = %s"
+
+LOCK_COLLECTION_PLAN_TRIP_SQL = """
+SELECT t.id FROM tbl_plan_trips t JOIN tbl_route_plans p ON p.id=t.plan_id
+WHERE t.id=%s AND p.organization_id=%s FOR UPDATE OF t
+"""
+BIND_COLLECTION_SQL = "SELECT bind_return_collection_v2(%s::uuid,%s::uuid,%s::uuid,%s::uuid,%s::uuid,%s::uuid)"

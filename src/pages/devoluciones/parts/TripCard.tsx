@@ -9,9 +9,10 @@ import {
   toggleSelection, tripProgress, isOpen,
 } from '../../../lib/devoluciones/trips';
 import type { FormView, ReturnCondition, ReturnLine, ReturnTrip, TripFilter } from '../../../lib/devoluciones/types';
-import { getForm, receiveAll, receiveReturn, recordIncident } from '../api/devolucionesApi';
+import { getForm, receiveAll, receiveReturn, recordIncident, resolveIncident, type ResolveInput } from '../api/devolucionesApi';
 import ReceiveModal from '../components/ReceiveModal';
 import IncidentModal from '../components/IncidentModal';
+import ResolveIncidentModal from '../components/ResolveIncidentModal';
 import ReturnFormModal from '../components/ReturnFormModal';
 import { useTripDetail } from '../hooks/useTripDetail';
 import ReturnLinesTable from './ReturnLinesTable';
@@ -31,6 +32,7 @@ export default function TripCard({ trip, canEdit, canPrint, onChanged, filter = 
   const [open, setOpen] = useState(false);
   const [receiving, setReceiving] = useState<Receiving>(null);
   const [incident, setIncident] = useState<ReturnLine | null>(null);
+  const [resolving, setResolving] = useState<ReturnLine | null>(null);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [formView, setFormView] = useState<FormView | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -61,6 +63,14 @@ export default function TripCard({ trip, canEdit, canPrint, onChanged, filter = 
     if (incident) {
       await recordIncident(incident.id, explanation, key);
       setIncident(null);
+      changed();
+    }
+  };
+
+  const confirmResolution = async (input: ResolveInput, key: string) => {
+    if (resolving) {
+      await resolveIncident(resolving.id, input, key);
+      setResolving(null);
       changed();
     }
   };
@@ -141,6 +151,7 @@ export default function TripCard({ trip, canEdit, canPrint, onChanged, filter = 
               ), detail.sections)} canReceive={canEdit} onReloadPhotos={reload}
                 onReceive={(line) => setReceiving({ kind: 'line', line })}
                 onIncident={canEdit ? setIncident : undefined}
+                onResolve={canEdit ? setResolving : undefined}
                 selection={canEdit && filter !== 'novedades' ? {
                   selected,
                   onToggle: (line) => setSelected((current) => toggleSelection(current, line.id)),
@@ -164,6 +175,7 @@ export default function TripCard({ trip, canEdit, canPrint, onChanged, filter = 
         onConfirm={confirm}
       />
       <IncidentModal line={incident} onClose={() => setIncident(null)} onConfirm={confirmIncident} />
+      <ResolveIncidentModal line={resolving} onClose={() => setResolving(null)} onConfirm={confirmResolution} />
       {formView && (
         <ReturnFormModal detail={formView} canEdit={canEdit} canPrint={canPrint}
           onClose={() => { formRequest.current++; setFormView(null); }}

@@ -35,7 +35,7 @@ STACK_MODULES = {"app", "table_modules", "admin_permissions", "admin_audit", "au
                  "models", "score", "regla_fecha", "analizador_observaciones", "cola_candidatos", "handoff_pedidos", "motor_reglas", "reglas_config",
                  "tarifas_schema", "tarifas_sql", "tarifas_perms", "tarifas_db", "tarifas_metrics",
                  "tarifas_business_rules", "tarifas_proforma_content",
-                 "admin_return_incidents", "admin_return_incidents_sql",
+                 "admin_return_incidents", "admin_return_incidents_sql", "admin_return_collection", "admin_return_collection_sql", "admin_return_tracking",
                  "proformas_api", "proformas_flow", "http_util", "google_oauth", "gmail_send", "token_store",
                  "contract_files", "tracking_logic", "tracking_sql", "expirations", "email_body", "mailer"}
 

@@ -27,12 +27,24 @@ class Db:
             request_number='SOL-2026-11-0001', status='pendiente_asignacion', decided_by=None,
             decided_at=None, rejection_reason=None, customer_name='Empresa de prueba')
         self.items = [dict(id='item-1', line_number=1, product_code='CODE', product_name='Producto',
-            quantity=2, reason_code='danado', description=None)]
+            quantity=2, reason_code='danado', description=None,order_item_id=REQ)]
         self.files = [dict(id=FILE, item_id='item-1', s3_key=f'solicitudes/{ORG}/{COMPANY}/app-user/{FILE}.mp4',
             kind='video', mime_type='video/mp4', size_bytes=123)]
 
     def query(self, statement, params=()):
         self.calls.append((statement, list(params)))
+        if 'SELECT r.id AS request_id,r.collection_contract_version' in statement:
+            return []
+        if 'INSERT INTO tbl_return_request_outbox' in statement:
+            return [{'id': FILE}]
+        if 'SELECT id FROM tbl_orders' in statement:
+            return [{'id': REQ}]
+        if 'return_balance_76' in statement:
+            return [{'id': REQ, 'product_code': 'CODE', 'remaining': 10}]
+        if 'FROM tbl_orders o' in statement:
+            return [{'order_id': REQ, 'delivery_point_id': FILE}]
+        if statement.lstrip().startswith('SELECT * FROM tbl_return_request_origins'):
+            return [{'order_id': REQ, 'delivery_point_id': FILE}]
         if 'FROM tbl_app_users' in statement and 'tbl_return_requests' not in statement:
             return [dict(organization_id=ORG, customer_id=self.company, customer_organization_id=ORG, customer_name='Empresa de prueba')]
         if statement.lstrip().startswith('SELECT DISTINCT c.id'):
@@ -80,6 +92,9 @@ def review(monkeypatch):
 
 
 def call(review, method, suffix='', *, body=None, query=None):
+    if method == 'POST' and not suffix and isinstance(body, dict):
+        body = {'order_id': REQ, 'delivery_point_id': FILE, **body}
+        body['items'] = [{'order_item_id': REQ, **row} if isinstance(row, dict) else row for row in body.get('items', [])]
     return review[0].handler(http_event(f'{method} {BASE}{suffix}', user=USER,
         path={'requestId': REQ, 'fileId': FILE}, body=body, query=query), None)
 

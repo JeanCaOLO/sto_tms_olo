@@ -443,6 +443,7 @@ def _stop_view(g: dict, live: dict, evidences: dict, driver: bool) -> dict:
         "id": sid, "guide_number": g["guide_number"], "sequence": g["sequence_number"],
         "state": logic.guide_state(g["delivery_status"], g["status"]),
         "type": g.get("stop_type") if g.get("stop_type") in ("delivery", "collection") else "delivery",
+        **({'collection':g['collection']} if g.get('collection') else {}),
         "order_number": g["order_number"], "invoice_number": g["invoice_number"],
         "customer_name": g["customer_name"], "company_name": g.get("company_name"),
         "address": g["delivery_address"], "city": g["delivery_city"],
@@ -624,6 +625,7 @@ def start_viaje(event: dict) -> dict:
         raise HttpError(404, "Viaje planificado no encontrado")
 
     def work(run):
+        run(sql.LOCK_COLLECTION_PLAN_TRIP_SQL, [trip_id, org_id])
         rows = run(sql.PLAN_TRIP_SQL, [trip_id])
         if not rows or str(rows[0]["organization_id"]) != org_id:
             raise HttpError(404, "Viaje planificado no encontrado")
@@ -665,6 +667,9 @@ def start_viaje(event: dict) -> dict:
             guide = run(sql.INSERT_GUIDE_SQL, [org_id, route_id, stop["order_id"], f"{route_number}-{index}", index,
                                                "Generada al iniciar el viaje desde Planificación.",
                                                plan["arrivals"][index - 1], stop.get("stop_type") or "delivery"])
+            if stop.get('plan_stop_id') and stop.get('stop_type') == 'collection':
+                run(sql.BIND_COLLECTION_SQL, [org_id, trip_id, stop['plan_stop_id'],
+                                              route_id, guide[0]['id'], caller.app_user_id])
             if stop.get("return_id"):
                 run(sql.LINK_RETURN_SQL, [guide[0]["id"], stop["return_id"]])
         _event(run, org_id, route_id, None, "route_started", "info", "Viaje iniciado", caller.app_user_id)
@@ -822,6 +827,9 @@ def transition_stop(event: dict) -> dict:
     event_status = {"delivered": "success", "failed": "error", "pending": "info"}[target]
 
     def work(run):
+        run(sql.COLLECTION_GUIDE_LOCK_SQL,[guide_id])
+        if run(sql.COLLECTION_LINK_SQL,[guide_id]):
+            raise HttpError(409, 'Esta recolecta se ejecuta desde la app con cantidades e identidades por intento.')
         run(sql.UPDATE_GUIDE_SQL, [target, logic.GUIDE_STATUS_TEXT[target], None if target == "pending" else when,
                                    receiver, note, guide_id])
         counts = run(sql.COUNT_DONE_SQL, [route_id])[0]

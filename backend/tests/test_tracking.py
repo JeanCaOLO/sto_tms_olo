@@ -437,6 +437,19 @@ def test_start_viaje_saves_planned_times_distance_and_capacity(tracking):
     assert km > 0 and capacity == 25.0
 
 
+def test_start_links_planned_collection_before_committing_route(tracking):
+    app,db=tracking
+    db.answer('FROM tbl_plan_trips pt',[_plan_trip()])
+    db.answer('FROM tbl_plan_stops',[{'order_id':'o1','plan_stop_id':TRIP,'stop_type':'collection','lat':9.93,'lng':-84.08}])
+    db.answer('FROM tbl_stores',[{'id':'store-1','latitude':9.90,'longitude':-84.05}])
+    db.answer('INSERT INTO tbl_routes',[{'id':ROUTE}])
+    db.answer('INSERT INTO tbl_dispatch_guides',[{'id':'guide-direct'}])
+    response=app.handler(_event('POST /api/v1/tracking/viajes/{id}/iniciar',path={'id':TRIP}),None)
+    assert response['statusCode']==201
+    binds=[params for statement,params in db.calls if 'bind_return_collection_v2' in statement]
+    assert len(binds)==1 and binds[0][:5]==[ORG,TRIP,TRIP,ROUTE,'guide-direct']
+
+
 def test_start_viaje_without_origin_coordinates_leaves_planned_times_empty(tracking):
     """Sede sin lat/lng (p. ej. CD-CR): no hay primer tramo que estimar, así que no se inventan horas (sin falso retraso)."""
     app, db = tracking
@@ -1241,7 +1254,7 @@ def test_evidence_from_the_driver_app_is_signed_in_its_own_bucket(tracking, monk
 def test_stop_name_comes_from_delivery_point_not_from_the_company():
     import tracking_sql
     for sql in (tracking_sql.GUIDES_SQL, tracking_sql.MY_PLANNED_STOPS_SQL):
-        assert "COALESCE(dp.name, fc.name) AS customer_name" in sql and "cu.name AS company_name" in sql
+        assert "COALESCE(ro.snapshot->>'final_customer_name',dp.name,fc.name) AS customer_name" in sql and "cu.name AS company_name" in sql
         assert "JOIN tbl_final_customers fc ON fc.id = o.final_customer_id" in sql
         assert "JOIN tbl_delivery_points dp ON dp.id = o.delivery_point_id" in sql
 

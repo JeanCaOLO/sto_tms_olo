@@ -43,8 +43,9 @@ export async function uploadFile(file: File, customerId?: string): Promise<Uploa
   return { key: form.key };
 }
 
-export const createRequest = (items: RequestItemPayload[], idempotencyKey: string, customerId?: string) =>
+export const createRequest = (items: RequestItemPayload[], idempotencyKey: string, customerId?: string, orderId?: string, pointId?: string) =>
   call<CreatedRequest>(BASE, { method: 'POST', body: JSON.stringify({ items, idempotency_key: idempotencyKey,
+    ...(orderId ? {order_id: orderId, delivery_point_id: pointId} : {}),
     ...(customerId ? {customer_id: customerId} : {}) }) });
 
 export interface MyReturnRequest {
@@ -58,11 +59,39 @@ export interface MyReturnRequest {
   decided_by_name?: string | null;
   decided_at?: string | null;
   rejection_reason?: string | null;
+  operational_status?:string;
+  operational_updated_at?:string|null;
+  origin?:{order_number:string;final_customer_name:string;address:string;zone_name:string}|null;
+  item_progress?:{request_item_id:string;product_code:string;presentation:string|null;requested:number;
+    assigned:number;collected:number;delivered:number;received:number}[]|null;
+  collection_contract_version?:2|null;
+  tracking?:{assignment_id:string;attempt_id:string;request_item_id:string;route_id:string|null;stop_id:string|null;
+    plan_trip_id?:string|null;plan_stop_id?:string|null;allocation_state?:string;
+    assigned_quantity:number;collected_quantity:number|null;delivered:boolean;return_id:string|null}[]|null;
+  planning_issue?:string|null;
 }
 
 export const listMyRequests = () => call<MyReturnRequest[]>(`${BASE}/mias`);
 
 export interface ClientAssignment {id: string; name: string}
+export interface RequestOrigin {
+  order_id:string;order_number:string;delivery_point_id:string;point_name:string;address:string;
+  final_customer_name:string;zone_name:string;country_id:string;warehouse_id:string;
+}
+export interface OrderBalance {
+  id:string;line_number:number;product_code:string;product_name:string|null;presentation:string|null;
+  quantity:number;remaining:number;
+}
+export function getRequestOrigins(customerId?:string) {
+  const params=new URLSearchParams({origenes:'1'});
+  if(customerId)params.set('customer_id',customerId);
+  return call<RequestOrigin[]>(`${BASE}/asignacion?${params}`,{cache:'no-store'});
+}
+export function getOrderBalance(orderId:string,customerId?:string) {
+  const params=new URLSearchParams({origenes:'1',order_id:orderId});
+  if(customerId)params.set('customer_id',customerId);
+  return call<OrderBalance[]>(`${BASE}/asignacion?${params}`,{cache:'no-store'});
+}
 export interface RequestFile {id: string; kind: 'photo' | 'video'; mime_type: string; size_bytes: number}
 export interface RequestDetail {
   request: Omit<MyReturnRequest, 'items'> & {customer_id: string; customer_name: string; requested_by: string};

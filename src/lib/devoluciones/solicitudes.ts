@@ -29,6 +29,7 @@ export interface DraftFile {
 
 export interface DraftItem {
   id: string;
+  orderItemId?: string;
   productCode: string;
   productName: string;
   quantity: string;
@@ -110,6 +111,7 @@ export interface UploadedFile {
 }
 
 export interface RequestItemPayload {
+  order_item_id?: string;
   product_code: string;
   product_name: string;
   quantity: number;
@@ -121,6 +123,7 @@ export interface RequestItemPayload {
 /** Cuerpo del POST. Asume que el borrador ya pasó `validateAll`. */
 export function toPayloadItem(item: DraftItem, files: UploadedFile[]): RequestItemPayload {
   return {
+    ...(item.orderItemId ? {order_item_id: item.orderItemId} : {}),
     product_code: item.productCode.trim(),
     product_name: item.productName.trim(),
     quantity: parseQuantity(item.quantity) as number,

@@ -1,5 +1,9 @@
 # Pendiente: configurar Planificación para recibir recolectas solicitadas
 
+> Actualización 2026-11-17: implementar el consumidor con
+> [ENTREGA_PLANIFICACION_BD_V2.md](ENTREGA_PLANIFICACION_BD_V2.md).
+> El texto siguiente conserva el planteamiento anterior; el transporte HTTP está retirado localmente.
+
 **Estado:** pendiente de otro módulo, por solicitud expresa del usuario. **Responsable:** Planificación; despliegue por su responsable autorizado. Devoluciones prepara el contrato y pruebas locales, sin alterar la asignación de viajes desde su módulo.
 
 ## Qué debe recibir

@@ -1,5 +1,9 @@
 # Entrega a Planificación: recolectas aprobadas
 
+> Corte histórico de 2026-11-11. La entrega vigente es
+> [ENTREGA_PLANIFICACION_BD_V2.md](ENTREGA_PLANIFICACION_BD_V2.md), de 2026-11-17.
+> Ya no se requieren una ruta/guía previas ni reclamar/acuse HTTP para asignar el viaje futuro.
+
 Fecha: 2026-11-11. Define la frontera de integración solicitada por el usuario. **La asignación de recolectas a viajes la implementa el responsable de Planificación, no este trabajo de Devoluciones. Solo Jean puede desplegar.** Este documento no autoriza cambios en AWS ni en la BD compartida.
 
 **Decisión D01 confirmada por el usuario:** una empresa destinataria asignada por cliente, sin elección multieempresa en cada solicitud. Backend determina el destino a partir de la asignación autorizada y preserva la identidad histórica de la solicitud. La relación concreta de catálogo/asignación debe verificarse antes de implementar; esta elección no autoriza asumir que solicitante y dueño del producto son la misma entidad.

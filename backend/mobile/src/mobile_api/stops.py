@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from . import db, logic, sql
+from . import db, logic, sql, collections
 from .auth import Driver
 from .errors import HttpError
 from .http import body_dict, ok, path_param
@@ -21,6 +21,11 @@ def guide_access(driver: Driver, guide_id: str) -> dict:
     if (not rows or str(rows[0]["organization_id"]) != driver.organization_id
             or str(rows[0]["driver_id"] or "") != driver.driver_id):
         raise HttpError(404, "Parada no encontrada")
+    if rows[0].get('stop_type') == 'collection':
+        linked = db.query(collections.ASSIGNMENTS_SQL, [[guide_id],driver.organization_id])
+        if linked:
+            point = linked[0]['snapshot']
+            rows[0]['stop_lat'],rows[0]['stop_lng'] = point['latitude'],point['longitude']
     return rows[0]
 
 
@@ -76,6 +81,8 @@ def transition_stop(event: dict, driver: Driver) -> dict:
         # Reenvío de la última parada ya registrada: el viaje se cerró solo y la repetición no es un error.
         if (logic.route_state(guide["route_status"]) == "completed"
                 and logic.guide_state(guide.get("delivery_status"), guide.get("status")) == target):
+            if guide.get('stop_type') == 'collection':
+                db.run_in_transaction(lambda run: collections.execute(run,driver,guide,body,target,when,replay_only=True))
             counts = db.query(sql.COUNT_DONE_SQL, [str(guide["route_id"])])[0]
             return ok({"stop_id": guide_id, "state": target, "done": int(counts["done"]),
                        "pending": int(counts["pending"]), "distance_m": None, "route_closed": True})
@@ -104,6 +111,8 @@ def transition_stop(event: dict, driver: Driver) -> dict:
     event_status = {"delivered": "success", "failed": "error"}[target]
 
     def work(run):
+        if kind_of_stop == 'collection':
+            collections.execute(run,driver,guide,body,target,when)
         run(sql.UPDATE_GUIDE_SQL, [target, logic.GUIDE_STATUS_TEXT[target], when, receiver, note, guide_id])
         run(sql.COMPLETE_VISIT_SQL, [when, guide_id])   # separa «tiempo en el sitio» de «tiempo hasta cerrar»
         counts = run(sql.COUNT_DONE_SQL, [route_id])[0]
@@ -115,7 +124,7 @@ def transition_stop(event: dict, driver: Driver) -> dict:
                       f"Entrega fuera de la geocerca ({distance_m} m): {reason}", lat, lng, when)
         closed = False
         # Última parada del viaje (entregada o no entregada): el viaje se cierra solo y pasa a Liquidaciones.
-        if first_time and int(counts["pending"]) == 0:
+        if first_time and int(counts["pending"]) == 0 and not run(collections.UNDELIVERED_SQL,[route_id]):
             closed = bool(run(sql.CLOSE_ROUTE_SQL, [when, int(counts["done"]), route_id, logic.ACTIVE_STATUS_SQL_VALUES]))
             if closed:
                 run(sql.CLOSE_PLAN_TRIP_SQL, [route_id])
@@ -124,6 +133,26 @@ def transition_stop(event: dict, driver: Driver) -> dict:
         return {"stop_id": guide_id, "state": target, "done": int(counts["done"]),
                 "pending": int(counts["pending"]), "distance_m": distance_m, "route_closed": closed}
 
+    return ok(db.run_in_transaction(work))
+
+
+def deliver_collection(event: dict, driver: Driver) -> dict:
+    guide = guide_access(driver,path_param(event,'id'))
+    body = body_dict(event)
+    try:
+        when=logic.parse_time(body['occurred_at'],'occurred_at') if body.get('occurred_at') else now()
+    except ValueError as error:
+        raise HttpError(400,str(error)) from None
+    def work(run):
+        ids = collections.deliver(run,driver,guide,body,when)
+        counts = run(sql.COUNT_DONE_SQL,[guide['route_id']])[0]
+        closed = False
+        if int(counts['pending'])==0 and not run(collections.UNDELIVERED_SQL,[guide['route_id']]):
+            closed=bool(run(sql.CLOSE_ROUTE_SQL,[now(),int(counts['done']),guide['route_id'],logic.ACTIVE_STATUS_SQL_VALUES]))
+            if closed:
+                run(sql.CLOSE_PLAN_TRIP_SQL,[guide['route_id']])
+                add_event(run,driver,guide['route_id'],None,'route_completed','success','Recolectas entregadas al almacén.')
+        return {'return_ids':ids,'state':'pending','route_closed':closed}
     return ok(db.run_in_transaction(work))
 
 
@@ -161,7 +190,7 @@ def return_items(body: dict) -> tuple[list[dict], bool]:
     as_items = raw is not None
     if not as_items:
         raw = [{"product_name": body.get("product_name"), "product_code": body.get("product_code"),
-                "quantity": body.get("quantity")}]
+                "quantity": body.get("quantity"),'order_item_id':body.get('order_item_id')}]
     if not isinstance(raw, list) or not 0 < len(raw) <= logic.MAX_RETURN_ITEMS:
         raise HttpError(400, f"items debe traer de 1 a {logic.MAX_RETURN_ITEMS} artículos")
     lines = []
@@ -174,7 +203,11 @@ def return_items(body: dict) -> tuple[list[dict], bool]:
         quantity = item.get("quantity")
         if isinstance(quantity, bool) or not isinstance(quantity, int) or not 0 < quantity <= 100000:
             raise HttpError(400, "quantity debe ser un entero mayor que 0")
-        lines.append({"code": code, "name": name or code, "quantity": quantity})
+        item_id = item.get('order_item_id')
+        if item_id is not None and not logic.is_uuid(item_id):
+            raise HttpError(400, 'order_item_id inválido')
+        lines.append({"code": code, "name": name or code, "quantity": quantity,
+                      'order_item_id': item_id.lower() if item_id else None})
     return lines, as_items
 
 
@@ -183,9 +216,10 @@ def list_items(event: dict, driver: Driver) -> dict:
     guide = guide_access(driver, path_param(event, "id"))
     if logic.route_state(guide["route_status"]) != "active":
         raise HttpError(409, "El viaje no está en tránsito.")
-    rows = db.query(sql.ORDER_ITEMS_SQL, [guide["order_id"]]) if guide.get("order_id") else []
+    rows = db.query(sql.RETURN_BALANCE_SQL, [driver.organization_id,guide['order_id']]) if guide.get('order_id') else []
     return ok({"stop_id": str(guide["id"]), "items": [
-        {"line_number": r["line_number"], "product_code": r["product_code"] or None,
+        {'order_item_id':str(r['id']),'presentation':r['presentation'],'remaining':max(0,int(r['remaining'])),
+         "line_number": r["line_number"], "product_code": r["product_code"] or None,
          "product_name": r["product_name"] or r["product_code"], "quantity": int(r["quantity"] or 0)}
         for r in rows]})
 
@@ -203,8 +237,6 @@ def add_return(event: dict, driver: Driver) -> dict:
     if client_id is not None and not logic.is_uuid(client_id):
         raise HttpError(400, "client_id inválido")
     guide = guide_access(driver, guide_id)
-    if logic.route_state(guide["route_status"]) != "active":
-        raise HttpError(409, "El viaje no está en tránsito.")
     photo = body.get("photo_key")
     if photo is not None:
         photo = logic.require_evidence_key(guide, photo)
@@ -221,11 +253,64 @@ def add_return(event: dict, driver: Driver) -> dict:
     base = f"DV-{client_id or uuid.uuid4()}"   # reenviar la misma devolución no la duplica
     numbers = [f"{base}-{n}" if as_items else base for n in range(1, len(lines) + 1)]
 
+    def replay(run):
+        previous=run(sql.RETURN_REPLAY_SQL,[driver.organization_id,numbers])
+        if not previous:
+            return None
+        incoming=dict(zip(numbers,lines))
+        same=len(previous)==len(lines)
+        for row in previous:
+            line=incoming.get(row['return_number'])
+            same=same and line is not None and (row['quantity'],row['reason'],row['photo_url'],row['notes'],row['product_name'],str(row['dispatch_guide_id'])) == (
+                line['quantity'],reason,photo,notes,line['name'],guide_id)
+            if not same:
+                break
+            if row['order_item_id'] is None:
+                same=row['product_code']==line['code'] and line['order_item_id'] is None
+            else:
+                same=line['code'] in (None,row['product_code']) and line['order_item_id'] in (None,str(row['order_item_id']))
+        if not same:
+            raise HttpError(409,'client_id ya se usó con otro contenido o parada.')
+        ids=[str(row['id']) for row in previous]
+        return {'return_id':ids[0],'return_ids':ids,'duplicate':True}
+
     def work(run):
+        previous=replay(run)
+        if previous:
+            return previous
+        if logic.route_state(guide['route_status'])!='active':
+            raise HttpError(409,'El viaje no está en tránsito.')
+        if not guide.get('order_id') or not run(sql.RETURN_ORDER_LOCK_SQL, [guide['order_id'], driver.organization_id]):
+            raise HttpError(422, 'La devolución requiere un pedido autorizado.')
+        run(collections.ROUTE_LOCK_SQL,[guide['route_id'],driver.organization_id])
+        previous=replay(run)
+        if previous:
+            return previous
+        if logic.route_state(guide['route_status'])!='active':
+            raise HttpError(409,'El viaje no está en tránsito.')
+        balances = run(sql.RETURN_BALANCE_SQL, [driver.organization_id, guide['order_id']])
+        totals = {}
+        for line in lines:
+            matches = [row for row in balances if
+                       (str(row['id']) == line['order_item_id'] if line['order_item_id'] else
+                        (row['product_code'] == line['code'] if line['code'] else row['product_name'] == line['name']))]
+            if len(matches) != 1:
+                raise HttpError(422, 'El producto debe identificar una sola línea del pedido; no se admiten artículos manuales.')
+            row = matches[0]
+            if line['code'] and line['code'] != row['product_code']:
+                raise HttpError(422, 'El producto no corresponde a la línea del pedido.')
+            line['order_item_id'] = str(row['id'])
+            line['code'] = row['product_code']
+            totals[line['order_item_id']] = totals.get(line['order_item_id'], 0) + line['quantity']
+        by_id = {str(row['id']): row for row in balances}
+        if any(total > by_id[key]['remaining'] for key, total in totals.items()):
+            raise HttpError(409, 'La cantidad acumulada supera el saldo del pedido.')
         ids, duplicate = [], True
         for number, line in zip(numbers, lines):
             created = run(sql.INSERT_RETURN_SQL, [driver.organization_id, guide_id, guide["order_id"], number, reason,
-                                                  line["code"], line["name"], line["quantity"], photo, notes])
+                                                  line["code"], line["name"], line["quantity"], photo, notes, line['order_item_id']])
+            if not created:
+                raise HttpError(409,'La devolución cambió durante el registro; reintente con la misma clave.')
             if created:
                 duplicate = False
                 ids.append(str(created[0]["id"]))

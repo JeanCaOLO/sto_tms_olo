@@ -42,6 +42,7 @@ ROUTES = {
     "POST /api/v1/devoluciones/{returnId}/recibir": returns.receive_return,
     "POST /api/v1/devoluciones/{returnId}/novedades": incidents.record,
     "GET /api/v1/devoluciones/{returnId}/novedades": incidents.history,
+    "POST /api/v1/devoluciones/{returnId}/novedades/resolver": incidents.resolve,
     "POST /api/v1/devoluciones/{returnId}/rechazar": returns.reject_return,
     "POST /api/v1/solicitudes-devolucion": return_requests.create_request,
     "POST /api/v1/solicitudes-devolucion/archivos/url": return_requests.upload_url,

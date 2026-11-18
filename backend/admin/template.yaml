@@ -406,6 +406,17 @@ Resources:
         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
       Target: !Sub integrations/${AdminApiIntegration}
 
+  ReturnsIncidentResolveRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId:
+        Fn::ImportValue: !Sub ${CommonStackName}-HttpApiId
+      RouteKey: POST /api/v1/devoluciones/{returnId}/novedades/resolver
+      AuthorizationType: CUSTOM
+      AuthorizerId:
+        Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
+      Target: !Sub integrations/${AdminApiIntegration}
+
   ReturnsRejectRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
@@ -515,6 +526,9 @@ Resources:
       AuthorizerId:
         Fn::ImportValue: !Sub ${CommonStackName}-JwtAuthorizerId
       Target: !Sub integrations/${AdminApiIntegration}
+
+
+
 
 Outputs:
   AdminApiFunctionArn:

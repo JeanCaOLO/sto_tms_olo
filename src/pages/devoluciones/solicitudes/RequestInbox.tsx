@@ -9,6 +9,7 @@ import {requestStatus} from '../../../lib/devoluciones/solicitudes';
 import RequestDetail from '../../mis-devoluciones/components/RequestDetail';
 import {listRequestInbox,type RequestInboxPage} from '../../mis-devoluciones/api/solicitudesApi';
 import RequestCreation from './RequestCreation';
+import OperationalProgress from '../../mis-devoluciones/components/OperationalProgress';
 import type {RequestDraftJournal} from '../../mis-devoluciones/requestDraftJournal';
 
 interface InboxProps {countryId?:string|null;journal?:RequestDraftJournal}
@@ -46,7 +47,7 @@ function Inbox({countryId,journal}:InboxProps) {
       <div className="flex flex-wrap gap-2"><RequestCreation countryId={countryId} onCreated={reload} journal={journal}/>
         <Button type="button" variant="secondary" onClick={reload} disabled={loading}>Actualizar solicitudes</Button></div>
     </div>
-    <p className="text-sm text-slate-600">Las solicitudes nuevas se aprueban automáticamente. La integración de Planificación está pendiente.</p>
+    <p className="text-sm text-slate-600">El seguimiento muestra hechos confirmados por el servidor. Las acciones sin conexión siguen pendientes de sincronización en el dispositivo.</p>
     <Card className="grid gap-4 sm:grid-cols-2">
       <Select label="Estado de solicitud" value={query.estado} onChange={event=>change({estado:event.target.value,offset:0})}
         options={[{value:'',label:'Todos los estados'},{value:'pendiente_asignacion',label:'Pendiente de revisión'},
@@ -64,7 +65,7 @@ function Inbox({countryId,journal}:InboxProps) {
         <div className="space-y-1 text-sm">
           <p className="font-mono font-semibold">{row.request_number} <Badge variant={status.variant}>{status.label}</Badge></p>
           <p>{row.customer_name}</p><p>{row.requested_by_name||'Solicitante registrado'}</p>
-          {row.status==='aprobada'&&<p className="text-slate-600">Pendiente de Planificación</p>}
+          {row.status==='aprobada'&&<OperationalProgress request={row}/>}
           <p className="text-slate-500">{new Date(row.created_at).toLocaleString('es-CR')} · {row.items} artículos</p>
         </div>
         <Button type="button" variant="secondary" aria-label={`Revisar ${row.request_number}`} onClick={()=>setSelected(row.id)}>Ver detalle</Button>

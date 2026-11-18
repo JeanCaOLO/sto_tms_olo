@@ -8,6 +8,17 @@ from mobile_api import start
 START = "POST /api/mobile/v1/viajes/{id}/iniciar"
 
 
+def test_start_links_the_exact_planned_collection_stop(call,fake_db):
+    prepare(fake_db)
+    fake_db.answer('FROM tbl_plan_stops ps LEFT JOIN tbl_orders',[
+        {'order_id':ORDER,'plan_stop_id':ORDER,'stop_type':'collection','lat':9.93,'lng':-84.08}])
+    fake_db.answer('INSERT INTO tbl_dispatch_guides',[{'id':ORDER}])
+    response=call(START,path={'id':TRIP})
+    assert response['statusCode']==201
+    binds=[params for statement,params in fake_db.calls if 'bind_return_collection_v2' in statement]
+    assert len(binds)==1 and binds[0][:4]==[ORG,TRIP,ORDER,ROUTE]
+
+
 @pytest.fixture(autouse=True)
 def frozen_clock(monkeypatch):
     monkeypatch.setattr(start, "now", lambda: NOW)
