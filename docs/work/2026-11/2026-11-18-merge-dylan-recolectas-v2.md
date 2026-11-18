@@ -39,3 +39,6 @@ Pendientes: `docs/planificacion/pendientes/08-recolectas-contrato-v2.md`.
   - SOL-2026-11-0002 (pedido AM0023650-O) → `planning.failed` (magnitudes incompletas en su viaje del
     19) y `planning.no_candidate` el 20.
 - Con solicitudes v2 en la BD, el rollback de sql/77 ya no se puede correr.
+
+## PR a main
+- PR #47 (ya abierto desde planificacion-2) retitulado y con descripción nueva: badge vencido + contrato v2 de Dylan + consumidor de recolectas + sql/78. 18 commits, MERGEABLE, sin conflictos con el PR #46 (oms).
