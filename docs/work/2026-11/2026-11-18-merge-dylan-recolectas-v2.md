@@ -21,3 +21,12 @@
 - No corrida la batería `tests/postgres` (Docker apagado).
 
 Pendientes: `docs/planificacion/pendientes/08-recolectas-contrato-v2.md`.
+
+## Prueba en Aurora con solicitudes v2 de prueba (con ROLLBACK)
+- Se crearon 2 solicitudes v2 sobre pedidos reales dentro de una transacción que se revierte.
+- Hallazgo 1: `ck_plan_stops_collection_return` (sql/60) prohíbe la parada `collection` sin
+  `return_id` que exige el contrato → nueva `sql/78_recolecta_v2_sin_return_id.sql` (dry-run OK, no aplicada).
+- Hallazgo 2: la mayoría de los viajes tiene paradas sin peso/volumen o volúmenes absurdos de eFlow
+  (7807 m³); la función de Dylan los rechaza. El consumidor ahora prueba el siguiente viaje compatible.
+- Con la 78 dentro de la transacción: asignación, no-cancelación en viaje congelado, cancelación,
+  reasignación y cancelación por replan en viaje no congelado, todo OK. Nada quedó en Aurora.

@@ -151,3 +151,22 @@ def test_replan_cancela_las_recolectas_v2_antes_de_borrar_viajes():
     cancela = next(i for i, s in enumerate(calls) if "cancel_return_collection_v2" in s)
     borra = next(i for i, s in enumerate(calls) if s.startswith("DELETE FROM tbl_plan_stops"))
     assert cancela < borra
+
+
+def test_v2_si_un_viaje_rechaza_prueba_el_siguiente_compatible():
+    import pg8000.dbapi
+    rec = load_stack_module("planning", "recolectas")
+    run_base, calls = _run_v2([_cand("fc-a", "Z1")])
+    intentos = []
+
+    def run(sql, params=None):
+        if "assign_return_collection_v2" in sql:
+            intentos.append(params[2])
+            if len(intentos) == 1:
+                calls.append((sql.strip(), params))
+                raise pg8000.dbapi.DatabaseError({"C": "23514", "M": "Magnitudes de parada incompletas"})
+        return run_base(sql, params)
+
+    assert rec.agendar(run, "org", "wh", "cust", "2026-11-19", _clave, "actor") == 1
+    assert intentos == ["t-z1", "t-z1b"]  # mismo cliente primero, luego su zona
+    assert not any("record_return_collection_evaluation_v2" in s for s, _ in calls)

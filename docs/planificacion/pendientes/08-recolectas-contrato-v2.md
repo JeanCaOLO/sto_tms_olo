@@ -17,16 +17,27 @@ por Dylan el 2026-11-18; contrato en `docs/devoluciones/ENTREGA_PLANIFICACION_BD
 - El camino viejo (`recolectas._ABIERTAS`) y la bandeja (`bandeja._PICKUP`) excluyen las
   devoluciones físicas que ya tienen fila en `tbl_return_collection_results`.
 
+- Si un viaje rechaza la recolecta (capacidad, magnitudes), se prueba el siguiente compatible
+  (`viajes_compatibles`: mismo cliente primero, luego su zona/tienda).
+- `sql/78_recolecta_v2_sin_return_id.sql`: sql/60 exigía `return_id` en toda parada `collection`
+  y el contrato v2 la crea sin él (choque `ck_plan_stops_collection_return`). Dry-run OK.
+
+Prueba en Aurora (2026-11-18), todo en una transacción con ROLLBACK y la 78 aplicada dentro:
+solicitud v2 creada sobre un pedido real → candidata → asignada al viaje 20261119-0109-005 con
+peso/volumen/coordenadas → el replan no la toca en viaje congelado → cancelación → reasignación →
+replan con el viaje NO congelado la cancela y borra el viaje sin chocar con la FK. Una segunda
+solicitud en un viaje con paradas sin peso queda `planning.failed` («Magnitudes de parada incompletas»).
+
 ## Qué falta
 
-- **Verificar con una solicitud v2 real**: hoy hay 0 candidatas en Aurora; el SQL se validó en una
-  transacción con ROLLBACK, pero la asignación no se ha ejercido contra la BD.
-- **Batería Postgres local** (`python tests/postgres/run_local.py`, pide Docker) con los casos
-  del §9 del contrato. No corrida: Docker no estaba levantado.
-- **Capacidad**: `check_return_collection_capacity_v2` rechaza el viaje si alguna parada no tiene
-  peso/volumen. Las recolectas históricas se insertan con `weight/volume NULL`, así que un viaje
-  que ya tenga una histórica rechaza cualquier v2 (queda `planning.failed`). Si pasa en la
-  práctica: darles peso/volumen 0 explícito a las históricas o excluirlas del chequeo (de Dylan).
+- **Aplicar sql/78 en Aurora.** Sin ella ninguna recolecta v2 se puede asignar.
+- **Datos de los viajes** (bloquea v2 en la práctica): el 2026-11-18, de 29 viajes futuros solo 12
+  tenían todas las paradas con peso y volumen; el resto rechaza cualquier recolecta v2. Además hay
+  volúmenes absurdos de eFlow (viaje 20261119-0109-004: 7807 m³ contra 30 m³ de capacidad) que
+  hacen fallar el chequeo de capacidad. Revisar en la ingesta (`ingest_orders`/`ingest_items`)
+  de dónde salen `total_weight/total_volume` NULL y la unidad del volumen.
+- **Recolectas históricas sin peso**: se insertan con `weight/volume NULL`, así que un viaje con
+  una histórica rechaza cualquier v2. Si pasa: peso/volumen 0 explícito o excluirlas del chequeo (Dylan).
 - **Bandeja**: las solicitudes v2 todavía no aparecen como `pickup` (la bandeja solo lee
   `tbl_returns`). Agregar un tercer bloque en `bandeja.py` desde la vista de candidatas.
 - **Detalle de viaje** (`plans_read.py`): la parada v2 no trae motivo/notas (join con

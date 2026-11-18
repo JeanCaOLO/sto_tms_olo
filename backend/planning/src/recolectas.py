@@ -102,37 +102,44 @@ def _evaluar(run, org: str, request_id, actor: str, fecha: str, resultado: str, 
 
 
 def _agendar_v2(run, org: str, warehouse: str, customer: str, fecha: str, clave, actor: str, viajes: list[dict]) -> int:
-    """Reserva cada solicitud v2 completa en un viaje del día que pase por su cliente o zona."""
+    """Reserva cada solicitud v2 completa en un viaje del día que pase por su cliente o zona. Si la
+    función rechaza un viaje (capacidad, magnitudes), prueba el siguiente compatible."""
     agendadas = 0
     for d in run(_V2_CANDIDATAS, [org, warehouse, customer]):
-        trip_id = elegir_viaje(d, viajes, clave)
-        if trip_id is None:
+        compatibles = viajes_compatibles(d, viajes, clave)
+        if not compatibles:
             _evaluar(run, org, d["request_id"], actor, fecha, "planning.no_candidate",
                      f"Sin viaje del {fecha} que pase por su cliente o zona")
             continue
 
-        def reservar(trip_id=trip_id, d=d):
+        def reservar(trip_id, d=d):
             pos = run(_POSICION, [d["final_customer_id"], trip_id])[0]["pos"]
             run(_CORRER, [trip_id, pos])
             stop = run(_INS + " RETURNING id", [trip_id, d["order_id"], pos + 1, d["request_number"], d["customer_name"],
                                                 d["delivery_city"], d["delivery_zone"], None, None, None])[0]["id"]
             run(_V2_ASIGNAR, [org, str(d["request_id"]), str(trip_id), str(stop), actor, str(uuid.uuid4())])
 
-        error = _en_savepoint(run, reservar)
-        if error:
+        error = None
+        for trip_id in compatibles:
+            error = _en_savepoint(run, lambda t=trip_id: reservar(t))
+            if not error:
+                agendadas += 1
+                break
+        if error:  # registra el motivo del último viaje probado
             _evaluar(run, org, d["request_id"], actor, fecha, "planning.failed", error)
-        else:
-            agendadas += 1
     return agendadas
+
+
+def viajes_compatibles(devolucion: dict, viajes: list[dict], clave) -> list[str]:
+    """Viajes que entregan al mismo cliente y luego los de su grupo (zona o tienda), sin repetir."""
+    mismos = [v["trip_id"] for v in viajes if devolucion["final_customer_id"] in (v["clientes"] or [])]
+    grupo = clave(devolucion)
+    return mismos + [v["trip_id"] for v in viajes if v["clave"] == grupo and v["trip_id"] not in mismos]
 
 
 def elegir_viaje(devolucion: dict, viajes: list[dict], clave) -> str | None:
     """Viaje que entrega al mismo cliente; si no hay, el primero de su grupo (zona o tienda)."""
-    for v in viajes:
-        if devolucion["final_customer_id"] in (v["clientes"] or []):
-            return v["trip_id"]
-    grupo = clave(devolucion)
-    return next((v["trip_id"] for v in viajes if v["clave"] == grupo), None)
+    return next(iter(viajes_compatibles(devolucion, viajes, clave)), None)
 
 
 def agendar(run, org: str, warehouse: str, customer: str, fecha: str, clave, actor: str) -> int:
