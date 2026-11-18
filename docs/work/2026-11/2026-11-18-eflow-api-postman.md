@@ -15,3 +15,6 @@
   `tbl_return_collection_results`, `vw_return_collection_candidates`,
   `vw_return_collection_assignments`, las funciones `*_return_collection_v2`,
   `return_balance_76` ni el trigger `tr_return_leaves_review_75`. Siguen sin aplicar.
+- 14:54 Dylan aplicó 75/76/77. Verificado: existen tablas, vistas, funciones v2 y triggers
+  `*_75`, `*_76`, `*_77`. `vw_return_collection_candidates` y `tbl_return_collection_results`
+  en 0 filas. El código (b2b09fb, `dylan-tarifas`) sigue sin PR a main.
