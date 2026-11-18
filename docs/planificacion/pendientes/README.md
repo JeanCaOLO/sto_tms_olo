@@ -9,3 +9,4 @@
 | [05 — Prioridad del OMS pisada por la ingesta entre barridos](05-prioridad-oms-pisada-por-ingesta.md) | pendiente por verificar |
 | [06 — Motor de ruteo: lo que queda](06-motor-de-ruteo-fases.md) | pendiente por verificar |
 | [07 — Venezuela en el motor de ruteo: datos e ingesta](07-venezuela-ruteo.md) | pendiente por implementar |
+| [08 — Recolectas del contrato v2 de Devoluciones](08-recolectas-contrato-v2.md) | pendiente por verificar |
