@@ -35,3 +35,14 @@ Ninguno.
 - La ingesta de la lambda falla cada 10 min con "Sin credenciales EFLOW para país cr": esperado, el secreto de eFlow no va en la sandbox; la ingesta real la hace el loop local.
 - Badge "Vencido" visible en Pedidos en Bandeja (sandbox Amplify) para entregas con fecha < hoy; Aurora tiene 37 de 101 DISP/DISP vencidos (desde el 17-nov).
 - Ojo: plan del 20-nov con 36 pedidos sin camión disponible (flota ya con su vuelta del día).
+
+## Revisión doc API eFlow de EPRAC (ePRAC-158, v1.0.0 del 12-nov)
+Cubre: Autenticacion (JWT 6 días), TestConexion, GET ObtenerExpediciones (estado/situación/fechas, paginado ≤500),
+POST GenerarAcciones (→SOAC), CambiarPrioridadExpedicion, AsignarNumeroViajeWMH (int64), AsignarNumeroBajada. Lotes ≤100.
+Contra lo pedido el 21-oct y lo que usan OMS/Planif:
+- OK: GET DISP/DISP, prioridad, nº de viaje, bajada.
+- Falta en el GET (hoy lo lee planif directo de la BD): peso, volumen, costo, ruta/zona, nº de líneas,
+  detalle de artículos, dirección y coordenadas del cliente, tipo de expedición, fecha de cierre.
+- Situación DISP→GENE: no hay endpoint; solo GenerarAcciones (→SOAC). Confirmar si SOAC reemplaza a GENE.
+- Nº de viaje: TMS manda 202611190109005 (int64 cabe), pero falta confirmar si WMH acepta un número que no existe como journey.
+- Preguntar también: a qué fecha aplica el filtro FechaInicio/FechaFinal, si prioridad 0 es válida, división de pedido (no está).
