@@ -47,3 +47,19 @@ Contra lo pedido el 21-oct y lo que usan OMS/Planif:
 - Nº de viaje: TMS manda 202611190109005 (int64 cabe), pero falta confirmar si WMH acepta un número que no existe como journey.
 - Preguntar también: a qué fecha aplica el filtro FechaInicio/FechaFinal, si prioridad 0 es válida, división de pedido (no está).
 - Documento explicativo: `docs/wms-eflow/api-eprac-v1-vs-necesidades.md` (qué trae la API, qué necesitan Planificación y OMS, preguntas a EPRAC).
+
+## Certificación Intelix (template_base v0.13.1)
+
+- Motor `scripts/verificacion/analizador.js` sobre clones de GitLab main (TMS-Backend 7cd51d7, TMS-Frontend 281e73e),
+  exposición pública, un agente kiro-cli (Sonnet 5.5) por corrida vía orca.
+- Resultados (dictamen del motor, sin recalcular):
+  - QA backend: No apto, 65 % (90 % sin críticos: R1, P2, P2b).
+  - QA frontend: No apto, 40 % (críticos COD2, R1, R3, R6, C12, P2, P3).
+  - PROD backend: No apto, 59 % (84 % sin críticos).
+  - PROD frontend: No apto, 40 % (87 % sin críticos).
+- Falsos positivos probables en frontend: COD2 lee el package.json equivocado; R1/C12 caen en tests y en `.claude`/`.kiro`.
+- Salidas en `intelix/certificacion/salida/{qa,prod}-{backend,frontend}/`. Publicadas como artifacts privados:
+  - QA backend: https://claude.ai/artifact/VU3XzXgQe8HA57dDSN1A9K
+  - QA frontend: https://claude.ai/artifact/TTtMVy4xjrHNCZHJxXgfKC
+  - PROD backend: https://claude.ai/artifact/5eJuftq7bfNtJsFZhUUEbh
+  - PROD frontend: https://claude.ai/artifact/RjZX1jQg3RnfLEnq92zJ5w
