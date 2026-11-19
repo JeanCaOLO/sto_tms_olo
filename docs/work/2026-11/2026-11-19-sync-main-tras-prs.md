@@ -24,3 +24,7 @@ Ninguno.
 - Logs de la lambda desde el deploy: sin errores (invocaciones 13:30/13:40/13:50 ok).
 - Aurora: SOL-2026-11-0001 sigue `planned` en 20261119-0109-005 (parada 3); SOL-2026-11-0002 sin asignar (failed + no_candidate). 3 eventos v2 en total.
 - Pendiente: primer replan horario con código v2 (14:00 UTC) y mirar el badge en la UI.
+
+## Sync GitHub → GitLab (Intelix)
+- GitLab estaba atrás: main 89 commits (a2566f4), dylan-tarifas 228 (000db9a, del 23-oct). Sin commits propios en GitLab.
+- Push fast-forward: main → 281e73e, dylan-tarifas → b2b09fb. Las 4 ramas quedan iguales en ambos remotos.
