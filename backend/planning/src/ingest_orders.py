@@ -11,13 +11,21 @@ re-ingestar NO duplica, actualiza estado/fecha/peso.
 
 Read-only contra eFlow; escribe el UPSERT en `orders` y sus líneas en `order_items`
 (ingest_items).
+
+FLAG `EFLOW_API_MODE` (tms_common.eflow_api): `mock` (default) lee por SQL como siempre;
+`qa` lee la cola por el API REST de eFlow QA (ObtenerExpediciones). El API NO trae peso,
+volumen, líneas, dirección, coordenadas ni ruta: en `qa` esas columnas se CONSERVAN si el
+pedido ya existe (COALESCE) y quedan NULL si es nuevo; no se espeja a sim_expedicionescabecera
+ni se leen líneas (no hay API para eso).
 """
+import os
+from datetime import date, timedelta
 
 import cliente_retira
 import ingest_items
 import salientes
 import sim_eflow_sync
-from tms_common import eflow_db, pg
+from tms_common import eflow_api, eflow_db, pg
 
 PAIS = "cr"
 # Constantes de scope de CR (countries/organizations/warehouses de tms_olo).
@@ -46,6 +54,32 @@ WHERE e.FECHACIERRE IS NULL AND e.NUMEROVIAJEWMH IS NULL
   AND e.FECHAEXPEDICIONPLANIFICADA >= CAST(GETDATE() AS date)
 ORDER BY e.FECHAEXPEDICIONPLANIFICADA"""
     return eflow_db.query(PAIS, sql, {"limite": limite})
+
+
+def _eflow_api_disp_disp(limite: int) -> list[dict]:
+    """Cola DISP/DISP desde el API de eFlow QA, con la forma de fila que espera el ingest.
+
+    El API filtra por rango de fechas: se pide una ventana ancha (EFLOW_API_DIAS_ATRAS /
+    EFLOW_API_DIAS_ADELANTE, 30 por defecto) y se aplican aquí las mismas reglas que el SQL:
+    sin viaje asignado y fecha planificada de hoy en adelante."""
+    hoy = date.today()
+    atras = int(os.environ.get("EFLOW_API_DIAS_ATRAS", "30"))
+    adelante = int(os.environ.get("EFLOW_API_DIAS_ADELANTE", "30"))
+    items = eflow_api.obtener_expediciones(hoy - timedelta(days=atras), hoy + timedelta(days=adelante), "DISP", "DISP")
+    filas = []
+    for it in items:
+        fecha = str(it.get("fechaExpedicionPlanificada") or "")[:10]
+        if not fecha or fecha < hoy.isoformat() or it.get("numeroViajeWmh") is not None:
+            continue
+        filas.append({
+            "IDCOMPANIA": it["idCompania"], "IDALMACEN": it["idAlmacen"], "IDSUCURSAL": it["idSucursal"],
+            "IDEXPEDICION": it["idExpedicion"], "IDCLIENTE": it.get("idCliente"), "RUTA": None,
+            "PRIORIDAD": it.get("prioridad"), "TPEXES": it.get("estado"), "TPEXSI": it.get("situacion"),
+            "FECHA": fecha, "PESOPEDIDO_TOTAL": None, "CUBICAJEPEDIDO_TOTAL": None, "COSTO_TOTAL": None,
+            "OBSERVACIONES": it.get("observaciones"), "CANT_LINEAS": None,
+            "DIRECCIONLARGA": None, "LATITUD": None, "LONGITUD": None})
+    filas.sort(key=lambda r: r["FECHA"])
+    return filas[:limite]
 
 
 def _mapa(sql: str, params: list, clave: str, valor: str) -> dict:
@@ -86,11 +120,15 @@ DO UPDATE SET
   -- Fecha cambiada a mano en la Bandeja (sql/57): eFlow ya no la pisa; lo suyo queda en delivery_date_eflow.
   delivery_date = CASE WHEN orders.delivery_date_changed_at IS NULL THEN EXCLUDED.delivery_date ELSE orders.delivery_date END,
   delivery_date_eflow = EXCLUDED.delivery_date_eflow, planned_dispatch_at = EXCLUDED.planned_dispatch_at,
-  total_weight = EXCLUDED.total_weight, total_volume = EXCLUDED.total_volume,
-  total_items = EXCLUDED.total_items, total_amount = EXCLUDED.total_amount,
-  delivery_address = EXCLUDED.delivery_address,
-  delivery_latitude = EXCLUDED.delivery_latitude, delivery_longitude = EXCLUDED.delivery_longitude,
-  delivery_zone = EXCLUDED.delivery_zone, priority = EXCLUDED.priority,
+  -- COALESCE: el API REST de eFlow (EFLOW_API_MODE=qa) no trae estos campos; si llegan NULL se conserva lo ya cargado.
+  total_weight = COALESCE(EXCLUDED.total_weight, orders.total_weight),
+  total_volume = COALESCE(EXCLUDED.total_volume, orders.total_volume),
+  total_items = COALESCE(EXCLUDED.total_items, orders.total_items),
+  total_amount = COALESCE(EXCLUDED.total_amount, orders.total_amount),
+  delivery_address = COALESCE(EXCLUDED.delivery_address, orders.delivery_address),
+  delivery_latitude = COALESCE(EXCLUDED.delivery_latitude, orders.delivery_latitude),
+  delivery_longitude = COALESCE(EXCLUDED.delivery_longitude, orders.delivery_longitude),
+  delivery_zone = COALESCE(EXCLUDED.delivery_zone, orders.delivery_zone), priority = EXCLUDED.priority,
   wms_status = EXCLUDED.wms_status, wms_situation = EXCLUDED.wms_situation,
   observaciones = EXCLUDED.observaciones, es_cliente_retira = EXCLUDED.es_cliente_retira,
   final_customer_id = EXCLUDED.final_customer_id, updated_at = now()
@@ -125,7 +163,8 @@ def _prioridad(v) -> int | None:
 
 def ingest_cr(limite: int = 500, dry_run: bool = False) -> dict:
     """Sincroniza la cola DISP/DISP de eFlow CR en `orders`. dry_run no escribe."""
-    filas = _eflow_disp_disp(limite)
+    qa = eflow_api.activo()
+    filas = _eflow_api_disp_disp(limite) if qa else _eflow_disp_disp(limite)
     customers, finals, branches = _lookups(filas)
     upserted = 0
     faltantes: list[str] = []
@@ -149,10 +188,11 @@ def ingest_cr(limite: int = 500, dry_run: bool = False) -> dict:
             ])
         upserted += 1
     # Los que salieron de la cola (despachados/cerrados en eFlow) dejan la bandeja.
-    salidos = 0 if dry_run else salientes.refrescar(
+    # En `qa` no hay lectura por llave en el API (ObtenerExpediciones exige estado+situación): no se refrescan.
+    salidos = 0 if (dry_run or qa) else salientes.refrescar(
         PAIS, ORG_CR, {(str(r["IDEXPEDICION"]), str(r["IDCOMPANIA"])) for r in filas})
     # Espejo de la cabecera de eFlow (sim_expedicionescabecera) para el write-back.
-    espejadas = 0 if dry_run else sim_eflow_sync.sincronizar()
-    lineas = 0 if dry_run else ingest_items.sincronizar(ORG_CR, [str(r["IDEXPEDICION"]) for r in filas])
+    espejadas = 0 if (dry_run or qa) else sim_eflow_sync.sincronizar()
+    lineas = 0 if (dry_run or qa) else ingest_items.sincronizar(ORG_CR, [str(r["IDEXPEDICION"]) for r in filas])
     return {"leidos": len(filas), "upserted": upserted, "saltados": len(faltantes), "salidos": salidos, "espejadas": espejadas,
-            "lineas": lineas, "faltantes": faltantes[:20], "dry_run": dry_run}
+            "lineas": lineas, "faltantes": faltantes[:20], "dry_run": dry_run, "fuente": eflow_api.modo()}
