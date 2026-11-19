@@ -42,3 +42,9 @@ Pendientes: `docs/planificacion/pendientes/08-recolectas-contrato-v2.md`.
 
 ## PR a main
 - PR #47 (ya abierto desde planificacion-2) retitulado y con descripción nueva: badge vencido + contrato v2 de Dylan + consumidor de recolectas + sql/78. 18 commits, MERGEABLE, sin conflictos con el PR #46 (oms).
+
+## 2026-11-19 — PRs aceptados
+
+- PR #46 (oms) y PR #47 (planificacion-2) mergeados a main el 19-nov.
+- main mergeado en planificacion-2 (fast-forward a 281e73e; trae 4 archivos del OMS: cola solo planificados).
+- Sin PRs abiertos en GitHub. Las migraciones 75/76/77 de Dylan y la 78 ya estaban en Aurora.
