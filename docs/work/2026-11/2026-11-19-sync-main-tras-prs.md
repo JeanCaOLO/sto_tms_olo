@@ -46,3 +46,4 @@ Contra lo pedido el 21-oct y lo que usan OMS/Planif:
 - Situación DISP→GENE: no hay endpoint; solo GenerarAcciones (→SOAC). Confirmar si SOAC reemplaza a GENE.
 - Nº de viaje: TMS manda 202611190109005 (int64 cabe), pero falta confirmar si WMH acepta un número que no existe como journey.
 - Preguntar también: a qué fecha aplica el filtro FechaInicio/FechaFinal, si prioridad 0 es válida, división de pedido (no está).
+- Documento explicativo: `docs/wms-eflow/api-eprac-v1-vs-necesidades.md` (qué trae la API, qué necesitan Planificación y OMS, preguntas a EPRAC).
