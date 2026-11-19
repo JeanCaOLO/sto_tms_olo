@@ -64,3 +64,4 @@ Contra lo pedido el 21-oct y lo que usan OMS/Planif:
   - PROD backend: https://claude.ai/artifact/5eJuftq7bfNtJsFZhUUEbh
   - PROD frontend: https://claude.ai/artifact/RjZX1jQg3RnfLEnq92zJ5w
 - Análisis de la certificación (falsos positivos, riesgos reales, plan): [`docs/certificacion/analisis-2026-11-19.md`](../../certificacion/analisis-2026-11-19.md).
+- Informes exportados a PDF con Chrome headless, junto a cada HTML en `intelix/certificacion/salida/*/` (11-12 páginas cada uno).
