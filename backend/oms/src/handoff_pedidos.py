@@ -66,11 +66,14 @@ endpoint real de EPRAC) cuando exista. La costura ya aísla ese cambio del motor
 
 from __future__ import annotations
 
+import logging
 import os
 from datetime import date, timedelta
 from typing import Protocol
 
 from models import ConfiguracionReglas, PedidoCandidato, PedidoPK, RegistroPrioridad
+
+_log = logging.getLogger(__name__)
 
 # Pasada 1 (priorizar) — UPDATE por la llave EFLOW, idempotente. NO toca
 # wms_situation (queda DISP) NI oms_processed_at: priorizar NO libera (ADR-013).
@@ -201,13 +204,50 @@ class SimExpedicionesWriter:
         # En mock: no-op (la señal queda cubierta por los tests sobre el writer).
 
 
-def _escritor_por_defecto() -> EscritorSituacion:
-    """Escritor de escritura 2 por defecto. Hoy: sim_expedicionescabecera.
+class EflowApiWriter:
+    """Destino REAL (ambiente QA) de la escritura 2: el API REST de eFlow (EPRAC).
 
-    TODO(EPRAC): devolver EpracEndpointWriter cuando el endpoint exista (p.ej.
-    seleccionado por una variable de entorno de destino, resuelta por el pipeline).
+    Mismos dos verbos de la costura, ahora contra los endpoints documentados:
+    - `actualizar_prioridad` → POST CambiarPrioridadExpedicion (solo el número; la situación no cambia).
+    - `marcar_generada` → CambiarPrioridadExpedicion + GenerarAcciones (el API de EPRAC genera las
+      acciones de picking y pasa la situación a SOAC; el "GENE" del OMS es la marca LOCAL en
+      orders.wms_situation). Si el API rechaza el expediente (p. ej. ESTADO_INVALIDO) se lanza
+      EflowApiError: el handoff queda 'disparo_pendiente' y el barrido lo reintenta.
+    Activo con EFLOW_API_MODE=qa; EFLOW_API_WRITE=off lo deja en solo-lectura (no envía).
     """
-    return SimExpedicionesWriter()
+
+    @staticmethod
+    def _item(pk: PedidoPK) -> dict:
+        return {"idAlmacen": pk.id_almacen, "idCompania": pk.id_compania,
+                "idSucursal": pk.id_sucursal, "idExpedicion": pk.id_expedicion}
+
+    def actualizar_prioridad(self, pk: PedidoPK, prioridad: int) -> None:
+        from tms_common import eflow_api  # import local: el esqueleto corre sin el Layer en tests
+
+        eflow_api.exigir_exito(
+            eflow_api.cambiar_prioridad([{**self._item(pk), "prioridad": int(prioridad)}]),
+            f"CambiarPrioridad {pk.id_expedicion}")
+
+    def marcar_generada(self, pk: PedidoPK, prioridad: int) -> None:
+        from tms_common import eflow_api
+
+        item = self._item(pk)
+        eflow_api.exigir_exito(eflow_api.cambiar_prioridad([{**item, "prioridad": int(prioridad)}]),
+                               f"CambiarPrioridad {pk.id_expedicion}")
+        eflow_api.exigir_exito(eflow_api.generar_acciones([item]), f"GenerarAcciones {pk.id_expedicion}")
+
+
+def _escritor_por_defecto() -> EscritorSituacion:
+    """Escritor de escritura 2 por defecto, según el flag EFLOW_API_MODE.
+
+    - `mock` (default): `SimExpedicionesWriter` → sim_expedicionescabecera (Aurora).
+    - `qa`: `EflowApiWriter` → API REST de eFlow QA.
+    """
+    try:
+        from tms_common import eflow_api  # import local: el esqueleto corre sin el Layer en tests
+    except ImportError:
+        return SimExpedicionesWriter()
+    return EflowApiWriter() if eflow_api.activo() else SimExpedicionesWriter()
 
 
 # --- Reconciliación: re-ejecuta la escritura 2 de los 'disparo_pendiente' -------
@@ -381,6 +421,8 @@ def liberar_pedido(
     try:
         escritor.marcar_generada(pedido.pk, prioridad_eflow)
     except Exception:  # noqa: BLE001 — no romper: queda pendiente para reconciliar
+        _log.warning("liberar %s: la escritura a eFlow falló; queda disparo_pendiente",
+                     pedido.id_expedicion, exc_info=True)
         return ESTADO_PENDIENTE
 
     # Confirmar: el pedido pasa a handoff_status='completado'.

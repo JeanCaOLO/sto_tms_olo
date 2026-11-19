@@ -23,7 +23,7 @@ import recolectas
 import tiempo_salida
 import viajes_liberados
 from ruta_geo import sede_de
-from tms_common import pg
+from tms_common import eflow_api, pg
 
 # Coordenadas del punto de entrega por defecto del cliente destino (tbl_delivery_points →
 # tbl_addresses). Respaldo cuando eFlow no trae lat/lng en el pedido: Venezuela carga sus
@@ -191,7 +191,8 @@ def registrar_corrida(run, contexto: dict, pedidos: list[dict], flota: list[dict
                        json.dumps(resultado, default=str), contexto["created_by"]])
 
 
-def _persistir_viaje(run, plan_id: str, seq: int, viaje: dict, run_id: str, numero: str) -> None:
+def _persistir_viaje(run, plan_id: str, seq: int, viaje: dict, run_id: str, numero: str,
+                     eflow_pend: list | None = None) -> None:
     """Inserta un viaje del motor (paradas ya en orden de visita) y estampa el
     resultado en orders + eFlow sim."""
     veh = viaje["veh"]  # None = viaje de cliente-retira (sin camión)
@@ -208,6 +209,10 @@ def _persistir_viaje(run, plan_id: str, seq: int, viaje: dict, run_id: str, nume
         if o["eflow_id_expedicion"]:  # write-back simulado del nº de viaje a eFlow
             run(_UPD_SIM, [wmh, run_id, o["eflow_id_almacen"], o["eflow_id_compania"],
                            o["eflow_id_sucursal"], o["eflow_id_expedicion"]])
+            if eflow_pend is not None:  # EFLOW_API_MODE=qa: se envía al API DESPUÉS de confirmar el plan
+                eflow_pend.append({"idAlmacen": o["eflow_id_almacen"], "idCompania": o["eflow_id_compania"],
+                                   "idSucursal": o["eflow_id_sucursal"], "idExpedicion": o["eflow_id_expedicion"],
+                                   "numeroViajeWmh": wmh})
 
 
 def _viaje_retira(pedidos: list[dict], sede) -> dict:
@@ -241,6 +246,8 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
     cia = pg.query("SELECT external_code FROM tbl_customers WHERE id = %s", [customer])[0]["external_code"]
     prefijo = f"{fecha.replace('-', '')}-{cia or '0000'}"  # ponytail: '0000' si la compañía no tiene código eFlow (VE aún no)
 
+    eflow_pend: list | None = [] if eflow_api.activo() else None
+
     def trabajo(run):
         viajes_liberados.borrar_no_liberado(run, org, warehouse, customer, fecha, created_by)
         plan_id, seq = viajes_liberados.plan_vigente(run, org, warehouse, customer, fecha)  # seq sigue tras los congelados
@@ -258,7 +265,7 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
         duracion_ms = round((time.monotonic() - inicio) * 1000)
         for viaje in viajes:
             seq += 1
-            _persistir_viaje(run, plan_id, seq, viaje, run_id, f"{prefijo}-{seq:03d}")
+            _persistir_viaje(run, plan_id, seq, viaje, run_id, f"{prefijo}-{seq:03d}", eflow_pend)
         if normales:
             registrar_corrida(run, {"run_id": run_id, "org": org, "warehouse": warehouse, "customer": customer,
                                     "fecha": fecha, "plan_id": plan_id, "created_by": created_by},
@@ -266,7 +273,26 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
         recolectas.agendar(run, org, warehouse, customer, fecha, motor_ruteo.clave, created_by)  # devoluciones → paradas collection
         if retira:  # grupo de cliente-retira: zona RETIRA, sin camión
             seq += 1
-            _persistir_viaje(run, plan_id, seq, _viaje_retira(retira, sede), run_id, f"{prefijo}-{seq:03d}")
+            _persistir_viaje(run, plan_id, seq, _viaje_retira(retira, sede), run_id, f"{prefijo}-{seq:03d}", eflow_pend)
         return plan_id
 
-    return str(pg.run_in_transaction(trabajo))
+    plan_id = str(pg.run_in_transaction(trabajo))
+    _enviar_viajes_a_eflow(eflow_pend)
+    return plan_id
+
+
+def _enviar_viajes_a_eflow(pendientes: list | None) -> None:
+    """EFLOW_API_MODE=qa: AsignarNumeroViajeWMH de los pedidos recién planificados. Va fuera de la
+    transacción del plan (no se llama a un API externo con la BD abierta) y es best-effort: un fallo
+    del API NO revierte el plan; queda en el log y el siguiente replan reenvía (idempotente)."""
+    if not pendientes:
+        return
+    try:
+        res = eflow_api.asignar_viaje(pendientes)
+        if res.errores or res.no_procesadas:
+            log.warning("eFlow AsignarNumeroViajeWMH: %d ok, %d con error (%s)", len(res.ok), len(res.errores),
+                        "; ".join(f'{e.get("idExpedicion")}: {e.get("code")}' for e in res.errores[:5]))
+        else:
+            log.info("eFlow AsignarNumeroViajeWMH: %d expediciones", len(res.ok))
+    except eflow_api.EflowApiError:
+        log.warning("eFlow AsignarNumeroViajeWMH falló; el plan queda guardado", exc_info=True)

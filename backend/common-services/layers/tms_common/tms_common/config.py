@@ -51,7 +51,9 @@ def jwt_secret() -> str:
 
 def _eflow_from_env(country: str) -> dict | None:
     prefix = f"EFLOW_{country.upper()}_"
-    if not os.environ.get(prefix + "HOST") and country == "cr" and os.environ.get("EFLOW_QA_HOST"):
+    qa_host = os.environ.get("EFLOW_QA_HOST") or ""
+    # EFLOW_QA_HOST ahora puede ser la URL del API REST (http://…/api): eso NO es un SQL Server (lo usa eflow_api).
+    if not os.environ.get(prefix + "HOST") and country == "cr" and qa_host and not qa_host.lower().startswith("http"):
         prefix = "EFLOW_QA_"  # compat con las variables viejas, igual que server/db.mjs
     raw = {key: os.environ.get(prefix + key.upper()) for key in ("host", "port", "user", "password", "db_wmh", "db_sap")}
     return raw if raw["host"] and raw["user"] and raw["password"] else None
