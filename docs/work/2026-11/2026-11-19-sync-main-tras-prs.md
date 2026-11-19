@@ -28,3 +28,10 @@ Ninguno.
 ## Sync GitHub → GitLab (Intelix)
 - GitLab estaba atrás: main 89 commits (a2566f4), dylan-tarifas 228 (000db9a, del 23-oct). Sin commits propios en GitLab.
 - Push fast-forward: main → 281e73e, dylan-tarifas → b2b09fb. Las 4 ramas quedan iguales en ambos remotos.
+
+## Replan horario y badge en sandbox (19:00 UTC)
+- Replan programado corrió 14:00–17:00 UTC sin errores; planifica 20 y 21-nov.
+- Recolectas v2 desde la lambda desplegada: a las 14:00 registró `planning.no_candidate` de SOL-2026-11-0002 para el 21-nov; los replans de 15/16/17 no duplicaron eventos (clave idempotente ok). SOL-2026-11-0001 sigue `planned` en 20261119-0109-005.
+- La ingesta de la lambda falla cada 10 min con "Sin credenciales EFLOW para país cr": esperado, el secreto de eFlow no va en la sandbox; la ingesta real la hace el loop local.
+- Badge "Vencido" visible en Pedidos en Bandeja (sandbox Amplify) para entregas con fecha < hoy; Aurora tiene 37 de 101 DISP/DISP vencidos (desde el 17-nov).
+- Ojo: plan del 20-nov con 36 pedidos sin camión disponible (flota ya con su vuelta del día).
