@@ -18,11 +18,12 @@ const EMPTY_FILTERS: ColaFilters = {
   branch: ALL, route: ALL, tier: ALL, query: '',
 };
 
-// La Cola solo muestra los pedidos PRIORIZADOS pero AÚN NO LIBERADOS a eFlow
-// (ADR-013): priorización hecha (`prioritization_run_id`) y sin liberar
-// (`oms_processed_at` / situación != GENE). Por eso siempre son DISP/DISP; los
-// liberados (DISP/GENE) salen de la cola. El "estado OMS" sigue siendo relevante
-// para esta lógica, solo que ya no se filtra ni se muestra como columna.
+// La Cola solo muestra los pedidos PLANIFICADOS, priorizados pero AÚN NO LIBERADOS
+// a eFlow (ADR-013): planificados (`planning_run_id` no nulo, lo filtra `getQueue`),
+// priorización hecha (`prioritization_run_id`) y sin liberar (`oms_processed_at` /
+// situación != GENE). Los liberados salen por `!released`. Nota: la situación (TPEXSI)
+// puede no ser DISP aunque el pedido siga pendiente —Planificación la pisa desde eFlow
+// (salientes)— por eso NO se filtra por situación: el filtro de cola es planning_run_id.
 export function esCola(o: QueueOrder): boolean {
   // Está en la cola si tiene una prioridad que mostrar (Cofersa priorizada por el OMS,
   // o EPA con su prioridad de EFLOW) y aún no fue liberado a eFlow.
