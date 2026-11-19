@@ -31,6 +31,7 @@ PRIVATE = {
     f"POST {PREFIX}/paradas/{{id}}/novedades": stops.add_incident,
     f"GET {PREFIX}/paradas/{{id}}/articulos": stops.list_items,
     f"POST {PREFIX}/paradas/{{id}}/devoluciones": stops.add_return,
+    f"POST {PREFIX}/paradas/{{id}}/recolectas/entregar": stops.deliver_collection,
     f"POST {PREFIX}/paradas/{{id}}/evidencias/upload-url": evidence.upload_url,
     f"POST {PREFIX}/paradas/{{id}}/evidencias": evidence.confirm,
     f"POST {PREFIX}/consentimiento-gps": consent.record_consent,

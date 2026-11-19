@@ -34,6 +34,8 @@ export default {
   'omsBandeja.returnReason': 'Return to pick up. Reason:',
   'omsBandeja.eflowDate': 'Original date (eFlow)',
   'omsBandeja.dateChangedHint': 'Date changed manually. eFlow: {{eflow}}',
+  'omsBandeja.overdue': 'Overdue',
+  'omsBandeja.overdueHint': 'Delivery date has passed: replanning skips it, plan it manually.',
   'omsBandeja.changeDateTitle': 'Change delivery date',
   'omsBandeja.newDate': 'New date',
   'omsBandeja.changeDate': 'Change date',

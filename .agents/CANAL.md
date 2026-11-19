@@ -2057,3 +2057,107 @@ si el backend responde 503/404 o no hay sesión, va al OSRM público como antes;
 definida. Lo usan `distance-matrix.ts`, `route-geometry.ts` y `tracking/route-osrm.ts` (ya no usan `OSRM_BASE_URL`,
 que queda solo por compatibilidad). Test: `osrm-config.test.ts`. Además, desde hoy el motor del sandbox usa
 costos, terceros (`plan_trips.is_owned` puede venir `false`) y T-n por carretera. Rama `motor-ruteo-activacion`.
+
+### 2026-11-17 — De: Codex → Responsable de Planificación / Jean — Confirmación del contrato directo de recolectas y reserva SQL
+Estado: abierto
+
+El usuario aprobó sustituir el transporte HTTP por lectura/escritura transaccional en Aurora.
+Planificación conserva la implementación de su consumidor; Codex prepara contrato, BD, Devoluciones,
+Tracking y gate. No edité `backend/planning`, apliqué SQL compartido ni retiré HTTP.
+
+**Entregables revisables, por ahora solo locales en `dylan-tarifas`, base `d380e497`, sin commit ni push:**
+
+- `docs/devoluciones/CONTRATO_RECOLECTAS_BD_V2.md`: propuesta de propiedad de hechos, asignación completa,
+  eventos sin outbox, vinculación planificado→ejecución, bloqueos, replan, compatibilidad y aceptación.
+- `docs/devoluciones/CAPTURA_RECOLECTAS_BD_V2.md`: captura de origen/destino y capacidad ya implementada;
+  no acredita implementación del consumidor directo.
+- `docs/devoluciones/preflight_recolectas_bd_v2.sql`: inspección en transacción de solo lectura para Jean;
+  consulta relaciones, columnas, constraints, triggers, guards y `schema_migrations`. No usar el runner de
+  migraciones: ese runner puede crear/escribir el registro. No ampliar permisos para ejecutar el preflight.
+- `docs/work/2026-11/2026-11-16-reconciliacion-numeracion-sql-devoluciones.md`: colisiones 71/72/73 con
+  `origin/main` d3e4cf01 y hashes locales. Los números nuevos todavía no están reservados.
+
+**Reglas confirmadas por el usuario:** recogida en punto autorizado; retorno al almacén del pedido;
+magnitudes de la línea/presentación existente; solicitud completa en un viaje; reintento solo del saldo
+no recogido; estimación previa de cinco minutos y medición GPS existente desde 150 m. Históricos
+incompletos fuera de la planificación automática, sin completar ni aprobar por inferencia.
+
+**Respuesta requerida de Planificación, debajo de este mensaje:**
+
+1. Confirmar la versión del contrato o indicar una diferencia concreta. La asignación debe ser completa
+   y atómica antes de existir ruta/guía; el inicio vincula sus identidades una sola vez.
+2. Confirmar orden de bloqueos, evaluación persistente, manejo de capacidad/duración y cancelación/replan
+   sin borrar historial, dividir reservas activas ni reasignar mercancía ya recogida.
+3. Identificar responsable de implementar el consumidor, referencia revisable de su entrega y evidencia
+   de los ejemplos de aceptación. Una aprobación comercial no sustituye una evaluación de Planificación.
+
+**Respuesta requerida de Jean, debajo de este mensaje:**
+
+1. Ambiente, fecha y resultado del preflight sin secretos ni datos personales; versiones/checksums efectivos.
+   Confirmar si ya existen datos o consumidores del contrato HTTP v1 y si SQL71 de resolución fue aplicada.
+2. Reservar identificadores para los paquetes realmente faltantes: resolución si corresponde, origen/saldo
+   y contrato directo. No tomar 75/76 como reservados ni renombrar una migración aplicada para reaplicarla.
+3. Confirmar orden de expansión, lectores compatibles, consumidor y escritor v2. La retirada HTTP requiere
+   comprobar que no quedan consumidores activos; solo Jean ejecuta migraciones y publicaciones.
+
+**Evidencia local disponible:** 364 backend y 15 visitas GPS aprobadas; última suite PostgreSQL 16.15:
+28 aprobadas sin omisiones, salida 0, contenedor retirado. Incluye los dos tests del preflight, que
+conservan registro/solicitud y rechazan una escritura accidental con SQLSTATE 25006.
+Evidencia: `.test/pendientes/evidencia-postgres-20261116-202841-20e87fb6/`.
+No acredita esquema ni publicación de Aurora, consumidor externo o recorrido web/APK integrado.
+
+La condición del plan aprobado para cambiar el esquema y sustituir HTTP es **numeración reservada y
+contrato confirmado por Planificación**. Este mensaje sigue abierto hasta recibir y reconciliar ambas
+respuestas; registrarlo no equivale a una notificación externa ni a una aceptación del destinatario.
+
+### 2026-11-17 — De: Codex → Planificación / Jean — Reserva autorizada 75–77 e implementación directa local
+Estado: en implementación local
+
+El usuario autorizó expresamente renumerar, informó que Planificación está de acuerdo y pidió preparar
+las migraciones y una entrega precisa para que su responsable implemente el consumidor. Esto sustituye
+la espera de confirmación del mensaje anterior; no representa una respuesta recibida por un servicio externo.
+
+Reservados en este trabajo: **75_return_incident_resolutions**, **76_return_request_origin_balance** y
+**77_return_collection_contract**, cada uno con rollback. Comprobados origin/main y registro de Aurora:
+71–74 ocupados; ninguno de estos tres paquetes aplicado. Las preparaciones antiguas 71/72/73 de
+Devoluciones se renumeran y sus referencias activas se actualizan; SQL60–74 ajenos/aplicados intactos.
+
+Inspección propia en transacción READ ONLY, 2026-11-17T12:37:24Z: Aurora PostgreSQL 17.7;
+10 aprobadas, 18 pendientes_asignacion y 4 rechazadas, todas legacy. No existen orígenes operativos,
+outbox, asignaciones/resultados del contrato ni resolución de Novedades. Registro disponible, incluidos
+SQL69 y 70 aplicados. No se modificó ningún dato ni se ejecutó DDL compartido.
+
+Se retira el transporte HTTP de nuestro código, sin crear usuario técnico. Las migraciones incorporan
+funciones transaccionales para consulta, evaluación, asignación completa, vínculo al iniciar y cancelación.
+El consumidor de backend/planning queda fuera: recibe la entrega BD v2 y fixtures mock aislados.
+El trabajo comenzó antes de esta anotación; no se reconstruye un timestamp de inicio ausente.
+
+### 2026-11-17 — De: Codex → Planificación / Jean — Entrega BD v2 preparada localmente
+Estado: cerrado (preparación local); integración externa pendiente
+
+## Cierre local de la entrega, 2026-11-17
+
+El usuario autorizó la renumeración y confirmó el acuerdo de Planificación. Las
+preparaciones de Devoluciones pasan de 71/72/73 a 75/76/77, con rollback y referencias
+actualizadas. Se implementó el contrato directo, se retiró HTTP/outbox del runtime
+y se adaptaron seguimiento, inicio web/móvil, resultados y gate. No se modificó
+backend/planning. Peso/volumen mock se usan solo en fixtures aislados, nunca en Aurora.
+
+Entrega vigente: `docs/devoluciones/ENTREGA_PLANIFICACION_BD_V2.md`. Incluye firmas,
+scopes, idempotencia, bloqueos, capacidad, replan, filtro de la cola legacy y pruebas
+que debe entregar el consumidor externo. Jean aplica/publica en orden 75, 76, 77;
+las migraciones no se ejecutaron en la BD compartida.
+
+Inspección Aurora READ ONLY: 2026-11-17T12:37:24Z, PostgreSQL 17.7, 32 solicitudes
+legacy; no existen origen/asignaciones/resultados/outbox ni resoluciones de Novedades.
+Verificación local: 56 PostgreSQL reales sin omisiones, salida 0 y contenedor retirado
+(`.test/pendientes/evidencia-postgres-20261117-134843-fcb7392f/`); 54 SQL aisladas
+aprobadas sin omisiones tras actualizar fixtures67/69 al escritor v2. Las baterías
+anteriores de este trabajo registraron 364 backend, 172 móvil (23 omisiones previas),
+146 web, tipos y lint focal aprobados.
+
+Pendientes externos: consumidor de Planificación, aplicación/publicación por Jean y
+recorrido coordinado web/dispositivo. Tarea10 sigue abierta por esas dependencias;
+tarea11 sin reclamar. Sin commit, push, despliegue ni escritura compartida. Los
+antecedentes que hablaban de numeración o confirmación pendientes quedan superados
+por esta autorización; no se reescribe el historial ni el tracker AI-DLC.

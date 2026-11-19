@@ -12,6 +12,10 @@ const money = (n: number) => n.toLocaleString('es-CR', { minimumFractionDigits: 
 // Solo la fecha (YYYY-MM-DD), sin la hora: sirve para date ('2026-10-25') y para
 // timestamp ('2026-10-16T13:25:...' o '2026-10-16 13:25:...').
 const soloFecha = (v: string) => (v ? v.slice(0, 10) : '');
+// Vencido: pedido (no devolución) con entrega < hoy. El replan solo arma (hoy, hoy+3],
+// así que estos se planifican a mano. Hoy en hora local (en-CA = YYYY-MM-DD).
+const vencido = (o: BandejaOrder) =>
+  o.kind === 'delivery' && !!o.dispatchDate && o.dispatchDate < new Date().toLocaleDateString('en-CA');
 
 // Pantalla Pedidos en Bandeja: copia de la Cola de Priorización SIN las columnas
 // Prioridad, Score, Estado y Situación (en la bandeja el pedido todavía no está
@@ -57,6 +61,11 @@ export default function OmsBandejaPage() {
           {soloFecha(o.dispatchDate)}
           {o.dateChanges > 0 && (
             <i className="ri-edit-2-line text-amber-600 ml-1" title={t('omsBandeja.dateChangedHint', { eflow: o.eflowDate })}></i>
+          )}
+          {vencido(o) && (
+            <span className="ml-2 rounded px-1.5 py-0.5 text-xs font-medium bg-red-100 text-red-700" title={t('omsBandeja.overdueHint')}>
+              {t('omsBandeja.overdue')}
+            </span>
           )}
         </span>
       ),

@@ -48,6 +48,9 @@ def test_manager_creates_for_an_authorized_company_without_user_assignment(app, 
     assert response["statusCode"] == 201
     inserted = next(params for s, params in companies.calls if s.lstrip().startswith("INSERT INTO tbl_return_requests"))
     assert inserted[:3] == [ORG, CUSTOMER, "app-user"]
+    origins=next((s,p) for s,p in companies.calls if 'FROM tbl_orders o' in s)
+    assert 's.warehouse_id=o.warehouse_id' in origins[0] and 's.country_id=a.country_id' in origins[0]
+    assert 'app-user' in origins[1]
 
 
 def test_superuser_creates_with_selected_company(app, companies, caller_permissions):

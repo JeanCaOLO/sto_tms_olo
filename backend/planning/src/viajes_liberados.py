@@ -6,6 +6,8 @@ de viaje. El replan borra y re-arma solo lo no liberado del día y numera a
 continuación del último nº usado, para no reusar un nº que eFlow ya conoce.
 """
 
+import uuid
+
 _DIA = "organization_id=%s AND warehouse_id=%s AND customer_id=%s AND plan_date=%s::date"
 _PLANES_DEL_DIA = f"SELECT id FROM tbl_route_plans WHERE {_DIA}"
 
@@ -17,15 +19,26 @@ def _liberado(trip: str) -> str:
               WHERE s2.trip_id = {trip} AND s2.stop_type = 'delivery' AND o2.oms_processed_at IS NOT NULL)"""
 
 
+# Recolectas v2 aún no iniciadas en viajes del día que el replan va a borrar, en orden de viaje/solicitud.
+_V2_PLANIFICADAS = f"""SELECT a.id FROM tbl_return_collection_allocations a JOIN tbl_plan_trips t ON t.id = a.plan_trip_id
+WHERE a.state = 'planned' AND t.plan_id IN ({_PLANES_DEL_DIA}) AND NOT {_liberado('t.id')}
+ORDER BY t.sequence_order, a.request_id"""
+
+
 def fuera_de_congelados(order: str) -> str:
     """Filtro: el pedido `order` no está en un viaje congelado (si lo está, se queda ahí)."""
     return f"NOT EXISTS (SELECT 1 FROM tbl_plan_stops s WHERE s.order_id = {order} AND {_liberado('s.trip_id')})"
 
 
-def borrar_no_liberado(run, org: str, warehouse: str, customer: str, fecha: str) -> None:
+def borrar_no_liberado(run, org: str, warehouse: str, customer: str, fecha: str, actor: str) -> None:
     """Borra del día los viajes sin pedidos liberados y suelta (NULL) sus pedidos;
-    si siguen en la cola, el replan los re-estampa. Los congelados quedan intactos."""
+    si siguen en la cola, el replan los re-estampa. Los congelados quedan intactos.
+    Antes cancela las recolectas v2 `planned` de esos viajes (sql/77): la función quita su
+    parada y conserva la historia; sin esto el DELETE choca con la FK de la asignación."""
     p = [org, warehouse, customer, fecha]
+    for a in run(_V2_PLANIFICADAS, p):
+        op = uuid.uuid5(uuid.NAMESPACE_URL, f"tms-recolecta-v2-cancelar:{a['id']}")  # una asignación se cancela una vez
+        run("SELECT cancel_return_collection_v2(%s,%s,%s,%s,%s)", [org, str(a["id"]), actor, str(op), "Replan del día"])
     run(f"""DELETE FROM tbl_plan_stops WHERE trip_id IN (SELECT t.id FROM tbl_plan_trips t
              WHERE t.plan_id IN ({_PLANES_DEL_DIA}) AND NOT {_liberado('t.id')})""", p)
     run(f"""DELETE FROM tbl_plan_trips t WHERE t.plan_id IN ({_PLANES_DEL_DIA})

@@ -3,7 +3,7 @@ asignó) o, si no tiene ninguno, el plan confirmado de hoy por iniciar. No ve ot
 
 from datetime import datetime, timezone
 
-from . import db, logic, sql
+from . import db, logic, sql, collections
 from .auth import Driver
 from .http import ok
 
@@ -55,6 +55,7 @@ def _route_item(row: dict, guides: list[dict], at: datetime, driver_name: str | 
             "weight": _float(g["total_weight"]), "lat": stop["lat"], "lng": stop["lng"],
             "recipient_name": g["recipient_name"], "arrived_at": _iso(g["actual_arrival_time"]),
             "evidence_kinds": list(g["evidence_kinds"] or []),
+            **({'collection':g['collection'],'collection_proofs':g.get('collection_proofs',{})} if g.get('collection') else {}),
             "planned_arrival_at": _iso(g["planned_arrival_time"]),
             "distance_m": metrics["distance_m"] if metrics else None,
             "eta_at": _iso(metrics["eta_at"]) if metrics else None,
@@ -68,6 +69,8 @@ def _route_item(row: dict, guides: list[dict], at: datetime, driver_name: str | 
         "started_at": _iso(row["actual_start_time"]), "planned_end_at": _iso(row["planned_end_time"]),
         "driver_name": driver_name, "origin": None if origin is None else {"lat": origin[0], "lng": origin[1]},
         "progress": _progress(total, delivered, failed),
+        'pending_collection_delivery':any(row.get('collected_quantity',0) and not row.get('delivered_event_id')
+            for g in guides for row in g.get('collection',[])),
         "next_stop_id": live["next_stop_id"], "delay_min": live["delay_min"],
         "position": None if position is None else {"lat": position[0], "lng": position[1],
                                                    "recorded_at": _iso(row["last_position_at"])},
@@ -80,7 +83,9 @@ def my_trips(event: dict, driver: Driver) -> dict:
     routes = db.query(sql.MY_ROUTES_SQL, [driver.organization_id, driver.driver_id, logic.ACTIVE_STATUS_SQL_VALUES])
     guides_by_route: dict[str, list[dict]] = {}
     if routes:
-        for guide in db.query(sql.GUIDES_BY_ROUTES_SQL, [[str(r["id"]) for r in routes]]):
+        guides = db.query(sql.GUIDES_BY_ROUTES_SQL, [[str(r["id"]) for r in routes]])
+        collections.agenda(db.query,guides,driver.organization_id)
+        for guide in guides:
             guides_by_route.setdefault(str(guide["route_id"]), []).append(guide)
     items = [_route_item(row, guides_by_route.get(str(row["id"]), []), at, driver.full_name) for row in routes]
 
@@ -111,6 +116,6 @@ def _current(items: list[dict]) -> list[dict]:
     entregar (o marcar como no entregadas) todas las paradas del actual. Con todo hecho queda a la vista el último
     viaje terminado (su resumen). Orden: viajes ya iniciados por hora de salida y luego los planes por orden."""
     for item in items:
-        if item["progress"]["remaining"] > 0:
+        if item["progress"]["remaining"] > 0 or item.get('pending_collection_delivery'):
             return [item]
     return items[-1:]

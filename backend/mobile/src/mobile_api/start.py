@@ -29,6 +29,7 @@ def start_trip(event: dict, driver: Driver) -> dict:
         raise HttpError(404, "Viaje planificado no encontrado")
 
     def work(run):
+        run(sql.LOCK_COLLECTION_PLAN_TRIP_SQL, [trip_id, driver.organization_id])
         rows = run(sql.PLAN_TRIP_SQL, [trip_id])
         # Un viaje de otro conductor o de otra organización es "no encontrado" (no se revela que existe).
         if (not rows or str(rows[0]["organization_id"]) != driver.organization_id
@@ -78,6 +79,9 @@ def start_trip(event: dict, driver: Driver) -> dict:
             guide = run(sql.INSERT_GUIDE_SQL, [driver.organization_id, route_id, stop["order_id"], f"{route_number}-{index}",
                                                index, "Generada al iniciar el viaje desde la app.", plan["arrivals"][index - 1],
                                                stop.get("stop_type") or "delivery"])
+            if stop.get('plan_stop_id') and stop.get('stop_type') == 'collection':
+                run(sql.BIND_COLLECTION_SQL, [driver.organization_id, trip_id, stop['plan_stop_id'],
+                                              route_id, guide[0]['id'], driver.app_user_id])
             if stop.get("return_id"):
                 run(sql.LINK_RETURN_SQL, [guide[0]["id"], stop["return_id"]])
         run(sql.INSERT_EVENT_SQL, [driver.organization_id, route_id, None, "route_started", "info", now(), None, None,

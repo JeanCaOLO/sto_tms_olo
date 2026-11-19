@@ -22,8 +22,8 @@ FROM tbl_return_requests WHERE organization_id = %s AND left(request_number, 12)
 
 INSERT_REQUEST_SQL = """
 INSERT INTO tbl_return_requests (organization_id, customer_id, requested_by, request_number,
-                               status, decided_by, decided_at, approval_mode)
-VALUES (%s, %s, %s, %s, 'aprobada', %s, now(), 'automatic')
+                               status, decided_by, decided_at, approval_mode, collection_contract_version)
+VALUES (%s, %s, %s, %s, 'aprobada', %s, now(), 'automatic', 2)
 ON CONFLICT (organization_id, request_number) DO NOTHING
 RETURNING id, request_number, status, created_at, approval_mode
 """
@@ -52,8 +52,8 @@ LIMIT 50
 CREATE_LOCK_SQL = "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))"
 INSERT_IDEMPOTENT_SQL = """
 INSERT INTO tbl_return_requests (id, organization_id, customer_id, requested_by, request_number,
-                               status, decided_by, decided_at, approval_mode)
-VALUES (%s, %s, %s, %s, %s, 'aprobada', %s, now(), 'automatic')
+                               status, decided_by, decided_at, approval_mode, collection_contract_version)
+VALUES (%s, %s, %s, %s, %s, 'aprobada', %s, now(), 'automatic', 2)
 ON CONFLICT DO NOTHING
 RETURNING id, request_number, status, created_at, approval_mode
 """
@@ -103,7 +103,7 @@ WHERE ({access}) {filters}
 ORDER BY r.created_at DESC,r.id DESC LIMIT %s OFFSET %s
 """
 ITEMS_SQL = """
-SELECT id,line_number,product_code,product_name,quantity,reason_code,description
+SELECT id,line_number,product_code,product_name,quantity,reason_code,description,order_item_id
 FROM tbl_return_request_items WHERE request_id = %s ORDER BY line_number
 """
 INBOX_COMPANIES_SQL = """
@@ -122,3 +122,41 @@ UPDATE tbl_return_requests SET status = %s,decided_by = %s,rejection_reason = %s
 WHERE id = %s AND organization_id = %s AND status = 'pendiente_asignacion'
 RETURNING id,request_number,status,decided_by,decided_at,rejection_reason
 """
+
+# Punto explícito del cliente final del pedido; nunca el domicilio de la empresa.
+ORIGINS_SQL = """
+SELECT o.id AS order_id,o.order_number,dp.id AS delivery_point_id,dp.name AS point_name,
+ fc.id AS final_customer_id,fc.name AS final_customer_name,a.line1 AS address,a.city,
+ a.latitude,a.longitude,a.country_id,o.warehouse_id,dp.zone_id,z.name AS zone_name
+FROM tbl_orders o
+JOIN tbl_customers c ON c.id=o.customer_id AND c.organization_id=o.organization_id
+JOIN tbl_final_customers fc ON fc.id=o.final_customer_id AND fc.customer_id=c.id
+JOIN tbl_delivery_points dp ON dp.final_customer_id=fc.id AND dp.active=true
+JOIN tbl_addresses a ON a.id=dp.address_id
+JOIN tbl_warehouses w ON w.id=o.warehouse_id AND w.organization_id=o.organization_id AND w.country_id=a.country_id
+JOIN tbl_zones z ON z.id=dp.zone_id AND z.organization_id=o.organization_id AND z.country_id=a.country_id
+WHERE o.organization_id=%s AND o.customer_id=%s
+ AND nullif(btrim(a.line1),'') IS NOT NULL AND a.latitude BETWEEN -90 AND 90 AND a.longitude BETWEEN -180 AND 180
+ {filters}
+ORDER BY o.created_at DESC,o.id,dp.id LIMIT 100
+"""
+ORIGIN_SCOPE_SQL = """
+ AND EXISTS(SELECT 1 FROM tbl_user_scopes s WHERE s.app_user_id=%s AND (
+  s.customer_id=o.customer_id OR (s.customer_id IS NULL AND s.warehouse_id=o.warehouse_id)
+  OR (s.customer_id IS NULL AND s.warehouse_id IS NULL AND s.country_id=a.country_id)
+  OR (s.customer_id IS NULL AND s.warehouse_id IS NULL AND s.country_id IS NULL)))
+"""
+ORDER_LOCK_SQL = "SELECT id FROM tbl_orders WHERE id=%s AND organization_id=%s AND customer_id=%s FOR UPDATE"
+PLANNING_ITEMS_SQL = """
+SELECT id,product_code,presentation,quantity,weight,volume
+FROM tbl_order_items WHERE order_id=%s ORDER BY id FOR SHARE
+"""
+BALANCE_SQL = "SELECT * FROM return_balance_76(%s::uuid,%s::uuid) ORDER BY line_number"
+INSERT_ORIGIN_SQL = """
+INSERT INTO tbl_return_request_origins(request_id,order_id,delivery_point_id,snapshot)
+VALUES(%s,%s,%s,%s::jsonb)
+"""
+ORIGIN_SQL = "SELECT * FROM tbl_return_request_origins WHERE request_id=%s"
+LINK_ITEM_SQL = "UPDATE tbl_return_request_items SET order_item_id=%s WHERE id=%s"
+OPERATIONAL_COUNTRY = "COALESCE((SELECT (ro.snapshot->>'country_id')::uuid FROM tbl_return_request_origins ro WHERE ro.request_id=r.id),c.country_id,w.country_id)"
+OPERATIONAL_WAREHOUSE = "COALESCE((SELECT (ro.snapshot->>'warehouse_id')::uuid FROM tbl_return_request_origins ro WHERE ro.request_id=r.id),w.id)"

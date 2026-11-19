@@ -223,8 +223,8 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
     Los pedidos 'cliente retira' NO se rutean: van a una zona RETIRA sin camión."""
     pedidos = pg.query(_ORDERS, [org, warehouse, customer, fecha])
     if not pedidos:
-        pg.run_in_transaction(lambda run: (viajes_liberados.borrar_no_liberado(run, org, warehouse, customer, fecha),
-                                           recolectas.agendar(run, org, warehouse, customer, fecha, motor_ruteo.clave)))  # viajes congelados
+        pg.run_in_transaction(lambda run: (viajes_liberados.borrar_no_liberado(run, org, warehouse, customer, fecha, created_by),
+                                           recolectas.agendar(run, org, warehouse, customer, fecha, motor_ruteo.clave, created_by)))  # viajes congelados
         return None
     retira = [o for o in pedidos if o["es_cliente_retira"]]
     normales = [o for o in pedidos if not o["es_cliente_retira"]]
@@ -242,7 +242,7 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
     prefijo = f"{fecha.replace('-', '')}-{cia or '0000'}"  # ponytail: '0000' si la compañía no tiene código eFlow (VE aún no)
 
     def trabajo(run):
-        viajes_liberados.borrar_no_liberado(run, org, warehouse, customer, fecha)
+        viajes_liberados.borrar_no_liberado(run, org, warehouse, customer, fecha, created_by)
         plan_id, seq = viajes_liberados.plan_vigente(run, org, warehouse, customer, fecha)  # seq sigue tras los congelados
         if plan_id is None:
             plan_id = run("""INSERT INTO tbl_route_plans (organization_id, country_id, warehouse_id, customer_id, plan_date, status, created_by)
@@ -263,7 +263,7 @@ def construir_y_persistir(org: str, country: str, warehouse: str, customer: str,
             registrar_corrida(run, {"run_id": run_id, "org": org, "warehouse": warehouse, "customer": customer,
                                     "fecha": fecha, "plan_id": plan_id, "created_by": created_by},
                               normales, flota, sede, usos, viajes, informe, duracion_ms, costos_flota)
-        recolectas.agendar(run, org, warehouse, customer, fecha, motor_ruteo.clave)  # devoluciones → paradas collection
+        recolectas.agendar(run, org, warehouse, customer, fecha, motor_ruteo.clave, created_by)  # devoluciones → paradas collection
         if retira:  # grupo de cliente-retira: zona RETIRA, sin camión
             seq += 1
             _persistir_viaje(run, plan_id, seq, _viaje_retira(retira, sede), run_id, f"{prefijo}-{seq:03d}")

@@ -23,6 +23,8 @@ beforeEach(async()=>{
  created_at timestamptz DEFAULT now(),decided_by uuid,decided_at timestamptz,rejection_reason text,
  UNIQUE(organization_id,request_number));`);
  await db.query("INSERT INTO tbl_return_requests VALUES($1,$2,$3,$4,'LEGACY','pendiente_asignacion',now(),NULL,NULL,NULL)",[u(10),u(1),u(2),u(3)]);
+ // El escritor vigente tambien depende de la columna aditiva de SQL77.
+ await db.exec('ALTER TABLE tbl_return_requests ADD COLUMN collection_contract_version smallint');
 });
 async function migrate(){if(process.env.TMS_TEST_SKIP_SQL69!=='1')await db.exec(forward);}
 async function autoCreate(){return db.query(sql('INSERT_REQUEST_SQL'),[u(1),u(2),u(3),'AUTO',u(3)]);}

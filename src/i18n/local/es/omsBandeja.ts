@@ -34,6 +34,8 @@ export default {
   'omsBandeja.returnReason': 'Devolución a recoger. Motivo:',
   'omsBandeja.eflowDate': 'Fecha original (eFlow)',
   'omsBandeja.dateChangedHint': 'Fecha cambiada a mano. eFlow: {{eflow}}',
+  'omsBandeja.overdue': 'Vencido',
+  'omsBandeja.overdueHint': 'La fecha de entrega ya pasó: el replan no lo toma, hay que planificarlo a mano.',
   'omsBandeja.changeDateTitle': 'Cambiar fecha de entrega',
   'omsBandeja.newDate': 'Nueva fecha',
   'omsBandeja.changeDate': 'Cambiar fecha',

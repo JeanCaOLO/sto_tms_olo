@@ -33,7 +33,8 @@ SELECT r.id, 'pickup' AS kind, r.return_number, r.reason AS return_reason, r.sta
 FROM tbl_returns r
 JOIN tbl_orders o ON o.id = r.order_id
 LEFT JOIN tbl_final_customers fc ON fc.id = o.final_customer_id
-WHERE r.organization_id = %s AND COALESCE(r.status, 'pending') IN ('pending', 'approved'){scope}"""
+WHERE r.organization_id = %s AND COALESCE(r.status, 'pending') IN ('pending', 'approved')
+  AND NOT EXISTS (SELECT 1 FROM tbl_return_collection_results cr WHERE cr.return_id = r.id){scope}"""
 
 
 def listar(org: str, warehouse: str | None, customer: str | None) -> list[dict]:
