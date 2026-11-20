@@ -44,3 +44,4 @@ Pedido de Jesús: llevar el backend a GitLab cumpliendo template_base para que l
 - Pendiente: el punto 1 de `docs/oms/pendientes/04-integracion-api-eflow-qa.md` (de esa rama) queda verificado para
   la lectura.
 - Comparación API QA vs SQL: `docs/wms-eflow/comparacion-api-qa-vs-sql-2026-11-20.md`. El API lee `EFLOW_OLO_QA_SAP` (.224) y coincide 21/21 con SQL; no es la base de producción (.20, 0/21). Trae 15 de 56 columnas, sin detalle ni coordenadas.
+- Documentación del API ePRAC v1.0.0 (PDF) guardada en Notion con la verificación en QA: el API cumple su contrato (campos, paginación, orden, token de 6 días); filtra por fechaExpedicion. https://app.notion.com/p/41e2d923dc6581669b62d377837847dc
