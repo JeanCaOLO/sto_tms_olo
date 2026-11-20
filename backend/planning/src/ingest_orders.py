@@ -99,12 +99,15 @@ DO UPDATE SET
 WHERE orders.oms_processed_at IS NULL"""
 
 
-def _coord(v) -> float | None:
+def _coord(v, limite: float) -> float | None:
+    """Coordenada válida o None. eFlow trae a veces el valor sin punto decimal
+    (p. ej. -83943225 por -83.943225): fuera de rango se descarta en vez de
+    romper el upsert de toda la bandeja (numeric(11,8))."""
     try:
         n = float(v)
-        return n if n != 0 else None
     except (TypeError, ValueError):
         return None
+    return n if n != 0 and abs(n) <= limite else None
 
 
 def _prioridad(v) -> int | None:
@@ -138,7 +141,7 @@ def ingest_cr(limite: int = 500, dry_run: bool = False) -> dict:
                 ORG_CR, customer_id, final_id, branch_id, WAREHOUSE_CR,
                 r["IDEXPEDICION"], r["FECHA"], r["FECHA"], r["FECHA"], r["FECHA"],
                 r["PESOPEDIDO_TOTAL"], r["CUBICAJEPEDIDO_TOTAL"], r["CANT_LINEAS"], r["COSTO_TOTAL"], r["DIRECCIONLARGA"],
-                _coord(r["LATITUD"]), _coord(r["LONGITUD"]),
+                _coord(r["LATITUD"], 90), _coord(r["LONGITUD"], 180),
                 r["RUTA"], _prioridad(r["PRIORIDAD"]), r["TPEXES"], r["TPEXSI"],
                 r["OBSERVACIONES"], cliente_retira.es_cliente_retira(r["OBSERVACIONES"]),
                 str(r["IDCOMPANIA"]), str(r["IDALMACEN"]), str(r["IDSUCURSAL"]),
