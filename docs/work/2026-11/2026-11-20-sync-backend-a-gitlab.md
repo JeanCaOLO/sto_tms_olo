@@ -30,3 +30,4 @@ Pedido de Jesús: llevar el backend a GitLab cumpliendo template_base para que l
 - App vacía `certificacion-tms` borrada de Dokploy.
 - MR !2 de TMS-Backend aceptado (`main` = 1bfd6e1): C12 (JWT con `iss`/`aud`) y COD6 (piso de 80 %, cobertura
   medida 85,6 %). Re-certificación v3: solo bloquea P2; con P2, QA y PROD quedan en 95 % Apto.
+- Resumen para gestión de lo que falta para salir Apto: `docs/certificacion/que-falta-para-apto-2026-11-20.md`.
