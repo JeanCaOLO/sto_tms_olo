@@ -2,6 +2,9 @@
 
 > Fuente: `ePRAC - 158 - OLO - API proyecto TMS-OMS.pdf` (v1.0.0, emitido 2026-11-12).
 > Revisado: 2026-11-19, contra el código de OMS y Planificación en `planificacion-2`.
+> Actualizado: 2026-11-20, con la prueba real en QA (solo lectura). Detalle:
+> [`comparacion-api-qa-vs-sql-2026-11-20.md`](comparacion-api-qa-vs-sql-2026-11-20.md).
+> Notion: [API General eFlow WMS (ePRAC) v1.0.0](https://app.notion.com/p/41e2d923dc6581669b62d377837847dc).
 > Pedido original: [`endpoints-eflow-requeridos.md`](endpoints-eflow-requeridos.md) (2026-10-06) + reunión 2026-10-21.
 
 ## En corto
@@ -11,7 +14,12 @@
   ni líneas. Planificación no puede armar viajes solo con esta API.
 - **Falta el paso del OMS a `GENE`**: no hay endpoint para cambiar la situación; solo
   `GenerarAcciones`, que la deja en `SOAC`.
-- **Sin probar**: el servicio (puerto 87) rechazaba la conexión en la última prueba (solo GETs).
+- **Probada en QA (2026-11-20, solo lectura)**: `http://10.17.224.224:87/api` responde y cumple el documento
+  (campos, paginación, orden, token de 6 días). Los 21 pedidos DISP/DISP que devuelve coinciden 21/21 con la tabla
+  `EXPEDICIONESCABECERA` de `EFLOW_OLO_QA_SAP`. Es la base de **QA**, no la de producción que lee hoy el TMS.
+- **Escrituras sin probar** (prioridad, acciones, viaje, bajada): pendiente de autorización y de un pedido de prueba en QA.
+- **Cliente listo**: rama `integracion-eflow-qa` de Jean Carlo (`tms_common/eflow_api.py`, flags `EFLOW_API_MODE`
+  y `EFLOW_API_WRITE`). Lee bien contra QA con escrituras apagadas.
 
 ## 1. Qué trae la API
 
@@ -93,11 +101,15 @@ El OMS lee la cola desde Aurora (la llena Planificación) y escribe a eFlow por 
 3. **Nº de viaje**: ¿acepta un `numeroViajeWmh` que no existe en WMH? ¿Lo crea, o hay que crearlo
    antes? ¿Qué pasa con el camión (`unidad de transporte`) del viaje?
 4. **Prioridad 0**: ¿es válida?
-5. **Fechas del GET**: ¿`FechaInicio` / `FechaFinal` filtran por `fechaExpedicion` (creación) o por
-   `fechaExpedicionPlanificada`? Nosotros necesitamos la planificada desde hoy.
+5. **Fechas del GET**: ✅ respondida en la prueba: filtran por `fechaExpedicion` (creación). Por SQL, con la
+   planificada salen 23 y no 21. **Nuevo pedido**: un filtro por `fechaExpedicionPlanificada` (la que usa el TMS).
 6. **División de pedido** (reunión 21-oct): no aparece. ¿Va en otra versión?
-7. **Ambientes**: URL de QA CR y QA VE, y credenciales por ambiente. El puerto 87 de CR rechazaba la
-   conexión.
+7. **Ambientes**: QA CR ✅ (`10.17.224.224:87`, base `EFLOW_OLO_QA_SAP`; la `.20` era la IP equivocada).
+   Faltan QA VE y **producción** (URL y credenciales).
+8. **Lectura por llave**: ¿pueden exponer un GET de una o varias expediciones por su llave? Lo necesitamos para
+   refrescar pedidos puntuales (salientes, replan).
+9. **Datos de prueba en QA**: los pedidos de QA casi no tienen peso (2 de 21) ni coordenadas (4 de 18 clientes).
+   Para probar Planificación con la API hacen falta pedidos completos.
 
 ## 5. Mientras tanto
 
@@ -105,6 +117,8 @@ El OMS lee la cola desde Aurora (la llena Planificación) y escribe a eFlow por 
   (`plan_builder._persistir_viaje`) por llamadas a la API. Mandar en lotes de 100 y reintentar
   `noProcesadas`.
 - Lectura: seguir leyendo de la base de eFlow (`ingest_orders.py`, `ingest_items.py`) hasta que el GET
-  traiga los campos que faltan.
+  traiga los campos que faltan. La ingesta local (cada 10 min) sigue por SQL contra `10.17.224.20`.
+- Credenciales del API QA: `.env.local` (`EFLOW_QA_HOST/USER/PASSWORD`) y la página restringida de credenciales
+  en Notion. Nunca en el repo.
 - El secreto de eFlow no va en la cuenta sandbox (ext-claude). La integración real se despliega en la
   cuenta de Intelix.

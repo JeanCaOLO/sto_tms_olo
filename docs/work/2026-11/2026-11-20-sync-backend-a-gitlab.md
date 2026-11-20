@@ -56,3 +56,4 @@ Pedido de Jesús: llevar el backend a GitLab cumpliendo template_base para que l
 - Ingesta manual 10:49: 376 leídos, 376 upserted, 42 salidos, 375 espejadas, 1437 líneas.
 - Loop local en segundo plano: ingesta cada 10 min y replan cada hora (lectura de eFlow por SQL, como antes).
 - Pendiente con OLO: corregir la longitud de ese cliente en eFlow (mientras, queda sin coordenadas en el TMS).
+- Actualizado `docs/wms-eflow/api-eprac-v1-vs-necesidades.md` con la prueba en QA (fechas por fechaExpedicion, ambiente QA, nuevas preguntas).
