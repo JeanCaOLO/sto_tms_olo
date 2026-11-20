@@ -67,3 +67,7 @@ Pedido de Jesús: llevar el backend a GitLab cumpliendo template_base para que l
   producción `CERR 28679, TERM 1298, DISP 509, EXPA 50, ANUL 22, GENE 12, PREP 12`. `SOAC` no aparece en ninguna.
 - Agregada la evidencia a la pregunta C1 de `docs/wms-eflow/solicitud-eprac-api-v1-faltantes.md`.
 - Para confirmar qué hace `GenerarAcciones` falta probarlo con un pedido de QA (escritura): pendiente de autorización.
+- Escritura autorizada por Jesús (una sola, en QA): `POST GenerarAcciones` sobre `0001/0109/0001/C11-00004145-N` (DISP/DISP,
+  prioridad 5). Respuesta 200 `success: true`, `idActividad 1974155`, X-Correlation-ID `e0208bb6-82b8-46bc-ac2a-eba66a4d87b2`.
+  Después: `DISP/SOAC` por el API y por SQL. Confirmado que el API no deja `GENE`. Evidencia agregada a C1 del documento para ePRAC.
+  El pedido queda en SOAC en QA (el API no permite devolverlo a DISP).

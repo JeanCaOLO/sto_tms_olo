@@ -59,6 +59,10 @@ base. Necesitamos filtrar por **`fechaExpedicionPlanificada`** (fecha de entrega
 - Si no, falta un endpoint para pasar `DISP` → `GENE`.
 - Lo que vimos (2026-11-20): el API no tiene ninguna ruta para cambiar la situación. En las expediciones de los últimos 60
   días no aparece `SOAC` ni en QA ni en producción. `GENE` sí aparece en producción (12 expediciones de la compañía 0029).
+- Prueba en QA (2026-11-20): `GenerarAcciones` sobre la expedición `0001/0109/0001/C11-00004145-N` (DISP/DISP) respondió
+  `success: true`, `idActividad 1974155` (X-Correlation-ID `e0208bb6-82b8-46bc-ac2a-eba66a4d87b2`). La expedición quedó en
+  **`DISP/SOAC`**, no en `GENE`, confirmado por el API y por la tabla `EXPEDICIONESCABECERA`. **Pedimos que el API deje la
+  situación en `GENE`**, o un endpoint que lo haga.
 
 **C2. Número de viaje.** El TMS crea sus propios números de viaje (ejemplo: `202611190109005`).
 - ¿`AsignarNumeroViajeWMH` acepta un número que todavía no existe en WMH? ¿Lo crea?
