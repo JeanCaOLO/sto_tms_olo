@@ -31,3 +31,15 @@ Pedido de Jesús: llevar el backend a GitLab cumpliendo template_base para que l
 - MR !2 de TMS-Backend aceptado (`main` = 1bfd6e1): C12 (JWT con `iss`/`aud`) y COD6 (piso de 80 %, cobertura
   medida 85,6 %). Re-certificación v3: solo bloquea P2; con P2, QA y PROD quedan en 95 % Apto.
 - Resumen para gestión de lo que falta para salir Apto: `docs/certificacion/que-falta-para-apto-2026-11-20.md`.
+
+## API REST de eFlow QA (ePRAC): conexión verificada
+
+- Jean Carlo pasó el host correcto (`10.17.224.224:87`, no `.20`). Credenciales en `.env.local` (gitignored), como
+  `EFLOW_QA_HOST/USER/PASSWORD`. No pisa la conexión SQL porque `EFLOW_CR_HOST` ya existe.
+- Solo lectura: `GET /api/TestConexion` → BD `EFLOW_OLO_QA_SAP`, v3.2.1.1. Login (`POST /Autenticacion`, solo emite
+  el token) OK. `GET /Expediciones/ObtenerExpediciones` DISP/DISP ±30 días → 21 pedidos (0109: 15 con prioridad 5;
+  0029: 6 con prioridad 0), ninguno con viaje ni observaciones.
+- El cliente de la rama `integracion-eflow-qa` (`eflow_api.py`) funciona contra QA en modo `qa` con `EFLOW_API_WRITE=off`.
+  No se probó ninguna escritura (prioridad, GenerarAcciones, viaje, bajada).
+- Pendiente: el punto 1 de `docs/oms/pendientes/04-integracion-api-eflow-qa.md` (de esa rama) queda verificado para
+  la lectura.
