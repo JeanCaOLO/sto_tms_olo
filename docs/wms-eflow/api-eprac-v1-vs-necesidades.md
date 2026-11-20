@@ -4,7 +4,6 @@
 > Revisado: 2026-11-19, contra el código de OMS y Planificación en `planificacion-2`.
 > Actualizado: 2026-11-20, con la prueba real en QA (solo lectura). Detalle:
 > [`comparacion-api-qa-vs-sql-2026-11-20.md`](comparacion-api-qa-vs-sql-2026-11-20.md).
-> Notion: [API General eFlow WMS (ePRAC) v1.0.0](https://app.notion.com/p/41e2d923dc6581669b62d377837847dc).
 > Pedido original: [`endpoints-eflow-requeridos.md`](endpoints-eflow-requeridos.md) (2026-10-06) + reunión 2026-10-21.
 
 ## En corto
@@ -118,7 +117,6 @@ El OMS lee la cola desde Aurora (la llena Planificación) y escribe a eFlow por 
   `noProcesadas`.
 - Lectura: seguir leyendo de la base de eFlow (`ingest_orders.py`, `ingest_items.py`) hasta que el GET
   traiga los campos que faltan. La ingesta local (cada 10 min) sigue por SQL contra `10.17.224.20`.
-- Credenciales del API QA: `.env.local` (`EFLOW_QA_HOST/USER/PASSWORD`) y la página restringida de credenciales
-  en Notion. Nunca en el repo.
+- Credenciales del API QA: `.env.local` (`EFLOW_QA_HOST/USER/PASSWORD`). Nunca en el repo.
 - El secreto de eFlow no va en la cuenta sandbox (ext-claude). La integración real se despliega en la
   cuenta de Intelix.
