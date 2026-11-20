@@ -1,77 +1,83 @@
-# API eFlow QA vs consulta SQL: comparación y faltantes
+# API eFlow QA (ePRAC) vs consulta SQL: comparación y faltantes
 
-> Prueba del 2026-11-20, solo lectura (GET; el login solo emite el token). Complementa
+> Prueba del 2026-11-20, solo lectura (GET y SELECT; el login del API solo emite el token). Complementa
 > [api-eprac-v1-vs-necesidades.md](api-eprac-v1-vs-necesidades.md).
 
 ## En corto
 
-- **No se pudo comparar fila por fila.** El API lee la base **`EFLOW_OLO_QA_SAP`** (servidor `10.17.224.224`), y nuestro
-  usuario SQL (`intelixsql`) **no tiene acceso** a ese servidor (error de login 18456).
-- La base SQL a la que sí llegamos (`10.17.224.20`, `EFLOW_OLO`) **es otra**: ninguno de los 21 pedidos del API existe
-  ahí, y en la misma ventana tiene 336 pedidos DISP/DISP.
-- **Lo que sí se comparó, campo por campo:** el API devuelve **15 de las 56 columnas** de `EXPEDICIONESCABECERA`, y nada
-  de detalle, clientes ni artículos. Con eso **Planificación no puede armar viajes**.
+- **Lo que el API trae es correcto: los 21 pedidos coinciden con SQL, campo por campo.** El API de ePRAC en
+  `10.17.224.224:87` lee la base **QA** `EFLOW_OLO_QA_SAP` (servidor `10.17.224.224`).
+- **No es producción.** La base que lee hoy el TMS (`EFLOW_OLO` en `10.17.224.20`) no tiene ninguno de esos 21 pedidos y
+  tiene 339 DISP/DISP en la misma ventana. No hay, por ahora, un API de ePRAC apuntando a producción.
+- **El API trae poco:** 15 de las 56 columnas de `EXPEDICIONESCABECERA` y nada de detalle, clientes ni artículos. Con
+  eso **Planificación no puede armar viajes**.
 
-## 1. Lo que se ejecutó
+## 1. Comparación fila por fila (API vs `EFLOW_OLO_QA_SAP`)
 
-| Fuente | Consulta | Resultado |
-|---|---|---|
-| API QA `10.17.224.224:87` | `GET /api/TestConexion` | OK: base `EFLOW_OLO_QA_SAP`, v3.2.1.1 |
-| API QA | `GET /Expediciones/ObtenerExpediciones` DISP/DISP, ±30 días | 21 pedidos: 0109 (15, prioridad 5) y 0029 (6, prioridad 0); 18 clientes |
-| SQL `10.17.224.20` `EFLOW_OLO` | `EXPEDICIONESCABECERA` DISP/DISP, misma ventana | 336 pedidos |
-| SQL `10.17.224.20` | Buscar las 21 llaves del API (compañía+almacén+sucursal+expedición) | 0 encontradas |
-| SQL `10.17.224.224` | Login con `intelixsql` | Rechazado |
+| Prueba | Resultado |
+|---|---|
+| API `ObtenerExpediciones` DISP/DISP, del 21-oct al 20-dic | 21 pedidos |
+| SQL `EXPEDICIONESCABECERA` DISP/DISP por `FECHAEXPEDICION`, misma ventana | 21 (los mismos) |
+| SQL por `FECHAEXPEDICIONPLANIFICADA`, misma ventana | 23 |
+| Llaves del API encontradas en SQL | 21 de 21 |
+| Idénticos en los 11 campos comparados (fechas, estado, situación, prioridad, cliente, muelle, observaciones, bajada, viaje) | 21 de 21 |
 
-Datos de la muestra del API: los 21 tienen fecha planificada **pasada** (del 22-oct al 13-nov), muelle `PURT12`, sin
-viaje, sin bajada y sin observaciones. Parecen datos de prueba de QA, no operación real.
+Conclusiones:
 
-## 2. Campos: SQL que usa hoy el TMS vs API
+- **El filtro de fechas del API es `FECHAEXPEDICION`**, no la fecha planificada. El TMS planifica por
+  `FECHAEXPEDICIONPLANIFICADA`; si se usa el API, la ventana debe ser amplia y el filtro fino se hace del lado del TMS.
+- No se pudo saber si el API excluye pedidos cerrados (`FECHACIERRE`) o con viaje: en la ventana no hay ninguno de esos.
+- Datos de la muestra: compañías 0109 (15, prioridad 5) y 0029/EPA (6, prioridad 0). Fechas planificadas pasadas
+  (del 22-oct al 13-nov), muelle `PURT12`, sin viaje ni bajada. Son datos de prueba de QA, no operación real.
+
+## 2. Bases revisadas
+
+| Servidor | Base | DISP/DISP en la ventana | Pedidos del API | Último pedido creado |
+|---|---|---|---|---|
+| `10.17.224.224` (QA) | `EFLOW_OLO_QA_SAP` | 21 | **21/21** | 2026-11-12 |
+| `10.17.224.20` (CR, la que lee el TMS) | `EFLOW_OLO` | 339 | 0/21 | 2026-11-20 |
+
+En ambos servidores, las demás bases (`QA_SAP_EFLOW`, `QA_MAYOREO_EFLOW`, `EINTEGRA_*`, etc.) no tienen la tabla
+`EXPEDICIONESCABECERA`: son las bases intermedias de la integración SAP → eFlow, no el WMS.
+
+## 3. Campos: SQL que usa hoy el TMS vs API
 
 Columnas que leen la ingesta (`backend/planning/src/ingest_orders.py`, `ingest_items.py`) y el OMS:
 
 | Dato | SQL (hoy) | API | Para qué lo usamos |
 |---|---|---|---|
 | Llave (compañía, almacén, sucursal, expedición) | ✅ | ✅ | Identificar el pedido |
-| Cliente (`IDCLIENTE`) | ✅ | ✅ | Destino |
-| Estado / situación (`TPEXES`/`TPEXSI`) | ✅ | ✅ | Cola DISP/DISP |
-| Prioridad | ✅ | ✅ | OMS |
-| Fecha planificada | ✅ | ✅ | T-1 y día de despacho |
-| Nº de viaje WMH | ✅ | ✅ | Saber si ya tiene viaje |
-| Observaciones | ✅ | ✅ | Regla de cliente retira (OMS) |
+| Cliente, estado/situación, prioridad, fecha planificada, viaje, observaciones | ✅ | ✅ | Cola DISP/DISP, OMS |
 | Muelle, bajada, fecha de despacho | — | ✅ | (extra, no se usa hoy) |
-| **Ruta** (`RUTA`) | ✅ | ❌ | Agrupar por ruta en Planificación |
-| **Peso total** (`PESOPEDIDO_TOTAL`) | ✅ | ❌ | Capacidad del camión |
-| **Volumen total** (`CUBICAJEPEDIDO_TOTAL`) | ✅ | ❌ | Capacidad del camión |
-| **Costo total** (`COSTO_TOTAL`) | ✅ | ❌ | Valor de la carga |
-| **Fecha de cierre** (`FECHACIERRE`) | ✅ (filtro `IS NULL`) | ❌ (no se sabe si filtra) | Excluir pedidos cerrados |
-| **Tipo de expedición** (`TPEXPE`) | ✅ | ❌ | Clasificar el pedido |
-| **Cantidad de líneas** | ✅ (de `EXPEDICIONESDETALLE`) | ❌ | Tamaño del pedido |
-| **Dirección y coordenadas** (`CLIENTES.DIRECCIONLARGA/LATITUD/LONGITUD`) | ✅ | ❌ | **Ruteo en mapa** |
-| **Líneas del pedido** (`EXPEDICIONESDETALLE` + `ARTICULOSGESTION`: artículo, nombre, unidades, peso, volumen, lote, caducidad) | ✅ | ❌ | Detalle del pedido, carga y devoluciones |
+| **Ruta** (`RUTA`) | ✅ | ❌ | Agrupar por ruta (15 de los 21 la tienen en SQL) |
+| **Peso y volumen total** | ✅ | ❌ | Capacidad del camión (en QA solo 2 de 21 tienen peso) |
+| **Costo total**, **tipo de expedición**, **fecha de cierre** | ✅ | ❌ | Valor de carga, clasificación, excluir cerrados |
+| **Cantidad de líneas** | ✅ | ❌ | Tamaño del pedido |
+| **Dirección y coordenadas** (`CLIENTES`) | ✅ | ❌ | **Ruteo en mapa** (en QA: 18 clientes, 18 con dirección, 4 con coordenadas) |
+| **Líneas del pedido** (`EXPEDICIONESDETALLE` + `ARTICULOSGESTION`) | ✅ | ❌ | Detalle, carga, devoluciones (47 líneas para los 21) |
 
-## 3. Lo que faltaría
+## 4. Lo que faltaría
 
-### Para poder comparar (validar que el API dice lo mismo que la tabla)
+### Pedido a ePRAC para que el API reemplace la consulta SQL
 
-1. **Acceso SQL de solo lectura a `10.17.224.224` / `EFLOW_OLO_QA_SAP`** para `intelixsql` (o un usuario de lectura).
-   Con eso se corre la misma consulta y se comparan las 21 filas campo por campo.
-2. **O el API apuntando a la base que lee el TMS** (`10.17.224.20` / `EFLOW_OLO`), para comparar contra la operación real.
-3. Confirmar con ePRAC **qué fecha filtra** `FechaInicio/FechaFinal` (¿expedición o planificada?) y si excluye los
-   pedidos con `FECHACIERRE` o con viaje asignado.
-
-### Para que el API reemplace la consulta SQL (pedido a ePRAC)
-
-1. En `ObtenerExpediciones` agregar: `ruta`, `pesoPedidoTotal`, `cubicajePedidoTotal`, `costoTotal`, `fechaCierre`,
+1. En `ObtenerExpediciones`: `ruta`, `pesoPedidoTotal`, `cubicajePedidoTotal`, `costoTotal`, `fechaCierre`,
    `tipoExpedicion` y `cantidadLineas`.
-2. Dirección y coordenadas del cliente destino (`direccionLarga`, `latitud`, `longitud`), en la misma respuesta o en un
-   endpoint de clientes.
-3. Un endpoint de **detalle por expedición** (líneas con artículo, nombre, unidades pedidas/preparadas/cargadas/anuladas,
-   peso, volumen, lote y caducidad).
-4. Lectura **por llave** (una expedición o una lista de llaves), para refrescar pedidos puntuales (salientes, replan).
-5. Que los textos lleguen en UTF-8. Por SQL, eFlow guarda en cp1252 y hay que convertirlos.
+2. Dirección y coordenadas del cliente destino, en la misma respuesta o en un endpoint de clientes.
+3. Endpoint de **detalle por expedición** (artículo, nombre, unidades pedidas/preparadas/cargadas/anuladas, peso,
+   volumen, lote y caducidad).
+4. **Lectura por llave** (una o varias expediciones), para refrescar pedidos puntuales.
+5. **Filtro por fecha planificada** (o elegir el campo de fecha), y aclarar si excluye cerrados o con viaje.
+6. **URL del API de producción** (hoy solo existe la de QA).
+
+### Para el TMS
+
+- Para probar con el API de QA, cargar en QA pedidos con datos completos (peso, ruta, coordenadas): los actuales son de
+  prueba y casi no tienen peso ni coordenadas.
+- El acceso SQL a `EFLOW_OLO_QA_SAP` usado aquí es el del proyecto `eflow_api_sap` (otro proyecto). Para el TMS conviene
+  un usuario de solo lectura propio.
 
 ## Mientras tanto
 
-- La lectura sigue por SQL (`10.17.224.20`); el API se usa solo donde ya alcanza (prioridad, viaje y bajada, cuando se
-  prueben las escrituras).
+- La lectura sigue por SQL contra `10.17.224.20` (producción CR). El API se usa solo donde ya alcanza: prioridad,
+  viaje y bajada, cuando se prueben las escrituras en QA.
 - El cliente del API está en la rama `integracion-eflow-qa`, con escrituras apagadas (`EFLOW_API_WRITE=off`).
