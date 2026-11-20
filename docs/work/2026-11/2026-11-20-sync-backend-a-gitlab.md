@@ -28,3 +28,5 @@ Pedido de Jesús: llevar el backend a GitLab cumpliendo template_base para que l
   `pip: orden no encontrada`. El runner de Intelix es shell y no tiene pip; `main` falla igual desde el 29-oct.
   Lint, tests y bandit se corrieron en local.
 - App vacía `certificacion-tms` borrada de Dokploy.
+- MR !2 de TMS-Backend aceptado (`main` = 1bfd6e1): C12 (JWT con `iss`/`aud`) y COD6 (piso de 80 %, cobertura
+  medida 85,6 %). Re-certificación v3: solo bloquea P2; con P2, QA y PROD quedan en 95 % Apto.
