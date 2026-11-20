@@ -53,16 +53,20 @@ base. Necesitamos filtrar por **`fechaExpedicionPlanificada`** (fecha de entrega
 
 ## C. Preguntas sobre las escrituras
 
-**C1. Liberar el pedido.** El OMS necesita pasar la situación de `DISP` a **`GENE`** para que eFlow arranque el picking.
-`GenerarAcciones` la deja en `SOAC`.
-- ¿`SOAC` reemplaza a `GENE` y produce el mismo efecto?
-- Si no, falta un endpoint para pasar `DISP` → `GENE`.
-- Lo que vimos (2026-11-20): el API no tiene ninguna ruta para cambiar la situación. En las expediciones de los últimos 60
-  días no aparece `SOAC` ni en QA ni en producción. `GENE` sí aparece en producción (12 expediciones de la compañía 0029).
-- Prueba en QA (2026-11-20): `GenerarAcciones` sobre la expedición `0001/0109/0001/C11-00004145-N` (DISP/DISP) respondió
-  `success: true`, `idActividad 1974155` (X-Correlation-ID `e0208bb6-82b8-46bc-ac2a-eba66a4d87b2`). La expedición quedó en
-  **`DISP/SOAC`**, no en `GENE`, confirmado por el API y por la tabla `EXPEDICIONESCABECERA`. **Pedimos que el API deje la
-  situación en `GENE`**, o un endpoint que lo haga.
+**C1. Liberar el pedido (paso a `GENE`).** El OMS necesita pasar la situación de `DISP` a **`GENE`** para que eFlow
+arranque el picking. El API no tiene un endpoint para eso; `GenerarAcciones` la deja en `SOAC` ("Solicitud de Acciones").
+
+Lo que vimos en QA (2026-11-20) con la expedición `0001/0109/0001/C11-00004145-N` (DISP/DISP):
+- `GenerarAcciones` respondió `success: true`, `idActividad 1974155` (X-Correlation-ID
+  `e0208bb6-82b8-46bc-ac2a-eba66a4d87b2`). Justo después, la cabecera estaba en `DISP/SOAC`.
+- El monitor de eFlow procesó la actividad (`MONITORACTIVIDADES`, `TPTRAB = GEEX`) unos 2 minutos después. La cabecera
+  pasó sola a **`DISP/GENE`**; la línea del detalle siguió en `DISP/DISP`.
+
+Preguntas:
+- ¿El paso `SOAC` → `GENE` lo hace **siempre** el monitor de eFlow? ¿Cuánto tarda como máximo y qué pasa si el monitor
+  está detenido?
+- ¿En qué casos se queda en `SOAC` o falla? ¿Cómo nos enteramos?
+- Que el documento lo explique: hoy dice que la situación queda en `SOAC` y no menciona que después pasa a `GENE`.
 
 **C2. Número de viaje.** El TMS crea sus propios números de viaje (ejemplo: `202611190109005`).
 - ¿`AsignarNumeroViajeWMH` acepta un número que todavía no existe en WMH? ¿Lo crea?
@@ -93,7 +97,7 @@ base. Necesitamos filtrar por **`fechaExpedicionPlanificada`** (fecha de entrega
 | A3 | Consulta por llave | Endpoint nuevo |
 | B1 | Filtro por fecha planificada | Cambio de filtro |
 | B2 | Excluir cerrados y con viaje | Confirmar o agregar |
-| C1 | Paso a `GENE` | Pregunta o endpoint nuevo |
+| C1 | Paso a `GENE`: confirmar que `SOAC` → `GENE` es siempre automático, en cuánto tiempo y cómo detectar fallos | Pregunta y documentación |
 | C2 | Viaje creado por el TMS | Pregunta |
 | C3 | Prioridad 0 | Pregunta |
 | C4 | División de pedido | Pregunta |

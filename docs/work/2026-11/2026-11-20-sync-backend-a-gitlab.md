@@ -71,3 +71,8 @@ Pedido de Jesús: llevar el backend a GitLab cumpliendo template_base para que l
   prioridad 5). Respuesta 200 `success: true`, `idActividad 1974155`, X-Correlation-ID `e0208bb6-82b8-46bc-ac2a-eba66a4d87b2`.
   Después: `DISP/SOAC` por el API y por SQL. Confirmado que el API no deja `GENE`. Evidencia agregada a C1 del documento para ePRAC.
   El pedido queda en SOAC en QA (el API no permite devolverlo a DISP).
+- **Corrección**: `SOAC` es transitorio. Revisando después (solo lectura), la cabecera de `C11-00004145-N` ya estaba en
+  `DISP/GENE`: el monitor de eFlow (`MONITORACTIVIDADES`, actividad 1974155, `TPTRAB = GEEX`) la generó ~2 min después
+  (creada 10:48:52, inicio 10:51:00, generada 10:51:02, hora del servidor). La línea del detalle siguió `DISP/DISP`.
+  Por eso `SOAC` no aparece en las bases. `GenerarAcciones` sí logra `GENE`, de forma asíncrona. C1 del documento para ePRAC
+  pasa de reclamo a preguntas (garantía, tiempo máximo, fallos) y pedido de documentarlo.
