@@ -43,3 +43,4 @@ Pedido de Jesús: llevar el backend a GitLab cumpliendo template_base para que l
   No se probó ninguna escritura (prioridad, GenerarAcciones, viaje, bajada).
 - Pendiente: el punto 1 de `docs/oms/pendientes/04-integracion-api-eflow-qa.md` (de esa rama) queda verificado para
   la lectura.
+- Comparación API QA vs SQL y faltantes: `docs/wms-eflow/comparacion-api-qa-vs-sql-2026-11-20.md` (bases distintas: sin acceso SQL al .224; el API trae 15 de 56 columnas, sin detalle ni coordenadas).
