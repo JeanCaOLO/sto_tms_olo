@@ -56,3 +56,4 @@ Pedido de Jesús: llevar el backend a GitLab cumpliendo template_base para que l
 - Loop local en segundo plano: ingesta cada 10 min y replan cada hora (lectura de eFlow por SQL, como antes).
 - Pendiente con OLO: corregir la longitud de ese cliente en eFlow (mientras, queda sin coordenadas en el TMS).
 - Actualizado `docs/wms-eflow/api-eprac-v1-vs-necesidades.md` con la prueba en QA (fechas por fechaExpedicion, ambiente QA, nuevas preguntas).
+- Documento directo para ePRAC con lo que le falta al API (pedido de Jean Carlo): `docs/wms-eflow/solicitud-eprac-api-v1-faltantes.md`.
