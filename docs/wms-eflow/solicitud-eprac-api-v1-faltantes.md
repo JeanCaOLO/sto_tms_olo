@@ -57,6 +57,8 @@ base. Necesitamos filtrar por **`fechaExpedicionPlanificada`** (fecha de entrega
 `GenerarAcciones` la deja en `SOAC`.
 - ¿`SOAC` reemplaza a `GENE` y produce el mismo efecto?
 - Si no, falta un endpoint para pasar `DISP` → `GENE`.
+- Lo que vimos (2026-11-20): el API no tiene ninguna ruta para cambiar la situación. En las expediciones de los últimos 60
+  días no aparece `SOAC` ni en QA ni en producción. `GENE` sí aparece en producción (12 expediciones de la compañía 0029).
 
 **C2. Número de viaje.** El TMS crea sus propios números de viaje (ejemplo: `202611190109005`).
 - ¿`AsignarNumeroViajeWMH` acepta un número que todavía no existe en WMH? ¿Lo crea?

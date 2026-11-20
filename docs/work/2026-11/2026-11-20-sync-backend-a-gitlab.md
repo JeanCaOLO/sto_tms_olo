@@ -57,3 +57,13 @@ Pedido de Jesús: llevar el backend a GitLab cumpliendo template_base para que l
 - Pendiente con OLO: corregir la longitud de ese cliente en eFlow (mientras, queda sin coordenadas en el TMS).
 - Actualizado `docs/wms-eflow/api-eprac-v1-vs-necesidades.md` con la prueba en QA (fechas por fechaExpedicion, ambiente QA, nuevas preguntas).
 - Documento directo para ePRAC con lo que le falta al API (pedido de Jean Carlo): `docs/wms-eflow/solicitud-eprac-api-v1-faltantes.md`.
+
+## ¿El API de ePRAC puede pasar la situación de DISP a GENE? (pedido de Ana Maradey)
+
+- Solo lectura, sin escrituras. El documento v1.0.0 no tiene endpoint para cambiar la situación; `GenerarAcciones` la deja en `SOAC`.
+- Rutas probadas con GET en QA: `GenerarAcciones` y `CambiarPrioridadExpedicion` responden 405 (existen, solo POST);
+  `CambiarSituacion*`, `ActualizarSituacion*`, `CambiarEstadoExpedicion`, `GenerarExpedicion(es)` y `LiberarExpedicion` dan 404.
+- Situaciones en `EXPEDICIONESCABECERA` (últimos 60 días): QA `DISP 44, TERM 39, EXPA 16, ANUL 13, PREP 2, CERR 1`;
+  producción `CERR 28679, TERM 1298, DISP 509, EXPA 50, ANUL 22, GENE 12, PREP 12`. `SOAC` no aparece en ninguna.
+- Agregada la evidencia a la pregunta C1 de `docs/wms-eflow/solicitud-eprac-api-v1-faltantes.md`.
+- Para confirmar qué hace `GenerarAcciones` falta probarlo con un pedido de QA (escritura): pendiente de autorización.
