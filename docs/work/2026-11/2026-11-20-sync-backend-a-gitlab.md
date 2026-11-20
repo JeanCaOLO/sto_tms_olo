@@ -21,3 +21,10 @@ Pedido de Jesús: llevar el backend a GitLab cumpliendo template_base para que l
 
 - P2: dominio propio + certificado ACM (DevOps Intelix). C12 iss/aud coordinado con el frontend.
 - Push y MR de la rama de TMS-Backend.
+
+## Cierre
+
+- MR !1 de TMS-Backend aceptado: `main` = e70f41d. El pipeline del MR falló en `lint:ruff` con
+  `pip: orden no encontrada`. El runner de Intelix es shell y no tiene pip; `main` falla igual desde el 29-oct.
+  Lint, tests y bandit se corrieron en local.
+- App vacía `certificacion-tms` borrada de Dokploy.
