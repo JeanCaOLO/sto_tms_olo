@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { Articulo } from '../planificacion/types';
-import { fetchArticulosDePedido } from '../planificacion/plan-pedidos-api';
+import { fetchArticulosDePedido, type Articulo } from './articulos-api';
 
 // Precarga los artículos de TODAS las paradas de una guía en paralelo, al abrir
 // el detalle. Es necesario para el impreso: window.print() solo imprime lo que

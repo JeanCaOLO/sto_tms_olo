@@ -12,7 +12,7 @@ SELECT e.id, e.expedicion AS order_number,
        dp.latitude::float AS delivery_latitude, dp.longitude::float AS delivery_longitude,
        NULL::float AS total_weight, NULL::float AS total_volume, false AS capacity_known,
        e.fecha_planificada AS delivery_date, e.prioridad AS priority,
-       e.id_compania, e.cant_lineas, e.situacion, e.observaciones
+       e.id_compania, e.situacion, e.observaciones
 FROM tbl_wms_expediciones e
 LEFT JOIN LATERAL (
   SELECT a.line1, a.line2, a.city, a.latitude, a.longitude

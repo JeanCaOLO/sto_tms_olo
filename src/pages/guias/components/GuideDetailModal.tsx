@@ -6,7 +6,7 @@ import GuiaImprimible from './GuiaImprimible';
 import { useArticulosGuia } from '../use-articulos-guia';
 import { fmtKg, totalesDeGuia, type Guia } from '../guia-model';
 import type { PlanStop } from '../../planificacion/planes-types';
-import type { Articulo } from '../../planificacion/types';
+import type { Articulo } from '../articulos-api';
 
 interface Props {
   guia: Guia;

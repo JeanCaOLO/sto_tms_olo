@@ -1,4 +1,4 @@
-import type { Articulo } from '../../planificacion/types';
+import type { Articulo } from '../articulos-api';
 import { fmtKg } from '../guia-model';
 
 const DASH = '—';

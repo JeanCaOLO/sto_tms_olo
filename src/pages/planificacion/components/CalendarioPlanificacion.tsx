@@ -22,7 +22,7 @@ function fmtDia(iso: string): string {
 
 // Calendario de planificación: rango día/semana/mes × modo cuadrícula/tabla, con
 // filtro por zona. Toma los planes REALES persistidos en Aurora (usePlanesList).
-// Abrir una celda/día reusa PlanTripCard (mapa + paradas + pedidos + artículos)
+// Abrir una celda/día reusa PlanTripCard (mapa + paradas + pedidos)
 // en un modal.
 export default function CalendarioPlanificacion() {
   const { t } = useTranslation();

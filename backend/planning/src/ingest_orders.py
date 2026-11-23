@@ -9,8 +9,8 @@ hoy en adelante. UPSERT idempotente por la clave de eFlow
 (eflow_id_almacen, eflow_id_compania, eflow_id_sucursal, eflow_id_expedicion):
 re-ingestar NO duplica, actualiza estado/fecha/peso.
 
-Read-only contra eFlow; escribe el UPSERT en `orders` y sus líneas en `order_items`
-(ingest_items).
+Read-only contra eFlow; escribe el UPSERT en `orders`. No se leen líneas ni artículos:
+planificación trabaja solo con la cabecera del pedido.
 
 FLAG `EFLOW_API_MODE` (tms_common.eflow_api): `mock` (default) lee por SQL como siempre;
 `qa` lee la cola por el API REST de eFlow QA (ObtenerExpediciones). El API NO trae peso,
@@ -22,7 +22,6 @@ import os
 from datetime import date, timedelta
 
 import cliente_retira
-import ingest_items
 import salientes
 import sim_eflow_sync
 from tms_common import eflow_api, eflow_db, pg
@@ -41,10 +40,7 @@ SELECT TOP (%(limite)s)
   e.RUTA, e.PRIORIDAD, e.TPEXES, e.TPEXSI,
   CONVERT(varchar(10), e.FECHAEXPEDICIONPLANIFICADA, 23) AS FECHA,
   e.PESOPEDIDO_TOTAL, e.CUBICAJEPEDIDO_TOTAL, e.COSTO_TOTAL,
-  e.OBSERVACIONESEXPEDICION AS OBSERVACIONES,
-  (SELECT COUNT(*) FROM {sap}.dbo.EXPEDICIONESDETALLE d
-   WHERE d.IDEXPEDICION = e.IDEXPEDICION AND d.IDCOMPANIA = e.IDCOMPANIA
-     AND d.IDALMACEN = e.IDALMACEN AND d.IDSUCURSAL = e.IDSUCURSAL) AS CANT_LINEAS,
+  e.OBSERVACIONESEXPEDICION AS OBSERVACIONES, NULL AS CANT_LINEAS,
   cl.DIRECCIONLARGA, cl.LATITUD, cl.LONGITUD
 FROM {sap}.dbo.EXPEDICIONESCABECERA e
 LEFT JOIN {sap}.dbo.CLIENTES cl
@@ -219,6 +215,5 @@ def ingest_cr(limite: int = 500, dry_run: bool = False) -> dict:
         PAIS, ORG_CR, {(str(r["IDEXPEDICION"]), str(r["IDCOMPANIA"])) for r in filas})
     # Espejo de la cabecera de eFlow (sim_expedicionescabecera) para el write-back.
     espejadas = 0 if (dry_run or qa) else sim_eflow_sync.sincronizar()
-    lineas = 0 if (dry_run or qa) else ingest_items.sincronizar(ORG_CR, [str(r["IDEXPEDICION"]) for r in filas])
     return {"leidos": len(filas), "upserted": upserted, "saltados": len(faltantes), "salidos": salidos, "espejadas": espejadas,
-            "lineas": lineas, "faltantes": faltantes[:20], "dry_run": dry_run, "fuente": eflow_api.modo()}
+            "faltantes": faltantes[:20], "dry_run": dry_run, "fuente": eflow_api.modo()}

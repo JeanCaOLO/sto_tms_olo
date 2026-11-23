@@ -1,4 +1,4 @@
-import type { Articulo } from '../../planificacion/types';
+import type { Articulo } from '../articulos-api';
 import type { PlanStop } from '../../planificacion/planes-types';
 import { fmtKg, totalesDeGuia, type Guia } from '../guia-model';
 import ArticulosTabla from './ArticulosTabla';

@@ -14,7 +14,7 @@
 import { apiFetch } from '../../lib/api-client';
 import { getFallbackPedidosParaPlanificar, offsetDayIso } from './fallback-pedidos';
 import { mockFallbackEnabled } from './mock-fallback';
-import type { Articulo, Pedido } from './types';
+import type { Pedido } from './types';
 
 // Día objetivo por defecto: mañana (hoy + 1).
 export function fechaEntregaObjetivo(): string {
@@ -49,17 +49,4 @@ export async function fetchPedidosParaPlanificar(
     return alFallar(`No se pudieron cargar los pedidos (HTTP ${respuesta.status}).`);
   }
   return data.map(normalizar);
-}
-
-// Artículos (líneas) de un pedido, para el modal de detalle del pin.
-//   GET /api/v1/planificacion/pedidos/{order_id}/articulos → { data: Articulo[] }
-// Sin backend o pedido mock, devuelve [] (el modal muestra "sin artículos").
-export async function fetchArticulosDePedido(orderId: string): Promise<Articulo[]> {
-  try {
-    const { ok, body } = await apiFetch(`/v1/planificacion/pedidos/${orderId}/articulos`);
-    const data = body?.data as Articulo[] | undefined;
-    return ok && Array.isArray(data) ? data : [];
-  } catch {
-    return [];
-  }
 }

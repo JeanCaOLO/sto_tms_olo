@@ -26,7 +26,7 @@ function coincideEstado(p: RoutePlan, filtro: PlanStatus | 'all'): boolean {
 
 // Pestaña "Planificaciones": misma vista tipo tabla del calendario (zonas×días)
 // sobre los planes REALES de Aurora, con filtro por estado y por fecha. Abrir una
-// celda reusa DetalleModal (mapa + paradas + pedidos + artículos).
+// celda reusa DetalleModal (mapa + paradas + pedidos).
 export default function PlanesTab() {
   const { t } = useTranslation();
   const { planes, cargando, recargar } = usePlanesList();

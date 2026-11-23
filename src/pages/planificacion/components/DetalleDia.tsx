@@ -14,7 +14,7 @@ interface Props {
 }
 
 // Detalle de un día: los viajes (reusa PlanTripCard → mapa + secuencia de
-// paradas + pedidos + artículos, en modo solo lectura). Se usa inline en la
+// paradas + pedidos, en modo solo lectura). Se usa inline en la
 // vista Día y dentro del modal al abrir una celda/día de semana/mes.
 export default function DetalleDia({ planes, fechaISO, zonaCodigo, onRecargar }: Props) {
   const { t } = useTranslation();
