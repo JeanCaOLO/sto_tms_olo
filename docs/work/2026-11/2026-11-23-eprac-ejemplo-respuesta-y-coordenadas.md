@@ -35,3 +35,34 @@
   una llamada, quitar viaje / deshacer liberación, y que el viaje rechace pedidos cerrados.
 - Corregir `api-eprac-v1-vs-necesidades.md`: todavía dice que no se llega a `GENE`.
 - OLO: corregir la longitud del cliente 020301098 en eFlow.
+
+## Ciclo de vida completo por el API de eFlow QA (planificacion-2)
+
+### What changed
+
+- Se trajo a `planificacion-2` la integración por API de Jean (`integracion-eflow-qa`, flag `EFLOW_API_MODE=qa`):
+  ingesta por `ObtenerExpediciones`, viaje por `AsignarNumeroViajeWMH`, liberación por `CambiarPrioridadExpedicion`
+  + `GenerarAcciones`. Sin líneas, peso ni coordenadas: Jean confirmó que no hacen falta para planificar.
+- Se paró la ingesta SQL de producción y se borraron de Aurora los 220 pedidos de producción que seguían en la
+  bandeja (DISP sin liberar) y sus 83 paradas no liberadas, para que el TMS solo escriba pedidos de QA. Respaldo en
+  `backup-prod-bandeja-2026-11-23*.json` (raíz, gitignored). Decisión de Jesús: desde ahora se trabaja con el API de QA.
+
+### Resultado (pedido de QA `0001/0109/0001/VAS001031-M`, entrega 2026-11-24)
+
+| Paso | Resultado |
+|---|---|
+| Ingesta por API | 1 pedido DISP/DISP con fecha de hoy en adelante → bandeja |
+| Planificación | Viaje `20261124-0109-017` armado sin peso ni coordenadas (tope de 16 paradas por camión) |
+| `AsignarNumeroViajeWMH` | **Falla**: `ERROR_PROCESAMIENTO`, también con un número chico. El viaje debe existir en WMH |
+| Barrido OMS | Prioridad 0 aceptada; `GenerarAcciones` OK → `SOAC` a las 11:18 → `GENE` a las 11:20 (automático) |
+
+### Promoted knowledge
+
+- `CambiarPrioridadExpedicion` acepta `prioridad = 0` (responde C3).
+- `SOAC` → `GENE` lo hace solo el monitor de eFlow en ~2 min (segunda vez confirmado).
+- `AsignarNumeroViajeWMH` no crea viajes. Según Jean, "WMH desaparece": confirmar si se deja de enviar el viaje.
+
+### Follow-ups
+
+- Decidir con Jean si se apaga el envío de `AsignarNumeroViajeWMH` (hoy falla y solo deja un warning).
+- En QA casi no hay pedidos con entrega de hoy en adelante: pedirle a ePRAC más pedidos DISP/DISP (D3).
