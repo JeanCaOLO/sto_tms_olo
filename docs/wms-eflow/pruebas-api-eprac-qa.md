@@ -77,6 +77,7 @@ Quedó en `bajada = 3`.
 | `VAS001031-M` (23-nov, dentro del ciclo) | `SOAC` a las 11:18 → **`GENE`** a las 11:20 |
 | `VAS001031-M` ya en `GENE` | ⚠️ Responde OK y lo vuelve a `SOAC`; volvió a `GENE` a las 11:32. Puede generar las acciones dos veces |
 | Pedido en `CERR` | Rechazado: `ESTADO_INVALIDO` |
+| 11 pedidos de EPA (`0029`), 23-nov | ❌ `TIPO_EXPEDICION_NO_PERMITIDO`: son Cross Docking (`EXPCRO`) |
 
 `SOAC` = "Solicitud de Acciones": un paso intermedio. El cambio a `GENE` lo hace el monitor de eFlow solo, en unos 2
 minutos. En la prueba del 20-nov la línea del pedido siguió en `DISP/DISP`; solo cambió la cabecera.
@@ -128,6 +129,8 @@ Pedido de QA `0001/0109/0001/VAS001031-M`, entrega el 2026-11-24. TMS en `planif
 2. **Liberar dos veces:** el TMS no debe llamar `GenerarAcciones` sobre un pedido que ya está en `GENE` (al
    reintentar un `disparo_pendiente`).
 3. **Bajada:** el TMS todavía no la envía (`eflow_api.asignar_bajada` existe, nadie la llama).
-4. **Datos de prueba:** pedirle a ePRAC más pedidos DISP/DISP con entrega de hoy en adelante.
+4. **Cross Docking:** `GenerarAcciones` rechaza los pedidos `EXPCRO` y el API no trae el tipo de expedición; el TMS
+   los deja en `disparo_pendiente` y los reintenta. Pedir a ePRAC el tipo en el GET o definir qué hacer con ellos.
+5. **Datos de prueba:** pedirle a ePRAC más pedidos DISP/DISP con entrega de hoy en adelante.
 
 Lo que se le pide a ePRAC: [solicitud-eprac-api-v1-faltantes.md](solicitud-eprac-api-v1-faltantes.md).

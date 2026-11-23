@@ -107,3 +107,19 @@
 - **Respaldo:** `backup-pedidos-planes-2026-11-23.json` en la raíz (gitignored, 22 MB): `tbl_orders`,
   `tbl_order_items`, `tbl_route_plans`, `tbl_plan_trips`, `tbl_plan_stops` completas antes del borrado.
 - La ingesta local se detuvo antes del borrado.
+
+## Ciclo completo con los DISP/DISP de QA (1-oct a hoy)
+
+- **What:** se trajeron por el API (`ObtenerExpediciones`, creados del 1-oct al 23-nov) los 36 pedidos DISP/DISP de
+  QA sin viaje (20 de EPA `0029`, 16 de Cofersa `0109`) y se pasaron por la ingesta del TMS (`ingest_cr`) con la fecha
+  de entrega repartida en 24, 25 y 26-nov (12 por día) para que caigan en la ventana de planificación. Las fechas
+  reales eran pasadas; solo se cambiaron en Aurora, no en eFlow.
+- **Planificación:** `replan.replanificar_programado` armó 6 planes (2 compañías x 3 días) y 28 viajes.
+  `AsignarNumeroViajeWMH` falló en todos (`ERROR_PROCESAMIENTO`, ya conocido).
+- **OMS (barrido `oms-2026-11-23-181441`, escribe en eFlow QA):** 16 priorizados (Cofersa; EPA conserva su prioridad),
+  24 en ventana (24 y 25-nov). 13 liberados (`SOAC` → `GENE` en ~2-6 min) y 11 `disparo_pendiente`. Los 12 del 26-nov
+  quedan priorizados en `DISP` hasta su día.
+- **Hallazgo:** los 11 `disparo_pendiente` son de EPA y eFlow los rechaza con `TIPO_EXPEDICION_NO_PERMITIDO`: son
+  **Cross Docking** (`EXPCRO`) y no permiten `GenerarAcciones`. La prioridad 0 sí quedó escrita. El API no trae el tipo
+  de expedición, así que el TMS no puede saltarlos de antemano, y la reconciliación los reintentaría en cada barrido.
+- Script: `scratchpad/bandeja_oct.py` (local, no versionado).
