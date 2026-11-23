@@ -106,6 +106,31 @@ def _lookups(filas: list[dict]) -> tuple[dict, dict, dict]:
     return customers, finals, branches
 
 
+# Punto de entrega por defecto del cliente destino en Aurora (tbl_delivery_points → tbl_addresses).
+# El API de eFlow no trae coordenadas ni dirección: se toman de aquí por el cliente (IDCLIENTE → final_customer).
+_PUNTOS = """
+SELECT DISTINCT ON (dp.final_customer_id) dp.final_customer_id, a.latitude, a.longitude, a.line1
+FROM tbl_delivery_points dp JOIN tbl_addresses a ON a.id = dp.address_id
+WHERE dp.final_customer_id = ANY(%s) AND dp.active AND a.latitude IS NOT NULL AND a.longitude IS NOT NULL
+ORDER BY dp.final_customer_id, dp.is_default DESC, dp.created_at"""
+
+
+def _puntos_entrega(final_ids: list) -> dict:
+    """{final_customer_id: (lat, lng, dirección)} del punto de entrega por defecto de cada cliente."""
+    if not final_ids:
+        return {}
+    return {str(r["final_customer_id"]): (r["latitude"], r["longitude"], r["line1"])
+            for r in pg.query(_PUNTOS, [sorted({str(f) for f in final_ids})])}
+
+
+def _completar_ubicacion(r: dict, punto: tuple | None) -> tuple:
+    """(dirección, lat, lng) del pedido: lo de eFlow si es válido; si no, el punto de entrega de Aurora."""
+    lat, lng = _coord(r["LATITUD"], 90), _coord(r["LONGITUD"], 180)
+    if (lat is None or lng is None) and punto:
+        return r["DIRECCIONLARGA"] or punto[2], float(punto[0]), float(punto[1])
+    return r["DIRECCIONLARGA"], lat, lng
+
+
 _UPSERT = """
 INSERT INTO tbl_orders AS orders (
   organization_id, customer_id, final_customer_id, branch_id, warehouse_id,
@@ -166,6 +191,7 @@ def ingest_cr(limite: int = 500, dry_run: bool = False) -> dict:
     qa = eflow_api.activo()
     filas = _eflow_api_disp_disp(limite) if qa else _eflow_disp_disp(limite)
     customers, finals, branches = _lookups(filas)
+    puntos = _puntos_entrega(list(finals.values()))
     upserted = 0
     faltantes: list[str] = []
     for r in filas:
@@ -175,12 +201,12 @@ def ingest_cr(limite: int = 500, dry_run: bool = False) -> dict:
         if not (customer_id and final_id and branch_id):
             faltantes.append(f'{r["IDEXPEDICION"]} (cust={bool(customer_id)} final={bool(final_id)} branch={bool(branch_id)})')
             continue
+        direccion, lat, lng = _completar_ubicacion(r, puntos.get(str(final_id)))
         if not dry_run:
             pg.query(_UPSERT, [
                 ORG_CR, customer_id, final_id, branch_id, WAREHOUSE_CR,
                 r["IDEXPEDICION"], r["FECHA"], r["FECHA"], r["FECHA"], r["FECHA"],
-                r["PESOPEDIDO_TOTAL"], r["CUBICAJEPEDIDO_TOTAL"], r["CANT_LINEAS"], r["COSTO_TOTAL"], r["DIRECCIONLARGA"],
-                _coord(r["LATITUD"], 90), _coord(r["LONGITUD"], 180),
+                r["PESOPEDIDO_TOTAL"], r["CUBICAJEPEDIDO_TOTAL"], r["CANT_LINEAS"], r["COSTO_TOTAL"], direccion, lat, lng,
                 r["RUTA"], _prioridad(r["PRIORIDAD"]), r["TPEXES"], r["TPEXSI"],
                 r["OBSERVACIONES"], cliente_retira.es_cliente_retira(r["OBSERVACIONES"]),
                 str(r["IDCOMPANIA"]), str(r["IDALMACEN"]), str(r["IDSUCURSAL"]),

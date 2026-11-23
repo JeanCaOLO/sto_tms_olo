@@ -11,13 +11,12 @@ leen los pedidos y la flota, y se persiste lo que el motor devuelve.
 """
 
 import json
+import logging
 import sys
 import time
 import uuid
 
 import costos
-import logging
-
 import motor_ruteo
 import recolectas
 import tiempo_salida
@@ -36,7 +35,8 @@ LEFT JOIN LATERAL (
 """
 
 _ORDERS = """
-SELECT o.id, o.order_number, o.delivery_city, o.delivery_zone,
+SELECT o.id, o.order_number, o.delivery_city,
+       COALESCE(NULLIF(o.delivery_zone, ''), tz.code) AS delivery_zone,  -- sin ruta de eFlow (API): zona TMS por geocerca
        COALESCE(o.delivery_latitude, pe.latitude)::float AS lat,
        COALESCE(o.delivery_longitude, pe.longitude)::float AS lng,
        o.total_weight::float AS weight, o.total_volume::float AS volume, o.priority,
@@ -44,12 +44,13 @@ SELECT o.id, o.order_number, o.delivery_city, o.delivery_zone,
        o.eflow_id_compania, o.eflow_id_almacen, o.eflow_id_sucursal, o.eflow_id_expedicion
 FROM tbl_orders o
 LEFT JOIN tbl_final_customers fc ON fc.id = o.final_customer_id
+LEFT JOIN tbl_zones tz ON tz.id = o.tms_zone_id
 """ + PUNTO_ENTREGA + """
 WHERE o.organization_id = %s AND o.warehouse_id = %s AND o.customer_id = %s
   AND o.eflow_id_expedicion IS NOT NULL
   AND o.wms_status = 'DISP' AND o.wms_situation = 'DISP'
   AND o.delivery_date = %s::date AND """ + viajes_liberados.fuera_de_congelados("o.id") + """
-ORDER BY COALESCE(o.delivery_zone, 'ZZZ'), o.priority NULLS LAST, o.total_weight DESC NULLS LAST
+ORDER BY COALESCE(NULLIF(o.delivery_zone, ''), tz.code, 'ZZZ'), o.priority NULLS LAST, o.total_weight DESC NULLS LAST
 """
 
 # Flota propia DEL PAÍS del almacén: un plan de Venezuela no usa camiones de Costa Rica.

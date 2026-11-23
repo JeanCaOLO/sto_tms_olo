@@ -82,3 +82,17 @@
 - Escrituras en QA sobre `VAS001031-M`: quedó `GENE`, prioridad 0, bajada 3 y viaje `8213`.
 - `solicitud-eprac-api-v1-faltantes.md` reescrita: se quitan los campos nuevos y el detalle de líneas (Jean: no
   hacen falta). Quedan filtro por fecha de entrega, consulta por llave y las preguntas de escritura.
+
+## Coordenadas y ruta sin datos de eFlow (modo API)
+
+- **What:** la ingesta completa la dirección y las coordenadas del pedido con el punto de entrega del cliente en Aurora
+  (`IDCLIENTE` → `tbl_final_customers` → `tbl_delivery_points`/`tbl_addresses`) cuando eFlow no las trae o vienen
+  fuera de rango. Con eso el trigger `trg_orders_tms_zone` calcula la zona TMS. Al planificar, si el pedido no tiene
+  ruta de eFlow, se agrupa por esa zona (los códigos 01–16 coinciden con la ruta de eFlow).
+- **Why:** el API no trae coordenadas ni ruta; antes el planificador sí usaba el punto de Aurora para rutear, pero el
+  pedido quedaba sin zona (sin días de anticipo en el OMS) y todos caían en un solo grupo "S/R".
+- **How:** `ingest_orders._puntos_entrega` + `_completar_ubicacion`; `plan_builder._ORDERS` con
+  `COALESCE(delivery_zone, zona TMS)`. Test nuevo en `tests/test_ingest_coordenadas.py`; pytest 1051 passed.
+  Verificado con `VAS001031-M` (cliente `020605007`): toma 9.0793621, -83.6618421 de Aurora.
+- **Follow-up:** solo ~1.800 de ~14.400 clientes de Cofersa tienen coordenadas en Aurora; ese punto de Osa no cae en
+  ninguna geocerca.

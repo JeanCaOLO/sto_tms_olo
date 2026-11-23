@@ -17,7 +17,10 @@
 1. ~~Verificar contra QA real~~ **Hecho 2026-11-23**: todos los endpoints probados (`docs/wms-eflow/pruebas-api-eprac-qa.md`).
 2. ~~GenerarAcciones deja `SOAC`~~ **Resuelto**: el monitor de eFlow lo pasa solo a `GENE` en ~2 min.
 3. ~~El API no trae peso, volumen, líneas, coordenadas ni ruta~~ **No hacen falta** (Jean, 2026-11-23): el motor usa
-   el tope de 16 paradas por camión (`motor_ruteo.MAX_PARADAS`).
+   el tope de 16 paradas por camión (`motor_ruteo.MAX_PARADAS`). **Coordenadas y dirección** se toman en la ingesta
+   del punto de entrega del cliente en Aurora (`ingest_orders._puntos_entrega`), con eso el trigger calcula la zona
+   TMS; **la ruta** se reemplaza por esa zona al agrupar (`plan_builder._ORDERS`; los códigos 01–16 son los mismos).
+   Solo ~1.800 de ~14.400 clientes de Cofersa tienen coordenadas en Aurora: los demás quedan sin zona.
 4. **Número de viaje:** `AsignarNumeroViajeWMH` solo acepta viajes que ya existen en WMH (con `8213` funcionó; con
    los del TMS, `ERROR_PROCESAMIENTO`). Jean: "WMH desaparece". Si se confirma, quitar
    `plan_builder._enviar_viajes_a_eflow` (hoy solo deja un warning).
