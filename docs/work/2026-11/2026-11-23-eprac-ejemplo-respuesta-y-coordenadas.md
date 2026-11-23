@@ -66,3 +66,9 @@
 
 - Decidir con Jean si se apaga el envío de `AsignarNumeroViajeWMH` (hoy falla y solo deja un warning).
 - En QA casi no hay pedidos con entrega de hoy en adelante: pedirle a ePRAC más pedidos DISP/DISP (D3).
+
+## Registro de las pruebas del API
+
+- `docs/wms-eflow/pruebas-api-eprac-qa.md`: todas las pruebas del API de ePRAC en QA (20 y 23-nov) con su resultado.
+- `docs/oms/pendientes/04-integracion-api-eflow-qa.md`: actualizado con lo verificado y el pendiente del número de
+  viaje.
