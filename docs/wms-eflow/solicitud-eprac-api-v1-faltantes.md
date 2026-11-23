@@ -102,3 +102,109 @@ Preguntas:
 | C3 | Prioridad 0 | Pregunta |
 | C4 | División de pedido | Pregunta |
 | D1–D4 | Producción, QA VE, datos de prueba, permiso para probar escrituras | Ambientes |
+
+## E. Ejemplo de la respuesta que necesitamos
+
+Con la expedición de QA `0001/0109/0001/VAS001027-P` y sus datos reales en la base. Son los 15 campos que el API ya
+devuelve, más los de A1 (marcados `// nuevo`) y las líneas de A2 en `lineas`. Si las líneas van en el endpoint aparte
+(A2), aquí basta con `cantidadLineas`.
+
+```json
+{
+    "success": true,
+    "message": "Consulta realizada correctamente.",
+    "data": {
+        "items": [
+            {
+                "idAlmacen": "0001",
+                "idCompania": "0109",
+                "idSucursal": "0001",
+                "idExpedicion": "VAS001027-P",
+                "fechaExpedicion": "2026-11-12T00:00:00",
+                "fechaExpedicionPlanificada": "2026-11-13T00:00:00",
+                "fechaPlanificadaDespacho": null,
+                "estado": "DISP",
+                "situacion": "DISP",
+                "prioridad": 5,
+                "idCliente": "020507003",
+                "muelle": "PURT12",
+                "observaciones": "",
+                "bajada": null,
+                "numeroViajeWmh": null,
+
+                "ruta": "10",                       // nuevo
+                "pesoTotal": 39.56,                 // nuevo
+                "volumenTotal": null,               // nuevo
+                "costoTotal": 191309.5,             // nuevo
+                "fechaCierre": null,                // nuevo
+                "tipoExpedicion": "EXPERP",         // nuevo
+                "cantidadLineas": 3,                // nuevo
+                "direccionCliente": "Prov:: GUANACASTE\nCton:: ABANGARES\nDet:: LAS JUNTAS, 600MTS ESTE DEL MONUMENTO EL MINERO", // nuevo
+                "latitud": 10.28199416,             // nuevo
+                "longitud": -84.95118292,           // nuevo
+
+                "lineas": [                         // nuevo (A2)
+                    {
+                        "linea": 1,
+                        "idArticulo": "9041040",
+                        "descripcion": "Canoa Colonial Uv 3M Bl Cem-909545-Amanco",
+                        "presentacion": "UD",
+                        "lote": null,
+                        "unidadesPedidas": 2,
+                        "unidadesPreparadas": 0,
+                        "unidadesCargadas": null,
+                        "unidadesAnuladas": null,
+                        "peso": 5.66,
+                        "volumen": 0.0,
+                        "guiaFiscal": null,
+                        "fechaCaducidad": null,
+                        "estado": "DISP",
+                        "situacion": "DISP"
+                    },
+                    {
+                        "linea": 2,
+                        "idArticulo": "9041042",
+                        "descripcion": "Canoa Colonial Uv 6M Bl Cem-909547-Amanco",
+                        "presentacion": "UD",
+                        "lote": null,
+                        "unidadesPedidas": 6,
+                        "unidadesPreparadas": 0,
+                        "unidadesCargadas": null,
+                        "unidadesAnuladas": null,
+                        "peso": 33.9,
+                        "volumen": 0.0,
+                        "guiaFiscal": null,
+                        "fechaCaducidad": null,
+                        "estado": "DISP",
+                        "situacion": "DISP"
+                    },
+                    {
+                        "linea": 3,
+                        "idArticulo": "2833022",
+                        "descripcion": "Tubo EMT UL 1/2\" RYMCO",
+                        "presentacion": "UD",
+                        "lote": null,
+                        "unidadesPedidas": 20,
+                        "unidadesPreparadas": 0,
+                        "unidadesCargadas": null,
+                        "unidadesAnuladas": null,
+                        "peso": 0.0,
+                        "volumen": 0.01551,
+                        "guiaFiscal": null,
+                        "fechaCaducidad": null,
+                        "estado": "DISP",
+                        "situacion": "DISP"
+                    }
+                ]
+            }
+        ],
+        "pageNumber": 1,
+        "pageSize": 50,
+        "totalRecords": 1,
+        "totalPages": 1
+    },
+    "errors": []
+}
+```
+
+Los comentarios `// nuevo` son solo para marcar lo que hoy no viene; la respuesta real no los lleva.

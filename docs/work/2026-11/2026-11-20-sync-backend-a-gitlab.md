@@ -76,3 +76,9 @@ Pedido de Jesús: llevar el backend a GitLab cumpliendo template_base para que l
   (creada 10:48:52, inicio 10:51:00, generada 10:51:02, hora del servidor). La línea del detalle siguió `DISP/DISP`.
   Por eso `SOAC` no aparece en las bases. `GenerarAcciones` sí logra `GENE`, de forma asíncrona. C1 del documento para ePRAC
   pasa de reclamo a preguntas (garantía, tiempo máximo, fallos) y pedido de documentarlo.
+
+## 2026-11-23 · Ejemplo de respuesta en la solicitud a ePRAC
+
+- Sección E en `docs/wms-eflow/solicitud-eprac-api-v1-faltantes.md`: JSON de `ObtenerExpediciones` con todos los
+  campos pedidos (A1 y A2), armado con la expedición de QA `VAS001027-P` y sus datos reales (consulta de solo lectura
+  a `EFLOW_OLO_QA_SAP`; la respuesta actual del API se comprobó en Postman).
