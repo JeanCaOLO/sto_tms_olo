@@ -96,3 +96,14 @@
   Verificado con `VAS001031-M` (cliente `020605007`): toma 9.0793621, -83.6618421 de Aurora.
 - **Follow-up:** solo ~1.800 de ~14.400 clientes de Cofersa tienen coordenadas en Aurora; ese punto de Osa no cae en
   ninguna geocerca.
+
+## Limpieza de pedidos y planificaciones en Aurora
+
+- **What:** a pedido de Jesús se borraron de `tms_olo` los pedidos y las planificaciones: 3.972 pedidos (con sus
+  líneas), 42 planes, 504 viajes y 2.343 paradas, en una sola transacción.
+- **Qué quedó (por decisión de Jesús, "solo pedidos y planes"):** 756 pedidos que tienen guía de despacho,
+  devolución o tracking, y 3 planes / 3 viajes / 1 parada atados a rutas de tracking o a una recolecta. Guías (752),
+  devoluciones (39), tracking y liquidaciones no se tocaron. `sim_expedicionescabecera` tampoco.
+- **Respaldo:** `backup-pedidos-planes-2026-11-23.json` en la raíz (gitignored, 22 MB): `tbl_orders`,
+  `tbl_order_items`, `tbl_route_plans`, `tbl_plan_trips`, `tbl_plan_stops` completas antes del borrado.
+- La ingesta local se detuvo antes del borrado.
