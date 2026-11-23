@@ -72,3 +72,13 @@
 - `docs/wms-eflow/pruebas-api-eprac-qa.md`: todas las pruebas del API de ePRAC en QA (20 y 23-nov) con su resultado.
 - `docs/oms/pendientes/04-integracion-api-eflow-qa.md`: actualizado con lo verificado y el pendiente del número de
   viaje.
+
+## Todo el API probado + solicitud a ePRAC reescrita
+
+- Se probaron en QA todos los endpoints y sus casos de error (TestConexion, filtros del GET, prioridad, bajada,
+  viaje, GenerarAcciones, reglas de lote). Resultado en `docs/wms-eflow/pruebas-api-eprac-qa.md`.
+- Hallazgos: el viaje solo se asigna si ya existe en WMH (con `8213` funcionó) y no se puede quitar; `GenerarAcciones`
+  sobre un pedido `GENE` lo vuelve a `SOAC`; prioridad y bajada aceptan -1.
+- Escrituras en QA sobre `VAS001031-M`: quedó `GENE`, prioridad 0, bajada 3 y viaje `8213`.
+- `solicitud-eprac-api-v1-faltantes.md` reescrita: se quitan los campos nuevos y el detalle de líneas (Jean: no
+  hacen falta). Quedan filtro por fecha de entrega, consulta por llave y las preguntas de escritura.

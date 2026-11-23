@@ -14,14 +14,15 @@
 - Tests: `backend/tests/test_eflow_api.py` (servidor falso con el contrato del PDF).
 
 ## Qué falta / dudas
-1. ~~Verificar contra QA real~~ **Hecho 2026-11-23**: lectura, prioridad (incl. 0) y GenerarAcciones funcionan.
+1. ~~Verificar contra QA real~~ **Hecho 2026-11-23**: todos los endpoints probados (`docs/wms-eflow/pruebas-api-eprac-qa.md`).
 2. ~~GenerarAcciones deja `SOAC`~~ **Resuelto**: el monitor de eFlow lo pasa solo a `GENE` en ~2 min.
-2b. **`AsignarNumeroViajeWMH` falla** (`ERROR_PROCESAMIENTO`, también con un número chico): el viaje parece tener
-    que existir antes en WMH. Jean dijo "WMH desaparece": confirmar si se deja de enviar; si es así, quitar
-    `plan_builder._enviar_viajes_a_eflow` (hoy solo deja un warning en el log).
-3. **El API no trae peso, volumen, líneas, dirección, coordenadas ni ruta.** Jean (2026-11-23): no hacen falta para
-   planificar; el motor usa el tope de 16 paradas por camión (`motor_ruteo.MAX_PARADAS`). Sin coordenadas, el orden
-   de paradas y la zona no se calculan bien: revisar cuando haya más pedidos de QA.
-4. **Sin refresco de "salientes" ni líneas (`order_items`) en `qa`**: no hay lectura por llave. Pendiente de endpoint.
-5. **Bajada**: `eflow_api.asignar_bajada` existe pero nadie la llama aún; no se probó contra QA.
-6. Reintento de `marcar_generada` (disparo_pendiente) vuelve a llamar GenerarAcciones: podría duplicar acciones si el primer intento sí pasó.
+3. ~~El API no trae peso, volumen, líneas, coordenadas ni ruta~~ **No hacen falta** (Jean, 2026-11-23): el motor usa
+   el tope de 16 paradas por camión (`motor_ruteo.MAX_PARADAS`).
+4. **Número de viaje:** `AsignarNumeroViajeWMH` solo acepta viajes que ya existen en WMH (con `8213` funcionó; con
+   los del TMS, `ERROR_PROCESAMIENTO`). Jean: "WMH desaparece". Si se confirma, quitar
+   `plan_builder._enviar_viajes_a_eflow` (hoy solo deja un warning).
+5. **Bajada:** el endpoint funciona en QA, pero `eflow_api.asignar_bajada` no la llama nadie. Cablearla donde el OMS
+   asigna la bajada.
+6. **Liberar dos veces:** `GenerarAcciones` sobre un pedido ya `GENE` responde OK y lo vuelve a `SOAC`. El reintento
+   de `marcar_generada` (disparo_pendiente) debe leer la situación antes y no llamar si ya está en `SOAC`/`GENE`.
+7. **Sin refresco de "salientes" en `qa`**: no hay lectura por llave (pedida a ePRAC, A2).
