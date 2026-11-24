@@ -3,16 +3,19 @@ import Button from '../../../components/base/Button';
 import Modal from '../../../components/base/Modal';
 import Select from '../../../components/base/Select';
 import {usePermissions} from '../../../hooks/usePermissions';
+import {useAuth} from '../../../hooks/useAuth';
 import RequestForm from '../../mis-devoluciones/page';
 import {getCreationCompanies,type ClientAssignment} from '../../mis-devoluciones/api/solicitudesApi';
 import type {RequestDraftJournal} from '../../mis-devoluciones/requestDraftJournal';
 
 export default function RequestCreation({countryId,onCreated,journal}:{countryId?:string|null;onCreated:()=>void;journal?:RequestDraftJournal}) {
+  const {user}=useAuth();
   const {can,isAdmin,permissions}=usePermissions();
   const chooseCompany=!!isAdmin||permissions?.role?.name==='Gerente';
   const allowed=can('devoluciones_solicitud','create')||chooseCompany&&can('devoluciones','create');
   const [open,setOpen]=useState(false);
   const [busy,setBusy]=useState(false);
+  const [hasDraft,setHasDraft]=useState(false);
   const [companies,setCompanies]=useState<ClientAssignment[]>([]);
   const [selected,setSelected]=useState('');
   const [loading,setLoading]=useState(false);
@@ -40,14 +43,18 @@ export default function RequestCreation({countryId,onCreated,journal}:{countryId
         </div>
         {chooseCompany&&<>
           <Select label="Empresa destinataria" value={selected} disabled={busy||loading}
-            onChange={event=>setSelected(event.target.value)}
+            onChange={event=>{
+              if(hasDraft&&!window.confirm('¿Descartar los artículos y adjuntos de esta solicitud?'))return;
+              if(user&&company)journal?.delete(`${user.id}:${company.id}`);
+              setSelected(event.target.value);
+            }}
             options={[{value:'',label:'Seleccione una empresa'},...companies.map(row=>({value:row.id,label:row.name}))]}/>
           {loading&&<p role="status">Cargando empresas autorizadas…</p>}
           {error&&<div role="alert"><p>{error}</p><Button type="button" onClick={()=>setVersion(v=>v+1)}>Reintentar empresas</Button></div>}
           {!loading&&!error&&companies.length===0&&<p>No hay empresas autorizadas para crear solicitudes.</p>}
         </>}
         {(!chooseCompany||company)&&<RequestForm key={company?.id??'assigned'} mode="create" company={company}
-          onCreated={onCreated} onBusyChange={setBusy} journal={journal}/>}
+          onCreated={onCreated} onBusyChange={setBusy} onDraftChange={setHasDraft} journal={journal}/>}
       </div>
     </Modal>
   </>;

@@ -124,10 +124,7 @@ RETURNING id,request_number,status,decided_by,decided_at,rejection_reason
 """
 
 # Punto explícito del cliente final del pedido; nunca el domicilio de la empresa.
-ORIGINS_SQL = """
-SELECT o.id AS order_id,o.order_number,dp.id AS delivery_point_id,dp.name AS point_name,
- fc.id AS final_customer_id,fc.name AS final_customer_name,a.line1 AS address,a.city,
- a.latitude,a.longitude,a.country_id,o.warehouse_id,dp.zone_id,z.name AS zone_name
+ORIGIN_FROM_SQL = """
 FROM tbl_orders o
 JOIN tbl_customers c ON c.id=o.customer_id AND c.organization_id=o.organization_id
 JOIN tbl_final_customers fc ON fc.id=o.final_customer_id AND fc.customer_id=c.id
@@ -137,14 +134,56 @@ JOIN tbl_warehouses w ON w.id=o.warehouse_id AND w.organization_id=o.organizatio
 JOIN tbl_zones z ON z.id=dp.zone_id AND z.organization_id=o.organization_id AND z.country_id=a.country_id
 WHERE o.organization_id=%s AND o.customer_id=%s
  AND nullif(btrim(a.line1),'') IS NOT NULL AND a.latitude BETWEEN -90 AND 90 AND a.longitude BETWEEN -180 AND 180
+"""
+ORIGINS_SQL = """
+SELECT o.id AS order_id,o.order_number,dp.id AS delivery_point_id,dp.name AS point_name,
+ fc.id AS final_customer_id,fc.name AS final_customer_name,a.line1 AS address,a.city,
+ a.latitude,a.longitude,a.country_id,o.warehouse_id,dp.zone_id,z.name AS zone_name
+""" + ORIGIN_FROM_SQL + """
  {filters}
-ORDER BY o.created_at DESC,o.id,dp.id LIMIT 100
+ORDER BY o.created_at DESC,o.id,dp.id{limit}
 """
 ORIGIN_SCOPE_SQL = """
  AND EXISTS(SELECT 1 FROM tbl_user_scopes s WHERE s.app_user_id=%s AND (
   s.customer_id=o.customer_id OR (s.customer_id IS NULL AND s.warehouse_id=o.warehouse_id)
   OR (s.customer_id IS NULL AND s.warehouse_id IS NULL AND s.country_id=a.country_id)
   OR (s.customer_id IS NULL AND s.warehouse_id IS NULL AND s.country_id IS NULL)))
+"""
+FINAL_CUSTOMERS_SQL = """
+SELECT candidate.id, candidate.name, lower(candidate.name) AS sort_name
+FROM tbl_final_customers candidate
+WHERE candidate.customer_id=%s
+  AND EXISTS (SELECT 1
+""" + ORIGIN_FROM_SQL + """
+ {scope} AND fc.id=candidate.id)
+ {filters}
+ORDER BY lower(candidate.name), candidate.id
+LIMIT %s
+"""
+FINAL_CUSTOMER_NAME_FILTER = """
+ AND strpos(translate(lower(candidate.name), 'áéíóúüñ', 'aeiouun'),
+            translate(lower(%s), 'áéíóúüñ', 'aeiouun'))>0
+"""
+ORDER_DATE_SQL = "COALESCE(candidate.order_date, candidate.created_at::date, DATE '0001-01-01')"
+RETURN_ORDERS_SQL = """
+SELECT candidate.id AS order_id, candidate.order_number,
+       COALESCE(candidate.order_date, candidate.created_at::date) AS order_date
+FROM tbl_orders candidate
+WHERE candidate.organization_id=%s AND candidate.customer_id=%s AND candidate.final_customer_id=%s
+  AND EXISTS (SELECT 1
+""" + ORIGIN_FROM_SQL + """
+ {scope} AND o.id=candidate.id)
+ {filters}
+ORDER BY """ + ORDER_DATE_SQL + """ DESC, candidate.id DESC
+LIMIT %s
+"""
+RETURN_ORDER_DETAIL_SQL = """
+WITH authorized_points AS MATERIALIZED ({origins})
+SELECT (SELECT jsonb_agg(to_jsonb(point) ORDER BY point.delivery_point_id)
+        FROM authorized_points point) AS points,
+       COALESCE((SELECT jsonb_agg(to_jsonb(line) ORDER BY line.line_number, line.id)
+                 FROM return_balance_76(%s::uuid,%s::uuid) line WHERE line.remaining>0), '[]'::jsonb) AS balance
+FROM (SELECT 1 FROM authorized_points LIMIT 1) authorized
 """
 ORDER_LOCK_SQL = "SELECT id FROM tbl_orders WHERE id=%s AND organization_id=%s AND customer_id=%s FOR UPDATE"
 PLANNING_ITEMS_SQL = """

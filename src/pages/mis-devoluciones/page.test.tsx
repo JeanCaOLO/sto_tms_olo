@@ -11,7 +11,7 @@ vi.mock('../../hooks/usePermissions',()=>({usePermissions:()=>({loading:false,
 vi.mock('./api/solicitudesApi',async(importOriginal)=>({
  ...await importOriginal<typeof import('./api/solicitudesApi')>(),
  getClientAssignment:vi.fn(),createRequest:vi.fn(),uploadFile:vi.fn(),listMyRequests:vi.fn(),getRequest:vi.fn(),getFileUrl:vi.fn(),
- getRequestOrigins:vi.fn(),getOrderBalance:vi.fn(),
+ getReturnCustomers:vi.fn(),getReturnOrders:vi.fn(),getReturnOrderDetail:vi.fn(),
 }));
 const created={id:'req-a',request_number:'SOL-2026-11-0001',status:'pendiente_asignacion'};
 const summary={...created,created_at:'2026-11-12T13:00:00Z',items:1};
@@ -20,13 +20,28 @@ const detail={request:{...summary,customer_id:'company-a',customer_name:'Empresa
  items:[{id:'item-a',line_number:1,product_code:'COD-1',product_name:'Producto',quantity:2,reason_code:'danado',description:'Roto',
  files:[{id:'file-photo',kind:'photo',mime_type:'image/jpeg',size_bytes:12},{id:'file-video',kind:'video',mime_type:'video/mp4',size_bytes:20}]}]};
 function deferred<T>(){let resolve!:(value:T)=>void;const promise=new Promise<T>(r=>{resolve=r;});return {promise,resolve};}
+const customer={id:'customer-a',name:'Destinatario'};
+const order={order_id:'order-a',order_number:'PED-1',order_date:'2026-11-12'};
+const point={order_id:'order-a',order_number:'PED-1',delivery_point_id:'point-a',point_name:'Punto A',address:'Calle A',
+ final_customer_name:'Destinatario',zone_name:'Zona A',country_id:'country-a',warehouse_id:'warehouse-a'};
+const balance=[{id:'order-item-a',line_number:1,product_code:'COD-1',product_name:'Producto',presentation:'CAJA',quantity:10,remaining:10}];
+async function selectOption(label:RegExp, name:RegExp, value:string) {
+ const select=await screen.findByLabelText(label);
+ await within(select).findByRole('option',{name});
+ fireEvent.change(select,{target:{value}});
+}
+async function chooseCustomer(name: RegExp) {
+ const input=await screen.findByRole('combobox',{name:/Cliente final/});
+ fireEvent.focus(input);
+ fireEvent.click(await within(screen.getByRole('listbox')).findByRole('option',{name}));
+}
 async function chooseOrigin(){
- const select=await screen.findByLabelText(/Pedido y punto de recolecta/);
- await within(select).findByRole('option',{name:/PED-1.*Punto A/});
- fireEvent.change(select,{target:{value:'order-a:point-a'}});
- const line=await screen.findByLabelText(/Línea del pedido/);
- await within(line).findByRole('option',{name:/COD-1/});
- fireEvent.change(line,{target:{value:'order-item-a'}});
+ await chooseCustomer(/Destinatario/);
+ await selectOption(/^Pedido \*/,/PED-1.*12\/11\/2026/,'order-a');
+ await screen.findByText(/Punto A · Calle A/);
+ const pointSelect=screen.queryByRole('combobox',{name:/Punto de recolecta/});
+ if(pointSelect)fireEvent.change(pointSelect,{target:{value:'point-a'}});
+ await selectOption(/Línea del pedido/,/COD-1/,'order-item-a');
 }
 async function ready(){render(<MisDevolucionesPage/>);await screen.findByText('Empresa A');await chooseOrigin();}
 function fill(){
@@ -45,26 +60,95 @@ async function openDetail(){
 beforeEach(()=>{
  vi.resetAllMocks();state.user={id:'client-a'};state.canCreate=true;
  vi.mocked(api.getClientAssignment).mockResolvedValue({id:'company-a',name:'Empresa A'});
- vi.mocked(api.getRequestOrigins).mockResolvedValue([{order_id:'order-a',order_number:'PED-1',delivery_point_id:'point-a',
-  point_name:'Punto A',address:'Calle A',final_customer_name:'Destinatario',zone_name:'Zona A',country_id:'country-a',warehouse_id:'warehouse-a'}]);
- vi.mocked(api.getOrderBalance).mockResolvedValue([{id:'order-item-a',line_number:1,product_code:'COD-1',product_name:'Producto',presentation:'CAJA',quantity:10,remaining:10}]);
+ vi.mocked(api.getReturnCustomers).mockResolvedValue({items:[customer],next_cursor:null});
+ vi.mocked(api.getReturnOrders).mockResolvedValue({items:[order],next_cursor:null});
+ vi.mocked(api.getReturnOrderDetail).mockResolvedValue({points:[point],balance});
  vi.mocked(api.listMyRequests).mockResolvedValue([summary]);
  vi.mocked(api.createRequest).mockResolvedValue(created);
  vi.mocked(api.getRequest).mockResolvedValue(detail as Awaited<ReturnType<typeof api.getRequest>>);
  vi.mocked(api.uploadFile).mockResolvedValue({key:'uploaded-key'});
  vi.mocked(api.getFileUrl).mockResolvedValue({url:'https://evidence.invalid/file',kind:'photo',mime_type:'image/jpeg',expires_in:300});
 });
-afterEach(()=>{cleanup();vi.useRealTimers();});
+afterEach(()=>{cleanup();vi.useRealTimers();vi.restoreAllMocks();});
 
 describe('Cliente T05',()=>{
+ it('busca por cliente, filtra pedidos por código y carga el saldo de un solo pedido',async()=>{
+  const oldOrder={order_id:'old',order_number:'PED-ANTIGUO',order_date:'2025-01-30'};
+  vi.mocked(api.getReturnOrders).mockResolvedValueOnce({items:[order],next_cursor:'page-2'})
+   .mockResolvedValueOnce({items:[{...order,order_id:'second',order_number:'PED-2'}],next_cursor:null})
+   .mockResolvedValueOnce({items:[oldOrder],next_cursor:null});
+  vi.mocked(api.getReturnOrderDetail).mockResolvedValue({points:[point],balance:[]});
+  render(<MisDevolucionesPage/>);
+  await screen.findByText('Empresa A');
+  expect(api.getReturnOrders).not.toHaveBeenCalled();
+  expect(api.getReturnOrderDetail).not.toHaveBeenCalled();
+  const clientInput=screen.getByRole('combobox',{name:/Cliente final/});
+  fireEvent.focus(clientInput);
+  fireEvent.change(clientInput,{target:{value:' De '}});
+  fireEvent.change(clientInput,{target:{value:' Desti '}});
+  await waitFor(()=>expect(api.getReturnCustomers).toHaveBeenLastCalledWith(undefined,'Desti',undefined,expect.any(AbortSignal)));
+  expect(api.getReturnCustomers).not.toHaveBeenCalledWith(undefined,'De',undefined,expect.any(AbortSignal));
+  await within(screen.getByRole('listbox')).findByRole('option',{name:'Destinatario'});
+  fireEvent.keyDown(clientInput,{key:'ArrowDown'});
+  expect(clientInput.getAttribute('aria-activedescendant')).toBeTruthy();
+  fireEvent.keyDown(clientInput,{key:'Enter'});
+  expect((clientInput as HTMLInputElement).value).toBe('Destinatario');
+  expect(screen.queryByRole('listbox')).toBeNull();
+  fireEvent.click(await screen.findByRole('button',{name:'Cargar más pedidos'}));
+  await screen.findByRole('option',{name:/PED-2/});
+  expect(screen.getAllByRole('option',{name:/PED-1/})).toHaveLength(1);
+  expect(api.getReturnOrders).toHaveBeenLastCalledWith(undefined,'customer-a','','page-2',expect.any(AbortSignal));
+  fireEvent.change(screen.getByLabelText('Filtrar pedidos por código de artículo'),{target:{value:' SKU-OLD '}});
+  await selectOption(/^Pedido \*/,/PED-ANTIGUO.*30\/01\/2025/,'old');
+  expect(screen.queryByRole('option',{name:/PED-2/})).toBeNull();
+  expect(api.getReturnOrders).toHaveBeenLastCalledWith(undefined,'customer-a','SKU-OLD',undefined,expect.any(AbortSignal));
+  expect(api.getReturnOrderDetail).toHaveBeenCalledExactlyOnceWith(undefined,'customer-a','old',expect.any(AbortSignal));
+  expect(await screen.findByText('Este pedido no tiene artículos con saldo disponible.')).toBeTruthy();
+  expect(screen.queryByRole('combobox',{name:/Punto de recolecta/})).toBeNull();
+  expect((screen.getByRole('button',{name:'Enviar solicitud'}) as HTMLButtonElement).disabled).toBe(true);
+ });
+ it('cancela pedidos del cliente anterior e ignora su respuesta tardía',async()=>{
+  const stale=deferred<api.ReturnDiscoveryPage<api.ReturnOrder>>();
+  vi.mocked(api.getReturnCustomers).mockResolvedValue({items:[customer,{id:'customer-b',name:'Otro cliente'}],next_cursor:null});
+  vi.mocked(api.getReturnOrders).mockReturnValueOnce(stale.promise)
+   .mockResolvedValueOnce({items:[{...order,order_number:'PED-OTRO'}],next_cursor:null});
+  render(<MisDevolucionesPage/>);
+  await chooseCustomer(/Destinatario/);
+  const request=vi.mocked(api.getReturnOrders).mock.calls[0][4];
+  await chooseCustomer(/Otro cliente/);
+  await screen.findByRole('option',{name:/PED-OTRO/});
+  expect(request.aborted).toBe(true);
+  await act(async()=>{stale.resolve({items:[order],next_cursor:null});});
+  expect(screen.queryByRole('option',{name:/PED-1/})).toBeNull();
+ });
+ it('filtrar por código conserva el pedido y el borrador hasta elegir otro',async()=>{
+  const alternate={...order,order_id:'alternate',order_number:'PED-2'};
+  vi.mocked(api.getReturnOrders).mockResolvedValueOnce({items:[order],next_cursor:null})
+   .mockResolvedValue({items:[alternate],next_cursor:null});
+  await ready();fill();
+  fireEvent.change(screen.getByLabelText('Filtrar pedidos por código de artículo'),{target:{value:'OTRO'}});
+  await screen.findByRole('option',{name:/PED-2/});
+  const select=screen.getByRole('combobox',{name:/^Pedido \*/});
+  expect((select as HTMLSelectElement).value).toBe('order-a');
+  expect((screen.getByLabelText(/Cantidad a devolver/) as HTMLInputElement).value).toBe('2');
+  const confirm=vi.spyOn(window,'confirm').mockReturnValue(false);
+  fireEvent.change(select,{target:{value:'alternate'}});
+  expect(confirm).toHaveBeenCalledOnce();
+  expect((select as HTMLSelectElement).value).toBe('order-a');
+ });
  it('cambiar el punto tras fallar una subida conserva el nuevo origen al reintentar',async()=>{
-  const first=(await vi.mocked(api.getRequestOrigins).getMockImplementation()!())[0];
-  vi.mocked(api.getRequestOrigins).mockResolvedValue([first,{...first,delivery_point_id:'point-b',point_name:'Punto B'}]);
+  vi.mocked(api.getReturnOrderDetail).mockResolvedValue({points:[point,{...point,delivery_point_id:'point-b',point_name:'Punto B'}],balance});
+  const confirm=vi.spyOn(window,'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
   vi.mocked(api.uploadFile).mockRejectedValueOnce(new Error('Fallo de foto')).mockResolvedValue({key:'photo-key'});
   await ready();fill();fireEvent.change(screen.getByLabelText('Archivos del artículo 1'),{
    target:{files:[new File(['x'],'foto.jpg',{type:'image/jpeg'})]}});
   submit();await screen.findByText('Fallo de foto');
-  fireEvent.change(screen.getByLabelText(/Pedido y punto de recolecta/),{target:{value:'order-a:point-b'}});
+  const pointSelect=screen.getByLabelText(/Punto de recolecta/) as HTMLSelectElement;
+  fireEvent.change(pointSelect,{target:{value:'point-b'}});
+  expect(pointSelect.value).toBe('point-a');
+  expect(screen.getByText('foto.jpg')).toBeTruthy();
+  fireEvent.change(pointSelect,{target:{value:'point-b'}});
+  expect(confirm).toHaveBeenCalledTimes(2);
   await within(screen.getByLabelText(/Línea del pedido/)).findByRole('option',{name:/COD-1/});fill();submit();
   await screen.findByText(/Recibimos su solicitud/);
   expect(api.createRequest).toHaveBeenCalledWith(expect.any(Array),expect.any(String),undefined,'order-a','point-b');
@@ -75,7 +159,7 @@ describe('Cliente T05',()=>{
   const page=render(<MisDevolucionesPage journal={journal}/>);
   await screen.findByText('Empresa A');await chooseOrigin();fill();submit();await screen.findByText('Respuesta perdida');
   const original=vi.mocked(api.createRequest).mock.calls[0];page.unmount();
-  vi.mocked(api.getRequestOrigins).mockResolvedValue([]);
+  vi.mocked(api.getReturnOrderDetail).mockRejectedValue(new Error('Ya no está disponible'));
   render(<MisDevolucionesPage journal={journal}/>);await screen.findByText('Empresa A');
   await waitFor(()=>expect((screen.getByLabelText(/Nombre del artículo/) as HTMLInputElement).value).toBe('Producto'));
   submit();await screen.findByText(/Recibimos su solicitud/);
@@ -112,7 +196,8 @@ describe('Cliente T05',()=>{
   expect((screen.getByLabelText(/Nombre del artículo/) as HTMLInputElement).disabled).toBe(true);
   submit();await screen.findByText(/Recibimos su solicitud/);
   expect(vi.mocked(api.createRequest).mock.calls[1]).toEqual(first);
-  fireEvent.click(screen.getByRole('button',{name:'Nueva solicitud'}));fill();submit();
+  fireEvent.click(screen.getByRole('button',{name:'Nueva solicitud'}));
+  await screen.findByLabelText(/Línea del pedido/);fill();submit();
   await waitFor(()=>expect(api.createRequest).toHaveBeenCalledTimes(3));
   expect(vi.mocked(api.createRequest).mock.calls[2][1]).not.toBe(first[1]);
  });
@@ -160,7 +245,7 @@ describe('Cliente T05',()=>{
   const page=render(<MisDevolucionesPage/>);await screen.findByText('Empresa A');await chooseOrigin();fill();
   state.user={id:'client-b'};vi.mocked(api.getClientAssignment).mockResolvedValue({id:'company-b',name:'Empresa B'});
   page.rerender(<MisDevolucionesPage/>);await screen.findByText('Empresa B');
-  expect((screen.getByLabelText(/Código del artículo/) as HTMLInputElement).value).toBe('');
+  expect(screen.queryByLabelText(/Código del artículo/)).toBeNull();
   expect(screen.queryByText('Empresa A')).toBeNull();
  });
  it('no completa un envio pendiente si el usuario cambia durante la subida',async()=>{
