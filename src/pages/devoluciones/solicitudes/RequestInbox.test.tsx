@@ -16,7 +16,7 @@ vi.mock('../../mis-devoluciones/api/solicitudesApi',async(original)=>({
  ...await original<typeof import('../../mis-devoluciones/api/solicitudesApi')>(),
  listRequestInbox:vi.fn(),approveRequest:vi.fn(),rejectRequest:vi.fn(),getRequest:vi.fn(),getFileUrl:vi.fn(),
  getCreationCompanies:vi.fn(),getClientAssignment:vi.fn(),createRequest:vi.fn(),listMyRequests:vi.fn(),uploadFile:vi.fn(),
- getRequestOrigins:vi.fn(),getOrderBalance:vi.fn(),
+ getReturnCustomers:vi.fn(),getReturnOrders:vi.fn(),getReturnOrderDetail:vi.fn(),
 }));
 const company='22222222-2222-2222-2222-222222222222';
 const row={id:'req-a',request_number:'SOL-A',status:'pendiente_asignacion',created_at:'2026-11-12T14:00:00Z',
@@ -29,8 +29,11 @@ function deferred<T>(){let resolve!:(value:T)=>void;const promise=new Promise<T>
 async function ready(){render(<DevolucionesPage/>);fireEvent.click(screen.getByRole('tab',{name:'Solicitudes'}));await screen.findByText('SOL-A');}
 async function open(){fireEvent.click(screen.getByRole('button',{name:'Revisar SOL-A'}));await screen.findByText('CODE');}
 async function chooseOrigin(){
- const select=await screen.findByLabelText(/Pedido y punto de recolecta/);
- await within(select).findByRole('option',{name:/PED-1/});fireEvent.change(select,{target:{value:'order-a:point-a'}});
+ const customerSelect=await screen.findByLabelText(/Cliente final/);
+ fireEvent.focus(customerSelect);
+ fireEvent.click(await within(screen.getByRole('listbox')).findByRole('option',{name:'Destinatario'}));
+ const orderSelect=await screen.findByLabelText(/^Pedido \*/);
+ await within(orderSelect).findByRole('option',{name:/PED-1/});fireEvent.change(orderSelect,{target:{value:'order-a'}});
  const line=await screen.findByLabelText(/Línea del pedido/);
  await within(line).findByRole('option',{name:/TEST-1/});fireEvent.change(line,{target:{value:'order-item-a'}});
 }
@@ -44,9 +47,11 @@ beforeEach(()=>{
  vi.mocked(api.getFileUrl).mockResolvedValue({url:'https://evidence.invalid/file',kind:'photo',mime_type:'image/jpeg',expires_in:300});
  vi.mocked(api.getCreationCompanies).mockResolvedValue([{id:company,name:'Empresa A'}]);
  vi.mocked(api.getClientAssignment).mockResolvedValue({id:company,name:'Empresa A'});
- vi.mocked(api.getRequestOrigins).mockResolvedValue([{order_id:'order-a',order_number:'PED-1',delivery_point_id:'point-a',
-  point_name:'Punto A',address:'Calle A',final_customer_name:'Destinatario',zone_name:'Zona A',country_id:'country-a',warehouse_id:'warehouse-a'}]);
- vi.mocked(api.getOrderBalance).mockResolvedValue([{id:'order-item-a',line_number:1,product_code:'TEST-1',product_name:'Producto',presentation:'CAJA',quantity:10,remaining:10}]);
+ vi.mocked(api.getReturnCustomers).mockResolvedValue({items:[{id:'customer-a',name:'Destinatario'}],next_cursor:null});
+ vi.mocked(api.getReturnOrders).mockResolvedValue({items:[{order_id:'order-a',order_number:'PED-1',order_date:'2026-11-12'}],next_cursor:null});
+ vi.mocked(api.getReturnOrderDetail).mockResolvedValue({points:[{order_id:'order-a',order_number:'PED-1',delivery_point_id:'point-a',
+  point_name:'Punto A',address:'Calle A',final_customer_name:'Destinatario',zone_name:'Zona A',country_id:'country-a',warehouse_id:'warehouse-a'}],
+  balance:[{id:'order-item-a',line_number:1,product_code:'TEST-1',product_name:'Producto',presentation:'CAJA',quantity:10,remaining:10}]});
  vi.mocked(api.createRequest).mockResolvedValue({id:'req-new',request_number:'SOL-NUEVA',status:'pendiente_asignacion'});
  vi.mocked(api.listMyRequests).mockResolvedValue([]);
 });

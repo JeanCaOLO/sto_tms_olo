@@ -78,6 +78,31 @@ export interface RequestOrigin {
   order_id:string;order_number:string;delivery_point_id:string;point_name:string;address:string;
   final_customer_name:string;zone_name:string;country_id:string;warehouse_id:string;
 }
+export interface ReturnCustomer { id: string; name: string }
+export interface ReturnOrder { order_id: string; order_number: string; order_date: string | null }
+export interface ReturnDiscoveryPage<T> { items: T[]; next_cursor: string | null }
+
+function discover<T>(kind: 'clientes' | 'pedidos' | 'puntos', filters: Record<string, string | undefined>, signal: AbortSignal) {
+  const params = new URLSearchParams({ buscar: kind });
+  for (const [name, value] of Object.entries(filters)) {
+    if (value) params.set(name, value);
+  }
+  return call<T>(`${BASE}/asignacion?${params}`, { cache: 'no-store', signal });
+}
+
+export const getReturnCustomers = (customerId: string | undefined, query: string, cursor: string | undefined, signal: AbortSignal) =>
+  discover<ReturnDiscoveryPage<ReturnCustomer>>('clientes', { customer_id: customerId, q: query, cursor }, signal);
+
+export const getReturnOrders = (customerId: string | undefined, finalCustomerId: string, code: string, cursor: string | undefined, signal: AbortSignal) =>
+  discover<ReturnDiscoveryPage<ReturnOrder>>('pedidos', {
+    customer_id: customerId, final_customer_id: finalCustomerId, product_code: code, cursor,
+  }, signal);
+
+export const getReturnOrderDetail = (customerId: string | undefined, finalCustomerId: string, orderId: string, signal: AbortSignal) =>
+  discover<{ points: RequestOrigin[]; balance: OrderBalance[] }>('puntos', {
+    customer_id: customerId, final_customer_id: finalCustomerId, order_id: orderId,
+  }, signal);
+
 export interface OrderBalance {
   id:string;line_number:number;product_code:string;product_name:string|null;presentation:string|null;
   quantity:number;remaining:number;

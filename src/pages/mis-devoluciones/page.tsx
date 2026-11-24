@@ -11,14 +11,16 @@ import {useAuth} from '../../hooks/useAuth';
 import {usePermissions} from '../../hooks/usePermissions';
 import RequestDetail from './components/RequestDetail';
 import OperationalProgress from './components/OperationalProgress';
+import ReturnCustomerAutocomplete from './components/ReturnCustomerAutocomplete';
 import type {RequestAttempt,RequestDraftJournal} from './requestDraftJournal';
+import {useReturnDiscovery} from './useReturnDiscovery';
 import {
   ACCEPT_ATTR, CODE_LIMIT, DESCRIPTION_LIMIT, MAX_FILES_PER_ITEM, MAX_ITEMS, NAME_LIMIT, REASONS, fileProblem,
   isVideo, newDraftItem, requestStatus, toPayloadItem, validateAll, type DraftItem, type ItemErrors, type ReasonCode, type RequestItemPayload,
 } from '../../lib/devoluciones/solicitudes';
 import {
   createRequest, getClientAssignment, listMyRequests, uploadFile, RequestApiError, type ClientAssignment, type CreatedRequest, type MyReturnRequest,
-  getRequestOrigins,getOrderBalance,type RequestOrigin,type OrderBalance,
+  type ReturnCustomer, type ReturnOrder,
 } from './api/solicitudesApi';
 
 const formatSize = (bytes: number) =>
@@ -47,11 +49,27 @@ const tabClass = (active: boolean) =>
     active ? 'border-teal-600 text-teal-700 font-semibold' : 'border-transparent text-slate-500 hover:text-slate-700'
   }`;
 
+function LookupStatus({ loading, error, empty, retry, loadingLabel, retryLabel }: {
+  loading: boolean; error: string; empty?: string; retry: () => void; loadingLabel: string; retryLabel: string;
+}) {
+  if (loading) return <p role="status" className="text-sm text-slate-600">{loadingLabel}</p>;
+  if (error) return <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-red-700">
+    <span>{error}</span><Button type="button" variant="secondary" size="sm" onClick={retry}>{retryLabel}</Button>
+  </div>;
+  return empty ? <p role="status" className="text-sm text-slate-600">{empty}</p> : null;
+}
+
+const orderLabel = (order: ReturnOrder) => {
+  const [year, month, day] = order.order_date?.split('-') ?? [];
+  return `${order.order_number} · ${day ? `${day}/${month}/${year}` : 'Sin fecha'}`;
+};
+
 interface RequestPageProps {
   mode?: 'full' | 'create' | 'history';
   company?: ClientAssignment;
   onCreated?: (request: CreatedRequest) => void;
   onBusyChange?: (busy: boolean) => void;
+  onDraftChange?: (hasDraft: boolean) => void;
   journal?: RequestDraftJournal;
 }
 
@@ -61,7 +79,7 @@ export default function MisDevolucionesPage(props: RequestPageProps) {
   return <ClientRequests key={user.id} {...props}/>;
 }
 
-function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: RequestPageProps) {
+function ClientRequests({mode='full',company,onCreated,onBusyChange,onDraftChange,journal}: RequestPageProps) {
   const {user}=useAuth();
   const {can,loading:permissionsLoading,isAdmin,permissions}=usePermissions();
   const operatorCreator=(isAdmin||permissions?.role?.name==='Gerente')&&can('devoluciones','create');
@@ -90,37 +108,23 @@ function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: Re
   const [formError, setFormError] = useState('');
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState<CreatedRequest | null>(null);
-  const [origins,setOrigins]=useState<RequestOrigin[]>([]);
-  const [originKey,setOriginKey]=useState('');
-  const [balance,setBalance]=useState<OrderBalance[]>([]);
-  const [originError,setOriginError]=useState('');
-  const [originsLoading,setOriginsLoading]=useState(false);
-  const [originsVersion,setOriginsVersion]=useState(0);
-  const [balanceLoading,setBalanceLoading]=useState(false);
-  const [balanceError,setBalanceError]=useState('');
-  const [balanceVersion,setBalanceVersion]=useState(0);
-  const selectedOrigin=origins.find(row=>`${row.order_id}:${row.delivery_point_id}`===originKey);
-  const availableLines=balance.filter(row=>row.remaining>0);
-  useEffect(()=>{
-    let active=true;
-    setOrigins([]);setOriginError('');setOriginsLoading(false);
-    if(!assignment||!canCreate)return;
-    setOriginsLoading(true);
-    getRequestOrigins(company?.id).then(rows=>{if(active)setOrigins(rows);})
-      .catch(error=>{if(active)setOriginError(error instanceof Error?error.message:'No se pudieron cargar los pedidos.');})
-      .finally(()=>{if(active)setOriginsLoading(false);});
-    return()=>{active=false;};
-  },[assignment,canCreate,company?.id,originsVersion]);
-  useEffect(()=>{
-    let active=true;
-    setBalance([]);setBalanceError('');setBalanceLoading(false);
-    if(!selectedOrigin)return;
-    setBalanceLoading(true);
-    getOrderBalance(selectedOrigin.order_id,company?.id).then(rows=>{if(active)setBalance(rows);})
-      .catch(error=>{if(active)setBalanceError(error instanceof Error?error.message:'No se pudieron cargar los artículos.');})
-      .finally(()=>{if(active)setBalanceLoading(false);});
-    return()=>{active=false;};
-  },[selectedOrigin,company?.id,balanceVersion]);
+  const [customer, setCustomer] = useState<ReturnCustomer>();
+  const [order, setOrder] = useState<ReturnOrder>();
+  const [pointId, setPointId] = useState('');
+  const [customerQuery, setCustomerQuery] = useState<string | null>(null);
+  const [codeInput, setCodeInput] = useState('');
+  const lookup = useReturnDiscovery(
+    !!assignment && canCreate && tab === 'nueva' && !done && !pendingConfirmation,
+    company?.id, customer?.id, order?.order_id, customerQuery?.trim() ?? null, codeInput.trim(),
+  );
+  const { points = [], balance = [] } = lookup.order.items[0] ?? {};
+  const availableLines = balance.filter(row => row.remaining > 0);
+  const selectedOrigin = pointId
+    ? points.find(point => point.delivery_point_id === pointId)
+    : points.length === 1 ? points[0] : undefined;
+  const hasDraft = items.some(item => item.orderItemId || item.quantity || item.reason || item.description || item.files.length);
+  useEffect(() => { onDraftChange?.(hasDraft && !done); }, [hasDraft, done, onDraftChange]);
+  useEffect(() => () => { onDraftChange?.(false); }, [onDraftChange]);
   useEffect(()=>{onBusyChange?.(sending||pendingConfirmation&&!done);},[sending,pendingConfirmation,done,onBusyChange]);
   useEffect(()=>()=>{onBusyChange?.(false);},[onBusyChange]);
   // Archivos ya subidos a S3 (id del borrador -> llave): si el envío falla y se reintenta, no se suben de nuevo.
@@ -129,7 +133,9 @@ function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: Re
     if(!draftKey)return;
     const saved=drafts.get(draftKey);
     if(saved){attempt.current=saved.attempt;uploaded.current=saved.uploaded;setItems(saved.items);
-      if(saved.attempt.orderId&&saved.attempt.pointId)setOriginKey(`${saved.attempt.orderId}:${saved.attempt.pointId}`);
+      setCustomer(saved.attempt.customer);
+      setOrder(saved.attempt.order);
+      setPointId(saved.attempt.pointId ?? '');
       counter.current=Math.max(counter.current,saved.counter);
       setPendingConfirmation(!!saved.attempt.payload);}
   },[draftKey,drafts]);
@@ -175,7 +181,8 @@ function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: Re
     }
   }, [tab, loadHistory,canRead]);
 
-  const editingDisabled=sending||pendingConfirmation||!assignment||!canCreate;
+  const selectionDisabled=sending||pendingConfirmation||!assignment||!canCreate;
+  const editingDisabled=selectionDisabled||!selectedOrigin||lookup.order.loading||!!lookup.order.error||availableLines.length===0;
 
   const patch = (id: string, changes: Partial<DraftItem>) =>
     setItems((prev) => prev.map((item) => (item.id === id ? { ...item, ...changes } : item)));
@@ -212,11 +219,27 @@ function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: Re
     setDone(null);
   };
 
+  const resetSelection = () => {
+    if (hasDraft && !window.confirm('¿Descartar los artículos y adjuntos de esta solicitud?')) return false;
+    reset();
+    return true;
+  };
+
+  const chooseCustomer = (next: ReturnCustomer) => {
+    if (customer?.id === next.id || !resetSelection()) return;
+    setCustomer(next);
+    setOrder(undefined);
+    setPointId('');
+    setCodeInput('');
+  };
+  const pinnedOrder = order && !lookup.orders.items.some(row => row.order_id === order.order_id) ? order : undefined;
+  const showItems = pendingConfirmation || (!!selectedOrigin && availableLines.length > 0);
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if(inFlight.current||done)return;
     if(!canCreate||!assignment){setFormError('Necesita permiso y una empresa asignada para enviar.');return;}
-    if(!attempt.current?.payload&&(!selectedOrigin||items.some(item=>!item.orderItemId))){
+    if(!attempt.current?.payload&&(!selectedOrigin||items.some(item=>!balance.some(row=>row.id===item.orderItemId)))){
       setFormError('Seleccione un pedido, su punto de recolecta y las líneas del pedido.');return;
     }
     const check = validateAll(items);
@@ -228,7 +251,7 @@ function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: Re
     setSending(true);
     try {
       if(!attempt.current)attempt.current={key:crypto.randomUUID(),payload:null,
-        orderId:selectedOrigin?.order_id,pointId:selectedOrigin?.delivery_point_id};
+        orderId:selectedOrigin?.order_id,pointId:selectedOrigin?.delivery_point_id,customer,order};
       if(draftKey)drafts.set(draftKey,{attempt:attempt.current,items,uploaded:uploaded.current,counter:counter.current});
       let payload=attempt.current.payload;
       if(!payload){
@@ -281,7 +304,7 @@ function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: Re
         </div>
       </div>}
 
-      <Card className="space-y-2 text-sm">
+      {!company && <Card className="space-y-2 text-sm">
         <Badge>Recolecta</Badge>
         <p className="font-medium text-slate-700">Empresa destinataria</p>
         {(permissionsLoading||assignmentLoading)&&<p role="status">Cargando empresa asignada…</p>}
@@ -289,7 +312,7 @@ function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: Re
         {assignmentError&&<div role="alert" className="text-red-600"><p>{assignmentError}</p>
           <Button type="button" variant="secondary" size="sm" onClick={loadAssignment}>Reintentar empresa</Button></div>}
         <p className="text-slate-500">Seleccione artículos del pedido; el servidor comprueba el saldo acumulado.</p>
-      </Card>
+      </Card>}
 
       {mode==='full'&&<Card className="p-0">
         <TabBar<TabKey>
@@ -367,29 +390,49 @@ function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: Re
         {tab==='nueva'&&!done&&!canCreate&&!permissionsLoading&&<p>{canRead?'No tiene permiso para crear solicitudes; puede consultar su historial.':'No tiene permiso para acceder a las solicitudes.'}</p>}
         {tab === 'nueva' && !done && canCreate && (
           <form onSubmit={submit} className="space-y-4" noValidate>
-            <Select label="Pedido y punto de recolecta *" value={originKey} disabled={editingDisabled||originsLoading||!!originError||origins.length===0}
-              onChange={event=>{setOriginKey(event.target.value);setItems([newDraftItem(nextId())]);}}
-              options={[{value:'',label:'Seleccionar pedido y punto'},...origins.map(row=>({
-                value:`${row.order_id}:${row.delivery_point_id}`,
-                label:`${row.order_number} · ${row.final_customer_name} · ${row.point_name} · ${row.address} · ${row.zone_name}`,
-              }))]}/>
-            {originsLoading&&<p role="status" className="text-sm text-slate-600">Cargando pedidos…</p>}
-            {originError&&<div role="alert" className="text-sm text-red-600"><p>{originError}</p>
-              <Button type="button" variant="secondary" size="sm" disabled={editingDisabled}
-                onClick={()=>setOriginsVersion(v=>v+1)}>Reintentar pedidos</Button></div>}
-            {assignment&&!originsLoading&&!originError&&origins.length===0&&
-              <p role="status" className="text-sm text-slate-600">No hay pedidos habilitados para esta empresa.</p>}
-            {!selectedOrigin&&<p className="text-sm text-slate-600">Seleccione un pedido para consultar sus artículos.</p>}
-            {balanceLoading&&<p role="status" className="text-sm text-slate-600">Cargando artículos…</p>}
-            {balanceError&&<div role="alert" className="text-sm text-red-600"><p>{balanceError}</p>
-              <Button type="button" variant="secondary" size="sm" disabled={editingDisabled}
-                onClick={()=>setBalanceVersion(v=>v+1)}>Reintentar artículos</Button></div>}
-            {selectedOrigin&&!balanceLoading&&!balanceError&&balance.length===0&&
-              <p role="status" className="text-sm text-slate-600">Este pedido no tiene artículos registrados.</p>}
-            {selectedOrigin&&!balanceLoading&&!balanceError&&balance.length>0&&availableLines.length===0&&
-              <p role="status" className="text-sm text-slate-600">Este pedido no tiene saldo disponible para devolución.</p>}
-            {selectedOrigin&&<p className="text-sm text-slate-600">{selectedOrigin.address} · {selectedOrigin.zone_name}.
-              Cantidades enteras en la presentación de cada línea del pedido.</p>}
+            {pendingConfirmation ? (
+              <p className="text-sm text-slate-600">{customer?.name} · Pedido {order?.order_number}</p>
+            ) : assignment && <>
+              <ReturnCustomerAutocomplete {...lookup.customers} selected={customer} query={customerQuery}
+                disabled={selectionDisabled} onQueryChange={setCustomerQuery} onSelect={chooseCustomer}/>
+              {customer && <>
+                <Input label="Filtrar pedidos por código de artículo" type="search" value={codeInput} maxLength={CODE_LIMIT}
+                  placeholder="Código exacto (opcional)" disabled={selectionDisabled}
+                  onChange={event => setCodeInput(event.target.value)}
+                  onKeyDown={event => { if (event.key === 'Enter') event.preventDefault(); }}/>
+                <Select label="Pedido *" value={order?.order_id ?? ''}
+                  disabled={selectionDisabled||lookup.orders.loading||!!lookup.orders.error||(!lookup.orders.items.length&&!pinnedOrder)}
+                  onChange={event => {
+                    if (!resetSelection()) return;
+                    setOrder(lookup.orders.items.find(row => row.order_id === event.target.value));
+                    setPointId('');
+                  }}
+                  options={[
+                    { value: '', label: 'Seleccionar pedido' },
+                    ...(pinnedOrder ? [{ value: pinnedOrder.order_id, label: `${orderLabel(pinnedOrder)} (seleccionado)` }] : []),
+                    ...lookup.orders.items.map(row => ({ value: row.order_id, label: orderLabel(row) })),
+                  ]}/>
+                <LookupStatus {...lookup.orders} loadingLabel="Cargando pedidos…" retryLabel="Reintentar pedidos"
+                  empty={!lookup.orders.items.length ? 'No hay pedidos para esta búsqueda.' : undefined}/>
+                {lookup.orders.hasMore && <Button type="button" variant="secondary" disabled={lookup.orders.loading}
+                  onClick={lookup.orders.more}>Cargar más pedidos</Button>}
+              </>}
+              {order && <>
+                <LookupStatus {...lookup.order} loadingLabel="Cargando artículos…" retryLabel="Reintentar artículos"/>
+                {points.length === 1 && selectedOrigin && <div className="text-sm text-slate-700">
+                  <p className="font-medium">Punto de recolecta</p>
+                  <p>{points[0].point_name} · {points[0].address} · {points[0].zone_name}</p>
+                </div>}
+                {(points.length > 1 || (points.length === 1 && !selectedOrigin)) &&
+                  <Select label="Punto de recolecta *" value={selectedOrigin?.delivery_point_id ?? ''} disabled={selectionDisabled}
+                  onChange={event => { if (resetSelection()) setPointId(event.target.value); }}
+                  options={[{ value: '', label: 'Seleccionar punto' }, ...points.map(point => ({
+                    value: point.delivery_point_id, label: `${point.point_name} · ${point.address} · ${point.zone_name}`,
+                  }))]}/>}
+                {!lookup.order.loading && !lookup.order.error && lookup.order.items.length > 0 && availableLines.length === 0 &&
+                  <p role="status" className="text-sm text-slate-600">Este pedido no tiene artículos con saldo disponible.</p>}
+              </>}
+            </>}
             {formError && (
               <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2 text-sm text-red-700">
                 <i className="ri-error-warning-line text-lg"></i>
@@ -397,7 +440,7 @@ function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: Re
               </div>
             )}
             {pendingConfirmation&&formError&&<p className="text-sm text-amber-700">El resultado del envío no se confirmó. Reintente el mismo envío o consulte Mis solicitudes; el borrador se conserva sin cambios.</p>}
-            {items.map((item, index) => (
+            {showItems && items.map((item, index) => (
               <Card key={item.id} className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-sm font-semibold text-slate-700">Artículo {index + 1}</h2>
@@ -408,8 +451,10 @@ function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: Re
                   )}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Select label="Línea del pedido *" value={item.orderItemId??''} disabled={editingDisabled||!selectedOrigin||balanceLoading||!!balanceError||availableLines.length===0}
-                    options={[{value:'',label:'Seleccionar artículo'},...availableLines.map(row=>({value:row.id,
+                  <Select label="Línea del pedido *" value={item.orderItemId??''}
+                    disabled={editingDisabled||!selectedOrigin||lookup.order.loading||!!lookup.order.error||availableLines.length===0}
+                    options={[{value:'',label:'Seleccionar artículo'},...(pendingConfirmation && item.orderItemId
+                      ? [{value:item.orderItemId,label:item.productName}] : []),...availableLines.map(row=>({value:row.id,
                       label:`${row.line_number} · ${row.product_code} · ${row.presentation??'unidad del pedido'} · Saldo ${row.remaining}`}))]}
                     onChange={event=>{const row=balance.find(value=>value.id===event.target.value);
                       patch(item.id,{orderItemId:row?.id,productCode:row?.product_code??'',productName:row?.product_name??row?.product_code??''});}}/>
@@ -459,7 +504,7 @@ function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: Re
                       aria-label={`Archivos del artículo ${index + 1}`} onChange={(e) => addFiles(item, e)}
                     />
                   </label>
-                  <p className="mt-1 text-xs text-slate-400">Fotos JPG/PNG hasta 5 MB · videos MP4/MOV hasta 50 MB.</p>
+                  <p className="mt-1 text-xs text-slate-600">Fotos JPG/PNG hasta 5 MB · videos MP4/MOV hasta 50 MB.</p>
                   {fileErrors[item.id] && <p className="mt-1 text-sm text-red-600">{fileErrors[item.id]}</p>}
                   {item.files.length > 0 && (
                     <ul className="mt-2 space-y-1">
@@ -482,13 +527,13 @@ function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: Re
               </Card>
             ))}
             <div className="flex flex-wrap gap-3 justify-between">
-              <Button
+              {showItems && <Button
                 type="button" variant="secondary" disabled={editingDisabled || items.length >= MAX_ITEMS}
                 onClick={() => setItems((prev) => [...prev, newDraftItem(nextId())])}
               >
                 <i className="ri-add-line"></i> Agregar otro artículo
-              </Button>
-              <Button type="submit" disabled={sending||!assignment}>
+              </Button>}
+              <Button type="submit" className="!bg-teal-700 hover:!bg-teal-800" disabled={sending||!assignment||!showItems}>
                 <i className={sending ? 'ri-loader-4-line animate-spin' : 'ri-send-plane-line'}></i>
                 <span>{sending ? 'Enviando...' : 'Enviar solicitud'}</span>
               </Button>

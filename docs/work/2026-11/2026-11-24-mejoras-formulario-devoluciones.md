@@ -57,3 +57,23 @@ Por ello, integrar primero el formulario y revisar la infraestructura por separa
 Después de fusionar cambios de otro desarrollador, repetir las comprobaciones sobre el resultado integrado. Jean debe validar también el formulario y la lectura de fotos en sandbox; usar datos de prueba aislados para cualquier prueba de carga o creación.
 
 La guía detallada de reconciliación se encuentra en `.test/2026-11-24/GuiaJeanConfiguracionDevoluciones.md`. Esa carpeta está ignorada por Git y la guía debe compartirse explícitamente con Jean. Este documento sí acompaña al commit del formulario.
+
+## Integración posterior con Josef
+
+El pull de `josef` dejó una fusión en curso entre el commit del formulario `212c197d` y `576e5b20` («cambios en solicitar devolucion»). Se resolvieron los dos conflictos en `page.tsx` y `page.test.tsx` conservando el nuevo recorrido cliente final → pedido → punto de recolecta, el filtro por código de artículo, la paginación, la cancelación de consultas anteriores y la confirmación antes de descartar un borrador.
+
+Las mejoras previas de carga, errores y reintentos se integraron sobre `useReturnDiscovery`, sin mantener consultas duplicadas al flujo antiguo. Se conservaron los mensajes específicos «Cargando pedidos…», «Cargando artículos…», «Reintentar pedidos» y «Reintentar artículos», así como la exclusión de líneas agotadas. Las pruebas anteriores se adaptaron a las nuevas consultas, conservando cobertura de reintentos, archivos/cantidades, respuestas tardías y empresas de CR/VE.
+
+El nuevo detalle de pedido devuelve solo líneas con saldo positivo desde el servidor. Por ello, una lista vacía ya no permite distinguir artículos inexistentes de saldo agotado: se informa «Este pedido no tiene artículos con saldo disponible». No se añadieron consultas al endpoint antiguo para inventar esa distinción.
+
+Esta integración sí incorpora los cambios backend de Josef en `admin_return_requests.py`, `admin_return_requests_sql.py` y sus pruebas. Usa el endpoint existente de asignación con `buscar=clientes`, `buscar=pedidos` y `buscar=puntos`. A diferencia del commit inicial, el frontend integrado depende de esas nuevas modalidades del backend. Jean debe comprobar que estén publicadas antes de publicar este frontend; no asumir compatibilidad con una versión anterior del backend por el solo hecho de que las fotos ya abran.
+
+La propuesta de infraestructura IAM, bucket y CORS continúa fuera del commit de fusión, igual que las modificaciones locales ajenas de Liquidaciones y Graphify. No se aplicaron migraciones ni cambios de datos, no se hizo push ni se desplegó. La fusión local no actualiza `main`.
+
+Validaciones de la resolución:
+
+- Suite de Devoluciones: 161 pruebas pasadas en 12 archivos con `npx vitest run src/pages/mis-devoluciones src/pages/devoluciones src/lib/devoluciones --configLoader runner`.
+- Typecheck y ESLint de los archivos frontend integrados: salida 0.
+- `git diff --check`: salida 0.
+- Las pruebas backend focalizadas no pudieron ejecutarse: `backend/.venv/Scripts/python.exe` devolvió un error de acceso al crear el proceso. No se certifica aquí su ejecución.
+- El build conserva la limitación documentada en la preparación del commit inicial; no se cambió la configuración de Vite para resolverla. Tampoco se validó este nuevo flujo integrado en el sandbox.
