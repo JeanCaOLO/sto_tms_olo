@@ -94,23 +94,33 @@ function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: Re
   const [originKey,setOriginKey]=useState('');
   const [balance,setBalance]=useState<OrderBalance[]>([]);
   const [originError,setOriginError]=useState('');
+  const [originsLoading,setOriginsLoading]=useState(false);
+  const [originsVersion,setOriginsVersion]=useState(0);
+  const [balanceLoading,setBalanceLoading]=useState(false);
+  const [balanceError,setBalanceError]=useState('');
+  const [balanceVersion,setBalanceVersion]=useState(0);
   const selectedOrigin=origins.find(row=>`${row.order_id}:${row.delivery_point_id}`===originKey);
+  const availableLines=balance.filter(row=>row.remaining>0);
   useEffect(()=>{
     let active=true;
+    setOrigins([]);setOriginError('');setOriginsLoading(false);
     if(!assignment||!canCreate)return;
-    setOrigins([]);setOriginError('');
+    setOriginsLoading(true);
     getRequestOrigins(company?.id).then(rows=>{if(active)setOrigins(rows);})
-      .catch(error=>{if(active)setOriginError(error instanceof Error?error.message:'No se pudo cargar el origen.');});
+      .catch(error=>{if(active)setOriginError(error instanceof Error?error.message:'No se pudieron cargar los pedidos.');})
+      .finally(()=>{if(active)setOriginsLoading(false);});
     return()=>{active=false;};
-  },[assignment,canCreate,company?.id]);
+  },[assignment,canCreate,company?.id,originsVersion]);
   useEffect(()=>{
     let active=true;
-    setBalance([]);
+    setBalance([]);setBalanceError('');setBalanceLoading(false);
     if(!selectedOrigin)return;
+    setBalanceLoading(true);
     getOrderBalance(selectedOrigin.order_id,company?.id).then(rows=>{if(active)setBalance(rows);})
-      .catch(error=>{if(active)setOriginError(error instanceof Error?error.message:'No se pudo cargar el saldo.');});
+      .catch(error=>{if(active)setBalanceError(error instanceof Error?error.message:'No se pudieron cargar los artículos.');})
+      .finally(()=>{if(active)setBalanceLoading(false);});
     return()=>{active=false;};
-  },[selectedOrigin,company?.id]);
+  },[selectedOrigin,company?.id,balanceVersion]);
   useEffect(()=>{onBusyChange?.(sending||pendingConfirmation&&!done);},[sending,pendingConfirmation,done,onBusyChange]);
   useEffect(()=>()=>{onBusyChange?.(false);},[onBusyChange]);
   // Archivos ya subidos a S3 (id del borrador -> llave): si el envío falla y se reintenta, no se suben de nuevo.
@@ -357,13 +367,27 @@ function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: Re
         {tab==='nueva'&&!done&&!canCreate&&!permissionsLoading&&<p>{canRead?'No tiene permiso para crear solicitudes; puede consultar su historial.':'No tiene permiso para acceder a las solicitudes.'}</p>}
         {tab === 'nueva' && !done && canCreate && (
           <form onSubmit={submit} className="space-y-4" noValidate>
-            <Select label="Pedido y punto de recolecta *" value={originKey} disabled={editingDisabled}
+            <Select label="Pedido y punto de recolecta *" value={originKey} disabled={editingDisabled||originsLoading||!!originError||origins.length===0}
               onChange={event=>{setOriginKey(event.target.value);setItems([newDraftItem(nextId())]);}}
               options={[{value:'',label:'Seleccionar pedido y punto'},...origins.map(row=>({
                 value:`${row.order_id}:${row.delivery_point_id}`,
                 label:`${row.order_number} · ${row.final_customer_name} · ${row.point_name} · ${row.address} · ${row.zone_name}`,
               }))]}/>
-            {originError&&<p role="alert">{originError}</p>}
+            {originsLoading&&<p role="status" className="text-sm text-slate-600">Cargando pedidos…</p>}
+            {originError&&<div role="alert" className="text-sm text-red-600"><p>{originError}</p>
+              <Button type="button" variant="secondary" size="sm" disabled={editingDisabled}
+                onClick={()=>setOriginsVersion(v=>v+1)}>Reintentar pedidos</Button></div>}
+            {assignment&&!originsLoading&&!originError&&origins.length===0&&
+              <p role="status" className="text-sm text-slate-600">No hay pedidos habilitados para esta empresa.</p>}
+            {!selectedOrigin&&<p className="text-sm text-slate-600">Seleccione un pedido para consultar sus artículos.</p>}
+            {balanceLoading&&<p role="status" className="text-sm text-slate-600">Cargando artículos…</p>}
+            {balanceError&&<div role="alert" className="text-sm text-red-600"><p>{balanceError}</p>
+              <Button type="button" variant="secondary" size="sm" disabled={editingDisabled}
+                onClick={()=>setBalanceVersion(v=>v+1)}>Reintentar artículos</Button></div>}
+            {selectedOrigin&&!balanceLoading&&!balanceError&&balance.length===0&&
+              <p role="status" className="text-sm text-slate-600">Este pedido no tiene artículos registrados.</p>}
+            {selectedOrigin&&!balanceLoading&&!balanceError&&balance.length>0&&availableLines.length===0&&
+              <p role="status" className="text-sm text-slate-600">Este pedido no tiene saldo disponible para devolución.</p>}
             {selectedOrigin&&<p className="text-sm text-slate-600">{selectedOrigin.address} · {selectedOrigin.zone_name}.
               Cantidades enteras en la presentación de cada línea del pedido.</p>}
             {formError && (
@@ -384,8 +408,8 @@ function ClientRequests({mode='full',company,onCreated,onBusyChange,journal}: Re
                   )}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Select label="Línea del pedido *" value={item.orderItemId??''} disabled={editingDisabled||!selectedOrigin}
-                    options={[{value:'',label:'Seleccionar artículo'},...balance.map(row=>({value:row.id,
+                  <Select label="Línea del pedido *" value={item.orderItemId??''} disabled={editingDisabled||!selectedOrigin||balanceLoading||!!balanceError||availableLines.length===0}
+                    options={[{value:'',label:'Seleccionar artículo'},...availableLines.map(row=>({value:row.id,
                       label:`${row.line_number} · ${row.product_code} · ${row.presentation??'unidad del pedido'} · Saldo ${row.remaining}`}))]}
                     onChange={event=>{const row=balance.find(value=>value.id===event.target.value);
                       patch(item.id,{orderItemId:row?.id,productCode:row?.product_code??'',productName:row?.product_name??row?.product_code??''});}}/>

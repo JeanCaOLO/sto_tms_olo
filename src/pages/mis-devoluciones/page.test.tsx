@@ -57,6 +57,108 @@ beforeEach(()=>{
 afterEach(()=>{cleanup();vi.useRealTimers();});
 
 describe('Cliente T05',()=>{
+ it.each(['cr','ve'])('distingue carga y pedidos vacíos para %s',async(country)=>{
+  const pending=deferred<api.RequestOrigin[]>();
+  vi.mocked(api.getRequestOrigins).mockReturnValue(pending.promise);
+  render(<MisDevolucionesPage company={{id:`company-${country}`,name:`Empresa ${country}`}}/>);
+  await screen.findByText('Cargando pedidos…');
+  expect((screen.getByLabelText(/Pedido y punto/) as HTMLSelectElement).disabled).toBe(true);
+  expect(screen.queryByText(/No hay pedidos habilitados/)).toBeNull();
+  await act(async()=>pending.resolve([]));
+  await screen.findByText('No hay pedidos habilitados para esta empresa.');
+  expect(api.getRequestOrigins).toHaveBeenCalledWith(`company-${country}`);
+ });
+ it('reintenta pedidos fallidos sin enviar una solicitud',async()=>{
+  vi.mocked(api.getRequestOrigins).mockRejectedValueOnce(new Error('Consulta de pedidos fallida'));
+  render(<MisDevolucionesPage/>);
+  await screen.findByText('Consulta de pedidos fallida');
+  fireEvent.click(screen.getByRole('button',{name:'Reintentar pedidos'}));
+  await chooseOrigin();
+  expect(api.getRequestOrigins).toHaveBeenCalledTimes(2);
+  expect(api.createRequest).not.toHaveBeenCalled();
+ });
+ it('reintenta artículos sin borrar archivos ni cantidades del borrador',async()=>{
+  vi.mocked(api.getOrderBalance).mockRejectedValueOnce(new Error('Consulta de artículos fallida'));
+  render(<MisDevolucionesPage/>);
+  await within(await screen.findByLabelText(/Pedido y punto/)).findByRole('option',{name:/PED-1/});
+  fireEvent.change(screen.getByLabelText(/Pedido y punto/),{target:{value:'order-a:point-a'}});
+  await screen.findByText('Consulta de artículos fallida');
+  fireEvent.change(screen.getByLabelText(/Cantidad a devolver/),{target:{value:'2'}});
+  fireEvent.change(screen.getByLabelText('Archivos del artículo 1'),{target:{files:[new File(['x'],'foto.jpg',{type:'image/jpeg'})]}});
+  fireEvent.click(screen.getByRole('button',{name:'Reintentar artículos'}));
+  await within(screen.getByLabelText(/Línea del pedido/)).findByRole('option',{name:/COD-1/});
+  expect((screen.getByLabelText(/Cantidad a devolver/) as HTMLInputElement).value).toBe('2');
+  expect(screen.getByText('foto.jpg')).toBeTruthy();
+  expect(api.createRequest).not.toHaveBeenCalled();
+ });
+ it.each(['cr','ve'])('distingue artículos ausentes de saldo agotado para %s',async(country)=>{
+  vi.mocked(api.getOrderBalance).mockResolvedValue([]);
+  render(<MisDevolucionesPage company={{id:`company-${country}`,name:country}}/>);
+  await screen.findByText('Seleccione un pedido para consultar sus artículos.');
+  await within(screen.getByLabelText(/Pedido y punto/)).findByRole('option',{name:/PED-1/});
+  fireEvent.change(screen.getByLabelText(/Pedido y punto/),{target:{value:'order-a:point-a'}});
+  await screen.findByText('Este pedido no tiene artículos registrados.');
+  expect((screen.getByLabelText(/Línea del pedido/) as HTMLSelectElement).disabled).toBe(true);
+ });
+ it('muestra saldo agotado y bloquea líneas sin saldo',async()=>{
+  const rows=await vi.mocked(api.getOrderBalance).getMockImplementation()!('order-a');
+  vi.mocked(api.getOrderBalance).mockResolvedValue(rows.map(row=>({...row,remaining:0})));
+  render(<MisDevolucionesPage/>);
+  await within(await screen.findByLabelText(/Pedido y punto/)).findByRole('option',{name:/PED-1/});
+  fireEvent.change(screen.getByLabelText(/Pedido y punto/),{target:{value:'order-a:point-a'}});
+  await screen.findByText('Este pedido no tiene saldo disponible para devolución.');
+  expect((screen.getByLabelText(/Línea del pedido/) as HTMLSelectElement).disabled).toBe(true);
+ });
+ it('permite elegir saldo disponible cuando otra línea está agotada',async()=>{
+  const rows=await vi.mocked(api.getOrderBalance).getMockImplementation()!('order-a');
+  vi.mocked(api.getOrderBalance).mockResolvedValue([{...rows[0],id:'exhausted',product_code:'AGOTADO',remaining:0},...rows]);
+  await ready();
+  const select=screen.getByLabelText(/Línea del pedido/) as HTMLSelectElement;
+  expect(select.disabled).toBe(false);
+  expect(within(select).queryByRole('option',{name:/AGOTADO/})).toBeNull();
+  expect(select.value).toBe('order-item-a');
+  expect(screen.queryByText('Este pedido no tiene saldo disponible para devolución.')).toBeNull();
+ });
+ it('ignora artículos tardíos al cambiar de pedido',async()=>{
+  const origins=await vi.mocked(api.getRequestOrigins).getMockImplementation()!();
+  vi.mocked(api.getRequestOrigins).mockResolvedValue([...origins,{...origins[0],order_id:'order-b',order_number:'PED-2'}]);
+  const old=deferred<api.OrderBalance[]>();
+  vi.mocked(api.getOrderBalance).mockReturnValueOnce(old.promise).mockResolvedValue([]);
+  render(<MisDevolucionesPage/>);
+  await within(await screen.findByLabelText(/Pedido y punto/)).findByRole('option',{name:/PED-1/});
+  fireEvent.change(screen.getByLabelText(/Pedido y punto/),{target:{value:'order-a:point-a'}});
+  await screen.findByText('Cargando artículos…');
+  fireEvent.change(screen.getByLabelText(/Pedido y punto/),{target:{value:'order-b:point-a'}});
+  await screen.findByText('Este pedido no tiene artículos registrados.');
+  await act(async()=>old.resolve([{id:'late',line_number:1,product_code:'VIEJO',product_name:'Anterior',presentation:'CAJA',quantity:1,remaining:1}]));
+  expect(screen.queryByRole('option',{name:/VIEJO/})).toBeNull();
+  expect(screen.getByText('Este pedido no tiene artículos registrados.')).toBeTruthy();
+ });
+ it.each(['cr','ve'])('muestra artículos elegibles de la empresa de %s',async(country)=>{
+  const origins=await vi.mocked(api.getRequestOrigins).getMockImplementation()!();
+  const lines=await vi.mocked(api.getOrderBalance).getMockImplementation()!('order-a');
+  vi.mocked(api.getRequestOrigins).mockResolvedValue(origins.map(row=>({...row,country_id:country})));
+  vi.mocked(api.getOrderBalance).mockResolvedValue(lines.map(row=>({...row,product_code:`ART-${country}`})));
+  render(<MisDevolucionesPage company={{id:`company-${country}`,name:country}}/>);
+  await within(await screen.findByLabelText(/Pedido y punto/)).findByRole('option',{name:/PED-1/});
+  fireEvent.change(screen.getByLabelText(/Pedido y punto/),{target:{value:'order-a:point-a'}});
+  await within(screen.getByLabelText(/Línea del pedido/)).findByRole('option',{name:new RegExp(`ART-${country}`)});
+  fireEvent.change(screen.getByLabelText(/Línea del pedido/),{target:{value:'order-item-a'}});
+  expect((screen.getByLabelText(/Código del artículo/) as HTMLInputElement).value).toBe(`ART-${country}`);
+  expect(api.getOrderBalance).toHaveBeenCalledWith('order-a',`company-${country}`);
+ });
+ it('ignora pedidos tardíos de la empresa anterior al cambiar de contexto',async()=>{
+  const old=deferred<api.RequestOrigin[]>();
+  const origins=await vi.mocked(api.getRequestOrigins).getMockImplementation()!();
+  vi.mocked(api.getRequestOrigins).mockReturnValueOnce(old.promise).mockResolvedValue([]);
+  const page=render(<MisDevolucionesPage key="ve" company={{id:'company-ve',name:'Empresa VE'}}/>);
+  await screen.findByText('Cargando pedidos…');
+  page.rerender(<MisDevolucionesPage key="cr" company={{id:'company-cr',name:'Empresa CR'}}/>);
+  await screen.findByText('No hay pedidos habilitados para esta empresa.');
+  await act(async()=>old.resolve(origins));
+  expect(screen.queryByRole('option',{name:/PED-1/})).toBeNull();
+  expect(api.getOrderBalance).not.toHaveBeenCalled();
+ });
  it('cambiar el punto tras fallar una subida conserva el nuevo origen al reintentar',async()=>{
   const first=(await vi.mocked(api.getRequestOrigins).getMockImplementation()!())[0];
   vi.mocked(api.getRequestOrigins).mockResolvedValue([first,{...first,delivery_point_id:'point-b',point_name:'Punto B'}]);
