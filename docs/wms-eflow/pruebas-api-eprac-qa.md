@@ -92,6 +92,9 @@ minutos. En la prueba del 20-nov la línea del pedido siguió en `DISP/DISP`; so
 | Quitar el viaje con `0` | ❌ `ERROR_PROCESAMIENTO` |
 | Quitar el viaje con `null` | 400: no acepta null |
 | Pedido en `ANUL` | Rechazado: `ESTADO_INVALIDO` |
+| 26-nov: `VAS001031-M` (`GENE`) con `202611260109017` y `900018` | ❌ `ERROR_PROCESAMIENTO` (sigue igual) |
+| 26-nov: `5600001759-002` (EPA, `DISP/DISP`, sin viaje) con `202611260109017` | ❌ `ERROR_PROCESAMIENTO` |
+| 26-nov: el mismo pedido con el viaje existente `8213` | ✅ (quedó con `8213`; no se puede quitar por el API) |
 
 **Conclusión:** el endpoint asigna viajes que ya existen en WMH; no crea viajes. Los números del TMS no existen allá.
 `VAS001031-M` quedó con el viaje `8213` (no hay forma de quitarlo por el API).
