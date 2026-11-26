@@ -10,6 +10,7 @@ resolve_s3 = true
 parameter_overrides = [
   "Environment=dev",
   "CommonStackName=dev-tms-common-services",
+  "MobileEvidenceBucket=dev-tms-mobile-evidencias-758837481569",
   "CommonLayerArn=/dev/tms/common-layer-arn",
   "SubnetIds=/dev/tms/network/subnets",
   "SecurityGroupId=/dev/tms/network/lambda-sg"

@@ -8,7 +8,7 @@ import os
 import json
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_UP
 
 from tms_common import audit, pg, permissions
@@ -32,6 +32,7 @@ FILE_MIME = {"image/jpeg": ("photo", "jpg"), "image/png": ("photo", "png"),
              "video/mp4": ("video", "mp4"), "video/quicktime": ("video", "mov")}
 URL_TTL_SECONDS = 300
 NUMBER_ATTEMPTS = 3
+DISCOVERY_PAGE_SIZE = 25
 _ROOT = "solicitudes"
 _UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 _s3 = None
@@ -186,7 +187,7 @@ def _next_number(run, org: str) -> str:
     return f"{prefix}{run(sql.NEXT_NUMBER_SQL, [org, prefix])[0]['next']:04d}"
 
 
-def _origins(run, caller, org, customer, order_id=None, point_id=None):
+def _origin_scope(caller, org, customer):
     filters, values = '', [org,customer]
     if access.can_choose_company(caller):
         filters += sql.ORIGIN_SCOPE_SQL
@@ -194,13 +195,88 @@ def _origins(run, caller, org, customer, order_id=None, point_id=None):
     if caller.country_filter is not None:
         filters += ' AND a.country_id=ANY(%s::uuid[])'
         values.append(list(caller.country_filter))
+    return filters, values
+
+
+def _origins(run, caller, org, customer, order_id=None, point_id=None):
+    filters, values = _origin_scope(caller, org, customer)
     if order_id:
         filters += ' AND o.id=%s'
         values.append(order_id)
     if point_id:
         filters += ' AND dp.id=%s'
         values.append(point_id)
-    return run(sql.ORIGINS_SQL.format(filters=filters),values)
+    return run(sql.ORIGINS_SQL.format(filters=filters, limit=' LIMIT 100'), values)
+
+
+def _discovery_cursor(raw, *, orders=False):
+    if not raw:
+        return None
+    try:
+        if len(raw) > 2048:
+            raise ValueError()
+        pair = json.loads(raw)
+        if not isinstance(pair, list) or len(pair) != 2:
+            raise ValueError()
+        key, identifier = pair
+        if not isinstance(key, str):
+            raise ValueError()
+        return [date.fromisoformat(key) if orders else key, str(uuid.UUID(identifier))]
+    except (ValueError, TypeError, AttributeError) as error:
+        raise HttpError(400, 'Cursor de búsqueda inválido.') from error
+
+
+def _discover(event, params, kind):
+    caller, org, customer = access.creator(event, params.get('customer_id'))
+    scope, scope_args = _origin_scope(caller, org, customer)
+    if kind == 'puntos':
+        order_id = _uuid_param(params.get('order_id'), 'order_id')
+        final_customer_id = _uuid_param(params.get('final_customer_id'), 'final_customer_id')
+        origins = sql.ORIGINS_SQL.format(filters=scope + ' AND o.id=%s AND fc.id=%s', limit='')
+        statement = sql.RETURN_ORDER_DETAIL_SQL.format(origins=origins)
+        rows = pg.query(statement, [*scope_args, order_id, final_customer_id, org, order_id])
+        if not rows:
+            raise HttpError(404, 'Pedido sin origen operativo autorizado.')
+        return _ok(rows[0])
+
+    orders = kind == 'pedidos'
+    cursor = _discovery_cursor(params.get('cursor'), orders=orders)
+    filters = ''
+    if orders:
+        final_customer_id = _uuid_param(params.get('final_customer_id'), 'final_customer_id')
+        args = [org, customer, final_customer_id, *scope_args]
+        code = _text(params.get('product_code'), 'El código del artículo', CODE_LIMIT)
+        if code:
+            filters += (' AND EXISTS (SELECT 1 FROM tbl_order_items item'
+                        ' WHERE item.order_id=candidate.id AND item.product_code=%s)')
+            args.append(code)
+        if cursor:
+            filters += f' AND ({sql.ORDER_DATE_SQL},candidate.id)<(%s,%s::uuid)'
+        statement = sql.RETURN_ORDERS_SQL
+    else:
+        args = [customer, *scope_args]
+        name = _text(params.get('q'), 'El nombre del cliente', NAME_LIMIT)
+        if name:
+            filters += sql.FINAL_CUSTOMER_NAME_FILTER
+            args.append(name)
+        if cursor:
+            filters += ' AND (lower(candidate.name),candidate.id)>(%s,%s::uuid)'
+        statement = sql.FINAL_CUSTOMERS_SQL
+
+    rows = pg.query(statement.format(scope=scope, filters=filters), [*args, *(cursor or []), DISCOVERY_PAGE_SIZE + 1])
+    page = rows[:DISCOVERY_PAGE_SIZE]
+    next_cursor = None
+    if len(rows) > DISCOVERY_PAGE_SIZE:
+        last = page[-1]
+        if orders:
+            next_cursor = json.dumps([(last['order_date'] or date.min).isoformat(), str(last['order_id'])])
+        else:
+            next_cursor = json.dumps([last['sort_name'], str(last['id'])])
+    if orders:
+        page = [{**row, 'order_date': row['order_date'].isoformat() if row['order_date'] else None} for row in page]
+    else:
+        page = [{'id': row['id'], 'name': row['name']} for row in page]
+    return _ok({'items': page, 'next_cursor': next_cursor})
 
 
 def _planning_snapshot(origin: dict, source_items: list[dict], totals: dict) -> dict:
@@ -344,6 +420,9 @@ def list_mine(event: dict) -> dict:
 def get_assignment(event):
     """Solo la empresa asignada al propio usuario; sin catalogo ni selector."""
     params = query_params(event)
+    discovery = params.get('buscar')
+    if discovery in ('clientes', 'pedidos', 'puntos'):
+        return _discover(event, params, discovery)
     if params.get('origenes') == '1':
         caller, org, customer = access.creator(event, params.get('customer_id'))
         if params.get('order_id'):

@@ -12,6 +12,7 @@ parameter_overrides = [
   "Environment=dev",
   "DbSecretName=/dev/tms/db",
   "JwtSecretName=/dev/tms/mobile-jwt",
+  "EvidenceCorsOrigins=http://localhost:8081,http://localhost:3000,https://sandbox.d1q6tzcx0ew3rk.amplifyapp.com,https://sandbox.d1q6tzcx0ew3rk.amplifyapp.com.",
   "SubnetIds=/dev/tms/network/subnets",
   "SecurityGroupId=/dev/tms/network/lambda-sg"
 ]

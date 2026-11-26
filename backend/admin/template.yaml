@@ -1,6 +1,9 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: TMS - ADMIN | Administración de usuarios y roles (/api/v1/admin/*, solo administradores)
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@3
 
 Parameters:
   Environment:
@@ -19,12 +22,54 @@ Parameters:
   MobileEvidenceBucket:
     Type: String
     Default: ""
-    Description: Bucket de evidencias de la app del chofer (output EvidenceBucket del stack mobile). Con él, Devoluciones muestra la foto de cada devolución; el rol Lambda necesita s3:GetObject sobre pedidos/* (common-services).
+    Description: Bucket privado del stack mobile. Admin lee pedidos/* y lee/carga solicitudes/* mediante su rol exclusivo.
 
 Conditions:
   IsProduction: !Equals [!Ref Environment, prod]
+  HasEvidenceBucket: !Not [!Equals [!Ref MobileEvidenceBucket, ""]]
 
 Resources:
+  # Exclusivo del API admin: no ampliar el rol compartido ni el de mantenimiento.
+  # El secreto de BD y VPC conservan el acceso transaccional; S3 solo habilita evidencias.
+  AdminApiRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: admin-database
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadDatabaseSecret
+                Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Sub
+                  - arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${SecretName}-*
+                  - SecretName:
+                      Fn::ImportValue: !Sub ${CommonStackName}-DbSecretName
+        - !If
+          - HasEvidenceBucket
+          - PolicyName: admin-return-evidence
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Sid: EvidenceOrderRead
+                  Effect: Allow
+                  Action: [s3:GetObject]
+                  Resource: !Sub arn:${AWS::Partition}:s3:::${MobileEvidenceBucket}/pedidos/*
+                - Sid: EvidenceRequestReadWrite
+                  Effect: Allow
+                  Action: [s3:GetObject, s3:PutObject]
+                  Resource: !Sub arn:${AWS::Partition}:s3:::${MobileEvidenceBucket}/solicitudes/*
+          - !Ref AWS::NoValue
+
   AdminApiLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -42,8 +87,7 @@ Resources:
       Architectures: [x86_64]
       Timeout: 15
       MemorySize: 512
-      Role:
-        Fn::ImportValue: !Sub ${CommonStackName}-LambdaRoleArn
+      Role: !GetAtt AdminApiRole.Arn
       Layers:
         - !Ref CommonLayerArn
       VpcConfig:
