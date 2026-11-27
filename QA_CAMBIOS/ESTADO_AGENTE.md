@@ -7,7 +7,7 @@ Canal de coordinación: origin/dylan-tarifas, base 79158744d31e76f870d03eadd8a7f
 
 | ID | Estado | Responsable | Inicio real | Cambios y pruebas | Bloqueo / siguiente paso |
 |---|---|---|---|---|---|
-| TMS-QA-001 | BLOQUEADO | Corrector | 2026-11-27 17:16:02 -04:00 | Diagnóstico por IDs confirmado en Aurora. | Probador y Jean deben coordinar el retiro de acceso. Pendiente verificar S3 y obtener el helper original. |
+| TMS-QA-001 | EN CURSO | Corrector | 2026-11-27 17:16:02 -04:00 | Diagnóstico por IDs confirmado en Aurora. | Probador y Jean deben coordinar el retiro de acceso. Pendiente verificar S3 y obtener el helper original. |
 
 El retest y la aprobación humana permanecen pendientes.
 
@@ -21,3 +21,7 @@ El retest y la aprobación humana permanecen pendientes.
 - El probador debe compartir el helper original y su error sanitizado. El corrector preparará la regresión en BD aislada. Antes de operar sobre S3, el helper debe validar el manifiesto y descubrir dependencias por línea, guía y ruta. El retiro en BD debe respetar restricciones e historial. Tras confirmar y verificar la transacción SQL, puede ejecutarse el retiro autorizado en S3 por clave. Registrar el resultado por objeto para reintentar errores de S3 sin repetir el retiro SQL.
 - Retest independiente: verificar estado de las cuentas y sesiones por ID. Reproducir en BD aislada una devolución por guía y línea omitida por ruta directa y confirmar que una dependencia bloqueante impide tocar S3. Comprobar las tres claves de evidencia con el acceso autorizado.
 - Mobile: pendiente lectura y acuse en `origin/QA`. `git ls-remote` salió con 128 al pedir autenticación en TRACKING_TMS. La base `db3fc68` no está en el clon local.
+
+## TMS-QA-001 — reanudación 2026-11-27 17:38:30 -04:00
+
+El probador confirmó en 913c3e0 que las dos cuentas QA ya no se usan y entregó el helper sanitizado. Su consulta S3 del commit 7fed04a verificó que no quedan versiones ni marcadores de borrado para las tres claves exactas. Se retoma el retiro de acceso por los IDs publicados, la inspección de dependencias y la corrección local del helper. No se recreará el fixture ni se intervendrá la cola histórica de Tracking.
