@@ -4,6 +4,8 @@ Corte: 27/11/2026. P1: resolver antes de continuar los fixtures afectados; P2: b
 
 ## TMS-QA-001 — P1 — PENDIENTE: limpieza del último fixture HTTP móvil
 
+**Revalidación 27/11, 17:16–17:19 America/Caracas:** probe con `SET TRANSACTION READ ONLY`, salida 0. Se confirmaron dos usuarios activos, dos credenciales, el resto del inventario y tres filas de evidencias. La tabla `tbl_returns` **no tiene columna route_id**: el helper omite su DELETE al consultar information_schema. Queda la devolución recibida `954aed29-67ce-439d-9f3d-03f01610f846`, ligada a la guía y línea propias. La causa ya no es hipótesis. Revisar además FKs desde plan_stops, return_form_items, return_incidents, return_incident_resolutions y return_collection_results antes de retirar. No se ejecutó ninguna mutación durante esta revalidación. Evidencia local nueva: `qa-reanudacion-probe.py` y `.json`. Prioridad inicial del corrector: retirar acceso de esas dos cuentas QA y preparar limpieza compatible; no afirmar que ya ocurrió.
+
 **Evidencia:** `qa-mobile-http.json`, `qa-mobile-http-s3.log`, `qa-mobile-http-s3.exitcode.txt=1`. Marcador exclusivo `QAFL-20261127-HTTP-590570`.
 
 **Observado:** pasaron las 30 comprobaciones funcionales HTTP, incluida subida S3 real, persistencia e idempotencia de tres evidencias, contracamión, entrega/cierre y recepción. La limpieza SQL se revirtió: `tbl_returns_order_item_id_fkey` impide borrar líneas referenciadas. Los conteos `removed_children` corresponden a una transacción revertida; no prueban retiro. El helper intenta borrar objetos S3 antes del SQL: comprobar si quedaron referencias a objetos ya retirados. No afirmar ausencia sin consultarla.
