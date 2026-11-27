@@ -8,6 +8,7 @@ Canal de coordinación: origin/dylan-tarifas, base 79158744d31e76f870d03eadd8a7f
 | ID | Estado | Responsable | Inicio real | Cambios y pruebas | Bloqueo / siguiente paso |
 |---|---|---|---|---|---|
 | TMS-QA-001 | LISTO PARA RETEST | Corrector | 2026-11-27 17:16:02 -04:00 | Acceso retirado y limpieza probada en PostgreSQL aislado. | Retest independiente. Jean decide sobre la limpieza del fixture en Aurora. |
+| TMS-QA-007 | EN CURSO | Corrector | 2026-11-27 18:08:35 -04:00 | El probador reprodujo SQLSTATE 42703. | Corregir la consulta de inicio V2 y verificar el bloqueo de mercancía pendiente. |
 
 El retest y la aprobación humana permanecen pendientes.
 
@@ -38,3 +39,7 @@ El probador confirmó en 913c3e0 que las dos cuentas QA ya no se usan y entregó
 ## Ajuste de saldos de Liquidaciones y Proformas — listo para retest
 
 El formateador común presentaba subtotales de monedas históricas junto al saldo operativo. El cambio local suma solo los registros en la moneda operativa y muestra un total. Venezuela usa USD y Costa Rica CRC. Los comprobantes conservan la moneda original. Suite focal de Vitest: 148 pruebas, salida 0. npm run type-check: salida 0. Retest: usar registros USD y VES para Venezuela y verificar que el saldo muestre solo USD y que el detalle histórico siga intacto. Revisar CRC en Costa Rica. Código local, sin publicación.
+
+## TMS-QA-007 — inicio 2026-11-27 18:08:35 -04:00
+
+Sesión del corrector en Windows, copia de código TMS josef en 2f47c06 y canal documental origin/dylan-tarifas en 73fd183. Se retoma el inicio de viaje antes de MOB-QA-001 porque el hallazgo bloquea el recorrido V2. El contenedor y la cola del probador quedan a su cargo.
