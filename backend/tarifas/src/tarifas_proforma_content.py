@@ -8,7 +8,10 @@ PARENTS = "tarifas_proformas"
 PHASES = "tarifas_proforma_phases"
 PARENT_MUTABLE = frozenset({"total_amount", "email_sent_at", "notes", "updated_at"})
 EDIT_CONFLICT = "La proforma ya tiene fases decididas: no se pueden cambiar sus liquidaciones."
-LOCK_PARENT_SQL = "SELECT id, country_id, carrier_id, status FROM tbl_tarifas_proformas WHERE id = %s FOR UPDATE"
+LOCK_PARENT_SQL = "SELECT id, country_id, carrier_id, currency, status FROM tbl_tarifas_proformas WHERE id = %s FOR UPDATE"
+# La liquidación conserva el transportista en la foto del viaje, incluso sin perfil de cálculo.
+SETTLEMENT_SQL = ("SELECT id, total_amount, country_id, currency, trip_info ->> 'carrierId' AS carrier_id "
+                  "FROM tbl_tarifas_settlements ")
 RECALCULATE_SQL = """UPDATE tbl_tarifas_proformas SET total_amount = (
     SELECT COALESCE(SUM(amount), 0) FROM tbl_tarifas_proforma_items
     WHERE proforma_id = %s AND state <> 'excluded'), updated_at = now()
@@ -87,8 +90,7 @@ class ContentChanges:
             raise HttpError(400, "Indica por qué se excluye la liquidación.")
         if kind == "insert":
             if settlements is None:
-                rows = self.run("SELECT id, total_amount, country_id, carrier_id FROM tbl_tarifas_settlements WHERE id = %s",
-                                [current["settlement_id"]])
+                rows = self.run(SETTLEMENT_SQL + "WHERE id = %s", [current["settlement_id"]])
             else:
                 rows = [settlements[current["settlement_id"]]] if current["settlement_id"] in settlements else []
             try:
@@ -98,6 +100,8 @@ class ContentChanges:
                 matches = False
             if not matches or str(rows[0]["country_id"]) != str(parent["country_id"]) or str(rows[0]["carrier_id"]) != str(parent["carrier_id"]):
                 raise HttpError(409, "El importe, país y transportista del ítem deben coincidir con su liquidación y proforma.")
+            if rows[0]["currency"] != parent["currency"]:
+                raise HttpError(409, "La moneda de la liquidación debe coincidir con la de la proforma.")
         self.touched.add(parent_id)
         self.settlement_states[current["settlement_id"]] = "En Revisión" if current["state"] == "included" else "Borrador"
 
@@ -110,8 +114,7 @@ class ContentChanges:
             settlements = None
             if kind == "insert_many":
                 ids = list(dict.fromkeys(row["settlement_id"] for row in op["rows"]))
-                found = self.run("SELECT id, total_amount, country_id, carrier_id FROM tbl_tarifas_settlements "
-                                 "WHERE id = ANY(%s::text[])", [ids])
+                found = self.run(SETTLEMENT_SQL + "WHERE id = ANY(%s::text[])", [ids])
                 settlements = {str(row["id"]): row for row in found}
             for row in op["rows"] if kind == "insert_many" else [values]:
                 self._item("insert" if kind == "insert_many" else kind, row, op.get("id"), settlements)

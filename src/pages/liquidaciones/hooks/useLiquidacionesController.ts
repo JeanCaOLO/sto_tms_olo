@@ -12,7 +12,7 @@ import { useTripsLoader } from './useTripsLoader';
 import type { SettlementRecord, SettlementStatus } from '../../../lib/tarifas/types';
 import { confirmStatusChange } from './statusConfirm';
 
-export function useLiquidacionesController(countryId: string | null) {
+export function useLiquidacionesController(countryId: string | null, currency: string) {
   const [tab, setTab] = useState<'trips' | 'history'>('trips');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -79,6 +79,6 @@ export function useLiquidacionesController(countryId: string | null) {
     ...tripsState, ...settlementsState, ...rowActions,
     reload: () => { markLoaded(); reloadAll(); },
     changeStatus, listos, incompletos, onEmitted, onBatchEmitted, emitida,
-    kpis: useMemo(() => computeKPIs(settlements), [settlements]),
+    kpis: useMemo(() => computeKPIs(settlements, currency), [settlements, currency]),
   };
 }

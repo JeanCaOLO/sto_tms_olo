@@ -11,7 +11,7 @@ import CountryScopeBar from '../../components/feature/CountryScopeBar';
 import { useActiveCountry } from '../../hooks/useActiveCountry';
 import { useModulePermissions } from '../../hooks/use-module-permissions';
 import { useTarifasActor } from '../../hooks/useTarifasActor';
-import { formatMoney } from '../../lib/tarifas/format';
+import { formatLocalCurrencyTotal } from '../../lib/tarifas/format';
 import { CLAIMS_LIMIT } from '../../lib/tarifas/proformas/claims';
 import { canManageProformas, HISTORY_LIMIT, isCarrierRole, isWaitingFor, pendingForActor, rangeFor, TODAY_RANGE } from '../../lib/tarifas/proformas';
 import DetalleProformaModal from './components/DetalleProformaModal';
@@ -62,8 +62,8 @@ export default function ProformasPage() {
   const numbers = useMemo(() => new Map(section.rows.map((r) => [r.proforma.id, r.proforma.number])), [section.rows]);
   const inReview = active.rows.filter((r) => r.proforma.status === 'En Revisión');
   const toSend = active.rows.filter((r) => r.proforma.status === 'Aprobado' && !r.proforma.emailSentAt);
-  const pendingTotal = inReview.reduce((sum, r) => sum + Math.round(r.proforma.totalAmount * 100), 0) / 100;
   const currency = country?.local_currency ?? '';
+  const pendingTotal = formatLocalCurrencyTotal(inReview.map((r) => r.proforma), currency);
   const error = active.error ?? section.error ?? claims.error;
 
   // Si la consulta llegó al tope, hay más de lo que se muestra: se avisa para que acoten el rango.
@@ -112,7 +112,7 @@ export default function ProformasPage() {
         {manager && <StatCard title="En revisión (todas)" value={String(inReview.length)} icon="ri-time-line" color="amber" />}
         <StatCard title="Esperan mi aprobación" value={String(mine.length)} icon="ri-user-star-line" color="teal" />
         {manager && <StatCard title="Aprobadas por enviar" value={String(toSend.length)} icon="ri-mail-send-line" color="emerald" />}
-        {manager && <StatCard title="Total en revisión" value={formatMoney(String(pendingTotal), currency)} icon="ri-money-dollar-circle-line" color="amber" />}
+        {manager && <StatCard title="Total en revisión" value={pendingTotal} icon="ri-money-dollar-circle-line" color="amber" />}
       </div>
 
       <Card>

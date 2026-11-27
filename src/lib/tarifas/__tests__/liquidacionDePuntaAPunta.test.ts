@@ -116,10 +116,21 @@ describe('el cálculo toma el viaje tal cual viene', () => {
 });
 
 describe('emitir y re-liquidar', () => {
-  it('emite, saca el viaje de la bandeja y guarda la foto del viaje', async () => {
+  it.each([['VE', 'USD'], ['CR', 'CRC']])('emite para %s en su moneda y guarda la foto del viaje', async (code, currency) => {
+    const source = db();
+    const originalFind = source.find.bind(source);
+    const find = vi.spyOn(source, 'find').mockImplementation(async (entity, options) => {
+      const rows = await originalFind(entity, options);
+      return entity === 'country' ? rows.map((row) => ({ ...row, code, currency: 'USD' })) : rows;
+    });
     const viaje = await viajeDeTercero();
     const edits: TripEdits = { customVars: { 'custom:recolectas': 2 } };
-    const c = await calcular(viaje, edits);
+    let c: TripCalculation;
+    try {
+      c = await calcular(viaje, edits);
+    } finally {
+      find.mockRestore();
+    }
 
     const result = await emitSettlement(aEmitir(c, edits));
     expect(result.status).toBe('saved');
@@ -129,6 +140,7 @@ describe('emitir y re-liquidar', () => {
     expect(guardada?.tripInfo.routeNumber).toBe(viaje.routeNumber);
     expect(guardada?.tripEdits).toEqual(edits);
     expect(guardada?.totalAmount).toBe(c.result.totalLiquidado);
+    expect(guardada?.currency).toBe(currency);
 
     expect((await listLiquidableTrips({ countryId: 'VE' })).map((v) => v.id)).not.toContain(viaje.id);
     // Calcular de nuevo avisa que ya está liquidado: el camino es re-liquidar.
