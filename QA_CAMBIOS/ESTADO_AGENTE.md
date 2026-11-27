@@ -9,7 +9,7 @@ Canal de coordinación: origin/dylan-tarifas, base 79158744d31e76f870d03eadd8a7f
 |---|---|---|---|---|---|
 | TMS-QA-001 | LISTO PARA RETEST | Corrector | 2026-11-27 17:16:02 -04:00 | Acceso retirado y limpieza probada en PostgreSQL aislado. | Retest independiente. Jean decide sobre la limpieza del fixture en Aurora. |
 | TMS-QA-007 | LISTO PARA RETEST | Corrector | 2026-11-27 18:08:35 -04:00 | Consulta corregida y verificada en PostgreSQL. | Repetir inicio y replay del flujo V2 en el entorno aislado del probador. |
-| MOB-QA-001 | EN CURSO | Corrector | 2026-11-27 18:16:03 -04:00 | Apoyo backend a la recaptura de evidencia. | Comprobar por cliente y parada si ya se confirmó antes de autorizar otra subida. |
+| MOB-QA-001 | LISTO PARA RETEST | Corrector | 2026-11-27 18:16:03 -04:00 | Contrato de confirmación antes de autorizar otra subida. | Retest coordinado con Tracking, en entorno aislado. |
 
 El retest y la aprobación humana permanecen pendientes.
 
@@ -58,3 +58,10 @@ Sesión del corrector en Windows, copia de código TMS josef en 2f47c06 y canal 
 Sesión del corrector en Windows, base local TMS 2f47c06, con corrección local de inicio V2. Tracking mantiene la tarea principal del mismo ID en origin/QA. Se trabajará con pruebas aisladas, sin acceder a la cola histórica ni desplegar.
 
 TMS-QA-001 pasó el retest independiente con esquema completo en PostgreSQL 17/PostGIS según cc297e6. Las cinco comprobaciones se ejecutaron en aislado. Sigue pendiente la decisión de Jean sobre el residuo en Aurora.
+
+## MOB-QA-001 — backend listo para retest 2026-11-27 18:25:17 -04:00
+
+- El cambio local afecta backend/mobile/src/mobile_api/evidence.py, backend/mobile/src/mobile_api/sql.py y backend/mobile/local/dev_evidence.py. Al recapturar, el endpoint busca la evidencia por organización, parada, tipo y client_id. Si ya está confirmada, verifica el objeto existente y evita firmar otra subida. Si la fila existe pero falta el objeto, rechaza sin firmar. La confirmación normal conserva su contrato y no se requiere migración.
+- La suite rtk proxy python -m pytest backend/mobile/tests -q dio 174 aprobadas y 23 omitidas, salida 0. backend/mobile/tests/test_driver_api.py prueba el alcance de la consulta y los casos confirmado, no confirmado y objeto faltante. git diff --check dio salida 0.
+- Retest aislado con Tracking: verificar que una recaptura sin confirmación obtiene autorización para la misma llave, que una evidencia ya confirmada no obtiene otra autorización y que un registro confirmado sin objeto falla sin otra subida.
+- Código y paquete .test/mob-qa-001-retest.zip locales. Este commit publica el estado documental. No se desplegó ni se usaron datos, objetos ni cola compartidos.
