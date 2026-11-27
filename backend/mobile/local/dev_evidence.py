@@ -53,11 +53,14 @@ def upload_url(event: dict, driver) -> dict:
     if client_id is not None and not logic.is_uuid(client_id):
         raise HttpError(400, "client_id inválido")
     guide = guide_access(driver, guide_id)
+    recovery = evidence.recovery_status(body, driver, guide_id, kind)
+    if recovery.get("already_confirmed"):
+        return ok(recovery)
     key = logic.new_evidence_key(guide, kind, mime, client_id)
     expires = int(time.time()) + logic.URL_TTL_SECONDS
     fields = {"key": key, "Content-Type": mime, "expires": str(expires), "signature": _sign(key, mime, expires)}
     return ok({"url": _origin(event) + UPLOAD_PATH, "fields": fields, "key": key, "kind": kind,
-               "max_bytes": logic.MAX_EVIDENCE_BYTES})
+               "max_bytes": logic.MAX_EVIDENCE_BYTES, **recovery})
 
 
 def head(key: str) -> dict | None:

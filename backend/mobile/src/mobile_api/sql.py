@@ -367,6 +367,12 @@ WHERE i.order_id = %s
 ORDER BY i.line_number
 """
 
+CONFIRMED_EVIDENCE_SQL = """
+SELECT storage_key, storage_bucket FROM tbl_tracking_evidences
+WHERE organization_id = %s AND dispatch_guide_id = %s AND kind = %s AND client_id = %s
+LIMIT 1
+"""
+
 INSERT_EVIDENCE_SQL = """
 INSERT INTO tbl_tracking_evidences (organization_id, route_id, dispatch_guide_id, kind, storage_key, mime_type,
                                 size_bytes, captured_at, latitude, longitude, client_id, created_by,
