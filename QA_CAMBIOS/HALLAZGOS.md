@@ -55,6 +55,8 @@ Las tres claves de objetos están en `qa-mobile-http.json`, restringidas al pedi
 
 ## TMS-QA-004 — P2 — PENDIENTE: recorrido integrado de recolecta V2
 
+**Avance aislado del 27/11:** se preparó PostgreSQL 17 con PostGIS, solo esquema y metadatos; sin datos reales. Los handlers y SQL vigentes crearon una solicitud sintética completa, aceptaron su replay y asignaron una recolecta V2 real mediante `recolectas.agendar`. Se comprobaron snapshot completo y una asignación. El inicio del viaje falló antes de continuar: TMS-QA-007. Evidencia local `qa-v2-isolated-flow.py` y `.json`. No se ejecutó optimizador completo, HTTP/UI ni subida de evidencias en ese flujo. No cerrar el recorrido por estas comprobaciones parciales.
+
 **Observado:** `SOL-2026-11-0003` tiene snapshot congelado sin presentation; la parada collection histórica no acredita asignación V2. La solicitud completa de TMS-QA-002 solo probó creación. La recepción HTTP de contracamión no sustituye recolecta V2.
 
 **Dependencia:** TMS-QA-002 y coordinación con MOB-QA-002. En entorno seguro, recorrer solicitud completa, planificación, asignación V2, aparición en Tracking, cantidades/motivos/evidencias, entrega a almacén y recepción. Comprobar bloqueo y liberación de liquidación, recarga e idempotencia. No alterar snapshots históricos. Aceptación: IDs y resultados de cada etapa, persistencia real y retiro/retención compatible.
@@ -70,6 +72,18 @@ Las tres claves de objetos están en `qa-mobile-http.json`, restringidas al pedi
 ## TMS-QA-006 — P3 — PENDIENTE DE CONFIRMAR: fallos históricos de interfaz
 
 El informe original conserva `Failed to fetch` al emitir liquidación y un aviso de orden de hooks previo a recargar. Los servicios estaban caídos en parte de esa secuencia; posteriormente se completaron emisión y reliquidación. No hay evidencia suficiente para atribuir hoy un bug vigente. Reproducir de forma segura con servicios disponibles antes de proponer cambios. El desglose extendido tampoco quedó certificado. No emitir de nuevo para investigar sin revisar estado e idempotencia.
+
+## TMS-QA-007 — P1 — REPRODUCIDO: iniciar viaje falla por columna inexistente
+
+**Responsable:** backend móvil TMS; código `backend/mobile/src/mobile_api/sql.py`, constante `UNFINISHED_ROUTE_SQL`, usada por `start.start_trip`.
+
+**Prueba real:** tras crear y asignar una solicitud V2 en PostgreSQL/PostGIS aislado, iniciar el viaje falla con `column a.route_id does not exist`. Se confirmó además en la BD compartida mediante **solo el SELECT**, en transacción `SET TRANSACTION READ ONLY`, con UUID cero sintéticos: mismo error, SQLSTATE `42703`, salida 1. No se inició ningún viaje ni se modificó dato compartido. Evidencia `qa-v2-start-contract-probe.py/.json`.
+
+**Causa comprobada:** la consulta toma `tbl_return_collection_assignments a` y filtra `a.route_id`. La tabla contiene `attempt_id` y referencia allocation_id, pero no route_id; la vista `vw_return_collection_assignments` sí expone route_id y attempt_id mediante el join con allocations. PostgreSQL resuelve columnas aunque no haya filas, por lo que la condición no depende de encontrar una recolecta previa. No confundir con los fallos de preparación de Docker/PostGIS.
+
+**Acción:** corregir la consulta en su capa responsable, revisar otros usos de la tabla física que requieran columnas de la vista y conservar organización, chofer, estados activos y bloqueo por mercancía pendiente. No requiere alterar el esquema compartido para agregar una columna duplicada. Ver detalles y reproducción en [TMS_QA_007_INICIO_VIAJE.md](TMS_QA_007_INICIO_VIAJE.md).
+
+**Aceptación:** SELECT compila contra esquema real; inicio con/sin recolecta funciona; otro viaje con mercancía sin entregar sigue bloqueado; reenvío devuelve la misma ruta. Regresión sobre PostgreSQL real y retest independiente del flujo V2. No publicar código fuera de QA_CAMBIOS con la autorización actual.
 
 ## Corregidos o comprobados; no reabrir sin regresión
 
