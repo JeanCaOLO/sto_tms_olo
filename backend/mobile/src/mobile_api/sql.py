@@ -291,7 +291,7 @@ WHERE r.organization_id = %s AND r.driver_id = %s AND lower(r.status) = ANY(%s)
   AND (pt.status IS NULL OR pt.status NOT IN ('completed', 'cancelled'))
   AND (EXISTS (SELECT 1 FROM tbl_dispatch_guides g WHERE g.route_id = r.id
               AND NOT ({_GUIDE_STATE} IN {DELIVERED_SQL} OR {_GUIDE_STATE} IN {FAILED_SQL}))
-       OR EXISTS(SELECT 1 FROM tbl_return_collection_assignments a
+       OR EXISTS(SELECT 1 FROM vw_return_collection_assignments a
          JOIN tbl_return_collection_results cr ON cr.attempt_id=a.attempt_id
          WHERE a.route_id=r.id AND cr.quantity>0 AND cr.delivered_event_id IS NULL))
 LIMIT 1
