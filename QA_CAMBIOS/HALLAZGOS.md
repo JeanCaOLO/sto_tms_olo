@@ -93,6 +93,16 @@ El informe original conserva `Failed to fetch` al emitir liquidación y un aviso
 
 **Aceptación:** SELECT compila contra esquema real; inicio con/sin recolecta funciona; otro viaje con mercancía sin entregar sigue bloqueado; reenvío devuelve la misma ruta. Regresión sobre PostgreSQL real y retest independiente del flujo V2. No publicar código fuera de QA_CAMBIOS con la autorización actual.
 
+## TMS-QA-008 — P2 — REPRODUCIDO: contrato web/móvil oculto por ruta de referencia errónea
+
+El archivo `backend/mobile/tests/test_web_contract.py` construía `REFERENCE` como raíz TMS + `TMS AHORA SI/backend/tracking/src`, duplicando el nombre del repositorio. Por eso omitía 23 casos aunque las fuentes web sí existen. El probador corrigió solo la ruta local a raíz TMS + `backend/tracking/src`, sin tocar las aserciones.
+
+**Resultado real:** 22 aprobadas, 1 fallida y 2 omitidas; salida 1. Falla `test_constants_match_web[EVIDENCE_KINDS]`: mobile incluye `photo_return`, mientras tracking web no lo declara. Las dos omisiones restantes son constantes no literales (`MAX_EVIDENCE_BYTES`, `GUIDE_STATUS_TEXT`). Evidencia `retest-web-mobile-contract.log/.exitcode.txt`.
+
+**Acción del corrector:** determinar si esa diferencia entre endpoints es intencional y ajustar el contrato con una justificación concreta, o corregir la incompatibilidad en su capa responsable si la web debe aceptar/leer ese tipo. No borrar `photo_return` de mobile para hacer pasar el test ni relajar la aserción sin verificar los consumidores. Revisar también cómo comprobar las dos constantes no literales reutilizando mecanismos existentes. La última suite 172/23 corresponde al estado anterior de esta ruta; el árbol de pruebas actual conserva este fallo pendiente.
+
+**Aceptación:** las pruebas usan las fuentes reales, el contrato vigente queda documentado y validado, y no se ocultan casos por ausencia ficticia de referencia. La corrección de ruta sigue local, sin commit/push de código.
+
 ## Corregidos o comprobados; no reabrir sin regresión
 
 - Moneda y proformas: histórico confirmó reemplazo de `LIQ-CR-022` por `LIQ-CR-023`, una vigente de 50000 CRC y un ítem en `PRO-CR-009`. Se integró Josef conservando formato monetario entrante y diseño local. Fase 2 sigue bloqueada, no confundir con asignación.
