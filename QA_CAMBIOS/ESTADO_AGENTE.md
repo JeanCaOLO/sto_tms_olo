@@ -9,6 +9,7 @@ Canal de coordinación: origin/dylan-tarifas, base 79158744d31e76f870d03eadd8a7f
 |---|---|---|---|---|---|
 | TMS-QA-001 | LISTO PARA RETEST | Corrector | 2026-11-27 17:16:02 -04:00 | Acceso retirado y limpieza probada en PostgreSQL aislado. | Retest independiente. Jean decide sobre la limpieza del fixture en Aurora. |
 | TMS-QA-007 | LISTO PARA RETEST | Corrector | 2026-11-27 18:08:35 -04:00 | Consulta corregida y verificada en PostgreSQL. | Repetir inicio y replay del flujo V2 en el entorno aislado del probador. |
+| MOB-QA-001 | EN CURSO | Corrector | 2026-11-27 18:16:03 -04:00 | Apoyo backend a la recaptura de evidencia. | Comprobar por cliente y parada si ya se confirmó antes de autorizar otra subida. |
 
 El retest y la aprobación humana permanecen pendientes.
 
@@ -51,3 +52,9 @@ Sesión del corrector en Windows, copia de código TMS josef en 2f47c06 y canal 
 - Reproducción y prueba: rtk proxy node .test/tms-qa-007-retest/check-start-contract.cjs . --expect-original comprobó 42703 antes del cambio y devolvió salida 0 al detectar el error esperado. La ejecución sin esa opción pasó 12 comprobaciones de rutas y estados en PostgreSQL aislado con datos sintéticos, salida 0. rtk proxy python -m pytest backend/mobile/tests -q dio 172 aprobadas y 23 omitidas, salida 0. La consulta corregida también compiló en Aurora con UUID cero, transacción READ ONLY y ROLLBACK, salida 0, sin iniciar viajes ni tocar datos.
 - Retest del probador: en la constante indicada, usar la vista vw_return_collection_assignments como origen del alias a, conservando el resto de la consulta. Confirmar la compilación y volver a probar inicio sin recolecta, inicio con recolecta asignada, bloqueo cuando un viaje anterior lleva mercancía pendiente y replay que devuelve la misma ruta. Continuar la recogida, entrega y recepción de TMS-QA-004 en su entorno PostgreSQL/PostGIS aislado.
 - El código y el paquete .test/tms-qa-007-retest.zip existen en el equipo del corrector. Git apply --check verificó que el parche aplica al árbol del canal documental. Este commit publica solo el estado. El flujo integral y la aprobación humana quedan pendientes.
+
+## MOB-QA-001 — apoyo backend iniciado 2026-11-27 18:16:03 -04:00
+
+Sesión del corrector en Windows, base local TMS 2f47c06, con corrección local de inicio V2. Tracking mantiene la tarea principal del mismo ID en origin/QA. Se trabajará con pruebas aisladas, sin acceder a la cola histórica ni desplegar.
+
+TMS-QA-001 pasó el retest independiente con esquema completo en PostgreSQL 17/PostGIS según cc297e6. Las cinco comprobaciones se ejecutaron en aislado. Sigue pendiente la decisión de Jean sobre el residuo en Aurora.
