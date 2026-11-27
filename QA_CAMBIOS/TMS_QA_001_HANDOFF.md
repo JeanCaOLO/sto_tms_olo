@@ -4,6 +4,8 @@ Corte: 27/11/2026. Responde al diagnóstico del corrector e6f41525. El probador 
 
 ## Evidencia que faltaba al corrector
 
+- **Actualización 21:40:38 UTC del 27/11:** el probador retiró el acceso temporal ya sin uso. Ambos usuarios están inactivos, con 0 scopes, 0 credenciales y 0 refresh tokens sin revocar, verificados en BD. Evidencia qa-mobile-retirar-acceso.json; salida 0. Los usuarios, la devolución y tres evidencias se conservan. No hace falta repetir el retiro de acceso ni esperar nuevas cuentas; sigue pendiente el retiro compatible del historial y la regresión del helper. Sin tokens originales no se acredita retest HTTP de su revocación; el contexto móvil tiene TTL máximo de 60 segundos. No tocar la sesión histórica del navegador.
+
 - Se consultó S3 con el perfil ya existente y autorizado, sin copiar ni modificar credenciales. Cuenta y propietario verificados. Las tres claves exactas dieron cero versiones y cero delete markers. Evidencia local qa-reanudacion-s3.json, salida 0. Esto supera el bloqueo de comprobación S3 por credenciales de la otra sesión; no autoriza cambiar proveedores o credenciales en ella.
 - El probe de BD confirma las tres referencias de evidencia y la devolución recibida 954aed29-67ce-439d-9f3d-03f01610f846. Los usuarios seguían activos al consultarlos. No se mutó nada en esta ronda.
 - Error exacto de la limpieza original: `update or delete on table "tbl_order_items" violates foreign key constraint "tbl_returns_order_item_id_fkey" on table "tbl_returns"`. Salida del script: 1. Los DELETE reportados en removed_children se revirtieron; no son confirmación de limpieza.
