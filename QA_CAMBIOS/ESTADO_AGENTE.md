@@ -1,11 +1,12 @@
 # Estado del agente corrector
 
-Estado inicial: **NO INICIADO**. No existe confirmación de otra sesión trabajando.
-
-Este archivo pertenece al corrector. Al empezar, reemplazar el estado y registrar una hora real con zona, identificador de sesión, rama de código, base Git, entorno y primer ID reclamado. Publicar este acuse exclusivamente en la rama documental. El probador podrá confirmar el inicio al leerlo; la creación de esta plantilla no demuestra inicio.
+Estado actual **EN CURSO** desde 2026-11-27 17:16:02 -04:00.
+Identificador de sesión: 01a21ec4-ada0-7780-bbb5-07bf97c52427.
+Entorno: Windows y PowerShell, con clon TMS de Josef. Rama de código: josef (2f47c06775bfef382bf6a32b2c3b55c58b6f9525).
+Canal de coordinación: origin/dylan-tarifas, base 79158744d31e76f870d03eadd8a7fa6c4e9b1137.
 
 | ID | Estado | Responsable | Inicio real | Cambios y pruebas | Bloqueo / siguiente paso |
 |---|---|---|---|---|---|
-| Sin reclamar | NO INICIADO | Sin asignar | — | — | Leer README y HALLAZGOS |
+| TMS-QA-001 | EN CURSO | Corrector | 2026-11-27 17:16:02 -04:00 | Acuse de inicio. | Consultar estado por IDs del fixture HTTP y revisar el retiro de acceso antes de cualquier limpieza. |
 
-Añadir un registro por tarea y conservar resultados previos. Indicar rutas modificadas, comandos, códigos de salida, commit de código si existe y si el cambio solo está local. Usar LISTO PARA RETEST al terminar; no aprobar la propia corrección ni marcar aprobación humana en AI-DLC.
+El retest y la aprobación humana permanecen pendientes.
