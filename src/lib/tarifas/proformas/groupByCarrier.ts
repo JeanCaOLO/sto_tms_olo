@@ -1,4 +1,4 @@
-// Agrupa liquidaciones por transportista. Una proforma = un transportista. Solo entran las que siguen
+// Agrupa liquidaciones por transportista y moneda. Solo entran las que siguen
 // en Borrador (las demás ya están en una proforma, aprobadas, pagadas o anuladas) y no agrupadas aún.
 
 export interface GroupableSettlement {
@@ -23,9 +23,10 @@ export function groupByCarrier(settlements: GroupableSettlement[], alreadyGroupe
   const groups = new Map<string, CarrierGroup>();
   for (const s of settlements) {
     if (!s.carrierId || s.status !== 'Borrador' || alreadyGrouped.has(s.id)) continue;
-    const group = groups.get(s.carrierId) ?? { carrierId: s.carrierId, carrierName: s.carrierName ?? s.carrierId, currency: s.currency, settlements: [] };
+    const key = JSON.stringify([s.carrierId, s.currency]);
+    const group = groups.get(key) ?? { carrierId: s.carrierId, carrierName: s.carrierName ?? s.carrierId, currency: s.currency, settlements: [] };
     group.settlements.push(s);
-    groups.set(s.carrierId, group);
+    groups.set(key, group);
   }
   return [...groups.values()].sort((a, b) => a.carrierName.localeCompare(b.carrierName));
 }

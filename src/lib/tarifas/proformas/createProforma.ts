@@ -49,6 +49,7 @@ async function existingNumbers(countryId: string): Promise<string[]> {
 function validate(input: CreateProformaInput): string | null {
   if (input.settlements.length === 0) return 'Elige al menos una liquidación para la proforma.';
   if (input.settlements.some((s) => s.carrierId !== input.carrierId)) return 'Una proforma agrupa liquidaciones de un solo transportista.';
+  if (input.settlements.some((s) => s.currency !== input.currency)) return 'Una proforma agrupa liquidaciones en una sola moneda.';
   return null;
 }
 

@@ -38,6 +38,16 @@ describe('con fases configuradas', () => {
     await saveFlowPhases(COUNTRY, [phase('Revisión', 'Liquidador'), phase('Gerencia', 'Gerente')]);
   });
 
+  it('separa las liquidaciones por moneda aunque sean del mismo transportista', async () => {
+    const [a, b, c] = await seed(3);
+    await db().update('settlement', b!.id, { currency: 'USD' });
+    const usd = { ...b!, currency: 'USD' };
+    expect(await assignSettlements(COUNTRY, [a!, usd])).toMatchObject({ created: 2, added: 0, error: null });
+    expect(await assignSettlements(COUNTRY, [c!])).toMatchObject({ created: 0, added: 1, error: null });
+    expect((await listProformas(COUNTRY)).map(({ proforma }) => [proforma.currency, proforma.totalAmount]))
+      .toEqual(expect.arrayContaining([['VES', 202], ['USD', 101]]));
+  });
+
   it('la primera liquidación crea la proforma y queda En Revisión', async () => {
     const [a] = await seed(1);
     const result = await assignSettlements(COUNTRY, [a!]);

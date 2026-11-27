@@ -4,7 +4,7 @@
 
 import type { BaseRef, BuiltinVarKey, DiscardReason, RuleCategory, Stage, VarKey } from './types';
 import type { Pred } from './types';
-import { pctToDisplay, toDecimal } from './money';
+import { pctToDisplay, sumMoney, toDecimal } from './money';
 
 /**
  * Símbolo de cada moneda que el módulo maneja hoy. Antes esto era un `if (currency === 'USD')` y
@@ -33,24 +33,37 @@ export function groupThousands(amount: string): string {
   return `${sign}${integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${fraction}`;
 }
 
-/**
- * Moneda que se MUESTRA en pantalla en vez de la que trae el dato (solo presentación). Hoy Costa Rica
- * se ve en colones aunque `countries.currency` y las liquidaciones ya emitidas digan USD. Lo fija
- * `useActiveCountry` según el país activo; null = se muestra la moneda del dato.
- */
-let displayCurrencyOverride: string | null = null;
-export function setDisplayCurrencyOverride(currency: string | null): void {
-  displayCurrencyOverride = currency;
-}
-
-export function formatMoney(amount: string, dataCurrency: string): string {
-  const currency = displayCurrencyOverride ?? dataCurrency;
+export function formatMoney(amount: string, currency: string): string {
   const symbol = CURRENCY_SYMBOLS[currency];
   const grouped = groupThousands(amount);
   const value = COMMA_DECIMAL_CURRENCIES.has(currency)
     ? grouped.replace(/[.,]/g, (c) => (c === ',' ? '.' : ','))
     : grouped;
   return symbol ? `${symbol}${value}` : `${value} ${currency}`;
+}
+
+/** Los totales conservan cada moneda histórica y priorizan la moneda operativa. */
+export function formatCurrencyTotals(
+  items: readonly { currency: string; totalAmount: string | number }[],
+  localCurrency: string,
+): string {
+  const byCurrency = new Map<string, string[]>();
+  for (const { currency, totalAmount } of items) {
+    const amounts = byCurrency.get(currency) ?? [];
+    amounts.push(String(totalAmount));
+    byCurrency.set(currency, amounts);
+  }
+  if (byCurrency.size === 0) return formatMoney('0', localCurrency);
+
+  const currencies = [...byCurrency.keys()].sort((a, b) =>
+    Number(b === localCurrency) - Number(a === localCurrency) || a.localeCompare(b),
+  );
+  return currencies.map((currency) => {
+    const amounts = byCurrency.get(currency)!;
+    const decimals = Math.max(0, ...amounts.map((amount) => toDecimal(amount).decimalPlaces()));
+    const total = formatMoney(sumMoney(amounts).toFixed(decimals), currency);
+    return currencies.length > 1 && CURRENCY_SYMBOLS[currency] ? `${total} ${currency}` : total;
+  }).join(' · ');
 }
 
 export function formatPct(fraction: string): string {

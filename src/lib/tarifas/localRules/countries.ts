@@ -1,5 +1,6 @@
 // Países y su configuración de cálculo (redondeo, pernocta).
 
+import { settlementCurrency } from '../catalog-loader/country';
 import { db, type Row } from '../data';
 
 type SaveResult = { error: { code?: string; message: string } | null };
@@ -24,7 +25,7 @@ export async function listCountries(_organizationId: string): Promise<Row[]> {
       code: c.code,
       iso2: c.code,
       name: c.name,
-      local_currency: c.currency,
+      local_currency: settlementCurrency(c),
       settings_id: s?.id ?? null,
       rounding_decimals: s?.rounding_decimals ?? null,
       rounding_mode: s?.rounding_mode ?? null,

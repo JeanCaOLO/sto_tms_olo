@@ -11,6 +11,8 @@ import { CatalogError, loadCountries, loadTarifasCatalog, loadZones, type Tarifa
 import { buildCalculateInput, locationsFromZones } from '../settlementInput';
 import { calculate } from '../index';
 import { db } from '../data';
+import { settlementCurrency } from '../catalog-loader/country';
+import { formatCurrencyTotals, formatMoney } from '../format';
 import { makeTrip } from './fixtures';
 import type { TripContext } from '../types';
 
@@ -28,6 +30,24 @@ beforeEach(() => { localStorage.clear(); });
 // ── El cargador ───────────────────────────────────────────────────────────────────────────────
 
 describe('loadTarifasCatalog', () => {
+  it('muestra los importes historicos por moneda sin sumarlos ni ocultarlos', () => {
+    expect(formatCurrencyTotals([
+      { currency: 'USD', totalAmount: '5.10' },
+      { currency: 'CRC', totalAmount: '100' },
+      { currency: 'USD', totalAmount: '5.15' },
+    ], 'CRC')).toBe('₡100 CRC · $10.25 USD');
+  });
+
+  it.each([
+    ['CR', 'CRC', '₡50,000.00'], ['DCR', 'CRC', '₡50,000.00'],
+    ['VN', 'USD', '$50,000.00'], ['VE', 'USD', '$50,000.00'], ['DVE', 'USD', '$50,000.00'],
+    ['PA', 'USD', '$50,000.00'],
+  ])('resuelve y presenta la moneda local de %s', (code, currency, formatted) => {
+    const local = settlementCurrency({ id: code, code, currency: code === 'PA' ? 'USD' : 'EUR' });
+    expect(local).toBe(currency);
+    expect(formatMoney('50000.00', local)).toBe(formatted);
+  });
+
   it('trae todo lo que el motor necesita de un país', async () => {
     const catalog = await loadTarifasCatalog('VE', null);
 
