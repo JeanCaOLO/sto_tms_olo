@@ -7,7 +7,7 @@ Canal de coordinación: origin/dylan-tarifas, base 79158744d31e76f870d03eadd8a7f
 
 | ID | Estado | Responsable | Inicio real | Cambios y pruebas | Bloqueo / siguiente paso |
 |---|---|---|---|---|---|
-| TMS-QA-001 | EN CURSO | Corrector | 2026-11-27 17:16:02 -04:00 | Diagnóstico por IDs confirmado en Aurora. | Probador y Jean deben coordinar el retiro de acceso. Pendiente verificar S3 y obtener el helper original. |
+| TMS-QA-001 | LISTO PARA RETEST | Corrector | 2026-11-27 17:16:02 -04:00 | Acceso retirado y limpieza probada en PostgreSQL aislado. | Retest independiente. Jean decide sobre la limpieza del fixture en Aurora. |
 
 El retest y la aprobación humana permanecen pendientes.
 
@@ -25,3 +25,16 @@ El retest y la aprobación humana permanecen pendientes.
 ## TMS-QA-001 — reanudación 2026-11-27 17:38:30 -04:00
 
 El probador confirmó en 913c3e0 que las dos cuentas QA ya no se usan y entregó el helper sanitizado. Su consulta S3 del commit 7fed04a verificó que no quedan versiones ni marcadores de borrado para las tres claves exactas. Se retoma el retiro de acceso por los IDs publicados, la inspección de dependencias y la corrección local del helper. No se recreará el fixture ni se intervendrá la cola histórica de Tracking.
+
+## TMS-QA-001 — listo para retest 2026-11-27 17:45:59 -04:00
+
+- Causa: el helper omitía tbl_returns porque no tiene route_id. La devolución referenciaba la línea del pedido y la FK rechazaba el borrado. El helper ya había eliminado las tres claves S3 cuando SQL revirtió. El probador confirmó cero versiones y marcadores en 7fed04a.
+- Acceso QA: desactivamos las dos cuentas exactas y revocamos una sesión móvil en una transacción, con salida 0. La verificación posterior dio 2 cuentas inactivas y 0 refresh vigentes. La consulta de auditoría registró 2 eventos de la baja. La comprobación independiente del probador en 36b37d6 confirmó además 0 credenciales y 0 scopes. Se conservan las cuentas y el historial.
+- Corrección local: scripts/sandbox/tms_qa_001_cleanup.sql verifica propiedad, conteos y FKs entrantes por línea, guía, ruta y otros IDs propios. Rechaza dependencias fuera del manifiesto, incluso CASCADE o SET NULL. Retira las filas en orden explícito con los triggers normales. La transacción queda abierta para revisión y rollback o confirmación explícita por Jean. No contiene operaciones S3.
+- Comprobaciones: probes de solo lectura con rtk proxy python -, salida 0. Se inspeccionaron 41 FKs hacia entidades raíz y los 10 selectores del manifiesto dieron los conteos esperados, 15 filas. Regresión con rtk proxy node $env:TEMP/tms-qa-001-isolated-pg/cleanup-regression.cjs, salida 0 en PostgreSQL en memoria. Reprodujo la FK, el aborto con un hijo adicional, el rollback y el commit de prueba de 15 filas, conservando un pedido ajeno y las dos cuentas, con trigger de auditoría.
+- Retest: en PostgreSQL aislado, repetir la regresión y comprobar la dependencia bloqueante, ROLLBACK y las 15 filas. Antes de decidir sobre Aurora, Jean debe revalidar el inventario y que las tres claves exactas sigan ausentes. Si autoriza el ensayo en Aurora, usar una sesión dedicada y terminar con ROLLBACK hasta revisar todos los conteos. Confirmar solo tras esa revisión y volver a consultar los IDs, cuentas y auditoría en solo lectura. Si hubiera objetos reaparecidos, detenerse y reconciliar el manifiesto por clave antes de decidir sobre S3.
+- El SQL y la regresión están en el equipo del corrector. La limpieza de filas en Aurora y el retest independiente siguen pendientes. El generador del fixture no se ejecutó. Este commit publica solo el estado.
+
+## Ajuste de saldos de Liquidaciones y Proformas — listo para retest
+
+El formateador común presentaba subtotales de monedas históricas junto al saldo operativo. El cambio local suma solo los registros en la moneda operativa y muestra un total. Venezuela usa USD y Costa Rica CRC. Los comprobantes conservan la moneda original. Suite focal de Vitest: 148 pruebas, salida 0. npm run type-check: salida 0. Retest: usar registros USD y VES para Venezuela y verificar que el saldo muestre solo USD y que el detalle histórico siga intacto. Revisar CRC en Costa Rica. Código local, sin publicación.
