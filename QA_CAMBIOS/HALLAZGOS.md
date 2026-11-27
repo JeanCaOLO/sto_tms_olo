@@ -59,6 +59,8 @@ Las tres claves de objetos están en `qa-mobile-http.json`, restringidas al pedi
 
 ## TMS-QA-005 — P2 — PENDIENTE: cierre del lote histórico
 
+**Novedad de Tracking:** el usuario autorizó el reintento de las tres acciones históricas de la primera parada. Se intentó y la imagen web falló por blob ausente (`ERR_FILE_NOT_FOUND`), antes de persistir. Cotejo BD: 0→0 evidencias y eventos de esa guía; parada pendiente y ruta 1/3 sin cambio. MOB-QA-001 en mobile/QA contiene reproducción y aceptación. No limpiar ese lote ni su cola hasta coordinar recuperación/retest; el permiso de reintentar no autoriza descartarla automáticamente.
+
 **Evidencia:** manifiesto y sección de inventario de `pruebaFlujoGeneral.mjs`, originales `.test/pruebaFlujoGeneral.*`. Lote `QAFL-20261127`, viajes `QAFL-20261127-04` y `QAFL-20261127-T-1`. No se certifica limpieza.
 
 **Acción:** coordinar MOB-QA-001 antes del retiro. Descubrir descendientes propios de solicitudes, formularios, recolectas, tracking, liquidaciones y proformas. El helper histórico tiene límites por revisar: tablas no previstas, orígenes por request_id, claves compuestas, tracking_last_positions sin id e IDs de liquidación de texto. No ejecutar `clean` sin un `clean-check` válido. No usar scripts genéricos de seeds para retirar este lote. Conservar auditoría e historial inmutable. Aceptación: manifiesto reconciliado, cola propia controlada, ausencia por ID o residuos justificados, sin efectos ajenos.
