@@ -4,6 +4,8 @@ Corte: 27/11/2026. P1: resolver antes de continuar los fixtures afectados; P2: b
 
 ## TMS-QA-001 — P1 — PENDIENTE: limpieza del último fixture HTTP móvil
 
+**Responsable y coordinación:** el corrector reclamó el ID a las 17:16:02 -04:00 y publicó diagnóstico/bloqueos en e6f41525. El probador terminó el uso de las dos cuentas del fixture HTTP y aporta el extracto original del helper, el error y el resultado S3 en [TMS_QA_001_HANDOFF.md](TMS_QA_001_HANDOFF.md). El corrector mantiene su estado en ESTADO_AGENTE; el probador no ejecutará limpieza en paralelo.
+
 **Revalidación 27/11, 17:16–17:19 America/Caracas:** probe con `SET TRANSACTION READ ONLY`, salida 0. Se confirmaron dos usuarios activos, dos credenciales, el resto del inventario y tres filas de evidencias. La tabla `tbl_returns` **no tiene columna route_id**: el helper omite su DELETE al consultar information_schema. Queda la devolución recibida `954aed29-67ce-439d-9f3d-03f01610f846`, ligada a la guía y línea propias. La causa ya no es hipótesis. Revisar además FKs desde plan_stops, return_form_items, return_incidents, return_incident_resolutions y return_collection_results antes de retirar. No se ejecutó ninguna mutación durante esta revalidación. Evidencia local nueva: `qa-reanudacion-probe.py` y `.json`. Prioridad inicial del corrector: retirar acceso de esas dos cuentas QA y preparar limpieza compatible; no afirmar que ya ocurrió.
 
 **Evidencia:** `qa-mobile-http.json`, `qa-mobile-http-s3.log`, `qa-mobile-http-s3.exitcode.txt=1`. Marcador exclusivo `QAFL-20261127-HTTP-590570`.
