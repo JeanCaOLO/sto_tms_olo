@@ -4,7 +4,7 @@
 
 import type { BaseRef, BuiltinVarKey, DiscardReason, RuleCategory, Stage, VarKey } from './types';
 import type { Pred } from './types';
-import { pctToDisplay, toDecimal } from './money';
+import { pctToDisplay, sumMoney, toDecimal } from './money';
 
 /**
  * Símbolo de cada moneda que el módulo maneja hoy. Antes esto era un `if (currency === 'USD')` y
@@ -33,24 +33,25 @@ export function groupThousands(amount: string): string {
   return `${sign}${integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${fraction}`;
 }
 
-/**
- * Moneda que se MUESTRA en pantalla en vez de la que trae el dato (solo presentación). Hoy Costa Rica
- * se ve en colones aunque `countries.currency` y las liquidaciones ya emitidas digan USD. Lo fija
- * `useActiveCountry` según el país activo; null = se muestra la moneda del dato.
- */
-let displayCurrencyOverride: string | null = null;
-export function setDisplayCurrencyOverride(currency: string | null): void {
-  displayCurrencyOverride = currency;
-}
-
-export function formatMoney(amount: string, dataCurrency: string): string {
-  const currency = displayCurrencyOverride ?? dataCurrency;
+export function formatMoney(amount: string, currency: string): string {
   const symbol = CURRENCY_SYMBOLS[currency];
   const grouped = groupThousands(amount);
   const value = COMMA_DECIMAL_CURRENCIES.has(currency)
     ? grouped.replace(/[.,]/g, (c) => (c === ',' ? '.' : ','))
     : grouped;
   return symbol ? `${symbol}${value}` : `${value} ${currency}`;
+}
+
+/** Calcula el saldo en la moneda operativa con los importes registrados en esa moneda. */
+export function formatLocalCurrencyTotal(
+  items: readonly { currency: string; totalAmount: string | number }[],
+  localCurrency: string,
+): string {
+  const amounts = items
+    .filter(({ currency }) => currency === localCurrency)
+    .map(({ totalAmount }) => String(totalAmount));
+  const decimals = Math.max(0, ...amounts.map((amount) => toDecimal(amount).decimalPlaces()));
+  return formatMoney(sumMoney(amounts).toFixed(decimals), localCurrency);
 }
 
 export function formatPct(fraction: string): string {

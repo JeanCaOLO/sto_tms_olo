@@ -11,7 +11,7 @@ from tms_common import pg
 
 DECISION = "POST /api/tarifas/proformas/{id}/decision"
 CARRIER = "33333333-3333-3333-3333-333333333331"
-PROFORMA = {"id": "pro_1", "country_id": "22222222-2222-2222-2222-222222222221", "carrier_id": CARRIER, "status": "En Revisión"}
+PROFORMA = {"id": "pro_1", "country_id": "22222222-2222-2222-2222-222222222221", "carrier_id": CARRIER, "currency": "CRC", "status": "En Revisión"}
 
 
 def phase(pid, position, state="pendiente", role="Jefe", user=None):
@@ -33,7 +33,8 @@ class Script(FakeDb):
             row = self.locked_proforma if "FOR UPDATE" in sql and self.locked_proforma else self.proforma
             return [row] if row else []
         if "FROM tbl_tarifas_settlements WHERE id" in sql:
-            return [{"id": params[0], "total_amount": "10.00", "country_id": PROFORMA["country_id"], "carrier_id": CARRIER}]
+            return [{"id": params[0], "total_amount": "10.00", "country_id": PROFORMA["country_id"],
+                     "carrier_id": CARRIER, "currency": PROFORMA["currency"]}]
         if "COUNT(*)" in sql and "FROM tbl_tarifas_proforma_items" in sql:
             return [{"included_count": 1}]
         if "FROM tbl_tarifas_proforma_phases" in sql:

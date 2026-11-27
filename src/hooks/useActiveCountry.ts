@@ -10,7 +10,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { listCountries } from '../lib/tarifas/localRulesDataSource';
-import { setDisplayCurrencyOverride } from '../lib/tarifas/format';
 import { useOperationalContext } from './useOperationalContext';
 import { usePermissions } from './usePermissions';
 
@@ -91,13 +90,11 @@ export function useActiveCountry(): ActiveCountryState {
       else if (match.settings_id === null) problem = 'not-configured';
     }
 
-    // Costa Rica se muestra en colones aunque la BD diga USD (solo presentación, ver format.ts).
-    const shown = match && match.iso2 === 'CR' ? { ...match, local_currency: 'CRC' } : match;
     const unusable = problem === 'load-failed' || problem === 'none-selected' || problem === 'not-available';
 
     return {
       countries: visible,
-      country: unusable ? null : shown,
+      country: unusable ? null : match,
       countryId: unusable ? '' : match?.id ?? '',
       selectedName: selected?.name ?? null,
       problem,
@@ -106,10 +103,6 @@ export function useActiveCountry(): ActiveCountryState {
       reload,
     };
   }, [countries, ctx.countries, ctx.selectedCountryId, ctx.loading, loadError, loadingList, loadingPermissions, permitted, reload]);
-
-  // Efecto fuera de `useMemo`: escribir un global durante el render es impuro (en StrictMode se ejecuta dos veces).
-  const displayCurrency = state.country?.iso2 === 'CR' ? 'CRC' : null;
-  useEffect(() => { setDisplayCurrencyOverride(displayCurrency); }, [displayCurrency]);
 
   return state;
 }

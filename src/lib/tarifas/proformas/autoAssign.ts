@@ -30,11 +30,12 @@ export function pickOpenProforma(candidates: ProformaWithPhases[]): ProformaWith
   return candidates.find((c) => canEditItems(c.proforma, c.phases)) ?? null;
 }
 
-async function listOpenCandidates(countryId: string, carrierId: string): Promise<ProformaWithPhases[]> {
+async function listOpenCandidates(countryId: string, { carrierId, currency }: CarrierGroup): Promise<ProformaWithPhases[]> {
   const rows = await db().find('proforma', {
     where: [
       { column: 'country_id', op: 'eq', value: countryId },
       { column: 'carrier_id', op: 'eq', value: carrierId },
+      { column: 'currency', op: 'eq', value: currency },
       { column: 'status', op: 'eq', value: 'En Revisión' },
     ],
     orderBy: [{ column: 'created_at', direction: 'asc' }],
@@ -69,7 +70,7 @@ async function addToProforma(target: ProformaWithPhases, settlements: GroupableS
 }
 
 async function assignGroup(countryId: string, group: CarrierGroup): Promise<AssignResult> {
-  const open = pickOpenProforma(await listOpenCandidates(countryId, group.carrierId));
+  const open = pickOpenProforma(await listOpenCandidates(countryId, group));
   if (open) {
     await addToProforma(open, group.settlements);
     return { ...EMPTY, added: group.settlements.length };

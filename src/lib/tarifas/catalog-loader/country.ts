@@ -6,6 +6,19 @@ import type { Country, RoundingMode } from '../types';
 
 const eq = (column: string, value: unknown) => ({ column, op: 'eq' as const, value });
 
+/** Moneda operativa del tarifador para los países del TMS y sus entornos de prueba. */
+const LOCAL_CURRENCY_BY_CODE: Readonly<Record<string, string>> = {
+  CR: 'CRC',
+  DCR: 'CRC',
+  VN: 'USD',
+  VE: 'USD',
+  DVE: 'USD',
+};
+
+export function settlementCurrency(country: Row): string {
+  return LOCAL_CURRENCY_BY_CODE[country.code] ?? country.currency;
+}
+
 /**
  * País del catálogo + su configuración de cálculo. Sin configuración no hay país liquidable: los
  * decimales y el modo de redondeo cambian el total, y adivinarlos daría un número plausible y mal
@@ -17,7 +30,7 @@ export function toCountry(row: Row, settings: Row | undefined): Country | null {
     id: row.id,
     iso2: row.code,
     name: row.name,
-    localCurrency: row.currency,
+    localCurrency: settlementCurrency(row),
     roundingDecimals: Number(settings.rounding_decimals),
     roundingMode: settings.rounding_mode as RoundingMode,
     overnightThresholdHours: Number(settings.overnight_threshold_hours),

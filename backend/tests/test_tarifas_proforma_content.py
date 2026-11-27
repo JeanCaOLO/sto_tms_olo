@@ -22,6 +22,8 @@ class ContentDb:
         self.state = None
         self.item_after_lock = None
         self.included_count = 1
+        self.carrier_id = CR
+        self.currency = "CRC"
 
     def query(self, statement, params=()):
         self.calls.append((statement, list(params)))
@@ -32,14 +34,15 @@ class ContentDb:
         if "COUNT(*)" in statement:
             return [{"included_count": self.included_count}]
         if "FROM tbl_tarifas_proformas WHERE id" in statement:
-            return [{"id": "pro_1", "status": self.status, "country_id": CR, "carrier_id": CR}]
+            return [{"id": "pro_1", "status": self.status, "country_id": CR, "carrier_id": CR, "currency": "CRC"}]
         if "FROM tbl_tarifas_proforma_phases" in statement:
             return self.phases
         if "FROM tbl_tarifas_settlements WHERE id" in statement:
+            assert "trip_info ->> 'carrierId' AS carrier_id" in statement
+            row = {"total_amount": "10.00", "country_id": CR, "carrier_id": self.carrier_id, "currency": self.currency}
             if "ANY(" in statement:
-                return [{"id": row_id, "total_amount": "10.00", "country_id": CR, "carrier_id": CR}
-                        for row_id in params[0]]
-            return [{"id": "liq_1", "total_amount": "10.00", "country_id": CR, "carrier_id": CR}]
+                return [{"id": row_id, **row} for row_id in params[0]]
+            return [{"id": "liq_1", **row}]
         if statement.lstrip().startswith("UPDATE tbl_tarifas_proformas SET total_amount"):
             return [{"id": "pro_1", "total_amount": "10.00"}]
         if statement.startswith("UPDATE tbl_tarifas_settlements SET status"):
@@ -130,6 +133,20 @@ def test_insert_into_decided_parent_is_conflict(content):
     app, db = content
     db.status = "Aprobado"
     assert request(app, ITEM, kind="insert")["statusCode"] == 409
+
+
+@pytest.mark.parametrize("bulk", [False, True])
+@pytest.mark.parametrize("field,value", [("currency", "USD"), ("carrier_id", "other-carrier")])
+def test_insert_requires_matching_currency_and_snapshot_carrier(content, bulk, field, value):
+    app, db = content
+    setattr(db, field, value)
+    if bulk:
+        response = app.handler(http_event("POST /api/tarifas/tx", body={"ops": [
+            {"op": "insert_many", "table": ITEMS, "rows": [ITEM]}]}, user=USER), None)
+    else:
+        response = request(app, ITEM, kind="insert")
+    assert response["statusCode"] == 409
+    assert db.state == "rollback"
 
 
 def test_parent_total_comes_from_items_instead_of_client(content):

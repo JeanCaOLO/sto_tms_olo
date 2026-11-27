@@ -19,7 +19,6 @@ import { useModulePermissions } from '../../hooks/use-module-permissions';
 import { useTarifasActor } from '../../hooks/useTarifasActor';
 import { useLiquidacionesController } from './hooks/useLiquidacionesController';
 import { useLiquidadorVista } from './hooks/useLiquidadorVista';
-import { formatMoney } from '../../lib/tarifas/format';
 import { TripsTable } from './parts/TripsTable';
 import { getSettlementColumns, getSettlementColumnsExtended } from './parts/settlementColumns';
 import { PedidosEmitidos } from './parts/PedidosEmitidos';
@@ -29,6 +28,7 @@ import type { SettlementRecord, TripRecord } from '../../lib/tarifas/types';
 
 export default function LiquidacionesPage() {
   const { country: activeCountry, countryId, problem, selectedName, loading: loadingCountries } = useActiveCountry();
+  const moneda = activeCountry?.local_currency ?? '';
   const { canCreate, canEdit } = useModulePermissions('tarifas');
   useTarifasActor();
   const { extendida, puedeConfigurar, setExtendida } = useLiquidadorVista();
@@ -37,7 +37,7 @@ export default function LiquidacionesPage() {
     tab, setTab, from, setFrom, to, setTo, error, trips, loadingTrips, settlements,
     loadingSettlements, changeStatus, listos, incompletos, kpis,
     tripsRecortados, siguiente, cargandoMas, loadMore, openFull, prefetchProps, onEmitted, onBatchEmitted, emitida,
-  } = useLiquidacionesController(countryId);
+  } = useLiquidacionesController(countryId, moneda);
 
   const [alcance, setAlcance] = useState<'ready' | 'incomplete' | 'all'>('ready');
   const [modal, setModal] = useState<{ trip: TripRecord | null; settlement: SettlementRecord | null } | null>(null);
@@ -54,7 +54,6 @@ export default function LiquidacionesPage() {
     [settlements],
   );
 
-  const moneda = activeCountry?.local_currency ?? '';
 
   if (loadingCountries) {
     return <div className="p-6 text-center text-slate-500"><i className="ri-loader-4-line animate-spin text-2xl" /></div>;
@@ -81,8 +80,8 @@ export default function LiquidacionesPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard title="Listos" value={String(listos.length)} icon="ri-route-line" color="teal" />
         <StatCard title="Incompletos" value={String(incompletos.length)} icon="ri-error-warning-line" color="amber" />
-        <StatCard title={siguiente ? 'Total liquidado (cargadas)' : 'Total liquidado'} value={formatMoney(kpis.total, moneda)} icon="ri-money-dollar-circle-line" color="emerald" />
-        <StatCard title={siguiente ? 'Sin aprobar (cargadas)' : 'Sin aprobar'} value={formatMoney(kpis.pendiente, moneda)} icon="ri-time-line" color="amber" />
+        <StatCard title={siguiente ? 'Total liquidado (cargadas)' : 'Total liquidado'} value={kpis.total} icon="ri-money-dollar-circle-line" color="emerald" />
+        <StatCard title={siguiente ? 'Sin aprobar (cargadas)' : 'Sin aprobar'} value={kpis.pendiente} icon="ri-time-line" color="amber" />
       </div>
 
       <Card>
