@@ -557,6 +557,34 @@ def test_upload_url_with_client_id_gives_the_same_key_on_every_retry(call, fake_
     assert call(route, path={"id": GUIDE}, body={**body, "client_id": "no-uuid"})["statusCode"] == 400
 
 
+@pytest.mark.parametrize("confirmed", [False, True])
+def test_upload_url_recovers_only_unconfirmed_evidence(call, fake_db, s3, confirmed):
+    guide = guide_row()
+    fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide])
+    key = f"{FOLDER}photo_invoice-{UUID1}.jpg"
+    fake_db.answer("SELECT storage_key, storage_bucket FROM tbl_tracking_evidences",
+                   [{"storage_key": key, "storage_bucket": "bucket-de-prueba"}] if confirmed else [])
+    route = "POST /api/mobile/v1/paradas/{id}/evidencias/upload-url"
+    body = {"kind": "photo_invoice", "mime_type": "image/jpeg", "client_id": UUID1, "recover_missing_file": True}
+    response = call(route, path={"id": GUIDE}, body=body)
+    assert response["statusCode"] == 200
+    data = body_of(response)["data"]
+    assert data["already_confirmed"] is confirmed
+    query = next(params for statement, params in fake_db.calls
+                 if "SELECT storage_key, storage_bucket FROM tbl_tracking_evidences" in statement)
+    assert query == [str(guide["organization_id"]), GUIDE, "photo_invoice", UUID1]
+    if confirmed:
+        assert data == {"already_confirmed": True}
+        assert not s3.posts
+        s3.head = None
+        assert call(route, path={"id": GUIDE}, body=body)["statusCode"] == 400
+        assert not s3.posts
+    else:
+        assert data["key"] == key
+        assert len(s3.posts) == 1
+    assert call(route, path={"id": GUIDE}, body={**body, "client_id": None})["statusCode"] == 400
+
+
 def test_confirm_stores_key_and_links_the_guide(call, fake_db, s3):
     fake_db.answer("FROM tbl_dispatch_guides g JOIN tbl_routes r", [guide_row()])
     fake_db.answer("INSERT INTO tbl_tracking_evidences", [{"id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc"}])

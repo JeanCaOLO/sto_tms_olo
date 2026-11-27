@@ -50,6 +50,22 @@ def object_metadata(guide: dict, kind: str) -> dict:
             "x-amz-meta-parada-id": str(guide["id"]), "x-amz-meta-tipo": kind}
 
 
+def recovery_status(body: dict, driver: Driver, guide_id: str, kind: str) -> dict:
+    """Una recaptura no debe volver a subir una evidencia que ya se confirmó."""
+    if body.get("recover_missing_file") is not True:
+        return {}
+    client_id = body.get("client_id")
+    if not logic.is_uuid(client_id):
+        raise HttpError(400, "La recaptura requiere client_id")
+    confirmed = db.query(sql.CONFIRMED_EVIDENCE_SQL, [driver.organization_id, guide_id, kind, client_id])
+    if confirmed:
+        asset = confirmed[0]
+        if asset["storage_bucket"] not in (None, config.evidence_bucket_or_none()):
+            raise HttpError(409, "La evidencia confirmada pertenece a otro almacén.")
+        logic.require_uploaded_image(_head(asset["storage_key"]))
+    return {"already_confirmed": bool(confirmed)}
+
+
 def upload_url(event: dict, driver: Driver) -> dict:
     guide_id = path_param(event, "id")
     body = body_dict(event)
@@ -58,6 +74,9 @@ def upload_url(event: dict, driver: Driver) -> dict:
     if client_id is not None and not logic.is_uuid(client_id):
         raise HttpError(400, "client_id inválido")
     guide = guide_access(driver, guide_id)
+    recovery = recovery_status(body, driver, guide_id, kind)
+    if recovery.get("already_confirmed"):
+        return ok(recovery)
     key = logic.new_evidence_key(guide, kind, mime, client_id)
     fields = {"Content-Type": mime, **object_metadata(guide, kind)}
     form = s3().generate_presigned_post(
@@ -66,7 +85,7 @@ def upload_url(event: dict, driver: Driver) -> dict:
                     ["content-length-range", 1, logic.MAX_EVIDENCE_BYTES]],
         ExpiresIn=logic.URL_TTL_SECONDS)
     return ok({"url": form["url"], "fields": form["fields"], "key": key, "kind": kind,
-               "max_bytes": logic.MAX_EVIDENCE_BYTES})
+               "max_bytes": logic.MAX_EVIDENCE_BYTES, **recovery})
 
 
 def confirm(event: dict, driver: Driver) -> dict:
