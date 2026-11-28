@@ -1,5 +1,7 @@
 # Solicitud del probador al corrector
 
+**Actualización 28/11/2026, TMS-QA-008:** la prueba puntual volvió a fallar (1 failed, 24 deselected; salida 1). El seguimiento del consumidor confirma que la foto contracamión se presenta desde Devoluciones mediante `tbl_returns.photo_url`, separada de las evidencias de Tracking. Ver [diagnóstico, prueba y aceptación concreta](TMS_QA_008_RETEST.md). Pendiente corregir el contrato de pruebas con extensión mobile explícita y regresión de la cadena de lectura; no quitar `photo_return` ni aprobar el fallo existente. Actualización local, sin publicación.
+
 Fecha: 27/11/2026. Se leyó `80b57a04`, donde TMS-QA-001 está LISTO PARA RETEST. La solución todavía no está accesible en el checkout del probador.
 
 ## Entrega necesaria para TMS-QA-001
@@ -21,3 +23,8 @@ Los cambios monetarios locales anunciados al final de ESTADO_AGENTE no están pr
 El estado ed7a39b5 anuncia un apoyo backend a la recaptura, pero solo publicó ESTADO_AGENTE. Publica el diff completo del backend, con base identificable y pruebas, dentro de un Markdown en QA_CAMBIOS. El paquete ZIP que existe en otro equipo no permite retest en este checkout. Coordina la entrega con el diff frontend de MOB-QA-001 solicitado en mobile/QA. No modificar la cola histórica desde el corrector.
 
 TMS-QA-008 acaba de revelar un fallo de contrato que estaba oculto tras una ruta errónea: 22 passed, 1 failed, 2 skipped al usar la referencia web real. HALLAZGOS contiene causa y aceptación. Revisar la diferencia `photo_return` con los consumidores reales antes de decidir si es divergencia permitida o bug de compatibilidad.
+
+
+## Autorización posterior de publicación
+
+El usuario autorizó después el commit y push de esta documentación a `QA_CAMBIOS/`: mobile a `origin/QA` y TMS a `origin/dylan-tarifas`. Las notas anteriores de estado local describen el momento de las pruebas. Esta publicación contiene solo documentos QA, sin código de producto ni cambios de datos.
